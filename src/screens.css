@@ -65,3 +65,13 @@
 .rankbar { position: relative; display: inline-block; width: 60px; height: 6px; margin-left: 6px; background: #f0e3b0; border-radius: 4px; overflow: hidden; vertical-align: middle; }
 .rankbar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--good); }
 .rankbar .invested { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, var(--good) 0 3px, transparent 3px 6px); opacity: 0.7; }
+/* Modes and winning: New Game, victory, game over, In the Red */
+.modal.setup { width: min(600px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto; }
+.modal.setup h3 { margin: 12px 0 6px; }
+.modal.setup .row { margin-top: 8px; }
+.modal .bugle { margin-bottom: 8px; }
+.scores td { font-size: 0.85em; }
+.scores td:last-child { font-weight: normal; }
+.chip.red { background: #ffd9d2; }
+.chip.red .label { color: #b3261e; }
+@media (max-width: 520px) { .modal.setup .recipes { grid-template-columns: 1fr; } }

@@ -14,9 +14,13 @@ import {
   type FacilityKind, type OrderTier, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
+  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, dominationProgress, ENDINGS, everyLastPlot,
+  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition,
+  type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from '../sim/economy.ts';
+import type { ScoreEntry } from '../save.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -57,6 +61,13 @@ export type Action =
   | { type: 'plotBuyout'; plot: string }
   | { type: 'factionBuyout'; rival: RivalId }
   | { type: 'assault'; rival: RivalId; guards: string[] }
+  | { type: 'setup' } // open the New Game screen
+  | { type: 'start'; settings: Settings }
+  | { type: 'cancelSetup' }
+  | { type: 'keepSqueezing' }
+  | { type: 'reloadDawn' }
+  | { type: 'borrow'; amount: number }
+  | { type: 'repay' }
   | { type: 'refresh' };
 
 const ICON: Record<WeatherKind, string> = { scorcher: '🥵', hot: '☀️', warm: '🌤️', cloudy: '☁️', rainy: '🌧️', storm: '⛈️' };
@@ -99,6 +110,11 @@ export interface Hud {
   toast(text: string): void;
   inspected: string | null;
   muted: boolean;
+  /** The New Game screen: what's picked so far, and whether there's a game to go back to. */
+  setup: { settings: Settings; cancel: boolean } | null;
+  leaderboard: ScoreEntry[];
+  /** A lost run can reload its last dawn (never in Ironman). */
+  canReload: boolean;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -119,12 +135,16 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const hud: Hud = {
     inspected: null,
     muted: false,
+    setup: null,
+    leaderboard: [],
+    canReload: false,
     render(s, speed) {
       lastTop = set(top, topbar(s), lastTop);
       lastSpeeds = set(speedsEl, speeds(s, speed), lastSpeeds);
       lastGoals = set(goalsEl, goals(s), lastGoals);
-      lastPhase = set(phaseEl, s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : ledger(s), lastPhase);
-      lastPlot = set(plotEl, hud.inspected && s.phase !== 'report' ? plotCard(s, hud.inspected) : '', lastPlot);
+      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : outcomeScreen(s);
+      lastPhase = set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : ledger(s)), lastPhase);
+      lastPlot = set(plotEl, hud.inspected && s.phase !== 'report' && !modal ? plotCard(s, hud.inspected) : '', lastPlot);
     },
     popup(x, y, text, kind) {
       const el = document.createElement('div');
@@ -190,7 +210,23 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
       case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
+      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'reloadDawn': case 'repay':
         onAction({ type: d.action }); break;
+      case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
+      case 'start': if (hud.setup) onAction({ type: 'start', settings: { ...hud.setup.settings } }); break;
+      case 'pick': { // New Game screen choices
+        const st = hud.setup?.settings;
+        if (!st) break;
+        if (d.key === 'mode') st.mode = d.value as Mode;
+        if (d.key === 'difficulty') st.difficulty = d.value as Difficulty;
+        if (d.key === 'win') st.win = d.value as WinCondition;
+        if (d.key === 'target') st.target = Number(d.value);
+        if (d.key === 'peaceful') st.peaceful = !st.peaceful;
+        if (d.key === 'ironman') st.ironman = !st.ironman;
+        lastPhase = '';
+        onAction({ type: 'refresh' });
+        break;
+      }
     }
   });
 
@@ -206,8 +242,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const now = pct(ss), peak = Math.max(now, pct(s.peakScore));
     const bar = `<div class="rankbar" title="${r.next ? `${whole(hi - ss)} to ${r.next.title}` : 'Top rank'}${peak > now ? ' · striped: invested in buildings, it fills back in' : ''}"><div class="fill" style="width:${now}%"></div><div class="invested" style="left:${now}%;width:${peak - now}%"></div></div>`;
     return `
-      <div class="chip title">🍋 <span class="hide-sm">Lottie's Lemonade</span></div>
-      <div class="chip" data-testid="cash"><span class="label">Cash</span>${money(s.cash)}</div>
+      <div class="chip title" title="${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${DIFFICULTY[s.settings.difficulty].label}${s.settings.ironman ? ' · Ironman' : ''}">🍋 <span class="hide-sm">Lottie's Lemonade</span></div>
+      <div class="chip${s.redDays ? ' red' : ''}" data-testid="cash"${s.redDays ? ` title="${redDaysLeft(s)} day${redDaysLeft(s) === 1 ? '' : 's'} to get back above $0"` : ''}><span class="label">${s.redDays ? 'In the Red' : 'Cash'}</span>${money(s.cash)}</div>
       <div class="chip" title="Success Score = your net worth"><span class="badge">R${r.rank}</span><span class="hide-sm">${r.title} ·</span> <span data-testid="score">${whole(ss)}</span>${bar}</div>
       <div class="chip hide-sm"><span class="label">Reputation</span>${stars(s.reputation)}</div>
       <div class="chip hide-sm" title="How hard rivals are coming for you: more lemons, more raids" data-testid="threat"><span class="label">Threat</span>${'🍋'.repeat(threatLevel(s))}</div>
@@ -223,8 +259,23 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<div class="chip speeds">${views}${sb(0, '⏸')}${sb(1, '1×')}${sb(2, '2×')}${sb(3, '3×')}<button class="small ghost" data-action="skip" title="Finish the day instantly">⏭</button></div>`;
   }
 
+  /** The run's big goal, under Lottie's three: Domination, a score target, or the Peak to beat. */
+  function bigGoal(s: GameState) {
+    const win = winCondition(s);
+    if (s.outcome?.result === 'won' || win === 'none') {
+      if (!isEndless(s)) return null;
+      return { text: `Endless Summer: push your Peak Success Score past ${whole(s.peakScore)}`, progress: Math.min(1, successScore(s) / Math.max(1, s.peakScore)), done: false };
+    }
+    if (win === 'economic') return { text: `Win: reach ${whole(s.settings.target)} Success Score`, progress: Math.min(1, successScore(s) / s.settings.target), done: false };
+    if (s.rank < 3) return null; // Domination is a long way off; Lottie's goals are enough for now
+    const d = dominationProgress(s);
+    const out = 5 - d.rivalsLeft.length;
+    return { text: `Own the Bay: ${out} of 5 rivals out · Majority in ${d.majority} of ${d.districts} districts`, progress: (out / 5 + d.majority / d.districts) / 2, done: false };
+  }
+
   function goals(s: GameState) {
-    return `<div class="card"><div class="card-title">👵 Lottie's Goals</div>${lottieGoals(s).map((g) => `
+    const big = bigGoal(s);
+    return `<div class="card"><div class="card-title">👵 Lottie's Goals</div>${[...lottieGoals(s), ...(big ? [big] : [])].map((g) => `
       <div class="goal ${g.done ? 'done' : ''}"><div>${g.done ? '✅' : '•'} ${g.text}</div>
       <div class="bar"><div style="width:${Math.round(g.progress * 100)}%"></div></div></div>`).join('')}</div>`;
   }
@@ -238,7 +289,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function prepPanel(s: GameState) {
     const tabs = `<div class="tabs"><button class="small ${tab === 'today' ? 'on' : 'ghost'}" data-action="tab" data-tab="today">Today</button><button class="small ${tab === 'grow' ? 'on' : 'ghost'}" data-action="tab" data-tab="grow" data-testid="tab-grow">Stand &amp; marketing</button><button class="small ${tab === 'crew' ? 'on' : 'ghost'}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defense &amp; crew</button></div>`;
     const open = `<button class="big" data-action="open" data-testid="open">Open ${playerStands(s).length > 1 ? 'all stands' : ''} at ${clock(OPEN)} ☀️</button>`;
-    const fights = lastNight(s) ? `<div class="bugle">${lastNight(s)}</div>` : '';
+    const fights = (lastNight(s) ? `<div class="bugle">${lastNight(s)}</div>` : '') + inTheRed(s);
     if (tab === 'grow') return `<div class="panel" data-testid="prep">${tabs}${fights}${standPicker(s)}${growPanel(s)}${open}</div>`;
     if (tab === 'crew') return `<div class="panel" data-testid="prep">${tabs}${fights}${standPicker(s)}${defensePanel(s, s.selected)}${crewPanel(s)}${open}</div>`;
     const st = selectedStand(s);
@@ -272,13 +323,14 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       : !st.autoRestock && servings < cups * 0.8 ? `<p class="warn">You might sell out: about ${cups} cups wanted, ${servings} in stock.</p>` : '';
     return `<div class="panel" data-testid="prep">${tabs}
       <div class="bugle"><div class="masthead">The Citrine Bay Bugle</div>
-        <div class="dateline">${SEASON_LABEL[seasonOf(s.day)]}, day ${seasonDay(s.day)} · 5¢</div>
+        <div class="dateline">${s.settings.mode === 'campaign' && !isEndless(s) ? `Act ${actOf(s)}: ${actName(actOf(s))} · ` : isEndless(s) ? 'Endless Summer · ' : ''}${SEASON_LABEL[seasonOf(s.day)]}, day ${seasonDay(s.day)} · 5¢</div>
         <div class="headline">${headline(s)}</div>
         <div class="muted">Forecast: ${ICON[s.forecast.kind]} ${WEATHER[s.forecast.kind].label}, ${s.forecast.temp}°F (right about 4 days in 5)</div>
         ${s.today.lemonsSpoiled ? `<div class="bad">${s.today.lemonsSpoiled} lemons went bad overnight.</div>` : ''}
         ${lastNight(s)}
       </div>
-      ${st.wrecked ? `<p class="warn">This stand was smashed. ${blockBtn('rebuild', `Rebuild for ${whole(rebuildCost(s.plots[plotId]))}`, s.cash >= rebuildCost(s.plots[plotId]) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</p>` : ''}
+      ${inTheRed(s)}
+      ${st.wrecked ? `<p class="warn">${s.plots[plotId].busted ? 'This stand was busted up.' : 'This stand was smashed.'} ${blockBtn('rebuild', `${s.plots[plotId].busted ? 'Repair' : 'Rebuild'} for ${whole(rebuildCost(s.plots[plotId]))}`, s.cash >= rebuildCost(s.plots[plotId]) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</p>` : ''}
       ${orders(s)}
       ${standPicker(s)}
       <h3>Market for ${esc(PLOT_BY_ID[plotId].name)} (${sl.name})</h3>${supplyRows}${restock}
@@ -324,7 +376,33 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${nextBrand ? `<div class="upgrade"><div><b>${nextBrand.name}</b> · ${money(nextBrand.cost)}<div class="muted">+${Math.round(nextBrand.traffic * 100)}% foot traffic at every stand</div></div>
         ${blockBtn('brand', 'Buy', canBuyBrand(s), 'data-testid="brand"')}</div>` : ''}
       <h3>Local campaigns (this stand)</h3>${campaigns}
-      <p class="muted">Want another stand? Click an empty plot on the map (FOR SALE sign) to buy it.</p>`;
+      <p class="muted">Want another stand? Click an empty plot on the map (FOR SALE sign) to buy it.</p>
+      ${bank(s)}`;
+  }
+
+  /** Marisol's desk at the First Bank of Citrine Bay. */
+  function bank(s: GameState) {
+    const limit = loanLimit(s);
+    const l = s.loan;
+    const amounts = [...new Set([Math.floor(limit / 4 / 50) * 50, Math.floor(limit / 2 / 50) * 50, limit])].filter((a) => a > 0);
+    const owe = l ? `<div class="upgrade"><div><b>You owe ${money(l.principal)}</b><div class="muted">Next payment ${money(loanPayment(s))} on day ${l.nextDue} (${l.weeksLeft} left)${l.missed ? ' · <span class="bad">a payment was missed: one more and the bank takes a plot</span>' : ''}</div></div>
+      ${blockBtn('repay', 'Pay off', s.cash >= l.principal && s.phase !== 'open' ? { ok: true } : { ok: false, why: `Needs ${whole(l.principal)}` }, 'data-testid="repay"')}</div>` : '';
+    return `<h3>Marisol's bank</h3>
+      <div class="muted">Loans from the First Bank of Citrine Bay: up to half of what your land and stands are worth, 3% a week, paid back over 4 weeks. Borrowing never changes your Success Score.</div>
+      ${owe}
+      <div class="acts">${amounts.length ? amounts.map((a) => blockBtn('borrow', `Borrow ${whole(a)}`, canBorrow(s, a), `data-amount="${a}" data-testid="borrow"`)).join('') : '<span class="muted">Nothing to borrow against yet.</span>'}</div>`;
+  }
+
+  /** In the Red: how long you have, and what Lottie's Cookie Jar can still do. */
+  function inTheRed(s: GameState) {
+    if (!s.redDays) return '';
+    const left = redDaysLeft(s);
+    const jar = difficulty(s).cookieJar === 'always' ? 'Lottie\'s Cookie Jar will cover you if it comes to that.'
+      : cookieJarReady(s) ? `If you're still under, Lottie's Cookie Jar pays out once this ${s.settings.mode === 'campaign' && !isEndless(s) ? 'act' : 'season'}.`
+      : '<b>The Cookie Jar is empty.</b> Still under after that, and you\'re Squeezed Out.';
+    const need = Math.ceil(-s.cash / 50) * 50;
+    const help = need > 0 && canBorrow(s, need).ok ? blockBtn('borrow', `Borrow ${whole(need)} from Marisol`, { ok: true }, `data-amount="${need}"`) : '';
+    return `<div class="raidwarn" data-testid="in-the-red">🧾 <b>In the Red!</b> Cash is ${money(s.cash)}. ${left} day${left === 1 ? '' : 's'} to get back above $0. ${jar}<div class="acts">${help}</div></div>`;
   }
 
   function plotCard(s: GameState, id: string) {
@@ -335,7 +413,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field (open land)', dock: 'Dock (waterfront)', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
     let actions = '';
     if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') actions = blockBtn('buyPlot', `Buy for ${whole(plotPrice(s, id))}`, canBuyPlot(s, id), `data-plot="${id}" data-testid="buy-plot"`);
-    else if (ps.owner === 'player' && isWrecked(ps)) actions = blockBtn('rebuild', `Rebuild for ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}"`) + '<div class="muted">Rebuild by tomorrow or the plot goes For Sale.</div>';
+    else if (ps.owner === 'player' && isWrecked(ps)) actions = blockBtn('rebuild', `${ps.busted ? 'Repair' : 'Rebuild'} for ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}"`)
+      + `<div class="muted">${ps.busted ? 'Busted: closed until you repair it. The plot stays yours.' : 'Rebuild by tomorrow or the plot goes For Sale.'}</div>`;
     else if (ps.owner === 'player' && !st) {
       const kind = facilityFor(p.type);
       const lvl = ps.facility?.level ?? 0;
@@ -350,15 +429,24 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<div class="card" data-testid="plotcard">
       <div class="row"><b class="name">${esc(p.name)}</b><button class="small ghost" data-action="close-plot">✕</button></div>
       <div class="muted">${d.name} · ${typeLabel}</div>
+      ${control(s, p.district)}
       <div>Owner: <b>${ownerName(ps.owner)}</b></div>
       ${p.type !== 'civic' ? `<div class="muted">~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}</div>` : `<div class="muted">${d.feel}</div>`}
-      ${ps.facility ? `<div>Built: <b>${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}</b>${ps.facility.wrecked ? ' · <span class="bad">WRECKED</span>' : ''}</div>` : ''}
-      ${st ? `<div>Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup${st.wrecked ? ' · <span class="bad">WRECKED</span>' : ''}</div>` : ''}
+      ${ps.facility ? `<div>Built: <b>${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}</b>${ps.facility.wrecked ? ` · <span class="bad">${ps.busted ? 'BUSTED' : 'WRECKED'}</span>` : ''}</div>` : ''}
+      ${st ? `<div>Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup${st.wrecked ? ` · <span class="bad">${ps.busted ? 'BUSTED' : 'WRECKED'}</span>` : ''}</div>` : ''}
       ${ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `<div class="muted">Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${ps.garrison ? ` · ${ps.garrison} henchmen on guard` : ''}</div>` : ''}
       ${ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<div class="good">${ps.dibs.price !== undefined ? `Fire Sale! First Dibs at ${whole(ps.dibs.price)} through day ${ps.dibs.until}.` : 'You have First Dibs on this plot today!'}</div>` : ''}
       ${today}
       <div style="margin-top:6px">${actions}</div>
     </div>`;
+  }
+
+  /** Your share of the district's purchasable plots: Majority (51%) in all eight is half of Domination. */
+  function control(s: GameState, d: Parameters<typeof districtControl>[1]) {
+    const c = districtControl(s, d);
+    if (!c.total) return '';
+    const majority = c.share >= MAJORITY;
+    return `<div class="muted">You own ${c.mine} of ${c.total} plots here (${Math.round(c.share * 100)}%)${majority ? ' · <span class="good">Majority</span>' : c.mine ? ` · ${Math.ceil(c.total * MAJORITY) - c.mine} more for a Majority` : ''}</div>`;
   }
 
   function dayBar(s: GameState) {
@@ -413,7 +501,76 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <p class="lottie">👵 ${tip}</p>
       ${tonight(s)}
       <button class="big" data-action="sleep" data-testid="next">Sleep till dawn 🌙</button>
-      <div style="text-align:center;margin-top:8px"><button class="small ghost" data-action="newgame">New game</button></div>
+      <div style="text-align:center;margin-top:8px"><button class="small ghost" data-action="setup">New game</button></div>
+    </div></div>`;
+  }
+
+  // ---------- New Game, victory and game over ----------
+
+  function choice(key: string, value: string | number, on: boolean, label: string, blurb = '', testid = '') {
+    return `<button class="recipe ${on ? 'on' : 'ghost'}" data-action="pick" data-key="${key}" data-value="${value}"${testid ? ` data-testid="${testid}"` : ''}><b>${label}</b>${blurb ? `<span>${blurb}</span>` : ''}</button>`;
+  }
+
+  function scoreboard() {
+    if (!hud.leaderboard.length) return '';
+    const rows = hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)} <span class="muted">day ${e.peakDay}</span></td><td class="muted">${MODES[e.mode].label.split(':')[0]} · ${DIFFICULTY[e.difficulty].label}${e.peaceful ? ' · Peaceful' : ''}${e.ironman ? ' · Ironman' : ''}${e.result === 'won' ? ' · 🏆' : e.result === 'lost' ? ' · ✗' : ''}</td></tr>`).join('');
+    return `<h3>Peak Success Scores</h3><table class="scores">${rows}</table>`;
+  }
+
+  function setupScreen(st: Settings, cancel: boolean) {
+    const modes = (Object.keys(MODES) as Mode[]).map((m) => choice('mode', m, st.mode === m, MODES[m].label, MODES[m].blurb, `mode-${m}`)).join('');
+    const diffs = (Object.keys(DIFFICULTY) as Difficulty[]).map((d) => choice('difficulty', d, st.difficulty === d, DIFFICULTY[d].label, DIFFICULTY[d].blurb, `difficulty-${d}`)).join('');
+    const sandbox = st.mode === 'sandbox' ? `<h3>Sandbox rules</h3>
+      <div class="recipes">${choice('win', 'domination', st.win === 'domination', 'Domination', 'Every rival out, a Majority in every district')}${choice('win', 'economic', st.win === 'economic', 'Economic', 'Reach a Success Score')}${choice('win', 'none', st.win === 'none', 'No end', 'Just build')}</div>
+      ${st.win === 'economic' ? `<div class="picker">${RANKS.slice(3).map((r) => `<button class="small ${st.target === r.ss ? 'on' : 'ghost'}" data-action="pick" data-key="target" data-value="${r.ss}">${whole(r.ss)} <span class="muted">${r.title}</span></button>`).join('')}</div>` : ''}
+      <div class="row"><span class="name">Peaceful <span class="muted">No raids, Sabotage or HQ assaults for anyone. Rivals fall to buyouts or bankruptcy, and even Vera sells.</span></span><button class="small ${st.peaceful ? 'on' : 'ghost'}" data-action="pick" data-key="peaceful">${st.peaceful ? 'On' : 'Off'}</button></div>` : '';
+    return `<div class="modal-bg"><div class="modal setup" data-testid="setup">
+      <h2>🍋 Lemonade Stand Wars</h2>
+      <div class="muted">Grandma Lottie's corner stand is yours now. How do you want to play?</div>
+      <h3>Mode</h3><div class="recipes">${modes}</div>
+      <h3>Difficulty</h3><div class="recipes">${diffs}</div>
+      ${sandbox}
+      <div class="row"><span class="name">Ironman <span class="muted">One save: a lost run can't reload its last dawn</span></span><button class="small ${st.ironman ? 'on' : 'ghost'}" data-action="pick" data-key="ironman">${st.ironman ? 'On' : 'Off'}</button></div>
+      <button class="big" data-action="start" data-testid="start">Open the stand ☀️</button>
+      ${cancel ? '<div style="text-align:center;margin-top:8px"><button class="small ghost" data-action="cancelSetup">Back to my game</button></div>' : ''}
+      ${scoreboard()}
+    </div></div>`;
+  }
+
+  function outcomeScreen(s: GameState) {
+    const o = s.outcome;
+    if (!o || (o.result === 'won' && s.endlessSince !== undefined)) return '';
+    const t = s.tally ?? { buyouts: 0, smashes: 0, hqs: 0 };
+    const stats = `<table>
+      <tr><td>Day</td><td>${o.day}</td></tr>
+      <tr><td>Peak Success Score</td><td>${whole(s.peakScore)} <span class="muted">(day ${s.peakDay ?? o.day})</span></td></tr>
+      <tr><td>Rank</td><td>${s.rank} · ${RANKS[s.rank - 1].title}</td></tr>
+      <tr><td>Buyouts / Smashes / HQs</td><td>${t.buyouts} / ${t.smashes} / ${t.hqs}</td></tr>
+      <tr><td>Played on</td><td>${MODES[s.settings.mode].label.split(':')[0]} · ${DIFFICULTY[s.settings.difficulty].label}${s.settings.ironman ? ' · Ironman' : ''}</td></tr>
+    </table>`;
+    if (o.result === 'won') {
+      const e = o.ending ? ENDINGS[o.ending] : null;
+      const title = o.how === 'domination' ? 'You Own the Bay!' : 'Target hit!';
+      const bugle = e ? e.bugle : o.how === 'domination' ? 'LOTTIE\'S LEMONADE OWNS THE BAY' : `LOTTIE'S LEMONADE PASSES ${whole(s.settings.target)}`;
+      return `<div class="modal-bg"><div class="modal ledger" data-testid="victory">
+        <div class="bugle"><div class="masthead">The Citrine Bay Bugle</div><div class="headline">${bugle}</div></div>
+        <h2>🏆 ${title}</h2>
+        ${e ? `<div><b>${e.title}</b></div><p class="lottie">👵 "${e.lottie}"</p>` : ''}
+        ${everyLastPlot(s) ? '<div class="good">⭐ Every Last Plot: you own the whole Bay.</div>' : ''}
+        ${stats}
+        <button class="big" data-action="keepSqueezing" data-testid="keep-squeezing">Keep squeezing (Endless Summer) 🍋</button>
+        <div style="text-align:center;margin-top:8px"><button class="small ghost" data-action="setup">New game</button></div>
+      </div></div>`;
+    }
+    const lost = o.how === 'squeezed'
+      ? { title: 'Squeezed Out', line: 'Three days in the red, kiddo, and the Cookie Jar was empty. Even lemons need a little sugar.' }
+      : { title: 'Run Out of Town', line: 'No stands and no money for a table. Every empire starts again on a corner.' };
+    return `<div class="modal-bg"><div class="modal ledger" data-testid="game-over">
+      <h2>🍋 ${lost.title}</h2>
+      <p class="lottie">👵 "${lost.line}"</p>
+      ${stats}
+      ${hud.canReload ? '<button class="big" data-action="reloadDawn" data-testid="reload-dawn">Reload the last dawn 🌅</button>' : `${s.settings.ironman ? '<div class="muted">Ironman: this run is over.</div>' : ''}`}
+      <div style="text-align:center;margin-top:8px"><button class="small ${hud.canReload ? 'ghost' : ''}" data-action="setup">New game</button></div>
     </div></div>`;
   }
 

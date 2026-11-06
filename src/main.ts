@@ -8,12 +8,13 @@ import {
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ,
+  borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
 import { incomingRaids } from './sim/economy.ts';
-import { clearSave, loadGame, saveGame } from './save.ts';
+import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
@@ -31,7 +32,16 @@ const STREET_VIEW_MAX_DIST = 70;
 async function main() {
   const params = new URLSearchParams(location.search);
   const seedParam = params.get('seed');
-  let state: GameState = (seedParam ? null : loadGame()) ?? newGame(seedParam ? Number(seedParam) : undefined);
+  const saved = seedParam ? null : loadGame();
+  /** A fresh run: new seed (unless the URL pins one), its own leaderboard row, and a first dawn autosave. */
+  const freshRun = (settings: Partial<Settings> = {}, seed?: number) => {
+    const s = newGame(seed, settings);
+    s.runId = `${s.seed.toString(36)}-${Date.now().toString(36)}`;
+    saveDawn(s);
+    return s;
+  };
+  let state: GameState = saved ?? freshRun({}, seedParam ? Number(seedParam) : undefined);
+  state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`; // saves from before the leaderboard
   let speed = 1;
   let vipResume = 0; // speed to restore after a first-visit VIP scene
   let acc = 0;
@@ -125,9 +135,26 @@ async function main() {
       case 'open': openStands(state); acc = 0; if (speed === 0) speed = 1; break;
       case 'speed': speed = a.value; break;
       case 'skip': simulateRestOfDay(state); crowd.clear(); afterClose(); break;
-      case 'sleep': sleepUntilDawn(state); crowd.clear(); battle.stop(); afterSleep(); break;
+      case 'sleep': if (sleepUntilDawn(state)) saveDawn(state); crowd.clear(); battle.stop(); afterSleep(); break;
       case 'mute': hud.muted = audio.toggle(); break;
-      case 'newgame': clearSave(); state = newGame(); crowd.clear(); hud.inspected = null; break;
+      case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); break;
+      case 'cancelSetup': hud.setup = null; break;
+      case 'start': {
+        if (state.day > 1) recordScore(state); // the run being left keeps its row on the leaderboard
+        clearSave();
+        state = freshRun(a.settings);
+        hud.setup = null; hud.inspected = null; speed = 1;
+        crowd.clear(); battle.stop(); bay.sync(state); focusPlot(state.selected);
+        break;
+      }
+      case 'keepSqueezing': keepSqueezing(state); break;
+      case 'reloadDawn': {
+        const d = loadDawn(state.runId);
+        if (d) { state = d; hud.inspected = null; crowd.clear(); battle.stop(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
+        break;
+      }
+      case 'borrow': borrow(state, a.amount); break;
+      case 'repay': repayLoan(state); break;
       case 'upgrade': upgradeStand(state); break;
       case 'brand': buyBrand(state); break;
       case 'campaign': runCampaign(state, a.id); break;
@@ -169,15 +196,21 @@ async function main() {
     bay.sync(state);
     bay.select(hud.inspected);
     flushNews();
-    if (state.phase !== 'open') saveGame(state);
+    const choosing = hud.setup && !hud.setup.cancel; // first visit: nothing worth saving until they press Start
+    if (state.phase !== 'open' && !choosing) saveGame(state);
+    if (a.type === 'sleep' || state.outcome) recordScore(state);
+    hud.canReload = state.outcome?.result === 'lost' && !!loadDawn(state.runId);
     hud.render(state, speed);
   };
   const hud = createHud(document.getElementById('ui')!, act);
   hud.muted = audio.muted();
+  // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
+  if (!saved && !seedParam) { hud.setup = { settings: defaultSettings(), cancel: false }; hud.leaderboard = loadLeaderboard(); }
   const flushNews = () => {
     while (state.news.length) {
       const n = state.news.shift()!;
-      if (n.startsWith('RANK UP')) audio.stinger('rank-up');
+      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) audio.stinger('rank-up');
+      if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) audio.stinger('squeezed-out');
       hud.toast(n);
     }
   };
@@ -203,7 +236,7 @@ async function main() {
 
   // Keyboard: space pauses, 1-3 set speed.
   window.addEventListener('keydown', (e) => {
-    if (state.phase !== 'open') return;
+    if (state.phase !== 'open' || hud.setup) return;
     if (e.code === 'Space') { speed = speed === 0 ? 1 : 0; e.preventDefault(); }
     if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) speed = Number(e.code.slice(5));
   });

@@ -3,6 +3,7 @@
 // Contracts at a Dock pier, with Bottling Works making the bottles.
 import { FACTIONS, RANKS, type RivalId } from './balance.ts';
 import { fightRaid, raidPartyFor, threatLevel, type BattleReport } from './crew.ts';
+import { peaceful } from './modes.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
 import { hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -218,7 +219,7 @@ function deliver(s: GameState, o: Order): Pickup {
   if (o.plot && s.plots[o.plot].facility?.wrecked) return fail(`The ${o.tier === 'heli' ? 'helipad' : 'pier'} was smashed.`);
   if (s.bottles < o.qty) return fail(`Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
   let raid: BattleReport | undefined;
-  if ((o.tier === 'heli' || o.tier === 'ship') && o.plot && threatLevel(s) >= DELIVERY_RAID_THREAT) {
+  if ((o.tier === 'heli' || o.tier === 'ship') && o.plot && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s)) {
     const rng = { seed: s.seed };
     const roll = nextRandom(rng);
     const rivals = (Object.keys(FACTIONS) as RivalId[]).filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day);

@@ -1,12 +1,13 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
-import { FACTIONS, GUARD_BASE, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
+import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
 import { runBattle, type BattleInput, type Fighter } from './combat.ts';
 import { creditGuards, guardFighter, guardReady, henchmanFor, NO_DEFENSE, threatLevel, type BattleReport } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { netWorth, ownedPlots } from './economy.ts';
+import { bump, checkVictory, peaceful } from './modes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -152,6 +153,8 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
   ps.garrison = 0;
   if (ps.stand) ps.stand.price = Math.max(ps.stand.price, 0.5);
   s.news.push(`Skip Larkin: "Done deal! ${FACTIONS[id].name} sell ${PLOT_BY_ID[plotId].name} for ${money(price)}."`);
+  bump(s, 'buyouts');
+  checkVictory(s);
   return true;
 }
 
@@ -159,7 +162,8 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
 
 /** The business: their cash plus what's invested in their buildings. The land goes to the Fire Sale. */
 export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
-  const m = HQS[id].buyout;
+  // Peaceful Sandbox: even Vera sells once Weakened (at 3x), so Domination can finish without a fight.
+  const m = HQS[id].buyout ?? (peaceful(s) ? PEACEFUL_VERA_BUYOUT : null);
   if (m === null) return null;
   const buildings = ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
   return Math.round((Math.max(0, s.rivals[id].cash) + buildings) * m);
@@ -182,6 +186,7 @@ export function factionBuyout(s: GameState, id: RivalId): boolean {
   s.cash = round2(s.cash - price);
   s.today.land = round2(s.today.land + price);
   s.news.push(`${HQS[id].boss} signs on the napkin at Dot's Diner: Lottie buys out ${FACTIONS[id].name} for ${money(price)}!`);
+  bump(s, 'buyouts');
   eliminate(s, id, 'buyout');
   return true;
 }
@@ -213,6 +218,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
     sale++;
   }
   if (sale) s.news.push(`FIRE SALE: ${sale} ${FACTIONS[id].name} plot${sale === 1 ? '' : 's'} at 25% off. Lottie has First Dibs for ${FIRE_SALE.days} days.`);
+  checkVictory(s);
 }
 
 /** At dawn: rivals in the red for a week go bust. */
@@ -230,6 +236,7 @@ export function rivalsBankrupt(s: GameState): void {
 export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Blocker {
   const hq = HQS[id];
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
+  if (peaceful(s)) return { ok: false, why: 'Peaceful: no HQ assaults in this Sandbox' };
   if (s.rank < hq.rank) return rankNeed(hq.rank);
   if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
   if (s.phase !== 'prep') return { ok: false, why: 'Storm the HQ at Morning Prep' };
@@ -299,6 +306,7 @@ export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultR
   }
   s.seed = rng.seed;
   s.news.push(`${HQS[id].boss} tries "${hq.move}", but it isn't enough. Lottie's crew takes ${plot.name}!`);
+  bump(s, 'hqs');
   eliminate(s, id, 'hq');
   finish(s, reports);
   return { won: true, stage: 'boss', reports };

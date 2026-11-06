@@ -1,6 +1,6 @@
 # Handoff: where the build stands
 
-Snapshot as of 2026-11-06 (commit after `afdb43f`). Read this first, then `docs/spec/`.
+Snapshot as of 2026-11-06 (modes and winning added). Read this first, then `docs/spec/`.
 
 ## The spec
 
@@ -18,7 +18,8 @@ Where the spec and the code disagree, the spec wins. Tunable numbers live in `sr
 
 ## Built
 
-- **Economy loop:** Lottie's Corner, Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, 3 recipes (Classic, Pink, Mint), sweetness, customer segments, "why people walked past", Ledger, Reputation, Success Score, Ranks 1–10 (never drop), Lottie's Goals, Auto-Restock, saves (`SAVE_VERSION` 7).
+- **Economy loop:** Lottie's Corner, Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, 3 recipes (Classic, Pink, Mint), sweetness, customer segments, "why people walked past", Ledger, Reputation, Success Score, Ranks 1–10 (never drop), Lottie's Goals, Auto-Restock, saves (`SAVE_VERSION` 8; `migrateSave` carries v7 saves forward as a Classic campaign).
+- **Modes and winning** (`src/sim/modes.ts`, numbers in `balance.ts` under "modes, difficulty"): a New Game screen (first visit, or "New game") picks Story Campaign / Sandbox: Turf War / Endless Summer, Laid Back / Classic / Cutthroat, Ironman, and for Sandbox the win condition (Domination, Economic with a rank-threshold target, none) and Peaceful. Difficulty sets raid frequency (×0.5/×1/×1.5), Threat −1 on Laid Back, Respect days (5/3/1), Busted-only on Laid Back (10% repair, never lapses), and the Cookie Jar (always / once per act / never; per season outside the campaign). In the Red counts dawns below $0: 3 days, then the Cookie Jar pays the shortfall plus a day of upkeep and wages, or the run is Squeezed Out. Run Out of Town: no stands and under $150 (never on Laid Back). Marisol's loans (up to 50% of non-cash Net Worth, 3% a week, 4 weekly dawns, two misses repossess the cheapest plot; Net Worth subtracts what's owed). Domination (all rivals out plus 51% of every district's purchasable plots) ends the campaign with the Beloved or Iron Pitcher ending, then "Keep squeezing" into Endless Summer. Peak Success Score goes on a local top-10 leaderboard (`save.ts`), and a lost run can reload the last dawn autosave unless it's Ironman. Sandbox opens the border rule at Rank 2. Acts follow `ACT_BY_RANK` until the story drives them.
 - **Stands and marketing:** L1–L5, brand tiers, Sandwich-Board Kid (L1–L3), Free Sample Day.
 - **Map:** Citrine Bay, 8 districts, 116 plots, 11 borders, Footholds, land prices by district and plot type, land appreciation with development, Day 3 $300 side lot with a table.
 - **Rivals:** 5 factions with home turf, stand levels by district (+1 Prime/Landmark, +1 every 30 days up to their cap), Grow and Guard spending, rival-vs-rival raids, seeded helipads/piers on their Fields and Docks.
@@ -32,7 +33,7 @@ Where the spec and the code disagree, the spec wins. Tunable numbers live in `sr
 
 Roughly in the order the spec's Scope plan needs them:
 
-1. **Modes and winning:** Classic / Laid Back (Busted, not Wrecked; 10% repair) / Cutthroat (auto-pause off drops the clock to fight speed on a raid warning) / Sandbox; Domination and Endless Summer win conditions; Lottie's Cookie Jar.
+1. **Modes and winning, the rest:** Sandbox map sizes (Small/Medium/Large) and picking rivals; Custom difficulty sliders; minimum raid warnings and Cutthroat's auto-pause (they need real-time nights, item 10); the Syndicate's Threat trigger (Threat 4 on Cutthroat outside the campaign); the Out-of-Towner in Endless (item 9); 3 rotating dawn autosaves plus manual slots; selling plots (a 24-hour sealed-bid auction, item 4); the bay painting itself yellow on Domination (rendering: `s.outcome.result === 'won'`).
 2. **Story:** the 5 acts, Day 5 Steward incident, boss phone taunts and barks, Summer Fair taste-off, Act 5 siege and the Syndicate (all difficulties), Call the Big Squeeze, endings, boss exit scenes, County Fair (Fall week 1).
 3. **Damage model:** damaged stands sell at their HP share, overnight repairs at 15% × HP lost, Auto-Repair (Rank 3).
 4. **Land and control:** district control tiers (Foothold → Majority → Stronghold → Full Control) and district perks, auctions (sealed bid after First Dibs and Fire Sales), Lemon Groves (Field, $25,000, up to 2, +5% traffic), Warehouses, Billboards.
@@ -45,6 +46,8 @@ Roughly in the order the spec's Scope plan needs them:
 11. **Art and music polish:** the Toy-Town Noir pass (painted-wood materials, tilt-shift, peg-doll characters, faction patterns, streetlights and flashlights at night, cartoon brawl clouds, crate-label logos), faction leitmotifs, Lottie's Theme layers by rank.
 
 Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat's +1 for leading, Cutthroat's ×0.9/×1.1 traffic and costs.
+
+Spec conflicts settled in code: Laid Back's Busted repair is 10% (canon and the spec body) though Appendix A's difficulty table still says 15%; Wrecked rebuilds stay 15% (canon) against the table's 30%.
 
 ## Working rules
 

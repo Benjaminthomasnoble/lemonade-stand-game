@@ -5,7 +5,7 @@
 import {
   CLUBHOUSE, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RESPECT_DAYS, ROSTER_BASE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Objective } from './combat.ts';
@@ -15,6 +15,7 @@ import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
 import { breakTruce } from './rivals.ts';
+import { bump, peaceful } from './modes.ts';
 
 export interface Guard {
   id: string;
@@ -43,6 +44,7 @@ export interface Raid {
 
 export interface BattleReport {
   delivery?: boolean;
+  busted?: boolean; // Laid Back: your stand was Busted (closed until a repair), not Wrecked
   hq?: 'gate' | 'yard' | 'boss'; // a stage of an HQ assault
   day: number;
   attacker: FactionId;
@@ -82,8 +84,9 @@ export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale i
 
 // ---------- Threat ----------
 
+/** Threat follows rank (Ranks 1–2 give 1, up to 5 at Ranks 9–10); Laid Back takes 1 away. */
 export function threatLevel(s: GameState): number {
-  return Math.min(5, Math.max(1, Math.ceil(s.rank / 2)));
+  return Math.min(5, Math.max(1, Math.ceil(s.rank / 2) + DIFFICULTY[s.settings.difficulty].threat));
 }
 
 // ---------- defenses ----------
@@ -158,8 +161,9 @@ export function rebuildChance(s: GameState, plotId: string): number {
   return Math.max(0, FACTIONS[ps.owner as RivalId].rebuild - 0.3 * Math.max(0, next - 1));
 }
 
+/** Rebuild a Wrecked building for 15% of what was invested; repair a Busted one (Laid Back) for 10%. */
 export function rebuildCost(ps: PlotState): number {
-  return Math.ceil(ps.invested * REBUILD_SHARE);
+  return Math.ceil(ps.invested * (ps.busted ? BUSTED_REPAIR_SHARE : REBUILD_SHARE));
 }
 
 export function rebuildStand(s: GameState, plotId: string): boolean {
@@ -171,6 +175,7 @@ export function rebuildStand(s: GameState, plotId: string): boolean {
   if (ps.stand) ps.stand.wrecked = false;
   if (ps.facility) ps.facility.wrecked = false;
   delete ps.wreckedDay;
+  delete ps.busted;
   s.news.push(`Hammers and elbow grease: ${PLOT_BY_ID[plotId].name} is back in business.`);
   return true;
 }
@@ -363,6 +368,7 @@ export function availableRaiders(s: GameState): Guard[] {
 
 export function canRaid(s: GameState, plotId: string, guardIds: string[]): Blocker {
   const ps = s.plots[plotId];
+  if (peaceful(s)) return { ok: false, why: 'Peaceful: no raids in this Sandbox' };
   if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}, ${RANKS[RAID_RANK - 1].title}` };
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'Storm an HQ from the Rivals board' };
   if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
@@ -401,11 +407,12 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
 
 /** Called when the stands close: rivals decide tonight's raids, and the player gets warned. */
 export function planNight(s: GameState): void {
+  if (peaceful(s)) return; // Peaceful Sandbox: rivals scheme with prices and land, never fists
   const rng = { seed: s.seed };
   const threat = threatLevel(s);
   // Rivals scheme against the player.
   const recentlyHit = s.battles.some((b) => b.defender === 'player' && b.day >= s.day - 1);
-  if (s.day > NO_RAID_DAYS && !recentlyHit && nextRandom(rng) < RAIDS_PER_WEEK[threat - 1] / 7) {
+  if (s.day > NO_RAID_DAYS && !recentlyHit && nextRandom(rng) < RAIDS_PER_WEEK[threat - 1] * DIFFICULTY[s.settings.difficulty].raids / 7) {
     const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
     const candidates = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day + 1);
     if (mine.length && candidates.length) {
@@ -467,12 +474,16 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
   let loot = 0;
 
   ps.defense.fenceHp = res.fenceHpLeft;
+  // Laid Back: your stands are only ever Busted (closed until a 10% repair), never Wrecked or lost.
+  const busted = defender === 'player' && DIFFICULTY[s.settings.difficulty].bustOnly;
   if (res.outcome === 'smashed' && (ps.stand || ps.facility)) {
     if (ps.stand) ps.stand.wrecked = true; else ps.facility!.wrecked = true;
     ps.wreckedDay = s.day;
     ps.smashedBy = raid.attacker;
     ps.smashes = [...(ps.smashes ?? []).filter((d) => d > s.day - 7), s.day];
+    if (busted) ps.busted = true;
     if (defender !== 'player') ps.garrison = 0;
+    if (raid.attacker === 'player') bump(s, 'smashes');
   }
   if (res.outcome === 'robbed' && !raid.delivery) {
     loot = defender === 'player'
@@ -492,11 +503,11 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     r.grudge = Math.min(100, r.grudge + (res.winner === 'att' ? 20 : 8));
   }
   if (defender === 'player' && raid.attacker !== 'player' && res.winner === 'def') {
-    s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + RESPECT_DAYS;
+    s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + DIFFICULTY[s.settings.difficulty].respectDays;
   }
 
   const report: BattleReport = {
-    delivery: raid.delivery,
+    delivery: raid.delivery, busted: busted && res.outcome === 'smashed' ? true : undefined,
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled,
@@ -539,7 +550,9 @@ export function battleHeadline(b: BattleReport): string {
     }
   }
   switch (b.outcome) {
-    case 'smashed': return `Night raid! ${fname(b.attacker)} smash ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. Rebuild it at Morning Prep or lose the plot!`;
+    case 'smashed': return b.busted
+      ? `Night raid! ${fname(b.attacker)} bust up ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. It's closed until you repair it.`
+      : `Night raid! ${fname(b.attacker)} smash ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. Rebuild it at Morning Prep or lose the plot!`;
     case 'robbed': return `Night raid! ${fname(b.attacker)} grab ${money(b.loot)} from the till at ${where}.`;
     case 'damaged': return `${fname(b.attacker)} rattle ${where} but leave empty-handed.`;
     default: return `Raid repelled at ${where}! ${fname(b.attacker)} limp home. They'll keep their distance for a few days.`;
@@ -584,7 +597,7 @@ export function crewAtDawn(s: GameState): void {
       }
     };
     if (ps.owner === 'player') {
-      if (s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale();
+      if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(); // Busted stands wait for their repair
       continue;
     }
     const r = s.rivals[ps.owner as RivalId];

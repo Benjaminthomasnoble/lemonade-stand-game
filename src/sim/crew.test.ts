@@ -43,6 +43,7 @@ describe('crew and raids', () => {
     s.reputation = 4;
     let early = 0, later = 0;
     for (let d = 0; d < 40; d++) {
+      s.cash = Math.max(s.cash, 200); // stay out of the red: this test is about raids, not going broke
       openStand(s);
       simulateRestOfDay(s);
       const incoming = s.raids.filter((r) => r.attacker !== 'player' && s.plots[r.target].owner === 'player').length;

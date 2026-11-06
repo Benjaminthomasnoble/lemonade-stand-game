@@ -248,3 +248,44 @@ export const HENCHMEN = [
   { level: 4, gear: 'vest' as GearId },
   { level: 5, gear: 'pro' as GearId },
 ];
+
+// ---------- modes, difficulty, winning and losing (spec: Game modes and winning) ----------
+export type Mode = 'campaign' | 'sandbox' | 'endless';
+export type Difficulty = 'laidback' | 'classic' | 'cutthroat';
+export type WinCondition = 'domination' | 'economic' | 'none';
+export const MODES: Record<Mode, { label: string; blurb: string }> = {
+  campaign: { label: 'Story Campaign', blurb: 'Lottie\'s Corner to the whole Bay. Win by Domination, then keep squeezing.' },
+  sandbox: { label: 'Sandbox: Turf War', blurb: 'Your rules: pick the win condition, or turn combat off with Peaceful.' },
+  endless: { label: 'Endless Summer', blurb: 'No finish line. Play for the highest Peak Success Score.' },
+};
+/** Difficulty changes how often rivals come and how hard setbacks land, never the rules. */
+export const DIFFICULTY: Record<Difficulty, {
+  label: string; blurb: string;
+  raids: number; // rival raids on the player, × Classic
+  threat: number; // added to Threat (minimum 1)
+  respectDays: number; // a rival whose raid you beat stays away this long
+  bustOnly: boolean; // a lost raid only Busts your stand (closed until a repair), never Wrecks it
+  cookieJar: 'always' | 'perAct' | 'never';
+  canLose: boolean;
+}> = {
+  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get Busted, never Wrecked. No game over.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false },
+  classic: { label: 'Classic', blurb: 'The intended balance. Lottie\'s Cookie Jar bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true },
+  cutthroat: { label: 'Cutthroat', blurb: 'Half again as many raids, a 1-day Respect cooldown, no Cookie Jar.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true },
+};
+/** Laid Back: repair a Busted stand for this share of what was invested (canon; Appendix A's 15% is older). */
+export const BUSTED_REPAIR_SHARE = 0.1;
+/** Cash below $0 at dawn this many days running, and the Cookie Jar is the last chance. */
+export const IN_THE_RED_DAYS = 3;
+/** Domination: every rival eliminated and at least this share of every district's purchasable plots. */
+export const MAJORITY = 0.51;
+/** Sandbox's Economic win: a Success Score target picked from the rank thresholds (default Rank 8). */
+export const ECONOMIC_DEFAULT_RANK = 8;
+/** Peaceful (Sandbox): Vera finally sells, at this multiple of her cash and buildings, once Weakened. */
+export const PEACEFUL_VERA_BUYOUT = 3;
+/** The Beloved ending needs this Reputation or better (and more buyouts than Smashes and HQ captures). */
+export const BELOVED_STARS = 4;
+/** Campaign acts until the story beats land: the act each rank falls in (spec: Acts and ranks, simulated Classic rank-up days). */
+export const ACT_BY_RANK = [1, 1, 1, 2, 3, 3, 4, 4, 5, 5];
+export const ACTS = ["Lottie's Corner", 'Surf & Turf', 'Grounds for Revenge', 'Fields & Fizz', 'The Big Squeeze'];
+/** Marisol's loans from the First Bank of Citrine Bay. */
+export const LOAN = { share: 0.5, weeklyRate: 0.03, weeks: 4, missesToRepossess: 2 };

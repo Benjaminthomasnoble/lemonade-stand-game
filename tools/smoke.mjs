@@ -186,6 +186,35 @@ try {
   console.log('hq assault (blenders alive, last stage):', out);
   if (!/gate|yard|boss/.test(out)) fail(`no HQ battle recorded: ${out}`);
 
+  // Modes and winning: a first visit opens the New Game screen; In the Red, victory and game over each get their screen.
+  await page.waitForFunction(() => !window.__game.battle(), null, { timeout: 60000 }).catch(() => {});
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(base);
+  await page.waitForSelector('body[data-ready="1"]');
+  await page.waitForSelector('[data-testid="setup"]');
+  await page.click('[data-testid="mode-sandbox"]');
+  await page.click('[data-testid="difficulty-laidback"]');
+  await page.screenshot({ path: 'test-results/16-new-game.png' });
+  await page.click('[data-testid="start"]');
+  await page.waitForSelector('[data-testid="prep"]');
+  const picked = await page.evaluate(() => `${window.__game.state.settings.mode}/${window.__game.state.settings.difficulty}`);
+  if (picked !== 'sandbox/laidback') fail(`new game settings not applied: ${picked}`);
+  await page.evaluate(() => { const g = window.__game; g.state.cash = -40; g.state.redDays = 1; g.act({ type: 'refresh' }); });
+  await page.waitForSelector('[data-testid="in-the-red"]');
+  await page.screenshot({ path: 'test-results/17-in-the-red.png' });
+  await page.evaluate(() => { const g = window.__game; g.state.cash = 500; g.state.redDays = 0; g.state.settings.mode = 'campaign'; g.state.outcome = { result: 'won', how: 'domination', day: g.state.day, ending: 'beloved' }; g.act({ type: 'refresh' }); });
+  await page.waitForSelector('[data-testid="victory"]');
+  await page.screenshot({ path: 'test-results/18-victory.png' });
+  await page.click('[data-testid="keep-squeezing"]');
+  await page.waitForSelector('[data-testid="prep"]');
+  if (!(await page.evaluate(() => window.__game.state.endlessSince >= 1))) fail('Keep squeezing did not start Endless Summer');
+  await page.evaluate(() => { const g = window.__game; delete g.state.endlessSince; g.state.outcome = { result: 'lost', how: 'squeezed', day: g.state.day }; g.act({ type: 'refresh' }); });
+  await page.waitForSelector('[data-testid="game-over"]');
+  await page.screenshot({ path: 'test-results/19-game-over.png' });
+  await page.click('[data-testid="reload-dawn"]');
+  await page.waitForSelector('[data-testid="prep"]');
+  if (await page.evaluate(() => !!window.__game.state.outcome)) fail('reloading the last dawn kept the loss');
+
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

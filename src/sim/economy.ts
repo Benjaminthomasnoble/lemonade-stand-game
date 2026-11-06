@@ -16,15 +16,17 @@ import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } fr
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
 export * from './crew.ts';
 export * from './vip.ts';
 export * from './rivals.ts';
+export * from './modes.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface Weather { kind: WeatherKind; temp: number }
 export type Phase = 'prep' | 'open' | 'report';
@@ -68,6 +70,7 @@ export interface PlotState {
   wreckedDay?: number; // day the stand or facility here was smashed
   smashedBy?: FactionId;
   smashes?: number[]; // days this plot was smashed (rebuild chance drops for each in the last 7 days)
+  busted?: boolean; // Laid Back: the player's building is closed until a repair, never lost
 }
 
 export interface Defense { tier: number; fenceHp: number; gadgets: GadgetId[] }
@@ -140,6 +143,15 @@ export interface GameState {
   noTruceUntil?: number; // after breaking a truce, no rival accepts one through this day
   offers: Order[];
   orders: Order[];
+  settings: Settings; // mode and difficulty, chosen at New Game
+  runId?: string; // leaderboard entry for this run
+  peakDay?: number; // day the Peak Success Score was set
+  redDays?: number; // dawns in a row with cash below $0
+  cookieJar?: string[]; // acts (or seasons) Lottie's Cookie Jar has already paid out in
+  loan?: Loan;
+  tally?: Tally;
+  outcome?: Outcome; // the run was won or lost
+  endlessSince?: number; // kept squeezing after a win (Endless Summer) from this day
 }
 
 export type SimEvent =
@@ -248,7 +260,7 @@ export function rivalPrice(id: RivalId, level: number, p: Plot): number {
   return round2(STAND_LEVELS[level - 1].topPrice * 0.45 * FACTIONS[id].price * (d.priceMult ?? 1));
 }
 
-export function newGame(seed = Date.now() & 0x7fffffff): GameState {
+export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settings> = {}): GameState {
   const rng = { seed };
   const forecast = rollWeather(rng, 'summer');
   const market = rollMarket(rng);
@@ -258,7 +270,7 @@ export function newGame(seed = Date.now() & 0x7fffffff): GameState {
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
     guards: [], recruits: [], clubhouse: 0, nextId: 1, raids: [], battles: [], respectFromPlayer: {},
-    bottles: 0, offers: [], orders: [],
+    bottles: 0, offers: [], orders: [], settings: defaultSettings(settings), peakDay: 1,
   };
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
@@ -450,7 +462,7 @@ function segmentAt(rng: Rng, district: DistrictId, hour: number): SegmentId {
 // ---------- the business day ----------
 
 export function openStands(s: GameState): boolean {
-  if (s.phase !== 'prep') return false;
+  if (s.phase !== 'prep' || gameOver(s)) return false;
   const rng = { seed: s.seed };
   let weather: Weather;
   if (nextRandom(rng) < FORECAST_ACCURACY) {
@@ -638,7 +650,8 @@ function closeDay(s: GameState): void {
   t.reputationAfter = s.reputation;
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
-  s.peakScore = Math.max(s.peakScore, successScore(s));
+  const score = successScore(s);
+  if (score > s.peakScore) { s.peakScore = score; s.peakDay = s.day; }
   trackOutselling(s);
   checkRank(s);
   s.phase = 'report';
@@ -647,7 +660,7 @@ function closeDay(s: GameState): void {
 
 /** Night passes (tonight's raids are fought), then dawn opens Morning Prep. */
 export function sleepUntilDawn(s: GameState): boolean {
-  if (s.phase !== 'report') return false;
+  if (s.phase !== 'report' || gameOver(s)) return false;
   resolveNight(s);
   s.day++;
   s.minute = DAWN;
@@ -677,6 +690,7 @@ export function sleepUntilDawn(s: GameState): boolean {
   crewAtDawn(s);
   rivalsBankrupt(s);
   vipAtDawn(s);
+  fortunesAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
@@ -722,7 +736,8 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
   if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
   const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;
-  const gate = DISTRICT_RANK[p.district] ?? 3;
+  // Sandbox: the start district is open from Day 1 and the border rule applies from Rank 2.
+  const gate = s.settings.mode === 'sandbox' ? (p.district === 'maple' ? 1 : 2) : DISTRICT_RANK[p.district] ?? 3;
   if (!dibs && s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
   const reachable = p.district === 'maple' || hasFoothold(s, 'player', p.district) || BORDERS[p.district].some((d) => hasFoothold(s, 'player', d));
   if (!reachable && !dibs) return { ok: false, why: 'Get a Foothold in a bordering district first' };
@@ -748,6 +763,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1, selectedStand(s).price); ps.invested += STAND_LEVELS[0].cost; }
   delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
+  checkVictory(s);
   return true;
 }
 
@@ -813,15 +829,21 @@ function rivalsAtDawn(s: GameState): void {
 
 // ---------- score and rank ----------
 
-/** Net Worth = cash + land + 75% of building investment + inventory at cost − loans. */
-export function netWorth(s: GameState, owner: FactionId = 'player'): number {
-  let total = owner === 'player' ? s.cash : s.rivals[owner as RivalId].cash;
+/** Everything but cash: land + 75% of building investment + inventory at cost. */
+export function assetValue(s: GameState, owner: FactionId = 'player'): number {
+  let total = 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.owner !== owner) continue;
     total += ps.landValue + BUILDING_VALUE_SHARE * ps.invested + (owner === 'player' && ps.stand ? inventoryValue(ps.stand) : 0);
   }
-  return Math.max(0, round2(total));
+  return round2(total);
+}
+
+/** Net Worth = cash + land + 75% of building investment + inventory at cost − loans. */
+export function netWorth(s: GameState, owner: FactionId = 'player'): number {
+  const cash = owner === 'player' ? s.cash - (s.loan?.principal ?? 0) : s.rivals[owner as RivalId].cash;
+  return Math.max(0, round2(cash + assetValue(s, owner)));
 }
 export const successScore = (s: GameState, owner: FactionId = 'player') => Math.floor(netWorth(s, owner));
 
@@ -950,4 +972,16 @@ export function lottieGoals(s: GameState): Goal[] {
 export function isGameState(x: unknown): x is GameState {
   const s = x as GameState;
   return !!s && typeof s === 'object' && s.version === SAVE_VERSION && typeof s.cash === 'number' && !!s.plots && !!s.today;
+}
+
+/** Saves migrate forward so long runs survive updates. Returns null for anything unreadable. */
+export function migrateSave(x: unknown): GameState | null {
+  const s = x as GameState;
+  if (!s || typeof s !== 'object' || typeof s.cash !== 'number' || !s.plots || !s.today) return null;
+  if (s.version === 7) { // v8: modes and difficulty; older runs carry on as a Classic campaign
+    s.settings = defaultSettings();
+    s.peakDay = s.day;
+    s.version = 8;
+  }
+  return isGameState(s) ? s : null;
 }

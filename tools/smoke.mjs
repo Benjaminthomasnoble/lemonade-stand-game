@@ -119,6 +119,43 @@ try {
   await page.click('[data-testid="replay"] >> nth=0');
   await page.waitForTimeout(6000);
   await page.screenshot({ path: 'test-results/11-night-replay.png' });
+
+  // Milestone 5: build a helipad and a pier through the plot card, then watch a chopper and a ship pick up.
+  const sites = await page.evaluate(() => {
+    const g = window.__game, st = g.state;
+    if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+    st.rank = 7; st.reputation = 4.5; st.cash = 2000000;
+    const field = Object.keys(st.plots).find((id) => id.startsWith('groves') && st.plots[id].owner === 'hollis' && !st.plots[id].stand);
+    const dock = Object.keys(st.plots).find((id) => id.startsWith('harbor') && st.plots[id].owner === 'fizzco' && !st.plots[id].stand);
+    for (const id of [field, dock]) st.plots[id].owner = 'player';
+    g.act({ type: 'refresh' });
+    return { field, dock };
+  });
+  for (const id of [sites.field, sites.dock]) {
+    await page.evaluate((id) => window.__game.act({ type: 'inspect', plot: id }), id);
+    await page.click('[data-testid="facility"]');
+  }
+  const built = await page.evaluate((x) => [window.__game.state.plots[x.field].facility?.kind, window.__game.state.plots[x.dock].facility?.kind].join(','), sites);
+  if (built !== 'helipad,pier') fail(`facilities not built: ${built}`);
+  for (const [tier, plot, minute, shot] of [['heli', sites.field, 14 * 60, '12-helicopter'], ['ship', sites.dock, 10 * 60, '13-ship']]) {
+    await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 30000 });
+    await page.evaluate(([tier, plot]) => {
+      const g = window.__game, st = g.state;
+      if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+      st.bottles = 50000;
+      st.raids = [];
+      st.rank = 2; // keep Threat low so no delivery raid in the smoke test
+      st.orders.push({ id: 'smoke-' + tier, tier, client: 'Smoke Test', qty: tier === 'ship' ? 30000 : 4000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
+      g.act({ type: 'open' });
+      g.act({ type: 'speed', value: 0 });
+    }, [tier, plot]);
+    await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
+    await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
+    await page.waitForFunction(() => window.__game.vip(), null, { timeout: 15000 });
+    await page.evaluate(() => window.__game.act({ type: 'speed', value: 0 }));
+    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 60000 });
+    await page.screenshot({ path: `test-results/${shot}.png` });
+  }
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

@@ -206,3 +206,59 @@ export function wreckLook(stand: THREE.Object3D): THREE.Group {
   sign(g, 'CLOSED: SMASHED', 2.2, 0, 1.0, 2.0, '#ffffff', '#d64545');
   return g;
 }
+
+/** Player facilities (milestone 5): Bottling Works, Helipad tiers, Pier tiers. */
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier', level: number): THREE.Group {
+  const g = new THREE.Group();
+  const yellow = PLAYER_COLOR;
+  if (kind === 'bottling') {
+    const w = 6 + level, h = 3 + level;
+    box(g, w, h, 6, 0xe9e1cf, 0, h / 2, -3.5);
+    box(g, w + 0.4, 0.4, 6.4, yellow, 0, h + 0.2, -3.5);
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 3 + level, 10), m(0xb5523b));
+    stack.position.set(w / 2 - 1, h + 1.5 + level / 2, -5);
+    stack.castShadow = true;
+    g.add(stack);
+    // A conveyor of bottles out front.
+    box(g, w - 1, 0.5, 0.8, 0x5b6470, 0, 0.5, 0.2);
+    for (let i = 0; i < 8; i++) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.45, 8), m(0xf6e27a, 0.3));
+      b.position.set(-(w - 2) / 2 + i * ((w - 2) / 7), 0.97, 0.2);
+      g.add(b);
+    }
+    sign(g, "LOTTIE'S BOTTLING", 4, 0, h - 0.8, -0.48, '#f6d33c', '#3a2a10');
+  } else if (kind === 'helipad') {
+    const r = 3 + level * 0.8;
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.2, 32), m(0x6b6f76));
+    pad.position.set(0, 0.1, -2.5);
+    pad.receiveShadow = true;
+    g.add(pad);
+    const h = new THREE.Mesh(new THREE.PlaneGeometry(r * 1.2, r * 1.2), new THREE.MeshStandardMaterial({ map: labelTexture('H', '#6b6f76', '#ffffff'), roughness: 0.9 }));
+    h.rotation.x = -Math.PI / 2;
+    h.position.set(0, 0.21, -2.5);
+    g.add(h);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      box(g, 0.25, 0.25, 0.25, yellow, Math.cos(a) * (r + 0.2), 0.2, -2.5 + Math.sin(a) * (r + 0.2));
+    }
+    if (level >= 2) box(g, 1.6, 4, 1.6, 0xe9e1cf, -4.5, 2, -6);
+    if (level >= 3) { box(g, 3, 2.5, 3, 0xe9e1cf, 4, 1.25, -6); sign(g, 'HELIPORT', 2.8, 4, 1.6, -4.48, '#f6d33c'); }
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1, 8), m(0xff8c1a));
+    sock.position.set(-4.5, level >= 2 ? 4.5 : 1.6, -1);
+    sock.rotation.z = Math.PI / 2;
+    g.add(sock);
+  } else {
+    const len = 12 + level * 6, w = 3 + level;
+    box(g, w, 0.35, len, 0x8a5a30, 0, 0.35, -len / 2);
+    for (let z = -2; z > -len; z -= 4) for (const x of [-w / 2 + 0.2, w / 2 - 0.2]) box(g, 0.3, 1.8, 0.3, 0x5a3a20, x, 0, z);
+    for (let i = 0; i < level * 2; i++) box(g, 0.9, 0.9, 0.9, i % 2 ? 0xf6d33c : 0xc9a227, (i % 2 ? 1 : -1) * (w / 2 - 0.7), 0.95, -3 - i * 1.6);
+    if (level >= 3) { box(g, 0.4, 7, 0.4, 0xd64545, w / 2 + 1, 3.5, -len + 3); box(g, 5, 0.4, 0.4, 0xd64545, w / 2 - 1, 7, -len + 3); }
+    const pole = box(g, 0.12, 4, 0.12, 0xffffff, -w / 2 + 0.3, 2, -1);
+    pole.castShadow = false;
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.7), new THREE.MeshStandardMaterial({ color: yellow, side: THREE.DoubleSide }));
+    flag.position.set(-w / 2 + 0.95, 3.6, -1);
+    g.add(flag);
+  }
+  g.name = 'facility';
+  return g;
+}

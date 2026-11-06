@@ -11,6 +11,7 @@ import {
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
+import { pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order } from './vip.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -18,9 +19,10 @@ import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_B
 export * from './balance.ts';
 export * from './map.ts';
 export * from './crew.ts';
+export * from './vip.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export interface Weather { kind: WeatherKind; temp: number }
 export type Phase = 'prep' | 'open' | 'report';
@@ -59,6 +61,7 @@ export interface PlotState {
   landValue: number;
   defense: Defense;
   garrison?: number; // rival henchmen on guard here
+  facility?: Facility; // Bottling Works, Helipad or Pier
   dibs?: { who: FactionId; until: number }; // First Dibs after a smash: only they can buy until this day
 }
 
@@ -123,10 +126,14 @@ export interface GameState {
   raids: Raid[]; // planned for tonight (theirs and yours)
   battles: BattleReport[]; // most recent first
   respectFromPlayer: Partial<Record<RivalId, number>>;
+  bottles: number;
+  offers: Order[];
+  orders: Order[];
 }
 
 export type SimEvent =
   | { type: 'passerby'; plot: string; at: string; segment: SegmentId; buys: boolean; reason?: WalkReason; price: number; owner: FactionId }
+  | { type: 'pickup'; order: Order; ok: boolean; raid?: BattleReport }
   | { type: 'close' };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -237,6 +244,7 @@ export function newGame(seed = Date.now() & 0x7fffffff): GameState {
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
     guards: [], recruits: [], clubhouse: 0, nextId: 1, raids: [], battles: [], respectFromPlayer: {},
+    bottles: 0, offers: [], orders: [],
   };
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
@@ -543,6 +551,7 @@ export function tickMinute(s: GameState): SimEvent[] {
     s.spawnCarry[p.id] = carry;
   }
   s.seed = rng.seed;
+  for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;
   if (s.minute >= CLOSE) {
     closeDay(s);
@@ -604,6 +613,7 @@ function closeDay(s: GameState): void {
   }
   t.revenue = round2(revenue);
   t.cupCosts = round2(cupCosts);
+  pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
   s.cash = round2(s.cash - t.upkeep - t.tax);
   let rep = s.reputation;
@@ -649,6 +659,7 @@ export function sleepUntilDawn(s: GameState): boolean {
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
   crewAtDawn(s);
+  vipAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
@@ -716,7 +727,8 @@ export function canBuildStand(s: GameState, plotId: string): Blocker {
   const ps = s.plots[plotId];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
   if (ps.stand) return { ok: false, why: 'There is already a stand here' };
-  if (p.type === 'field' || p.type === 'dock') return { ok: false, why: `${p.type === 'field' ? 'Fields' : 'Docks'} hold helipads and piers (coming soon)` };
+  if (p.type === 'field' || p.type === 'dock') return { ok: false, why: `${p.type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
+  if (ps.facility) return { ok: false, why: 'A facility is built here' };
   if (s.phase !== 'prep') return { ok: false, why: 'Build during Morning Prep' };
   if (s.cash < STAND_LEVELS[0].cost) return { ok: false, why: `Needs $${STAND_LEVELS[0].cost}` };
   return { ok: true };

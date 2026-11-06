@@ -6,10 +6,11 @@ import {
   REAL_SECONDS_PER_MINUTE, runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
-  battleHeadline, welcomeDex, type BattleReport,
+  battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
+import { createVip } from './world/vip.ts';
 import { incomingRaids } from './sim/economy.ts';
 import { clearSave, loadGame, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
@@ -62,7 +63,19 @@ async function main() {
     if (kind === 'sale' || kind === 'miss') { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); }
   });
 
+  const vip = createVip(world.scene);
   const drawEvents = (events: SimEvent[]) => {
+    for (const e of events) {
+      if (e.type !== 'pickup') continue;
+      flushNews();
+      if (e.raid) { playBattle(e.raid); continue; }
+      const o = e.order;
+      if (!e.ok || !o.plot || (o.tier !== 'heli' && o.tier !== 'ship')) continue;
+      crowd.clear();
+      focusPlot(o.plot, o.tier === 'ship' ? 60 : 45);
+      vip.play(o.tier, bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1);
+      audio.stinger('raid-won');
+    }
     const t = world.controls.target;
     const zoomedIn = world.camera.position.distanceTo(t) < STREET_VIEW_MAX_DIST;
     if (!zoomedIn) return;
@@ -132,6 +145,9 @@ async function main() {
         break;
       }
       case 'replay': if (state.battles[a.index]) playBattle(state.battles[a.index]); break;
+      case 'facility': buildFacility(state, a.plot, a.kind); break;
+      case 'accept': acceptOrder(state, a.id); break;
+      case 'decline': declineOrder(state, a.id); break;
       case 'refresh': break;
     }
     bay.sync(state);
@@ -183,6 +199,8 @@ async function main() {
     backend: world.backend,
     crowd: () => crowd.activeCount(),
     battle: () => battle.active(),
+    vip: () => vip.active(),
+    vipWhere: () => vip.where(),
     dex: () => welcomeDex(state),
     focus: (id: string) => focusPlot(id, 18),
     fastForward(minutes: number) {
@@ -210,6 +228,7 @@ async function main() {
     bay.update(state, timer.getElapsed());
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
+    vip.update(dt);
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {

@@ -36,9 +36,11 @@ export interface Raid {
   party?: Fighter[]; // rival raids: who comes
   detected: boolean;
   eta: string; // "23:40"
+  delivery?: boolean; // a raid on a VIP pickup: they're after the cargo, not the till
 }
 
 export interface BattleReport {
+  delivery?: boolean;
   day: number;
   attacker: FactionId;
   defender: FactionId;
@@ -166,7 +168,7 @@ function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
 export function refreshRecruits(s: GameState, force = false): void {
   if (s.rank < HIRE_RANK) return;
   if (!force && s.recruits.length && s.day % 7 !== 1) return;
-  const rng = { seed: s.seed ^ 0x5eed };
+  const rng = { seed: s.seed };
   const n = 4;
   s.recruits = Array.from({ length: n }, () => makeGuard(s, rng, nextRandom(rng) < 0.25 ? 2 : 1));
   s.seed = rng.seed;
@@ -277,6 +279,13 @@ function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: num
   };
 }
 
+export function raidPartyFor(s: GameState, rival: RivalId): Fighter[] {
+  const rng = { seed: s.seed };
+  const party = raidParty(s, rival, threatLevel(s), rng);
+  s.seed = rng.seed;
+  return party;
+}
+
 function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng): Fighter[] {
   const [lo, hi] = RAID_PARTY[threat - 1].size;
   const n = lo + Math.floor(nextRandom(rng) * (hi - lo + 1));
@@ -361,14 +370,14 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   }
   // A daytime raid: customers see it.
   s.reputation = Math.max(1, Math.round((s.reputation - (objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid)) * 100) / 100);
-  return fight(s, raid, false);
+  return fightRaid(s, raid, false);
 }
 
 // ---------- rival raids and the night ----------
 
 /** Called when the stands close: rivals decide tonight's raids, and the player gets warned. */
 export function planNight(s: GameState): void {
-  const rng = { seed: s.seed ^ 0x417e };
+  const rng = { seed: s.seed };
   const threat = threatLevel(s);
   // Rivals scheme against the player.
   const recentlyHit = s.battles.some((b) => b.defender === 'player' && b.day >= s.day - 1);
@@ -401,18 +410,18 @@ export function planNight(s: GameState): void {
     const t = targets[Math.floor(nextRandom(rng) * targets.length)];
     if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: '02:00' });
   }
-  s.seed = (s.seed ^ rng.seed) | 0;
+  s.seed = rng.seed;
 }
 
 /** Fight every planned raid (called as the player sleeps). */
 export function resolveNight(s: GameState): void {
   const raids = s.raids;
   s.raids = [];
-  for (const r of raids) fight(s, r, true);
+  for (const r of raids) fightRaid(s, r, true);
 }
 
-function fight(s: GameState, raid: Raid, night: boolean): BattleReport {
-  const rng = { seed: s.seed ^ 0xb47 };
+export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleReport {
+  const rng = { seed: s.seed };
   const ps = s.plots[raid.target];
   const defender = ps.owner as FactionId;
   const away = new Set(s.raids.flatMap((r) => r.guards ?? []));
@@ -422,7 +431,7 @@ function fight(s: GameState, raid: Raid, night: boolean): BattleReport {
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night);
   const input = battleInput(s, raid, attackers, night, away, rng);
   const res = runBattle(input, rng);
-  s.seed = (s.seed ^ rng.seed) | 0;
+  s.seed = rng.seed;
   let loot = 0;
 
   ps.defense.fenceHp = res.fenceHpLeft;
@@ -430,7 +439,7 @@ function fight(s: GameState, raid: Raid, night: boolean): BattleReport {
     ps.stand.wrecked = true;
     if (defender !== 'player') ps.garrison = 0;
   }
-  if (res.outcome === 'robbed') {
+  if (res.outcome === 'robbed' && !raid.delivery) {
     loot = defender === 'player'
       ? Math.min(s.cash, Math.max(25, round2((ps.stand?.day.revenue ?? 0) * 0.6)))
       : Math.min(s.rivals[defender as RivalId].cash, 40 * (ps.stand?.level ?? 1) * (ps.stand?.level ?? 1) + 40);
@@ -461,6 +470,7 @@ function fight(s: GameState, raid: Raid, night: boolean): BattleReport {
   }
 
   const report: BattleReport = {
+    delivery: raid.delivery,
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled,
@@ -477,6 +487,7 @@ const fname = (f: FactionId) => (f === 'player' ? "Lottie's crew" : FACTIONS[f a
 
 export function battleHeadline(b: BattleReport): string {
   const where = PLOT_BY_ID[b.target].name;
+  if (b.delivery) return b.outcome === 'robbed' ? `Delivery raid! ${fname(b.attacker)} overrun ${where} and make off with the cargo.` : `Delivery raid at ${where} beaten off! The cargo gets through.`;
   if (b.attacker === 'player') {
     switch (b.outcome) {
       case 'smashed': return `RAID! Lottie's crew flattens the ${fname(b.defender)} stand at ${where}.`;
@@ -497,7 +508,7 @@ export function battleHeadline(b: BattleReport): string {
 
 /** Wages, rival rebuilds, First Dibs expiry and the rivals' Guard/Strike spending. */
 export function crewAtDawn(s: GameState): void {
-  const rng = { seed: s.seed ^ 0xda7 };
+  const rng = { seed: s.seed };
   const wages = s.guards.reduce((a, g) => a + guardWage(g), 0);
   if (wages) {
     s.cash = round2(s.cash - wages);
@@ -549,7 +560,7 @@ export function crewAtDawn(s: GameState): void {
     }
     r.attention = threatLevel(s) + (r.grudge > 30 ? 1 : 0);
   }
-  s.seed = (s.seed ^ rng.seed) | 0;
+  s.seed = rng.seed;
 }
 
 /** Rival plots start with a little protection, by personality. */

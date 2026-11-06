@@ -58,3 +58,6 @@
 .raidwarn { background: #ffe3dc; border: 2px solid #d64545; border-radius: 10px; padding: 8px; margin: 6px 0; text-align: left; }
 .fight { margin-top: 4px; font-size: 0.9em; }
 .fight button { margin-left: 4px; }
+.order { background: #fff; border-radius: 10px; padding: 8px; margin: 6px 0; }
+.order .muted { font-size: 0.8em; }
+.orders h3 { margin-top: 6px; }

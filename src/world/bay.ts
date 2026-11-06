@@ -9,7 +9,7 @@ import {
 import { mat, SEA_X, SEA_Z, tree } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, type Stand as StandModel } from './stand.ts';
-import { civicBuilding, fenceModel, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand, wreckLook } from './buildings.ts';
+import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand, wreckLook } from './buildings.ts';
 import { makePerson } from './people.ts';
 
 export const SIDEWALK_OFFSET = STREET_HALF + 1.1;
@@ -41,7 +41,7 @@ const ownerColor = (owner: string | null) =>
 
 function guardsAt(s: GameState, id: string): number {
   const ps = s.plots[id];
-  if (!ps.stand) return 0;
+  if (!ps.stand && !ps.facility) return 0;
   if (ps.owner === 'player') return s.guards.filter((g) => g.post === id && g.outUntil <= s.day).length;
   return ps.garrison ?? 0;
 }
@@ -156,6 +156,7 @@ export function createBay(scene: THREE.Scene): Bay {
     const p = v.plot;
     if (p.type === 'civic') v.root.add(civicBuilding(p.name));
     else if (p.type === 'hq') v.root.add(hqBuilding(ps.owner as RivalId | 'player', p.name));
+    else if (ps.facility && ps.owner === 'player') v.root.add(facilityModel(ps.facility.kind, ps.facility.level));
     else if (p.type === 'field') { v.root.add(fieldRows()); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (p.type === 'dock') { v.root.add(pierModel()); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (ps.stand && ps.owner === 'player') {
@@ -191,7 +192,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
     },

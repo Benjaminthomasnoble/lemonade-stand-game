@@ -6,7 +6,7 @@ A browser tycoon game: start with one lemonade stand, grow it into an empire, an
 
 ## Status
 
-Milestones 1 to 4 are playable; helicopter and ship clients are next.
+All five milestones are playable. Next: tuned balance numbers from the spec, HQ assaults, Sit-downs and the campaign story.
 
 1. ✅ One stand and the economy loop: Lottie's Folding Table on Maple Row, the Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, recipe cards and sweetness, customer types, "why people walked past", the Ledger, Reputation stars, Success Score and ranks, Lottie's Goals, saves
 2. ✅ Stand upgrades (Folding Table → Wooden Stand → Kiosk → Lemon Shack → Citrus Palace, rank-gated) and marketing (brand tiers, Sandwich-Board Kid, Free Sample Day), rank-up headlines
@@ -14,7 +14,7 @@ Milestones 1 to 4 are playable; helicopter and ship clients are next.
 4. ✅ Buying territory: Citrine Bay's 8 districts and 116 plots, Footholds and borders, more stands
 
 Music: the main theme and four stingers from the spec's music brief (`public/audio/`).
-5. Helicopter and ship clients
+5. ✅ Big orders and VIP clients: Local Orders (L3 stands), Caterer Trucks, Bottling Works L1–L3, Helipads on Field plots (helicopter VIPs) and Piers on Dock plots (ship contracts), pickup moments you can watch, Delivery Raids at Threat 3+, failed orders cost a star
 
 Design source of truth: the game spec (canon in the project files). Tunable numbers live in `src/sim/balance.ts`.
 

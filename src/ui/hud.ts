@@ -10,6 +10,8 @@ import {
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, incomingRaids, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
+  bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilityFor, ORDER_TIERS, tierOpen, PLOTS,
+  type FacilityKind, type OrderTier,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from '../sim/economy.ts';
@@ -46,6 +48,9 @@ export type Action =
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
   | { type: 'mute' }
+  | { type: 'facility'; plot: string; kind: FacilityKind }
+  | { type: 'accept'; id: string }
+  | { type: 'decline'; id: string }
   | { type: 'refresh' };
 
 const ICON: Record<WeatherKind, string> = { scorcher: '🥵', hot: '☀️', warm: '🌤️', cloudy: '☁️', rainy: '🌧️', storm: '⛈️' };
@@ -173,6 +178,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'objective': objective = d.value as Objective; lastPlot = ''; onAction({ type: 'refresh' }); break;
       case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); break;
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
+      case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
+      case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;
       case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
         onAction({ type: d.action }); break;
     }
@@ -191,7 +198,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="chip hide-sm"><span class="label">Reputation</span>${stars(s.reputation)}</div>
       <div class="chip hide-sm" title="How hard rivals are coming for you: more lemons, more raids" data-testid="threat"><span class="label">Threat</span>${'🍋'.repeat(threatLevel(s))}</div>
       <div class="chip"><span class="label">${SEASON_LABEL[seasonOf(s.day)]} day ${seasonDay(s.day)}</span>${clock(s.minute)}</div>
-      <div class="chip">${ICON[w.kind]} ${w.temp}°F</div>`;
+      <div class="chip">${ICON[w.kind]} ${w.temp}°F</div>
+      ${s.bottles || bottlingCapacity(s) ? `<div class="chip hide-sm" title="Bottles ready for big orders"><span class="label">Bottles</span>🍾 ${s.bottles.toLocaleString('en-US')}</div>` : ''}`;
   }
 
   function speeds(s: GameState, speed: number) {
@@ -257,6 +265,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         ${lastNight(s)}
       </div>
       ${st.wrecked ? `<p class="warn">This stand was smashed. ${blockBtn('rebuild', `Rebuild for ${whole(rebuildCost(s.plots[plotId]))}`, s.cash >= rebuildCost(s.plots[plotId]) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</p>` : ''}
+      ${orders(s)}
       ${standPicker(s)}
       <h3>Market for ${esc(PLOT_BY_ID[plotId].name)} (${sl.name})</h3>${supplyRows}${restock}
       <h3>Recipe</h3><div class="recipes">${cards}</div>
@@ -312,7 +321,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field (open land)', dock: 'Dock (waterfront)', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
     let actions = '';
     if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') actions = blockBtn('buyPlot', `Buy for ${whole(ps.landValue)}`, canBuyPlot(s, id), `data-plot="${id}" data-testid="buy-plot"`);
-    else if (ps.owner === 'player' && !st) actions = blockBtn('build', `Build a Folding Table (${whole(STAND_LEVELS[0].cost)})`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`);
+    else if (ps.owner === 'player' && !st) {
+      const kind = facilityFor(p.type);
+      const lvl = ps.facility?.level ?? 0;
+      const fac = kind && lvl < 3 ? blockBtn('facility', `${lvl ? 'Upgrade to' : 'Build'} ${FACILITIES[kind].names[lvl]} (${whole(FACILITIES[kind].costs[lvl])})`, canBuildFacility(s, id, kind), `data-plot="${id}" data-kind="${kind}" data-testid="facility"`) + `<div class="muted">${FACILITIES[kind].blurb[lvl]}</div>` : '';
+      const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : blockBtn('build', `Build a Folding Table (${whole(STAND_LEVELS[0].cost)})`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`);
+      actions = (ps.facility ? `<div>Built: <b>${FACILITIES[ps.facility.kind].names[lvl - 1]}</b></div>` : '') + stand + fac;
+    }
     else if (ps.owner === 'player' && st) actions = id === s.selected ? '<div class="muted">Managing this stand in the panel.</div>' : `<button class="small" data-action="select" data-plot="${id}">Manage this stand</button>`;
     else if (ps.owner && ps.owner !== 'player' && st && p.type !== 'hq') actions = raidPlanner(s, id);
     const today = st && s.phase !== 'prep' ? `<div class="muted">Today: ${st.day.customers} cups sold of ${st.day.passersby} walking by</div>` : '';
@@ -385,6 +400,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     </div></div>`;
   }
 
+  function orders(s: GameState) {
+    const offers = s.offers.map((o) => `<div class="order"><div><b>${ORDER_TIERS[o.tier].label}:</b> ${esc(o.client)}<div class="muted">${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} for <b>${whole(o.pay)}</b>, pickup day ${o.due}${o.tier === 'heli' || o.tier === 'ship' ? ` · +${'0.2'}★ if delivered` : ''}</div></div>
+      <div class="acts"><button class="small" data-action="accept" data-id="${o.id}" data-testid="accept">Accept</button><button class="small ghost" data-action="decline" data-id="${o.id}">No thanks</button></div></div>`).join('');
+    const need = bottlesNeeded(s);
+    const active = s.orders.map((o) => `<div class="muted">📦 ${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'}, ${whole(o.pay)}, pickup day ${o.due}${o.due === s.day ? ' (today!)' : ''}</div>`).join('');
+    const short = need > s.bottles ? `<div class="${need - s.bottles > bottlingCapacity(s) * Math.max(1, Math.min(...s.orders.filter((o) => o.tier !== 'local').map((o) => o.due - s.day))) ? 'bad' : 'muted'}">Bottles: ${s.bottles.toLocaleString('en-US')} of ${need.toLocaleString('en-US')} ready (${bottlingCapacity(s).toLocaleString('en-US')} a day bottled overnight)</div>` : '';
+    const locked = (Object.keys(ORDER_TIERS) as OrderTier[]).map((t) => ({ t, b: tierOpen(s, t) })).filter((x) => !x.b.ok);
+    const hint = locked.length && s.rank >= 2 && !offers && !active ? `<div class="muted">Big orders: ${locked.slice(0, 2).map((x) => `${ORDER_TIERS[x.t].label}s need ${x.b.ok ? '' : x.b.why}`).join('; ')}.</div>` : '';
+    if (!offers && !active && !hint) return '';
+    return `<div class="orders" data-testid="orders"><h3>Big orders</h3>${offers}${active}${short}${hint}</div>`;
+  }
+
   function lastNight(s: GameState) {
     const fights = s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day);
     if (!fights.length) return '';
@@ -443,7 +470,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   function guardRow(s: GameState, g: Guard) {
-    const stands = playerStands(s);
+    const stands = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && (s.plots[p.id].stand || s.plots[p.id].facility));
     const i = g.post ? stands.findIndex((p) => p.id === g.post) : -1;
     const nextPost = stands[(i + 1) % stands.length];
     const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);

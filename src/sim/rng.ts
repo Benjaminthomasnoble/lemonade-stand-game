@@ -1,5 +1,7 @@
 // Small seeded PRNG (mulberry32). The whole economy draws from this so a
 // given seed always plays out the same way, in the browser and in Node.
+export type Rng = { seed: number };
+
 export function nextRandom(state: { seed: number }): number {
   let t = (state.seed = (state.seed + 0x6d2b79f5) | 0);
   t = Math.imul(t ^ (t >>> 15), t | 1);

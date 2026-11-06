@@ -9,7 +9,8 @@ import {
 import { mat, SEA_X, SEA_Z, tree } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, type Stand as StandModel } from './stand.ts';
-import { civicBuilding, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand } from './buildings.ts';
+import { civicBuilding, fenceModel, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand, wreckLook } from './buildings.ts';
+import { makePerson } from './people.ts';
 
 export const SIDEWALK_OFFSET = STREET_HALF + 1.1;
 /** How far the stand model's origin sits from the street center. */
@@ -37,6 +38,13 @@ export interface Bay {
 
 const ownerColor = (owner: string | null) =>
   owner === 'player' ? PLAYER_COLOR : owner ? FACTIONS[owner as RivalId].color : 0xffffff;
+
+function guardsAt(s: GameState, id: string): number {
+  const ps = s.plots[id];
+  if (!ps.stand) return 0;
+  if (ps.owner === 'player') return s.guards.filter((g) => g.post === id && g.outUntil <= s.day).length;
+  return ps.garrison ?? 0;
+}
 
 export function createBay(scene: THREE.Scene): Bay {
   const roadMat = mat(0x55575c), walkMat = mat(0xd6d2c8), dashMat = mat(0xf4f1d0);
@@ -157,6 +165,18 @@ export function createBay(scene: THREE.Scene): Bay {
       v.stand = m;
     } else if (ps.stand) v.root.add(rivalStand(ps.owner as RivalId, ps.stand.level));
     else if (!ps.owner) v.root.add(forSaleSign());
+    if (ps.stand?.wrecked && v.root.children[0]) v.root.add(wreckLook(v.root.children[0]));
+    if (ps.defense.tier && ps.defense.fenceHp > 0 && p.type !== 'civic') v.root.add(fenceModel(ps.defense.tier));
+    // Whoever stands guard here waits by the gate.
+    const guards = guardsAt(s, p.id);
+    for (let i = 0; i < Math.min(guards, ps.owner === 'player' ? 6 : 2); i++) {
+      const g = makePerson(ps.owner === 'player' ? PLAYER_COLOR : FACTIONS[ps.owner as RivalId].color, 0x264653);
+      g.position.set((i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.12, 1.5);
+      g.rotation.y = 0;
+      g.scale.setScalar(0.95);
+      g.name = 'sentry';
+      v.root.add(g);
+    }
     // Customers queue at the stand's counter, in world space.
     const local = v.stand ? v.stand.servePoint.clone() : new THREE.Vector3(0, 0, 1.6);
     v.serve.copy(v.root.localToWorld(local.setY(0.12)));
@@ -171,7 +191,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.stand?.level ?? 0}`;
+        const key = `${ps.owner}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
     },

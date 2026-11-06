@@ -152,3 +152,93 @@ export const FACTIONS: Record<RivalId, Faction> = {
 export const PLAYER_COLOR = 0xf6d33c;
 /** Rank needed to buy land in a district (Maple Row from the start, Old Town at Rank 2; the rest is an assumption until the spec says otherwise). */
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
+
+// ---------- defenses, crew and raids (canon sections 11–14) ----------
+export interface PerimeterTier { tier: number; name: string; rank: number; cost: number; hp: number; breachDps: number; slow: number }
+// Fence HP and breach damage are tuned so the canon anchors hold (npm run combat):
+// T1 raid vs Picket + 1 guard fails ~60%; T4 raid vs a kitted P4 plot holds ~75%.
+export const PERIMETERS: PerimeterTier[] = [
+  { tier: 1, name: 'Picket Fence', rank: 1, cost: 150, hp: 280, breachDps: 0, slow: 0 },
+  { tier: 2, name: 'Chain-Link Fence', rank: 2, cost: 1200, hp: 500, breachDps: 0, slow: 0 },
+  { tier: 3, name: 'Sharpened Stakes', rank: 4, cost: 6000, hp: 800, breachDps: 0.5, slow: 0 },
+  { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 1150, breachDps: 1, slow: 0.3 },
+  { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 3000, breachDps: 0, slow: 0 },
+];
+/** Defenders hit harder while any perimeter stands (P5 doubles it). */
+export const FENCE_DEFENDER_BONUS = 0.25;
+
+export type GadgetId = 'alarm' | 'goose' | 'slick' | 'sprinkler' | 'floodlights' | 'watchtower';
+export const GADGETS: Record<GadgetId, { name: string; rank: number; cost: number; detection: number; text: string }> = {
+  alarm: { name: 'Tin-Can Alarm', rank: 2, cost: 100, detection: 0.15, text: '+15% raid detection' },
+  goose: { name: 'Guard Goose', rank: 2, cost: 400, detection: 0.15, text: '+15% detection; honks and stuns the first attacker' },
+  slick: { name: 'Lemon-Peel Slick', rank: 4, cost: 250, detection: 0, text: 'The first 3 attackers slip (stunned 4s)' },
+  sprinkler: { name: 'Sprinkler Ambush', rank: 4, cost: 800, detection: 0, text: 'Soaked attackers deal 20% less damage' },
+  floodlights: { name: 'Floodlights', rank: 5, cost: 1500, detection: 0, text: 'Cancels the night stealth bonus' },
+  watchtower: { name: 'Watchtower', rank: 6, cost: 5000, detection: 0.3, text: '+30% detection' },
+};
+export const GADGET_SLOTS = (standLevel: number) => (standLevel >= 4 ? 3 : 2);
+
+export type WeaponId = 'fists' | 'clubs' | 'hatchets';
+export const WEAPONS: Record<WeaponId, { name: string; rank: number; cost: number; hit: number; chop: number }> = {
+  fists: { name: 'Fists', rank: 1, cost: 0, hit: 10, chop: 5 },
+  clubs: { name: 'Clubs', rank: 3, cost: 150, hit: 18, chop: 10 },
+  hatchets: { name: 'Hatchets', rank: 6, cost: 1200, hit: 24, chop: 40 },
+};
+export type GearId = 'none' | 'vest' | 'pro';
+export const GEAR: Record<GearId, { name: string; rank: number; cost: number; hp: number; armor: number }> = {
+  none: { name: 'No padding', rank: 1, cost: 0, hp: 0, armor: 0 },
+  vest: { name: 'Padded Vest', rank: 3, cost: 200, hp: 40, armor: 0 },
+  pro: { name: 'Pro Gear', rank: 6, cost: 1500, hp: 100, armor: 0.2 },
+};
+export const GUARD_BASE = { hp: 100, nerve: 60, swing: 1.5 };
+export const GUARD_LEVEL_TITLES = ['Rookie', 'Regular', 'Veteran', 'Elite', 'Legend'];
+export const GUARD_WAGE = [15, 28, 45, 65, 90];
+export const GUARD_XP_TO_LEVEL = [0, 3, 8, 15, 25];
+export const ROSTER_BASE = 2;
+export const CLUBHOUSE = [
+  { level: 1, cost: 2000, beds: 6 },
+  { level: 2, cost: 15000, beds: 12 },
+  { level: 3, cost: 80000, beds: 24 },
+];
+export const HIRE_RANK = 2;
+export const RAID_RANK = 3;
+export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);
+/** Stand hit points by level (how much chopping a Smash needs). */
+export const STAND_HP = [120, 300, 700, 1500, 3000];
+/** Repair a wrecked stand for this share of what was invested in it. */
+export const REBUILD_SHARE = 0.3;
+export const NO_RAID_DAYS = 5;
+export const RESPECT_DAYS = 3;
+/** Rival raids on the player per week, by Threat (Classic). */
+export const RAIDS_PER_WEEK = [1, 2, 3, 4, 6];
+/** Typical raiding party by Threat: size range and weapon odds (fists, clubs, hatchets). */
+export const RAID_PARTY: { size: [number, number]; weapons: [number, number, number] }[] = [
+  { size: [2, 3], weapons: [1, 0, 0] },
+  { size: [3, 5], weapons: [0.7, 0.3, 0] },
+  { size: [5, 8], weapons: [0.3, 0.7, 0] },
+  { size: [8, 12], weapons: [0.1, 0.6, 0.3] },
+  { size: [12, 20], weapons: [0, 0.5, 0.5] },
+];
+export const DETECTION_BASE = 0.5;
+export const NIGHT_STEALTH = 0.25;
+export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
+export const TRAITS = [
+  'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',
+  'Gentle Giant', 'Wrecker', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',
+] as const;
+export type Trait = (typeof TRAITS)[number];
+/** Combat knobs tuned against the canon anchors (npm run combat). */
+export const COMBAT = {
+  fenceChop: 1, // fences resist chopping
+  homeBonus: 0.25, // defenders' damage bonus on their own plot
+  throughFenceTier: 1, // defenders can strike over fences of this tier and up
+  breachDps: 1, // scales stakes and wire damage
+};
+/** Henchmen strength by Threat: level and padding. */
+export const HENCHMEN = [
+  { level: 1, gear: 'none' as GearId },
+  { level: 2, gear: 'none' as GearId },
+  { level: 3, gear: 'vest' as GearId },
+  { level: 4, gear: 'vest' as GearId },
+  { level: 5, gear: 'pro' as GearId },
+];

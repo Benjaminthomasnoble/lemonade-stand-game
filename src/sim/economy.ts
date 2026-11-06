@@ -11,12 +11,16 @@ import {
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
+import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
+import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
+export * from './crew.ts';
+export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface Weather { kind: WeatherKind; temp: number }
 export type Phase = 'prep' | 'open' | 'report';
@@ -45,6 +49,7 @@ export interface Stand {
   campaigns: Partial<Record<CampaignId, number>>; // days left
   autoRestock: boolean;
   day: StandDay;
+  wrecked?: boolean; // smashed in a raid: closed until rebuilt
 }
 
 export interface PlotState {
@@ -52,7 +57,12 @@ export interface PlotState {
   stand: Stand | null;
   invested: number; // building money sunk into this plot
   landValue: number;
+  defense: Defense;
+  garrison?: number; // rival henchmen on guard here
+  dibs?: { who: FactionId; until: number }; // First Dibs after a smash: only they can buy until this day
 }
+
+export interface Defense { tier: number; fenceHp: number; gadgets: GadgetId[] }
 
 export interface RivalState {
   cash: number;
@@ -61,6 +71,7 @@ export interface RivalState {
   attention: number;
   peakPlots: number;
   alive: boolean;
+  respectUntil: number; // won't raid the player before this day
 }
 
 export interface DayStats {
@@ -105,6 +116,13 @@ export interface GameState {
   peakScore: number;
   lifetimeCups: number;
   news: string[]; // fresh headlines for the UI (rank-ups, upgrades, rival moves)
+  guards: Guard[];
+  recruits: Guard[];
+  clubhouse: number; // 0..3
+  nextId: number;
+  raids: Raid[]; // planned for tonight (theirs and yours)
+  battles: BattleReport[]; // most recent first
+  respectFromPlayer: Partial<Record<RivalId, number>>;
 }
 
 export type SimEvent =
@@ -171,10 +189,10 @@ function investedFor(level: number): number {
 function seedRivals(s: GameState, rng: Rng): void {
   for (const id of RIVAL_IDS) {
     const f = FACTIONS[id];
-    s.rivals[id] = { cash: f.startCash, brandTier: id === 'fizzco' ? 2 : 1, grudge: 0, attention: 0, peakPlots: 0, alive: true };
+    s.rivals[id] = { cash: f.startCash, brandTier: id === 'fizzco' ? 2 : 1, grudge: 0, attention: 0, peakPlots: 0, alive: true, respectUntil: 0 };
     const home = PLOTS.filter((p) => p.district === f.home);
     const hq = home.find((p) => p.type === 'hq');
-    if (hq) s.plots[hq.id] = { owner: id, stand: null, invested: 0, landValue: hq.baseLand };
+    if (hq) s.plots[hq.id] = { owner: id, stand: null, invested: 0, landValue: hq.baseLand, defense: NO_DEFENSE() };
     const street = home.filter((p) => ['street', 'prime', 'landmark', 'field'].includes(p.type));
     const take = Math.round(street.length * f.homeShare);
     const order = street.map((p) => ({ p, k: nextRandom(rng) })).sort((a, b) => a.k - b.k).map((x) => x.p);
@@ -191,7 +209,7 @@ function seedRivals(s: GameState, rng: Rng): void {
   for (const p of PLOTS) {
     const owner = holder[p.district];
     if (owner && (p.type === 'field' || p.type === 'dock') && !s.plots[p.id].owner) {
-      s.plots[p.id] = { owner, stand: null, invested: 0, landValue: p.baseLand };
+      s.plots[p.id] = { owner, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
     }
   }
   for (const id of RIVAL_IDS) s.rivals[id].peakPlots = ownedPlots(s, id).length;
@@ -201,7 +219,7 @@ function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
   const f = FACTIONS[id];
   const level = p.type === 'field' ? 0 : clamp(f.startLevel - (nextRandom(rng) < 0.5 ? 1 : 0), 1, 5);
   const stand = level ? newStand(level, rivalPrice(id, level, p)) : null;
-  s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand };
+  s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
 }
 
 export function rivalPrice(id: RivalId, level: number, p: Plot): number {
@@ -218,10 +236,12 @@ export function newGame(seed = Date.now() & 0x7fffffff): GameState {
     cash: START.cash, reputation: START.reputation, rank: 1, brandTier: 0, market, forecast, weather: forecast,
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
+    guards: [], recruits: [], clubhouse: 0, nextId: 1, raids: [], battles: [], respectFromPlayer: {},
   };
-  for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand };
-  s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue };
+  for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
+  s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
   seedRivals(s, rng);
+  seedRivalDefenses(s, rng);
   s.seed = rng.seed;
   s.today = emptyStats(s);
   s.peakScore = successScore(s);
@@ -368,7 +388,7 @@ export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand):
 
 export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.weather): number {
   const ps = s.plots[plotId];
-  if (!ps.stand) return 0;
+  if (!ps.stand || ps.stand.wrecked) return 0;
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand)
     * SEASON_DEMAND[seasonOf(s.day)] * WEATHER[w.kind].traffic;
 }
@@ -512,7 +532,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   const newHour = (s.minute - OPEN) % 60 === 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (!ps.stand) continue;
+    if (!ps.stand || ps.stand.wrecked) continue;
     if (newHour) ps.stand.servedThisHour = 0;
     const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx]) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);
@@ -536,7 +556,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   const seg = segmentAt(rng, p.district, 8 + hourIdx);
   const home = s.plots[p.id];
   home.stand!.day.passersby++;
-  const options = nearbyPlots(p).filter((q) => s.plots[q.id].stand);
+  const options = nearbyPlots(p).filter((q) => s.plots[q.id].stand && !s.plots[q.id].stand!.wrecked);
   let chosen = p.id;
   let a = cachedAppeal(s, p.id, seg);
   if (options.length > 1) {
@@ -596,11 +616,13 @@ function closeDay(s: GameState): void {
   s.peakScore = Math.max(s.peakScore, successScore(s));
   checkRank(s);
   s.phase = 'report';
+  planNight(s);
 }
 
-/** Night passes (raids arrive in milestone 3), then dawn opens Morning Prep. */
+/** Night passes (tonight's raids are fought), then dawn opens Morning Prep. */
 export function sleepUntilDawn(s: GameState): boolean {
   if (s.phase !== 'report') return false;
+  resolveNight(s);
   s.day++;
   s.minute = DAWN;
   const rng = { seed: s.seed };
@@ -626,6 +648,7 @@ export function sleepUntilDawn(s: GameState): boolean {
   s.phase = 'prep';
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
+  crewAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
@@ -667,11 +690,13 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (p.type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
   if (ps.owner === 'player') return { ok: false, why: 'You own it' };
   if (ps.owner) return { ok: false, why: `Owned by ${FACTIONS[ps.owner as RivalId].name}` };
+  if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
   if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
+  const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;
   const gate = DISTRICT_RANK[p.district] ?? 3;
-  if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
+  if (!dibs && s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
   const reachable = p.district === 'maple' || hasFoothold(s, 'player', p.district) || BORDERS[p.district].some((d) => hasFoothold(s, 'player', d));
-  if (!reachable) return { ok: false, why: 'Get a Foothold in a bordering district first' };
+  if (!reachable && !dibs) return { ok: false, why: 'Get a Foothold in a bordering district first' };
   if (s.cash < ps.landValue) return { ok: false, why: `Needs $${ps.landValue.toLocaleString('en-US')}` };
   return { ok: true };
 }
@@ -739,7 +764,7 @@ function rivalsAtDawn(s: GameState): void {
       const p = targets.sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
       if (p && s.plots[p.id].landValue + STAND_LEVELS[0].cost < budget) {
         r.cash -= s.plots[p.id].landValue + STAND_LEVELS[0].cost;
-        s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue };
+        s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
         if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
       }
     }
@@ -774,6 +799,7 @@ function checkRank(s: GameState): void {
   if (r > s.rank) {
     s.rank = r;
     s.news.push(`RANK UP! Lottie's grandkid is now a ${RANKS[r - 1].title}`);
+    welcomeDex(s);
   }
 }
 

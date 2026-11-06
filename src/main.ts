@@ -5,7 +5,12 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   REAL_SECONDS_PER_MINUTE, runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
+  buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
+  battleHeadline, welcomeDex, type BattleReport,
 } from './sim/economy.ts';
+import { createBattle } from './world/battle.ts';
+import { createAudio } from './audio.ts';
+import { incomingRaids } from './sim/economy.ts';
 import { clearSave, loadGame, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { createWorld } from './world/scene.ts';
@@ -27,6 +32,18 @@ async function main() {
   let state: GameState = (seedParam ? null : loadGame()) ?? newGame(seedParam ? Number(seedParam) : undefined);
   let speed = 1;
   let acc = 0;
+
+  const audio = createAudio();
+  const wake = () => audio.start();
+  window.addEventListener('pointerdown', wake, { once: true });
+  window.addEventListener('keydown', wake, { once: true });
+  const won = (b: BattleReport) => (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+  /** Stingers for the end of the business day and for last night's fights. */
+  const afterClose = () => { if (incomingRaids(state).length) audio.stinger('raid-incoming'); };
+  const afterSleep = () => {
+    const fights = state.battles.filter((b) => b.day === state.day - 1);
+    if (fights.length) audio.stinger(fights.every(won) ? 'raid-won' : 'squeezed-out');
+  };
 
   const world = await createWorld(document.getElementById('app')!);
   const bay = createBay(world.scene);
@@ -64,6 +81,13 @@ async function main() {
     }
   };
 
+  const battle = createBattle(world.scene, (pos, text, kind) => { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); });
+  const playBattle = (b: BattleReport) => {
+    crowd.clear();
+    focusPlot(b.target, 20);
+    battle.play(b, bay.views[b.target], () => { hud.toast(battleHeadline(b)); audio.stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state); });
+  };
+
   const focusPlot = (id: string, distance = 22) => {
     const p = PLOT_BY_ID[id];
     world.focus(p.x, (p.z + p.streetZ) / 2, distance);
@@ -79,8 +103,9 @@ async function main() {
       case 'restock': st.autoRestock = !st.autoRestock; break;
       case 'open': openStands(state); acc = 0; if (speed === 0) speed = 1; break;
       case 'speed': speed = a.value; break;
-      case 'skip': simulateRestOfDay(state); crowd.clear(); break;
-      case 'sleep': sleepUntilDawn(state); crowd.clear(); break;
+      case 'skip': simulateRestOfDay(state); crowd.clear(); afterClose(); break;
+      case 'sleep': sleepUntilDawn(state); crowd.clear(); battle.stop(); afterSleep(); break;
+      case 'mute': hud.muted = audio.toggle(); break;
       case 'newgame': clearSave(); state = newGame(); crowd.clear(); hud.inspected = null; break;
       case 'upgrade': upgradeStand(state); break;
       case 'brand': buyBrand(state); break;
@@ -90,6 +115,23 @@ async function main() {
       case 'buyPlot': buyPlot(state, a.plot); break;
       case 'build': buildStand(state, a.plot); break;
       case 'view': if (a.target === 'home') focusPlot(state.selected); else world.focus(40, -15, 285); break;
+      case 'perimeter': buyPerimeter(state, a.plot); break;
+      case 'gadget': buyGadget(state, a.plot, a.id); break;
+      case 'repairFence': repairFence(state, a.plot); break;
+      case 'rebuild': rebuildStand(state, a.plot); break;
+      case 'hire': hireGuard(state, a.id); break;
+      case 'fire': fireGuard(state, a.id); break;
+      case 'post': postGuard(state, a.id, a.plot); break;
+      case 'equip': equip(state, a.id, a.item); break;
+      case 'clubhouse': buildClubhouse(state); break;
+      case 'defend': for (const g of state.guards) if (guardReady(state, g)) postGuard(state, g.id, a.plot); break;
+      case 'raid': {
+        const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
+        if (typeof r === 'object') { hud.inspected = null; playBattle(r); }
+        else if (r) hud.toast(`Raid planned for tonight on ${PLOT_BY_ID[a.plot].name}.`);
+        break;
+      }
+      case 'replay': if (state.battles[a.index]) playBattle(state.battles[a.index]); break;
       case 'refresh': break;
     }
     bay.sync(state);
@@ -99,7 +141,14 @@ async function main() {
     hud.render(state, speed);
   };
   const hud = createHud(document.getElementById('ui')!, act);
-  const flushNews = () => { while (state.news.length) hud.toast(state.news.shift()!); };
+  hud.muted = audio.muted();
+  const flushNews = () => {
+    while (state.news.length) {
+      const n = state.news.shift()!;
+      if (n.startsWith('RANK UP')) audio.stinger('rank-up');
+      hud.toast(n);
+    }
+  };
 
   // Click a plot to inspect it (a drag pans the camera instead).
   const canvas = world.renderer.domElement;
@@ -133,6 +182,9 @@ async function main() {
     act,
     backend: world.backend,
     crowd: () => crowd.activeCount(),
+    battle: () => battle.active(),
+    dex: () => welcomeDex(state),
+    focus: (id: string) => focusPlot(id, 18),
     fastForward(minutes: number) {
       for (let i = 0; i < minutes && state.phase === 'open'; i++) tickMinute(state);
       if (state.phase !== 'open') { flushNews(); saveGame(state); }
@@ -151,12 +203,13 @@ async function main() {
         acc -= REAL_SECONDS_PER_MINUTE;
         drawEvents(tickMinute(state));
       }
-      if (state.phase !== 'open') { flushNews(); saveGame(state); bay.sync(state); }
+      if (state.phase !== 'open') { flushNews(); saveGame(state); bay.sync(state); afterClose(); }
     }
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     bay.update(state, timer.getElapsed());
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
+    battle.update(dt);
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {

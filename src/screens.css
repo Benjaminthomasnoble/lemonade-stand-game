@@ -46,3 +46,15 @@
 .plotcard .card { font-size: 0.9em; }
 .picker { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
 .district-label { position: absolute; transform: translate(-50%, -50%); font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; font-size: 15px; white-space: nowrap; }
+
+/* Milestone 3: crew, defenses and raids */
+.guard { background: #fff; border-radius: 10px; padding: 8px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+.guard .muted { font-size: 0.8em; }
+.acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; margin-top: 4px; }
+.acts .act { display: inline-flex; flex-direction: column; }
+.acts .act .muted { font-size: 0.72em; }
+.planner { background: #fff6dc; border: 2px dashed #c9a227; border-radius: 10px; padding: 8px; margin-top: 6px; }
+.tonight { margin: 8px 0; }
+.raidwarn { background: #ffe3dc; border: 2px solid #d64545; border-radius: 10px; padding: 8px; margin: 6px 0; text-align: left; }
+.fight { margin-top: 4px; font-size: 0.9em; }
+.fight button { margin-left: 4px; }

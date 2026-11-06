@@ -6,6 +6,10 @@ import {
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, marketingMultiplier, maxPacks, OPEN, PLOT_BY_ID, playerStands, rankFor, RECIPES, seasonDay, seasonOf,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
+  availableRaiders, canBuildClubhouse, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid, CLUBHOUSE, clubhouseBeds,
+  fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, incomingRaids, PERIMETERS, raidOdds,
+  RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
+  type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from '../sim/economy.ts';
@@ -29,6 +33,19 @@ export type Action =
   | { type: 'buyPlot'; plot: string }
   | { type: 'build'; plot: string }
   | { type: 'view'; target: 'home' | 'bay' }
+  | { type: 'perimeter'; plot: string }
+  | { type: 'gadget'; plot: string; id: GadgetId }
+  | { type: 'repairFence'; plot: string }
+  | { type: 'rebuild'; plot: string }
+  | { type: 'hire'; id: string }
+  | { type: 'fire'; id: string }
+  | { type: 'post'; id: string; plot: string | null }
+  | { type: 'equip'; id: string; item: WeaponId | GearId }
+  | { type: 'clubhouse' }
+  | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
+  | { type: 'replay'; index: number }
+  | { type: 'defend'; plot: string }
+  | { type: 'mute' }
   | { type: 'refresh' };
 
 const ICON: Record<WeatherKind, string> = { scorcher: '🥵', hot: '☀️', warm: '🌤️', cloudy: '☁️', rainy: '🌧️', storm: '⛈️' };
@@ -70,6 +87,7 @@ export interface Hud {
   /** A Bugle-style headline with confetti (rank-ups, upgrades). */
   toast(text: string): void;
   inspected: string | null;
+  muted: boolean;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -81,11 +99,15 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const plotEl = root.querySelector('#plotcard') as HTMLElement;
   const pops = root.querySelector('#pops') as HTMLElement;
   const speedsEl = root.querySelector('#speeds') as HTMLElement;
-  let tab: 'today' | 'grow' = 'today';
+  let tab: 'today' | 'grow' | 'crew' = 'today';
+  const squad = new Set<string>();
+  let objective: Objective = 'smash';
+  const oddsMemo = new Map<string, number>();
   let lastTop = '', lastGoals = '', lastPhase = '', lastSpeeds = '', lastPlot = '';
 
   const hud: Hud = {
     inspected: null,
+    muted: false,
     render(s, speed) {
       lastTop = set(top, topbar(s), lastTop);
       lastSpeeds = set(speedsEl, speeds(s, speed), lastSpeeds);
@@ -140,8 +162,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'build': onAction({ type: 'build', plot: d.plot! }); break;
       case 'close-plot': onAction({ type: 'inspect', plot: null }); break;
       case 'view': onAction({ type: 'view', target: d.target as 'home' | 'bay' }); break;
-      case 'tab': tab = d.tab as 'today' | 'grow'; lastPhase = ''; onAction({ type: 'refresh' }); break;
-      case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': case 'restock':
+      case 'tab': tab = d.tab as 'today' | 'grow' | 'crew'; lastPhase = ''; onAction({ type: 'refresh' }); break;
+      case 'perimeter': case 'repairFence': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
+      case 'gadget': onAction({ type: 'gadget', plot: d.plot!, id: d.id as GadgetId }); break;
+      case 'hire': case 'fire': onAction({ type: d.action, id: d.id! }); break;
+      case 'post': onAction({ type: 'post', id: d.id!, plot: d.plot || null }); break;
+      case 'equip': onAction({ type: 'equip', id: d.id!, item: d.item as WeaponId | GearId }); break;
+      case 'clubhouse': onAction({ type: 'clubhouse' }); break;
+      case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); lastPlot = ''; onAction({ type: 'refresh' }); break;
+      case 'objective': objective = d.value as Objective; lastPlot = ''; onAction({ type: 'refresh' }); break;
+      case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); break;
+      case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
+      case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
         onAction({ type: d.action }); break;
     }
   });
@@ -157,13 +189,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="chip" data-testid="cash"><span class="label">Cash</span>${money(s.cash)}</div>
       <div class="chip" title="Success Score = your net worth"><span class="badge">R${r.rank}</span><span class="hide-sm">${r.title} ·</span> <span data-testid="score">${whole(ss)}</span></div>
       <div class="chip hide-sm"><span class="label">Reputation</span>${stars(s.reputation)}</div>
-      <div class="chip hide-sm" title="How hard rivals are coming for you (raids arrive in the next update)"><span class="label">Threat</span>🍋</div>
+      <div class="chip hide-sm" title="How hard rivals are coming for you: more lemons, more raids" data-testid="threat"><span class="label">Threat</span>${'🍋'.repeat(threatLevel(s))}</div>
       <div class="chip"><span class="label">${SEASON_LABEL[seasonOf(s.day)]} day ${seasonDay(s.day)}</span>${clock(s.minute)}</div>
       <div class="chip">${ICON[w.kind]} ${w.temp}°F</div>`;
   }
 
   function speeds(s: GameState, speed: number) {
-    const views = `<button class="small ghost" data-action="view" data-target="home" title="Back to your stand">🏠</button><button class="small ghost" data-action="view" data-target="bay" title="Bay View">🗺️</button>`;
+    const views = `<button class="small ghost" data-action="view" data-target="home" title="Back to your stand">🏠</button><button class="small ghost" data-action="view" data-target="bay" title="Bay View">🗺️</button><button class="small ghost" data-action="mute" title="Music on/off">${hud.muted ? '🔇' : '🔊'}</button>`;
     if (s.phase !== 'open') return `<div class="chip speeds">${views}</div>`;
     const sb = (v: number, label: string) => `<button class="small ${speed === v ? 'on' : 'ghost'}" data-action="speed" data-value="${v}" title="Speed ${label} (keys: space, 1, 2, 3)">${label}</button>`;
     return `<div class="chip speeds">${views}${sb(0, '⏸')}${sb(1, '1×')}${sb(2, '2×')}${sb(3, '3×')}<button class="small ghost" data-action="skip" title="Finish the day instantly">⏭</button></div>`;
@@ -182,9 +214,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   function prepPanel(s: GameState) {
-    const tabs = `<div class="tabs"><button class="small ${tab === 'today' ? 'on' : 'ghost'}" data-action="tab" data-tab="today">Today</button><button class="small ${tab === 'grow' ? 'on' : 'ghost'}" data-action="tab" data-tab="grow" data-testid="tab-grow">Stand &amp; marketing</button></div>`;
+    const tabs = `<div class="tabs"><button class="small ${tab === 'today' ? 'on' : 'ghost'}" data-action="tab" data-tab="today">Today</button><button class="small ${tab === 'grow' ? 'on' : 'ghost'}" data-action="tab" data-tab="grow" data-testid="tab-grow">Stand &amp; marketing</button><button class="small ${tab === 'crew' ? 'on' : 'ghost'}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defense &amp; crew</button></div>`;
     const open = `<button class="big" data-action="open" data-testid="open">Open ${playerStands(s).length > 1 ? 'all stands' : ''} at ${clock(OPEN)} ☀️</button>`;
-    if (tab === 'grow') return `<div class="panel" data-testid="prep">${tabs}${standPicker(s)}${growPanel(s)}${open}</div>`;
+    const fights = lastNight(s) ? `<div class="bugle">${lastNight(s)}</div>` : '';
+    if (tab === 'grow') return `<div class="panel" data-testid="prep">${tabs}${fights}${standPicker(s)}${growPanel(s)}${open}</div>`;
+    if (tab === 'crew') return `<div class="panel" data-testid="prep">${tabs}${fights}${standPicker(s)}${defensePanel(s, s.selected)}${crewPanel(s)}${open}</div>`;
     const st = selectedStand(s);
     const sl = standLevel(st);
     const plotId = s.selected;
@@ -220,7 +254,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <div class="headline">${headline(s)}</div>
         <div class="muted">Forecast: ${ICON[s.forecast.kind]} ${WEATHER[s.forecast.kind].label}, ${s.forecast.temp}°F (right about 4 days in 5)</div>
         ${s.today.lemonsSpoiled ? `<div class="bad">${s.today.lemonsSpoiled} lemons went bad overnight.</div>` : ''}
+        ${lastNight(s)}
       </div>
+      ${st.wrecked ? `<p class="warn">This stand was smashed. ${blockBtn('rebuild', `Rebuild for ${whole(rebuildCost(s.plots[plotId]))}`, s.cash >= rebuildCost(s.plots[plotId]) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</p>` : ''}
       ${standPicker(s)}
       <h3>Market for ${esc(PLOT_BY_ID[plotId].name)} (${sl.name})</h3>${supplyRows}${restock}
       <h3>Recipe</h3><div class="recipes">${cards}</div>
@@ -278,13 +314,16 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') actions = blockBtn('buyPlot', `Buy for ${whole(ps.landValue)}`, canBuyPlot(s, id), `data-plot="${id}" data-testid="buy-plot"`);
     else if (ps.owner === 'player' && !st) actions = blockBtn('build', `Build a Folding Table (${whole(STAND_LEVELS[0].cost)})`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`);
     else if (ps.owner === 'player' && st) actions = id === s.selected ? '<div class="muted">Managing this stand in the panel.</div>' : `<button class="small" data-action="select" data-plot="${id}">Manage this stand</button>`;
+    else if (ps.owner && ps.owner !== 'player' && st && p.type !== 'hq') actions = raidPlanner(s, id);
     const today = st && s.phase !== 'prep' ? `<div class="muted">Today: ${st.day.customers} cups sold of ${st.day.passersby} walking by</div>` : '';
     return `<div class="card" data-testid="plotcard">
       <div class="row"><b class="name">${esc(p.name)}</b><button class="small ghost" data-action="close-plot">✕</button></div>
       <div class="muted">${d.name} · ${typeLabel}</div>
       <div>Owner: <b>${ownerName(ps.owner)}</b></div>
       ${p.type !== 'civic' ? `<div class="muted">~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}</div>` : `<div class="muted">${d.feel}</div>`}
-      ${st ? `<div>Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup</div>` : ''}
+      ${st ? `<div>Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup${st.wrecked ? ' · <span class="bad">WRECKED</span>' : ''}</div>` : ''}
+      ${ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `<div class="muted">Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${ps.garrison ? ` · ${ps.garrison} henchmen on guard` : ''}</div>` : ''}
+      ${ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? '<div class="good">You have First Dibs on this plot today!</div>' : ''}
       ${today}
       <div style="margin-top:6px">${actions}</div>
     </div>`;
@@ -340,9 +379,120 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <tr><td>Success Score</td><td>${whole(successScore(s))} <span class="${ssDelta >= 0 ? 'good' : 'bad'}">${ssDelta >= 0 ? '+' : ''}${ssDelta}</span></td></tr>
       </table>
       <p class="lottie">👵 ${tip}</p>
+      ${tonight(s)}
       <button class="big" data-action="sleep" data-testid="next">Sleep till dawn 🌙</button>
       <div style="text-align:center;margin-top:8px"><button class="small ghost" data-action="newgame">New game</button></div>
     </div></div>`;
+  }
+
+  function lastNight(s: GameState) {
+    const fights = s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day);
+    if (!fights.length) return '';
+    return fights.map(({ b, i }) => {
+      const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+      return `<div class="${good ? 'good' : 'bad'} fight">${b.attacker === 'player' ? '⚔️' : '🛡️'} ${esc(fightLine(b))} <button class="small ghost" data-action="replay" data-index="${i}" data-testid="replay">▶ Watch</button></div>`;
+    }).join('');
+  }
+
+  function fightLine(b: GameState['battles'][number]) {
+    const where = PLOT_BY_ID[b.target].name;
+    const who = (f: string) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
+    const verb = { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
+    return b.attacker === 'player' ? `Your raid on ${where}: ${b.outcome === 'repelled' ? 'beaten back' : verb}` : `${who(b.attacker)} hit ${where}: ${b.outcome === 'repelled' ? 'you held them off!' : verb}`;
+  }
+
+  function tonight(s: GameState) {
+    const incoming = incomingRaids(s);
+    const mine = s.raids.filter((r) => r.attacker === 'player');
+    if (!incoming.length && !mine.length) return '';
+    const warn = incoming.map((r) => {
+      const ps = s.plots[r.target];
+      const where = esc(PLOT_BY_ID[r.target].name);
+      const head = r.detected
+        ? `⚠️ <b>${FACTIONS[r.attacker as RivalId].name}</b> are heading for <b>${where}</b> tonight, ETA ${r.eta}: ${r.party!.length} henchmen (${[...new Set(r.party!.map((f) => WEAPONS[f.weapon].name.toLowerCase()))].join(', ')}).`
+        : `⚠️ Lottie hears footsteps: someone is planning a raid on <b>${where}</b> tonight. More alarms would tell you who.`;
+      const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length;
+      const fence = ps.defense.tier ? `${PERIMETERS[ps.defense.tier - 1].name} (${ps.defense.fenceHp} HP)` : 'no fence';
+      const next = PERIMETERS[ps.defense.tier];
+      const buy = next ? blockBtn('perimeter', `Put up a ${next.name} (${whole(next.cost)})`, canBuyPerimeter(s, r.target), `data-plot="${r.target}"`) : '';
+      const repair = fenceRepairCost(ps) ? `<button class="small" data-action="repairFence" data-plot="${r.target}">Patch fence (${whole(fenceRepairCost(ps))})</button>` : '';
+      const station = s.guards.length && guards < s.guards.filter((g) => guardReady(s, g)).length ? `<button class="small" data-action="defend" data-plot="${r.target}">Send all guards here</button>` : '';
+      return `<div class="raidwarn" data-testid="raid-warning">${head}<div class="muted">Defending: ${guards} guard${guards === 1 ? '' : 's'}, ${fence}.</div><div class="acts">${buy}${repair}${station}</div></div>`;
+    }).join('');
+    const out = mine.map((r) => `<div class="muted">⚔️ Your crew raids ${esc(PLOT_BY_ID[r.target].name)} tonight (${r.guards!.length} guard${r.guards!.length === 1 ? '' : 's'}, ${r.objective}).</div>`).join('');
+    return `<div class="tonight">${warn}${out}</div>`;
+  }
+
+  function defensePanel(s: GameState, id: string) {
+    const ps = s.plots[id];
+    const cur = ps.defense.tier ? PERIMETERS[ps.defense.tier - 1] : null;
+    const next = PERIMETERS[ps.defense.tier];
+    const slots = GADGET_SLOTS(ps.stand?.level ?? 1);
+    const gadgets = (Object.keys(GADGETS) as GadgetId[]).map((g) => {
+      const gd = GADGETS[g];
+      if (ps.defense.gadgets.includes(g)) return `<div class="upgrade"><div><b>${gd.name}</b> ✅<div class="muted">${gd.text}</div></div></div>`;
+      return `<div class="upgrade"><div><b>${gd.name}</b> · ${whole(gd.cost)}<div class="muted">${gd.text}</div></div>${blockBtn('gadget', 'Install', canBuyGadget(s, id, g), `data-plot="${id}" data-id="${g}"`)}</div>`;
+    }).join('');
+    const posted = s.guards.filter((g) => g.post === id);
+    return `<h3>Defenses at ${esc(PLOT_BY_ID[id].name)}</h3>
+      <div class="muted">Fence: ${cur ? `${cur.name}, ${ps.defense.fenceHp}/${cur.hp} HP` : 'none'} · guards posted: ${posted.length ? posted.map((g) => esc(g.name)).join(', ') : 'none'}</div>
+      ${fenceRepairCost(ps) ? `<div class="act"><button class="small" data-action="repairFence" data-plot="${id}">Patch the fence (${whole(fenceRepairCost(ps))})</button></div>` : ''}
+      ${next ? `<div class="upgrade"><div><b>P${next.tier} ${next.name}</b> · ${whole(next.cost)}<div class="muted">${next.hp} HP${next.breachDps ? `, hurts attackers while they break through` : ''}${next.slow ? ', slows them down' : ''}. Defenders hit 25% harder while it stands.</div></div>
+        ${blockBtn('perimeter', ps.defense.tier ? 'Replace' : 'Build', canBuyPerimeter(s, id), `data-plot="${id}" data-testid="perimeter"`)}</div>` : ''}
+      <h3>Gadgets <span class="muted">(${ps.defense.gadgets.length}/${slots} slots)</span></h3>${gadgets}`;
+  }
+
+  function guardRow(s: GameState, g: Guard) {
+    const stands = playerStands(s);
+    const i = g.post ? stands.findIndex((p) => p.id === g.post) : -1;
+    const nextPost = stands[(i + 1) % stands.length];
+    const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);
+    const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
+    const status = guardReady(s, g) ? '' : ` · <span class="bad">knocked out till day ${g.outUntil}</span>`;
+    return `<div class="guard" data-testid="guard">
+      <div><b>${esc(g.name)}</b> <span class="muted">L${g.level} ${guardTitle(g)} · ${g.trait} · ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''} · ${whole(guardWage(g))}/day${status}</span></div>
+      <div class="acts">
+        <button class="small ghost" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Change post">📍 ${g.post ? esc(PLOT_BY_ID[g.post].name) : 'Clubhouse'}</button>
+        ${nextWeapon ? blockBtn('equip', `${WEAPONS[nextWeapon].name} (${whole(WEAPONS[nextWeapon].cost)})`, canEquip(s, g.id, nextWeapon), `data-id="${g.id}" data-item="${nextWeapon}"`) : ''}
+        ${nextGear ? blockBtn('equip', `${GEAR[nextGear].name} (${whole(GEAR[nextGear].cost)})`, canEquip(s, g.id, nextGear), `data-id="${g.id}" data-item="${nextGear}"`) : ''}
+        ${g.name === 'Dex Moody' ? '' : `<button class="small ghost" data-action="fire" data-id="${g.id}" title="Let them go">✕</button>`}
+      </div></div>`;
+  }
+
+  function crewPanel(s: GameState) {
+    if (s.rank < HIRE_RANK) return `<h3>Crew</h3><p class="muted">Guards come at Rank ${HIRE_RANK}, ${rankFor(0).next?.title ?? ''}. Until then, a Picket Fence keeps the riff-raff out.</p>`;
+    const club = CLUBHOUSE[s.clubhouse];
+    const recruits = s.recruits.map((g) => `<div class="guard"><div><b>${esc(g.name)}</b> <span class="muted">L${g.level} ${guardTitle(g)} · ${g.trait} · ${whole(guardWage(g))}/day</span></div>
+      ${blockBtn('hire', `Hire (${whole(g.fee)})`, canHire(s, g.id), `data-id="${g.id}" data-testid="hire"`)}</div>`).join('');
+    return `<h3>Your crew <span class="muted">(${s.guards.length}/${rosterCap(s)} · wages ${whole(s.guards.reduce((a, g) => a + guardWage(g), 0))}/day)</span></h3>
+      ${s.guards.map((g) => guardRow(s, g)).join('') || '<p class="muted">No guards yet.</p>'}
+      ${club ? `<div class="upgrade"><div><b>Clubhouse L${club.level}</b> · ${whole(club.cost)}<div class="muted">Beds for ${club.beds} guards${s.clubhouse ? ` (now ${clubhouseBeds(s)})` : ''}</div></div>${blockBtn('clubhouse', s.clubhouse ? 'Expand' : 'Build', canBuildClubhouse(s))}</div>` : ''}
+      <h3>The Hiring Hall <span class="muted">(new faces every week)</span></h3>${recruits || '<p class="muted">Nobody looking for work this week.</p>'}
+      <p class="muted">${s.rank >= RAID_RANK ? 'To raid a rival, click their stand on the map.' : `Raids unlock at Rank ${RAID_RANK}.`}</p>`;
+  }
+
+  function raidPlanner(s: GameState, id: string) {
+    if (s.rank < RAID_RANK) return `<div class="muted">Raids unlock at Rank ${RAID_RANK}.</div>`;
+    const crew = availableRaiders(s);
+    for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
+    if (!crew.length) return '<div class="muted">No guards free to raid.</div>';
+    const ids = [...squad];
+    const odds = (night: boolean) => {
+      const ps = s.plots[id];
+      const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, ps.defense, ps.garrison, s.guards.map((g) => [g.id, g.weapon, g.gear, g.level])]);
+      let v = oddsMemo.get(key);
+      if (v === undefined) { v = raidOdds(s, id, ids, objective, night); if (oddsMemo.size > 200) oddsMemo.clear(); oddsMemo.set(key, v); }
+      return v;
+    };
+    const night = odds(true);
+    const day = odds(false);
+    const can = canRaid(s, id, ids);
+    return `<div class="planner" data-testid="raid-planner"><b>Raid Planner</b> <span class="muted">(squad ${ids.length}/${SQUAD_CAP(s.rank)})</span>
+      <div class="acts">${crew.map((g) => `<button class="small ${squad.has(g.id) ? 'on' : 'ghost'}" data-action="squad" data-id="${g.id}">${esc(g.name.split(' ')[0])} · ${WEAPONS[g.weapon].name}</button>`).join('')}</div>
+      <div class="acts"><button class="small ${objective === 'smash' ? 'on' : 'ghost'}" data-action="objective" data-value="smash">Smash</button><button class="small ${objective === 'shakedown' ? 'on' : 'ghost'}" data-action="objective" data-value="shakedown">Shakedown</button></div>
+      <div class="muted">${objective === 'smash' ? 'Wreck the stand. If they can\'t rebuild, you get First Dibs on the land.' : 'Grab about a day\'s takings from the till.'}</div>
+      <div class="acts">${blockBtn('raid', `Tonight · ${Math.round(night * 100)}% win`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"`)}
+      ${blockBtn('raid', `Now · ${Math.round(day * 100)}% · −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now"`)}</div></div>`;
   }
 
   return hud;

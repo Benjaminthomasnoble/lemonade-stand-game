@@ -77,6 +77,48 @@ try {
   await page.evaluate((lot) => window.__game.act({ type: 'select', plot: lot }), lot);
   await page.waitForTimeout(1200);
   await page.screenshot({ path: 'test-results/7-second-stand.png' });
+
+  // Milestone 3: fence and crew through the UI, then a daytime raid with its replay.
+  await page.evaluate(() => { const g = window.__game; g.state.rank = 3; g.state.cash = 5000; g.dex(); g.act({ type: 'select', plot: g.state.selected }); });
+  await page.click('[data-testid="tab-crew"]');
+  await page.click('[data-testid="perimeter"]');
+  await page.click('[data-testid="hire"]');
+  const crew = await page.evaluate(() => window.__game.state.guards.length);
+  if (crew < 2) fail(`expected 2 guards, got ${crew}`);
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'test-results/8-crew.png' });
+  const target = await page.evaluate(() => {
+    const st = window.__game.state;
+    return Object.keys(st.plots).find((id) => { const p = st.plots[id]; return p.owner && p.owner !== 'player' && p.stand && id.startsWith('oldtown'); });
+  });
+  await page.evaluate((t) => { window.__game.act({ type: 'inspect', plot: t }); window.__game.focus(t); }, target);
+  await page.waitForSelector('[data-testid="raid-planner"]');
+  const squadButtons = await page.$$('[data-action="squad"]');
+  for (let i = 0; i < squadButtons.length; i++) await page.click(`[data-action="squad"] >> nth=${i}`);
+  await page.click('[data-testid="raid-now"]');
+  await page.waitForTimeout(4500);
+  if (!(await page.evaluate(() => window.__game.battle()))) fail('battle replay not playing');
+  await page.screenshot({ path: 'test-results/9-raid.png' });
+  // Play on until a rival raid is announced at closing time, then sleep through it.
+  let warned = false;
+  for (let d = 0; d < 25 && !warned; d++) {
+    warned = await page.evaluate(() => {
+      const g = window.__game;
+      if (g.state.phase === 'prep') g.act({ type: 'open' });
+      g.act({ type: 'skip' });
+      const hit = g.state.raids.some((r) => r.attacker !== 'player' && g.state.plots[r.target].owner === 'player');
+      if (!hit) g.act({ type: 'sleep' });
+      return hit;
+    });
+  }
+  if (!warned) fail('no raid warning in 25 days');
+  await page.waitForSelector('[data-testid="raid-warning"]');
+  await page.screenshot({ path: 'test-results/10-raid-warning.png' });
+  await page.click('[data-testid="next"]');
+  await page.waitForSelector('[data-testid="replay"]');
+  await page.click('[data-testid="replay"] >> nth=0');
+  await page.waitForTimeout(6000);
+  await page.screenshot({ path: 'test-results/11-night-replay.png' });
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

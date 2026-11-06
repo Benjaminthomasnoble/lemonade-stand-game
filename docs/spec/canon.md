@@ -42,14 +42,14 @@ Design principles (every section must respect them):
 10. Challenge comes from smart rivals and big goals, not hidden rules or punishing randomness.
 
 Anti-frustration rules:
-- No raids on the player during Days 1–5, and the first raid on you is a tutorial raid that always bounces off your fence and Dex.
+- No raids on the player during Days 1–5, and the first raid on you (the night your first Kiosk opens, or the night after the Summer Fair on Day 15 if that comes first) is a tutorial raid that always bounces off your fence and Dex.
 - Every raid on the player gives warning (minimum notice in section 13).
 - Auto-pause on major alerts (toggle, on by default).
 - A rival that loses a raid to you backs off for a while (Respect cooldown).
 - Cheap rebuilds (15% of what was invested), rebuild windows and Lottie's Cookie Jar soften big losses.
 - Laid Back mode: the player's stands can be Busted (closed until repaired) but never Wrecked.
 
-Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game over), **Classic** (intended balance), **Cutthroat** (raids ×1.5, short warnings, the Syndicate forms at Threat 4 instead of 5, no Cookie Jar). Plus Custom sliders and, in Sandbox only, a **Peaceful** toggle (no combat at all; rivals compete only with prices, marketing and land).
+Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game over), **Classic** (intended balance), **Cutthroat** (raids ×1.5, short warnings, the Syndicate forms at Threat 4 instead of 5 in Sandbox and Endless, no Cookie Jar). Plus Custom sliders and, in Sandbox only, a **Peaceful** toggle (no combat at all; rivals compete only with prices, marketing and land).
 
 ## 4. Time and structure
 
@@ -59,7 +59,7 @@ Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game o
 - Dawn (07:00) opens **Morning Prep** with the morning paper (The Citrine Bay Bugle). The game waits there by default; a toggle auto-continues.
 - Night is when most raids happen. Stands are closed at night.
 - Seasons: 14 days each. Year = 56 days. The game starts on Summer Day 1 ("the first day of summer vacation"). Order: Summer, Fall, Winter, Spring.
-- Campaign length target: about 150–170 days, 20–25 hours of play at about 8 real minutes per day including pauses.
+- Campaign length target: about 140–150 days to victory, 19–20 hours of play at about 8 real minutes per day including pauses. Rank 10 follows in Endless Summer, about Days 150–160.
 
 ## 5. Meters (keep it to these four on the top bar, plus cash)
 
@@ -117,7 +117,7 @@ Recipes (cards, not sliders). Each card has a cost per cup, the segments that lo
 | Frozen Lemonade | Recovered from the Blenders' HQ | Boardwalk, heat waves |
 | Honey-Ginger Hot Lemonade | Recovered from the Cold Brew Collective's HQ | Winter, seniors |
 | Sparkling Lemonade | Recovered from FizzCo Tower | Office workers |
-| Lavender Lemonade | Won at the Hilltop estate auction (Act 4 event) | High rollers |
+| Lavender Lemonade | Won at the Hilltop estate auction (opens at Rank 8, as Act 5 begins) | High rollers |
 | Hollis Half-and-Half (lemonade and sweet tea) | From Tilly Hollis (beat or buy out Hollis) | Farmhands, everyone in summer |
 | Lottie's Secret Reserve | Recovered from Sourwood Manor (finale) | Everyone; best recipe in the game |
 
@@ -206,7 +206,7 @@ District perks at Full Control: Maple Row "Neighborhood Watch" (free Tin-Can Ala
 4. Then it goes to a 24-hour sealed-bid **Auction** open to every faction.
 The same rules apply to the player's own plots (so defend them). On Laid Back, the player's stands are only ever Busted (closed until repaired at 10% cost), never Wrecked.
 
-Peaceful routes: **Plot Buyout** offers (Rank 4+; the rival asks 2.5× land value in their home district and 2× elsewhere; grudge and personality can nudge it) and **Faction Buyout** (Rank 5+, at Dot's Diner; see Rivals).
+Peaceful routes: **Plot Buyout** offers (Rank 4+; the rival asks 2.5× land value in their home district and 2× elsewhere; grudge and personality can nudge it) and **Faction Buyout** (from that rival's HQ rank, at Dot's Diner; see Rivals).
 
 ## 11. Defenses (per plot)
 
@@ -296,13 +296,13 @@ Rival AI (each day at dawn):
 Sit-downs at Dot's Diner (neutral ground, Rank 4+):
 - **Truce**: no raids between you and one rival for 7 days; costs tribute (cash) — breaking it costs 1 full star of Reputation and makes every rival distrust you: every Grudge toward you jumps, and no rival accepts a Truce for 14 days.
 - **Plot Buyout**: buy one rival plot at their price.
-- **Faction Buyout** (Rank 5+): when a rival is **Weakened** (holds 40% or less of its peak plots, its Net Worth is under 25% of yours, or your daily sales have been at least double theirs for 7 days in a row), offer 1.5× their cash and buildings to buy the business. Land isn't included: every plot they held goes to the Fire Sale, where you get First Dibs. Brock and Tilly accept readily; Juni and Preston haggle; Vera never sells (except in Sandbox with Peaceful on, where she sells at 3× her cash and buildings once Weakened, so Domination can finish).
+- **Faction Buyout** (opens at that rival's HQ rank: the Blenders at Rank 5, the Cold Brew Collective at 6, Hollis at 7, FizzCo at 8): when a rival is **Weakened** (holds 40% or less of its peak plots, its Net Worth is under 25% of yours, or your daily sales have been at least double theirs for 7 days in a row), offer 1.5× their cash and buildings to buy the business. Land isn't included: every plot they held goes to the Fire Sale, where you get First Dibs. Brock and Tilly accept readily; Juni and Preston haggle; Vera never sells (except in Sandbox with Peaceful on, where she sells at 3× her cash and buildings once Weakened, so Domination can finish).
 
 Elimination (any of): HQ captured; Faction Buyout accepted; bankrupt for 7 days. On elimination: the boss's exit scene, their remaining plots go to a **Fire Sale** (you get First Dibs at −25% for 2 days, then auction), their HQ becomes your **Trophy** building with a unique perk (Blend Shack: Blender Bar, Frozen recipes sell for 20% more; Grindhouse: Juni's Grapevine, raid warnings arrive 1 game hour earlier; Hollis Homestead: Hollis Orchards, each of your Lemon Groves brings +10% traffic instead of +5%; FizzCo Tower: Bottling Line, bottles fill 25% faster; Sourwood Manor: Family Silver, land, Plot Buyouts and auction bids cost 10% less), and you recover their recipe page. Defeated bosses can later be hired as advisors (v1 stretch).
 
-HQ Assault (Rank 4+, rival must be Weakened): three stages — the Gate (a wall whose HP rises with HQ difficulty: Blend Shack 2,000, Grindhouse 2,750, Hollis Homestead 3,500, FizzCo Tower 4,250, Sourwood Manor 5,000), the Yard (elite henchmen), the Boss Room (the boss and bodyguards). Boss moves: Brock "Blender Rush" (charges and knocks 3 guards down), Juni "Espresso Shot" (her crew +50% speed for 10 seconds), Tilly "Hay Bale Wall" (spawns barricades), Preston "Hostile Takeover" (pays 2 of your guards to switch sides mid-fight unless they're Loyal), Vera "Old Money" (calls in Steward reinforcements; her cane disarms one guard). HQ difficulty order: Blend Shack < Grindhouse < Hollis Homestead < FizzCo Tower < Sourwood Manor.
+HQ Assault (each HQ opens at its own rank: Blend Shack Rank 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 through the Big Squeeze; the rival must be Weakened): three stages — the Gate (a wall whose HP rises with HQ difficulty: Blend Shack 2,000, Grindhouse 2,750, Hollis Homestead 3,500, FizzCo Tower 4,250, Sourwood Manor 5,000), the Yard (elite henchmen), the Boss Room (the boss and bodyguards). Boss moves: Brock "Blender Rush" (charges and knocks 3 guards down), Juni "Espresso Shot" (her crew +50% speed for 10 seconds), Tilly "Hay Bale Wall" (spawns barricades), Preston "Hostile Takeover" (pays 2 of your guards to switch sides mid-fight unless they're Loyal), Vera "Old Money" (calls in Steward reinforcements; her cane disarms one guard). HQ difficulty order: Blend Shack < Grindhouse < Hollis Homestead < FizzCo Tower < Sourwood Manor.
 
-The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordinate multi-front raids (2–3 targets at once, boss-led). In the campaign, Vera forms the Syndicate in Act 5 on every difficulty (Cutthroat's Threat 4 trigger applies only in Sandbox and Endless), and the player chooses when to **Call the Big Squeeze** (the finale).
+The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordinate multi-front raids (2–3 targets at once, boss-led). In the campaign, Vera forms the Syndicate 14 days into Act 5 on every difficulty (about Day 120 on Classic; on target pacing it lands on the Founders' Day fireworks), and Cutthroat's Threat 4 trigger applies only in Sandbox and Endless. From Rank 9 the player chooses when to **Call the Big Squeeze** (the finale).
 
 ## 14. Success Score, Ranks and Threat
 
@@ -311,13 +311,13 @@ The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordi
 | 1 | Sidewalk Squeezer | $0 | Sell, price, recipes, weather, supplies, L2, Picket Fence, M1 signs, buy in Maple Row |
 | 2 | Corner Hustler | $1,500 | Hire guards (fists), Clubhouse, Chain-Link, Tin-Can Alarm, Guard Goose, local campaigns, buy in Old Town |
 | 3 | Block Boss | $6,000 | L3 Kiosk, clubs, Padded Vest, raids (Smash, Shakedown), Local Orders, M2, squad 5, Marisol's Auto-Price, bulk actions, Auto-Repair |
-| 4 | Neighborhood Name | $25,000 | Stakes, Lemon-Peel Slick, Sprinkler, Lookouts, Wreckers, Sabotage, Sit-downs, M3 Radio, Warehouse, HQ assaults on Weakened rivals, Dex's Auto-Defend |
-| 5 | District Big Shot | $100,000 | L4 Lemon Shack, Bottling Works, Caterer orders, Floodlights, squad 8, Clubhouse L2, Faction Buyouts |
-| 6 | Citrus Baron | $400,000 | Hatchets, Barbed Wire, Watchtower, Pro Gear, Captains, Pad on a Field plot → helicopter VIPs, raid templates |
-| 7 | Lemon Tycoon | $3,000,000 | L5 Citrus Palace, Pier (Dock) → ship contracts, M4 Billboards & TV, squad 12, Clubhouse L3, district policies |
-| 8 | Juice Magnate | $10,000,000 | Citrus Fortress Wall, Heliport and Cargo Terminal, recurring Supply Deals, M5 Lemon Blimp |
-| 9 | Bay Kingpin | $25,000,000 | Mega contracts; in the campaign, Call the Big Squeeze |
-| 10 | The Big Squeeze | $75,000,000 | Title rank, golden Citrus Palace skin, endless leaderboards |
+| 4 | Neighborhood Name | $25,000 | Stakes, Lemon-Peel Slick, Sprinkler, Lookouts, Wreckers, Sabotage, Sit-downs, M3 Radio, Warehouse, Dex's Auto-Defend |
+| 5 | District Big Shot | $100,000 | L4 Lemon Shack, Bottling Works, Caterer orders, Floodlights, squad 8, Clubhouse L2, the Blend Shack (HQ assault or Faction Buyout once Weakened) |
+| 6 | Citrus Baron | $500,000 | Hatchets, Barbed Wire, Watchtower, Pro Gear, Captains, Pad on a Field plot → helicopter VIPs, raid templates, the Grindhouse (assault or buyout) |
+| 7 | Lemon Tycoon | $4,500,000 | L5 Citrus Palace, Pier (Dock) → ship contracts, M4 Billboards & TV, squad 12, Clubhouse L3, district policies, Hollis Homestead (assault or buyout) |
+| 8 | Juice Magnate | $20,000,000 | Citrus Fortress Wall, Heliport and Cargo Terminal, recurring Supply Deals, M5 Lemon Blimp, FizzCo Tower (assault or buyout), the Lavender auction |
+| 9 | Bay Kingpin | $125,000,000 | Mega contracts; in the campaign, Call the Big Squeeze |
+| 10 | The Big Squeeze | $200,000,000 | Title rank, golden Citrus Palace skin, endless leaderboards |
 
 Every rank-up: a Bugle headline, confetti, and a choice of 1 of 3 **Lottie's Tips** perks (a pool of about 24 small boosts, e.g. +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun twice, campaigns last 50% longer, open at 07:00, +20% defense at night, buyouts 15% cheaper).
 
@@ -341,11 +341,11 @@ Laid Back ×0.5, Cutthroat ×1.5. Rivals also run non-raid schemes (price wars, 
 |---|---|---|---|---|
 | Local Orders | Rank 3 | Any L3+ stand | 300–1,500 cups, 2-day deadline | about 1.5× retail |
 | Caterer Trucks | Rank 5 | Warehouse + Bottling Works | 1,000–5,000 bottles | $6 a bottle (2× retail) |
-| Helicopter VIPs | Rank 6, 3.5 stars | Pad, Helipad or Heliport on a Field plot | 2,000–10,000 bottles, 3–5 days | $12 a bottle (4× retail), +0.2 star |
-| Ship Contracts | Rank 7, 4.0 stars | Pier on a Dock plot | 10,000–60,000 bottles, multi-day loading | $15 a bottle (5× retail); recurring Supply Deals at Rank 8 |
+| Helicopter VIPs | Rank 6, 3.5 stars | Pad, Helipad or Heliport on a Field plot | 2,000–10,000 bottles, 3–5 days | $30 a bottle, +0.2 star |
+| Ship Contracts | Rank 7, 4.0 stars | Pier on a Dock plot | 10,000–60,000 bottles, multi-day loading | $40 a bottle; recurring Supply Deals at Rank 8 (Cargo Terminal; 200,000 bottles over 28 days at $30, about $6M a deal) |
 | Mega Contracts | Rank 9, 4.5 stars | Heliport + Cargo Terminal + premium recipes | 100,000–150,000 bottles | $100 a bottle ($10M–$15M a contract) |
 
-Facilities (tuned): on a Field plot, Pad (Rank 6) $50,000, Helipad (Rank 7) $200,000, Heliport (Rank 8) $800,000; on a Dock plot, Jetty (Rank 7) $250,000, Pier (Rank 7) $750,000, Cargo Terminal (Rank 8) $3,000,000. Appendix A of the spec holds the full balance tables, which override any starting value here.
+Facilities (tuned): on a Field plot, Pad (Rank 6) $50,000, Helipad (Rank 7) $200,000, Heliport (Rank 8) $800,000; on a Dock plot, Jetty (Rank 7) $250,000, Pier (Rank 7) $750,000, Cargo Terminal (Rank 8) $3,000,000. Once a facility tier stands, its client type offers at least one job every 10 days, and the first Supply Deal is offered as soon as the Cargo Terminal stands. Appendix A of the spec holds the full balance tables, which override any starting value here.
 VIP rules: every offer is optional; pay arrives with each pickup (helicopter trip or ship loading), not at the end; facility tiers are bought one step at a time (Pad, then Helipad, then Heliport).
 
 Clients are fictional and comic: a movie star's pool party, a tech mogul's rooftop launch, a celebrity wedding, a music festival VIP tent, the Citrine Bay Regatta, a cruise line, an overseas export deal, the Governor's Gala, the Bay Centennial.
@@ -362,7 +362,7 @@ Pickup moments: a chopper lands or a ship docks in a 2-hour pickup window. The g
 - Sources: cup sales, contracts, Shakedown loot, Supply Deals, land appreciation (counts toward SS), selling plots, fair prizes.
 - Sinks: supplies, stand upgrades, upkeep, wages, land, defenses, gear, marketing, repairs and rebuilds, loan interest, citations. (No insurance and no property tax: bills with no decision in them were cut, and rebuilds are cheap instead.)
 - Loans (Marisol, via the First Bank of Citrine Bay): up to 50% of your non-cash Net Worth, 3% interest per week, 4-week terms. Two missed payments → the bank repossesses your lowest-value plot.
-- Security spend (guards, defenses, repairs) should land around 15–25% of daily income at every stage on Classic.
+- Security spend (guards, defenses, repairs) should land around 15–25% of daily income through Acts 1–3 on Classic (a little more in the first weeks, while the first fences and guards go in). Later it falls under 10% of a much bigger income, and the pressure comes from Delivery Raids, the Syndicate and the siege instead.
 - **Lottie's Cookie Jar**: if you'd go bankrupt, Lottie bails you out (Laid Back: always; Classic: once per act, or once per season in Sandbox and Endless; Cutthroat: never).
 - Bankruptcy: cash below $0 at end of day → "In the Red" with 3 days to fix it (sell, borrow). Otherwise: Game Over ("Squeezed Out"); the campaign reloads the last dawn autosave.
 
@@ -372,16 +372,17 @@ Pacing targets (Classic, a competent player, about 8 real minutes per day includ
 |---|---|---|
 | First upgrade to L2 | Day 4 (the upgrade lesson) | 30 min |
 | Rank 2 | Day 4 | 30 min |
-| Rank 3 | Day 10 | 1.3 h |
-| Rank 4 | Day 20 | 2.7 h |
-| Rank 5 | Day 35 | 4.7 h |
-| Rank 6 | Day 55 | 7.3 h |
-| Rank 7 | Day 80 | 10.7 h |
-| Rank 8 | Day 105 | 14 h |
-| Rank 9 | Day 130 | 17.3 h |
-| Domination | Day 150–170 | 20–23 h |
+| Rank 3 | About Day 10 | 1.3 h |
+| Rank 4 | About Day 22 | 2.9 h |
+| Rank 5 | About Day 37 | 4.9 h |
+| Rank 6 | Days 52–58 | 7–7.7 h |
+| Rank 7 | Days 71–80 | 9.5–10.7 h |
+| Rank 8 | Days 95–105 | 12.7–14 h |
+| Rank 9 | Days 125–135 | 16.7–18 h |
+| Domination | About Days 140–150, not before 136 | 18.7–20 h |
+| Rank 10 | After victory, about Days 150–160 | 20–21 h |
 
-Laid Back runs about 11% faster (×0.89 of Classic's days); Cutthroat about 27% slower (×1.27).
+Laid Back runs about 14% faster (×0.86 of Classic's days); Cutthroat about 1% slower (×1.01), with 1.3–1.7× Classic's raids.
 
 ## 17. Progression and automation
 
@@ -408,10 +409,10 @@ Places: Lottie's Corner, Dot's Diner (neutral ground; Dot serves pie and keeps t
 
 Acts (campaign; ranks and days are targets):
 1. **Lottie's Corner** (Maple Row → Old Town; Days 1–15; Ranks 1–3). Learn the trade. Day 5: a Sourwood Steward kicks over your table as "a reminder" — Lottie: "Well. Guess she remembers me." First fence, Dex joins, first marketing. Day 3: Lottie sells you the side lot by the Corner for $300, table included (your second stand). Climax: the Summer Fair taste-off in Old Town against Brock Bodine; you win Strawberry, Brock swears revenge.
-2. **Surf & Turf** (The Boardwalk; Days 15–40; Ranks 3–5). Clubs, first raids (the first, Brock's Smoothie Bros on the night your first Kiosk opens, always bounces off your fence and Dex), Kiosks, Boardwalk war. Climax: the first HQ assault on the Blend Shack. Brock retires to run a surf school.
-3. **Grounds for Revenge** (Campus & Arts; Days 40–65; Ranks 5–6). Someone keeps spoiling your stock. Lookouts, sabotage, night defense. Twist: Juni was paid by FizzCo. Take the Grindhouse; Juni turns informant.
-4. **Fields & Fizz** (The Groves, Downtown, The Harbor; Days 65–120; Ranks 6–8). You need Fields for a helipad and Docks for a pier. Tilly Hollis can be beaten or bought out (she respects hard work). FizzCo fights with money, lawyers and muscle. First helicopter VIP, first ship. FizzCo Tower falls. Lavender is won at the Hilltop estate auction.
-5. **The Big Squeeze** (Hilltop Estates; Days 120–170; Ranks 8–10). Vera forms the Syndicate with whoever is left and the Mayor. When ready, you Call the Big Squeeze: a 7-day siege, then the assault on Sourwood Manor. Each siege dawn the Corkboard names that night's 2–3 Syndicate targets; each night you hold them all knocks 10% off the Manor Gate (5,000 HP, down to 1,500 after 7 good nights) and benches one Yard elite; each plot you lose adds a Steward to the Boss Room. In the Boss Room, Lottie and Vera face off; the Secret Reserve page reveals the secret ingredient was a pinch of salt and "a friend to share it with." The old friends make up over a glass.
+2. **Surf & Turf** (The Boardwalk; Days 15–40; Ranks 3–5). Clubs, first raids (the first, Brock's Smoothie Bros on the night your first Kiosk opens or the night after the Summer Fair, whichever comes first, always bounces off your fence and Dex), Kiosks, Boardwalk war. Climax (Rank 5): the Blend Shack falls to the first HQ assault or a Faction Buyout. Brock retires to run a surf school.
+3. **Grounds for Revenge** (Campus & Arts; Days 40–60; Ranks 5–6). Someone keeps spoiling your stock. Lookouts, sabotage, night defense. Twist: Juni was paid by FizzCo. Take or buy out the Grindhouse (Rank 6); Juni turns informant.
+4. **Fields & Fizz** (The Groves, Downtown, The Harbor; Days 60–105; Ranks 6–8). You need Fields for a helipad and Docks for a pier. Tilly Hollis can be beaten or bought out from Rank 7 (she respects hard work). FizzCo fights with money, lawyers and muscle. First helicopter VIP, first ship. FizzCo Tower falls (Rank 8).
+5. **The Big Squeeze** (Hilltop Estates; Days 105–150; Ranks 8–9). It opens with the Hilltop estate auction, where Lavender is won (about $1.5M, roughly a day's income at Rank 8). Two weeks in, Vera forms the Syndicate with whoever is left and the Mayor, and its first boss-led strike hits 2–3 of your plots that night. Harbor Fest (Fall) brings a VIP rush while Syndicate crews go after every delivery. From Rank 9, when ready, you Call the Big Squeeze: a 7-day siege, then the assault on Sourwood Manor. Each siege dawn the Corkboard names that night's 2–3 Syndicate targets; each night you hold them all knocks 10% off the Manor Gate (5,000 HP, down to 1,500 after 7 good nights) and benches one Yard elite; each plot you lose adds a Steward to the Boss Room. In the Boss Room, Lottie and Vera face off; the Secret Reserve page reveals the secret ingredient was a pinch of salt and "a friend to share it with." The old friends make up over a glass.
 Epilogue: **Endless Summer** — you own the Bay; keep playing.
 
 Endings vary by playstyle: mostly buyouts and high Reputation → "The Bay's Beloved Lemon Mogul"; mostly HQ assaults and smashing → "The Iron Pitcher." The Bugle's final front page and Lottie's last line change.

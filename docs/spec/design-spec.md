@@ -168,7 +168,7 @@ The game starts calm and turns up the heat as you grow. These levers hold the ba
 
 ### Anti-frustration guarantees
 
-- No raids on the player during Days 1 to 5, and the first raid is a tutorial raid that always bounces off your fence and Dex.
+- No raids on the player until the night your first Kiosk opens or Day 15, whichever comes first, and that first raid is a tutorial raid that always bounces off your fence and Dex.
 - Every raid on the player comes with a warning, even an undetected one.
 - Major alerts auto-pause the game (a toggle, on by default; raid warnings start off on Cutthroat).
 - A rival whose raid you beat backs off for a few days (the Respect cooldown).
@@ -194,7 +194,7 @@ Four nested loops run on one clock, and a game day takes about 5 real minutes at
 | Moment | Seconds | Price, recipe, which alert to answer | The queue grows; a raid bounces |
 | Day | About 5 minutes at 1× | What to buy, build and guard before night | Profit, then a dawn autosave |
 | Session | 4–6 days, 30–50 minutes | Which of Lottie's Goals to chase | A goal reward, often a rank-up |
-| Campaign | 150–170 days, 20–25 hours | Which district and rival to take next | A map painted yellow |
+| Campaign | About 140–150 days, 19–20 hours | Which district and rival to take next | A map painted yellow |
 
 ### Clock and speed
 
@@ -232,7 +232,7 @@ Early ranks come fast: Rank 2 on Day 4, Rank 3 on Day 10. Later ranks take sever
 
 ### The long-term loop
 
-Over 150–170 days you climb 10 ranks and 5 acts while Threat rises from 1 to 5 sour lemons (see Campaign roadmap). After victory, Endless Summer keeps the clock running for a Peak Success Score.
+Over about 140–150 days you climb to Rank 9 through 5 acts while Threat rises from 1 to 5 sour lemons (see Campaign roadmap). After victory, Endless Summer keeps the clock running for Rank 10 and a Peak Success Score.
 
 Your hands rise as the empire grows. Early chores automate first (see Fun first). By Rank 7, raid templates and district policies (Profit, Fortify or Expand) let you steer districts, not cups.
 
@@ -341,7 +341,7 @@ Each stand pours one card. A card gets ×1.2 appeal where it shines: its distric
 | Frozen Lemonade | $0.30 | +15% | Tourists, students | The Boardwalk; Summer and Heat Waves | Blenders eliminated |
 | Honey-Ginger Hot Lemonade | $0.30 | +10% | Seniors | Maple Row, Old Town; Winter (ignores the Winter penalty) | Cold Brew Collective eliminated |
 | Sparkling Lemonade | $0.32 | +15% | Office workers | Downtown | FizzCo eliminated |
-| Lavender Lemonade | $0.40 | +25% | High rollers | Hilltop Estates | The Hilltop estate auction (Act 4, from Day 95 at Rank 7) |
+| Lavender Lemonade | $0.40 | +25% | High rollers | Hilltop Estates | The Hilltop estate auction (Rank 8, as Act 5 opens) |
 | Hollis Half-and-Half | $0.25 | +10% | Workers | The Groves, The Harbor; Summer | Hollis beaten or bought out |
 | Lottie's Secret Reserve | $0.45 | +30% | Everyone | Everywhere, at ×1.3 appeal | Sourwood Manor's Boss Room (the finale) |
 
@@ -799,7 +799,7 @@ Plan each raid in the Raid Planner (see Player experience): target, objective, s
 | Smash | Rank 3 | Chop the stand to 0 HP within 60 game minutes | Wrecked; First Dibs on the plot if they don't rebuild (see Land and territory) |
 | Shakedown | Rank 3 | 10 game minutes at the till | About 1 day of that stand's profit, in cash |
 | Sabotage | Rank 4 | A Lookout or Sneaky guard, then 10 game minutes with the stock | They can't sell tomorrow; the stand stays up |
-| HQ Assault | Rank 4 (Blend Shack) to Rank 9 (Sourwood Manor) | A Weakened rival: a Gate of 2,000–5,000 HP, the Yard, the Boss Room | The rival is eliminated (see Rivals) |
+| HQ Assault | Rank 5 (Blend Shack) to Rank 9 (Sourwood Manor), one HQ per rank | A Weakened rival: a Gate of 2,000–5,000 HP, the Yard, the Boss Room | The rival is eliminated (see Rivals) |
 
 Customers see daytime raids (08:00–20:00): each costs 0.1 star, or 0.2 for a Smash, and night raids cost nothing. Below 2.0 stars, each daytime raid also earns Sheriff Budd's Citation: a fine of about 1 day of income and a 2-day raid ban.
 
@@ -881,7 +881,7 @@ From Rank 4, any boss will meet you at Dot's Diner; a Smooth Talker negotiator g
 | --- | --- | --- | --- |
 | Truce | 4+ | No raids between you and one rival for 7 days, for a cash tribute set by their Grudge | Breaking it costs 1 full star of Reputation, every rival's Grudge toward you jumps, and none will accept a Truce for 14 days |
 | Plot Buyout | 4+ | One rival plot at their price: 2.5× land value in their home district, 2× elsewhere; Grudge and personality can nudge it | Their price, take it or leave it |
-| Faction Buyout | 5+ | A Weakened rival's business, its cash and buildings but not its land, for 1.5× (Brock, Tilly) or 1.8× (Juni, Preston); its plots go to the Fire Sale | Brock and Tilly accept readily; Juni and Preston haggle; Vera never sells, except in a Peaceful Sandbox (3× once Weakened) |
+| Faction Buyout | 5–8 (the rival's HQ rank) | A Weakened rival's business, its cash and buildings but not its land, for 1.5× (Brock, Tilly) or 1.8× (Juni, Preston); its plots go to the Fire Sale | Brock and Tilly accept readily; Juni and Preston haggle; Vera never sells, except in a Peaceful Sandbox (3× once Weakened) |
 
 ### Weakened, elimination and the Fire Sale
 
@@ -903,7 +903,7 @@ Hiring beaten bosses as advisors is a stretch goal.
 
 ### HQ Assault
 
-From Rank 4, the Raid Planner can target a Weakened rival's HQ. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (elite henchmen) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return.
+From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its own rank: the Blend Shack at Rank 5, the Grindhouse at 6, Hollis Homestead at 7 and FizzCo Tower at 8, with Sourwood Manor saved for the Big Squeeze at 9. A rival's Faction Buyout opens at the same rank. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (elite henchmen) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return.
 
 | HQ, easiest first | Boss move in the Boss Room |
 | --- | --- |
@@ -947,20 +947,20 @@ Crossing a threshold ranks you up on the spot: confetti, the Rank Up stinger and
 
 ### The rank ladder
 
-Thresholds climb about 4× a rank, so early ranks come days apart and late ones weeks apart. Progression and unlocks lists every unlock and the pace on each difficulty.
+Thresholds climb 4 to 9 times a rank up to Rank 9, so early ranks come days apart and late ones weeks apart; the title rank needs only 1.6 times more and arrives after victory. Progression and unlocks lists every unlock and the pace on each difficulty.
 
 | Rank | Title | Success Score ($) | Simulated Classic day | Key unlocks |
 | --- | --- | --- | --- | --- |
 | 1 | Sidewalk Squeezer | 0 | 1 | Selling, the Wooden Stand (L2), Picket Fence, Maple Row land |
 | 2 | Corner Hustler | 1,500 | 4 | Guards and the Clubhouse, Guard Goose, Old Town land |
-| 3 | Block Boss | 6,000 | 10 | The Kiosk (L3), clubs, raids, Local Orders |
-| 4 | Neighborhood Name | 25,000 | 22 | Sharpened Stakes, Sit-downs, Sabotage, the Blend Shack assault |
-| 5 | District Big Shot | 100,000 | 37 | The Lemon Shack (L4), Bottling Works, Faction Buyouts |
-| 6 | Citrus Baron | 400,000 | 52 | Hatchets, Barbed Wire, helicopter VIPs |
-| 7 | Lemon Tycoon | 3,000,000 | 71 | The Citrus Palace (L5), ship contracts, district policies |
-| 8 | Juice Magnate | 10,000,000 | 97 | Citrus Fortress Wall, Heliport, Cargo Terminal, Supply Deals |
-| 9 | Bay Kingpin | 25,000,000 | 120 | Mega Contracts; in the campaign, Call the Big Squeeze |
-| 10 | The Big Squeeze | 75,000,000 | 150 | Golden Citrus Palace skin, endless leaderboards |
+| 3 | Block Boss | 6,000 | 9 | The Kiosk (L3), clubs, raids, Local Orders |
+| 4 | Neighborhood Name | 25,000 | 19 | Sharpened Stakes, Sit-downs, Sabotage, Plot Buyouts |
+| 5 | District Big Shot | 100,000 | 41 | The Lemon Shack (L4), Bottling Works, the Blend Shack (assault or buyout) |
+| 6 | Citrus Baron | 500,000 | 58 | Hatchets, Barbed Wire, helicopter VIPs, the Grindhouse |
+| 7 | Lemon Tycoon | 4,500,000 | 78 | The Citrus Palace (L5), ship contracts, district policies, Hollis Homestead |
+| 8 | Juice Magnate | 20,000,000 | 104 | Citrus Fortress Wall, Supply Deals, FizzCo Tower, the Lavender auction |
+| 9 | Bay Kingpin | 125,000,000 | 135 | Mega Contracts; in the campaign, Call the Big Squeeze |
+| 10 | The Big Squeeze | 200,000,000 | 157 | Golden Citrus Palace skin, endless leaderboards |
 
 ### Threat
 
@@ -968,33 +968,33 @@ Threat, 1 to 5 sour lemons, follows your rank and sets how often rivals raid you
 
 | Threat | Triggered by (Classic) | Raids on you per week | Typical raid | What changes |
 | --- | --- | --- | --- | --- |
-| 1 | Ranks 1–2 | 1 | 2–3 henchmen with fists; always a Shakedown | Raids begin on Day 6 |
+| 1 | Ranks 1–2 | 1 | 2–3 henchmen with fists; always a Shakedown | The first raid, on your first Kiosk night or Day 15, always bounces |
 | 2 | Ranks 3–4 | 2 | 3–5, some clubs; 30% Smash | Smash attempts begin |
 | 3 | Ranks 5–6 | 3 | 5–8 with clubs and lookouts; 60% Smash | Delivery Raids on VIP pickups; the music's tension layer |
-| 4 | Ranks 7–8, or 5–6 while you lead | 4 | 8–12, hatchets appear; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
-| 5 | Ranks 9–10, or 7–8 while you lead | 6 | 12–20, boss-led, full kit; all Smash on 2–3 plots | The Syndicate forms on Laid Back and Classic in Sandbox and Endless; the campaign waits for Act 5 |
+| 4 | Ranks 7–8 | 4 | 8–12, hatchets appear; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
+| 5 | Ranks 9–10 | 6 | 12–20, boss-led, full kit; all Smash on 2–3 plots | The Syndicate forms on Laid Back and Classic in Sandbox and Endless; the campaign waits for Act 5 |
 
 Laid Back halves every raid count, and Cutthroat raises it by half. Schemes that aren't raids, such as price wars, auction snipes and smear posters, also come more often with each lemon. Each boss's Attention, which rises with Threat, decides who sends the raid (see Rivals).
 
-Threat never jumps by surprise. It moves only at a rank-up or when you pass, or drop behind, the richest rival, and the lemons show both parts on hover. A careful player can stay second on purpose and keep a lemon off the bar.
+Threat never jumps by surprise: it moves only at a rank-up, and on hover the lemons name the rank that set it.
 
 ### The Syndicate
 
 At the top of the ladder, the surviving rivals stop raiding each other and form the Syndicate. In Sandbox and Endless, it forms at Threat 5 on Laid Back and Classic, and at Threat 4 on Cutthroat. Its boss-led raids hit 2–3 of your plots at once, 6 times a week on Classic, 3 on Laid Back and 9 on Cutthroat.
 
-In the campaign, Vera forms it in Act 5 on every difficulty, around Day 120 on Classic. The Corkboard ties every string to your photo, the Bugle prints "PACT IS BACK" and a cane tap joins every downbeat.
+In the campaign, Vera forms it two weeks into Act 5 on every difficulty, around Day 120 on Classic, and its first strike comes under the Founders' Day fireworks. The Corkboard ties every string to your photo, the Bugle prints "PACT IS BACK" and a cane tap joins every downbeat.
 
 Holding out is a puzzle across districts. Watchtowers see raids coming, a Clubhouse in or beside each district sends help, and Citrus Fortress Walls guard your best plots. Each rival you eliminate shrinks the Syndicate, and from Rank 9 you choose when to Call the Big Squeeze (see Narrative).
 
 ### Peak Success Score
 
-Peak Success Score, the highest your score ever reaches, is the high score (see Game modes and winning). Each leaderboard entry records the peak, the day it was set, the difficulty and whether the run was Ironman. The simulated Classic run passes $75,000,000 on Day 150 and about $130,000,000 by Day 170, so Endless Summer has plenty of headroom.
+Peak Success Score, the highest your score ever reaches, is the high score (see Game modes and winning). Each leaderboard entry records the peak, the day it was set, the difficulty and whether the run was Ironman. The simulated Classic run passes $200,000,000 (Rank 10) on Day 157 and about $258,000,000 by Day 170, so Endless Summer has plenty of headroom.
 
-**Fun check:** Every rank is a party with new toys, and the badge shows the next one filling up. Threat rises only with rank or the lead, both shown on the top bar. Pressure grows once you have the tools to meet it, never by surprise.
+**Fun check:** Every rank is a party with new toys, and the badge shows the next one filling up. Threat rises only with rank, shown on the top bar. Pressure grows once you have the tools to meet it, never by surprise.
 
 ## VIP clients
 
-Wealthy clients pay $12 to $100 a bottle, 4 to 33 times the price of a Kiosk cup. Their choppers and ships land only on Field and Dock land you own, and every bottle comes from your Bottling Works.
+Wealthy clients pay $30 to $100 a bottle, 10 to 33 times the price of a Kiosk cup. Their choppers and ships land only on Field and Dock land you own, and every bottle comes from your Bottling Works.
 
 ### The order ladder
 
@@ -1004,18 +1004,18 @@ Offers arrive with the Morning Bugle and wait in the Order Book. Each card names
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Local Orders | Rank 3 | Any L3+ stand | 300–1,500 cups | 2 days | 1.5× that stand's price | $1,350–$6,750 at a $3.00 Kiosk | About 1 per 2 days |
 | Caterer Trucks | Rank 5 | Warehouse and Bottling Works | 1,000–5,000 bottles | 3 days | $6 a bottle | $6,000–$30,000 | About 2 per 5 days |
-| Helicopter VIPs | Rank 6, 3.5 stars | A Helipad tier on a Field | 2,000–10,000 bottles | 4 days | $12 a bottle, +0.2 star | $24,000–$120,000 | About 1 per 3 days |
-| Ship Contracts | Rank 7, 4.0 stars | A Pier tier on a Dock | 10,000–60,000 bottles | 7 days | $15 a bottle | $150,000–$900,000 | About 1 per 7 days |
-| Supply Deals | Rank 8, 4.0 stars | Cargo Terminal | 80,000 bottles | 28 days | $12 a bottle | $960,000 | About 1 per 12 days |
+| Helicopter VIPs | Rank 6, 3.5 stars | A Helipad tier on a Field | 2,000–10,000 bottles | 4 days | $30 a bottle, +0.2 star | $60,000–$300,000 | About 1 per 3 days, never more than 10 days apart |
+| Ship Contracts | Rank 7, 4.0 stars | A Pier tier on a Dock | 10,000–60,000 bottles | 7 days | $40 a bottle | $400,000–$2,400,000 | About 1 per 5 days, never more than 10 days apart |
+| Supply Deals | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles | 28 days | $30 a bottle | $6,000,000 | The first when the Cargo Terminal opens, then about 1 per 7 days |
 | Mega Contracts | Rank 9, 4.5 stars | Heliport, Cargo Terminal and 2 premium recipes | 100,000–150,000 bottles | 14 days | $100 a bottle | $10M–$15M | About 1 per 20 days |
 
-Local Orders and Caterer Trucks are the warm-up, filled from stands and the Warehouse. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
+Local Orders and Caterer Trucks are the warm-up, filled from stands and the Warehouse. Once a pad or pier tier stands, its clients offer a job at least every 10 days, and the first Supply Deal arrives the day your Cargo Terminal opens. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
 
 ### Helicopter clients
 
-Helicopter VIPs need a Pad, the first Helipad tier, on a Field plot. Clients include a movie star's pool party, a tech mogul's rooftop launch, a celebrity wedding and a music festival VIP tent. Each delivered order adds 0.2 star, and a Pad pays back in about 3 weeks of orders.
+Helicopter VIPs need a Pad, the first Helipad tier, on a Field plot. Clients include a movie star's pool party, a tech mogul's rooftop launch, a celebrity wedding and a music festival VIP tent. Each delivered order adds 0.2 star, and a Pad pays for itself with its first order.
 
-Example: a movie star wants 5,000 bottles of Pink for a pool party in 4 days. That order needs the Helipad tier, pays $60,000 and loads in one pickup.
+Example: a movie star wants 5,000 bottles of Pink for a pool party in 4 days. That order needs the Helipad tier, pays $150,000 and loads in one pickup.
 
 ### Ship clients
 
@@ -1068,13 +1068,13 @@ A Groves Field costs $40,000–80,000 and a Harbor Dock $100,000–200,000, and 
 
 Full Control of each district pays off in VIP terms. Shipping Lane (The Harbor) adds 15% to ship pay. Old Money (Hilltop) brings VIP offers 50% more often.
 
-Stand upgrades pay back faster than VIP facilities, so the simulated player waits. Its first chopper lands on Day 87 and its first ship on Day 128. Act 4's story goals steer human players to a Pad sooner.
+At $30 and $40 a bottle, VIP facilities earn their keep. The simulated player builds every pad and pier tier, lands its first chopper on Day 72 and its first ship on Day 87, both in Act 4, and takes its first Supply Deal the day its Cargo Terminal opens (Day 109). From Day 97 to Day 136, VIP clients bring about a fifth of its revenue.
 
 **Fun check:** A chopper thumping in over the bay and a horn playing your tune are the game's showpieces: paydays you can watch arrive. Offers are optional and show their risk first, and a failure costs 0.3 star and the unloaded pay, never the business.
 
 ## Economy and balance
 
-A competent Classic player grows a $525 folding table into a $25,000,000 empire by about Day 120, and every step pays back in days.
+A competent Classic player grows a $525 folding table into a $125,000,000 empire by about Day 135, and every step pays back in days.
 
 ### Money in, money out
 
@@ -1091,18 +1091,18 @@ Cash is the only currency. Success Score is Net Worth, so land and buildings cou
 
 ### Income growth by stage
 
-The simulated Classic player's average daily income climbs about 3,000× across the campaign. Each stage has one obvious "next big buy".
+The simulated Classic player's average daily income climbs about 5,000× across the campaign. Each stage has one obvious "next big buy".
 
-| Stage | Days | Typical holdings | Daily income | Main spends |
+| Stage | Days | Stands at the end | Daily income | Main spends |
 | --- | --- | --- | --- | --- |
-| Ranks 1–2 | 1–9 | 2 Wooden Stands in Maple Row | about $600 | L2 upgrades, a second plot, Picket Fence |
-| Rank 3 | 10–21 | 7 Wooden Stands, 2 Kiosks | about $2,500 | Kiosks, Maple Row plots, Chain-Link, clubs |
-| Rank 4 | 22–36 | 11 Kiosks | about $8,000 | Kiosks, the Radio Jingle, fences and guards |
-| Rank 5 | 37–51 | 17 Kiosks, Boardwalk and Groves footholds | about $25,000 | Land, defenses, the first Clubhouse |
-| Rank 6 | 52–70 | 19 Kiosks, 19 Lemon Shacks | about $180,000 | Lemon Shacks, land, Bottling Works, hatchets |
-| Rank 7 | 71–96 | 39 Lemon Shacks, 4 Citrus Palaces | about $400,000 | Palaces, land, Barbed Wire, Helipad |
-| Rank 8 | 97–119 | 39 Lemon Shacks, 18 Citrus Palaces | about $1.1M | Palaces, Majority land, Fortress Walls |
-| Rank 9 | 120–136 | 40 Lemon Shacks, 22 Citrus Palaces | about $2.1M | Heliport, Cargo Terminal, Hilltop land, the Big Squeeze |
+| Ranks 1–2 | 1–8 | 3 Wooden Stands in Maple Row | about $800 | L2 upgrades, the side lot and a third plot, Picket Fences |
+| Rank 3 | 9–18 | 9 Wooden Stands | about $2,400 | Plots, L2 upgrades, fences |
+| Rank 4 | 19–40 | 11 Kiosks | about $5,100 | Kiosks, fences and guards, land, the first Clubhouse |
+| Rank 5 | 41–57 | 20 Kiosks | about $31,000 | Land (the Blend Shack's Fire Sale), defenses, Kiosks |
+| Rank 6 | 58–77 | 28 Lemon Shacks, 19 Kiosks | about $260,000 | Lemon Shacks, land, defenses and guards, then the Pad, Warehouse and Bottling Works |
+| Rank 7 | 78–103 | 42 Lemon Shacks, 15 Citrus Palaces | about $850,000 | Palaces and Shacks, land, the Helipad, Jetty and Pier, defenses, Clubhouses |
+| Rank 8 | 104–134 | 35 Lemon Shacks, 39 Citrus Palaces | about $3.9M | Land, Palaces, Hilltop land for the siege, the Heliport and Cargo Terminal, the $1.5M Lavender auction |
+| Rank 9 | 135–143 | The same | about $4.0M (Fall) | Defenses for the siege, repairs |
 
 ### Cost curves
 
@@ -1120,36 +1120,37 @@ Defense costs scale with what you protect. A Picket Fence costs $150 and a Citru
 - **Wages** run $15 a day for a Rookie up to $90 for a Legend. Guards level up about once every 35 days of duty.
 - **Loans** from Marisol cover up to 50% of non-cash Net Worth at 3% interest per week over 4 weeks. Two missed payments let the bank repossess your lowest-value plot.
 
-Security spend (guards, defenses and repairs) is meant to sit at 15–25% of income. In the simulation it runs 17–22% from Day 36 to Day 130 and about 11–14% before that.
+Security spend (guards, defenses and repairs) is meant to sit at 15–25% of income through Acts 1–3. In the simulation it runs about a quarter of income in the first weeks, while the first fences, Dex and the first squad go in, then 20–22% to Day 55 and 15% to Day 80. Later it falls under 10% of a much bigger income, and the pressure comes from Delivery Raids, the Syndicate and the siege.
 
 ### Lottie's Cookie Jar and bankruptcy
 
 Cash below $0 at the end of a day puts you "In the Red" with 3 days to fix it. If you'd still go under, Lottie's Cookie Jar pays the shortfall plus one day of upkeep and wages. Laid Back has it always, Classic once per act (once per season in Sandbox and Endless), and Cutthroat never.
 
-Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads the last dawn autosave. Losses should sting, not ruin. In the simulation, the worst Classic raid after Day 6 cost under 1 day of income, and the average cost 0.1 day.
+Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads the last dawn autosave. Losses should sting, not ruin. In the simulation, the worst Classic raid after Day 6 cost about a third of a day's income (never more than 0.6 days on 60 maps), and the average cost about 0.1 day.
 
 ### Pacing targets vs the simulation
 
-| Milestone | Target day | Simulated Classic day |
+| Milestone | Target day | Simulated Classic day (range on ten maps) |
 | --- | --- | --- |
-| First upgrade to L2 | 4 | 4 |
-| Rank 2 | 4 | 4 |
-| Rank 3 | 10 | 10 |
-| Rank 4 | 20 | 22 |
-| Rank 5 | 35 | 37 |
-| Rank 6 | 55 | 52 |
-| Rank 7 | 80 | 71 |
-| Rank 8 | 105 | 97 |
-| Rank 9 | 130 | 120 |
-| Domination | 150–170 | 136 |
+| First upgrade to L2 | 4 | 4 (4–5) |
+| Rank 2 | 4 | 4 (3–4) |
+| Rank 3 | About 10 | 9 (8–12) |
+| Rank 4 | About 22 | 19 (15–34) |
+| Rank 5 | About 37 | 41 (26–48) |
+| Rank 6 | 52–58 | 58 (48–60) |
+| Rank 7 | 71–80 | 78 (67–82) |
+| Rank 8 | 95–105 | 104 (87–105) |
+| Rank 9 | 125–135 | 135 (123–138) |
+| Domination | About 140–150, not before 136 | 143 (131–146) |
+| Rank 10 (after victory) | About 150–160 | 157 (148–162) |
 
-Every milestone lands within 15% of its target. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level was 5 days.
+Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
 
 ### Difficulty differences
 
-Laid Back halves raids, lowers Threat by 1 and only ever Busts your stands. Ranks 5–9 arrive about 11% sooner (Rank 9 on Day 103).
+Laid Back halves raids, lowers Threat by 1 and only ever Busts your stands. Ranks 5–9 arrive about 14% sooner (Rank 9 on Day 118), and Domination lands on Day 126 (120–136 across ten maps).
 
-Cutthroat raises raids by half, trims customer traffic by 10% and raises build costs by 10%. Outside the campaign, its Syndicate forms at Threat 4. Ranks 5–9 arrive about 27% later there (Rank 9 on Day 154), and Domination usually lands after Day 170.
+Cutthroat raises raids by half, cuts the raid warning to 5 game minutes, shortens the Respect cooldown to 1 day and has no Cookie Jar; customer traffic and costs stay as on Classic. In Sandbox and Endless its Syndicate forms at Threat 4. Ranks 5–9 arrive at about Classic's pace (Rank 9 on Day 143) under 1.3–1.7 times the raids, and Domination lands on Day 151 (134–163 across ten maps), always before Day 170.
 
 ### Anti-snowball and anti-grind levers
 
@@ -1158,36 +1159,36 @@ Snowball brakes:
 - Costs rise faster than income: each stand level, district and VIP tier asks for a much bigger bill.
 - Threat climbs with Rank, so success draws bigger raids.
 - Upkeep and wages grow with the empire, and rival stands within 2 plots split your customers.
-- Late cash has real homes: Hilltop land, Citrus Palaces, Fortress Walls, and a Heliport plus Cargo Terminal (about $4M) that unlock $10M–$15M Mega Contracts.
+- Late cash has real homes: Hilltop land, Citrus Palaces, Fortress Walls, the $1.5M Lavender auction, and a $3M Cargo Terminal whose Supply Deals pay about $6M each.
 
 Grind breakers:
 
-- Ranks, unlocks and stand levels are spaced so something new arrives at least every 5 days.
+- Ranks, unlocks and stand levels are spaced so something new arrives about once a week, even in the slowest stretch.
 - Local Orders, Caterer Trucks and VIPs give cash spikes and goals between upgrades.
 - Automation arrives before the chores pile up: Auto-Restock (Day 3); Auto-Price, bulk upgrades and Auto-Repair (Rank 3); Auto-Defend (Rank 4).
 - Fire Sales sell an eliminated rival's plots at 75% of value, so each victory speeds the next.
 
 ### How the numbers were checked
 
-A simulation played the full 170 days on all three difficulties and five shuffled versions of the map. Its player bought what paid back fastest, kept a fifth of income for security and raided rival stands at night. Every number in Appendix A came from tuning that player toward the targets above.
+A simulation played the full 170 days on all three difficulties across ten versions of the map, and 60 for the key checks. Its player bought what paid back fastest, kept a fifth of income for security and raided rival stands at night. Every number in Appendix A came from tuning that player toward the targets above.
 
 ### Pacing chart
 
 &#91;embedded content: pacing.csv · 170 simulated days on each difficulty, from the economy model\]
 
-Late ranks space out because net worth grows about threefold every 30 days after Day 90, while Ranks 8 to 10 each need 2.5 to 3.3 times the net worth of the rank before. Cutthroat runs about a quarter slower and usually reaches Domination after Day 170.
+Late ranks space out because growth slows while the bar keeps rising: net worth grows about sevenfold from Day 90 to Day 120 but only about 2.5-fold from Day 120 to Day 150, and Rank 9 needs about 6 times Rank 8's net worth. Laid Back runs about 14% faster; Cutthroat keeps close to Classic's pace under more raids.
 
-**Fun check:** The fun is a big new buy every few days, from a $400 awning to a $650,000 lemon dome. Paybacks in days, raids that cost about a day at most and the Cookie Jar keep it from ever feeling like a grind.
+**Fun check:** The fun is a big new buy every few days, from a $400 awning to a $650,000 lemon dome. Paybacks in days, raids that cost well under a day and the Cookie Jar keep it from ever feeling like a grind.
 
 ## Progression and unlocks
 
-Every rank opens new toys, and on Classic something new arrives at least every 5 days: a rank, an unlock or a stand level. The pacing chart above shows the simulated score crossing each rank threshold, and the table below shows what each crossing opens.
+Every rank opens new toys, and on Classic something new arrives about once a week at the slowest: a rank, an unlock or a stand level. The pacing chart above shows the simulated score crossing each rank threshold, and the table below shows what each crossing opens.
 
 ### The first week
 
 Act 1 adds one system a day, each with its own button (see Player experience). Prices come on Day 1, recipes and weather on Day 2, and on Day 3 supplies, Auto-Restock and a second stand on Lottie's $300 side lot. The Wooden Stand and Rank 2 land together on Day 4, about 30 minutes in.
 
-The Steward's visit brings the Picket Fence on Day 5, Dex joins on Day 6 and the first sign goes up on Day 7. Week 2 opens the Land Registry. No raid comes before Day 6, and the first one is a tutorial raid that bounces off your fence and Dex, so the first 40 minutes are pure business and the first fight is a win.
+The Steward's visit brings the Picket Fence on Day 5, Dex joins on Day 6 and the first sign goes up on Day 7. Week 2 opens the Land Registry. The first raid waits for your first Kiosk or Day 15, whichever comes first, and it is a tutorial raid that bounces off your fence and Dex, so the first hour or more is pure business and the first fight is a win.
 
 ### What unlocks when
 
@@ -1197,16 +1198,16 @@ Each row lists a rank's unlocks with its Classic target day, then the simulated 
 | --- | --- | --- | --- | --- | --- |
 | 1 | Start | Start | Selling, recipes, weather, supplies; Wooden Stand (L2); Hand-Painted Signs (M1); Maple Row land | Picket Fence; fists | Auto-Restock (Day 3) |
 | 2 | 4 / 4 (0.5) | 4 / 4 | Old Town land; Sandwich-Board Kid; Free Sample Day | Guards, with Dex free on Day 6; Clubhouse; Chain-Link Fence; Tin-Can Alarm; Guard Goose | — |
-| 3 | 10 / 10 (1.3) | 10 / 12 | Kiosk (L3); Flyers & Sidewalk Chalk (M2); Sunny the Lemon; other districts through Footholds and borders | Clubs; Padded Vest; Smash and Shakedown raids; squad of 5 | Local Orders; Marisol's Auto-Price; bulk actions; Auto-Repair |
-| 4 | 20 / 22 (2.9) | 20 / 24 | Radio Jingle (M3); Coupon Blitz | Sharpened Stakes; Lemon-Peel Slick; Sprinkler Ambush; Lookouts; Wreckers; Sabotage; Blend Shack assault | Warehouse; Sit-downs (Truce, Plot Buyout); Dex's Auto-Defend |
-| 5 | 35 / 37 (4.9) | 32 / 42 | Lemon Shack (L4); Event Sponsorship | Floodlights; squad of 8; Clubhouse L2; Grindhouse assault | Bottling Works; Caterer Trucks; Lemon Grove; Faction Buyouts |
-| 6 | 55 / 52 (6.9) | 49 / 62 | — | Hatchets; Barbed Wire; Watchtower; Pro Gear; Captains; Hollis Homestead assault | Pad and helicopter VIPs; Bottling Works L2; raid templates |
-| 7 | 80 / 71 (9.5) | 67 / 96 | Citrus Palace (L5); Billboards & TV (M4); Billboard building | Squad of 12; Clubhouse L3; FizzCo Tower assault | Helipad tier; Jetty, Pier and ship contracts; Bottling Works L3; the Lavender auction from Day 95; district policies |
-| 8 | 105 / 97 (12.9) | 84 / 123 | The Lemon Blimp (M5) | Citrus Fortress Wall | Heliport; Cargo Terminal; Supply Deals |
-| 9 | 130 / 120 (16.0) | 103 / 154 | — | The Big Squeeze on Sourwood Manor | Mega Contracts |
-| 10 | — / 150 (20.0) | 128 / after 170 | Golden Citrus Palace skin | — | Endless leaderboards |
+| 3 | 10 / 9 (1.2) | 9 / 9 | Kiosk (L3); Flyers & Sidewalk Chalk (M2); Sunny the Lemon; other districts through Footholds and borders | Clubs; Padded Vest; Smash and Shakedown raids; squad of 5 | Local Orders; Marisol's Auto-Price; bulk actions; Auto-Repair |
+| 4 | 22 / 19 (2.5) | 19 / 19 | Radio Jingle (M3); Coupon Blitz | Sharpened Stakes; Lemon-Peel Slick; Sprinkler Ambush; Lookouts; Wreckers; Sabotage | Warehouse; Sit-downs (Truce, Plot Buyout); Dex's Auto-Defend |
+| 5 | 37 / 41 (5.5) | 31 / 38 | Lemon Shack (L4); Event Sponsorship | Floodlights; squad of 8; Clubhouse L2; the Blend Shack (assault or buyout) | Bottling Works; Caterer Trucks; Lemon Grove |
+| 6 | 52–58 / 58 (7.7) | 50 / 59 | — | Hatchets; Barbed Wire; Watchtower; Pro Gear; Captains; the Grindhouse (assault or buyout) | Pad and helicopter VIPs; Bottling Works L2; raid templates |
+| 7 | 71–80 / 78 (10.4) | 67 / 81 | Citrus Palace (L5); Billboards & TV (M4); Billboard building | Squad of 12; Clubhouse L3; Hollis Homestead (assault or buyout) | Helipad tier; Jetty, Pier and ship contracts; Bottling Works L3; district policies |
+| 8 | 95–105 / 104 (13.9) | 87 / 108 | The Lemon Blimp (M5) | Citrus Fortress Wall; FizzCo Tower (assault or buyout) | Heliport; Cargo Terminal; Supply Deals; the Lavender auction |
+| 9 | 125–135 / 135 (18.0) | 118 / 143 | — | The Big Squeeze on Sourwood Manor | Mega Contracts |
+| 10 | After victory / 157 (20.9) | 134 / 163 | Golden Citrus Palace skin | — | Endless leaderboards |
 
-Domination lands on Day 136 on Classic, about 18 hours in, against a 150–170-day target. Laid Back reaches Ranks 5–9 about 11% sooner and Cutthroat about 27% later, so Cutthroat's finale runs past Day 170 (see Economy and balance).
+Domination lands on Day 143 on Classic, about 19 hours in, against a target of about Days 140–150 (131–146 across ten maps). Laid Back reaches Ranks 5–9 about 14% sooner and wins on Day 126; Cutthroat keeps about Classic's pace under more raids and wins on Day 151 (see Economy and balance).
 
 ### Helpers that keep a big empire calm
 
@@ -1225,29 +1226,29 @@ Each helper arrives as its chore piles up; by Rank 7 the simulated player runs o
 
 ### Gaps between ranks
 
-Rank gaps grow from 3 days to about 4 weeks. Before Domination the longest is Rank 7 to Rank 8: 26 days, about 3.5 hours. The simulated run fills it anyway: the first Citrus Palace, Hollis's fall, the first chopper (Day 87) and the Lavender auction (Day 95).
+Rank gaps grow from 3 days to about a month. The longest is Rank 8 to Rank 9: 31 days, about 4 hours of play. Act 5 fills it with the Lavender auction (Day 105), the first Supply Deal (Day 109), the Heliport (Day 111), the Syndicate's first strike two weeks in and Harbor Fest's VIP rush.
 
-The longest lull with nothing new at all is 5 days, about 40 minutes. It falls in midwinter, Days 32–37, between the Radio Jingle and Rank 5. Lottie's 3 goals and Local Orders fill it, and slow winter sales make it fortifying season.
+The longest lull with nothing new at all is 7 days, about an hour, and it is the siege of Sourwood Manor (Days 136–143), where the fight fills the days. Across ten maps the longest lull runs 5–10 days.
 
 ### Acts and ranks
 
-The five acts ride the rank ladder. From Act 2, each climax needs a rank inside its act, and every simulated rank-up lands inside its act's days.
+The five acts ride the rank ladder. From Act 2, each climax needs a rank inside its act, and in the simulation every rank-up lands inside its act.
 
 | Act | Target days | Ranks | Simulated Classic rank-ups | Climax needs |
 | --- | --- | --- | --- | --- |
-| 1 Lottie's Corner | 1–15 | 1–3 | Rank 2 on Day 4, Rank 3 on Day 10 | The Summer Fair Taste-Off, Day 14 |
-| 2 Surf & Turf | 15–40 | 3–5 | Rank 4 on Day 22, Rank 5 on Day 37 | Rank 4 to storm the Blend Shack |
-| 3 Grounds for Revenge | 40–65 | 5–6 | Rank 6 on Day 52 | Rank 5 to storm the Grindhouse |
-| 4 Fields & Fizz | 65–120 | 6–8 | Rank 7 on Day 71, Rank 8 on Day 97 | Rank 7 to storm FizzCo Tower |
-| 5 The Big Squeeze | 120–170 | 8–10 | Rank 9 on Day 120, Rank 10 on Day 150 | Rank 9 to Call the Big Squeeze |
+| 1 Lottie's Corner | 1–15 | 1–3 | Rank 2 on Day 4, Rank 3 on Day 9 | The Summer Fair Taste-Off, Day 14 |
+| 2 Surf & Turf | 15–40 | 3–5 | Rank 4 on Day 19, Rank 5 on Day 41 | Rank 5 to storm or buy out the Blend Shack |
+| 3 Grounds for Revenge | 40–60 | 5–6 | Rank 6 on Day 58 | Rank 6 to storm or buy out the Grindhouse |
+| 4 Fields & Fizz | 60–105 | 6–8 | Rank 7 on Day 78, Rank 8 on Day 104 | Rank 8 to storm or buy out FizzCo Tower |
+| 5 The Big Squeeze | 105–150 | 8–9 | Rank 9 on Day 135; Rank 10 on Day 157, after victory | Rank 9 to Call the Big Squeeze |
 
-Domination on Day 136 ends the campaign inside Act 5, and Rank 10 usually follows in Endless Summer. The roadmap below lays the five acts along these days and ranks.
+Domination on Day 143 ends the campaign inside Act 5, and Rank 10 follows in Endless Summer. The roadmap below lays the five acts along these days and ranks.
 
 ### Campaign roadmap
 
 &#91;embedded content: acts from the spec canon · rank and Domination days from the economy model (Classic, 170 simulated days)\]
 
-From Act 4 on, ranks come three to four weeks apart, so the late game leans on VIP orders, events and the Syndicate for fresh goals between ranks. In the model, the first ship arrives on Day 128 (after Act 4) and Domination lands on Day 136, before Rank 10 and its 150–170 target. Open questions takes up both.
+From Act 4 on, ranks come three to four weeks apart, so the late game leans on VIP orders, events and the Syndicate for fresh goals between ranks. In the model, the first chopper lands on Day 72 and the first ship on Day 87, both in Act 4, and Domination lands on Day 143, two weeks before Rank 10. Open questions covers when Rank 10 should arrive.
 
 **Fun check:** New toys land every few days, and each helper takes a chore away just as the empire outgrows it. Lottie's 3 goals always point at the next unlock, so even the winter lull has a target.
 
@@ -1314,7 +1315,7 @@ Maple Row → Old Town · Days 1–15 · Ranks 1–3. **Goal:** learn the trade,
 
 The Boardwalk · Days 15–40 · Ranks 3–5. **Goal:** survive Brock's revenge and take the Boardwalk.
 
-1. **First call:** your first Kiosk opens and the phone rings: "Bro. Your stand is in my sun." Smoothie Bros follow that night, fully announced, and bounce off your fence and Dex (the first raid always does). *Teaches raid warnings.*
+1. **First call:** on the day your first Kiosk opens, or the day after the Summer Fair if that comes first, the phone rings: "Bro. Your stand is in my sun." Smoothie Bros follow that night, fully announced, and bounce off your fence and Dex (the first raid always does). *Teaches raid warnings.*
 2. **Squawk's flight:** the one required Gull Flight, over the Pier. *Teaches scouting.*
 3. **Payback:** Dex trades fists for clubs; you Shakedown one Blenders stand and Smash another. *Teaches raids and First Dibs.*
 4. **Off-season:** winter empties the Boardwalk. Lottie: "Nobody buys a smoothie in sleet." *Teaches Weakened rivals.*
@@ -1325,7 +1326,7 @@ The Boardwalk · Days 15–40 · Ranks 3–5. **Goal:** survive Brock's revenge 
 
 ### Act 3: Grounds for Revenge
 
-Campus & Arts · Days 40–65 · Ranks 5–6. **Goal:** find out who keeps spoiling your stock.
+Campus & Arts · Days 40–60 · Ranks 5–6. **Goal:** find out who keeps spoiling your stock.
 
 1. **The mystery:** stock spoils overnight with no raid detected. Dex blames the geese; it is never the geese. *Teaches Lookouts and Floodlights.*
 2. **The posters:** every campus wall sneers "LOTTIE'S: LEMONADE FOR PEOPLE WHO LIKE THINGS." *Teaches Reputation repair.*
@@ -1338,26 +1339,27 @@ Campus & Arts · Days 40–65 · Ranks 5–6. **Goal:** find out who keeps spoil
 
 ### Act 4: Fields & Fizz
 
-The Groves, Downtown, The Harbor · Days 65–120 · Ranks 6–8. **Goal:** win Fields for a helipad and Docks for a pier, then topple FizzCo.
+The Groves, Downtown, The Harbor · Days 60–105 · Ranks 6–8. **Goal:** win Fields for a helipad and Docks for a pier, then topple FizzCo.
 
 1. **County Fair:** out-brew Tilly, and she sells you a Field at a friendly 1.5× value instead of her usual 2.5×. *Teaches Plot Buyouts.*
 2. **First chopper:** a movie star orders 4,000 bottles of Pink; Juni warns that FizzCo will hit the pad. *Teaches Delivery Raids.*
 3. **The lawyers:** a Cease-and-Desist arrives with a fruit basket and blocks your Downtown ads for 3 days. *Teaches Cease-and-Desists.*
-4. **The auction:** Vera's old harp teacher swaps her Hilltop estate for a houseboat and auctions the Lavender page. *Teaches sealed bids.*
-5. **First ship:** the Regatta flagship's horn plays the first 3 notes of Lottie's Theme; Lottie blames the wind. *Teaches ship contracts.*
+4. **First ship:** the Regatta flagship's horn plays the first 3 notes of Lottie's Theme; Lottie blames the wind. *Teaches ship contracts.*
 
-**Climax:** FizzCo Tower falls, by assault or hard-haggled buyout. Tilly can fall any time or join the Syndicate.
+**Climax:** FizzCo Tower falls, by assault or hard-haggled buyout. Tilly can fall any time from Rank 7, or join the Syndicate.
 
 **Unlocks:** Sparkling and the FizzCo Tower Trophy.
 
 ### Act 5: The Big Squeeze
 
-Hilltop Estates · Days 120–170 · Ranks 8–10. **Goal:** outlast the Syndicate, then Call the Big Squeeze when ready.
+Hilltop Estates · Days 105–150 · Ranks 8–9. **Goal:** outlast the Syndicate, then Call the Big Squeeze when ready.
 
-1. **Tea at the Manor:** Vera offers to buy you out. Your three replies: "No," "No, thank you" and "Absolutely not, ma'am."
-2. **The Syndicate:** Vera unites whoever is left, plus the Mayor, into a Pitcher Pact against you. *Teaches multi-front defense.*
-3. **Historic hedges:** the Mayor freezes your Hilltop land deal to protect "historic hedges." *Teaches Old Money.*
-4. **The button:** at Rank 9, Lottie posts one goal with no timer: Call the Big Squeeze. "When you're ready, kid. Not a minute before."
+1. **The auction:** at Rank 8, Vera's old harp teacher swaps her Hilltop estate for a houseboat and auctions the Lavender page; the winning bid runs about a day's income. *Teaches sealed bids.*
+2. **Tea at the Manor:** Vera offers to buy you out. Your three replies: "No," "No, thank you" and "Absolutely not, ma'am."
+3. **The Syndicate:** two weeks into the act, Vera unites whoever is left, plus the Mayor, into a Pitcher Pact against you, and its first boss-led strike hits 2–3 of your plots under the Founders' Day fireworks. *Teaches multi-front defense.*
+4. **Historic hedges:** the Mayor freezes your Hilltop land deal to protect "historic hedges." *Teaches Old Money.*
+5. **Harbor Fest:** choppers and ships queue for the Fall VIP rush while Syndicate crews go after every delivery. Every horn plays Lottie's Theme, and Lottie swears she isn't humming along.
+6. **The button:** at Rank 9, Lottie posts one goal with no timer: Call the Big Squeeze. "When you're ready, kid. Not a minute before."
 
 **Climax:** a 7-day siege, then the Manor: Gate, Yard, Boss Room. Each siege dawn the Corkboard names that night's 2–3 targets; every night you hold them all knocks 10% off the Manor Gate (down to 1,500 of its 5,000 HP) and benches one Yard elite, and every plot you lose adds a Steward to the Boss Room. When Vera's cane clatters down, Lottie walks in, and they face off across the tea table.
 
@@ -1379,7 +1381,7 @@ Each recovered page becomes a recipe card and a 20-second scene, and empty slots
 | Frozen | Brock, framed over the blenders | Blenders eliminated |
 | Honey-Ginger Hot Lemonade | Juni, taped inside the register | Cold Brew Collective eliminated |
 | Hollis Half-and-Half | Tilly, who added the tea and her own name | Hollis beaten or bought out |
-| Lavender | Vera's harp teacher; Vera paid for lessons with it in 1980 | The Hilltop estate auction; if outbid, it moves to the winner's HQ |
+| Lavender | Vera's harp teacher; Vera paid for lessons with it in 1980 | The Hilltop estate auction at Rank 8; if outbid, it moves to the winner's HQ |
 | Sparkling | Preston, laminated in the boardroom | FizzCo Tower falls or sells |
 | Lottie's Secret Reserve | Vera, sealed: "Open together" | Sourwood Manor's Boss Room |
 
@@ -1439,7 +1441,7 @@ Every mode plays by the same rules and chases one of two goals: own the Bay, or 
 
 | Mode | What you play | How it ends |
 | --- | --- | --- |
-| Story Campaign | 5 acts on the hand-made map, about 150–170 days (see Narrative) | Domination, then Endless Summer |
+| Story Campaign | 5 acts on the hand-made map, about 140–150 days (see Narrative) | Domination, then Endless Summer |
 | Sandbox: Turf War | Your map size, rivals, difficulty and win condition | Domination, Economic or never |
 | Endless Summer | Play for Peak Success Score | Only in a loss |
 | Challenges (stretch) | Short scenarios with one goal | Goal met or missed |
@@ -1473,7 +1475,7 @@ Difficulty changes how often rivals come and how hard setbacks land, never the r
 | Custom | Any value from ×0.5 to ×1.5 | Any value from Laid Back's to Cutthroat's | Busted-only on or off | Always, once per act or never |
 | Peaceful (Sandbox, on any preset) | None; rivals scheme instead | No combat on either side | Outbid or out-priced | As the preset |
 
-Laid Back reaches Ranks 5–9 about 11% sooner than Classic, and Cutthroat about 27% later (see Economy and balance). With no acts, Sandbox and Endless refill Classic's Cookie Jar once per season.
+Laid Back reaches Ranks 5–9 about 14% sooner than Classic, and Cutthroat keeps about Classic's pace under more raids (see Economy and balance). With no acts, Sandbox and Endless refill Classic's Cookie Jar once per season.
 
 ### Winning and losing
 
@@ -2083,16 +2085,16 @@ These calls shape the game and are Ben's to make. Each one says what the spec as
 
 1. **How does the game make money, if at all?** The spec assumes a game with no in-game purchases: Cash is the only currency, with no premium currency, ads or loot boxes. Recommendation: keep it that way, which keeps the economy honest, and revisit only if the game moves to a store.
 2. **Is E10+ the right rating?** Brawls happen inside cartoon dust clouds and hatchets mostly chop fences, but the mob theme and hatchets put the game at the E10+ line. An E rating would likely mean clubs as the top weapon and softer raid names. Recommendation: keep E10+, as written.
-3. **Is about 20 hours the right campaign length?** The campaign aims for 150–170 game days, about 20–23 hours at 8 real minutes a day. A laid-back player may want a shorter arc. Recommendation: keep the full campaign and point shorter games to Sandbox's Small map (4 districts, 2 rivals), which already exists.
-4. **Should Rank 10 arrive before or after victory?** In the economy model, Domination lands on Day 136 and Rank 10 on Day 150, so the title rank becomes the first goal of Endless Summer. Lowering Rank 10 to about $40M would land it around Day 132, as you Call the Big Squeeze. Recommendation: keep it after victory, and have Lottie name it as the next goal in the epilogue. Human players will run slower than the model's efficient player, so the builder should check Domination against its Day 150–170 target in playtests.
-5. **Do the story beats land on time?** Acts advance on their climax, and the economy model's efficient player reaches two beats late. It builds no Clubhouse until Day 37, so the Blend Shack falls on Day 58 instead of by Day 40, which leaves Act 3 about a week. Its first ship arrives on Day 128, after Act 4, because stand upgrades pay back faster than Dock facilities. Recommendation: have Dex push a Clubhouse early in Act 2, cut the Jetty from $250,000 to about $150,000, let Act 4's story deliver the first ship order as soon as a Jetty stands, and check both beats in playtests.
+3. **Is about 20 hours the right campaign length?** The campaign aims for about 140–150 game days to victory, about 19–20 hours at 8 real minutes a day; the economy model's efficient player wins on Day 143 on Classic and on Day 126, about 17 hours, on Laid Back. A laid-back player may want a shorter arc. Recommendation: keep the full campaign and point shorter games to Sandbox's Small map (4 districts, 2 rivals), which already exists.
+4. **Should Rank 10 arrive before or after victory?** In the economy model, Domination lands on Day 143 and Rank 10 on Day 157 (148–162 across ten maps, after victory on every map), so the title rank becomes the first goal of Endless Summer. Landing it at victory would take a threshold of about $150M, barely above Rank 9's $125M, so the two ranks would arrive almost together. Recommendation: keep it after victory, and have Lottie name it as the next goal in the epilogue. Human players will run slower than the model's efficient player, so the builder should check Domination against its Day 140–150 target in playtests.
+5. **Do the story beats land on time?** Mostly, after the re-tune. Acts advance on their climax, and each rival's HQ opens at its own rank, from the Blend Shack at Rank 5 to FizzCo Tower at Rank 8. Dex pushes a Clubhouse early in Act 2, so the economy model's efficient player builds one by Day 19. On the reference map the Blend Shack falls on Day 42 and the Grindhouse on Day 61, closing Acts 2 and 3; Hollis Homestead falls on Day 79 and FizzCo Tower on Day 105, closing Act 4. The first chopper lands on Day 72 and the first ship docks on Day 87, both in Act 4, so the Jetty keeps its $250,000 price. The risk is a fast map: Hollis falls the day after Rank 7, so when Rank 7 comes by Day 69 she falls before the County Fair (Days 71–77). That happens on 2 of 10 Classic maps and on most Laid Back maps. Recommendation: keep the rank gates, check the beats in playtests, and if the Fair scene matters, keep Tilly from surrendering before the Fair.
 6. **Barks or full voice acting?** The spec gives Lottie, Dex and the five bosses about 20 short barks each, with longer lines as text and Lemonese gibberish for crowds. Full voice acting for story scenes would add warmth but costs more and makes translation harder. Recommendation: barks and text, as written.
 7. **Online leaderboards in version 1?** High scores are local, and online boards are a stretch goal. They need a small server, which Ben's planned game platform could host, plus cheat checks. Recommendation: local only for version 1.
 8. **The four MVP calls in the Scope plan.** Recommendation: yes to all four. Add the Blend Shack assault so the small map can be won, show rival defenses openly until scouting arrives, count cups for MVP orders, and keep Cutthroat as a test setting.
 
 ## Appendix A: Balance tables
 
-Every number below is final for version 1, checked by a 170-day simulation that takes a competent Classic player to Rank 9 on Day 120 and Domination on Day 136.
+Every number below is final for version 1, checked by a 170-day simulation that takes a competent Classic player to Rank 9 on Day 135 and Domination on Day 143 on the reference map (Domination on Days 131–146 across ten shuffled maps).
 
 Dollars are game dollars, days are game days, and "×" multiplies a base value.
 
@@ -2121,7 +2123,6 @@ Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for
 | Fancy Menu | +20% top price |
 | Fortified Frame | +50% HP |
 | Billboard Roof | +15% traffic to your stands within 2 plots |
-| Depot | Stores 2 days of supplies; auto-restocks your stands within 2 plots |
 
 ### Marketing tiers (global, permanent)
 
@@ -2206,7 +2207,7 @@ Guards gain about 1 level every 35 days of duty; fights and the Training Yard sp
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19.
 
 ### Land prices and traffic by district
 
@@ -2228,9 +2229,9 @@ A Clubhouse uses one Street plot. You may own several.
 | Landmark | ×5 | ×8 |
 | Field, Dock, Industrial | Tiny | See table above |
 
-Lottie's Corner starts at $300 land value with 400 passersby a day. Buying rule: Maple Row from the start, Old Town from Rank 2, other districts from Rank 3 through a Foothold or a bordering Foothold.
+Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's side lot next to it (sold to you on Day 3) is also worth $300 and gets 300 passersby a day. Buying rule: Maple Row from the start, Old Town from Rank 2, other districts from Rank 3 through a Foothold or a bordering Foothold.
 
-### Land, tax, insurance and loans
+### Land, repairs and loans
 
 | Rule | Value |
 | --- | --- |
@@ -2238,22 +2239,25 @@ Lottie's Corner starts at $300 land value with 400 passersby a day. Buying rule:
 | Facility development | Each facility tier counts as 2 stand levels |
 | Majority land discount | −10% |
 | First Dibs (after your Smash) | 100% of land value, 24 game hours |
-| Fire Sale (eliminated rival) | 75% of land value, 2 days |
+| Fire Sale (rival eliminated, by capture or buyout) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days, then auction |
 | Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere |
-| Faction Buyout | 1.5× rival Net Worth (Brock, Tilly); 1.8× (Juni, Preston); Vera never sells, except 3× once Weakened in a Peaceful Sandbox |
-| Property tax | 0.5% of land value per week |
-| Insurance (Rank 2+) | 3% of insured building value per week; pays 80% of repairs and rebuilds |
-| Rebuild after a Smash | 30% of what was invested in the stand |
-| Busted repair (Laid Back) | 15% of what was invested |
+| HQ Assault (rival Weakened) | Each HQ from its own rank: Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 (the Big Squeeze). The same rank opens that rival's Faction Buyout |
+| Weakened (needed for HQ Assault and Faction Buyout) | Any one of: the rival holds 40% or less of its peak plots; its Net Worth is under 25% of yours; your daily sales (cups and bottles, in dollars) were at least 2× theirs for 7 days in a row |
+| Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
+| Rebuild a Wrecked building | 15% of what was invested in it, within 24 game hours (you and rivals alike) |
+| Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild) |
+| Busted repair (Laid Back) | 10% of what was invested |
 | Loans (First Bank of Citrine Bay) | Up to 50% of non-cash Net Worth; 3% interest per week; 4-week terms |
+
+There is no property tax and no insurance: cheap rebuilds take their place.
 
 ### Supplies and recipes
 
 | Supply | Cost per cup ($) | Notes |
 | --- | --- | --- |
-| Lemons | 0.10 | Spoil after 3 days; −25% per Lemon Grove (up to 2) |
+| Lemons | 0.10 | Spoil after 3 days |
 | Sugar | 0.03 | Keeps |
-| Ice | 0.03 | Melts nightly; −50% with an Ice House |
+| Ice | 0.03 | Melts nightly |
 | Cup and napkin | 0.05 | Flat |
 | Bottle and cap | 0.15 | For contracts; replaces the cup |
 
@@ -2298,6 +2302,9 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 | Reputation multiplier | 0.7 at 1 star to 1.3 at 5 stars |
 | Rival stands within 2 plots | Split customers by appeal (up to −35% for a stand in a crowded rival block) |
 | Majority bonus | Your stands +10% sales; rival stands −10% appeal |
+| Lemon Grove | +5% traffic at all your stands per Grove (up to 2); +10% per Grove with the Hollis Orchards trophy |
+| Town Favorite (Old Town at Full Control) | +10% traffic at your stands in Old Town and Maple Row |
+| Orchard Fresh (The Groves at Full Control) | +10% traffic at all your stands |
 
 ### Weather and seasons
 
@@ -2319,20 +2326,20 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 
 ### Ranks
 
-| Rank | Title | Success Score threshold ($) | Target day | Simulated Classic day |
-| --- | --- | --- | --- | --- |
-| 1 | Sidewalk Squeezer | 0 | 1 | 1 |
-| 2 | Corner Hustler | 1,500 | 4 | 4 |
-| 3 | Block Boss | 6,000 | 10 | 10 |
-| 4 | Neighborhood Name | 25,000 | 20 | 22 |
-| 5 | District Big Shot | 100,000 | 35 | 37 |
-| 6 | Citrus Baron | 400,000 | 55 | 52 |
-| 7 | Lemon Tycoon | 3,000,000 | 80 | 71 |
-| 8 | Juice Magnate | 10,000,000 | 105 | 97 |
-| 9 | Bay Kingpin | 25,000,000 | 130 | 120 |
-| 10 | The Big Squeeze | 75,000,000 | — | 150 |
+| Rank | Title | Success Score threshold ($) | Target day | Simulated Classic day | Range on ten maps |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Sidewalk Squeezer | 0 | 1 | 1 | 1 |
+| 2 | Corner Hustler | 1,500 | 4 | 4 | 3–4 |
+| 3 | Block Boss | 6,000 | 10 | 9 | 8–12 |
+| 4 | Neighborhood Name | 25,000 | 22 | 19 | 15–34 |
+| 5 | District Big Shot | 100,000 | 37 | 41 | 26–48 |
+| 6 | Citrus Baron | 500,000 | 52–58 | 58 | 48–60 |
+| 7 | Lemon Tycoon | 4,500,000 | 71–80 | 78 | 67–82 |
+| 8 | Juice Magnate | 20,000,000 | 95–105 | 104 | 87–105 |
+| 9 | Bay Kingpin | 125,000,000 | 125–135 | 135 | 123–138 |
+| 10 | The Big Squeeze | 200,000,000 | About 150–160 (after victory) | 157 | 148–162 |
 
-The first L2 upgrade lands on Day 4, and Domination on Day 136 (target 150–170).
+The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
 ### Threat and raids on the player (Classic)
 
@@ -2344,7 +2351,7 @@ The first L2 upgrade lands on Day 4, and Domination on Day 136 (target 150–170
 | 4 | 4 | 8–12 | Hatchets appear | 1–2 | 30% | 70% |
 | 5 (Syndicate) | 6 | 12–20, boss-led | Full kit | 2–3 | 0% | 100% |
 
-No raids on Days 1–5. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Days 1–5. The first raid on you, Brock's, comes the night your first Kiosk opens or the night after the Summer Fair (Day 15), whichever comes first (Days 14–15 in the simulation), and is scripted to bounce off your fence and Dex. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
 
 ### Difficulty
 
@@ -2354,12 +2361,14 @@ No raids on Days 1–5. Most raids come at night. A Shakedown takes about 1 day 
 | Threat | −1 (min 1) | ±0 | ±0 |
 | Syndicate forms at | Threat 5 | Threat 5 | Threat 4 |
 | Respect cooldown | 5 days | 3 days | 1 day |
-| Minimum raid warning | 30 game minutes | 15 game minutes | 5 game minutes |
-| A lost raid leaves your stand | Busted (repair 15%) | Wrecked (rebuild 30%) | Wrecked (rebuild 30%) |
+| Minimum raid warning | 30 game minutes | 15 game minutes | 5 game minutes (5 real seconds at fight speed) |
+| A lost raid leaves your stand | Busted (repair 10%) | Wrecked (rebuild 15%) | Wrecked (rebuild 15%) |
 | Lottie's Cookie Jar | Always | Once per act | Never |
-| Customer traffic | ×1.0 | ×1.0 | ×0.9 |
-| Build, land and gear costs | ×1.0 | ×1.0 | ×1.1 |
-| Simulated pace (days to Ranks 5–9) | ×0.89 | ×1.00 | ×1.27 |
+| Customer traffic | ×1.0 | ×1.0 | ×1.0 |
+| Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 |
+| Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 |
+| Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
+| Simulated raids on you in a campaign (ten maps) | 5–23 | 20–47 | 41–77 |
 
 Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms in Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
 
@@ -2369,12 +2378,12 @@ Fights run in every mode at 1 game minute per real second. In the campaign, the 
 | --- | --- | --- | --- | --- | --- | --- |
 | Local Orders | Rank 3 | Any L3+ stand | 300–1,500 cups | 2 days | 1.5× that stand's price | About 1 per 2 days |
 | Caterer Trucks | Rank 5 | Warehouse + Bottling Works | 1,000–5,000 bottles | 3 days | 6 | About 2 per 5 days |
-| Helicopter VIPs | Rank 6, 3.5 stars | Helipad tier on a Field | 2,000–10,000 bottles by pad tier | 4 days | 12, +0.2 star | About 1 per 3 days |
-| Ship Contracts | Rank 7, 4.0 stars | Pier tier on a Dock | 10,000–60,000 bottles by pier tier | 7 days | 15 | About 1 per 7 days |
-| Supply Deals | Rank 8, 4.0 stars | Cargo Terminal | 80,000 bottles over 28 days | 28 days | 12 | About 1 per 12 days |
-| Mega Contracts | Rank 9, 4.5 stars | Heliport + Cargo Terminal + 2 premium recipes | 100,000–150,000 bottles | 14 days | 100 ($10M–$15M a contract) | About 1 per 20 days |
+| Helicopter VIPs | Rank 6, 3.5 stars | Helipad tier on a Field | 2,000–10,000 bottles by pad tier | 4 days | 30, +0.2 star | About 1 per 3 days; never more than 10 days apart |
+| Ship Contracts | Rank 7, 4.0 stars | Pier tier on a Dock | 10,000–60,000 bottles by pier tier | 7 days | 40 | About 1 per 5 days; never more than 10 days apart |
+| Supply Deals (recurring) | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles over 28 days | 28 days | 30 ($6M a deal) | The first as soon as the Cargo Terminal stands, then about 1 per 7 days; never more than 10 days apart |
+| Mega Contracts (stretch goal) | Rank 9, 4.5 stars | Heliport + Cargo Terminal + 2 premium recipes | 100,000–150,000 bottles | 14 days | 100 ($10M–$15M a contract) | About 1 per 20 days |
 
-A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry.
+A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry. Pay arrives with each pickup. Once a facility tier stands, its client type offers at least one job every 10 days; you may still turn any offer down. In the simulation, VIP clients (helicopters, ships and Supply Deals) earn about 11% of revenue on Days 52–96, 18% on Days 97–136 and 20% after that.
 
 ### VIP facilities
 
@@ -2393,20 +2402,21 @@ A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered o
 | Bottling Works L1 | 5 | 25,000 | Industrial | 1,500 bottles/day |
 | Bottling Works L2 | 6 | +100,000 | Industrial | 4,000 bottles/day |
 | Bottling Works L3 | 7 | +400,000 | Industrial | 12,000 bottles/day |
-| Lemon Grove | 5 | 25,000 | Field | Lemons −25% everywhere (up to 2 Groves) |
-| Ice House | 5 | 15,000 | Dock or Industrial | Ice −50% everywhere |
+| Lemon Grove | 5 | 25,000 | Field | +5% traffic at all your stands (up to 2 Groves; +10% each with Hollis Orchards) |
+
+On all ten simulated maps the player builds all six helipad and pier tiers; the first chopper lands on Days 63–80 and the first ship docks on Days 73–89, both in Act 4, and the first Supply Deal arrives on Days 105–113, as the Cargo Terminal opens.
 
 ### Rivals
 
-| Faction | Starting cash ($) | Rebuild chance after a Smash | HQ assault from | HQ Gate HP | Faction Buyout |
-| --- | --- | --- | --- | --- | --- |
-| The Boardwalk Blenders | 10,000 | 40% | Rank 4 | 2,000 | 1.5× Net Worth |
-| The Cold Brew Collective | 20,000 | 50% | Rank 5 | 2,750 | 1.8× |
-| Hollis Sweet Tea Co. | 50,000 | 60% | Rank 6 | 3,500 | 1.5× |
-| FizzCo Beverages | 1,000,000 | 70% | Rank 7 | 4,250 | 1.8× |
-| The Sourwood Family | 3,000,000 | 80% | Rank 9 (Big Squeeze) | 5,000 | Never (3× once Weakened in a Peaceful Sandbox) |
+| Faction | Starting cash ($) | Rebuild chance after a Smash | HQ assault from | HQ Gate HP | Faction Buyout (× cash and buildings) | Trophy perk |
+| --- | --- | --- | --- | --- | --- | --- |
+| The Boardwalk Blenders | 10,000 | 40% | Rank 5 | 2,000 | 1.5×, from Rank 5 | Blender Bar: Frozen recipes +20% top price |
+| The Cold Brew Collective | 20,000 | 50% | Rank 6 | 2,750 | 1.8×, from Rank 6 | Juni's Grapevine: raid warnings 1 game hour earlier |
+| Hollis Sweet Tea Co. | 50,000 | 60% | Rank 7 | 3,500 | 1.5×, from Rank 7 | Hollis Orchards: each Lemon Grove +10% traffic instead of +5% |
+| FizzCo Beverages | 1,000,000 | 70% | Rank 8 | 4,250 | 1.8×, from Rank 8 | Bottling Line: bottles fill 25% faster |
+| The Sourwood Family | 3,000,000 | 80% | Rank 9 (Big Squeeze) | 5,000 | Never in the campaign (3× once Weakened in a Peaceful Sandbox) | Family Silver: land, Plot Buyouts and auction bids −10% |
 
-Rival cash grows about 1% a day from their trade. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, and rise one level every 30 days (Blenders, Cold Brew and Hollis cap at L4). The Lavender auction opens on Day 95 at Rank 7; the winning bid is about $300,000.
+A rival's rebuild chance drops 30 points for each Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rival cash grows about 1% a day from their trade. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, and rise one level every 30 days (Blenders, Cold Brew and Hollis cap at L4). The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
 
 ### Reputation
 
@@ -2429,6 +2439,7 @@ Rival cash grows about 1% a day from their trade. Their stands start at L2 (The 
 | Reputation | 3.0 stars |
 | Crew and defenses | None (Dex joins on Day 6) |
 | Starting Net Worth | About $525 |
+| Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
 
 ### Other rule numbers
 
@@ -2525,7 +2536,7 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Domination | The victory, "You Own the Bay": every rival eliminated (HQ taken, bought out or bankrupt) and Majority in every district. |
 | Endless Summer | No-end play for Peak Success Score, after a victory or on its own. |
 | Event | A calendar festival or random surprise, like the Summer Fair or a Heat Wave. |
-| Faction Buyout | Buying a Weakened rival's business (cash and buildings, not land) at a Sit-down; its plots go to the Fire Sale. Vera sells only in Peaceful Sandbox. |
+| Faction Buyout | Buying a Weakened rival's business (cash and buildings, not land) at a Sit-down, from that rival's HQ rank; its plots go to the Fire Sale. Vera sells only in Peaceful Sandbox. |
 | Fire Sale | An eliminated rival's leftover plots: First Dibs for you at a discount, then auction. |
 | First Dibs | First right to buy a plot, for whoever Wrecked it or for you in a Fire Sale. |
 | FizzCo Beverages | Soda giant of Downtown and The Harbor: boss Preston Fizzwell III, HQ FizzCo Tower. |
@@ -2539,7 +2550,7 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Gull Flight | Flying Captain Squawk to scout rival defenses and watch VIP arrivals. |
 | Helipad | A Field-plot building for helicopter VIPs, upgraded Pad, Helipad, Heliport. |
 | Hollis Sweet Tea Co. | Sweet-tea landholders of The Groves: boss Tilly Hollis, HQ Hollis Homestead. |
-| HQ Assault | A three-stage raid on a Weakened rival's HQ: Gate, Yard, then Boss Room. |
+| HQ Assault | A three-stage raid on a Weakened rival's HQ: Gate, Yard, then Boss Room. Each HQ opens at its own rank, from Rank 5 (Blend Shack) to Rank 9 (Sourwood Manor). |
 | In the Red | Ending a day below $0, which gives 3 days to sell or borrow your way out. |
 | Laid Back | The calm difficulty: fewer raids, longer warnings, Busted instead of Wrecked, no game over. |
 | Local campaign | Short, targeted marketing, such as Sandwich-Board Kid, Free Sample Day or Coupon Blitz. |

@@ -158,7 +158,7 @@ Season demand (tuned): Summer ×1.2, Fall ×0.9, Winter ×0.6 (Honey-Ginger Hot 
 
 Rank gates: L2 at Rank 1, L3 at Rank 3, L4 at Rank 5, L5 at Rank 7. Payback targets the modeler should hit (on a plot with traffic that suits the level: L4–L5 belong on Prime or Landmark plots): L2 ≤ 3 days, L3 ≤ 6, L4 ≤ 10, L5 ≤ 15.
 
-Visual identity per level: L1 card table, crayon sign, glass pitcher, a cooler. L2 painted wooden booth, striped awning. L3 kiosk with a chalkboard menu, juicer, two windows. L4 walk-up shack with a neon "LOTTIE'S" sign, picnic tables, an ice machine. L5 the Citrus Palace: a lemon-dome roof, a giant spinning lemon on a pole, a drive-up window, a lemonade fountain.
+Visual identity per level: L1 card table, crayon sign, glass pitcher, a cooler. L2 popsicle-stick booth, striped awning. L3 kiosk with a chalkboard menu, juicer, two windows. L4 walk-up shack with a neon "LOTTIE'S" sign, picnic tables, an ice machine. L5 the Citrus Palace: a lemon-dome roof, a giant spinning lemon on a pole, a drive-up window, a lemonade fountain.
 
 Specialization: at L3 a stand gets 1 specialization slot, at L5 a second. Options: **Express Window** (+30% service), **Fancy Menu** (+20% top price), **Fortified Frame** (+50% HP), **Billboard Roof** (+15% traffic to your stands within 2 plots).
 
@@ -446,11 +446,14 @@ Random events: Heat Wave (3 days), Lemon Blight (lemons ×2 for 5 days), Sugar S
 
 ## 22. Art direction seeds (the art director expands these)
 
-- Working style name: **Toy-Town Noir**. By day: a sunny painted-wood toy diorama (chunky, rounded, built from simple shapes, which suits models built in code), warm postcard light, tilt-shift depth of field. By night: the same toy town in noir light — deep indigo shadows, amber streetlights, flashlight beams during raids.
-- Faction color and pattern seeds: Player — Lemon Yellow #F6D33C and white stripes. Sourwood — Plum #5B2A6E and Gold #C9A227, diamond damask. Hollis — Tea Amber #B5651D and Gingham Red #D64545, gingham check. FizzCo — Cola Red #C8102E and Chrome #B8C2CC, bubble dots. Cold Brew — Espresso #3B2A20, Oat #E8DCC4 and Neon Pink #FF4FA3, zigzag. Blenders — Mango #FF9F1C and Lagoon Teal #00A6A6, waves. World — Pith Cream #FFF6DC, Peel Green #5FA35A, Bay Teal #2BB3B1, Sunset Coral #F2795B, Night Indigo #23214A, Streetlight Amber #FFB347.
-- Characters: chunky peg-doll proportions (rounded body, big head, big hats) so each faction reads by silhouette; simple to build and animate in large numbers.
-- Brawls: a cartoon dust cloud with flying stars, lemons and comic sound words (BONK, THWACK, CHOP, SQUISH). KO = spiral eyes, stars, a wobble home.
-- Logo motifs: vintage citrus-crate labels (every faction's logo is a crate label).
+- Working style name: **Kitchen-Table Clay** (replaced Toy-Town Noir on 2026-11-06). Citrine Bay is a plasticine model the grandkid built on Grandma Lottie's kitchen table: a strata-sided clay plinth on a gingham oilcloth, thumbprinted clay, glossy resin water, cardstock awnings and signs, matchstick fences, popsicle-stick structures, masking-tape labels, tilt-shift depth of field. By night the kitchen light goes out, and the desk lamp, amber streetlights, lit windows and string lights carry the scene.
+- Faction color and pattern seeds: Player — Lemon Yellow #F6D33C and white stripes. Sourwood — Plum #5B2A6E and Gold #C9A227, diamond damask. Hollis — Tea Amber #B5651D and Gingham Red #D64545, gingham check. FizzCo — Cola Red #C8102E and Chrome #B8C2CC, bubble dots. Cold Brew — Espresso #3B2A20, Oat #E8DCC4 and Neon Pink #FF4FA3, zigzag. Blenders — Mango #FF9F1C and Lagoon Teal #00A6A6, waves.
+- World palette seeds (clay): Clay cream #FFF1D6, Lemon clay #F7C948, Flock green #7CC47F, Resin teal #3BB4C1, Terracotta #E8704F, Walnut #8B5E3C, Plum ink #2E2A4F, Lamp amber #FFB55E, Blush pink #F4A3B5. Bold, saturated and playful; owners stay the boldest.
+- Characters: clay figures about 2 heads tall (big sphere head, lathe-turned body, arms and legs, bead eyes with a glint, clay-snake brows, a real nose, blush thumbprints). Each family has its own body shape and gait (Sourwood stilt-thin glide, Hollis barrel roll, FizzCo block march, Cold Brew slouched bean on a skateboard, Blenders V-shaped hop), so it reads by silhouette and motion; hats and props carry identity.
+- Motion: stop motion on twos (12 fps) with a slight boil; the camera, water and UI stay smooth. Squash before every action, one bounce after.
+- HUD: what's lying on the table (coin jar, pitchers, chalkboard price, sugar cubes, lemon bowl, sugar bag, ice tray, egg timer, sticky note, a big round clay OPEN button). Type: Chewy, Fredoka, Gochi Hand. Icons: chunky clay blobs with a sheen, a thumbprint dimple and a plum ink edge.
+- Brawls: a cartoon dust cloud of clay puffs with flying stars, lemons and comic sound words (BONK, THWACK, CHOP, SQUISH). KO = squashed flat, spiral eyes, stars, a wobble home.
+- Logo motifs: pressed-clay medallions and vintage citrus-crate labels made in clay (every faction's logo is a crate label).
 
 ## 23. Music seeds (the music director expands these)
 
@@ -472,7 +475,7 @@ Random events: Heat Wave (3 days), Lemon Blight (lemons ×2 for 5 days), Sugar S
 1. **Camera**: both. The Tycoon Camera is the main way to play (angled top-down, zoom from the whole bay to street level). Gull Flight (Captain Squawk) is built with Owl World's flight-camera technique, for scouting, arrivals and sightseeing; it is never required beyond one tutorial mission.
 2. **People on screen**: Street View shows at most about 150 animated people at once on a laptop and about 60 on a phone (customers, crew and henchmen). Visible walkers stand in for the simulated crowd (at busy times one walker represents several simulated customers). Fights show at most 24 fighters per side on a laptop and 12 on a phone; extra fighters join the dust cloud. The busiest phone view should stay within Owl World's busiest phone view (about 130 draw calls and 355k triangles).
 3. **Rivals are always AI** in the campaign, Sandbox and Endless. Online features are limited to optional leaderboards (stretch). Async "rival empire" multiplayer is a stretch goal the AI design should not rule out.
-4. **Menus are screens, not 3D props**: every management screen is a flat 2D panel over the world, styled like paper props (ledger, newspaper, corkboard, deeds). In-world UI is limited to small floating markers.
+4. **Menus are screens, not 3D props**: every management screen is a flat 2D panel over the world, styled like kitchen-table props in clay and card (ledger, newspaper, corkboard, deeds). In-world UI is limited to small floating markers.
 5. **Deterministic, tick-based simulation**: 1 tick = 1 in-game minute; all randomness comes from a per-run seed; the world you see is a view of the simulation. The whole economy and rival AI can run with no graphics, fast-forwarded, for balancing and automated tests. (This spec's economy numbers were checked that way.)
 6. **Saves**: autosave every dawn (3 rotating) plus manual slots; every save carries a format version and migrates forward so play-forever runs survive updates; Ironman option keeps a single save.
 7. **Devices**: a typical laptop first (mouse or trackpad plus keyboard shortcuts), phones second with lower visual quality (fewer walkers, simpler light) and touch controls. Every screen works at phone width. A day is a natural stop point, and the game can be resumed mid-day.

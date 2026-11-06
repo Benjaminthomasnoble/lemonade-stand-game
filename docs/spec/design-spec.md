@@ -21,7 +21,7 @@ You start with one stand on a quiet suburban corner. Profits buy stand upgrades 
 | World | Citrine Bay: 8 districts, 116 plots, 5 rival drink factions |
 | Combat | Fists, then clubs, then hatchets. Fights resolve on their own, with the odds shown first |
 | Winning | Eliminate every rival and hold a majority of every district, or play Endless for a high score |
-| Look and sound | Toy-Town Noir visuals and a Surf-Noir Lounge soundtrack |
+| Look and sound | Kitchen-Table Clay visuals and a Surf-Noir Lounge soundtrack |
 
 ### Assumptions
 
@@ -69,13 +69,13 @@ Build Lemonade Stand Wars, a laid-back lemonade-stand tycoon with a cartoon turf
 - Story campaign: 5 acts with Grandma Lottie, her old frenemy Vera Sourwood and a stolen recipe book.
 
 ## Look and sound
-- Toy-Town Noir: a sunny painted-wood toy town by day, noir streetlights and flashlight beams by night. Chunky characters built from simple shapes. Every faction has its own color and pattern.
+- Kitchen-Table Clay: Citrine Bay is a plasticine model on Grandma Lottie's kitchen table, with thumb-smudged clay people in stop motion and a HUD made of what's lying on the table. Every faction has its own color and pattern.
 - Surf-Noir Lounge music: breezy surf guitar and lounge by day, spy-movie bass during raids, and Lottie's whistled theme that grows with every rank.
 
 ## Build commitments (no tech stack implied)
 - A tycoon camera that zooms from the whole bay down to the street, plus an optional seagull flight for scouting. Borrow Owl World's code and techniques (flight, terrain, sky, water, roads, crowds, ships, aircraft), not its world: the map is designed for this game, at whatever size it needs.
 - At most about 150 animated people on screen on a laptop and 60 on a phone.
-- Menus are flat screens over the world, styled like paper props.
+- Menus are flat screens over the world, styled like props on Grandma Lottie's kitchen table.
 - A deterministic, tick-based simulation (1 tick = 1 game minute, seeded randomness) that runs without graphics for balancing and tests.
 - Versioned autosaves, so play-forever runs survive updates.
 - Laptop first, phone second.
@@ -1571,7 +1571,7 @@ The top bar holds Cash, Success Score with its Rank badge, Reputation stars and 
 
 Alerts land as cards in the left feed, each with Go There and one action, such as Ring the Bell. Major alerts auto-pause by default: raids on you (except on Cutthroat), Delivery Raids, each VIP client's first arrival, going In the Red and rank-up perk picks. Each type has its own switch, and full-screen paper pauses too (sound priority: see Music and sound).
 
-Menus are flat paper props over the world (see Visual style and art direction). There are ten: Morning Bugle, Ledger, Stand panel, Crew roster, Raid Planner, Rivals Corkboard, Order Book, Land Registry, Rank and Perks, and Lottie's Goals. Each opens from its meter, a hotkey or a tap on the thing it describes.
+Menus are table props in the clay style, drawn flat over the world (see Visual style and art direction). There are ten: Morning Bugle, Ledger, Stand panel, Crew roster, Raid Planner, Rivals Corkboard, Order Book, Land Registry, Rank and Perks, and Lottie's Goals. Each opens from its meter, a hotkey or a tap on the thing it describes.
 
 ### Raid Planner
 
@@ -1642,7 +1642,7 @@ These commitments shape how Lemonade Stand Wars gets built without choosing a te
 | Fights on screen | At most 24 fighters per side on a laptop and 12 on a phone; extras join the dust cloud. Player squads cap at 12 | Brawls stay readable and light |
 | Visual budget | The busiest phone view stays within Owl World's busiest phone view: about 130 draw calls and 355,000 triangles | A proven ceiling from Ben's own game |
 | Rivals | Always AI, in every mode. Optional online leaderboards later. Async multiplayer stays a stretch goal the AI design must not rule out | Single-player pacing and nothing to host |
-| Menus | Flat screens over the world, styled as paper props: ledger, newspaper, corkboard, deeds. In-world UI is limited to small floating markers | Menu-heavy tycoon screens stay clear, clickable and testable |
+| Menus | Flat screens over the world, styled as kitchen-table props in clay and card: ledger, newspaper, corkboard, deeds. In-world UI is limited to small floating markers | Menu-heavy tycoon screens stay clear, clickable and testable |
 | Simulation | Deterministic and tick-based: 1 tick = 1 game minute, with all randomness from a per-run seed. The world on screen is a view of the simulation, which can run fast-forwarded with no graphics | Balancing and automated playtests need no person watching. This spec's numbers were checked that way |
 | Saves | Autosave every dawn (3 rotating) plus manual slots. Every save carries a format version and migrates forward. Ironman keeps a single save for leaderboard runs | Play-forever runs survive game updates |
 | Devices | A typical laptop first (mouse or trackpad plus keyboard shortcuts), phones second with lower visual quality and touch controls. Every screen works at phone width | Plays where Ben's players already are |
@@ -1653,56 +1653,65 @@ Two details follow from the crowd rule. At busy times one visible walker stands 
 
 ## Visual style and art direction
 
-**Toy-Town Noir** is the style: a sunny painted-wood toy town by day, an indigo-and-amber noir set by night, built from 8 simple shapes. Chunky toys read at a glance, even on a phone. Slapstick looks harmless on toys, and noir turns night raids into capers.
+**Kitchen-Table Clay** is the style: Citrine Bay is a plasticine model the grandkid built on Grandma Lottie's kitchen table. Thumb-smudged clay people squash and stretch in stop motion, and the HUD is what's lying on the table. Clay makes slapstick plainly harmless, the table ties every screen to Lottie, and bold color keeps it playful on a phone.
 
-### Built from blocks
+It replaced Toy-Town Noir on 2026-11-06, when Ben chose it from four live mockups: Sunday Funnies, Kitchen-Table Clay, Wind-Up Tin Town and Boardwalk Pixel.
 
-- **Shape kit.** Box, rounded box, cylinder, capsule, sphere, cone, wedge and ring, with edges rounded like sanded toys.
-- **Paint, not geometry.** Detail is flat color and decals; a face is three painted shapes.
+The rule is show, don't tell. Pictures, meters, faces, cues in the world and motion carry the information; words come last.
+
+### Built from clay
+
+- **Clay kit.** Spheres, rounded blocks, lathe-turned profiles, clay snakes and slabs, each pushed slightly lumpy so nothing looks machine-made.
+- **Craft, not geometry.** One shared smudge texture gives every surface thumbprints, fingerprint ridges and tool dabs. Small detail is pressed into clay, printed on card or written on tape. Smudges stay light, or the town looks dirty.
+- **One material.** One clay material covers the model. Each part carries its color and finish (matte clay, glossy bead or resin, matte card or wood) in its vertex colors. The smudge map projects from three sides so it never stretches, and figures get finer thumbprints than buildings.
 - **Repeat, recolor, rescale** one tree, lamp, bench, awning and crate across the bay.
-- **Three detail levels.** Street View shows everything, mid zoom drops decals, and Bay View shows each building as one block. Phones run one level simpler, with blob shadows.
-- **Crowds.** Street View shows at most 150 animated people on a laptop and 60 on a phone, one walker standing for several customers. Fights cap at 24 fighters a side (12 on a phone); extras join the dust cloud.
-- **Budget.** The busiest phone view costs no more than Owl World's busiest: about 130 draw calls and 355,000 triangles.
+- **Three detail levels.** Street View shows everything, mid zoom drops small props and costume details, and Bay View shows each building as one clay block. Phones run one level simpler, with blob shadows and no tilt-shift blur.
+- **Crowds.** Street View shows at most 150 animated people on a laptop and 60 on a phone, one walker standing for several customers. A clay person costs about 900 triangles, so 60 cost about 54,000, and each body kind draws as one batch. Fights cap at 24 fighters a side (12 on a phone); extras join the dust cloud.
+- **Budget.** The busiest phone view costs no more than Owl World's busiest: about 130 draw calls and 355,000 triangles. The plinth and table are 3 static pieces, and static districts merge by material.
 - **Owl World** lends techniques for terrain, sky, water, roads, crowds, ships, aircraft and the flight camera. Citrine Bay's look and geography are its own.
 
 ### Light, weather and seasons
+
+Light comes through the kitchen window by day and from a desk lamp by night. Clay catches it softly, with a warm orange edge where light turns to shadow, so it never looks muddy. Shadows lean lilac by day and indigo at night, never gray.
 
 Four lighting scripts blend over one game hour each; dawn holds while Morning Prep waits.
 
 | Script | Hours | Light | Signature touches |
 | --- | --- | --- | --- |
-| Dawn | 06:00–08:00 | Peach sky, sun rising out of the bay, long lilac shadows | Mist on the water, streetlights clicking off |
-| Noon | 08:00–17:00 | High white sun, short crisp shadows | Sparkling sprinklers, striped awning shadows |
-| Golden hour | 17:00–20:00 | Coral and amber, sun sinking behind the Groves | Windows glow; neon flickers on at 19:30 |
-| Night (noir) | 20:00–06:00 | Indigo shadows, moonlit rims | Amber streetlight pools, flashlight cones in raids |
+| Dawn | 06:00–08:00 | Peach window light, long lilac shadows across the oilcloth | Cotton-wool mist on the resin bay, streetlights clicking off |
+| Noon | 08:00–17:00 | High white window light, short crisp shadows, a glint in every bead eye | Resin-bead sprinklers, striped card awning shadows |
+| Golden hour | 17:00–20:00 | Low coral and amber light raking across the table | Windows glow; clay-snake neon and string lights come on at 19:30 |
+| Night | 20:00–06:00 | The kitchen light goes out; the desk lamp stands in for the moon | Amber streetlight pools, lit windows, string lights, flashlight cones in raids |
 
-Night stays playable: shadows never drop below a quarter of daytime brightness, and owner tints glow at full strength.
+Night stays playable: shadows never drop below a quarter of daytime brightness, and owner tints glow at full strength. Lamps wear soft halos and throw warm pools on the ground, so every raid has light to happen in.
 
 | Weather or season | Look |
 | --- | --- |
-| Scorcher | Heat shimmer, sweat drops, dripping ice pops |
-| Rainy | Glossy streets reflecting neon, cone umbrellas |
-| Storm | Leaning trees, tumbling cups, soft lightning; tarps flap on L1–L2 stands |
-| Summer | Full saturation, beach umbrellas, bunting |
-| Fall | Coral and butterscotch trees, leaf piles, scarves |
-| Winter | Bare branches, string lights, breath puffs |
-| Spring | Blossoms, flowering lemon groves, kites |
+| Scorcher | Heat shimmer, sweat-drop blobs over heads, ice pops sagging like warm clay |
+| Rainy | Rain of beaded fishing line, glossy wet streets reflecting lit windows, cone umbrellas |
+| Storm | Leaning trees, tumbling cups, the desk lamp flickering for lightning; card awnings flap on L1–L2 stands |
+| Summer | Full saturation, beach umbrellas, paper bunting |
+| Fall | Coral and butterscotch clay trees, piles of clay-flake leaves, yarn scarves |
+| Winter | Bare pipe-cleaner branches, string lights, cotton-wool breath puffs |
+| Spring | Clay-bead blossoms, flowering lemon groves, paper kites on thread |
 
 ### Palette and patterns
 
-Saturated color belongs to owners; the world wears softer tints. Lemon Yellow is reserved for lemons, the player's property and the Lemon Blimp.
+Everything is bold, saturated and playful, and owners stay the boldest. Owner colors appear only on owned things: turf, awnings, flags, labels, hats and crew clothes. Lemon yellow is reserved for lemons, coins, the player's property and the Lemon Blimp.
 
 | World color | Hex | Used for |
 | --- | --- | --- |
-| Pith Cream | #FFF6DC | Paper, sidewalks, pickets, dust clouds |
-| Peel Green | #5FA35A | Lawns, leaves |
-| Bay Teal | #2BB3B1 | Water |
-| Sunset Coral | #F2795B | Golden hour, alert accents |
-| Night Indigo | #23214A | Night shadows, outlines, ink |
-| Streetlight Amber | #FFB347 | Lamps, lit windows |
-| Driftwood | #C9A47A | Raw wood, wood chips |
-| Asphalt | #6B6779 | Roads, rooftops |
-| Paper Wash | #E9E4D6 | Unowned land in Bay View |
+| Clay cream | #FFF1D6 | Sidewalks, paper, tape, pickets, dust clouds |
+| Lemon clay | #F7C948 | Lemons, coins and the HUD's lemon props |
+| Flock green | #7CC47F | Lawns, clay-ball trees, hedges |
+| Resin teal | #3BB4C1 | Water |
+| Terracotta | #E8704F | Roofs, lamp shades, golden hour, alert accents |
+| Walnut | #8B5E3C | Plinth sides, tree trunks, wood chips |
+| Plum ink | #2E2A4F | Outlines, text, bead eyes, night shadows |
+| Lamp amber | #FFB55E | Streetlights, lit windows, raid flashlights |
+| Blush pink | #F4A3B5 | Cheeks on every face, sunset sky |
+
+Three extras fill in: Road clay #5F5A74 for streets, Popsicle stick #E9C98F for fences, posts and lamps, and Raspberry #C8325A for display words on tape.
 
 | Owner | Main | Accent | Pattern |
 | --- | --- | --- | --- |
@@ -1713,126 +1722,167 @@ Saturated color belongs to owners; the world wears softer tints. Lemon Yellow is
 | Cold Brew | Espresso #3B2A20 | Oat #E8DCC4, Neon Pink #FF4FA3 | Diagonal pink zigzag |
 | Blenders | Mango #FF9F1C | Lagoon Teal #00A6A6 | Horizontal waves |
 
-Patterns differ in shape and direction, so a grayscale screenshot still shows every owner. Where accent and main share a lightness (Player, Hollis, Blenders), patterns get a thin Night Indigo edge. Blenders turf fills with Mango, since Lagoon Teal nearly matches the bay.
+Patterns differ in shape and direction, so a grayscale screenshot still shows every owner; every screen gets that grayscale check. Where accent and main share a lightness (Player, Hollis, Blenders), patterns get a thin Plum ink edge. Blenders turf fills with Mango, since Lagoon Teal nearly matches the bay.
 
-Patterns also mark awnings, flags, labels and hatbands; on Bay View tiles they keep one on-screen size.
+Patterns are pressed into the clay or built from it: the Player's wide stripes, Sourwood's gold diamond studs, Hollis gingham squares, FizzCo's chrome bubble buttons, Cold Brew's neon-pink zigzag snake and the Blenders' teal wave snake. They also mark awnings, flags, labels, hatbands and rival vehicles; on Bay View tiles they keep one on-screen size.
 
 ### Materials
 
 | Material | Where | How it reads |
 | --- | --- | --- |
-| Painted wood | Buildings, fences | Flat color, lighter top edges; chips show Driftwood |
-| Decals | Faces, logos, windows | Flat cut-outs, swapped for moods and damage |
-| Halftone | The Bugle, sound words | Two-ink dots; Bugle photos are snapshots of your game |
-| Chalkboard | L3 menus, price tags | Smudged chalk on green-black |
-| Neon | L4+ signs, Downtown, Cold Brew turf | Glowing tubes, lit at golden hour |
+| Plasticine | People, buildings, trees, vehicles, the plinth | Soft sheen, thumbprints and tool marks, a warm glow at the shadow edge |
+| Glossy resin | Water, ice, glass, bead eyes, buttons | Clear and wet with a bright window glint; the bay deepens from shallow teal to deep blue |
+| Cardstock | Awnings, signs, roof trim, Downtown's printed glass facades, bunting | Matte, with scalloped edges and printed stripes |
+| Popsicle sticks and matchsticks | Fences, posts, lamps, benches, piers, the Ferris wheel, cranes | Raw pale wood; chips show Walnut |
+| Masking tape | Labels, numbers, queue counters, headlines | Torn ends and handwritten letters |
+| Chalkboard | Price boards, L3 menus | Smudged chalk on green-black |
+| Clay-snake neon | L4+ signs, Downtown, Cold Brew turf | Rolled clay letters that glow from golden hour |
+| Oilcloth | The kitchen table | Blue gingham, with a mug ring and stray lemon seeds |
 
 ### The bay and its districts
 
-Bay View is a tabletop model: each plot a painted tile in its owner's tint and pattern, outlined in Night Indigo. Unowned land fades to Paper Wash, civic plots stay Pith Cream, and landmarks grow 1.5× so players navigate by silhouette.
+Bay View is the whole model on its plinth on the kitchen table. The plinth's cut sides show clay strata like a slice of layer cake, and the resin sea shows at its edge. Each plot is a clay tile in its owner's tint and pressed pattern, outlined in Plum ink. Unowned land stays bare Clay cream, civic plots get a masking-tape border, and landmarks grow 1.5× so players navigate by silhouette.
+
+The table frames the model: a blue gingham oilcloth, a mug ring, stray lemon seeds, a real lemon and a teacup for scale, an opened pack of plasticine bars, a sculpting tool, Lottie's reading glasses and the desk lamp that lights the bay at night.
 
 | District | Signature shapes | Colors | Props | Eye music (what moves) |
 | --- | --- | --- | --- | --- |
-| Maple Row | Ball trees, cottages, picket rows | Green, cream, sky blue | Mailboxes, kiddie pools | Sprinklers, trotting dogs |
-| Old Town | Brick fronts, bandstand, clock tower | Soft brick, cream | Market stalls, Dot's Diner | Clock hands, the band |
-| Campus & Arts | Sawtooth roofs, the Quad, murals | Oat, charcoal, mural brights | Record shops, skate rails | Skaters, seasonal murals |
-| Downtown | Glass towers, plazas | Blue-grey glass, steel | Food carts, revolving doors | The lunch-rush tide |
-| The Boardwalk | Plank decks, umbrellas, the Pier's Ferris wheel | Sand, white, sea foam | Surfboards, lifeguard towers | Waves, the wheel |
-| The Harbor | Cranes, warehouses, crate stacks | Rust, grey, cream | Fish market, buoys | Swinging cranes, bobbing boats |
-| The Groves | Lemon-tree rows, windmills, the Fairgrounds | Green, lemon dots, sage barns | Hay bales, tea rows | Windmills, tractors |
-| Hilltop Estates | Hedge walls, mansion domes, polo lawn | Deep green, white, lilac | Topiaries, yachts | Opening gates, golf carts |
+| Maple Row | Lumpy ball trees, clay cottages with scalloped card trim, matchstick picket rows | Flock green, cream, sky blue | Mailboxes, kiddie pools, flower boxes | Resin-bead sprinklers, a trotting clay dachshund |
+| Old Town | Tool-pressed brick fronts, bandstand, clock tower | Soft brick, cream | Market stalls, Dot's Diner | Clock hands, the band |
+| Campus & Arts | Sawtooth roofs, the Quad, murals on card | Oat, charcoal, mural brights | Record shops, skate rails | Skaters, seasonal murals |
+| Downtown | Towers faced in printed-card glass, plazas | Blue-gray card, chrome | Food carts, revolving doors | The lunch-rush tide |
+| The Boardwalk | Popsicle-stick decks, umbrellas, the Pier's popsicle-stick Ferris wheel | Sand, white, sea foam | Surfboards, lifeguard towers, sandcastles | Sculpted clay waves, the wheel |
+| The Harbor | Popsicle-stick cranes, warehouses, crate stacks | Rust, gray, cream | Fish market, buoys | Cranes swinging on thread, bobbing soap boats |
+| The Groves | Lemon-tree rows, windmills, the Fairgrounds | Green, lemon dots, sage barns | Hay bales, tea rows | Windmills, tractors on button wheels |
+| Hilltop Estates | Hedge walls, mansion domes, polo lawn | Deep green, white, lilac | Topiaries, soap yachts | Opening gates, golf carts |
+
+Small details appear from what sits together: bunting between neighboring player stands, laundry lines between houses, gulls on roofs. Trucks are clay boxes stacked with crates, and bikes are pipe-cleaner frames, all on button wheels.
 
 ### Characters
 
-Everyone is a peg doll: capsule body, sphere head, floating mitten hands, no arms or legs. Adults stand 2.5 heads tall, kids 1.8, bosses up to 3.5. Skin tones come from a ramp of 8, assigned at random, never tied to faction or villainy.
+Everyone is a clay figure about 2 heads tall: a big sphere head on a lathe-turned body, short arms and legs, round clay hands and round clay shoes. Kids stand about 1.8 heads, Cold Brew's slouched beans 2.5 and Sourwood's stilts over 3. Faces do the telling: bead eyes with a white glint, clay-snake brows, a real nose and pink blush thumbprints on the cheeks. Families vary the parts: heavy lids and a long nose for Sourwood, a potato nose and bushy mustache for Hollis, shades and a square nose for FizzCo, heavy lids for Cold Brew and zinc noses for the Blenders. Skin tones come from a ramp of 8, assigned at random, never tied to faction or villainy.
 
-Hats carry identity: faction hats are hard, iconic shapes; customers wear soft hats or none. Fill a character solid black, and its side still reads from hat and tool.
+Expressions swap as whole faces: neutral, yum, pucker, brain-freeze, price-shock (eyes pop) and KO (spiral eyes). Eyes blink every few seconds. There are never X eyes, and no face copies a grin or eye shape from any studio's characters.
 
-| Crew | Hat | Club tier | Hatchet tier |
-| --- | --- | --- | --- |
-| Peel Patrol (yours) | Yellow cap with a green leaf: every head reads as a lemon | Bats in yellow tape | Striped-handle hatchets |
-| Sourwood Stewards | Bowler | Walking canes | Silver-headed hatchets |
-| Hollis Farmhands | Wide straw hat | Shovels | Farm axes |
-| FizzCo Security Associates | Flat-top hair, wraparound shades | Batons | Chrome-headed hatchets |
-| Cold Brew baristas and skaters | Slouchy beanie | Skateboards | Pink-taped hatchets |
-| Smoothie Bros | Open visor | Paddleboards | Teal-gripped hatchets |
+Each family has its own body shape and gait, so it reads by silhouette and by motion even at Bay View. Hats and props carry identity: faction hats are hard, iconic shapes; customers wear soft hats or none. Fill a character solid black, and its side still reads from body, hat and tool.
 
-Your crew's gear shows: taped mittens for fists, a 15% rounder body for a Padded Vest, shoulder pads and a helmet for Pro Gear. Levels add sleeve chevrons, none for a Rookie up to four for a Legend. Lookouts carry binoculars, Wreckers a tool belt, Captains a whistle.
+| Crew | Body and gait | Hat | Club tier | Hatchet tier |
+| --- | --- | --- | --- | --- |
+| Peel Patrol (yours) | Pear body; a bouncy bob, arms crossed on guard | Yellow cap with a green leaf: every head reads as a lemon | Bats in yellow tape | Striped-handle hatchets |
+| Sourwood Stewards | Stilt-thin in high white collars and white gloves; a stiff glide | Bowler | Walking canes | Silver-headed hatchets |
+| Hollis Farmhands | Barrel in gingham and overalls; rolls side to side | Wide straw disc | Shovels | Farm axes |
+| FizzCo Security Associates | A flat-topped block, head included, in a blazer with an earpiece; marches in lockstep | Flat-top hair, wraparound shades | Batons | Chrome-headed hatchets |
+| Cold Brew baristas and skaters | S-slouched bean in a hoodie and apron; pushes and coasts on a skateboard | Slouchy beanie | Skateboards | Pink-taped hatchets |
+| Smoothie Bros | V-shaped in a tank top on tiny legs; hops | Open visor | Paddleboards | Teal-gripped hatchets |
+
+Customers get the softer bodies: pear-shaped adults bob, round folk roll and kids skip. Their props say who they are: balloons (kids), strollers (families), bucket hats (seniors), backpacks (students), lanyards (office workers), cameras (tourists), lunch pails (workers), tiny dogs (high rollers).
+
+Your crew's gear shows: taped fists, a puffy vest 15% rounder for a Padded Vest, shoulder pads and a helmet for Pro Gear. Levels add clay-snake sleeve chevrons, none for a Rookie up to four for a Legend. Lookouts carry binoculars, Wreckers a tool belt, Captains a whistle.
 
 | Boss | Signature look |
 | --- | --- |
-| Vera Sourwood | Ramrod straight; silver bun, pearls, silver-tipped cane |
-| Tilly Hollis | Widest in town; picnic-table hat, giant ladle |
-| Preston Fizzwell III | Wedge torso, slick hair, brick car phone |
-| Juni Grind | Slouched; beanie low, iced coffee |
-| Brock Bodine | Inverted-cone torso, tiny head, visor, zinc nose |
+| Vera Sourwood | The tallest stilt in town, ramrod straight; silver bun, glossy bead pearls, a silver-tipped cane she taps on every beat |
+| Tilly Hollis | The widest barrel in town; picnic-table hat, giant ladle over a shoulder |
+| Preston Fizzwell III | A wedge-shaped block; slick hair, brick car phone |
+| Juni Grind | The deepest slouch; beanie low, iced coffee, coasting on her board |
+| Brock Bodine | The widest V on the tiniest head; visor, zinc nose, a double-bicep flex |
 
-Lottie is short and round, in a sun hat with a lemon on the band: the logo come to life. Marisol hugs a ledger, Skip Larkin's blazer is printed with tiny houses, and Benny Buzz never lowers his megaphone. Sheriff Budd carries a ticket book and a lemonade, never a holster; Mayor Fontaine wears a tiny plum lapel pin.
+Lottie is short and round in a lemon cardigan, glasses and pearls, under a straw sun hat with a lemon on the band: the logo come to life. From her striped lawn chair she fans herself, knits, sips, cheers a rush, shakes a fist at raiders and nods off under a zzz. The grandkid starts in a lemon cap and a white apron, freckled and gap-toothed: bored on the counter when closed, bouncy when open, cheering every sale.
 
-Lanky Dex, 3 heads tall, hops sideways whenever a goose waddles past. Captain Squawk is a round cream gull in a tiny captain's cap, a stolen lemon wedge in his beak.
+Marisol hugs a ledger, Skip Larkin's blazer is printed with tiny houses, and Benny Buzz never lowers his megaphone. Sheriff Budd carries a ticket book and a lemonade, never a holster; Mayor Fontaine wears a tiny plum lapel pin.
 
-Customer props: balloons (kids), strollers (families), bucket hats (seniors), backpacks (students), lanyards (office workers), cameras (tourists), lunch pails (workers), tiny dogs (high rollers).
+Lanky Dex stands 3 heads tall in a lemon guard vest. He scans the street in held beats, arms crossed, and hops sideways whenever a goose waddles past. Captain Squawk is a round cream clay gull in a tiny captain's cap, a stolen lemon wedge in his beak.
+
+### Stop motion
+
+Every clay thing poses on twos: 12 new poses a second, with a slight boil as thumbprints shift and each pose jitters a hair every step. The camera, the water and the HUD stay smooth at full frame rate, so the stepping reads as hand-made, not as lag. Stepping also halves the crowd's per-frame work on phones, and shadows re-render only when the poses step.
+
+- Every step squashes about 8% and springs back. Everyone squashes before an action and bounces once after it.
+- Idles have attitude and start at random points, so a crowd never moves in unison; only FizzCo march in lockstep, on purpose. Idle bobs follow the music's beat.
+- Heads turn to watch a pour, buyers puff their cheeks before the yum face, and walkers clap, point and flinch at what the player does.
+- Vehicles squash when they brake and stretch when they launch; builds rise like dough and overshoot.
+- Reduced motion stops the boil and swaps shakes and flashes for fades.
 
 ### Stands L1–L5
 
-Every upgrade is a crate reveal: a giant citrus crate drops, rattles, and its slats fall open like petals. Reveals last 3 seconds (L2–L3) or 6 (L4–L5), skip on a tap, and nearby walkers clap.
+Every upgrade is a crate reveal: a giant popsicle-stick citrus crate drops with a squash, rattles, and its slats fall open like petals. The new stand rises like dough, overshoots and settles. Reveals last 3 seconds (L2–L3) or 6 (L4–L5), skip on a tap, and nearby walkers clap.
 
 | Level | Look | Reveal flourish |
 | --- | --- | --- |
-| L1 The Folding Table | Card table, crayon sign, glass pitcher, cooler | Unfolds with a snap |
-| L2 The Wooden Stand | Painted booth, striped awning | The awning unrolls, a bell dings |
+| L1 The Folding Table | Card table with a striped lemon skirt, crayon sign on popsicle posts, glass pitcher, cooler, the kid's crate step | Unfolds with a snap |
+| L2 The Wooden Stand | Popsicle-stick booth, scalloped striped card awning with string lights | The awning springs down, a bell dings |
 | L3 The Kiosk | Two windows, chalkboard menu, juicer | The chalkboard writes its own menu |
-| L4 The Lemon Shack | Neon LOTTIE'S sign, picnic tables, ice machine | The neon buzzes on letter by letter |
-| L5 The Citrus Palace | Lemon dome, giant spinning lemon, drive-up window, fountain | The dome rises like a sunrise |
+| L4 The Lemon Shack | Clay-snake neon LOTTIE'S sign, picnic tables, ice machine | The neon buzzes on letter by letter |
+| L5 The Citrus Palace | Lemon-clay dome, giant spinning lemon, drive-up window, resin fountain | The dome rises like a sunrise |
 
-Rank 10 gilds the Palace. Rival stands reuse the five silhouettes in faction colors, topped by a bowler, sun-tea jar, soda bottle, coffee cup or surfboard.
+Every stand wears its state, so the stand is the dashboard. Lemons fill the crate, the sugar sack slumps as it empties, and ice sits in an open cooler. The pitcher takes the recipe's color, sugar cubes on the counter count the Sweetness, the price sits on a chalkboard, and Reputation hangs as stars on the sign. Tap OPEN and the card flips to OPEN, any awning springs down, the stand bounces and clay-pellet confetti flies.
 
-Damage shows in steps: torn awning at 75% HP, fallen sign at 50%, hanging boards at 25%. Wrecked is a neat plank pile with the sign on top.
+Rank 10 gilds the Palace. Rival stands reuse the five silhouettes in faction colors, topped by a bowler, sun-tea jar, soda bottle, coffee cup or surfboard, and dressed in family props: Cold Brew's has a skateboard-deck sign, a drip tower and a quarter-pipe.
+
+Damage shows in steps: a torn card awning at 75% HP, a fallen sign at 50%, dangling sticks and squashed corners at 25%. Wrecked is a neat pile of popsicle sticks and squashed clay with the sign on top.
 
 ### Defenses and gadgets
 
 | Perimeter | Look (lemony touch) | Breach |
 | --- | --- | --- |
-| P1 Picket Fence | Cream pickets with lemon-shaped tips | Pickets pop like piano keys |
-| P2 Chain-Link Fence | Diamond mesh, lemon-shaped padlock | Mesh peels like a can lid |
-| P3 Sharpened Stakes | Log stakes with yellow tips like giant pencils | Choppers yelp OUCH |
-| P4 Barbed Wire | Coils with barbs shaped like lemon seeds | Snagged sleeves go RIIIP |
-| P5 Citrus Fortress Wall | Brick wall, lemon-dome turrets, a gate like a citrus press | Bricks pop out |
+| P1 Picket Fence | Matchstick pickets with lemon-shaped clay tips | Pickets pop like piano keys |
+| P2 Chain-Link Fence | Pipe-cleaner diamond mesh, a lemon-shaped clay padlock | Mesh peels like a can lid |
+| P3 Sharpened Stakes | Pencil stubs sharpened to points, yellow as lemons | Choppers yelp OUCH |
+| P4 Barbed Wire | Twisted pipe-cleaner coils with lemon-seed barbs | Snagged sleeves go RIIIP |
+| P5 Citrus Fortress Wall | Tool-pressed clay bricks, lemon-dome turrets, a gate like a citrus press | Bricks pop out |
 
 | Gadget | Look | When triggered |
 | --- | --- | --- |
-| Tin-Can Alarm | Strings of lemon-label cans | CLANK-CLANK |
-| Guard Goose ("Honkers") | Goose in a striped neckerchief | HONK rings; the first attacker freezes under stars |
-| Lemon-Peel Slick | Peels on the path | Attackers spin like tops and flop |
-| Sprinkler Ambush | Pop-up lawn heads | Soaked attackers drip under a tiny rain cloud |
-| Floodlights | Poles with lemon-shaped hoods | KA-CHUNK: night turns to day |
-| Watchtower | Stilted crate cabin | A sweeping beam and a big "!" |
+| Tin-Can Alarm | Tiny lemon-label cans strung on thread | CLANK-CLANK |
+| Guard Goose ("Honkers") | Clay goose in a striped card neckerchief | HONK rings; the first attacker freezes under stars |
+| Lemon-Peel Slick | Glossy clay peels on the path | Attackers spin like tops and flop |
+| Sprinkler Ambush | Pop-up lawn heads | Soaked attackers drip under a tiny cotton-wool rain cloud |
+| Floodlights | Popsicle-stick poles with lemon-shaped hoods | KA-CHUNK: night turns to day |
+| Watchtower | A crate cabin on popsicle-stick stilts | A sweeping beam and a big "!" |
 
 ### VIP arrivals
 
-Choppers thump in low over the bay. A Pad is a painted circle with a lemon-wedge H and a striped windsock. Helipads add a raised deck and lights; Heliports add a second deck and a yellow carpet.
+Choppers are chunky clay with lollipop-stick rotors, and they dangle from a visible fishing line like a model on a string. A Pad is a bottle cap with a lemon-wedge clay H and a striped windsock. Helipads add a raised deck and lights; Heliports add a second deck and a yellow carpet.
 
-Each chopper wears its client's comic paint job, and rotor wash flattens grass into rings.
+Each chopper wears its client's comic paint job, with a tiny clay VIP in the window. Rotor wash flattens the clay grass tufts into rings.
 
-Yachts dock at a Jetty, pastel cruise ships at a Pier, crate-piled freighters at a Cargo Terminal. Every horn plays the first 3 notes of Lottie's Theme. The Lemon Blimp is a fat lemon with a leaf fin and a sun-hat gondola; at night it glows like a paper lantern.
+Ships are carved-soap hulls pushing a sculpted clay wake through the resin: yachts at a Jetty, pastel cruise ships at a Pier, crate-piled freighters at a Cargo Terminal. Every horn plays the first 3 notes of Lottie's Theme. The Lemon Blimp is a fat lemon-clay blimp with a leaf fin and a sun-hat gondola; at night it glows like a paper lantern.
 
 ### Brawls
 
-Fights happen inside a rolling cloud of Pith Cream puffs that grows as fighters join. Out fly stars, lemons, hats and sound words: BONK (fists), THWACK (clubs), CHOP (hatchets), SQUISH (lemons), HONK (geese). Each word takes the color of the side that landed it, and a patterned tug-of-war bar counts fighters left.
+Fights happen inside a rolling cloud of lumpy cream and sand clay puffs that grows as fighters join. Out fly clay arms, stars, lemons, hats and sound words on cut-paper starbursts: BONK (fists), THWACK (clubs), CHOP (hatchets), SQUISH (lemons), HONK (geese). Each word takes the color of the side that landed it, and a patterned tug-of-war bar counts fighters left.
 
-KO'd fighters pop out with spiral eyes and 3 circling stars, then wobble home in a zigzag. Hatchets are only seen biting wood, in bursts of Driftwood chips; hits on people stay inside the cloud. No blood, no bruises, nobody stays down.
+KO'd fighters squash flat as a pancake, puff back up with spiral eyes and 3 orbiting stars, then wobble home in a zigzag while the winner dusts off. The last KO of a fight gets a brief freeze and a small camera punch. Hatchets are only seen biting wood, in bursts of Walnut chips; hits on people stay inside the cloud. No blood, no bruises, no X eyes, and nobody stays down.
 
-### Paper props, type and icons
+### Table props, type and icons
 
-Every screen is a flat paper prop. The Bugle is halftone newsprint, the Ledger has green-ruled pages with red ink for losses, and deeds carry embossed seals. The Rivals Corkboard pins instant photos linked by red string that thickens with grudge.
+The HUD is what's lying on the kitchen table: a row of props along the top and a wooden tray of them along the bottom. Layout follows the UI plan in Player experience: four top chips, one goal pill, a headline toast at dawn, the morning dock and the Today, Grow and Defend tabs. This section sets only the look.
 
-Outcomes thunk down as crooked rubber stamps: SOLD, SMASHED, CAPTURED, WRECKED, BUSTED, NABBED, TRUCE. Type has four voices: condensed slab-serif headlines, sign-painter script logos, a round sturdy sans for body text, and typewriter Ledger figures. Icons are chunky stickers with thick Night Indigo outlines; Threat shows as 1–5 grumpy sour lemons.
+| Prop | Shows |
+| --- | --- |
+| Coin jar with a tape label | Cash; every sale's coin lands in it |
+| Clay rosette with a clay-snake meter | Rank and progress to the next |
+| Egg timer | Day and time |
+| Weather card | Forecast and temperature |
+| Sticky note with a Lottie doodle and a pencil-line meter | The goal pill |
+| A pitcher per recipe you own | Recipe, by the drink's color; the chosen one glows |
+| Sugar cubes | Sweetness, 1 to 3 |
+| Chalkboard between a terracotta minus knob and a green plus knob | Price; the chalk turns red below cost |
+| Five little clay heads | Expected crowd, filling in |
+| Lemon bowl, sugar bag, ice tray | Stock you can count, each with a green clay plus to buy more; a low one pulses with a terracotta "!" |
+| Big round lemon-clay OPEN button | Opens the stand; it squashes and turns green while open |
 
-The HUD top bar is a painted plank hung with paper tags. Alert cards slide in from the left, drawn as paper tickets, raids with a red torn edge. In-world markers stay small: chalk price tags, deli-ticket queue counters, mood bubbles, owner-colored HP pills, dashed raid arrows.
+Every prop squashes when pressed and bounces back. Menus are table props too, drawn flat over the world. The Bugle is folded newsprint whose photos are snapshots of your game, the Ledger a notebook with green-ruled pages and red ink for losses, and deeds are cardstock with a pressed-clay seal. The Rivals Corkboard pins instant photos linked by red yarn that thickens with grudge.
+
+Headlines and alerts land as masking-tape strips, slapped on with a bounce; raid alerts get a red torn edge. Outcomes thunk down as crooked rubber stamps: SOLD, SMASHED, CAPTURED, WRECKED, BUSTED, NABBED, TRUCE. In-world markers stay small: chalk price tags, tape queue counters, thought bubbles, owner-colored HP pills and dashed clay-snake raid arrows.
+
+Type has three voices. **Chewy** sets headlines, rank-ups, sound words and the OPEN button. **Fredoka** sets body text and stays legible at 14 px on a phone. **Gochi Hand** writes masking-tape labels, Lottie's notes and handwritten numbers, in even-width digits never smaller than 20 px. No line of UI text runs past about eight words.
+
+Icons are chunky clay blobs: a fat Plum ink edge, a glossy sheen at the top left, a thumbprint dimple and a soft drop shadow. Each is drawn on a 64-unit grid with a 3-unit ink stroke and a fill lit from the top left, bold, high-contrast and readable at 24 px. They look hand-made in the style; there are no generic emoji or stock glyphs. The core set is coin, lemon, sugar cube, ice, crowd, rank rosette, raid cloud and weather sun. Threat counts in grumpy sour clay lemons, on an alarm chip that appears only from Threat 2 (see the UI plan). Faction marks are pressed-clay medallions with their pattern embossed.
 
 ### Logo and crate labels
 
-Every logo is a vintage citrus-crate label: an emblem on a sunburst, bordered in the owner's pattern. The title label puts LEMONADE STAND in script above WARS in huge slab letters, with a hatchet notch in the W.
+Every logo is a pressed-clay medallion or a citrus-crate label made in clay: an emblem on a sunburst, bordered in the owner's pattern. The title label rolls LEMONADE STAND in clay-snake script above WARS in fat pressed-clay letters, with a hatchet notch in the W.
 
 | Label | Emblem |
 | --- | --- |
@@ -1845,27 +1895,29 @@ Every logo is a vintage citrus-crate label: an emblem on a sunburst, bordered in
 
 ### Juice and motion
 
-Feedback comes in three sizes: small under 0.3 seconds, medium up to 3, big up to 6 and always skippable. Everything squashes on launch and lands with one bounce; reduced motion swaps shakes and flashes for fades.
+Feedback comes in three sizes: small under 0.3 seconds, medium up to 3, big up to 6 and always skippable. Everything squashes before it acts and lands with one bounce, and every prop has a physical sound to match: a clink, a tick, a boing (see Music and sound).
 
-- **Coins** arc from each sale to the top-bar Cash, merging into bigger coins at 2× and 3×.
+- **Sales**: a clay coin arcs from each sale into the coin jar, and a masking-tape KA-CHING pops over the stand. Coins merge into bigger ones at 2× and 3×.
+- **Thought bubbles**: clay emote blobs pop in, hold and melt away: a heart for bought, a coin with a cross for too pricey, zzz for not thirsty, an empty glass for sold out, and a rival's cup with a clay arrow toward their stand. Thirsty walkers show a sweat drop.
+- **Speech bubbles**: barks pop up in a Clay cream bubble with a Plum ink edge and a tail to the speaker, then melt away like the emotes. Crowds speak only Lemonese.
 - **Upgrades**: the crate reveal.
-- **Rank-ups**: the Bugle spins in, lemon confetti falls, and three Lottie's Tips cards fan out.
-- **Raid alerts**: a red-edged alert card slaps into the feed and a dashed arrow draws itself with an ETA clock.
-- **Captured HQs** are swept by a wave of yellow paint, keeping one relic as the Trophy. At Domination the whole map paints itself yellow.
+- **Rank-ups**: a Chewy headline slaps down on tape, clay-pellet lemon confetti falls, and three Lottie's Tips cards fan out.
+- **Raid alerts**: a red-edged tape strip slaps into the feed, and a dashed clay-snake arrow rolls out toward the target with an egg-timer ETA.
+- **Captured HQs** are smoothed over by a wave of lemon clay, keeping one relic as the Trophy. At Domination the whole model turns lemon yellow.
 
 ### Camera
 
-The Tycoon Camera looks down at a tilt, with tilt-shift blur strongest in Street View and thinnest at Bay View. It rotates in eased 90° steps or freely. Gull Flight drops the blur for a wide, windy chase behind Captain Squawk as he banks over the bay.
+The Tycoon Camera looks down at the model at a tilt, low and tight enough that in Street View the stand and its walkers fill about a third of the screen. Tilt-shift blur softens the top and bottom of the frame, strongest in Street View and thinnest at Bay View, inside a warm vignette that turns indigo at night. It rotates in eased 90° steps or freely, and Bay View pulls back far enough to show the plinth on the table. Gull Flight drops the blur for a wide, windy chase behind Captain Squawk as he banks over the bay.
 
 ### Three mood scenes
 
-**Scorcher noon on the Boardwalk:** the sand glows white and the planks wobble with heat. Sweating tourists snake from your Lemon Shack past a Blenders hut. Strawberry Lemonade sells as fast as the ice machine clatters, while Brock flexes from the Pier.
+**Scorcher noon on the Boardwalk:** white-hot window light makes the sand glow, and the popsicle-stick planks wobble with heat. Sweating tourists, sweat drops over their heads, snake from your Lemon Shack past a Blenders hut. Strawberry Lemonade sells as fast as the ice machine clatters, coins arc into the jar, and Brock flexes from the Pier.
 
-**Night raid on Maple Row:** at 02:00 the street is indigo but for one amber streetlight and a ticking sprinkler. A red alert card slaps into the feed: three Smoothie Bros creep toward your Wooden Stand. Honkers honks, Dex charges, a yellow THWACK flies from the cloud, and three visors wobble home.
+**Night raid on Maple Row:** at 02:00 the kitchen is dark but for the desk lamp, one amber streetlight and a ticking sprinkler. A red tape alert slaps into the feed: three Smoothie Bros hop toward your Wooden Stand. Honkers honks, Dex charges, a yellow THWACK flies from the clay cloud, and three visors wobble home under stars.
 
-**The first helicopter:** golden hour paints the Groves coral as your crew stacks pink-lemonade crates beside the lemon-wedge H. A pink chopper with a star on its tail drops in, flattening the grass into rings. A movie star's assistant signs for 4,000 bottles, and tomorrow's Bugle prints the moment in halftone.
+**The first helicopter:** golden hour pours through the kitchen window and paints the Groves coral as your crew stacks pink-lemonade crates beside the bottle-cap pad. A pink chopper with a star on its tail swings down on its fishing line, flattening the grass tufts into rings. A movie star's assistant signs for 4,000 bottles, and tomorrow's Bugle prints the moment as a photo.
 
-**Fun check:** Every look answers at a glance who owns this, what is happening and whether it is good for me. Night never hides the game, and celebrations stay short and skippable.
+**Fun check:** Every look answers three questions at a glance, picture first: who owns this, what is happening, and is it good for me? Night never hides the game, celebrations stay short and skippable, and bold color keeps the clay from turning muddy.
 
 ## Music and sound
 

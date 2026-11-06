@@ -43,7 +43,7 @@ Roughly in the order the spec's Scope plan needs them:
 8. **Progression and automation:** Lottie's Tips perks on rank-up, bulk actions (Rank 3), Auto-Price (also sets recipe and Sweetness), other automation.
 9. **Living town:** citations, events and festivals, the Bugle and 101.5 The Squeeze radio, Gull Flight, one Out-of-Towner in Endless (Snootwater Springs).
 10. **Time:** quiet nights at 3× from close until an alert.
-11. **Art and music polish:** the Toy-Town Noir pass (painted-wood materials, tilt-shift, peg-doll characters, faction patterns, streetlights and flashlights at night, cartoon brawl clouds, crate-label logos), faction leitmotifs, Lottie's Theme layers by rank.
+11. **Art and music polish:** the Kitchen-Table Clay pass, in progress (thumbprinted plasticine, resin water, cardstock and popsicle-stick props, the plinth on Lottie's kitchen table, clay figures with a body shape and gait per family posed on twos, faction patterns pressed into clay, desk lamp, streetlights and string lights at night, clay brawl clouds, a table-prop HUD, pressed-clay logos), faction leitmotifs, Lottie's Theme layers by rank.
 
 Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat's +1 for leading, Cutthroat's ×0.9/×1.1 traffic and costs.
 

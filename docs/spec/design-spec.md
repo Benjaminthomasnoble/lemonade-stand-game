@@ -1009,7 +1009,7 @@ Offers arrive with the Morning Bugle and wait in the Order Book. Each card names
 | Supply Deals | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles | 28 days | $30 a bottle | $6,000,000 | The first when the Cargo Terminal opens, then about 1 per 7 days |
 | Mega Contracts | Rank 9, 4.5 stars | Heliport, Cargo Terminal and 2 premium recipes | 100,000–150,000 bottles | 14 days | $100 a bottle | $10M–$15M | About 1 per 20 days |
 
-Local Orders and Caterer Trucks are the warm-up, filled from stands and the Warehouse. Once a pad or pier tier stands, its clients offer a job at least every 10 days, and the first Supply Deal arrives the day your Cargo Terminal opens. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
+Local Orders and Caterer Trucks are the warm-up, filled from stands and the Warehouse. Once a pad or pier tier stands, its clients offer a job at least every 10 days, and the first Supply Deal arrives the day your Cargo Terminal opens. Each Supply Deal ships in 4 weekly loads of 50,000 bottles, paid $1.5M a load, and several can run at once if your bottling keeps up. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
 
 ### Helicopter clients
 
@@ -2380,7 +2380,7 @@ Fights run in every mode at 1 game minute per real second. In the campaign, the 
 | Caterer Trucks | Rank 5 | Warehouse + Bottling Works | 1,000–5,000 bottles | 3 days | 6 | About 2 per 5 days |
 | Helicopter VIPs | Rank 6, 3.5 stars | Helipad tier on a Field | 2,000–10,000 bottles by pad tier | 4 days | 30, +0.2 star | About 1 per 3 days; never more than 10 days apart |
 | Ship Contracts | Rank 7, 4.0 stars | Pier tier on a Dock | 10,000–60,000 bottles by pier tier | 7 days | 40 | About 1 per 5 days; never more than 10 days apart |
-| Supply Deals (recurring) | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles over 28 days | 28 days | 30 ($6M a deal) | The first as soon as the Cargo Terminal stands, then about 1 per 7 days; never more than 10 days apart |
+| Supply Deals (recurring) | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles in 4 weekly loads of 50,000 | 28 days | 30 ($1.5M a load, $6M a deal) | The first as soon as the Cargo Terminal stands, then about 1 per 7 days; never more than 10 days apart; several can run at once if your bottling keeps up |
 | Mega Contracts (stretch goal) | Rank 9, 4.5 stars | Heliport + Cargo Terminal + 2 premium recipes | 100,000–150,000 bottles | 14 days | 100 ($10M–$15M a contract) | About 1 per 20 days |
 
 A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry. Pay arrives with each pickup. Once a facility tier stands, its client type offers at least one job every 10 days; you may still turn any offer down. In the simulation, VIP clients (helicopters, ships and Supply Deals) earn about 11% of revenue on Days 52–96, 18% on Days 97–136 and 20% after that.

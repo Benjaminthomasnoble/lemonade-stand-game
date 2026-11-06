@@ -18,16 +18,21 @@ import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, 
 import { createHud, type Action } from './ui/hud.ts';
 import { createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
-import { createCrowd } from './world/people.ts';
+import { createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
+import type { Emote } from './ui/emotes.ts';
+import { createPhone } from './ui/phone.ts';
 import { BOSS, CUSTOMER, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
-import { FACTIONS } from './sim/balance.ts';
 
-const LOOK: Partial<Record<SegmentId, { scale: number; speed: number }>> = {
-  kids: { scale: 0.68, speed: 1.15 },
-  seniors: { scale: 0.95, speed: 0.7 },
+const LOOK: Partial<Record<SegmentId, { scale?: number; speed?: number; gait?: Gait }>> = {
+  kids: { scale: 0.68, speed: 1.15, gait: 'skip' },
+  seniors: { scale: 0.95, speed: 0.7, gait: 'shuffle' },
+  office: { speed: 1.15, gait: 'stride' },
+  workers: { gait: 'stride' },
+  tourists: { speed: 0.85, gait: 'tourist' },
 };
-const MISS_TEXT = { pricey: CUSTOMER.pricey, line: CUSTOMER.line, soldOut: CUSTOMER.soldOut } as const;
+/** Walk-offs carry the reason as a clay reaction icon (see ui/emotes.ts). */
+const MISS_TEXT = { pricey: 'pricey', line: 'line', soldOut: 'soldout' } as const satisfies Record<string, Emote>;
 /** A rush: this many coins landing within RUSH_MS gets a cheer from Lottie. */
 const RUSH_COINS = 5;
 const RUSH_MS = 5000;
@@ -66,8 +71,8 @@ async function main() {
     if (!raids.length) return;
     audio.stinger('raid-incoming');
     const boss = raids.find((r) => r.attacker !== 'player')?.attacker as RivalId | undefined;
-    const line = boss ? `${FACTIONS[boss].boss.split(' ')[0]} called: "${pick(BOSS[boss])}"` : undefined;
-    lottieSays('raidComing', { react: 'fist', text: line });
+    if (boss) phone.ring(boss, pick(BOSS[boss].warn));
+    lottieSays('raidComing', { react: 'fist' });
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);
@@ -93,14 +98,19 @@ async function main() {
 
   /** Lottie (at the Corner) says a line for a moment, and maybe reacts in her chair. */
   const lastBark = new Map<BarkMoment, number>();
-  const lottieSays = (moment: BarkMoment, opts: { react?: 'cheer' | 'fist'; cooldown?: number; text?: string; ms?: number } = {}) => {
+  const lottieSays = (moment: BarkMoment, opts: { react?: 'cheer' | 'fist'; cooldown?: number; text?: string; ms?: number; icon?: Emote } = {}) => {
     const now = performance.now();
     if (now - (lastBark.get(moment) ?? -1e9) < (opts.cooldown ?? 0)) return;
     const stand = bay.views[LOTTIES_CORNER]?.stand;
     if (!stand?.lottie) return;
     lastBark.set(moment, now);
     if (opts.react) stand.react(opts.react);
-    bubbles.say(stand.lottie, opts.text ?? pick(LOTTIE[moment]), { who: 'Lottie', color: '#7a4fb0', height: 2.0, ms: opts.ms });
+    if (opts.icon) bubbles.say(stand.lottie, '', { kind: 'thought', icon: opts.icon, height: 2.0, ms: opts.ms });
+    else {
+      const line = opts.text ?? pick(LOTTIE[moment]);
+      bubbles.say(stand.lottie, line, { who: 'Lottie', color: '#7a4fb0', height: 2.0, ms: opts.ms });
+      audio.babble(line, 0.8, opts.react === 'fist' ? 'grumpy' : opts.react === 'cheer' ? 'happy' : 'flat');
+    }
   };
 
   /** Lottie reads the sky each morning. */
@@ -123,10 +133,13 @@ async function main() {
       hud.coin(x, y, size, () => audio.ding(size > 1));
       if (coinTimes.length >= RUSH_COINS) lottieSays('rush', { react: 'cheer', cooldown: 25000 });
     } else if (kind === 'miss') {
-      bubbles.say(who, text, { kind: 'thought', ms: 1600 });
-      if (text === CUSTOMER.soldOut) lottieSays('soldOut', { react: 'fist', cooldown: 20000 });
+      bubbles.say(who, '', { kind: 'thought', icon: text as Emote, ms: 1800 });
+      if (text === MISS_TEXT.pricey && Math.random() < 0.3) audio.babble(pick(CUSTOMER.grumble), 1, 'grumpy');
+      if (text === MISS_TEXT.soldOut) lottieSays('soldOut', { react: 'fist', cooldown: 20000 });
     } else if (kind === 'sip' && Math.random() < SIP_CHANCE) {
-      bubbles.say(who, pick(CUSTOMER.sip), { ms: 1300 });
+      // Most buyers just glow (a clay heart); some say thanks in Lemonese.
+      if (Math.random() < 0.5) bubbles.say(who, '', { kind: 'thought', icon: 'bought', ms: 1400 });
+      else { const l = pick(CUSTOMER.sip); bubbles.say(who, l, { ms: 1400 }); audio.babble(l, who.scale.y < 0.8 ? 1.7 : 1.1 + Math.random() * 0.4, 'happy'); }
     }
   });
 
@@ -175,6 +188,11 @@ async function main() {
       hud.toast(battleHeadline(b)); audio.stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
       if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
       else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
+      const rival = (b.attacker === 'player' ? b.defender : b.defender === 'player' ? b.attacker : null) as RivalId | null;
+      if (rival && rival in BOSS) {
+        const mood = b.attacker === 'player' ? (won(b) ? 'smashed' : 'gloat') : (won(b) ? 'sore' : 'gloat');
+        setTimeout(() => phone.ring(rival, pick(BOSS[rival][mood])), 1200);
+      }
     });
   };
 
@@ -267,6 +285,7 @@ async function main() {
     hud.render(state, speed);
   };
   const hud = createHud(document.getElementById('ui')!, act);
+  const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
   hud.muted = audio.muted();
   // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
@@ -314,6 +333,7 @@ async function main() {
     crowd: () => crowd.activeCount(),
     bubbles: () => bubbles.count(),
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
+    ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
     battle: () => battle.active(),
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
@@ -343,11 +363,11 @@ async function main() {
     }
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
-    bay.update(state, timer.getElapsed());
+    bay.update(state, timer.getElapsed(), phone.ringing());
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
     vip.update(dt);
-    if (state.phase === 'report') lottieSays('night', { cooldown: 9000 });
+    if (state.phase === 'report') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) { speed = vipResume; vipResume = 0; }
     world.update(dt);

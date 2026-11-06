@@ -92,7 +92,26 @@ interface Walker {
   sipped: boolean;
   /** A short squash-and-stretch when something happens to them. */
   boing: number;
+  gait: Gait;
+  /** Tourists stop once to take a photo of the stand. */
+  photo: number;
+  /** Stomping off after a long wait in line. */
+  huff: boolean;
+  standZ: number;
 }
+
+/**
+ * How someone walks, by who they are: kids skip, seniors shuffle, office
+ * workers stride, tourists stroll and stop for a photo.
+ */
+export type Gait = 'stroll' | 'skip' | 'shuffle' | 'stride' | 'tourist';
+const GAIT: Record<Gait, { hop: number; cadence: number; swing: number }> = {
+  stroll: { hop: 1, cadence: 1, swing: 0.6 },
+  skip: { hop: 2, cadence: 1.25, swing: 0.9 },
+  shuffle: { hop: 0.25, cadence: 1.5, swing: 0.25 },
+  stride: { hop: 0.7, cadence: 0.85, swing: 0.75 },
+  tourist: { hop: 0.9, cadence: 0.95, swing: 0.5 },
+};
 
 /** What a walker did, so the world can put a bubble over them. */
 export type WalkerMoment = 'sale' | 'miss' | 'sip';
@@ -104,7 +123,7 @@ export interface Route { x0: number; x1: number; z: number; serve?: THREE.Vector
 
 export interface Crowd {
   /** sale/miss detour to the counter; grumble pops its text while walking past. */
-  spawn(kind: WalkerKind, route: Route, text?: string, opts?: { scale?: number; speed?: number }): boolean;
+  spawn(kind: WalkerKind, route: Route, text?: string, opts?: { scale?: number; speed?: number; gait?: Gait }): boolean;
   update(dt: number, speedScale: number): void;
   clear(): void;
   activeCount(): number;
@@ -128,7 +147,7 @@ export function createCrowd(
     cup.visible = false;
     (obj.userData.limbs as THREE.Mesh[])[3].add(cup);
     scene.add(obj);
-    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0 });
+    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0 });
   }
   let queueSlot = 0;
 
@@ -157,6 +176,11 @@ export function createCrowd(
       w.served = -1;
       w.sipped = false;
       w.boing = 0;
+      w.gait = opts.gait ?? 'stroll';
+      w.photo = w.gait === 'tourist' && kind !== 'sale' ? 0 : -1;
+      w.huff = false;
+      w.standZ = route.serve?.z ?? z - 3;
+      w.obj.rotation.x = 0;
       w.path.push(end);
       w.leg = 1;
       w.wait = 0;
@@ -182,6 +206,15 @@ export function createCrowd(
             // Served: a quick stretch up, then settle (a happy little boing).
             const k = Math.sin((1 - w.boing / 0.35) * Math.PI) * 0.16 * MOTION;
             w.obj.scale.set(w.base * (1 - k * 0.4), w.base * (1 + k), w.base * (1 - k * 0.4));
+          } else if (w.photo > 0) {
+            // Snap! Both mittens up to the face, then a little flinch on the shutter.
+            limbs[2].rotation.x = limbs[3].rotation.x = -2.1;
+            const k = w.wait < 0.3 ? Math.sin((w.wait / 0.3) * Math.PI) * 0.08 * MOTION : 0;
+            w.obj.scale.set(w.base * (1 + k), w.base * (1 - k), w.base * (1 + k));
+            continue;
+          } else if (w.huff) {
+            idlePose(w.obj, w.phase + w.wait * 2, w.base);
+            limbs[0].rotation.x = Math.sin(w.wait * 30) > 0.3 ? -0.3 * MOTION : 0; // tap tap tap
           } else idlePose(w.obj, w.phase + w.wait * 2, w.base);
           if (w.cup.visible) limbs[3].rotation.x = -0.9; // hold the cup up
           continue;
@@ -190,18 +223,26 @@ export function createCrowd(
         const pos = w.obj.position;
         const dx = target.x - pos.x, dz = target.z - pos.z;
         const dist = Math.hypot(dx, dz);
-        const move = w.speed * step;
+        const move = w.speed * step * (w.huff ? 1.35 : 1);
         if (dist <= move) {
           pos.set(target.x, pos.y, target.z);
           // Arrived at the counter (the middle waypoint of a detour).
           if (w.popup?.atCounter && w.leg === 2) {
             const sale = w.popup.kind === 'sale';
             w.wait = sale ? 0.9 : 0.4;
+            // Gave up on the line: a foot-tapping wait, then stomp off quicker.
+            if (!sale && w.popup.text === 'line') { w.wait = 1.2; w.huff = true; }
             if (sale) { w.cup.visible = true; w.served = 0; w.boing = 0.35; }
             onArrive(pos.clone().setY(2.1 * w.base), w.popup.text, w.popup.kind, w.obj);
           }
           w.leg++;
           if (w.leg >= w.path.length) { w.active = false; w.obj.visible = false; }
+          continue;
+        }
+        if (w.photo === 0 && Math.abs(pos.x - w.grumbleX) < 2.5) {
+          w.photo = 1;
+          w.wait = 0.9;
+          w.obj.rotation.y = Math.atan2(w.grumbleX - pos.x, w.standZ - pos.z);
           continue;
         }
         if (w.popup && !w.popup.atCounter && !w.shown && Math.abs(pos.x - w.grumbleX) < 1) {
@@ -211,12 +252,15 @@ export function createCrowd(
         pos.x += (dx / dist) * move;
         pos.z += (dz / dist) * move;
         w.obj.rotation.y = Math.atan2(dx, dz);
-        w.phase += step * w.speed * 3.2;
-        const swing = Math.sin(w.phase) * 0.6;
+        const g = GAIT[w.huff ? 'stride' : w.gait];
+        if (w.photo > 0) w.photo = -1;
+        w.phase += step * w.speed * 3.2 * g.cadence;
+        const swing = Math.sin(w.phase) * g.swing;
         limbs[0].rotation.x = swing;
         limbs[1].rotation.x = -swing;
         limbs[2].rotation.x = -swing * 0.8;
-        hopPose(w.obj, w.phase, w.base);
+        hopPose(w.obj, w.phase, w.base, 0.12, w.huff ? 1.4 : g.hop);
+        if (w.huff) w.obj.rotation.x = 0.12; else w.obj.rotation.x = w.gait === 'shuffle' ? 0.08 : 0;
         // A few steps after the counter, the buyer stops swinging the cup and sips.
         const sipping = w.cup.visible && w.served > 1.6 && w.served < 2.6;
         limbs[3].rotation.x = w.cup.visible ? (sipping ? -2.3 : -0.7) : swing * 0.8;

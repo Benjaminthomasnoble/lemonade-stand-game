@@ -3,6 +3,7 @@
 // Lottie's lines, Dex and the bosses' barks. The words and icons come from
 // the caller; this module only places, pops and retires the bubbles.
 import * as THREE from 'three/webgpu';
+import { emoteUrl, type Emote } from '../ui/emotes.ts';
 
 export type BubbleKind = 'speech' | 'thought';
 
@@ -16,6 +17,8 @@ export interface SayOptions {
   height?: number;
   /** A side colour for the speaker's name and the bubble's edge. */
   color?: string;
+  /** A clay reaction icon instead of (or as well as) words. */
+  icon?: Emote;
 }
 
 export interface Bubbles {
@@ -65,13 +68,23 @@ export function createBubbles(layer: HTMLElement): Bubbles {
         who.textContent = opts.who;
         el.appendChild(who);
       }
-      const line = document.createElement('div');
-      line.className = 'line';
-      line.textContent = text;
-      el.appendChild(line);
+      if (opts.icon) {
+        const img = document.createElement('img');
+        img.className = 'emote';
+        img.alt = opts.icon;
+        img.src = emoteUrl(opts.icon);
+        el.appendChild(img);
+        if (!text) el.classList.add('icon-only');
+      }
+      if (text) {
+        const line = document.createElement('div');
+        line.className = 'line';
+        line.textContent = text;
+        el.appendChild(line);
+      }
       el.style.display = 'none';
       layer.appendChild(el);
-      const ms = opts.ms ?? Math.min(4500, 1400 + text.length * 55);
+      const ms = opts.ms ?? Math.min(4500, 1600 + text.length * 55);
       live.push({ target, el, height: opts.height ?? 2.2, until: performance.now() + ms, leaving: false });
       const active = live.filter((b) => !b.leaving);
       if (active.length > MAX_BUBBLES) retire(active[0]);

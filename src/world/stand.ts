@@ -11,7 +11,7 @@ export interface Stand {
   servePoint: THREE.Vector3;
   setLevel(level: number): void;
   setBrand(tier: number): void;
-  update(opts: { price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean }): void;
+  update(opts: { price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean }): void;
   /** Who's at the stand, for bubbles to follow. Lottie only sits at Lottie's Corner. */
   kid: THREE.Object3D;
   lottie?: THREE.Object3D;
@@ -182,6 +182,21 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   lottieGlass.position.set(0, -0.5, 0.05);
   lottieGlass.visible = false;
   lottieArms.left.add(lottieGlass);
+  // The rotary phone by Lottie's chair: the bosses call it to taunt you.
+  const phone = new THREE.Group();
+  const phoneBody = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.28), mat(0xE8704F, 0.5));
+  phoneBody.position.y = 0.08;
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 14), mat(0xFFF1D6, 0.5));
+  dial.position.set(0, 0.17, 0.05);
+  const handset = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.3, 4, 8), mat(0xE8704F, 0.5));
+  handset.rotation.z = Math.PI / 2;
+  handset.position.set(0, 0.21, -0.07);
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.36), mat(0x8B5E3C));
+  crate.position.y = -0.2;
+  phone.add(phoneBody, dial, handset, crate);
+  phone.position.set(-2.55, 0.4, 0.25);
+  phone.traverse((o) => { o.castShadow = true; });
+  if (opts.lottie !== false) group.add(phone);
   let reaction: { kind: LottieReaction; start: number } | null = null;
   let pendingReaction: LottieReaction | null = null;
   if (opts.lottie !== false) group.add(lottie);
@@ -304,13 +319,14 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       const out = l >= 5 ? -5 : l === 4 ? -5.2 : l === 3 ? -3 : -2;
       chair.position.x = out;
       lottie.position.x = out;
+      phone.position.x = out - 0.55;
       stand.servePoint.z = l === 4 ? 1.5 : 1.35;
       lastSign = '';
     },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },
-    update({ price, pitcherFill, open, time, hot, night }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing }) {
       const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
       const key = `${level}|${label}`;
       if (key !== lastSign) {
@@ -326,6 +342,10 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       idlePose(kid, time, 0.8);
       if (spin) spin.rotation.y = time * 0.8;
       animateLottie(time, !night, hot ?? false);
+      // Ringing: the handset hops on its cradle.
+      const r = ringing ? Math.abs(Math.sin(time * 40)) * 0.05 * MOTION + 0.02 : 0;
+      handset.position.y = 0.21 + r;
+      phone.rotation.z = ringing ? Math.sin(time * 37) * 0.06 * MOTION : 0;
     },
   };
   stand.setLevel(1);

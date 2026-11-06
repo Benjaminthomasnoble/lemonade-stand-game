@@ -31,7 +31,7 @@ export interface PlotView {
 export interface Bay {
   views: Record<string, PlotView>;
   sync(s: GameState): void;
-  update(s: GameState, time: number): void;
+  update(s: GameState, time: number, ringing?: boolean): void;
   pick(ndc: THREE.Vector2, camera: THREE.Camera): string | null;
   select(id: string | null): void;
 }
@@ -196,12 +196,12 @@ export function createBay(scene: THREE.Scene): Bay {
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
     },
-    update(s, time) {
+    update(s, time, ringing = false) {
       for (const v of Object.values(views)) {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;
         if (!st) continue;
-        v.stand.update({ price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report' });
+        v.stand.update({ price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report', ringing });
       }
     },
     pick(ndc, camera) {

@@ -1565,9 +1565,30 @@ The Tycoon Camera glides through the first three in one zoom and rotates in 90°
 
 Gull Flight is optional after one scouting mission in Act 2. Circling a rival plot reveals its defenses for 3 days and pins a snapshot to the Rivals Corkboard. The clock keeps running, and any alert offers a one-tap return.
 
+### Show, don't tell
+
+The UI follows six rules (adopted 2026-11-06; wireframes in the UI plan, `docs/spec/ui-plan.md`):
+
+1. **Three taps a morning.** The morning asks only recipe, price and stock, then Open. Everything else lives behind a tab or in the world.
+2. **The stand is the dashboard.** Stock fills the crate, sugar jar and ice tray on the table; the price sits on a chalkboard; the pitcher's colour is the recipe; Reputation stars hang on the stand's sign.
+3. **People react, numbers don't.** Walkers show a thought bubble for why they bought or passed: a cup (bought), a coin with a cross (too pricey), zzz (not thirsty), an empty pitcher (sold out), an arrow (went to a rival).
+4. **Meters over numbers.** An exact figure appears only where it changes the choice, such as price and cost. Everything else is a bar, pips, a dial or an icon.
+5. **Eight-word ceiling.** No line of UI text runs past about eight words. Explanations move to hover or long-press.
+6. **Hide what's locked.** No greyed "Needs Rank 4" rows. A thing appears the day it unlocks, with a small fanfare.
+
 ### Top bar and alerts
 
-The top bar holds Cash, Success Score with its Rank badge, Reputation stars and Threat lemons, then day, time, season, weather and speed. Every meter explains itself on hover or long-press; Threat, for example, names the rank that set it. Lottie's 3 goals sit on a goal card at the right edge.
+The top bar holds four things: Cash (a coin jar), the Rank badge with its progress meter, the day and clock, and the weather. Reputation moves to the stand's sign; Threat appears only at 2 or more, as sour lemons. Speed buttons sit bottom right while the stand is open. Every meter explains itself on hover or long-press.
+
+Lottie's goals collapse to one goal pill with a progress bar; tap it for the rest. The Bugle headline slides in at dawn as a small banner and slides away; the forecast is the weather chip. Bugle Extras stack small in a corner and fade on their own; only story beats get the big banner.
+
+**Morning dock.** One wooden strip along the bottom: three pitchers (Classic, Pink, Mint) with a three-cube Sweetness toggle, a chalkboard price with − and + and a crowd meter of five little people, three stock gauges (lemons, sugar, ice) each with a + that buys a pack (long-press fills), and a big round Open button. A gauge pulses when it will run short; the price chalk turns red below cost.
+
+**Day's end.** One card: the profit as a big number that counts up, cups sold and people turned away, Reputation stars with an up or down tick, the Rank meter, one line from Lottie, any raid coming tonight (their fighters against your guards and fence, as icons, with one fix button) and Sleep. The full Ledger sits behind "See the books".
+
+**Tabs.** The stand panel has three tabs, Today, Grow and Defend, and a tab appears only once something in it is unlocked. Grow shows picture cards (the next stand with three growth bars: faster, busier, holds more; local campaigns; brand marketing). Defend shows the crew as faces with level pips and a weapon icon, the Hiring Hall as faces, the next fence, and gadget slots; locked gadgets stay hidden. Marisol's bank is a building on the map, and a Borrow button appears where you're short.
+
+**Plot card.** Name, owner colour and one action; land value, traffic and district share on hover or long-press.
 
 Alerts land as cards in the left feed, each with Go There and one action, such as Ring the Bell. Major alerts auto-pause by default: raids on you (except on Cutthroat), Delivery Raids, each VIP client's first arrival, going In the Red and rank-up perk picks. Each type has its own switch, and full-screen paper pauses too (sound priority: see Music and sound).
 
@@ -1579,9 +1600,9 @@ One sheet shows the odds before you commit:
 
 1. **Target**: tap a rival plot in Bay View or on the Corkboard.
 2. **Objective**: Smash, Shakedown, Sabotage or HQ Assault. A locked one says why, such as "Sabotage needs a Lookout or a Sneaky guard."
-3. **Squad**: Dex fills it up to your cap (5, 8 or 12); swap anyone.
+3. **Squad**: guards show as faces; Dex fills it up to your cap (5, 8 or 12) with "Take all"; tap a face to swap.
 4. **Time**: now or tonight.
-5. **Go**: check the win chance, travel time, expected loot, and any Reputation cost or Citation risk, shown in red.
+5. **Go**: check the win chance (a dial with words: long shot, coin flip, good odds, sure thing; the percentage on hover), travel time, expected loot, and any Reputation cost or Citation risk, shown in red.
 
 Unscouted defenses show "?", and the win chance shows as a range until a Lookout or Gull Flight fills them in. Raid templates (Rank 6) save a squad and objective for one-tap repeats.
 
@@ -2652,7 +2673,7 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Taunt call | See Phone taunt. |
 | Threat | How hard rivals come for you, 1–5 sour lemons, set mostly by Rank. |
 | Ticket | See Alert card. |
-| Top bar | The HUD strip: Cash, Success Score and Rank badge, Reputation, Threat, clock, weather and speed. |
+| Top bar | The HUD strip: Cash, the Rank badge and meter, day and clock, and weather; Threat joins at 2+. |
 | Trait | One quirk per guard, such as Tough Cookie, Night Owl, Loyal or Sneaky. |
 | Trophy | An eliminated rival's HQ, now your building with a unique perk. |
 | Truce | A paid Sit-down deal: no raids with one rival for a week; breaking it costs Reputation. |

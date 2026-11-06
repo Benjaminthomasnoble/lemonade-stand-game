@@ -87,8 +87,10 @@ async function main() {
   const bay = createBay(world.scene);
   bay.sync(state);
   const home = PLOT_BY_ID[LOTTIES_CORNER];
-  world.controls.target.set(home.x, 0.8, home.streetZ);
-  world.camera.position.set(home.x + 8, 9, home.streetZ + 14);
+  // Frame the stand above the morning dock, not behind it.
+  const homeZ = home.z + 4;
+  world.controls.target.set(home.x + 1, 0.8, homeZ);
+  world.camera.position.set(home.x + 7, 10, homeZ + 13);
 
   const tmp = new THREE.Vector3();
   const toScreen = (pos: THREE.Vector3) => {

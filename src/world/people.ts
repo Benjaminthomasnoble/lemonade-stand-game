@@ -1,6 +1,8 @@
 // Low-poly pedestrians. The sim decides who buys; this module only walks
 // them along the sidewalk, detours buyers to the counter and reports when
-// they arrive so the HUD can pop "+50¢" over their heads.
+// they arrive so the HUD can pop "+50¢" over their heads. Everyone hops as
+// they walk and squashes when they land; a buyer leaves with a cup and
+// takes a sip a few steps later.
 import * as THREE from 'three/webgpu';
 
 const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
@@ -17,6 +19,31 @@ function m(color: number) {
   let mm = materials.get(color);
   if (!mm) { mm = new THREE.MeshStandardMaterial({ color, roughness: 0.8 }); materials.set(color, mm); }
   return mm;
+}
+
+/** Reduced motion keeps a little life but drops the bounce. */
+export const MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.25 : 1;
+
+const cupGeo = new THREE.CylinderGeometry(0.07, 0.055, 0.17, 10);
+cupGeo.translate(0, 0.085, 0);
+const cupMat = new THREE.MeshStandardMaterial({ color: 0xfff3a6, roughness: 0.5 });
+
+/**
+ * Hop-walk pose for any peg doll: lifts it off the ground at mid-stride and
+ * squashes it on landing. `base` is its resting scale.
+ */
+export function hopPose(obj: THREE.Object3D, phase: number, base: number, groundY = 0.12, amount = 1) {
+  const a = amount * MOTION;
+  const lift = Math.abs(Math.sin(phase));
+  obj.position.y = groundY + lift * 0.1 * a;
+  const squash = Math.max(0, 0.35 - lift) * 0.35 * a; // only near the ground
+  obj.scale.set(base * (1 + squash * 0.5), base * (1 - squash), base * (1 + squash * 0.5));
+}
+
+/** Idle breathing bob for a standing peg doll. */
+export function idlePose(obj: THREE.Object3D, t: number, base: number) {
+  const b = Math.sin(t * 3.2) * 0.022 * MOTION;
+  obj.scale.set(base * (1 - b * 0.5), base * (1 + b), base * (1 - b * 0.5));
 }
 
 export function makePerson(shirt?: number, pants?: number, skin?: number, scale = 1): THREE.Group {
@@ -42,6 +69,7 @@ export function makePerson(shirt?: number, pants?: number, skin?: number, scale 
     limbs.push(l);
   }
   g.userData.limbs = limbs;
+  g.userData.base = scale;
   g.scale.setScalar(scale);
   return g;
 }
@@ -57,7 +85,17 @@ interface Walker {
   popup?: { text: string; kind: 'sale' | 'miss'; atCounter: boolean };
   shown: boolean;
   grumbleX: number;
+  base: number;
+  cup: THREE.Mesh;
+  /** Seconds since served (counts up once they hold a cup), and whether they've sipped. */
+  served: number;
+  sipped: boolean;
+  /** A short squash-and-stretch when something happens to them. */
+  boing: number;
 }
+
+/** What a walker did, so the world can put a bubble over them. */
+export type WalkerMoment = 'sale' | 'miss' | 'sip';
 
 export type WalkerKind = 'pass' | 'sale' | 'miss' | 'grumble';
 
@@ -75,13 +113,22 @@ export interface Crowd {
 /** Laptop cap from the spec (about 150 animated people in Street View). */
 export const CROWD_POOL = 150;
 
-export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, text: string, kind: 'sale' | 'miss') => void, pool = CROWD_POOL): Crowd {
+export function createCrowd(
+  scene: THREE.Scene,
+  onArrive: (pos: THREE.Vector3, text: string, kind: WalkerMoment, who: THREE.Object3D) => void,
+  pool = CROWD_POOL,
+): Crowd {
   const walkers: Walker[] = [];
   for (let i = 0; i < pool; i++) {
     const obj = makePerson();
     obj.visible = false;
+    // The cup rides in the right mitten.
+    const cup = new THREE.Mesh(cupGeo, cupMat);
+    cup.position.set(0, -0.5, 0.06);
+    cup.visible = false;
+    (obj.userData.limbs as THREE.Mesh[])[3].add(cup);
     scene.add(obj);
-    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0 });
+    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0 });
   }
   let queueSlot = 0;
 
@@ -104,7 +151,12 @@ export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, t
       }
       w.grumbleX = route.grumbleX ?? (route.x0 + route.x1) / 2;
       w.shown = false;
-      w.obj.scale.setScalar(opts.scale ?? 1);
+      w.base = opts.scale ?? 1;
+      w.obj.scale.setScalar(w.base);
+      w.cup.visible = false;
+      w.served = -1;
+      w.sipped = false;
+      w.boing = 0;
       w.path.push(end);
       w.leg = 1;
       w.wait = 0;
@@ -120,9 +172,18 @@ export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, t
       for (const w of walkers) {
         if (!w.active) continue;
         const limbs = w.obj.userData.limbs as THREE.Mesh[];
+        if (w.served >= 0) w.served += step;
+        if (w.boing > 0) w.boing = Math.max(0, w.boing - step);
         if (w.wait > 0) {
           w.wait -= step;
           for (const l of limbs) l.rotation.x *= 0.8;
+          w.obj.position.y = 0.12;
+          if (w.boing > 0) {
+            // Served: a quick stretch up, then settle (a happy little boing).
+            const k = Math.sin((1 - w.boing / 0.35) * Math.PI) * 0.16 * MOTION;
+            w.obj.scale.set(w.base * (1 - k * 0.4), w.base * (1 + k), w.base * (1 - k * 0.4));
+          } else idlePose(w.obj, w.phase + w.wait * 2, w.base);
+          if (w.cup.visible) limbs[3].rotation.x = -0.9; // hold the cup up
           continue;
         }
         const target = w.path[w.leg];
@@ -134,8 +195,10 @@ export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, t
           pos.set(target.x, pos.y, target.z);
           // Arrived at the counter (the middle waypoint of a detour).
           if (w.popup?.atCounter && w.leg === 2) {
-            w.wait = w.popup.kind === 'sale' ? 0.9 : 0.4;
-            onArrive(pos.clone().setY(2.1 * w.obj.scale.y), w.popup.text, w.popup.kind);
+            const sale = w.popup.kind === 'sale';
+            w.wait = sale ? 0.9 : 0.4;
+            if (sale) { w.cup.visible = true; w.served = 0; w.boing = 0.35; }
+            onArrive(pos.clone().setY(2.1 * w.base), w.popup.text, w.popup.kind, w.obj);
           }
           w.leg++;
           if (w.leg >= w.path.length) { w.active = false; w.obj.visible = false; }
@@ -143,7 +206,7 @@ export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, t
         }
         if (w.popup && !w.popup.atCounter && !w.shown && Math.abs(pos.x - w.grumbleX) < 1) {
           w.shown = true;
-          onArrive(pos.clone().setY(2.1 * w.obj.scale.y), w.popup.text, 'miss');
+          onArrive(pos.clone().setY(2.1 * w.base), w.popup.text, 'miss', w.obj);
         }
         pos.x += (dx / dist) * move;
         pos.z += (dz / dist) * move;
@@ -153,8 +216,14 @@ export function createCrowd(scene: THREE.Scene, onArrive: (pos: THREE.Vector3, t
         limbs[0].rotation.x = swing;
         limbs[1].rotation.x = -swing;
         limbs[2].rotation.x = -swing * 0.8;
-        limbs[3].rotation.x = swing * 0.8;
-        pos.y = 0.12 + Math.abs(Math.cos(w.phase)) * 0.04;
+        hopPose(w.obj, w.phase, w.base);
+        // A few steps after the counter, the buyer stops swinging the cup and sips.
+        const sipping = w.cup.visible && w.served > 1.6 && w.served < 2.6;
+        limbs[3].rotation.x = w.cup.visible ? (sipping ? -2.3 : -0.7) : swing * 0.8;
+        if (sipping && !w.sipped) {
+          w.sipped = true;
+          onArrive(pos.clone().setY(2.1 * w.base), '', 'sip', w.obj);
+        }
       }
     },
     clear() {

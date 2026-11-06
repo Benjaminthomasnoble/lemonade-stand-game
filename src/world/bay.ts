@@ -201,7 +201,7 @@ export function createBay(scene: THREE.Scene): Bay {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;
         if (!st) continue;
-        v.stand.update({ price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time });
+        v.stand.update({ price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report' });
       }
     },
     pick(ndc, camera) {

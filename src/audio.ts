@@ -16,6 +16,8 @@ export interface Audio {
   stinger(id: Stinger): void;
   toggle(): boolean;
   muted(): boolean;
+  /** A tiny cash-register ding for each coin that lands (synthesized, so it needs no file). */
+  ding(big?: boolean): void;
 }
 
 export function createAudio(): Audio {
@@ -34,6 +36,8 @@ export function createAudio(): Audio {
     return a;
   };
   let ducks = 0;
+  let ctx: AudioContext | null = null;
+  let lastDing = 0;
 
   return {
     start() {
@@ -58,5 +62,27 @@ export function createAudio(): Audio {
       return muted;
     },
     muted: () => muted,
+    ding(big = false) {
+      if (muted || !started) return;
+      const now = performance.now();
+      if (now - lastDing < 70) return; // a rush makes one bright run, not a wall of noise
+      lastDing = now;
+      try {
+        ctx ??= new AudioContext();
+        const t = ctx.currentTime;
+        // The theme's top F (698 Hz), with an octave on top for a big coin.
+        for (const [f, v] of big ? [[698.5, 0.06], [1397, 0.04]] : [[698.5, 0.05]]) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'triangle';
+          o.frequency.value = f;
+          g.gain.setValueAtTime(v, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+          o.connect(g).connect(ctx.destination);
+          o.start(t);
+          o.stop(t + 0.36);
+        }
+      } catch { /* no Web Audio */ }
+    },
   };
 }

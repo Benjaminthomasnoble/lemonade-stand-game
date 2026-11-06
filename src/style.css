@@ -75,3 +75,43 @@ button.on { background: #ffe680; outline: 2px solid var(--ink); }
   .panel { left: 10px; right: 10px; width: auto; top: auto; bottom: 10px; max-height: 55%; }
   .chip.hide-sm { display: none; }
 }
+
+/* Coins arc from each sale to Cash, and Cash bumps when they land. */
+.coin {
+  position: absolute; pointer-events: none; width: 16px; height: 16px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff6b0, #f6d33c 45%, #c99a00); border: 2px solid #9a7400;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transform: translate(-50%, -50%);
+}
+.coin.c2 { width: 22px; height: 22px; }
+.coin.c3 { width: 28px; height: 28px; }
+.chip.bump { animation: bump 0.25s ease-out; }
+@keyframes bump { 40% { transform: scale(1.12); } }
+
+/* Speech and thought bubbles over characters in the world. */
+.bubble {
+  --side: #23214a;
+  position: absolute; pointer-events: none; transform: translate(-50%, -100%); margin-top: -6px;
+  background: #fffdf3; color: #23214a; border: 2px solid var(--side); border-radius: 14px;
+  padding: 4px 9px; font-weight: bold; font-size: 14px; line-height: 1.2; white-space: nowrap; max-width: 220px;
+  box-shadow: 0 2px 0 rgba(35, 33, 74, 0.2); animation: bubble-in 0.28s cubic-bezier(.2,1.6,.4,1) both;
+}
+.bubble::after {
+  content: ''; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: #fffdf3;
+  border-right: 2px solid var(--side); border-bottom: 2px solid var(--side); transform: translateX(-50%) rotate(45deg);
+}
+.bubble .who { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--side); opacity: 0.85; }
+.bubble.thought { border-radius: 50%; padding: 4px 8px; font-size: 18px; }
+.bubble.thought::after {
+  width: 7px; height: 7px; border: 2px solid var(--side); border-radius: 50%; bottom: -12px; transform: translateX(-80%);
+}
+.bubble.leaving { animation: bubble-out 0.2s ease-in both; }
+@keyframes bubble-in { from { opacity: 0; transform: translate(-50%, -100%) scale(0.3); } to { opacity: 1; transform: translate(-50%, -100%) scale(1); } }
+@keyframes bubble-out { to { opacity: 0; transform: translate(-50%, -110%) scale(0.85); } }
+@media (prefers-reduced-motion: reduce) {
+  .bubble { animation: fade-in 0.2s both; }
+  .bubble.leaving { animation: fade-out 0.2s both; }
+  .chip.bump { animation: none; }
+}
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+#bubbles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }

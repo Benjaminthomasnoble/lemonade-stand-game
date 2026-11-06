@@ -2,7 +2,7 @@
 // Grandma Lottie in her lawn chair. L1 is the Folding Table; L2's striped
 // wooden booth is ready for milestone 2.
 import * as THREE from 'three/webgpu';
-import { makePerson } from './people.ts';
+import { idlePose, MOTION, makePerson } from './people.ts';
 import { kiosk, palace, shack } from './standLevels.ts';
 
 export interface Stand {
@@ -11,8 +11,15 @@ export interface Stand {
   servePoint: THREE.Vector3;
   setLevel(level: number): void;
   setBrand(tier: number): void;
-  update(opts: { price: number; pitcherFill: number; open: boolean; time: number }): void;
+  update(opts: { price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean }): void;
+  /** Who's at the stand, for bubbles to follow. Lottie only sits at Lottie's Corner. */
+  kid: THREE.Object3D;
+  lottie?: THREE.Object3D;
+  /** Lottie reacts: cheers a rush or a rank-up, shakes her fist at trouble. */
+  react(kind: LottieReaction): void;
 }
+
+export type LottieReaction = 'cheer' | 'fist';
 
 const mat = (color: number, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness });
 
@@ -165,6 +172,18 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xf4f4f4));
   bun.position.set(0, 1.6, -0.12);
   lottie.add(bun);
+  // A paper fan in her right hand and a glass of lemonade on the chair arm.
+  const fan = new THREE.Mesh(new THREE.CircleGeometry(0.2, 10, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xf6d33c, roughness: 0.7, side: THREE.DoubleSide }));
+  fan.position.set(0, -0.5, 0.02);
+  fan.rotation.set(0, 0, -Math.PI / 2);
+  const lottieArms = { left: limbs[2], right: limbs[3] };
+  lottieArms.right.add(fan);
+  const lottieGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.16, 10), mat(0xfff3a6, 0.4));
+  lottieGlass.position.set(0, -0.5, 0.05);
+  lottieGlass.visible = false;
+  lottieArms.left.add(lottieGlass);
+  let reaction: { kind: LottieReaction; start: number } | null = null;
+  let pendingReaction: LottieReaction | null = null;
   if (opts.lottie !== false) group.add(lottie);
 
   // Hand-painted signs (brand tier 1) up and down the block.
@@ -182,9 +201,84 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   brandSigns.visible = false;
   group.add(brandSigns);
 
+  /**
+   * Lottie's day in her lawn chair: she fans herself on hot days (knits
+   * otherwise), sips her lemonade now and then, looks around, and nods off
+   * once the stand shuts. Reactions interrupt for a couple of seconds.
+   */
+  const SEAT_Y = -0.3;
+  function animateLottie(time: number, awake: boolean, hot: boolean) {
+    if (pendingReaction) { reaction = { kind: pendingReaction, start: time }; pendingReaction = null; }
+    const { left, right } = lottieArms;
+    const legs = [limbs[0], limbs[1]];
+    lottie.rotation.x = 0;
+    lottie.position.y = SEAT_Y;
+    fan.visible = false;
+    lottieGlass.visible = false;
+    if (reaction && time - reaction.start < 2.2) {
+      const t = time - reaction.start;
+      if (reaction.kind === 'cheer') {
+        // Up out of the chair, both arms waving, then back down.
+        const up = Math.min(1, t * 5, (2.2 - t) * 5);
+        lottie.position.y = SEAT_Y + up * 0.32;
+        for (const l of legs) l.rotation.x = -1.4 * (1 - up);
+        left.rotation.x = right.rotation.x = Math.PI * 0.95 * up;
+        left.rotation.z = -0.3 - Math.sin(t * 14) * 0.25 * MOTION;
+        right.rotation.z = 0.3 + Math.sin(t * 14) * 0.25 * MOTION;
+        idlePose(lottie, time * 3, 0.9);
+      } else {
+        // One fist up, shaking.
+        for (const l of legs) l.rotation.x = -1.4;
+        right.rotation.x = Math.PI * 0.9;
+        right.rotation.z = 0.15 + Math.sin(t * 22) * 0.18 * MOTION;
+        left.rotation.x = 0; left.rotation.z = 0;
+        lottie.rotation.y = 0.2;
+        idlePose(lottie, time, 0.9);
+      }
+      return;
+    }
+    reaction = null;
+    for (const l of legs) l.rotation.x = -1.4;
+    left.rotation.z = right.rotation.z = 0;
+    if (!awake) {
+      // Dozing: head drooped forward, slow breathing.
+      lottie.rotation.x = 0.22;
+      lottie.rotation.y = 0.5;
+      left.rotation.x = right.rotation.x = -0.4;
+      idlePose(lottie, time * 0.35, 0.9);
+      return;
+    }
+    const beat = time % 20;
+    lottie.rotation.y = 0.5 + Math.sin(time * 0.4) * 0.15;
+    if (beat < 11) {
+      if (hot) {
+        fan.visible = true;
+        right.rotation.x = -1.6;
+        right.rotation.z = 0.5 + Math.sin(time * 16) * 0.35 * MOTION;
+      } else {
+        // Knitting: both mittens forward, needles clicking.
+        right.rotation.x = -1.1 + Math.sin(time * 9) * 0.12 * MOTION;
+        left.rotation.x = -1.1 - Math.sin(time * 9) * 0.12 * MOTION;
+      }
+      if (hot) left.rotation.x = -0.3;
+    } else if (beat < 14) {
+      lottieGlass.visible = true;
+      const k = Math.sin(((beat - 11) / 3) * Math.PI);
+      left.rotation.x = -0.5 - k * 2;
+      right.rotation.x = -0.3;
+    } else {
+      left.rotation.x = -0.3;
+      right.rotation.x = -0.3;
+    }
+    idlePose(lottie, time, 0.9);
+  }
+
   let lastSign = '';
   const stand: Stand = {
     group,
+    kid,
+    lottie: opts.lottie !== false ? lottie : undefined,
+    react(kind) { pendingReaction = kind; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
     setLevel(l) {
       if (l === level) return;
@@ -216,7 +310,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },
-    update({ price, pitcherFill, open, time }) {
+    update({ price, pitcherFill, open, time, hot, night }) {
       const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
       const key = `${level}|${label}`;
       if (key !== lastSign) {
@@ -228,9 +322,10 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       const f = Math.max(0.02, pitcherFill);
       juice.scale.y = f;
       juice.position.y = glass.position.y - 0.165 * (1 - f);
-      kid.position.y = (level >= 3 ? 0.3 : 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 : 0);
+      kid.position.y = (level >= 3 ? 0.3 : 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
+      idlePose(kid, time, 0.8);
       if (spin) spin.rotation.y = time * 0.8;
-      lottie.rotation.y = 0.5 + Math.sin(time * 0.4) * 0.15;
+      animateLottie(time, !night, hot ?? false);
     },
   };
   stand.setLevel(1);

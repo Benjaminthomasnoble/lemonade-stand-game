@@ -106,6 +106,8 @@ const ownerName = (o: string | null) => (o === 'player' ? "Lottie's Lemonade (yo
 export interface Hud {
   render(s: GameState, speed: number): void;
   popup(x: number, y: number, text: string, kind: 'sale' | 'miss'): void;
+  /** A coin arcs from a sale up to the Cash chip; `onLand` fires as it lands. */
+  coin(x: number, y: number, size: 1 | 2 | 3, onLand?: () => void): void;
   /** A Bugle-style headline with confetti (rank-ups, upgrades). */
   toast(text: string): void;
   inspected: string | null;
@@ -154,6 +156,34 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       el.style.top = `${y}px`;
       pops.appendChild(el);
       setTimeout(() => el.remove(), 1300);
+    },
+    coin(x, y, size, onLand) {
+      const cash = top.querySelector('[data-testid="cash"]') as HTMLElement | null;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!cash || reduce) { onLand?.(); return; }
+      const r = cash.getBoundingClientRect();
+      const box = root.getBoundingClientRect();
+      const tx = r.left - box.left + 26, ty = r.top - box.top + r.height / 2;
+      const el = document.createElement('div');
+      el.className = `coin c${size}`;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      pops.appendChild(el);
+      const dx = tx - x, dy = ty - y;
+      // Pop up first, then swing over to the Cash chip.
+      const anim = el.animate([
+        { transform: 'translate(-50%, -50%) scale(0.4)', offset: 0 },
+        { transform: `translate(calc(-50% + ${dx * 0.15}px), calc(-50% - 50px)) scale(1.15)`, offset: 0.25 },
+        { transform: `translate(calc(-50% + ${dx * 0.6}px), calc(-50% + ${dy * 0.45 - 40}px)) scale(1)`, offset: 0.6 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.55)`, offset: 1 },
+      ], { duration: 750, easing: 'cubic-bezier(.3,.1,.5,1)' });
+      anim.onfinish = () => {
+        el.remove();
+        cash.classList.remove('bump');
+        void cash.offsetWidth; // restart the bump
+        cash.classList.add('bump');
+        onLand?.();
+      };
     },
     toast(text) {
       const el = document.createElement('div');

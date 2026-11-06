@@ -27,3 +27,18 @@
 .speedbox .chip { gap: 4px; }
 .daybar { left: 10px; transform: none; max-width: calc(100% - 230px); flex-wrap: wrap; }
 .goals { top: 112px; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.upgrade { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; background: #fff; border-radius: 10px; padding: 8px; margin: 6px 0; }
+.upgrade > div:first-child { flex: 1; }
+.upgrade .muted { font-size: 0.8em; }
+.toast {
+  position: absolute; top: 70px; left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 32px));
+  background: #fffdf3; border: 2px solid var(--ink); border-radius: 6px; padding: 8px 14px; box-shadow: var(--shadow);
+  font-family: Georgia, 'Times New Roman', serif; text-align: center; animation: drop 4.2s ease forwards; pointer-events: none;
+}
+.toast .headline { font-size: 1.2em; }
+@keyframes drop { 0% { opacity: 0; margin-top: -30px; } 8%, 85% { opacity: 1; margin-top: 0; } 100% { opacity: 0; } }
+.confetti { position: absolute; top: -30px; font-size: 22px; pointer-events: none; animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+.upgrade .act { width: 104px; text-align: right; flex-shrink: 0; }

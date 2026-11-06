@@ -50,6 +50,19 @@ try {
   await page.waitForSelector('body[data-ready="1"]');
   const day = await page.evaluate(() => window.__game.state.day);
   if (day !== 2) fail(`save did not persist (day ${day})`);
+  // Milestone 2: upgrade the stand through the UI, then look at every level.
+  await page.evaluate(() => { window.__game.state.cash = 600; window.__game.act({ type: 'refresh' }); });
+  await page.click('[data-testid="tab-grow"]');
+  await page.click('[data-testid="upgrade"]');
+  const lvl = await page.evaluate(() => window.__game.state.standLevel);
+  if (lvl !== 2) fail(`upgrade failed (level ${lvl})`);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'test-results/4-upgrade.png' });
+  for (const l of [3, 4, 5]) {
+    await page.evaluate((l) => { window.__game.state.standLevel = l; window.__game.state.brandTier = 1; window.__game.act({ type: 'refresh' }); }, l);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `test-results/5-level${l}.png` });
+  }
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

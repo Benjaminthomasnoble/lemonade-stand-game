@@ -7,12 +7,13 @@ import {
   BASE_STOP_CHANCE, BUILDING_VALUE_SHARE, CLOSE, CUP_COST, CUPS_PER_PITCHER, DAWN, FORECAST_ACCURACY,
   HOURLY_TRAFFIC, MAPLE_ROW_MIX, MARKET_SWING, OPEN, RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND,
   SEASON_TEMP_SHIFT, SEASON_WEATHER, SEASONS, SEGMENTS, STAND_LEVELS, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
-  type RecipeId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness, type WeatherKind,
+  BRAND_TIERS, CAMPAIGNS, CURB_APPEAL, STAND_RANK_GATE,
+  type CampaignId, type RecipeId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness, type WeatherKind,
 } from './balance.ts';
 
 export * from './balance.ts';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface Weather { kind: WeatherKind; temp: number }
 export type Phase = 'prep' | 'open' | 'report';
@@ -67,6 +68,10 @@ export interface GameState {
   history: DayStats[];
   peakScore: number;
   lifetimeCups: number;
+  brandTier: number; // 0 = none
+  campaigns: Partial<Record<CampaignId, number>>; // days left
+  rank: number; // highest rank reached (ranks never drop)
+  news: string[]; // fresh headlines for the UI (rank-ups, upgrades)
 }
 
 export type SimEvent =
@@ -127,6 +132,7 @@ export function newGame(seed = Date.now() & 0x7fffffff): GameState {
     market, recipe: 'classic', sweetness: 'classic', price: 0.75,
     forecast, weather: forecast, pitcherCups: 0, spawnCarry: 0, servedThisHour: 0,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0,
+    brandTier: 0, campaigns: {}, rank: 1, news: [],
   };
   s.today = emptyStats(s, successScore(s));
   s.peakScore = successScore(s);
@@ -227,7 +233,7 @@ export function appealFor(s: GameState, seg: SegmentId, w: Weather = s.weather):
   const order: Sweetness[] = ['less', 'classic', 'extra'];
   const gap = Math.abs(order.indexOf(g.sweet) - order.indexOf(s.sweetness));
   const sweetMatch = gap === 0 ? 1.1 : gap === 1 ? 1 : 0.85;
-  const appeal = recipeMatch * sweetMatch * priceFit * repMultiplier(s.reputation);
+  const appeal = CURB_APPEAL[s.standLevel - 1] * recipeMatch * sweetMatch * priceFit * repMultiplier(s.reputation);
   const stopChance = clamp(BASE_STOP_CHANCE * WEATHER[w.kind].thirst * appeal, 0, 0.95);
   return { priceFit, recipeMatch, sweetMatch, appeal, stopChance, fairPrice, topPrice };
 }
@@ -240,7 +246,13 @@ export function averageStopChance(s: GameState, w: Weather = s.weather): number 
 }
 
 export function expectedPassersby(s: GameState, w: Weather = s.weather): number {
-  return s.plotTraffic * stand(s).draw * SEASON_DEMAND[seasonOf(s.day)] * WEATHER[w.kind].traffic;
+  return s.plotTraffic * stand(s).draw * marketingMultiplier(s) * SEASON_DEMAND[seasonOf(s.day)] * WEATHER[w.kind].traffic;
+}
+
+export function marketingMultiplier(s: GameState): number {
+  let m = 1 + (s.brandTier ? BRAND_TIERS[s.brandTier - 1].traffic : 0);
+  for (const [id, days] of Object.entries(s.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
+  return m;
 }
 
 const HOURLY_SUM = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
@@ -357,6 +369,7 @@ function closeDay(s: GameState): void {
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
   s.peakScore = Math.max(s.peakScore, successScore(s));
+  checkRank(s);
   s.phase = 'report';
 }
 
@@ -378,6 +391,10 @@ export function sleepUntilDawn(s: GameState): boolean {
   s.seed = rng.seed;
   s.weather = s.forecast;
   s.phase = 'prep';
+  for (const id of Object.keys(s.campaigns) as CampaignId[]) {
+    const left = (s.campaigns[id] ?? 0) - 1;
+    if (left > 0) s.campaigns[id] = left; else delete s.campaigns[id];
+  }
   s.today = emptyStats(s, successScore(s));
   s.today.lemonsSpoiled = spoiled;
   return true;
@@ -409,6 +426,89 @@ export function rankFor(score: number) {
   return { ...r, next };
 }
 
+function checkRank(s: GameState): void {
+  const r = rankFor(successScore(s)).rank;
+  if (r > s.rank) {
+    s.rank = r;
+    s.news.push(`RANK UP! Lottie's grandkid is now a ${RANKS[r - 1].title}`);
+  }
+}
+
+// ---------- upgrades and marketing (milestone 2) ----------
+
+export type Blocker = { ok: true } | { ok: false; why: string };
+
+export function canUpgradeStand(s: GameState): Blocker {
+  const next = STAND_LEVELS[s.standLevel];
+  if (!next) return { ok: false, why: 'Already the Citrus Palace' };
+  if (s.phase !== 'prep') return { ok: false, why: 'Upgrade during Morning Prep' };
+  const gate = STAND_RANK_GATE[next.level - 1];
+  if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
+  if (s.cash < next.cost) return { ok: false, why: `Needs $${next.cost.toLocaleString('en-US')}` };
+  return { ok: true };
+}
+
+export function upgradeStand(s: GameState): boolean {
+  if (!canUpgradeStand(s).ok) return false;
+  const next = STAND_LEVELS[s.standLevel];
+  s.cash = round2(s.cash - next.cost);
+  s.invested += next.cost;
+  s.standLevel = next.level;
+  s.news.push(`Lottie's Corner gets a makeover: say hello to ${next.name}!`);
+  checkRank(s);
+  return true;
+}
+
+export function canBuyBrand(s: GameState): Blocker {
+  const next = BRAND_TIERS[s.brandTier];
+  if (!next) return { ok: false, why: 'Every tier bought' };
+  if (s.rank < next.rank) return { ok: false, why: `Needs Rank ${next.rank}, ${RANKS[next.rank - 1].title}` };
+  if (s.cash < next.cost) return { ok: false, why: `Needs $${next.cost.toLocaleString('en-US')}` };
+  return { ok: true };
+}
+
+export function buyBrand(s: GameState): boolean {
+  if (!canBuyBrand(s).ok) return false;
+  const next = BRAND_TIERS[s.brandTier];
+  s.cash = round2(s.cash - next.cost);
+  s.brandTier = next.tier;
+  s.news.push(`${next.name} go up all over town: +${Math.round(next.traffic * 100)}% foot traffic`);
+  return true;
+}
+
+export function canRunCampaign(s: GameState, id: CampaignId): Blocker {
+  const c = CAMPAIGNS[id];
+  if (s.phase !== 'prep') return { ok: false, why: 'Plan campaigns during Morning Prep' };
+  if (s.rank < c.rank) return { ok: false, why: `Needs Rank ${c.rank}, ${RANKS[c.rank - 1].title}` };
+  const left = s.campaigns[id] ?? 0;
+  if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
+  if (c.costPerDay && s.cash < c.costPerDay) return { ok: false, why: `Needs $${c.costPerDay}` };
+  if (c.samples && servingsAvailable(s) < c.samples) return { ok: false, why: `Needs stock for ${c.samples} cups` };
+  return { ok: true };
+}
+
+export function runCampaign(s: GameState, id: CampaignId): boolean {
+  if (!canRunCampaign(s, id).ok) return false;
+  const c = CAMPAIGNS[id];
+  if (c.costPerDay) {
+    s.cash = round2(s.cash - c.costPerDay);
+    s.today.supplies = round2(s.today.supplies + c.costPerDay);
+  }
+  if (c.samples) {
+    // Pour the samples from stock, oldest lemons first.
+    const n = pitcherNeeds(s);
+    const pitchers = Math.ceil(c.samples / CUPS_PER_PITCHER);
+    useLemons(s, n.lemons * pitchers);
+    s.inventory.sugar = Math.max(0, s.inventory.sugar - n.sugar * pitchers);
+    s.inventory.ice = Math.max(0, s.inventory.ice - n.icePerCup * c.samples);
+    s.cash = round2(s.cash - CUP_COST * c.samples);
+    s.today.cupCosts = round2(s.today.cupCosts + CUP_COST * c.samples);
+  }
+  if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 100) / 100, 1, 5);
+  s.campaigns[id] = c.days;
+  return true;
+}
+
 export interface Goal { text: string; progress: number; done: boolean }
 
 /** Lottie keeps three goals on screen: short, medium, long. */
@@ -417,8 +517,11 @@ export function lottieGoals(s: GameState): Goal[] {
     ? { text: 'Buy lemons and sugar at the market', progress: 0, done: false }
     : { text: 'Sell 60 cups in one day', progress: Math.min(1, s.today.customers / 60), done: s.today.customers >= 60 };
   const nextStand = STAND_LEVELS[s.standLevel];
-  const medium: Goal = nextStand
-    ? { text: `Save $${nextStand.cost} for ${nextStand.name}`, progress: Math.min(1, s.cash / nextStand.cost), done: s.cash >= nextStand.cost }
+  const gate = nextStand ? STAND_RANK_GATE[nextStand.level - 1] : 0;
+  const medium: Goal = s.brandTier === 0 && s.standLevel >= 2
+    ? { text: `Put up Hand-Painted Signs ($${BRAND_TIERS[0].cost})`, progress: Math.min(1, s.cash / BRAND_TIERS[0].cost), done: false }
+    : nextStand
+    ? { text: `Upgrade to ${nextStand.name} ($${nextStand.cost.toLocaleString('en-US')}${s.rank < gate ? `, needs Rank ${gate}` : ''})`, progress: Math.min(1, s.cash / nextStand.cost), done: false }
     : { text: 'Keep the Citrus Palace busy', progress: 1, done: true };
   const r = rankFor(successScore(s));
   const long: Goal = r.next

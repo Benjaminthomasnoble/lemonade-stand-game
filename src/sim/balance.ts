@@ -94,6 +94,24 @@ export const STAND_LEVELS: StandLevel[] = [
   { level: 5, name: 'The Citrus Palace', cost: 160000, draw: 5.0, capacityPerHour: 700, topPrice: 7.0, upkeep: 900, hp: 5000, guardPosts: 6, storage: { lemons: 2400, sugar: 6000, ice: 14000 } },
 ];
 export const BUILDING_VALUE_SHARE = 0.75;
+/** Rank needed to upgrade TO each level (index = level - 1). */
+export const STAND_RANK_GATE = [1, 1, 3, 5, 7];
+/** Curb appeal by level: nicer stands look more inviting. */
+export const CURB_APPEAL = [1.0, 1.05, 1.1, 1.15, 1.2];
+
+// ---------- marketing ----------
+export const BRAND_TIERS = [
+  { tier: 1, name: 'Hand-Painted Signs', rank: 1, cost: 100, traffic: 0.05 },
+  { tier: 2, name: 'Flyers & Sidewalk Chalk', rank: 3, cost: 1500, traffic: 0.12 },
+  { tier: 3, name: 'Radio Jingle', rank: 4, cost: 12000, traffic: 0.22 },
+  { tier: 4, name: 'Billboards & TV Spot', rank: 7, cost: 90000, traffic: 0.35 },
+  { tier: 5, name: 'The Lemon Blimp', rank: 8, cost: 500000, traffic: 0.5 },
+];
+export type CampaignId = 'sandwichBoard' | 'freeSamples';
+export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: string; costPerDay?: number; traffic: number; days: number; samples?: number; reputation?: number }> = {
+  sandwichBoard: { name: 'Sandwich-Board Kid', rank: 2, blurb: '+20% foot traffic today', costPerDay: 40, traffic: 0.2, days: 1 },
+  freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 30 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 30, reputation: 0.1 },
+};
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★

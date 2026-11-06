@@ -2,7 +2,7 @@ import './style.css';
 import './screens.css';
 import * as THREE from 'three/webgpu';
 import {
-  buySupply, CLOSE, CUPS_PER_PITCHER, newGame, OPEN, openStand, REAL_SECONDS_PER_MINUTE, setPrice, setRecipe, setSweetness,
+  buyBrand, buySupply, CLOSE, runCampaign, upgradeStand, CUPS_PER_PITCHER, newGame, OPEN, openStand, REAL_SECONDS_PER_MINUTE, setPrice, setRecipe, setSweetness,
   simulateRestOfDay, sleepUntilDawn, tickMinute, type GameState, type SegmentId, type SimEvent,
 } from './sim/economy.ts';
 import { clearSave, loadGame, saveGame } from './save.ts';
@@ -53,13 +53,19 @@ async function main() {
       case 'price': setPrice(state, state.price + a.delta); break;
       case 'open': openStand(state); acc = 0; if (speed === 0) speed = 1; break;
       case 'speed': speed = a.value; break;
+      case 'upgrade': upgradeStand(state); break;
+      case 'brand': buyBrand(state); break;
+      case 'campaign': runCampaign(state, a.id); break;
+      case 'refresh': break;
       case 'skip': simulateRestOfDay(state); crowd.clear(); break;
       case 'sleep': sleepUntilDawn(state); crowd.clear(); break;
       case 'newgame': clearSave(); state = newGame(); crowd.clear(); break;
     }
+    flushNews();
     if (state.phase !== 'open') saveGame(state);
     hud.render(state, speed);
   };
+  const flushNews = () => { while (state.news.length) hud.toast(state.news.shift()!); };
   const hud = createHud(document.getElementById('ui')!, act);
 
   // Keyboard: space pauses, 1-3 set speed.
@@ -78,6 +84,7 @@ async function main() {
     fastForward(minutes: number) { for (let i = 0; i < minutes && state.phase === 'open'; i++) tickMinute(state); if (state.phase !== 'open') saveGame(state); hud.render(state, speed); },
   };
 
+  let shownLevel = 1;
   const timer = new THREE.Timer();
   world.renderer.setAnimationLoop(() => {
     timer.update();
@@ -89,11 +96,19 @@ async function main() {
         acc -= REAL_SECONDS_PER_MINUTE;
         drawEvents(tickMinute(state));
       }
-      if (state.phase !== 'open') saveGame(state);
+      if (state.phase !== 'open') { flushNews(); saveGame(state); }
     }
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
+    if (state.standLevel !== shownLevel) {
+      // Pull the camera back so bigger stands fit.
+      shownLevel = state.standLevel;
+      const want = [10.5, 10.5, 12, 15, 17][shownLevel - 1];
+      const dir = world.camera.position.clone().sub(world.controls.target).normalize();
+      world.camera.position.copy(world.controls.target).addScaledVector(dir, want);
+    }
     stand.setLevel(state.standLevel);
+    stand.setBrand(state.brandTier);
     stand.update({ price: state.price, pitcherFill: state.pitcherCups / CUPS_PER_PITCHER, open: state.phase === 'open', time: timer.getElapsed() });
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     world.update(dt);

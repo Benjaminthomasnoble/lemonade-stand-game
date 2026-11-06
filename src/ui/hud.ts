@@ -4,6 +4,8 @@
 import {
   averageStopChance, CLOSE, costPerCup, expectedPassersby, lemonsExpiringTomorrow, lottieGoals, maxPacks, OPEN, rankFor,
   RECIPES, seasonDay, seasonOf, servingsAvailable, stand, stock, successScore, SUPPLIES, WEATHER,
+  BRAND_TIERS, CAMPAIGNS, canBuyBrand, canRunCampaign, canUpgradeStand, marketingMultiplier, STAND_LEVELS,
+  type Blocker, type CampaignId, type StandLevel,
   type GameState, type RecipeId, type SupplyId, type Sweetness, type WeatherKind,
 } from '../sim/economy.ts';
 
@@ -16,7 +18,11 @@ export type Action =
   | { type: 'speed'; value: number }
   | { type: 'skip' }
   | { type: 'sleep' }
-  | { type: 'newgame' };
+  | { type: 'newgame' }
+  | { type: 'upgrade' }
+  | { type: 'brand' }
+  | { type: 'campaign'; id: CampaignId }
+  | { type: 'refresh' };
 
 const ICON: Record<WeatherKind, string> = { scorcher: '🥵', hot: '☀️', warm: '🌤️', cloudy: '☁️', rainy: '🌧️', storm: '⛈️' };
 const SEASON_LABEL = { summer: 'Summer', fall: 'Fall', winter: 'Winter', spring: 'Spring' } as const;
@@ -52,6 +58,8 @@ function headline(s: GameState): string {
 export interface Hud {
   render(s: GameState, speed: number): void;
   popup(x: number, y: number, text: string, kind: 'sale' | 'miss'): void;
+  /** A Bugle-style headline with confetti (rank-ups, upgrades). */
+  toast(text: string): void;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -61,6 +69,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const phaseEl = root.querySelector('#phase') as HTMLElement;
   const pops = root.querySelector('#pops') as HTMLElement;
   const speedsEl = root.querySelector('#speeds') as HTMLElement;
+  let tab: 'today' | 'grow' = 'today';
   let lastTop = '', lastGoals = '', lastPhase = '', lastSpeeds = '';
 
   root.addEventListener('click', (e) => {
@@ -73,7 +82,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'sweet': onAction({ type: 'sweet', value: d.value as Sweetness }); break;
       case 'price': onAction({ type: 'price', delta: Number(d.delta) }); break;
       case 'speed': onAction({ type: 'speed', value: Number(d.value) }); break;
-      case 'open': case 'skip': case 'sleep': case 'newgame': onAction({ type: d.action }); break;
+      case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': onAction({ type: d.action }); break;
+      case 'campaign': onAction({ type: 'campaign', id: d.id as CampaignId }); break;
+      case 'tab': tab = d.tab as 'today' | 'grow'; lastPhase = ''; onAction({ type: 'refresh' }); break;
     }
   });
 
@@ -131,7 +142,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ? '<p class="warn">You can\'t make lemonade yet. Buy lemons and sugar.</p>'
       : s.inventory.ice < RECIPES[s.recipe].icePerCup * Math.min(cups, servings) ? '<p class="warn">Not enough ice for the day. Warm lemonade makes people grumpy.</p>'
       : servings < cups * 0.8 ? `<p class="warn">You might sell out: about ${cups} cups wanted, ${servings} in stock.</p>` : '';
-    return `<div class="panel" data-testid="prep">
+    const tabs = `<div class="tabs"><button class="small ${tab === 'today' ? 'on' : 'ghost'}" data-action="tab" data-tab="today">Today</button><button class="small ${tab === 'grow' ? 'on' : 'ghost'}" data-action="tab" data-tab="grow" data-testid="tab-grow">Stand &amp; marketing</button></div>`;
+    if (tab === 'grow') return `<div class="panel" data-testid="prep">${tabs}${growPanel(s)}
+      <button class="big" data-action="open" data-testid="open">Open at ${clock(OPEN)} ☀️</button></div>`;
+    return `<div class="panel" data-testid="prep">${tabs}
       <div class="bugle"><div class="masthead">The Citrine Bay Bugle</div>
         <div class="dateline">${SEASON_LABEL[seasonOf(s.day)]}, day ${seasonDay(s.day)} · 5¢</div>
         <div class="headline">${headline(s)}</div>
@@ -150,6 +164,37 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${warn}
       <button class="big" data-action="open" data-testid="open">Open at ${clock(OPEN)} ☀️</button>
     </div>`;
+  }
+
+  function blockBtn(action: string, label: string, b: Blocker, extra = '') {
+    return `<div class="act"><button class="small" data-action="${action}" ${extra} ${b.ok ? '' : 'disabled'}>${label}</button>${b.ok ? '' : `<div class="muted">${b.why}</div>`}</div>`;
+  }
+
+  function levelStats(l: StandLevel) {
+    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} traffic · top price ${money(l.topPrice)} · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
+  }
+
+  function growPanel(s: GameState) {
+    const cur = stand(s);
+    const next = STAND_LEVELS[s.standLevel];
+    const brand = s.brandTier ? BRAND_TIERS[s.brandTier - 1] : null;
+    const nextBrand = BRAND_TIERS[s.brandTier];
+    const campaigns = (Object.keys(CAMPAIGNS) as CampaignId[]).map((id) => {
+      const c = CAMPAIGNS[id];
+      const cost = c.costPerDay ? money(c.costPerDay) : `${c.samples} free cups`;
+      return `<div class="upgrade"><div><b>${c.name}</b> <span class="muted">(${cost})</span><div class="muted">${c.blurb}</div></div>
+        ${blockBtn('campaign', 'Run', canRunCampaign(s, id), `data-id="${id}"`)}</div>`;
+    }).join('');
+    return `
+      <h3>Your stand: L${cur.level} ${cur.name}</h3>
+      <div class="muted">${levelStats(cur)}</div>
+      ${next ? `<div class="upgrade"><div><b>L${next.level} ${next.name}</b> · ${money(next.cost)}<div class="muted">${levelStats(next)}</div></div>
+        ${blockBtn('upgrade', 'Upgrade', canUpgradeStand(s), 'data-testid="upgrade"')}</div>` : '<p>Top of the line. 🍋👑</p>'}
+      <h3>Brand marketing (everywhere, forever)</h3>
+      <div class="muted">Now: ${brand ? `${brand.name}, +${Math.round(brand.traffic * 100)}% traffic` : 'nothing yet'} · total traffic ×${marketingMultiplier(s).toFixed(2)}</div>
+      ${nextBrand ? `<div class="upgrade"><div><b>${nextBrand.name}</b> · ${money(nextBrand.cost)}<div class="muted">+${Math.round(nextBrand.traffic * 100)}% foot traffic at every stand</div></div>
+        ${blockBtn('brand', 'Buy', canBuyBrand(s), 'data-testid="brand"')}</div>` : ''}
+      <h3>Local campaigns</h3>${campaigns}`;
   }
 
   function dayBar(s: GameState) {
@@ -204,6 +249,27 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       lastSpeeds = set(speedsEl, speeds(s, speed), lastSpeeds);
       lastGoals = set(goalsEl, goals(s), lastGoals);
       lastPhase = set(phaseEl, s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : ledger(s), lastPhase);
+    },
+    toast(text) {
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.innerHTML = `<div class="masthead">Bugle Extra!</div><div class="headline"></div>`;
+      (el.querySelector('.headline') as HTMLElement).textContent = text;
+      root.appendChild(el);
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!reduced) {
+        for (let i = 0; i < 40; i++) {
+          const c = document.createElement('div');
+          c.className = 'confetti';
+          c.textContent = ['🍋', '⭐', '🎉', '✨'][i % 4];
+          c.style.left = `${10 + Math.random() * 80}%`;
+          c.style.animationDelay = `${Math.random() * 0.6}s`;
+          c.style.animationDuration = `${1.8 + Math.random() * 1.2}s`;
+          root.appendChild(c);
+          setTimeout(() => c.remove(), 3800);
+        }
+      }
+      setTimeout(() => el.remove(), 4200);
     },
     popup(x, y, text, kind) {
       const el = document.createElement('div');

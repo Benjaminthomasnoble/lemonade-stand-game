@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, buySupply, CLOSE, maxPacks, netWorth, newGame, openStand, rankFor, setPrice, simulateRestOfDay,
+  appealFor, buyBrand, buySupply, canUpgradeStand, expectedPassersby, runCampaign, upgradeStand, CLOSE, maxPacks, netWorth, newGame, openStand, rankFor, setPrice, simulateRestOfDay,
   sleepUntilDawn, START, stock, type GameState,
 } from './economy.ts';
 
@@ -74,5 +74,32 @@ describe('economy', () => {
     const fair = appealFor(s, 'families').stopChance;
     setPrice(s, 1.45);
     expect(appealFor(s, 'families').stopChance).toBeLessThan(fair / 4);
+  });
+
+  it('upgrades the stand once you can afford it, gated by rank', () => {
+    const s = newGame(11);
+    expect(canUpgradeStand(s).ok).toBe(false);
+    s.cash = 1000;
+    const before = netWorth(s);
+    expect(upgradeStand(s)).toBe(true);
+    expect(s.standLevel).toBe(2);
+    expect(netWorth(s)).toBeCloseTo(before - 400 * 0.25, 1);
+    s.cash = 10000;
+    expect(upgradeStand(s)).toBe(false); // L3 needs Rank 3
+    expect(canUpgradeStand(s)).toEqual({ ok: false, why: 'Needs Rank 3, Block Boss' });
+  });
+
+  it('marketing raises foot traffic', () => {
+    const s = newGame(12);
+    const base = expectedPassersby(s);
+    s.cash = 500;
+    expect(buyBrand(s)).toBe(true);
+    expect(expectedPassersby(s)).toBeCloseTo(base * 1.05);
+    expect(runCampaign(s, 'sandwichBoard')).toBe(false); // Rank 2
+    s.rank = 2;
+    expect(runCampaign(s, 'sandwichBoard')).toBe(true);
+    expect(expectedPassersby(s)).toBeCloseTo(base * 1.25);
+    openStand(s); simulateRestOfDay(s); sleepUntilDawn(s);
+    expect(expectedPassersby(s)).toBeCloseTo(base * 1.05);
   });
 });

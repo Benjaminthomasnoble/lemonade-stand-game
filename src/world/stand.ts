@@ -3,12 +3,14 @@
 // wooden booth is ready for milestone 2.
 import * as THREE from 'three/webgpu';
 import { makePerson } from './people.ts';
+import { kiosk, palace, shack } from './standLevels.ts';
 
 export interface Stand {
   group: THREE.Group;
   /** Where a customer stands to buy. */
   servePoint: THREE.Vector3;
   setLevel(level: number): void;
+  setBrand(tier: number): void;
   update(opts: { price: number; pitcherFill: number; open: boolean; time: number }): void;
 }
 
@@ -113,6 +115,7 @@ export function createStand(): Stand {
   group.add(levelRoot);
   let level = 0;
   let surfaceY = 0.81;
+  let spin: THREE.Object3D | undefined;
 
   // Props that move with the level: pitcher, lemons, cups, sign.
   const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.36, 16, 1, true),
@@ -164,6 +167,21 @@ export function createStand(): Stand {
   lottie.add(bun);
   group.add(lottie);
 
+  // Hand-painted signs (brand tier 1) up and down the block.
+  const brandSigns = new THREE.Group();
+  const brandMat = new THREE.MeshStandardMaterial({ map: signTexture("LOTTIE'S", 'this way →', true), roughness: 0.8 });
+  for (const [x, flip] of [[-7, 1], [7, -1]] as const) {
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.45), brandMat);
+    board.position.set(x, 0.9, 1.0);
+    board.rotation.y = flip * 0.35;
+    board.castShadow = true;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), mat(0x8a5a30));
+    post.position.set(x, 0.45, 0.98);
+    brandSigns.add(board, post);
+  }
+  brandSigns.visible = false;
+  group.add(brandSigns);
+
   let lastSign = '';
   const stand: Stand = {
     group,
@@ -172,12 +190,31 @@ export function createStand(): Stand {
       if (l === level) return;
       level = l;
       levelRoot.clear();
-      levelRoot.add(l >= 2 ? woodenBooth() : folkTable());
-      surfaceY = l >= 2 ? 1.2 : 0.81;
-      props.position.set(0, surfaceY, 0);
-      if (l >= 2) { sign.position.set(0, 0.6, 0.86); sign.rotation.x = 0; }
-      else { sign.position.set(0, 0.5, 0.76); sign.rotation.x = -0.05; }
+      spin = undefined;
+      if (l >= 3) {
+        const m = (l === 3 ? kiosk : l === 4 ? shack : palace)();
+        levelRoot.add(m.group);
+        surfaceY = m.surfaceY;
+        sign.position.copy(m.sign);
+        sign.rotation.x = 0;
+        spin = m.spin;
+      } else {
+        levelRoot.add(l === 2 ? woodenBooth() : folkTable());
+        surfaceY = l === 2 ? 1.2 : 0.81;
+        if (l === 2) { sign.position.set(0, 0.6, 0.86); sign.rotation.x = 0; }
+        else { sign.position.set(0, 0.5, 0.76); sign.rotation.x = -0.05; }
+      }
+      props.position.set(0, surfaceY, l >= 5 ? 0.1 : l >= 3 ? 0.3 : 0);
+      // Bigger buildings: the kid works the window, Lottie sits further out.
+      kid.position.set(0, l >= 3 ? 0.3 : 0, l >= 3 ? 0.05 : -0.45);
+      const out = l >= 5 ? -5 : l === 4 ? -5.2 : l === 3 ? -3 : -2;
+      chair.position.x = out;
+      lottie.position.x = out;
+      stand.servePoint.z = l === 4 ? 1.5 : 1.35;
       lastSign = '';
+    },
+    setBrand(tier) {
+      brandSigns.visible = tier >= 1;
     },
     update({ price, pitcherFill, open, time }) {
       const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
@@ -191,7 +228,8 @@ export function createStand(): Stand {
       const f = Math.max(0.02, pitcherFill);
       juice.scale.y = f;
       juice.position.y = glass.position.y - 0.165 * (1 - f);
-      kid.position.y = open ? Math.abs(Math.sin(time * 3)) * 0.03 : 0;
+      kid.position.y = (level >= 3 ? 0.3 : 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 : 0);
+      if (spin) spin.rotation.y = time * 0.8;
       lottie.rotation.y = 0.5 + Math.sin(time * 0.4) * 0.15;
     },
   };

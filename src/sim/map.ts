@@ -12,6 +12,8 @@ export interface District {
   name: string;
   owner: FactionId | 'neutral' | 'contested';
   traffic: [number, number]; // street-plot passersby per day
+  land: [number, number]; // street-plot land price range
+  specialLand?: Partial<Record<PlotType, [number, number]>>;
   priceMult?: number; // Hilltop customers pay ×2
   mix: Partial<Record<SegmentId, number>>;
   feel: string;
@@ -24,12 +26,12 @@ export interface District {
 
 export const DISTRICTS: District[] = [
   {
-    id: 'maple', name: 'Maple Row', owner: 'neutral', traffic: [250, 400], mix: { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 },
+    id: 'maple', name: 'Maple Row', owner: 'neutral', traffic: [250, 400], land: [600, 1200], mix: { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 },
     feel: 'Leafy suburb, picket fences, sprinklers', origin: [-160, -25], cols: 6, ground: 0x7cbf5a,
     special: [{ col: 2, side: 1, type: 'street', name: "Lottie's Corner" }, { col: 4, side: 0, type: 'landmark', name: 'Maple Park' }],
   },
   {
-    id: 'oldtown', name: 'Old Town', owner: 'contested', traffic: [500, 900], mix: { kids: 0.15, families: 0.2, seniors: 0.15, students: 0.1, office: 0.15, tourists: 0.15, workers: 0.1 },
+    id: 'oldtown', name: 'Old Town', owner: 'contested', traffic: [500, 900], land: [8000, 16000], mix: { kids: 0.15, families: 0.2, seniors: 0.15, students: 0.1, office: 0.15, tourists: 0.15, workers: 0.1 },
     feel: 'Main Street, bandstand, clock tower', origin: [-68, -25], cols: 8, ground: 0x86c062,
     special: [
       { col: 1, side: 0, type: 'civic', name: 'Town Hall and Registry' }, { col: 3, side: 0, type: 'civic', name: 'Citrine Bay Market' },
@@ -38,12 +40,12 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'campus', name: 'Campus & Arts', owner: 'coldbrew', traffic: [450, 800], mix: { students: 0.55, office: 0.1, families: 0.1, tourists: 0.1, seniors: 0.05, kids: 0.1 },
+    id: 'campus', name: 'Campus & Arts', owner: 'coldbrew', traffic: [450, 800], land: [12000, 24000], mix: { students: 0.55, office: 0.1, families: 0.1, tourists: 0.1, seniors: 0.05, kids: 0.1 },
     feel: 'Murals, the Quad, record shops', origin: [-30, -100], cols: 7, ground: 0x7fbf6a,
     special: [{ col: 5, side: 0, type: 'hq', name: 'The Grindhouse' }, { col: 2, side: 1, type: 'landmark', name: 'The Quad' }],
   },
   {
-    id: 'downtown', name: 'Downtown', owner: 'fizzco', traffic: [800, 1500], mix: { office: 0.6, tourists: 0.15, students: 0.1, workers: 0.15 },
+    id: 'downtown', name: 'Downtown', owner: 'fizzco', traffic: [800, 1500], land: [60000, 120000], specialLand: { industrial: [20000, 40000] }, mix: { office: 0.6, tourists: 0.15, students: 0.1, workers: 0.15 },
     feel: 'Glass towers, lunch rush', origin: [48, -25], cols: 9, ground: 0x9aa39a,
     special: [
       { col: 4, side: 0, type: 'hq', name: 'FizzCo Tower' }, { col: 2, side: 0, type: 'prime', name: 'Tower Plaza West' },
@@ -52,12 +54,12 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'boardwalk', name: 'The Boardwalk', owner: 'blenders', traffic: [700, 1400], mix: { tourists: 0.5, families: 0.2, kids: 0.15, students: 0.1, seniors: 0.05 },
+    id: 'boardwalk', name: 'The Boardwalk', owner: 'blenders', traffic: [700, 1400], land: [12000, 24000], mix: { tourists: 0.5, families: 0.2, kids: 0.15, students: 0.1, seniors: 0.05 },
     feel: 'Beach, pier, arcade, lifeguard towers', origin: [-90, 50], cols: 8, ground: 0xe9d8a6,
     special: [{ col: 6, side: 1, type: 'hq', name: 'The Blend Shack' }, { col: 4, side: 1, type: 'landmark', name: 'The Pier' }],
   },
   {
-    id: 'harbor', name: 'The Harbor', owner: 'neutral', traffic: [300, 600], mix: { workers: 0.7, tourists: 0.1, office: 0.1, families: 0.1 },
+    id: 'harbor', name: 'The Harbor', owner: 'neutral', traffic: [300, 600], land: [6000, 12000], specialLand: { industrial: [20000, 40000], dock: [100000, 200000] }, mix: { workers: 0.7, tourists: 0.1, office: 0.1, families: 0.1 },
     feel: 'Cranes, warehouses, fish market', origin: [72, 50], cols: 7, ground: 0xa7a59c,
     special: [
       { col: 1, side: 1, type: 'dock', name: 'Pier 1' }, { col: 2, side: 1, type: 'dock', name: 'Pier 2' },
@@ -67,7 +69,7 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'groves', name: 'The Groves', owner: 'hollis', traffic: [150, 350], mix: { workers: 0.6, families: 0.2, kids: 0.1, seniors: 0.1 },
+    id: 'groves', name: 'The Groves', owner: 'hollis', traffic: [150, 350], land: [3000, 6000], specialLand: { field: [40000, 80000] }, mix: { workers: 0.6, families: 0.2, kids: 0.1, seniors: 0.1 },
     feel: 'Lemon and tea fields, barns, windmills', origin: [-160, -100], cols: 8, ground: 0x9cc65a,
     special: [
       { col: 1, side: 0, type: 'field', name: 'North Field' }, { col: 2, side: 0, type: 'field', name: 'Tea Rows' },
@@ -77,7 +79,7 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], priceMult: 2, mix: { highRollers: 0.7, seniors: 0.15, families: 0.15 },
+    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], land: [240000, 480000], specialLand: { field: [120000, 240000], dock: [300000, 600000] }, priceMult: 2, mix: { highRollers: 0.7, seniors: 0.15, families: 0.15 },
     feel: 'Mansions, country club, hedges', origin: [92, -100], cols: 5, ground: 0x6fb257,
     special: [
       { col: 2, side: 0, type: 'hq', name: 'Sourwood Manor' }, { col: 0, side: 0, type: 'field', name: 'Polo Lawn' },
@@ -151,16 +153,23 @@ export function buildPlots(): Plot[] {
           z: streetZ + (side === 0 ? -PLOT_DEPTH : PLOT_DEPTH),
           streetZ, facing: side === 0 ? 1 : -1,
           baseTraffic: traffic,
-          baseLand: type === 'civic' ? 0 : Math.round((d.traffic[0] + d.traffic[1]) / 2 * LAND_PER_TRAFFIC * TYPE_LAND[type] / 10) * 10,
+          baseLand: type === 'civic' ? 0 : landFor(d, type, h),
         });
       }
     }
   }
-  // Lottie's Corner is a fixed starting plot: 320 passersby, $300 land.
+  // Lottie's Corner is a fixed starting plot: 400 passersby, $300 land.
   const lottie = plots.find((p) => p.name === "Lottie's Corner")!;
-  lottie.baseTraffic = 320;
+  lottie.baseTraffic = 400;
   lottie.baseLand = 300;
   return plots;
+}
+
+/** Land price (balance tables): the district's street range, ×3 Prime, ×8 Landmark; specials have their own ranges. */
+function landFor(d: District, type: PlotType, h: number): number {
+  const range = d.specialLand?.[type] ?? (type === 'field' || type === 'dock' || type === 'industrial' ? [d.land[0] * 2, d.land[1] * 2] as [number, number] : d.land);
+  const mult = d.specialLand?.[type] ? 1 : TYPE_LAND[type];
+  return Math.round((range[0] + (range[1] - range[0]) * h) * mult / 10) * 10;
 }
 
 function hash(s: string): number {

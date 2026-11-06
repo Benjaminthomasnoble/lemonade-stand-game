@@ -28,21 +28,22 @@ export interface Order {
 // ---------- tunables (starting values; the balance thread replaces these) ----------
 
 export const FACILITIES: Record<FacilityKind, { names: string[]; costs: number[]; ranks: number[]; on: PlotType[]; blurb: string[] }> = {
-  bottling: { names: ['Bottling Works', 'Bottling Works L2', 'Bottling Works L3'], costs: [20000, 80000, 300000], ranks: [5, 6, 8], on: ['street', 'prime', 'industrial'], blurb: ['1,500 bottles a day', '4,000 bottles a day', '12,000 bottles a day'] },
-  helipad: { names: ['Pad', 'Helipad', 'Heliport'], costs: [25000, 120000, 500000], ranks: [6, 7, 8], on: ['field'], blurb: ['Small choppers: up to 4,000 bottles', 'Up to 7,000 bottles', 'Big choppers: up to 10,000 bottles'] },
-  pier: { names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [60000, 250000, 1000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: up to 20,000 bottles', 'Cruise ships: up to 40,000 bottles', 'Freighters: up to 60,000 bottles'] },
+  bottling: { names: ['Bottling Works', 'Bottling Works L2', 'Bottling Works L3'], costs: [25000, 100000, 400000], ranks: [5, 6, 7], on: ['industrial'], blurb: ['1,500 bottles a day', '4,000 bottles a day', '12,000 bottles a day'] },
+  helipad: { names: ['Pad', 'Helipad', 'Heliport'], costs: [50000, 200000, 800000], ranks: [6, 7, 8], on: ['field'], blurb: ['Small choppers: 2,000–4,000 bottles', '4,000–7,000 bottles', 'Big choppers: 7,000–10,000 bottles'] },
+  pier: { names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [250000, 750000, 3000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: 10,000–20,000 bottles', 'Cruise ships: 20,000–40,000 bottles', 'Freighters: 40,000–60,000 bottles'] },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
-export const BOTTLE_COST = 0.3; // ingredients and the bottle
-export const RETAIL = 1.0; // what a bottle of lemonade fetches on the street
-export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size: [number, number]; mult: [number, number]; days: [number, number]; chance: number; label: string }> = {
-  local: { rank: 3, stars: 0, size: [300, 1500], mult: [1.5, 1.5], days: [2, 2], chance: 0.35, label: 'Local Order' },
-  caterer: { rank: 5, stars: 0, size: [1000, 5000], mult: [2, 2], days: [2, 3], chance: 0.3, label: 'Caterer Truck' },
-  heli: { rank: 6, stars: 3.5, size: [2000, 10000], mult: [3, 4], days: [3, 5], chance: 0.3, label: 'Helicopter VIP' },
-  ship: { rank: 7, stars: 4.0, size: [10000, 60000], mult: [3, 5], days: [4, 7], chance: 0.2, label: 'Ship Contract' },
+export const BOTTLE_COST = 0.21 + 0.15; // a Classic cup's ingredients plus the bottle and cap
+/** Pay is per bottle (Local Orders: 1.5× that stand's cup price). Chance = offers per day. */
+export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size: [number, number]; pay: number; days: number; chance: number; label: string }> = {
+  local: { rank: 3, stars: 0, size: [300, 1500], pay: 1.5, days: 2, chance: 0.5, label: 'Local Order' },
+  caterer: { rank: 5, stars: 0, size: [1000, 5000], pay: 6, days: 3, chance: 0.4, label: 'Caterer Truck' },
+  heli: { rank: 6, stars: 3.5, size: [2000, 10000], pay: 12, days: 4, chance: 1 / 3, label: 'Helicopter VIP' },
+  ship: { rank: 7, stars: 4.0, size: [10000, 60000], pay: 15, days: 7, chance: 1 / 7, label: 'Ship Contract' },
 };
-export const HELI_SIZE_CAP = [4000, 7000, 10000];
-export const SHIP_SIZE_CAP = [20000, 40000, 60000];
+/** Order sizes served by each facility tier. */
+export const HELI_SIZES: [number, number][] = [[2000, 4000], [4000, 7000], [7000, 10000]];
+export const SHIP_SIZES: [number, number][] = [[10000, 20000], [20000, 40000], [40000, 60000]];
 export const VIP_STAR_BONUS = 0.2;
 export const FAILED_ORDER_STARS = 0.3;
 export const DELIVERY_RAID_THREAT = 3;
@@ -119,18 +120,15 @@ export function tierOpen(s: GameState, tier: OrderTier): Blocker {
 
 function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const t = ORDER_TIERS[tier];
-  let [lo, hi] = t.size;
-  if (tier === 'heli') hi = Math.min(hi, HELI_SIZE_CAP[bestLevel(s, 'helipad') - 1]);
-  if (tier === 'ship') hi = Math.min(hi, SHIP_SIZE_CAP[bestLevel(s, 'pier') - 1]);
+  const [lo, hi] = tier === 'heli' ? HELI_SIZES[bestLevel(s, 'helipad') - 1] : tier === 'ship' ? SHIP_SIZES[bestLevel(s, 'pier') - 1] : t.size;
   const qty = Math.round((lo + (hi - lo) * nextRandom(rng)) / 100) * 100;
-  const mult = t.mult[0] + (t.mult[1] - t.mult[0]) * nextRandom(rng);
-  const unit = tier === 'local' ? localPrice(s) : RETAIL;
-  const days = t.days[0] + Math.floor(nextRandom(rng) * (t.days[1] - t.days[0] + 1));
+  const unit = tier === 'local' ? localPrice(s) * t.pay : t.pay;
+  const days = t.days;
   const plot = tier === 'heli' ? facilityPlots(s, 'helipad')[0]?.id : tier === 'ship' ? facilityPlots(s, 'pier')[0]?.id : undefined;
   const clients = CLIENTS[tier];
   return {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
-    pay: Math.round(qty * unit * mult), due: s.day + days, expires: s.day + 1, plot, accepted: false,
+    pay: Math.round(qty * unit), due: s.day + days, expires: s.day + 1, plot, accepted: false,
   };
 }
 

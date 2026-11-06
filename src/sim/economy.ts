@@ -6,7 +6,7 @@ import { nextRandom, randomRange } from './rng.ts';
 import {
   AUTO_RESTOCK_DAY, BASE_STOP_CHANCE, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
   CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, OPEN,
-  PROPERTY_TAX_WEEKLY, RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, SEASON_TEMP_SHIFT, SEASON_WEATHER,
+  PROPERTY_TAX_WEEKLY, RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, BOARDWALK_SEASON, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
@@ -224,7 +224,10 @@ function seedRivals(s: GameState, rng: Rng): void {
 
 function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
   const f = FACTIONS[id];
-  const level = p.type === 'field' ? 0 : clamp(f.startLevel - (nextRandom(rng) < 0.5 ? 1 : 0), 1, 5);
+  void rng;
+  // Spec: rivals start at L2 (The Groves L1; Downtown and Hilltop L3), +1 on Prime and Landmark, capped per faction.
+  const base = p.district === 'groves' ? 1 : p.district === 'downtown' || p.district === 'hilltop' ? 3 : 2;
+  const level = p.type === 'field' ? 0 : clamp(base + (p.type === 'prime' || p.type === 'landmark' ? 1 : 0), 1, f.maxLevel);
   const stand = level ? newStand(level, rivalPrice(id, level, p)) : null;
   s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
 }
@@ -398,7 +401,7 @@ export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.w
   const ps = s.plots[plotId];
   if (!ps.stand || ps.stand.wrecked) return 0;
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand)
-    * SEASON_DEMAND[seasonOf(s.day)] * WEATHER[w.kind].traffic;
+    * (PLOT_BY_ID[plotId].district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND)[seasonOf(s.day)] * WEATHER[w.kind].traffic;
 }
 
 /** Rough cups a player stand should sell today (for the prep odds and auto-restock). */
@@ -682,7 +685,8 @@ function updateLandValues(s: GameState): void {
   for (const d of DISTRICTS) {
     const plots = PLOTS.filter((p) => p.district === d.id && p.type !== 'civic');
     const levels = plots.reduce((a, p) => a + (s.plots[p.id].stand?.level ?? 0), 0);
-    const dev = Math.min(1, levels / (plots.length * 2.5));
+    const facilities = plots.reduce((a, p) => a + 2 * (s.plots[p.id].facility?.level ?? 0), 0); // a facility tier counts as 2 stand levels
+    const dev = Math.min(1, (levels + facilities) / (plots.length * 4));
     for (const p of plots) s.plots[p.id].landValue = Math.round(p.baseLand * (1 + (LAND_DEVELOPMENT_MAX - 1) * dev));
   }
   s.plots[LOTTIES_CORNER].landValue = Math.max(s.plots[LOTTIES_CORNER].landValue, START.landValue);
@@ -754,19 +758,16 @@ function rivalsAtDawn(s: GameState): void {
     const r = s.rivals[id];
     if (!r.alive) continue;
     const f = FACTIONS[id];
-    let budget = Math.max(0, r.cash - 2000) * f.grow;
-    // Upgrade the best-placed stand they can afford.
-    const mine = ownedPlots(s, id).filter((p) => s.plots[p.id].stand).sort((a, b) => b.baseTraffic - a.baseTraffic);
-    for (const p of mine) {
-      const st = s.plots[p.id].stand!;
-      const next = STAND_LEVELS[st.level];
-      if (next && next.level <= 4 && next.cost < budget && nextRandom(rng) < 0.5) {
-        r.cash -= next.cost;
-        budget -= next.cost;
+    const budget = Math.max(0, r.cash - 2000) * f.grow;
+    // Spec: every 30 days each rival stand rises one level, up to the faction's cap.
+    if (s.day > 1 && (s.day - 1) % 30 === 0) {
+      for (const p of ownedPlots(s, id)) {
+        const st = s.plots[p.id].stand;
+        if (!st || st.wrecked || st.level >= f.maxLevel) continue;
+        const next = STAND_LEVELS[st.level];
         st.level = next.level;
         st.price = rivalPrice(id, st.level, p);
         s.plots[p.id].invested += next.cost;
-        break;
       }
     }
     // Buy and build on an open plot near their turf, slowly. Maple Row is left to the player for now.
@@ -865,6 +866,7 @@ export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected
   if (!st) return { ok: false, why: 'Pick a stand' };
   if (s.phase !== 'prep') return { ok: false, why: 'Plan campaigns during Morning Prep' };
   if (s.rank < c.rank) return { ok: false, why: `Needs Rank ${c.rank}, ${RANKS[c.rank - 1].title}` };
+  if (c.maxLevel && st.level > c.maxLevel) return { ok: false, why: `Only for L1–L${c.maxLevel} stands` };
   const left = st.campaigns[id] ?? 0;
   if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
   if (c.costPerDay && s.cash < c.costPerDay) return { ok: false, why: `Needs $${c.costPerDay}` };

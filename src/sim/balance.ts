@@ -1,12 +1,12 @@
-// Every tunable number in one place. Values are the spec canon's STARTING
-// values (CANON-starting-values.md); the tuned set from the economy model
-// replaces them here without touching game logic.
+// Every tunable number in one place. Values follow the spec's tuned balance
+// tables (Appendix A, /mnt/project-files/lemonade-stand-wars/balance-tables.md)
+// except where a comment says the build tuned its own model.
 
 export const START = {
   cash: 150,
   reputation: 3.0, // stars, 1..5
   landValue: 300, // Lottie's Corner
-  plotTraffic: 320, // passersby per business day on Lottie's Corner (Maple Row 250–400)
+  plotTraffic: 400, // passersby per business day on Lottie's Corner
   standLevel: 1,
 };
 
@@ -23,7 +23,9 @@ export const SPEEDS = [0, 1, 2, 3] as const;
 
 export type Season = 'summer' | 'fall' | 'winter' | 'spring';
 export const SEASONS: Season[] = ['summer', 'fall', 'winter', 'spring'];
-export const SEASON_DEMAND: Record<Season, number> = { summer: 1.3, fall: 0.9, winter: 0.6, spring: 1.0 };
+export const SEASON_DEMAND: Record<Season, number> = { summer: 1.2, fall: 0.9, winter: 0.6, spring: 1.0 };
+/** The Boardwalk swings harder with the seasons. */
+export const BOARDWALK_SEASON: Record<Season, number> = { summer: 1.5, fall: 0.9, winter: 0.4, spring: 1.0 };
 
 // ---------- weather ----------
 export type WeatherKind = 'scorcher' | 'hot' | 'warm' | 'cloudy' | 'rainy' | 'storm';
@@ -36,10 +38,10 @@ export const WEATHER: Record<WeatherKind, { label: string; thirst: number; traff
   storm: { label: 'Storm', thirst: 0.2, traffic: 0.4, temp: [55, 66] },
 };
 export const SEASON_WEATHER: Record<Season, Partial<Record<WeatherKind, number>>> = {
-  summer: { scorcher: 0.1, hot: 0.25, warm: 0.35, cloudy: 0.15, rainy: 0.1, storm: 0.05 },
-  fall: { hot: 0.05, warm: 0.3, cloudy: 0.35, rainy: 0.22, storm: 0.08 },
-  winter: { warm: 0.05, cloudy: 0.5, rainy: 0.3, storm: 0.15 },
-  spring: { hot: 0.05, warm: 0.4, cloudy: 0.3, rainy: 0.2, storm: 0.05 },
+  summer: { scorcher: 0.15, hot: 0.35, warm: 0.3, cloudy: 0.12, rainy: 0.06, storm: 0.02 },
+  fall: { scorcher: 0.03, hot: 0.15, warm: 0.37, cloudy: 0.25, rainy: 0.15, storm: 0.05 },
+  winter: { hot: 0.05, warm: 0.25, cloudy: 0.4, rainy: 0.22, storm: 0.08 },
+  spring: { scorcher: 0.02, hot: 0.13, warm: 0.4, cloudy: 0.25, rainy: 0.15, storm: 0.05 },
 };
 /** Cool seasons shift temperatures down. */
 export const SEASON_TEMP_SHIFT: Record<Season, number> = { summer: 0, fall: -8, winter: -22, spring: -5 };
@@ -69,13 +71,13 @@ export const SWEETNESS_SUGAR: Record<Sweetness, number> = { less: 0.6, classic: 
 // ---------- customers ----------
 export type SegmentId = 'kids' | 'families' | 'seniors' | 'students' | 'office' | 'tourists' | 'workers' | 'highRollers';
 export const SEGMENTS: Record<SegmentId, { label: string; priceTolerance: number; favorites: RecipeId[]; sweet: Sweetness; peaks: number[] }> = {
-  kids: { label: 'Kids', priceTolerance: 0.7, favorites: ['pink'], sweet: 'extra', peaks: [11, 15] },
+  kids: { label: 'Kids', priceTolerance: 0.8, favorites: ['pink'], sweet: 'extra', peaks: [11, 15] },
   families: { label: 'Families', priceTolerance: 1.0, favorites: ['pink', 'classic'], sweet: 'classic', peaks: [12, 18] },
   seniors: { label: 'Seniors', priceTolerance: 0.9, favorites: ['classic'], sweet: 'less', peaks: [9, 16] },
-  students: { label: 'Students', priceTolerance: 0.8, favorites: ['mint'], sweet: 'classic', peaks: [13, 19] },
-  office: { label: 'Office workers', priceTolerance: 1.3, favorites: ['classic', 'mint'], sweet: 'less', peaks: [8, 12, 17] },
-  tourists: { label: 'Tourists', priceTolerance: 1.4, favorites: ['pink'], sweet: 'extra', peaks: [13, 16] },
-  workers: { label: 'Workers', priceTolerance: 1.0, favorites: ['classic'], sweet: 'classic', peaks: [8, 12, 17] },
+  students: { label: 'Students', priceTolerance: 0.85, favorites: ['mint'], sweet: 'classic', peaks: [13, 19] },
+  office: { label: 'Office workers', priceTolerance: 1.2, favorites: ['classic', 'mint'], sweet: 'less', peaks: [8, 12, 17] },
+  tourists: { label: 'Tourists', priceTolerance: 1.3, favorites: ['pink'], sweet: 'extra', peaks: [13, 16] },
+  workers: { label: 'Workers', priceTolerance: 0.9, favorites: ['classic'], sweet: 'classic', peaks: [8, 12, 17] },
   highRollers: { label: 'High rollers', priceTolerance: 2.0, favorites: ['classic'], sweet: 'less', peaks: [14, 18] },
 };
 /** Who walks down Maple Row. */
@@ -90,8 +92,8 @@ export const STAND_LEVELS: StandLevel[] = [
   { level: 1, name: 'The Folding Table', cost: 150, draw: 1.0, capacityPerHour: 20, topPrice: 1.5, upkeep: 5, hp: 100, guardPosts: 1, storage: { lemons: 60, sugar: 150, ice: 360 } },
   { level: 2, name: 'The Wooden Stand', cost: 400, draw: 1.5, capacityPerHour: 50, topPrice: 2.0, upkeep: 15, hp: 300, guardPosts: 2, storage: { lemons: 160, sugar: 400, ice: 900 } },
   { level: 3, name: 'The Kiosk', cost: 3500, draw: 2.3, capacityPerHour: 120, topPrice: 3.0, upkeep: 60, hp: 800, guardPosts: 3, storage: { lemons: 400, sugar: 1000, ice: 2400 } },
-  { level: 4, name: 'The Lemon Shack', cost: 25000, draw: 3.5, capacityPerHour: 300, topPrice: 4.5, upkeep: 250, hp: 2000, guardPosts: 4, storage: { lemons: 1000, sugar: 2500, ice: 6000 } },
-  { level: 5, name: 'The Citrus Palace', cost: 160000, draw: 5.0, capacityPerHour: 700, topPrice: 7.0, upkeep: 900, hp: 5000, guardPosts: 6, storage: { lemons: 2400, sugar: 6000, ice: 14000 } },
+  { level: 4, name: 'The Lemon Shack', cost: 60000, draw: 3.5, capacityPerHour: 300, topPrice: 4.5, upkeep: 300, hp: 2000, guardPosts: 4, storage: { lemons: 1000, sugar: 2500, ice: 6000 } },
+  { level: 5, name: 'The Citrus Palace', cost: 650000, draw: 5.0, capacityPerHour: 700, topPrice: 7.0, upkeep: 1500, hp: 5000, guardPosts: 6, storage: { lemons: 2400, sugar: 6000, ice: 14000 } },
 ];
 export const BUILDING_VALUE_SHARE = 0.75;
 /** Rank needed to upgrade TO each level (index = level - 1). */
@@ -108,8 +110,8 @@ export const BRAND_TIERS = [
   { tier: 5, name: 'The Lemon Blimp', rank: 8, cost: 500000, traffic: 0.5 },
 ];
 export type CampaignId = 'sandwichBoard' | 'freeSamples';
-export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: string; costPerDay?: number; traffic: number; days: number; samples?: number; reputation?: number }> = {
-  sandwichBoard: { name: 'Sandwich-Board Kid', rank: 2, blurb: '+20% foot traffic today', costPerDay: 40, traffic: 0.2, days: 1 },
+export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: string; costPerDay?: number; traffic: number; days: number; samples?: number; reputation?: number; maxLevel?: number }> = {
+  sandwichBoard: { name: 'Sandwich-Board Kid', rank: 2, blurb: '+20% foot traffic today (L1–L3 stands)', costPerDay: 40, traffic: 0.2, days: 1, maxLevel: 3 },
   freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 30 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 30, reputation: 0.1 },
 };
 
@@ -123,11 +125,11 @@ export const RANKS = [
   { rank: 3, title: 'Block Boss', ss: 6000 },
   { rank: 4, title: 'Neighborhood Name', ss: 25000 },
   { rank: 5, title: 'District Big Shot', ss: 100000 },
-  { rank: 6, title: 'Citrus Baron', ss: 350000 },
-  { rank: 7, title: 'Lemon Tycoon', ss: 1200000 },
-  { rank: 8, title: 'Juice Magnate', ss: 4000000 },
-  { rank: 9, title: 'Bay Kingpin', ss: 12000000 },
-  { rank: 10, title: 'The Big Squeeze', ss: 40000000 },
+  { rank: 6, title: 'Citrus Baron', ss: 400000 },
+  { rank: 7, title: 'Lemon Tycoon', ss: 3000000 },
+  { rank: 8, title: 'Juice Magnate', ss: 10000000 },
+  { rank: 9, title: 'Bay Kingpin', ss: 25000000 },
+  { rank: 10, title: 'The Big Squeeze', ss: 75000000 },
 ];
 
 // ---------- land (section 10) ----------
@@ -141,28 +143,30 @@ export interface Faction {
   id: RivalId; name: string; product: string; boss: string; color: number; accent: number; home: string;
   personality: string; startCash: number; homeShare: number; startLevel: number; oldTownStands: number;
   grow: number; guard: number; strike: number; price: number; henchmen: string;
+  rebuild: number; maxLevel: number; // chance to rebuild a smashed stand; highest stand level they build
 }
 export const FACTIONS: Record<RivalId, Faction> = {
-  sourwood: { id: 'sourwood', name: 'The Sourwood Family', product: 'Lemonade', boss: 'Vera Sourwood', color: 0x5b2a6e, accent: 0xc9a227, home: 'hilltop', personality: 'Cunning and balanced', startCash: 20000, homeShare: 0.6, startLevel: 3, oldTownStands: 2, grow: 0.4, guard: 0.35, strike: 0.25, price: 1.0, henchmen: 'Stewards' },
-  hollis: { id: 'hollis', name: 'Hollis Sweet Tea Co.', product: 'Sweet tea', boss: 'Tilly Hollis', color: 0xb5651d, accent: 0xd64545, home: 'groves', personality: 'Defensive landholder', startCash: 8000, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.45, guard: 0.45, strike: 0.1, price: 0.9, henchmen: 'Farmhands' },
-  fizzco: { id: 'fizzco', name: 'FizzCo Beverages', product: 'Soda', boss: 'Preston Fizzwell III', color: 0xc8102e, accent: 0xb8c2cc, home: 'downtown', personality: 'Rich and expansionist', startCash: 30000, homeShare: 0.5, startLevel: 3, oldTownStands: 1, grow: 0.55, guard: 0.25, strike: 0.2, price: 1.1, henchmen: 'Security Associates' },
-  coldbrew: { id: 'coldbrew', name: 'The Cold Brew Collective', product: 'Iced coffee', boss: 'Juniper "Juni" Grind', color: 0x3b2a20, accent: 0xff4fa3, home: 'campus', personality: 'Saboteur', startCash: 6000, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.35, guard: 0.25, strike: 0.4, price: 0.95, henchmen: 'Baristas' },
-  blenders: { id: 'blenders', name: 'The Boardwalk Blenders', product: 'Smoothies', boss: 'Brock "The Blender" Bodine', color: 0xff9f1c, accent: 0x00a6a6, home: 'boardwalk', personality: 'Aggressive swarm', startCash: 5000, homeShare: 0.55, startLevel: 2, oldTownStands: 1, grow: 0.3, guard: 0.2, strike: 0.5, price: 0.9, henchmen: 'Smoothie Bros' },
+  sourwood: { id: 'sourwood', name: 'The Sourwood Family', product: 'Lemonade', boss: 'Vera Sourwood', color: 0x5b2a6e, accent: 0xc9a227, home: 'hilltop', personality: 'Cunning and balanced', startCash: 3000000, rebuild: 0.8, maxLevel: 5, homeShare: 0.6, startLevel: 3, oldTownStands: 2, grow: 0.4, guard: 0.35, strike: 0.25, price: 1.0, henchmen: 'Stewards' },
+  hollis: { id: 'hollis', name: 'Hollis Sweet Tea Co.', product: 'Sweet tea', boss: 'Tilly Hollis', color: 0xb5651d, accent: 0xd64545, home: 'groves', personality: 'Defensive landholder', startCash: 50000, rebuild: 0.6, maxLevel: 4, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.45, guard: 0.45, strike: 0.1, price: 0.9, henchmen: 'Farmhands' },
+  fizzco: { id: 'fizzco', name: 'FizzCo Beverages', product: 'Soda', boss: 'Preston Fizzwell III', color: 0xc8102e, accent: 0xb8c2cc, home: 'downtown', personality: 'Rich and expansionist', startCash: 1000000, rebuild: 0.7, maxLevel: 5, homeShare: 0.5, startLevel: 3, oldTownStands: 1, grow: 0.55, guard: 0.25, strike: 0.2, price: 1.1, henchmen: 'Security Associates' },
+  coldbrew: { id: 'coldbrew', name: 'The Cold Brew Collective', product: 'Iced coffee', boss: 'Juniper "Juni" Grind', color: 0x3b2a20, accent: 0xff4fa3, home: 'campus', personality: 'Saboteur', startCash: 20000, rebuild: 0.5, maxLevel: 4, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.35, guard: 0.25, strike: 0.4, price: 0.95, henchmen: 'Baristas' },
+  blenders: { id: 'blenders', name: 'The Boardwalk Blenders', product: 'Smoothies', boss: 'Brock "The Blender" Bodine', color: 0xff9f1c, accent: 0x00a6a6, home: 'boardwalk', personality: 'Aggressive swarm', startCash: 10000, rebuild: 0.4, maxLevel: 4, homeShare: 0.55, startLevel: 2, oldTownStands: 1, grow: 0.3, guard: 0.2, strike: 0.5, price: 0.9, henchmen: 'Smoothie Bros' },
 };
 export const PLAYER_COLOR = 0xf6d33c;
 /** Rank needed to buy land in a district (Maple Row from the start, Old Town at Rank 2; the rest is an assumption until the spec says otherwise). */
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
 
 // ---------- defenses, crew and raids (canon sections 11–14) ----------
-export interface PerimeterTier { tier: number; name: string; rank: number; cost: number; hp: number; breachDps: number; slow: number }
-// Fence HP and breach damage are tuned so the canon anchors hold (npm run combat):
-// T1 raid vs Picket + 1 guard fails ~60%; T4 raid vs a kitted P4 plot holds ~75%.
+export interface PerimeterTier { tier: number; name: string; rank: number; cost: number; hp: number; breachDps: number; slow: number; repair: number }
+// Fence HP and breach damage are the build's own tuning, so the canon anchors hold in this
+// combat model (npm run combat): T1 raid vs Picket + 1 guard fails ~60%; T4 raid vs a kitted
+// P4 plot holds ~70%. Spec table: 150/500/1,200/2,500/5,000 HP, 2 and 4 damage/second.
 export const PERIMETERS: PerimeterTier[] = [
-  { tier: 1, name: 'Picket Fence', rank: 1, cost: 150, hp: 280, breachDps: 0, slow: 0 },
-  { tier: 2, name: 'Chain-Link Fence', rank: 2, cost: 1200, hp: 500, breachDps: 0, slow: 0 },
-  { tier: 3, name: 'Sharpened Stakes', rank: 4, cost: 6000, hp: 800, breachDps: 0.5, slow: 0 },
-  { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 1150, breachDps: 1, slow: 0.3 },
-  { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 3000, breachDps: 0, slow: 0 },
+  { tier: 1, name: 'Picket Fence', rank: 1, cost: 150, hp: 280, breachDps: 0, slow: 0, repair: 15 },
+  { tier: 2, name: 'Chain-Link Fence', rank: 2, cost: 1200, hp: 500, breachDps: 0, slow: 0, repair: 120 },
+  { tier: 3, name: 'Sharpened Stakes', rank: 4, cost: 6000, hp: 800, breachDps: 0.5, slow: 0, repair: 600 },
+  { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 1150, breachDps: 1, slow: 0.3, repair: 2500 },
+  { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 3000, breachDps: 0, slow: 0, repair: 10000 },
 ];
 /** Defenders hit harder while any perimeter stands (P5 doubles it). */
 export const FENCE_DEFENDER_BONUS = 0.25;
@@ -192,7 +196,8 @@ export const GEAR: Record<GearId, { name: string; rank: number; cost: number; hp
 };
 export const GUARD_BASE = { hp: 100, nerve: 60, swing: 1.5 };
 export const GUARD_LEVEL_TITLES = ['Rookie', 'Regular', 'Veteran', 'Elite', 'Legend'];
-export const GUARD_WAGE = [15, 28, 45, 65, 90];
+export const GUARD_WAGE = [15, 25, 40, 60, 90];
+export const GUARD_FEE = [50, 150, 400, 1000, 2500];
 export const GUARD_XP_TO_LEVEL = [0, 3, 8, 15, 25];
 export const ROSTER_BASE = 2;
 export const CLUBHOUSE = [
@@ -204,7 +209,7 @@ export const HIRE_RANK = 2;
 export const RAID_RANK = 3;
 export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);
 /** Stand hit points by level (how much chopping a Smash needs). */
-export const STAND_HP = [120, 300, 700, 1500, 3000];
+export const STAND_HP = STAND_LEVELS.map((l) => l.hp);
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.3;
 export const NO_RAID_DAYS = 5;
@@ -224,7 +229,7 @@ export const NIGHT_STEALTH = 0.25;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',
-  'Gentle Giant', 'Wrecker', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',
+  'Gentle Giant', 'Lumberjack', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',
 ] as const;
 export type Trait = (typeof TRAITS)[number];
 /** Combat knobs tuned against the canon anchors (npm run combat). */

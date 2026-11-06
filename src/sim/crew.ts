@@ -4,7 +4,7 @@
 // when the player sleeps.
 import {
   CLUBHOUSE, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
-  GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
+  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RESPECT_DAYS, ROSTER_BASE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
@@ -104,7 +104,7 @@ export function buyPerimeter(s: GameState, plotId: string): boolean {
 export function fenceRepairCost(ps: PlotState): number {
   const per = PERIMETERS[ps.defense.tier - 1];
   if (!per || ps.defense.fenceHp >= per.hp) return 0;
-  return Math.ceil(per.cost * 0.25 * (1 - ps.defense.fenceHp / per.hp));
+  return Math.ceil(per.repair * (1 - ps.defense.fenceHp / per.hp));
 }
 
 export function repairFence(s: GameState, plotId: string): boolean {
@@ -161,7 +161,7 @@ const LAST = ['Moody', 'Malone', 'Pickles', 'Brickman', 'Quill', 'Sorrel', 'Kett
 function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
   const name = `${FIRST[Math.floor(nextRandom(rng) * FIRST.length)]} ${LAST[Math.floor(nextRandom(rng) * LAST.length)]}`;
   const trait = TRAITS[Math.floor(nextRandom(rng) * TRAITS.length)];
-  return { id: `g${s.nextId++}`, name, trait, level, xp: GUARD_XP_TO_LEVEL[level - 1], weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 60 * level * level };
+  return { id: `g${s.nextId++}`, name, trait, level, xp: GUARD_XP_TO_LEVEL[level - 1], weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: GUARD_FEE[level - 1] };
 }
 
 /** The Hiring Hall's pool refreshes every week (and the first time you reach Rank 2). */
@@ -256,7 +256,7 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   if (g.trait === 'Tough Cookie') hp *= 1.2;
   if (g.trait === 'Gentle Giant') { hp *= 1.4; hit *= 0.7; }
   if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 15; }
-  if (g.trait === 'Wrecker') chop *= 1.5;
+  if (g.trait === 'Lumberjack') chop *= 1.5;
   if (g.trait === 'Loyal') nerve += 20;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon };
@@ -519,6 +519,7 @@ export function crewAtDawn(s: GameState): void {
     fireGuard(s, quitter.id);
     s.news.push(`${quitter.name} quits: "No pay, no play."`);
   }
+  if (s.day >= 6) welcomeDex(s);
   refreshRecruits(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
@@ -528,7 +529,7 @@ export function crewAtDawn(s: GameState): void {
     if (ps.stand?.wrecked) {
       const cost = rebuildCost(ps);
       const f = FACTIONS[ps.owner as RivalId];
-      if (r.cash > cost + 500 && nextRandom(rng) < f.grow + f.guard) {
+      if (r.cash > cost + 500 && nextRandom(rng) < f.rebuild) {
         r.cash -= cost;
         ps.stand.wrecked = false;
       } else {
@@ -574,9 +575,9 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
   }
 }
 
-/** Dex Moody, the first guard, turns up when you reach Rank 2. */
+/** Dex Moody, the first guard, turns up on Day 6 (when raids can start). */
 export function welcomeDex(s: GameState): void {
-  if (s.rank < HIRE_RANK || s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
+  if ( s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
   const rng = { seed: 77 };
   const dex = makeGuard(s, rng);
   dex.name = 'Dex Moody';

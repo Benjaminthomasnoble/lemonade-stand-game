@@ -25,13 +25,13 @@ try {
   await page.waitForSelector('[data-testid="prep"]');
   console.log('backend:', await page.evaluate(() => window.__game.backend));
 
-  for (const id of ['lemons', 'lemons', 'sugar', 'cups', 'ice', 'ice']) {
+  for (const id of ['lemons', 'lemons', 'sugar', 'sugar', 'ice', 'ice', 'ice']) {
     await page.click(`[data-action="buy"][data-id="${id}"][data-packs="1"]`);
   }
   await page.screenshot({ path: 'test-results/1-prep.png' });
   await page.click('[data-testid="open"]');
   await page.waitForSelector('[data-testid="daybar"]');
-  await page.click('[data-action="speed"][data-value="4"]');
+  await page.click('[data-action="speed"][data-value="3"]');
   await page.waitForTimeout(6000);
   const mid = await page.evaluate(() => ({ crowd: window.__game.crowd(), sold: window.__game.state.today.customers }));
   console.log('mid-day:', mid);

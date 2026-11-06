@@ -1,5 +1,6 @@
-// The level 1 lemonade stand: a wooden counter with a striped awning,
-// a price sign, a pitcher whose fill shows cups left, and the owner.
+// Lottie's Corner: the stand (built per level), the grandkid behind it and
+// Grandma Lottie in her lawn chair. L1 is the Folding Table; L2's striped
+// wooden booth is ready for milestone 2.
 import * as THREE from 'three/webgpu';
 import { makePerson } from './people.ts';
 
@@ -7,118 +8,193 @@ export interface Stand {
   group: THREE.Group;
   /** Where a customer stands to buy. */
   servePoint: THREE.Vector3;
+  setLevel(level: number): void;
   update(opts: { price: number; pitcherFill: number; open: boolean; time: number }): void;
 }
 
-function wood(color = 0xb07a45) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
-}
+const mat = (color: number, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness });
 
-function signTexture(text: string, sub: string) {
+function shadowy<T extends THREE.Mesh>(m: T): T { m.castShadow = true; m.receiveShadow = true; return m; }
+
+function signTexture(text: string, sub: string, crayon: boolean) {
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 160;
+  c.width = 512; c.height = 200;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#fff6c2';
+  g.fillStyle = crayon ? '#d9b98a' : '#fff6c2'; // cardboard or painted board
   g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = '#d9a400';
-  g.lineWidth = 12;
-  g.strokeRect(6, 6, c.width - 12, c.height - 12);
-  g.fillStyle = '#e0a800';
-  g.font = 'bold 74px "Trebuchet MS", sans-serif';
   g.textAlign = 'center';
-  g.fillText(text, 256, 88);
-  g.fillStyle = '#7a4a12';
-  g.font = 'bold 42px "Trebuchet MS", sans-serif';
-  g.fillText(sub, 256, 140);
+  if (crayon) {
+    g.font = 'bold 76px "Comic Sans MS", "Chalkboard SE", cursive';
+    g.fillStyle = '#f2c200';
+    g.strokeStyle = '#c0392b';
+    g.lineWidth = 4;
+    g.save(); g.translate(256, 92); g.rotate(-0.04);
+    g.fillText(text, 0, 0); g.strokeText(text, 0, 0); g.restore();
+    g.fillStyle = '#2d6cdf';
+    g.font = 'bold 60px "Comic Sans MS", "Chalkboard SE", cursive';
+    g.fillText(sub, 256, 172);
+  } else {
+    g.strokeStyle = '#d9a400'; g.lineWidth = 12; g.strokeRect(6, 6, c.width - 12, c.height - 12);
+    g.fillStyle = '#e0a800'; g.font = 'bold 78px "Trebuchet MS", sans-serif'; g.fillText(text, 256, 100);
+    g.fillStyle = '#7a4a12'; g.font = 'bold 50px "Trebuchet MS", sans-serif'; g.fillText(sub, 256, 168);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-export function createStand(): Stand {
-  const group = new THREE.Group();
-  const shadowy = (m: THREE.Mesh) => { m.castShadow = true; m.receiveShadow = true; return m; };
-
-  const counter = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 1.1), wood()));
-  counter.position.set(0, 0.55, 0.3);
-  group.add(counter);
-  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.1, 1.3), wood(0xcf9a5c)));
-  top.position.set(0, 1.15, 0.3);
-  group.add(top);
-  for (const x of [-1.5, 1.5]) for (const z of [-0.2, 0.8]) {
-    const post = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), wood(0x8a5a30)));
-    post.position.set(x, 1.3, z);
-    group.add(post);
+function folkTable(): THREE.Group {
+  const g = new THREE.Group();
+  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.9), mat(0x2f6d4f)));
+  top.position.set(0, 0.78, 0.3);
+  g.add(top);
+  for (const x of [-0.72, 0.72]) for (const z of [-0.1, 0.7]) {
+    const leg = shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.78, 6), mat(0x888888, 0.4)));
+    leg.position.set(x, 0.39, z);
+    g.add(leg);
   }
-  // Striped awning, tilted toward the street.
+  // Blue cooler beside the table.
+  const cooler = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.42, 0.4), mat(0x2d7dd2, 0.5)));
+  cooler.position.set(1.15, 0.21, 0.35);
+  g.add(cooler);
+  const lid = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), mat(0xf4f4f4, 0.5)));
+  lid.position.set(1.15, 0.46, 0.35);
+  g.add(lid);
+  return g;
+}
+
+function woodenBooth(): THREE.Group {
+  const g = new THREE.Group();
+  const counter = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 1.1), mat(0xb07a45)));
+  counter.position.set(0, 0.55, 0.3);
+  g.add(counter);
+  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.1, 1.3), mat(0xcf9a5c)));
+  top.position.set(0, 1.15, 0.3);
+  g.add(top);
+  for (const x of [-1.5, 1.5]) for (const z of [-0.2, 0.8]) {
+    const post = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), mat(0x8a5a30)));
+    post.position.set(x, 1.3, z);
+    g.add(post);
+  }
   const awning = new THREE.Group();
-  const stripes = 8;
-  for (let i = 0; i < stripes; i++) {
-    const s = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3.6 / stripes, 0.06, 1.7),
-      new THREE.MeshStandardMaterial({ color: i % 2 ? 0xffffff : 0xffd21f, roughness: 0.7 })));
-    s.position.x = -1.8 + (i + 0.5) * (3.6 / stripes);
+  for (let i = 0; i < 8; i++) {
+    const s = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 1.7), mat(i % 2 ? 0xffffff : 0xf6d33c, 0.7)));
+    s.position.x = -1.8 + (i + 0.5) * 0.45;
     awning.add(s);
   }
   awning.position.set(0, 2.62, 0.45);
   awning.rotation.x = 0.18;
-  group.add(awning);
+  g.add(awning);
+  return g;
+}
 
-  const signMat = new THREE.MeshStandardMaterial({ map: signTexture('LEMONADE', '50¢'), roughness: 0.6 });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.75), signMat);
-  sign.position.set(0, 0.6, 0.86);
-  group.add(sign);
+function lawnChair(): THREE.Group {
+  const g = new THREE.Group();
+  const frame = mat(0xcccccc, 0.4);
+  const webbing = mat(0x2bb3b1, 0.7);
+  const seat = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.55), webbing));
+  seat.position.y = 0.38;
+  g.add(seat);
+  const back = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.05), webbing));
+  back.position.set(0, 0.72, -0.3);
+  back.rotation.x = -0.25;
+  g.add(back);
+  for (const x of [-0.3, 0.3]) for (const z of [-0.25, 0.25]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.38, 5), frame);
+    leg.position.set(x, 0.19, z);
+    g.add(leg);
+  }
+  return g;
+}
 
-  // Pitcher: glass shell plus a lemonade column that drains as cups sell.
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.15, 0.45, 16, 1, true),
+export function createStand(): Stand {
+  const group = new THREE.Group();
+  const levelRoot = new THREE.Group();
+  group.add(levelRoot);
+  let level = 0;
+  let surfaceY = 0.81;
+
+  // Props that move with the level: pitcher, lemons, cups, sign.
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.36, 16, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, roughness: 0.1 }));
-  glass.position.set(-0.8, 1.43, 0.35);
-  group.add(glass);
-  const juice = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.14, 0.42, 16),
+  const juice = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.33, 16),
     new THREE.MeshStandardMaterial({ color: 0xfff15a, emissive: 0x554400, roughness: 0.3 }));
-  juice.position.copy(glass.position);
-  group.add(juice);
-
-  // A little pile of lemons and a stack of cups.
-  const lemonMat = new THREE.MeshStandardMaterial({ color: 0xffe11a, roughness: 0.5 });
-  const lemonGeo = new THREE.SphereGeometry(0.09, 10, 8);
-  for (let i = 0; i < 7; i++) {
+  const props = new THREE.Group();
+  props.add(glass, juice);
+  const lemonMat = mat(0xffe11a, 0.5);
+  const lemonGeo = new THREE.SphereGeometry(0.07, 10, 8);
+  for (let i = 0; i < 6; i++) {
     const l = new THREE.Mesh(lemonGeo, lemonMat);
     l.scale.set(1.25, 1, 1);
-    l.position.set(0.55 + (i % 4) * 0.17, 1.28 + Math.floor(i / 4) * 0.13, 0.25 + (i % 2) * 0.12);
+    l.position.set(0.3 + (i % 3) * 0.13, 0.06 + Math.floor(i / 3) * 0.1, 0.25 + (i % 2) * 0.1);
     l.castShadow = true;
-    group.add(l);
+    props.add(l);
   }
-  for (let i = 0; i < 5; i++) {
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.16, 10), new THREE.MeshStandardMaterial({ color: 0xf2f2f2 }));
-    cup.position.set(0.1, 1.28 + i * 0.05, 0.3);
-    group.add(cup);
+  for (let i = 0; i < 4; i++) {
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.13, 10), mat(0xf2f2f2));
+    cup.position.set(-0.1, 0.07 + i * 0.04, 0.3);
+    props.add(cup);
   }
+  glass.position.set(-0.45, 0.18, 0.35);
+  juice.position.copy(glass.position);
+  group.add(props);
 
-  const owner = makePerson(0xff6f61, 0x3c5aa6);
-  owner.position.set(0, 0, -0.55);
-  group.add(owner);
+  const signMat = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.55), signMat);
+  sign.castShadow = true;
+  group.add(sign);
 
-  const openSign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.3), new THREE.MeshStandardMaterial({ map: signTexture('OPEN', ''), roughness: 0.6 }));
-  openSign.position.set(1.0, 1.9, 0.82);
-  group.add(openSign);
+  const kid = makePerson(0xf6d33c, 0x3c5aa6, undefined, 0.8);
+  kid.position.set(0, 0, -0.45);
+  group.add(kid);
 
-  let lastPrice = -1;
-  return {
+  // Grandma Lottie: lavender dress, white bun, in a lawn chair.
+  const chair = lawnChair();
+  chair.position.set(-2.0, 0, -0.2);
+  chair.rotation.y = 0.5;
+  group.add(chair);
+  const lottie = makePerson(0xb48ee0, 0xb48ee0, 0xf1c9a5, 0.9);
+  lottie.position.set(-2.0, 0.05, -0.15);
+  lottie.rotation.y = 0.5;
+  const limbs = lottie.userData.limbs as THREE.Mesh[];
+  limbs[0].rotation.x = limbs[1].rotation.x = -1.4; // sitting
+  lottie.position.y = -0.3;
+  const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xf4f4f4));
+  bun.position.set(0, 1.6, -0.12);
+  lottie.add(bun);
+  group.add(lottie);
+
+  let lastSign = '';
+  const stand: Stand = {
     group,
-    servePoint: new THREE.Vector3(0, 0, 1.45),
+    servePoint: new THREE.Vector3(0, 0, 1.35),
+    setLevel(l) {
+      if (l === level) return;
+      level = l;
+      levelRoot.clear();
+      levelRoot.add(l >= 2 ? woodenBooth() : folkTable());
+      surfaceY = l >= 2 ? 1.2 : 0.81;
+      props.position.set(0, surfaceY, 0);
+      if (l >= 2) { sign.position.set(0, 0.6, 0.86); sign.rotation.x = 0; }
+      else { sign.position.set(0, 0.5, 0.76); sign.rotation.x = -0.05; }
+      lastSign = '';
+    },
     update({ price, pitcherFill, open, time }) {
-      if (price !== lastPrice) {
-        lastPrice = price;
+      const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
+      const key = `${level}|${label}`;
+      if (key !== lastSign) {
+        lastSign = key;
         signMat.map?.dispose();
-        const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
-        signMat.map = signTexture('LEMONADE', label);
+        signMat.map = signTexture(level >= 2 ? "LOTTIE'S" : 'LEMONADE', label, level < 2);
         signMat.needsUpdate = true;
       }
       const f = Math.max(0.02, pitcherFill);
       juice.scale.y = f;
-      juice.position.y = glass.position.y - 0.21 * (1 - f);
-      openSign.visible = open;
-      owner.position.y = open ? Math.abs(Math.sin(time * 3)) * 0.04 : 0;
+      juice.position.y = glass.position.y - 0.165 * (1 - f);
+      kid.position.y = open ? Math.abs(Math.sin(time * 3)) * 0.03 : 0;
+      lottie.rotation.y = 0.5 + Math.sin(time * 0.4) * 0.15;
     },
   };
+  stand.setLevel(1);
+  return stand;
 }

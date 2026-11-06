@@ -1,0 +1,29 @@
+.badge {
+  background: var(--ink); color: var(--lemon); border-radius: 6px; padding: 1px 6px; font-size: 0.8em;
+}
+.speeds { gap: 4px; }
+.goals { position: absolute; left: 10px; top: 64px; width: 250px; pointer-events: none; }
+.card { background: var(--paper); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 0.88em; }
+.card-title { font-weight: bold; margin-bottom: 6px; }
+.goal { margin: 6px 0; }
+.goal.done { opacity: 0.6; }
+.bar { height: 5px; background: #f0e3b0; border-radius: 4px; margin-top: 3px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--good); }
+.bugle { border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; font-family: Georgia, 'Times New Roman', serif; }
+.masthead { font-size: 1.35em; font-weight: bold; text-align: center; letter-spacing: 0.02em; border-bottom: 1px solid var(--ink); }
+.dateline { font-size: 0.75em; text-align: center; opacity: 0.7; margin: 2px 0 6px; }
+.headline { font-weight: bold; font-size: 1.05em; margin-bottom: 4px; }
+.recipes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.recipe { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 6px; font-size: 0.8em; border-radius: 10px; }
+.recipe span { font-weight: normal; opacity: 0.75; }
+.odds { background: #fff2b8; border-radius: 10px; padding: 6px 8px; font-size: 0.9em; margin-top: 6px; }
+.lottie { background: #fff2b8; border-radius: 10px; padding: 8px; }
+.ledger { font-family: Georgia, 'Times New Roman', serif; background: #fffdf3 repeating-linear-gradient(#fffdf3 0 27px, #e6eef7 27px 28px); }
+.pop.miss { color: var(--bad); font-size: 14px; }
+@media (max-width: 900px) {
+  .goals { display: none; }
+}
+.speedbox { position: absolute; right: 10px; bottom: 14px; }
+.speedbox .chip { gap: 4px; }
+.daybar { left: 10px; transform: none; max-width: calc(100% - 230px); flex-wrap: wrap; }
+.goals { top: 112px; }

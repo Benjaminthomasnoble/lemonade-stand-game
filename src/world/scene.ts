@@ -17,7 +17,7 @@ export interface World {
   backend: string;
 }
 
-const SKY: Record<WeatherKind, number> = { sunny: 0x8fd3ff, cloudy: 0xb7c4cf, rainy: 0x7d8a96, heatwave: 0xffd99a };
+const SKY: Record<WeatherKind, number> = { scorcher: 0xffd99a, hot: 0x9fd8ff, warm: 0x8fd3ff, cloudy: 0xb7c4cf, rainy: 0x7d8a96, storm: 0x5d6873 };
 
 function mat(color: number, roughness = 0.9) {
   return new THREE.MeshStandardMaterial({ color, roughness });
@@ -82,15 +82,15 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(SKY.sunny);
-  scene.fog = new THREE.Fog(SKY.sunny, 40, 90);
+  scene.background = new THREE.Color(SKY.warm);
+  scene.fog = new THREE.Fog(SKY.warm, 40, 90);
 
   const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 200);
-  camera.position.set(9, 8, 14);
+  camera.position.set(5.5, 4.2, 9.5);
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 1, 0);
+  controls.target.set(0, 0.9, 0.6);
   controls.enableDamping = true;
-  controls.minDistance = 7;
+  controls.minDistance = 4;
   controls.maxDistance = 40;
   controls.maxPolarAngle = Math.PI * 0.45;
   controls.enablePan = false;
@@ -175,11 +175,11 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       sky.lerp(new THREE.Color(0xffc48a), Math.max(0, dayFraction - 0.75) * 1.2);
       (scene.background as THREE.Color).copy(sky);
       (scene.fog as THREE.Fog).color.copy(sky);
-      const dim = kind === 'rainy' ? 0.45 : kind === 'cloudy' ? 0.7 : 1;
-      sun.intensity = 2.6 * dim * (kind === 'heatwave' ? 1.15 : 1);
+      const dim = kind === 'storm' ? 0.3 : kind === 'rainy' ? 0.45 : kind === 'cloudy' ? 0.7 : 1;
+      sun.intensity = 2.6 * dim * (kind === 'scorcher' ? 1.15 : 1);
       const angle = Math.PI * (0.15 + 0.7 * dayFraction);
       sun.position.set(Math.cos(angle) * 18, Math.sin(angle) * 18 + 3, 8);
-      rain.visible = kind === 'rainy';
+      rain.visible = kind === 'rainy' || kind === 'storm';
     },
     update(dt) {
       controls.update();

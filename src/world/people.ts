@@ -19,7 +19,7 @@ function m(color: number) {
   return mm;
 }
 
-export function makePerson(shirt?: number, pants?: number, skin?: number): THREE.Group {
+export function makePerson(shirt?: number, pants?: number, skin?: number, scale = 1): THREE.Group {
   const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
   const g = new THREE.Group();
   const shirtM = m(shirt ?? pick(SHIRTS));
@@ -42,6 +42,7 @@ export function makePerson(shirt?: number, pants?: number, skin?: number): THREE
     limbs.push(l);
   }
   g.userData.limbs = limbs;
+  g.scale.setScalar(scale);
   return g;
 }
 
@@ -53,11 +54,15 @@ interface Walker {
   wait: number;
   phase: number;
   speed: number;
-  popup?: { text: string; kind: 'sale' | 'soldout' };
+  popup?: { text: string; kind: 'sale' | 'miss'; atCounter: boolean };
+  shown: boolean;
 }
 
+export type WalkerKind = 'pass' | 'sale' | 'miss' | 'grumble';
+
 export interface Crowd {
-  spawn(kind: 'pass' | 'sale' | 'soldout', text?: string): boolean;
+  /** sale/miss detour to the counter; grumble pops its text while walking past. */
+  spawn(kind: WalkerKind, text?: string, opts?: { scale?: number; speed?: number }): boolean;
   update(dt: number, speedScale: number): void;
   clear(): void;
   activeCount(): number;
@@ -68,18 +73,18 @@ const EDGE_X = 32;
 const POOL = 70;
 
 export function createCrowd(scene: THREE.Scene, servePoint: THREE.Vector3,
-  onArrive: (pos: THREE.Vector3, text: string, kind: 'sale' | 'soldout') => void): Crowd {
+  onArrive: (pos: THREE.Vector3, text: string, kind: 'sale' | 'miss') => void): Crowd {
   const walkers: Walker[] = [];
   for (let i = 0; i < POOL; i++) {
     const obj = makePerson();
     obj.visible = false;
     scene.add(obj);
-    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0 });
+    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false });
   }
   let queueSlot = 0;
 
   return {
-    spawn(kind, text = '') {
+    spawn(kind, text = '', opts = {}) {
       const w = walkers.find((x) => !x.active);
       if (!w) return false; // pool full: the sale still counts, we just don't draw it
       const dir = Math.random() < 0.5 ? 1 : -1;
@@ -87,19 +92,21 @@ export function createCrowd(scene: THREE.Scene, servePoint: THREE.Vector3,
       const start = new THREE.Vector3(-EDGE_X * dir, 0.12, z);
       const end = new THREE.Vector3(EDGE_X * dir, 0.12, z);
       w.path = [start];
-      if (kind !== 'pass') {
+      if (kind === 'sale' || kind === 'miss') {
         const slot = (queueSlot++ % 5) - 2;
         const counter = servePoint.clone().add(new THREE.Vector3(slot * 0.55, 0, Math.abs(slot) * 0.25));
         w.path.push(new THREE.Vector3(counter.x - dir * 1.5, 0.12, z), counter, new THREE.Vector3(counter.x + dir * 1.5, 0.12, z));
-        w.popup = { text, kind };
+        w.popup = { text, kind, atCounter: true };
       } else {
-        w.popup = undefined;
+        w.popup = kind === 'grumble' ? { text, kind: 'miss', atCounter: false } : undefined;
       }
+      w.shown = false;
+      w.obj.scale.setScalar(opts.scale ?? 1);
       w.path.push(end);
       w.leg = 1;
       w.wait = 0;
       w.phase = Math.random() * 6;
-      w.speed = 2.4 + Math.random() * 0.9;
+      w.speed = (2.4 + Math.random() * 0.9) * (opts.speed ?? 1);
       w.obj.position.copy(start);
       w.obj.visible = true;
       w.active = true;
@@ -123,14 +130,18 @@ export function createCrowd(scene: THREE.Scene, servePoint: THREE.Vector3,
         if (dist <= move) {
           pos.set(target.x, pos.y, target.z);
           // Arrived at the counter (the middle waypoint of a detour).
-          if (w.popup && w.leg === 2) {
-            w.wait = 0.9;
+          if (w.popup?.atCounter && w.leg === 2) {
+            w.wait = w.popup.kind === 'sale' ? 0.9 : 0.4;
             w.obj.rotation.y = Math.PI;
-            onArrive(pos.clone().setY(2.1), w.popup.text, w.popup.kind);
+            onArrive(pos.clone().setY(2.1 * w.obj.scale.y), w.popup.text, w.popup.kind);
           }
           w.leg++;
           if (w.leg >= w.path.length) { w.active = false; w.obj.visible = false; }
           continue;
+        }
+        if (w.popup && !w.popup.atCounter && !w.shown && Math.abs(pos.x) < 1) {
+          w.shown = true;
+          onArrive(pos.clone().setY(2.1 * w.obj.scale.y), w.popup.text, 'miss');
         }
         pos.x += (dx / dist) * move;
         pos.z += (dz / dist) * move;

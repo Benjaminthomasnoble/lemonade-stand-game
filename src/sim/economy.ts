@@ -1,227 +1,319 @@
-// Deterministic economy for one lemonade stand (milestone 1).
-// Pure data + functions, no DOM or three.js, so it runs the same in the
-// browser, in Vitest and in Node scripts. Time advances one game minute
-// per tick; the render layer decides how fast ticks happen.
+// Deterministic, tick-based economy (spec section 25: 1 tick = 1 game
+// minute, all randomness from a per-run seed). Pure data + functions:
+// no DOM or three.js, so it runs the same in the browser, Vitest and Node.
+// Milestone 1 covers one stand on Lottie's Corner and the daily loop.
 import { nextRandom, randomRange } from './rng.ts';
+import {
+  BASE_STOP_CHANCE, BUILDING_VALUE_SHARE, CLOSE, CUP_COST, CUPS_PER_PITCHER, DAWN, FORECAST_ACCURACY,
+  HOURLY_TRAFFIC, MAPLE_ROW_MIX, MARKET_SWING, OPEN, RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND,
+  SEASON_TEMP_SHIFT, SEASON_WEATHER, SEASONS, SEGMENTS, STAND_LEVELS, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
+  type RecipeId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness, type WeatherKind,
+} from './balance.ts';
 
-export const SAVE_VERSION = 1;
-export const DAY_START_MIN = 9 * 60;
-export const DAY_END_MIN = 17 * 60;
-export const DAY_LENGTH_MIN = DAY_END_MIN - DAY_START_MIN;
-export const CUPS_PER_PITCHER = 10;
-export const STARTING_CASH = 20;
-export const STAND_VALUE = 25; // level 1 stand; upgrades arrive in milestone 2
+export * from './balance.ts';
 
-export type SupplyId = 'lemons' | 'sugar' | 'cups' | 'ice';
-
-export const SUPPLIES: Record<SupplyId, { label: string; packSize: number; packPrice: number; unit: string }> = {
-  lemons: { label: 'Lemons', packSize: 12, packPrice: 2.4, unit: 'lemons' },
-  sugar: { label: 'Sugar', packSize: 12, packPrice: 1.2, unit: 'scoops' },
-  cups: { label: 'Cups', packSize: 50, packPrice: 1.5, unit: 'cups' },
-  ice: { label: 'Ice', packSize: 100, packPrice: 1.0, unit: 'cubes' },
-};
-
-export type WeatherKind = 'sunny' | 'cloudy' | 'rainy' | 'heatwave';
-
-export const WEATHER: Record<WeatherKind, { label: string; weight: number; temp: [number, number]; traffic: number; thirst: number }> = {
-  sunny: { label: 'Sunny', weight: 0.4, temp: [72, 88], traffic: 1, thirst: 1 },
-  cloudy: { label: 'Cloudy', weight: 0.3, temp: [62, 75], traffic: 0.85, thirst: 0.85 },
-  rainy: { label: 'Rainy', weight: 0.2, temp: [55, 68], traffic: 0.45, thirst: 0.6 },
-  heatwave: { label: 'Heat wave', weight: 0.1, temp: [92, 102], traffic: 1.15, thirst: 1.25 },
-};
+export const SAVE_VERSION = 2;
 
 export interface Weather { kind: WeatherKind; temp: number }
-export interface Recipe { lemons: number; sugar: number; ice: number } // per pitcher, per pitcher, per cup
-export type Inventory = Record<SupplyId, number>;
 export type Phase = 'prep' | 'open' | 'report';
+export type WalkReason = 'notThirsty' | 'pricey' | 'line' | 'soldOut';
+
+export interface LemonBatch { qty: number; day: number; unitCost: number }
+export interface Inventory { lemons: LemonBatch[]; sugar: number; ice: number; sugarCost: number; iceCost: number }
 
 export interface DayStats {
   day: number;
   weather: Weather;
+  recipe: RecipeId;
   price: number;
   passersby: number;
   customers: number;
-  missed: number; // wanted to buy but we were sold out
+  walkedPast: Record<WalkReason, number>;
   revenue: number;
-  spent: number;
+  supplies: number; // bought today
+  cupCosts: number;
+  upkeep: number;
   iceMelted: number;
+  lemonsSpoiled: number;
   satisfaction: number; // average 0..1 over customers
   reputationBefore: number;
   reputationAfter: number;
+  scoreBefore: number;
 }
 
 export interface GameState {
   version: number;
   seed: number;
   day: number;
+  minute: number; // minute of the day, 0..1439
   phase: Phase;
-  minute: number; // minutes since midnight
   cash: number;
+  reputation: number; // stars 1..5
+  standLevel: number;
+  invested: number; // money put into buildings on owned plots
+  landValue: number;
+  plotTraffic: number;
   inventory: Inventory;
-  recipe: Recipe;
+  market: Record<SupplyId, number>; // today's unit prices
+  recipe: RecipeId;
+  sweetness: Sweetness;
   price: number;
-  reputation: number; // 0..1
-  forecast: Weather; // what the morning paper says about today
-  weather: Weather; // what actually happens (set when the stand opens)
+  forecast: Weather;
+  weather: Weather;
   pitcherCups: number;
   spawnCarry: number;
+  servedThisHour: number;
   today: DayStats;
   history: DayStats[];
-  bestNetWorth: number;
+  peakScore: number;
+  lifetimeCups: number;
 }
 
 export type SimEvent =
-  | { type: 'passerby'; buys: boolean; soldOut: boolean; price: number }
+  | { type: 'passerby'; segment: SegmentId; buys: boolean; reason?: WalkReason; price: number }
   | { type: 'pitcher' }
   | { type: 'close' };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+type Rng = { seed: number };
 
-function rollWeather(rng: { seed: number }): Weather {
-  let r = nextRandom(rng);
-  let kind: WeatherKind = 'sunny';
-  for (const k of Object.keys(WEATHER) as WeatherKind[]) {
-    r -= WEATHER[k].weight;
-    if (r <= 0) { kind = k; break; }
-  }
-  const [lo, hi] = WEATHER[kind].temp;
-  return { kind, temp: Math.round(randomRange(rng, lo, hi)) };
+function pick<T extends string>(rng: Rng, weights: Partial<Record<T, number>>): T {
+  const entries = Object.entries(weights) as [T, number][];
+  let r = nextRandom(rng) * entries.reduce((a, [, w]) => a + w, 0);
+  for (const [k, w] of entries) { r -= w; if (r <= 0) return k; }
+  return entries[entries.length - 1][0];
 }
 
-function emptyStats(day: number, weather: Weather, price: number, reputation: number): DayStats {
+export function seasonOf(day: number): Season {
+  return SEASONS[Math.floor((day - 1) / SEASON_DAYS) % SEASONS.length];
+}
+export function seasonDay(day: number): number {
+  return ((day - 1) % SEASON_DAYS) + 1;
+}
+
+function rollWeather(rng: Rng, season: Season): Weather {
+  const kind = pick(rng, SEASON_WEATHER[season]);
+  const [lo, hi] = WEATHER[kind].temp;
+  const shift = kind === 'scorcher' || kind === 'hot' ? 0 : SEASON_TEMP_SHIFT[season];
+  return { kind, temp: Math.round(randomRange(rng, lo, hi)) + shift };
+}
+
+function rollMarket(rng: Rng): Record<SupplyId, number> {
+  const m = {} as Record<SupplyId, number>;
+  for (const id of Object.keys(SUPPLIES) as SupplyId[]) {
+    m[id] = Math.round(SUPPLIES[id].baseUnitPrice * (1 + randomRange(rng, -MARKET_SWING, MARKET_SWING)) * 1000) / 1000;
+  }
+  return m;
+}
+
+function emptyStats(s: Pick<GameState, 'day' | 'forecast' | 'recipe' | 'price' | 'reputation'>, score: number): DayStats {
   return {
-    day, weather, price, passersby: 0, customers: 0, missed: 0, revenue: 0, spent: 0,
-    iceMelted: 0, satisfaction: 0, reputationBefore: reputation, reputationAfter: reputation,
+    day: s.day, weather: s.forecast, recipe: s.recipe, price: s.price, passersby: 0, customers: 0,
+    walkedPast: { notThirsty: 0, pricey: 0, line: 0, soldOut: 0 }, revenue: 0, supplies: 0, cupCosts: 0, upkeep: 0,
+    iceMelted: 0, lemonsSpoiled: 0, satisfaction: 0, reputationBefore: s.reputation, reputationAfter: s.reputation, scoreBefore: score,
   };
 }
 
 export function newGame(seed = Date.now() & 0x7fffffff): GameState {
   const rng = { seed };
-  const forecast = rollWeather(rng);
+  const forecast = rollWeather(rng, 'summer');
+  const market = rollMarket(rng);
   const s: GameState = {
-    version: SAVE_VERSION,
-    seed: rng.seed,
-    day: 1,
-    phase: 'prep',
-    minute: DAY_START_MIN,
-    cash: STARTING_CASH,
-    inventory: { lemons: 0, sugar: 0, cups: 0, ice: 0 },
-    recipe: { lemons: 4, sugar: 3, ice: 3 },
-    price: 0.5,
-    reputation: 0.5,
-    forecast,
-    weather: forecast,
-    pitcherCups: 0,
-    spawnCarry: 0,
-    today: emptyStats(1, forecast, 0.5, 0.5),
-    history: [],
-    bestNetWorth: 0,
+    version: SAVE_VERSION, seed: rng.seed, day: 1, minute: DAWN, phase: 'prep',
+    cash: START.cash, reputation: START.reputation, standLevel: START.standLevel,
+    invested: STAND_LEVELS[0].cost, landValue: START.landValue, plotTraffic: START.plotTraffic,
+    inventory: { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 },
+    market, recipe: 'classic', sweetness: 'classic', price: 0.75,
+    forecast, weather: forecast, pitcherCups: 0, spawnCarry: 0, servedThisHour: 0,
+    today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0,
   };
-  s.bestNetWorth = netWorth(s);
+  s.today = emptyStats(s, successScore(s));
+  s.peakScore = successScore(s);
   return s;
 }
 
-// ---------- morning prep ----------
+export function stand(s: GameState): StandLevel {
+  return STAND_LEVELS[s.standLevel - 1];
+}
+
+// ---------- inventory ----------
+
+export function stock(s: GameState, id: SupplyId): number {
+  return id === 'lemons' ? s.inventory.lemons.reduce((a, b) => a + b.qty, 0) : s.inventory[id];
+}
+
+export function inventoryValue(s: GameState): number {
+  const inv = s.inventory;
+  return inv.lemons.reduce((a, b) => a + b.qty * b.unitCost, 0) + inv.sugar * inv.sugarCost + inv.ice * inv.iceCost;
+}
+
+/** Packs of a supply the player could buy right now (cash and storage). */
+export function maxPacks(s: GameState, id: SupplyId): number {
+  const sp = SUPPLIES[id];
+  const room = Math.floor((stand(s).storage[id] - stock(s, id)) / sp.pack);
+  const afford = Math.floor((s.cash + 1e-9) / (sp.pack * s.market[id]));
+  return Math.max(0, Math.min(room, afford));
+}
 
 export function buySupply(s: GameState, id: SupplyId, packs = 1): boolean {
-  const cost = round2(SUPPLIES[id].packPrice * packs);
-  if (s.phase === 'open' || packs <= 0 || cost > s.cash + 1e-9) return false;
+  if (s.phase === 'report' || packs <= 0 || packs > maxPacks(s, id)) return false;
+  const qty = SUPPLIES[id].pack * packs;
+  const unit = s.market[id];
+  const cost = round2(qty * unit);
   s.cash = round2(s.cash - cost);
-  s.inventory[id] += SUPPLIES[id].packSize * packs;
-  s.today.spent = round2(s.today.spent + cost);
+  s.today.supplies = round2(s.today.supplies + cost);
+  const inv = s.inventory;
+  if (id === 'lemons') {
+    const last = inv.lemons[inv.lemons.length - 1];
+    if (last && last.day === s.day && last.unitCost === unit) last.qty += qty;
+    else inv.lemons.push({ qty, day: s.day, unitCost: unit });
+  } else {
+    const costKey = id === 'sugar' ? 'sugarCost' : 'iceCost';
+    inv[costKey] = (inv[id] * inv[costKey] + qty * unit) / (inv[id] + qty);
+    inv[id] += qty;
+  }
   return true;
 }
 
-export function setRecipe(s: GameState, r: Partial<Recipe>): void {
-  s.recipe = {
-    lemons: clamp(Math.round(r.lemons ?? s.recipe.lemons), 0, 10),
-    sugar: clamp(Math.round(r.sugar ?? s.recipe.sugar), 0, 10),
-    ice: clamp(Math.round(r.ice ?? s.recipe.ice), 0, 6),
-  };
+function useLemons(s: GameState, n: number): void {
+  const batches = s.inventory.lemons; // oldest first
+  while (n > 0 && batches.length) {
+    const b = batches[0];
+    const take = Math.min(b.qty, n);
+    b.qty -= take;
+    n -= take;
+    if (b.qty === 0) batches.shift();
+  }
 }
 
-export function setPrice(s: GameState, price: number): void {
-  s.price = clamp(round2(price), 0.05, 5);
+// ---------- choices ----------
+
+export function setRecipe(s: GameState, id: RecipeId): void { s.recipe = id; }
+export function setSweetness(s: GameState, v: Sweetness): void { s.sweetness = v; }
+export function setPrice(s: GameState, price: number): void { s.price = clamp(round2(price), 0.05, 20); }
+
+export function pitcherNeeds(s: GameState): { lemons: number; sugar: number; icePerCup: number } {
+  const r = RECIPES[s.recipe];
+  return { lemons: r.lemonsPerPitcher, sugar: Math.round(r.sugarPerPitcher * SWEETNESS_SUGAR[s.sweetness]), icePerCup: r.icePerCup };
 }
 
-// ---------- demand model ----------
-
-/** Ice per cup that tastes best at a temperature. */
-export function idealIce(temp: number): number {
-  return clamp(Math.round((temp - 50) / 10), 0, 5);
+/** Supply cost of one cup at today's market prices (plus the flat cup). */
+export function costPerCup(s: GameState): number {
+  const n = pitcherNeeds(s);
+  return (n.lemons * s.market.lemons + n.sugar * s.market.sugar) / CUPS_PER_PITCHER
+    + n.icePerCup * s.market.ice + RECIPES[s.recipe].extraPerCup + CUP_COST;
 }
 
-/** 0..1 taste score for a recipe on a given day. */
-export function recipeQuality(r: Recipe, temp: number): number {
-  if (r.lemons === 0) return 0;
-  const q = 1 - 0.14 * Math.abs(r.lemons - 4) - 0.12 * Math.abs(r.sugar - 3) - 0.07 * Math.abs(r.ice - idealIce(temp));
-  return clamp(q, 0, 1);
+/** Cups the stand could still pour with current stock (ignores ice). */
+export function servingsAvailable(s: GameState): number {
+  const n = pitcherNeeds(s);
+  const pitchers = Math.min(Math.floor(stock(s, 'lemons') / n.lemons), n.sugar > 0 ? Math.floor(s.inventory.sugar / n.sugar) : Infinity);
+  return s.pitcherCups + pitchers * CUPS_PER_PITCHER;
 }
 
-/** What a typical customer thinks a cup is worth today. */
-export function fairPrice(temp: number, quality: number): number {
-  return Math.max(0.2, 0.3 + (temp - 60) * 0.012 + 0.15 * quality);
+// ---------- demand ----------
+
+export interface Appeal { priceFit: number; recipeMatch: number; sweetMatch: number; appeal: number; stopChance: number; fairPrice: number; topPrice: number }
+
+/** How a customer of a segment feels about our stand today. Shown to the player as odds. */
+export function appealFor(s: GameState, seg: SegmentId, w: Weather = s.weather): Appeal {
+  const g = SEGMENTS[seg];
+  const r = RECIPES[s.recipe];
+  const topPrice = (stand(s).topPrice + r.priceBonus) * g.priceTolerance;
+  const fairPrice = topPrice * 0.5;
+  const priceFit = s.price <= fairPrice ? 1 + 0.3 * (fairPrice - s.price) / fairPrice : Math.max(0, 1 - (s.price - fairPrice) / (topPrice - fairPrice));
+  const recipeMatch = g.favorites.includes(s.recipe) ? 1.2 : 1;
+  const order: Sweetness[] = ['less', 'classic', 'extra'];
+  const gap = Math.abs(order.indexOf(g.sweet) - order.indexOf(s.sweetness));
+  const sweetMatch = gap === 0 ? 1.1 : gap === 1 ? 1 : 0.85;
+  const appeal = recipeMatch * sweetMatch * priceFit * repMultiplier(s.reputation);
+  const stopChance = clamp(BASE_STOP_CHANCE * WEATHER[w.kind].thirst * appeal, 0, 0.95);
+  return { priceFit, recipeMatch, sweetMatch, appeal, stopChance, fairPrice, topPrice };
 }
 
-export function buyChance(s: GameState, w: Weather = s.weather): number {
-  const q = recipeQuality(s.recipe, w.temp);
-  const thirst = clamp((w.temp - 45) / 50, 0.1, 1.1) * WEATHER[w.kind].thirst;
-  const fair = fairPrice(w.temp, q);
-  const priceFactor = s.price <= fair ? 1 + 0.3 * (fair - s.price) / fair : Math.exp(-2.5 * (s.price - fair) / fair);
-  const qualityFactor = 0.4 + 0.6 * q;
-  const repFactor = 0.6 + 0.8 * s.reputation;
-  return clamp(0.6 * thirst * priceFactor * qualityFactor * repFactor, 0, 0.95);
+/** Average stop chance across today's customer mix. */
+export function averageStopChance(s: GameState, w: Weather = s.weather): number {
+  const mix = Object.entries(MAPLE_ROW_MIX) as [SegmentId, number][];
+  const total = mix.reduce((a, [, x]) => a + x, 0);
+  return mix.reduce((a, [seg, x]) => a + appealFor(s, seg, w).stopChance * x, 0) / total;
 }
 
-/** Expected passersby per hour at a given clock minute. */
-export function trafficPerHour(s: GameState, minute: number, w: Weather = s.weather): number {
-  const t = (minute - DAY_START_MIN) / DAY_LENGTH_MIN; // 0..1 across the day
-  const lunch = Math.exp(-(((t - 0.4) / 0.12) ** 2)); // ~12:15 peak
-  const afterSchool = Math.exp(-(((t - 0.8) / 0.1) ** 2)); // ~3:30 peak
-  const curve = 0.7 + 0.6 * lunch + 0.4 * afterSchool;
-  const wordOfMouth = 0.8 + 0.4 * s.reputation;
-  return 30 * WEATHER[w.kind].traffic * curve * wordOfMouth;
+export function expectedPassersby(s: GameState, w: Weather = s.weather): number {
+  return s.plotTraffic * stand(s).draw * SEASON_DEMAND[seasonOf(s.day)] * WEATHER[w.kind].traffic;
 }
 
-// ---------- the open day ----------
+const HOURLY_SUM = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
 
-export function canOpen(s: GameState): boolean {
-  return s.phase === 'prep';
+function segmentAt(rng: Rng, hour: number): SegmentId {
+  const w: Partial<Record<SegmentId, number>> = {};
+  for (const [seg, x] of Object.entries(MAPLE_ROW_MIX) as [SegmentId, number][]) {
+    const peak = SEGMENTS[seg].peaks.some((p) => Math.abs(p - hour) <= 1) ? 1.8 : 1;
+    w[seg] = x * peak;
+  }
+  return pick(rng, w);
 }
+
+// ---------- the business day ----------
 
 export function openStand(s: GameState): boolean {
-  if (!canOpen(s)) return false;
-  // The forecast is usually right; sometimes the day surprises you.
+  if (s.phase !== 'prep') return false;
   const rng = { seed: s.seed };
   let weather: Weather;
-  if (nextRandom(rng) < 0.8) {
-    const [lo, hi] = WEATHER[s.forecast.kind].temp;
-    weather = { kind: s.forecast.kind, temp: clamp(s.forecast.temp + Math.round(randomRange(rng, -3, 3)), lo - 3, hi + 3) };
+  if (nextRandom(rng) < FORECAST_ACCURACY) {
+    weather = { kind: s.forecast.kind, temp: s.forecast.temp + Math.round(randomRange(rng, -2, 2)) };
   } else {
-    weather = rollWeather(rng);
+    weather = rollWeather(rng, seasonOf(s.day));
   }
   s.seed = rng.seed;
   s.weather = weather;
   s.phase = 'open';
-  s.minute = DAY_START_MIN;
+  s.minute = OPEN;
   s.spawnCarry = 0;
-  s.today.weather = weather;
-  s.today.price = s.price;
-  s.today.reputationBefore = s.reputation;
+  s.servedThisHour = 0;
+  Object.assign(s.today, { weather, recipe: s.recipe, price: s.price, reputationBefore: s.reputation });
   return true;
 }
 
-function cupsLeft(s: GameState): number {
-  const fromPitchers = s.recipe.lemons > 0
-    ? Math.min(Math.floor(s.inventory.lemons / s.recipe.lemons), s.recipe.sugar > 0 ? Math.floor(s.inventory.sugar / s.recipe.sugar) : Infinity) * CUPS_PER_PITCHER
-    : 0;
-  return Math.min(s.inventory.cups, s.pitcherCups + fromPitchers);
-}
-
-/** Cups the stand could still sell with current stock. */
-export function servingsAvailable(s: GameState): number {
-  return cupsLeft(s);
+function serve(s: GameState, seg: SegmentId, rng: Rng): SimEvent {
+  const t = s.today;
+  t.passersby++;
+  const a = appealFor(s, seg);
+  if (nextRandom(rng) >= a.stopChance) {
+    const reason: WalkReason = a.priceFit < 0.6 ? 'pricey' : 'notThirsty';
+    t.walkedPast[reason]++;
+    return { type: 'passerby', segment: seg, buys: false, reason, price: s.price };
+  }
+  if (s.servedThisHour >= stand(s).capacityPerHour) {
+    t.walkedPast.line++;
+    return { type: 'passerby', segment: seg, buys: false, reason: 'line', price: s.price };
+  }
+  if (s.pitcherCups === 0) {
+    const n = pitcherNeeds(s);
+    if (stock(s, 'lemons') >= n.lemons && s.inventory.sugar >= n.sugar) {
+      useLemons(s, n.lemons);
+      s.inventory.sugar -= n.sugar;
+      s.pitcherCups = CUPS_PER_PITCHER;
+    }
+  }
+  if (s.pitcherCups === 0) {
+    t.walkedPast.soldOut++;
+    return { type: 'passerby', segment: seg, buys: false, reason: 'soldOut', price: s.price };
+  }
+  s.pitcherCups--;
+  s.servedThisHour++;
+  const ice = RECIPES[s.recipe].icePerCup;
+  const warm = s.inventory.ice < ice;
+  s.inventory.ice = Math.max(0, s.inventory.ice - ice);
+  const cupCost = CUP_COST + RECIPES[s.recipe].extraPerCup;
+  const sat = clamp(0.55 + 1.25 * (a.recipeMatch - 1) + (a.sweetMatch - 1) + 0.4 * (a.fairPrice - s.price) / a.fairPrice - (warm ? 0.35 : 0), 0, 1);
+  t.satisfaction = (t.satisfaction * t.customers + sat) / (t.customers + 1);
+  t.customers++;
+  s.lifetimeCups++;
+  t.revenue = round2(t.revenue + s.price);
+  t.cupCosts = round2(t.cupCosts + cupCost);
+  s.cash = round2(s.cash + s.price - cupCost);
+  return { type: 'passerby', segment: seg, buys: true, price: s.price };
 }
 
 /** Advance one game minute. Returns what happened, for the renderer. */
@@ -229,43 +321,21 @@ export function tickMinute(s: GameState): SimEvent[] {
   if (s.phase !== 'open') return [];
   const events: SimEvent[] = [];
   const rng = { seed: s.seed };
+  const hourIdx = Math.floor((s.minute - OPEN) / 60);
+  if ((s.minute - OPEN) % 60 === 0) s.servedThisHour = 0;
+  const perMinute = (expectedPassersby(s) * HOURLY_TRAFFIC[hourIdx]) / HOURLY_SUM / 60;
   // Jittered accumulator: exact average rate, irregular arrivals.
-  s.spawnCarry += (trafficPerHour(s, s.minute) / 60) * randomRange(rng, 0.2, 1.8);
+  s.spawnCarry += perMinute * randomRange(rng, 0.2, 1.8);
   while (s.spawnCarry >= 1) {
     s.spawnCarry -= 1;
-    s.today.passersby++;
-    const wants = nextRandom(rng) < buyChance(s);
-    if (!wants) { events.push({ type: 'passerby', buys: false, soldOut: false, price: s.price }); continue; }
-    if (s.pitcherCups === 0 && s.inventory.cups > 0 && s.recipe.lemons > 0
-      && s.inventory.lemons >= s.recipe.lemons && s.inventory.sugar >= s.recipe.sugar) {
-      s.inventory.lemons -= s.recipe.lemons;
-      s.inventory.sugar -= s.recipe.sugar;
-      s.pitcherCups = CUPS_PER_PITCHER;
-      events.push({ type: 'pitcher' });
-    }
-    if (s.pitcherCups === 0 || s.inventory.cups === 0) {
-      s.today.missed++;
-      events.push({ type: 'passerby', buys: false, soldOut: true, price: s.price });
-      continue;
-    }
-    s.pitcherCups--;
-    s.inventory.cups--;
-    const iceUsed = Math.min(s.inventory.ice, s.recipe.ice);
-    s.inventory.ice -= iceUsed;
-    const servedRecipe = { ...s.recipe, ice: iceUsed };
-    const q = recipeQuality(servedRecipe, s.weather.temp);
-    const fair = fairPrice(s.weather.temp, q);
-    const sat = clamp(0.25 + 0.6 * q + 0.5 * (fair - s.price) / fair, 0, 1);
-    const n = s.today.customers;
-    s.today.satisfaction = (s.today.satisfaction * n + sat) / (n + 1);
-    s.today.customers++;
-    s.today.revenue = round2(s.today.revenue + s.price);
-    s.cash = round2(s.cash + s.price);
-    events.push({ type: 'passerby', buys: true, soldOut: false, price: s.price });
+    const before = s.pitcherCups;
+    const e = serve(s, segmentAt(rng, 8 + hourIdx), rng);
+    if (before === 0 && s.pitcherCups > 0) events.push({ type: 'pitcher' });
+    events.push(e);
   }
   s.seed = rng.seed;
   s.minute++;
-  if (s.minute >= DAY_END_MIN) {
+  if (s.minute >= CLOSE) {
     closeDay(s);
     events.push({ type: 'close' });
   }
@@ -274,51 +344,87 @@ export function tickMinute(s: GameState): SimEvent[] {
 
 function closeDay(s: GameState): void {
   const t = s.today;
-  t.iceMelted = s.inventory.ice;
-  s.inventory.ice = 0; // ice never keeps overnight
+  t.upkeep = stand(s).upkeep;
+  s.cash = round2(s.cash - t.upkeep);
+  t.iceMelted = s.inventory.ice; // ice never keeps overnight
+  s.inventory.ice = 0;
   s.pitcherCups = 0; // leftover lemonade is poured out
   let rep = s.reputation;
-  if (t.customers > 0) rep = 0.8 * rep + 0.2 * t.satisfaction;
-  else rep = rep + (0.4 - rep) * 0.1;
-  rep -= Math.min(0.05, t.missed * 0.002); // people remember an empty stand
-  s.reputation = clamp(Math.round(rep * 1000) / 1000, 0, 1);
+  if (t.customers > 0) rep += (1 + 4 * t.satisfaction - rep) * Math.min(0.25, t.customers / 400);
+  rep -= Math.min(0.15, t.walkedPast.soldOut * 0.004) + Math.min(0.1, t.walkedPast.line * 0.002);
+  s.reputation = clamp(Math.round(rep * 100) / 100, 1, 5);
   t.reputationAfter = s.reputation;
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
-  s.bestNetWorth = Math.max(s.bestNetWorth, netWorth(s));
+  s.peakScore = Math.max(s.peakScore, successScore(s));
   s.phase = 'report';
 }
 
-export function nextDay(s: GameState): boolean {
+/** Night passes (no raids before milestone 3), then dawn opens Morning Prep. */
+export function sleepUntilDawn(s: GameState): boolean {
   if (s.phase !== 'report') return false;
+  s.day++;
+  s.minute = DAWN;
   const rng = { seed: s.seed };
-  s.forecast = rollWeather(rng);
+  // Lemons spoil after 3 days.
+  let spoiled = 0;
+  s.inventory.lemons = s.inventory.lemons.filter((b) => {
+    const bad = s.day - b.day >= (SUPPLIES.lemons.spoilDays ?? 99);
+    if (bad) spoiled += b.qty;
+    return !bad;
+  });
+  s.forecast = rollWeather(rng, seasonOf(s.day));
+  s.market = rollMarket(rng);
   s.seed = rng.seed;
   s.weather = s.forecast;
-  s.day++;
-  s.minute = DAY_START_MIN;
   s.phase = 'prep';
-  s.today = emptyStats(s.day, s.forecast, s.price, s.reputation);
+  s.today = emptyStats(s, successScore(s));
+  s.today.lemonsSpoiled = spoiled;
   return true;
 }
 
-/** Run the rest of the open day instantly (tests, skip button). */
+/** Run the rest of the business day instantly (tests, skip button). */
 export function simulateRestOfDay(s: GameState): SimEvent[] {
   const all: SimEvent[] = [];
   while (s.phase === 'open') all.push(...tickMinute(s));
   return all;
 }
 
-// ---------- scoring ----------
-
-export function netWorth(s: GameState): number {
-  // Milestone 1: cash plus the stand. Land arrives with territory (milestone 4).
-  return round2(s.cash + STAND_VALUE);
+export function lemonsExpiringTomorrow(s: GameState): number {
+  return s.inventory.lemons.filter((b) => s.day + 1 - b.day >= (SUPPLIES.lemons.spoilDays ?? 99)).reduce((a, b) => a + b.qty, 0);
 }
 
-export function supplyCostPerCup(r: Recipe): number {
-  const per = (id: SupplyId) => SUPPLIES[id].packPrice / SUPPLIES[id].packSize;
-  return (r.lemons * per('lemons') + r.sugar * per('sugar')) / CUPS_PER_PITCHER + per('cups') + r.ice * per('ice');
+// ---------- score and rank ----------
+
+/** Net Worth = cash + land + 75% of building investment + inventory at cost − loans. */
+export function netWorth(s: GameState): number {
+  return Math.max(0, round2(s.cash + s.landValue + BUILDING_VALUE_SHARE * s.invested + inventoryValue(s)));
+}
+export const successScore = (s: GameState) => Math.floor(netWorth(s));
+
+export function rankFor(score: number) {
+  let r = RANKS[0];
+  for (const x of RANKS) if (score >= x.ss) r = x;
+  const next = RANKS.find((x) => x.ss > score);
+  return { ...r, next };
+}
+
+export interface Goal { text: string; progress: number; done: boolean }
+
+/** Lottie keeps three goals on screen: short, medium, long. */
+export function lottieGoals(s: GameState): Goal[] {
+  const short: Goal = servingsAvailable(s) === 0 && s.phase === 'prep'
+    ? { text: 'Buy lemons and sugar at the market', progress: 0, done: false }
+    : { text: 'Sell 60 cups in one day', progress: Math.min(1, s.today.customers / 60), done: s.today.customers >= 60 };
+  const nextStand = STAND_LEVELS[s.standLevel];
+  const medium: Goal = nextStand
+    ? { text: `Save $${nextStand.cost} for ${nextStand.name}`, progress: Math.min(1, s.cash / nextStand.cost), done: s.cash >= nextStand.cost }
+    : { text: 'Keep the Citrus Palace busy', progress: 1, done: true };
+  const r = rankFor(successScore(s));
+  const long: Goal = r.next
+    ? { text: `Reach Rank ${r.next.rank}, ${r.next.title} ($${r.next.ss.toLocaleString('en-US')} Success Score)`, progress: Math.min(1, successScore(s) / r.next.ss), done: false }
+    : { text: 'You are The Big Squeeze', progress: 1, done: true };
+  return [short, medium, long];
 }
 
 export function isGameState(x: unknown): x is GameState {

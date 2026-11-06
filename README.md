@@ -8,11 +8,13 @@ A browser tycoon game: start with one lemonade stand, grow it into an empire, an
 
 Milestone 1 of 5 is playable: one stand and the daily economy loop.
 
-1. ✅ One stand and the economy loop (supplies, recipe, price, weather, reputation, day report, saves)
+1. ✅ One stand and the economy loop: Lottie's Folding Table on Maple Row, the Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, recipe cards and sweetness, customer types, "why people walked past", the Ledger, Reputation stars, Success Score and ranks, Lottie's Goals, saves
 2. Stand and marketing upgrades
 3. Rivals, defenses and guards
 4. Buying territory
 5. Helicopter and ship clients
+
+Design source of truth: the game spec (canon in the project files). Tunable numbers live in `src/sim/balance.ts`.
 
 ## Stack
 

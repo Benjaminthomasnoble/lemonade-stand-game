@@ -129,3 +129,26 @@ export const RANKS = [
   { rank: 9, title: 'Bay Kingpin', ss: 12000000 },
   { rank: 10, title: 'The Big Squeeze', ss: 40000000 },
 ];
+
+// ---------- land (section 10) ----------
+export const PROPERTY_TAX_WEEKLY = 0.005;
+export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops
+export const AUTO_RESTOCK_DAY = 3;
+
+// ---------- rivals (section 13) ----------
+export type RivalId = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
+export interface Faction {
+  id: RivalId; name: string; product: string; boss: string; color: number; accent: number; home: string;
+  personality: string; startCash: number; homeShare: number; startLevel: number; oldTownStands: number;
+  grow: number; guard: number; strike: number; price: number; henchmen: string;
+}
+export const FACTIONS: Record<RivalId, Faction> = {
+  sourwood: { id: 'sourwood', name: 'The Sourwood Family', product: 'Lemonade', boss: 'Vera Sourwood', color: 0x5b2a6e, accent: 0xc9a227, home: 'hilltop', personality: 'Cunning and balanced', startCash: 20000, homeShare: 0.6, startLevel: 3, oldTownStands: 2, grow: 0.4, guard: 0.35, strike: 0.25, price: 1.0, henchmen: 'Stewards' },
+  hollis: { id: 'hollis', name: 'Hollis Sweet Tea Co.', product: 'Sweet tea', boss: 'Tilly Hollis', color: 0xb5651d, accent: 0xd64545, home: 'groves', personality: 'Defensive landholder', startCash: 8000, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.45, guard: 0.45, strike: 0.1, price: 0.9, henchmen: 'Farmhands' },
+  fizzco: { id: 'fizzco', name: 'FizzCo Beverages', product: 'Soda', boss: 'Preston Fizzwell III', color: 0xc8102e, accent: 0xb8c2cc, home: 'downtown', personality: 'Rich and expansionist', startCash: 30000, homeShare: 0.5, startLevel: 3, oldTownStands: 1, grow: 0.55, guard: 0.25, strike: 0.2, price: 1.1, henchmen: 'Security Associates' },
+  coldbrew: { id: 'coldbrew', name: 'The Cold Brew Collective', product: 'Iced coffee', boss: 'Juniper "Juni" Grind', color: 0x3b2a20, accent: 0xff4fa3, home: 'campus', personality: 'Saboteur', startCash: 6000, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.35, guard: 0.25, strike: 0.4, price: 0.95, henchmen: 'Baristas' },
+  blenders: { id: 'blenders', name: 'The Boardwalk Blenders', product: 'Smoothies', boss: 'Brock "The Blender" Bodine', color: 0xff9f1c, accent: 0x00a6a6, home: 'boardwalk', personality: 'Aggressive swarm', startCash: 5000, homeShare: 0.55, startLevel: 2, oldTownStands: 1, grow: 0.3, guard: 0.2, strike: 0.5, price: 0.9, henchmen: 'Smoothie Bros' },
+};
+export const PLAYER_COLOR = 0xf6d33c;
+/** Rank needed to buy land in a district (Maple Row from the start, Old Town at Rank 2; the rest is an assumption until the spec says otherwise). */
+export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };

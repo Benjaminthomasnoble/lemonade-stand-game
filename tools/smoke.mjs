@@ -54,15 +54,29 @@ try {
   await page.evaluate(() => { window.__game.state.cash = 600; window.__game.act({ type: 'refresh' }); });
   await page.click('[data-testid="tab-grow"]');
   await page.click('[data-testid="upgrade"]');
-  const lvl = await page.evaluate(() => window.__game.state.standLevel);
+  const lvl = await page.evaluate(() => window.__game.state.plots[window.__game.state.selected].stand.level);
   if (lvl !== 2) fail(`upgrade failed (level ${lvl})`);
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/4-upgrade.png' });
   for (const l of [3, 4, 5]) {
-    await page.evaluate((l) => { window.__game.state.standLevel = l; window.__game.state.brandTier = 1; window.__game.act({ type: 'refresh' }); }, l);
+    await page.evaluate((l) => { window.__game.state.plots[window.__game.state.selected].stand.level = l; window.__game.state.brandTier = 1; window.__game.act({ type: 'refresh' }); }, l);
     await page.waitForTimeout(300);
     await page.screenshot({ path: `test-results/5-level${l}.png` });
   }
+  // Milestone 4 groundwork: Bay View, then buy a plot on Maple Row and build a stand.
+  await page.evaluate(() => { const g = window.__game; g.state.plots[g.state.selected].stand.level = 2; g.state.cash = 2000; g.act({ type: 'view', target: 'bay' }); });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'test-results/6-bay.png' });
+  const lot = await page.evaluate(() => Object.keys(window.__game.state.plots).find((id) => id.startsWith('maple') && !window.__game.state.plots[id].owner && !id.startsWith('maple-4n')));
+  await page.evaluate((lot) => window.__game.act({ type: 'select', plot: window.__game.state.selected }), lot);
+  await page.evaluate((lot) => window.__game.act({ type: 'inspect', plot: lot }), lot);
+  await page.click('[data-testid="buy-plot"]');
+  await page.click('[data-testid="build"]');
+  const stands = await page.evaluate(() => Object.values(window.__game.state.plots).filter((p) => p.owner === 'player' && p.stand).length);
+  if (stands !== 2) fail(`expected 2 stands, got ${stands}`);
+  await page.evaluate((lot) => window.__game.act({ type: 'select', plot: lot }), lot);
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'test-results/7-second-stand.png' });
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

@@ -42,3 +42,7 @@
 .confetti { position: absolute; top: -30px; font-size: 22px; pointer-events: none; animation: fall linear forwards; }
 @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
 .upgrade .act { width: 104px; text-align: right; flex-shrink: 0; }
+.plotcard { position: absolute; left: 10px; bottom: 70px; width: 290px; }
+.plotcard .card { font-size: 0.9em; }
+.picker { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.district-label { position: absolute; transform: translate(-50%, -50%); font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; font-size: 15px; white-space: nowrap; }

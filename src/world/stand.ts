@@ -109,7 +109,7 @@ function lawnChair(): THREE.Group {
   return g;
 }
 
-export function createStand(): Stand {
+export function createStand(opts: { lottie?: boolean } = {}): Stand {
   const group = new THREE.Group();
   const levelRoot = new THREE.Group();
   group.add(levelRoot);
@@ -155,7 +155,7 @@ export function createStand(): Stand {
   const chair = lawnChair();
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
-  group.add(chair);
+  if (opts.lottie !== false) group.add(chair);
   const lottie = makePerson(0xb48ee0, 0xb48ee0, 0xf1c9a5, 0.9);
   lottie.position.set(-2.0, 0.05, -0.15);
   lottie.rotation.y = 0.5;
@@ -165,12 +165,12 @@ export function createStand(): Stand {
   const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xf4f4f4));
   bun.position.set(0, 1.6, -0.12);
   lottie.add(bun);
-  group.add(lottie);
+  if (opts.lottie !== false) group.add(lottie);
 
   // Hand-painted signs (brand tier 1) up and down the block.
   const brandSigns = new THREE.Group();
   const brandMat = new THREE.MeshStandardMaterial({ map: signTexture("LOTTIE'S", 'this way →', true), roughness: 0.8 });
-  for (const [x, flip] of [[-7, 1], [7, -1]] as const) {
+  for (const [x, flip] of [[-4.8, 1], [4.8, -1]] as const) {
     const board = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.45), brandMat);
     board.position.set(x, 0.9, 1.0);
     board.rotation.y = flip * 0.35;

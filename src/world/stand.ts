@@ -17,6 +17,10 @@ export interface Stand {
   lottie?: THREE.Object3D;
   /** Lottie reacts: cheers a rush or a rank-up, shakes her fist at trouble. */
   react(kind: LottieReaction): void;
+  /** The upgrade crate reveal: a crate drops, rattles, bursts, and the new stand boings up. */
+  reveal(): void;
+  /** Someone kicks the stand over (Day 5's "reminder"); the kid rights it a few seconds later. */
+  knock(): void;
 }
 
 export type LottieReaction = 'cheer' | 'fist';
@@ -124,6 +128,78 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   let surfaceY = 0.81;
   let spin: THREE.Object3D | undefined;
 
+  // The upgrade upCrate: drops in, rattles, bursts into planks.
+  const upCrate = new THREE.Group();
+  const wood = mat(0x8B5E3C);
+  const crateBox = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.0, 1.8), wood));
+  crateBox.position.y = 1.0;
+  const label = shadowy(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.7), mat(0xF7C948, 0.6)));
+  label.position.set(0, 1.1, 0.91);
+  upCrate.add(crateBox, label);
+  for (const y of [0.35, 1.65]) { const band = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.16, 1.85), mat(0x6e4a2c))); band.position.y = y; upCrate.add(band); }
+  upCrate.visible = false;
+  group.add(upCrate);
+  const planks = [0, 1, 2, 3, 4, 5].map(() => { const p = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.35), wood)); p.visible = false; group.add(p); return p; });
+  const plankVel = planks.map(() => new THREE.Vector3());
+  let revealT = -1, lastTime = 0, knockT = -1;
+  function animateKnock(dt: number) {
+    if (knockT < 0) return;
+    knockT += dt;
+    // Over it goes (on twos), lies there a while, then gets heaved back up.
+    const q = Math.floor(knockT * 12) / 12;
+    const tip = q < 0.35 ? (q / 0.35) : q < 4.5 ? 1 : Math.max(0, 1 - (q - 4.5) / 0.6);
+    levelRoot.rotation.x = -tip * 1.25;
+    levelRoot.position.z = -tip * 0.4;
+    props.visible = tip < 0.2;
+    if (knockT > 5.2) { knockT = -1; levelRoot.rotation.x = 0; levelRoot.position.z = 0; props.visible = true; }
+  }
+  function animateReveal(time: number) {
+    if (revealT < 0) return;
+    const dt = Math.min(0.1, Math.max(0, time - lastTime));
+    revealT += dt;
+    const t = revealT;
+    // Stop-motion: the big moves step on twos (12 fps).
+    const q = Math.floor(t * 12) / 12;
+    if (t < 0.5) {
+      upCrate.visible = true; levelRoot.visible = false; props.visible = false;
+      const k = q / 0.5;
+      upCrate.position.y = 7 * (1 - k * k);
+      upCrate.scale.set(1, 1, 1);
+    } else if (t < 1.4) {
+      upCrate.position.y = 0;
+      const land = t < 0.7 ? Math.sin(((q - 0.5) / 0.2) * Math.PI) * 0.18 * MOTION : 0;
+      const rattle = t > 0.8 ? Math.sin(q * 70) * 0.05 * MOTION : 0;
+      upCrate.scale.set(1 + land * 0.6, 1 - land, 1 + land * 0.6);
+      upCrate.rotation.z = rattle;
+    } else if (upCrate.visible) {
+      // Burst: planks fly, the new stand pops up.
+      upCrate.visible = false;
+      planks.forEach((p, i) => {
+        const a = (i / planks.length) * Math.PI * 2;
+        p.visible = true;
+        p.position.set(Math.cos(a) * 0.8, 1 + (i % 3) * 0.5, Math.sin(a) * 0.7);
+        p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        plankVel[i].set(Math.cos(a) * 4, 5 + Math.random() * 2, Math.sin(a) * 3.5);
+      });
+      levelRoot.visible = true;
+      props.visible = true;
+    }
+    if (t >= 1.4) {
+      const k = q - 1.4;
+      const pop = k < 0.5 ? [0.2, 0.6, 1.2, 1.15, 0.95, 1.02][Math.min(5, Math.floor(k * 12))] : 1;
+      const sc = MOTION < 1 ? 1 : pop;
+      levelRoot.scale.set(sc, sc, sc);
+      planks.forEach((p, i) => {
+        if (!p.visible) return;
+        plankVel[i].y -= 18 * dt;
+        p.position.addScaledVector(plankVel[i], dt);
+        p.rotation.x += dt * 6; p.rotation.z += dt * 4;
+        if (p.position.y < 0.06) { p.position.y = 0.06; plankVel[i].set(0, 0, 0); }
+      });
+      if (t > 3.2) { planks.forEach((p) => { p.visible = false; }); levelRoot.scale.set(1, 1, 1); revealT = -1; }
+    }
+  }
+
   // Props that move with the level: pitcher, lemons, cups, sign.
   const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.36, 16, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, roughness: 0.1 }));
@@ -191,9 +267,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   const handset = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.3, 4, 8), mat(0xE8704F, 0.5));
   handset.rotation.z = Math.PI / 2;
   handset.position.set(0, 0.21, -0.07);
-  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.36), mat(0x8B5E3C));
-  crate.position.y = -0.2;
-  phone.add(phoneBody, dial, handset, crate);
+  const phoneCrate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.36), mat(0x8B5E3C));
+  phoneCrate.position.y = -0.2;
+  phone.add(phoneBody, dial, handset, phoneCrate);
   phone.position.set(-2.55, 0.4, 0.25);
   phone.traverse((o) => { o.castShadow = true; });
   if (opts.lottie !== false) group.add(phone);
@@ -294,6 +370,8 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     kid,
     lottie: opts.lottie !== false ? lottie : undefined,
     react(kind) { pendingReaction = kind; },
+    reveal() { revealT = 0; levelRoot.visible = false; props.visible = false; },
+    knock() { knockT = 0; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
     setLevel(l) {
       if (l === level) return;
@@ -341,6 +419,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       kid.position.y = (level >= 3 ? 0.3 : 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
       idlePose(kid, time, 0.8);
       if (spin) spin.rotation.y = time * 0.8;
+      animateReveal(time);
+      animateKnock(Math.min(0.1, Math.max(0, time - lastTime)));
+      lastTime = time;
       animateLottie(time, !night, hot ?? false);
       // Ringing: the handset hops on its cradle.
       const r = ringing ? Math.abs(Math.sin(time * 40)) * 0.05 * MOTION + 0.02 : 0;

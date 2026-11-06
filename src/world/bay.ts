@@ -26,6 +26,8 @@ export interface PlotView {
   /** World-space spot where customers queue. */
   serve: THREE.Vector3;
   sidewalkZ: number;
+  /** The player's stand level last drawn here, so an upgrade can play its crate reveal. */
+  shownLevel?: number;
 }
 
 export interface Bay {
@@ -164,6 +166,8 @@ export function createBay(scene: THREE.Scene): Bay {
       m.setLevel(ps.stand.level);
       v.root.add(m.group);
       v.stand = m;
+      if (v.shownLevel && ps.stand.level > v.shownLevel && !ps.stand.wrecked) m.reveal();
+      v.shownLevel = ps.stand.level;
     } else if (ps.stand) v.root.add(rivalStand(ps.owner as RivalId, ps.stand.level));
     else if (!ps.owner) v.root.add(forSaleSign());
     if ((ps.stand?.wrecked || ps.facility?.wrecked) && v.root.children[0]) v.root.add(wreckLook(v.root.children[0]));

@@ -6,7 +6,7 @@ import type { RivalId } from '../sim/balance.ts';
 
 export type BarkMoment =
   | 'rush' | 'soldOut' | 'rankUp' | 'upgrade' | 'morningHot' | 'morningRain' | 'morning'
-  | 'raidComing' | 'raidHeld' | 'raidLost' | 'raidWon' | 'night';
+  | 'raidComing' | 'raidHeld' | 'raidLost' | 'raidWon' | 'night' | 'squawk';
 
 export const LOTTIE: Record<BarkMoment, string[]> = {
   rush: ['Atta kid!', 'Keep \'em coming!', 'That\'s my grandkid!', 'Pour faster, sugar!'],
@@ -21,6 +21,7 @@ export const LOTTIE: Record<BarkMoment, string[]> = {
   raidLost: ['We\'ll rebuild. Bigger.', 'Well. Guess she remembers me.', 'Hmph. Fetch the hammer.'],
   raidWon: ['That\'ll teach \'em.', 'Atta kid!', 'Don\'t tell your mother.'],
   night: ['Zzz…', 'Zzz… lemons…'],
+  squawk: ['Squawk! Drop it!', 'That bird.', 'Not the good lemons!'],
 };
 
 /** What each boss says on the phone, by mood (spec "Phone taunts" and "Tone guide"). */
@@ -65,3 +66,12 @@ export const CUSTOMER = {
 } as const;
 
 export const pick = <T,>(lines: readonly T[]) => lines[Math.floor(Math.random() * lines.length)];
+
+/** What a loitering henchman mutters while glaring at your stand. */
+export const HENCH: Record<RivalId, string[]> = {
+  blenders: ['Bro.', 'Nice stand. For now.', '*flexes*'],
+  coldbrew: ['…', 'Mm.', '*sips iced coffee*'],
+  hollis: ['Git.', 'Hm.', 'My boss\'s land.'],
+  fizzco: ['Noted.', 'Reporting this.', '*on the phone*'],
+  sourwood: ['Tsk.', 'How common.', 'Ahem.'],
+};

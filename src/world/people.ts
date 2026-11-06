@@ -27,6 +27,9 @@ export const MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-r
 const cupGeo = new THREE.CylinderGeometry(0.07, 0.055, 0.17, 10);
 cupGeo.translate(0, 0.085, 0);
 const cupMat = new THREE.MeshStandardMaterial({ color: 0xfff3a6, roughness: 0.5 });
+const umbrellaGeo = new THREE.ConeGeometry(0.55, 0.28, 8, 1, true);
+const stickGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.6, 5);
+const UMBRELLAS = [0xE8704F, 0x3BB4C1, 0xF7C948, 0xF4A3B5, 0x7CC47F];
 
 /**
  * Hop-walk pose for any peg doll: lifts it off the ground at mid-stride and
@@ -114,7 +117,10 @@ const GAIT: Record<Gait, { hop: number; cadence: number; swing: number }> = {
 };
 
 /** What a walker did, so the world can put a bubble over them. */
-export type WalkerMoment = 'sale' | 'miss' | 'sip';
+export type WalkerMoment = 'sale' | 'miss' | 'sip' | 'sweat';
+
+/** Weather changes how people move: umbrellas and hurrying in rain, dragging feet in a heat wave. */
+export type StreetWeather = 'scorcher' | 'hot' | 'warm' | 'cloudy' | 'rainy' | 'storm';
 
 export type WalkerKind = 'pass' | 'sale' | 'miss' | 'grumble';
 
@@ -127,6 +133,7 @@ export interface Crowd {
   update(dt: number, speedScale: number): void;
   clear(): void;
   activeCount(): number;
+  setWeather(kind: StreetWeather): void;
 }
 
 /** Laptop cap from the spec (about 150 animated people in Street View). */
@@ -138,10 +145,24 @@ export function createCrowd(
   pool = CROWD_POOL,
 ): Crowd {
   const walkers: Walker[] = [];
+  const umbrellas: THREE.Group[] = [];
+  let weather: StreetWeather = 'warm';
   for (let i = 0; i < pool; i++) {
     const obj = makePerson();
     obj.visible = false;
     // The cup rides in the right mitten.
+    // An umbrella for rainy days, held up in the left mitten.
+    const umbrella = new THREE.Group();
+    const canopy = new THREE.Mesh(umbrellaGeo, m(UMBRELLAS[i % UMBRELLAS.length]));
+    canopy.position.y = 0.55;
+    const stick = new THREE.Mesh(stickGeo, m(0x8B5E3C));
+    stick.position.y = 0.25;
+    umbrella.add(canopy, stick);
+    umbrella.position.set(0, -0.45, 0);
+    umbrella.rotation.x = Math.PI;
+    umbrella.visible = false;
+    (obj.userData.limbs as THREE.Mesh[])[2].add(umbrella);
+    umbrellas.push(umbrella);
     const cup = new THREE.Mesh(cupGeo, cupMat);
     cup.position.set(0, -0.5, 0.06);
     cup.visible = false;
@@ -223,13 +244,15 @@ export function createCrowd(
         const pos = w.obj.position;
         const dx = target.x - pos.x, dz = target.z - pos.z;
         const dist = Math.hypot(dx, dz);
-        const move = w.speed * step * (w.huff ? 1.35 : 1);
+        const wet = weather === 'rainy' || weather === 'storm';
+        const move = w.speed * step * (w.huff ? 1.35 : 1) * (wet ? 1.3 : weather === 'scorcher' ? 0.85 : 1);
         if (dist <= move) {
           pos.set(target.x, pos.y, target.z);
           // Arrived at the counter (the middle waypoint of a detour).
           if (w.popup?.atCounter && w.leg === 2) {
             const sale = w.popup.kind === 'sale';
             w.wait = sale ? 0.9 : 0.4;
+            if (weather === 'scorcher' && Math.random() < 0.3) onArrive(pos.clone().setY(2.1 * w.base), '', 'sweat', w.obj);
             // Gave up on the line: a foot-tapping wait, then stomp off quicker.
             if (!sale && w.popup.text === 'line') { w.wait = 1.2; w.huff = true; }
             if (sale) { w.cup.visible = true; w.served = 0; w.boing = 0.35; }
@@ -258,7 +281,7 @@ export function createCrowd(
         const swing = Math.sin(w.phase) * g.swing;
         limbs[0].rotation.x = swing;
         limbs[1].rotation.x = -swing;
-        limbs[2].rotation.x = -swing * 0.8;
+        limbs[2].rotation.x = wet ? -2.6 : -swing * 0.8;
         hopPose(w.obj, w.phase, w.base, 0.12, w.huff ? 1.4 : g.hop);
         if (w.huff) w.obj.rotation.x = 0.12; else w.obj.rotation.x = w.gait === 'shuffle' ? 0.08 : 0;
         // A few steps after the counter, the buyer stops swinging the cup and sips.
@@ -274,5 +297,11 @@ export function createCrowd(
       for (const w of walkers) { w.active = false; w.obj.visible = false; }
     },
     activeCount() { return walkers.filter((w) => w.active).length; },
+    setWeather(kind) {
+      if (kind === weather) return;
+      weather = kind;
+      const wet = kind === 'rainy' || kind === 'storm';
+      for (const u of umbrellas) u.visible = wet;
+    },
   };
 }

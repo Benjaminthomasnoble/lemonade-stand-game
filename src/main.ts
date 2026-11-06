@@ -22,7 +22,11 @@ import { createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
 import type { Emote } from './ui/emotes.ts';
 import { createPhone } from './ui/phone.ts';
-import { BOSS, CUSTOMER, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
+import { createBugle } from './ui/bugle.ts';
+import { BOSS, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
+import { createAmbient } from './world/ambient.ts';
+import { createScenes, type SceneId } from './world/scenes.ts';
+import { createGullFlight } from './world/gullflight.ts';
 
 const LOOK: Partial<Record<SegmentId, { scale?: number; speed?: number; gait?: Gait }>> = {
   kids: { scale: 0.68, speed: 1.15, gait: 'skip' },
@@ -113,6 +117,13 @@ async function main() {
     }
   };
 
+  /** Ask for a photo of this frame for tomorrow's Bugle; the best moment of the day wins. */
+  let snapReq: { headline: string; score: number } | null = null;
+  const snap = (headline: string, score: number, delay = 0) => {
+    const go = () => { if (!snapReq || snapReq.score < score) snapReq = { headline, score }; };
+    if (delay) setTimeout(go, delay); else go();
+  };
+
   /** Lottie reads the sky each morning. */
   const morningLine = () => {
     if (state.phase !== 'prep') return;
@@ -131,16 +142,32 @@ async function main() {
       const size = coinTimes.length >= RUSH_COINS ? 3 : coinTimes.length >= 3 ? 2 : 1;
       hud.popup(x, y, text, 'sale');
       hud.coin(x, y, size, () => audio.ding(size > 1));
-      if (coinTimes.length >= RUSH_COINS) lottieSays('rush', { react: 'cheer', cooldown: 25000 });
+      if (coinTimes.length >= RUSH_COINS) { lottieSays('rush', { react: 'cheer', cooldown: 25000 }); snap('LINE DOWN THE BLOCK AT LOTTIE\'S LEMONADE', 2, 400); }
     } else if (kind === 'miss') {
       bubbles.say(who, '', { kind: 'thought', icon: text as Emote, ms: 1800 });
       if (text === MISS_TEXT.pricey && Math.random() < 0.3) audio.babble(pick(CUSTOMER.grumble), 1, 'grumpy');
       if (text === MISS_TEXT.soldOut) lottieSays('soldOut', { react: 'fist', cooldown: 20000 });
+    } else if (kind === 'sweat') {
+      bubbles.say(who, '', { kind: 'thought', icon: 'sweat', ms: 1400 });
     } else if (kind === 'sip' && Math.random() < SIP_CHANCE) {
       // Most buyers just glow (a clay heart); some say thanks in Lemonese.
       if (Math.random() < 0.5) bubbles.say(who, '', { kind: 'thought', icon: 'bought', ms: 1400 });
       else { const l = pick(CUSTOMER.sip); bubbles.say(who, l, { ms: 1400 }); audio.babble(l, who.scale.y < 0.8 ? 1.7 : 1.1 + Math.random() * 0.4, 'happy'); }
     }
+  });
+
+  const ambient = createAmbient(world.scene, {
+    onSquawkSteal: (gull) => {
+      bubbles.say(gull, 'SQUAWK!', { who: 'Captain Squawk', height: 0.9, ms: 1600 });
+      setTimeout(() => lottieSays('squawk', { react: 'fist' }), 500);
+    },
+    onGlare: (who, rival) => { if (Math.random() < 0.5) { const l = pick(HENCH[rival]); bubbles.say(who, l, { ms: 1800 }); audio.babble(l, 0.8, 'grumpy'); } },
+  });
+
+  const scenes = createScenes(world.scene, {
+    say: (who, line, speaker, color) => { bubbles.say(who, line, { who: speaker, color, height: 2.1 }); audio.babble(line, speaker === 'Dex' ? 1.2 : 0.9, 'flat'); },
+    lottie: (line, react) => lottieSays('morning', { text: line, react }),
+    ring: () => phone.ring('sourwood', 'I sent your grandmother a reminder, dear.'),
   });
 
   const vip = createVip(world.scene);
@@ -186,6 +213,7 @@ async function main() {
     focusPlot(b.target, 20);
     battle.play(b, bay.views[b.target], () => {
       hud.toast(battleHeadline(b)); audio.stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
+      snap(battleHeadline(b).toUpperCase(), 5);
       if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
       else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
       const rival = (b.attacker === 'player' ? b.defender : b.defender === 'player' ? b.attacker : null) as RivalId | null;
@@ -212,7 +240,7 @@ async function main() {
       case 'open': openStands(state); acc = 0; if (speed === 0) speed = 1; break;
       case 'speed': speed = a.value; break;
       case 'skip': simulateRestOfDay(state); crowd.clear(); afterClose(); break;
-      case 'sleep': if (sleepUntilDawn(state)) saveDawn(state); crowd.clear(); battle.stop(); afterSleep(); morningLine(); break;
+      case 'sleep': if (sleepUntilDawn(state)) saveDawn(state); crowd.clear(); battle.stop(); afterSleep(); morningLine(); { const shot = bugle.best(state.day - 1); if (shot) bugle.show(shot); } break;
       case 'mute': hud.muted = audio.toggle(); break;
       case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); break;
       case 'cancelSetup': hud.setup = null; break;
@@ -235,7 +263,10 @@ async function main() {
       case 'upgrade': {
         const before = selectedStand(state).level;
         upgradeStand(state);
-        if (selectedStand(state).level > before) setTimeout(() => lottieSays('upgrade', { react: 'cheer' }), 300); // after the new stand is built
+        if (selectedStand(state).level > before) {
+          setTimeout(() => lottieSays('upgrade', { react: 'cheer' }), 1700); // as the crate bursts
+          snap('LOTTIE\'S STAND GETS A MAKEOVER; NEIGHBORS GAWK', 4, 2000);
+        }
         break;
       }
       case 'brand': buyBrand(state); break;
@@ -285,6 +316,7 @@ async function main() {
     hud.render(state, speed);
   };
   const hud = createHud(document.getElementById('ui')!, act);
+  const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
   hud.muted = audio.muted();
@@ -293,7 +325,7 @@ async function main() {
   const flushNews = () => {
     while (state.news.length) {
       const n = state.news.shift()!;
-      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { audio.stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); }
+      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { audio.stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); }
       if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) audio.stinger('squeezed-out');
       hud.toast(n);
     }
@@ -318,6 +350,20 @@ async function main() {
     return { el, pos: new THREE.Vector3(d.origin[0] + (d.cols * PLOT_SPACING) / 2, 2, d.origin[1]) };
   });
 
+  // Gull Flight: G (or the button) takes Captain Squawk up; G or Esc lands.
+  const flight = createGullFlight(world.camera, world.controls, ambient.squawk, canvas);
+  const gullBtn = document.createElement('button');
+  gullBtn.className = 'gullbtn';
+  gullBtn.title = 'Fly Captain Squawk over the bay (G)';
+  gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
+  gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else flight.start(); gullBtn.classList.toggle('on', flight.active()); });
+  document.getElementById('ui')!.appendChild(gullBtn);
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyG' || hud.setup || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (flight.active()) flight.stop(); else flight.start();
+    gullBtn.classList.toggle('on', flight.active());
+  });
+
   // Keyboard: space pauses, 1-3 set speed.
   window.addEventListener('keydown', (e) => {
     if (state.phase !== 'open' || hud.setup) return;
@@ -333,6 +379,9 @@ async function main() {
     crowd: () => crowd.activeCount(),
     bubbles: () => bubbles.count(),
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
+    bugle: () => { snap('TEST EDITION: LOTTIE\'S CORNER', 9); },
+    showBugle: () => { const b = bugle.best(state.day); if (b) bugle.show(b); return !!b; },
+    scene: (id: SceneId) => scenes.play(id),
     ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
     battle: () => battle.active(),
     vip: () => vip.active(),
@@ -364,13 +413,18 @@ async function main() {
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     bay.update(state, timer.getElapsed(), phone.ringing());
+    crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
     vip.update(dt);
+    ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
+    flight.update(dt);
+    if (!flight.active()) gullBtn.classList.remove('on');
+    scenes.update(state, state.phase === 'open' && speed === 0 ? 0 : dt, bay.views);
     if (state.phase === 'report') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) { speed = vipResume; vipResume = 0; }
-    world.update(dt);
+    if (!flight.active()) world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {
       const show = dist > 90;
@@ -378,6 +432,10 @@ async function main() {
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }
     world.renderer.render(world.scene, world.camera);
+    if (snapReq) {
+      try { bugle.offer({ url: canvas.toDataURL('image/jpeg', 0.7), ...snapReq, day: state.day }); } catch { /* tainted or lost canvas: no photo today */ }
+      snapReq = null;
+    }
     hud.render(state, speed);
   });
   document.body.dataset.ready = '1';

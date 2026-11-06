@@ -33,6 +33,7 @@ async function main() {
   const seedParam = params.get('seed');
   let state: GameState = (seedParam ? null : loadGame()) ?? newGame(seedParam ? Number(seedParam) : undefined);
   let speed = 1;
+  let vipResume = 0; // speed to restore after a first-visit VIP scene
   let acc = 0;
 
   const audio = createAudio();
@@ -72,8 +73,14 @@ async function main() {
       if (e.raid) { playBattle(e.raid); continue; }
       const o = e.order;
       if (!e.ok || !o.plot || (o.tier !== 'heli' && o.tier !== 'ship')) continue;
-      crowd.clear();
-      focusPlot(o.plot, o.tier === 'ship' ? 60 : 45);
+      // Only a client's first visit stops the clock for the show; regulars just land and load.
+      const seen = (state.seenClients ??= []);
+      if (!seen.includes(o.client)) {
+        seen.push(o.client);
+        crowd.clear();
+        focusPlot(o.plot, o.tier === 'ship' ? 60 : 45);
+        if (speed) { vipResume = speed; speed = 0; }
+      }
       vip.play(o.tier, bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1);
       audio.stinger('raid-won');
     }
@@ -238,6 +245,7 @@ async function main() {
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
     vip.update(dt);
+    if (vipResume && !vip.active()) { speed = vipResume; vipResume = 0; }
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {

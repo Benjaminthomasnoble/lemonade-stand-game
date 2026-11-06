@@ -6,13 +6,13 @@ import { nextRandom, randomRange } from './rng.ts';
 import {
   AUTO_RESTOCK_DAY, BASE_STOP_CHANCE, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
   CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, OPEN,
-  PROPERTY_TAX_WEEKLY, RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, BOARDWALK_SEASON, SEASON_TEMP_SHIFT, SEASON_WEATHER,
+  RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, BOARDWALK_SEASON, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
 import { pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order } from './vip.ts';
-import { rivalsBankrupt, seedRivalFacilities } from './rivals.ts';
+import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -64,9 +64,10 @@ export interface PlotState {
   defense: Defense;
   garrison?: number; // rival henchmen on guard here
   facility?: Facility; // Bottling Works, Helipad or Pier
-  dibs?: { who: FactionId; until: number; price?: number }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
+  dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
   wreckedDay?: number; // day the stand or facility here was smashed
   smashedBy?: FactionId;
+  smashes?: number[]; // days this plot was smashed (rebuild chance drops for each in the last 7 days)
 }
 
 export interface Defense { tier: number; fenceHp: number; gadgets: GadgetId[] }
@@ -81,6 +82,8 @@ export interface RivalState {
   respectUntil: number; // won't raid the player before this day
   truceUntil?: number; // Sit-down truce: no raids either way through this day
   brokeDays?: number; // days in a row in the red (7 = bankrupt)
+  outsoldDays?: number; // days in a row the player sold 2x what they did (7 = Weakened)
+  salesToday?: number;
 }
 
 export interface DayStats {
@@ -133,6 +136,8 @@ export interface GameState {
   battles: BattleReport[]; // most recent first
   respectFromPlayer: Partial<Record<RivalId, number>>;
   bottles: number;
+  seenClients?: string[]; // VIP clients who've visited before (no cutscene pause after the first)
+  noTruceUntil?: number; // after breaking a truce, no rival accepts one through this day
   offers: Order[];
   orders: Order[];
 }
@@ -606,7 +611,6 @@ function closeDay(s: GameState): void {
     const ps = s.plots[p.id];
     const st = ps.stand;
     if (ps.owner === 'player') {
-      t.tax = round2(t.tax + ps.landValue * PROPERTY_TAX_WEEKLY / 7);
       if (st) {
         t.upkeep += standLevel(st).upkeep;
         t.iceMelted += st.inventory.ice;
@@ -619,6 +623,7 @@ function closeDay(s: GameState): void {
       }
     } else if (ps.owner && st) {
       s.rivals[ps.owner as RivalId].cash -= standLevel(st).upkeep;
+      s.rivals[ps.owner as RivalId].salesToday = (s.rivals[ps.owner as RivalId].salesToday ?? 0) + st.day.revenue;
     }
   }
   t.revenue = round2(revenue);
@@ -634,6 +639,7 @@ function closeDay(s: GameState): void {
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
   s.peakScore = Math.max(s.peakScore, successScore(s));
+  trackOutselling(s);
   checkRank(s);
   s.phase = 'report';
   planNight(s);
@@ -728,7 +734,8 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
 /** What the player pays for an open plot: land value, or the Fire Sale price while they have First Dibs. */
 export function plotPrice(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
-  return ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined ? ps.dibs.price : ps.landValue;
+  const base = ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined ? ps.dibs.price : ps.landValue;
+  return Math.round(base * familySilver(s));
 }
 
 export function buyPlot(s: GameState, plotId: string): boolean {
@@ -738,6 +745,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   s.cash = round2(s.cash - price);
   s.today.land = round2(s.today.land + price);
   ps.owner = 'player';
+  if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1, selectedStand(s).price); ps.invested += STAND_LEVELS[0].cost; }
   delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
   return true;

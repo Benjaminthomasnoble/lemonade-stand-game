@@ -211,7 +211,8 @@ export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);
 /** Stand hit points by level (how much chopping a Smash needs). */
 export const STAND_HP = STAND_LEVELS.map((l) => l.hp);
 /** Repair a wrecked stand for this share of what was invested in it. */
-export const REBUILD_SHARE = 0.3;
+export const REBUILD_SHARE = 0.15;
+export const REPAIR_SHARE = 0.15; // of the fence's price, times the share of HP lost
 export const NO_RAID_DAYS = 5;
 export const RESPECT_DAYS = 3;
 /** Rival raids on the player per week, by Threat (Classic). */

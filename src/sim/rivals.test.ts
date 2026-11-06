@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
-  isWeakened, makeTruce, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
+  isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
 } from './economy.ts';
 
 function rich(seed = 1): GameState {
@@ -116,5 +116,44 @@ describe('knock it down, buy it up', () => {
     s.day += 1;
     crewAtDawn(s);
     expect(s.plots[home.id].owner).not.toBe('player');
+  });
+});
+
+describe('review rules', () => {
+  it('breaking a truce bans truces for 14 days', () => {
+    const s = rich();
+    makeTruce(s, 'blenders');
+    breakTruce(s, 'blenders');
+    expect(canTruce(s, 'coldbrew').ok).toBe(false);
+    s.day += 14;
+    expect(canTruce(s, 'coldbrew').ok).toBe(true);
+  });
+
+  it('outselling a rival 2x for 7 days weakens them', () => {
+    const s = rich();
+    s.cash = 1000;
+    expect(isWeakened(s, 'fizzco')).toBe(false);
+    for (let i = 0; i < 7; i++) { s.today.revenue = 1000; s.rivals.fizzco.salesToday = 400; trackOutselling(s); }
+    expect(isWeakened(s, 'fizzco')).toBe(true);
+  });
+
+  it('each recent Smash cuts the rebuild chance by 30 points', () => {
+    const s = rich();
+    const p = ownedPlots(s, 'sourwood').find((q) => s.plots[q.id].stand)!;
+    expect(rebuildChance(s, p.id)).toBeCloseTo(0.8);
+    s.plots[p.id].smashes = [s.day];
+    expect(rebuildChance(s, p.id)).toBeCloseTo(0.5);
+  });
+
+  it('Day 3: the side lot sells for $300 with a table', () => {
+    const s = newGame(2);
+    s.day = 3;
+    offerSideLot(s);
+    const lot = PLOTS.find((p) => s.plots[p.id].dibs?.table)!;
+    expect(lot.district).toBe(PLOTS.find((p) => p.id === LOTTIES_CORNER)!.district);
+    s.cash = 400;
+    expect(buyPlot(s, lot.id)).toBe(true);
+    expect(s.cash).toBe(100);
+    expect(s.plots[lot.id].stand?.level).toBe(1);
   });
 });

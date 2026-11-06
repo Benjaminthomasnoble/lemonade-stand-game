@@ -11,7 +11,7 @@ import {
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
   bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilityFor, ORDER_TIERS, tierOpen, PLOTS,
-  type FacilityKind, type OrderTier,
+  type FacilityKind, type OrderTier, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
@@ -199,11 +199,16 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function topbar(s: GameState) {
     const w = s.phase === 'prep' ? s.forecast : s.weather;
     const ss = successScore(s);
-    const r = rankFor(ss);
+    const r = { ...RANKS[s.rank - 1], next: RANKS[s.rank] }; // ranks never drop
+    // Progress to the next rank; building dips the score, shown as a striped "invested" sliver.
+    const lo = r.ss, hi = r.next?.ss ?? r.ss;
+    const pct = (v: number) => (hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 100);
+    const now = pct(ss), peak = Math.max(now, pct(s.peakScore));
+    const bar = `<div class="rankbar" title="${r.next ? `${whole(hi - ss)} to ${r.next.title}` : 'Top rank'}${peak > now ? ' · striped: invested in buildings, it fills back in' : ''}"><div class="fill" style="width:${now}%"></div><div class="invested" style="left:${now}%;width:${peak - now}%"></div></div>`;
     return `
       <div class="chip title">🍋 <span class="hide-sm">Lottie's Lemonade</span></div>
       <div class="chip" data-testid="cash"><span class="label">Cash</span>${money(s.cash)}</div>
-      <div class="chip" title="Success Score = your net worth"><span class="badge">R${r.rank}</span><span class="hide-sm">${r.title} ·</span> <span data-testid="score">${whole(ss)}</span></div>
+      <div class="chip" title="Success Score = your net worth"><span class="badge">R${r.rank}</span><span class="hide-sm">${r.title} ·</span> <span data-testid="score">${whole(ss)}</span>${bar}</div>
       <div class="chip hide-sm"><span class="label">Reputation</span>${stars(s.reputation)}</div>
       <div class="chip hide-sm" title="How hard rivals are coming for you: more lemons, more raids" data-testid="threat"><span class="label">Threat</span>${'🍋'.repeat(threatLevel(s))}</div>
       <div class="chip"><span class="label">${SEASON_LABEL[seasonOf(s.day)]} day ${seasonDay(s.day)}</span>${clock(s.minute)}</div>
@@ -550,7 +555,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const night = odds(true);
     const day = odds(false);
     const can = canRaid(s, id, ids);
-    return `<div class="planner" data-testid="raid-planner"><b>Raid Planner</b> <span class="muted">(squad ${ids.length}/${SQUAD_CAP(s.rank)})</span>
+    return `<div class="planner" data-testid="raid-planner"><b>Raid Planner</b> <span class="muted">(squad ${ids.length}/${SQUAD_CAP(s.rank)} · if smashed, they rebuild: ${Math.round(rebuildChance(s, id) * 100)}%)</span>
       ${squadPicker(s)}
       <div class="acts"><button class="small ${objective === 'smash' ? 'on' : 'ghost'}" data-action="objective" data-value="smash">Smash</button><button class="small ${objective === 'shakedown' ? 'on' : 'ghost'}" data-action="objective" data-value="shakedown">Shakedown</button></div>
       <div class="muted">${objective === 'smash' ? 'Wreck it. If they can\'t rebuild, you get First Dibs on the land.' : 'Grab about a day\'s takings from the till.'}</div>

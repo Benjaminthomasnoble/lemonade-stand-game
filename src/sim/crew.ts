@@ -5,14 +5,14 @@
 import {
   CLUBHOUSE, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RESPECT_DAYS, ROSTER_BASE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RESPECT_DAYS, ROSTER_BASE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Objective } from './combat.ts';
-import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
+import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
-import { ownedPlots, successScore } from './economy.ts';
+import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
 import { breakTruce } from './rivals.ts';
 
@@ -77,17 +77,13 @@ export function buildingHp(ps: PlotState): number {
   if (ps.facility) return ps.facility.wrecked ? 0 : FACILITIES[ps.facility.kind].hp[ps.facility.level - 1];
   return 0;
 }
+export const SIDE_LOT_PRICE = 300;
 export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale if it isn't rebuilt by the next dawn but one
 
 // ---------- Threat ----------
 
 export function threatLevel(s: GameState): number {
-  let t = Math.ceil(s.rank / 2);
-  if (s.rank >= 5) {
-    const me = successScore(s);
-    if (RIVALS.every((r) => !s.rivals[r].alive || successScore(s, r) < me)) t++;
-  }
-  return Math.min(5, Math.max(1, t));
+  return Math.min(5, Math.max(1, Math.ceil(s.rank / 2)));
 }
 
 // ---------- defenses ----------
@@ -119,7 +115,7 @@ export function buyPerimeter(s: GameState, plotId: string): boolean {
 export function fenceRepairCost(ps: PlotState): number {
   const per = PERIMETERS[ps.defense.tier - 1];
   if (!per || ps.defense.fenceHp >= per.hp) return 0;
-  return Math.ceil(per.repair * (1 - ps.defense.fenceHp / per.hp));
+  return Math.ceil(per.cost * REPAIR_SHARE * (1 - ps.defense.fenceHp / per.hp));
 }
 
 export function repairFence(s: GameState, plotId: string): boolean {
@@ -151,6 +147,15 @@ export function buyGadget(s: GameState, plotId: string, g: GadgetId): boolean {
   ps.invested += GADGETS[g].cost;
   ps.defense.gadgets.push(g);
   return true;
+}
+
+/** A rival's chance to rebuild a smashed building here: 40–80% by personality, −30 points per Smash in the last 7 days. */
+export function rebuildChance(s: GameState, plotId: string): number {
+  const ps = s.plots[plotId];
+  if (!ps.owner || ps.owner === 'player') return 0;
+  const recent = (ps.smashes ?? []).filter((d) => d > s.day - 7).length;
+  const next = isWrecked(ps) ? recent : recent + 1; // before a raid: counting the smash you're planning
+  return Math.max(0, FACTIONS[ps.owner as RivalId].rebuild - 0.3 * Math.max(0, next - 1));
 }
 
 export function rebuildCost(ps: PlotState): number {
@@ -414,9 +419,17 @@ export function planNight(s: GameState): void {
         const guards = s.guards.filter((g) => g.post === p.id).length;
         return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
       };
-      const target = mine.sort((a, b) => score(b) - score(a))[0];
-      const party = raidParty(s, rival, threat, rng);
-      const detected = nextRandom(rng) < detectionChance(s, target.id, true);
+      let target = mine.sort((a, b) => score(b) - score(a))[0];
+      let party = raidParty(s, rival, threat, rng);
+      let detected = nextRandom(rng) < detectionChance(s, target.id, true);
+      if (!s.battles.some((b) => b.defender === 'player')) {
+        // The tutorial raid: two Smoothie Bros with bare fists, straight at Dex. It always bounces.
+        const dex = s.guards.find((g) => g.name === 'Dex Moody' && g.post);
+        target = (dex ? PLOT_BY_ID[dex.post!] : target);
+        rival = s.rivals.blenders.alive ? 'blenders' : rival;
+        party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
+        detected = true;
+      }
       const objective: Objective = nextRandom(rng) < 0.5 || threat === 1 ? 'shakedown' : 'smash';
       const h = 21 + Math.floor(nextRandom(rng) * 6), m = Math.floor(nextRandom(rng) * 4) * 15;
       s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: `${String(h % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}` });
@@ -458,6 +471,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     if (ps.stand) ps.stand.wrecked = true; else ps.facility!.wrecked = true;
     ps.wreckedDay = s.day;
     ps.smashedBy = raid.attacker;
+    ps.smashes = [...(ps.smashes ?? []).filter((d) => d > s.day - 7), s.day];
     if (defender !== 'player') ps.garrison = 0;
   }
   if (res.outcome === 'robbed' && !raid.delivery) {
@@ -548,6 +562,7 @@ export function crewAtDawn(s: GameState): void {
     s.news.push(`${quitter.name} quits: "No pay, no play."`);
   }
   if (s.day >= 6) welcomeDex(s);
+  if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
@@ -574,8 +589,7 @@ export function crewAtDawn(s: GameState): void {
     }
     const r = s.rivals[ps.owner as RivalId];
     const cost = rebuildCost(ps);
-    const f = FACTIONS[ps.owner as RivalId];
-    if (r.cash > cost + 500 && nextRandom(rng) < f.rebuild) {
+    if (r.cash > cost + 500 && nextRandom(rng) < rebuildChance(s, p.id)) {
       r.cash -= cost;
       if (ps.stand) ps.stand.wrecked = false;
       if (ps.facility) ps.facility.wrecked = false;
@@ -616,6 +630,16 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
     if (nextRandom(rng) < f.guard + 0.2) ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] };
     ps.garrison = Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level);
   }
+}
+
+/** Day 3: Lottie sells you the side lot by the Corner for $300, table included. */
+export function offerSideLot(s: GameState): void {
+  const home = PLOT_BY_ID[LOTTIES_CORNER];
+  const lot = PLOTS.filter((p) => p.district === home.district && p.type === 'street' && !s.plots[p.id].owner)
+    .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))[0];
+  if (!lot) return;
+  s.plots[lot.id].dibs = { who: 'player', until: s.day + 6, price: SIDE_LOT_PRICE, table: true };
+  s.news.push(`Lottie: "The side lot next to the Corner is yours for ${money(SIDE_LOT_PRICE)}, folding table and all." (${lot.name})`);
 }
 
 /** Dex Moody, the first guard, turns up on Day 6 (when raids can start). */

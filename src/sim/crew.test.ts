@@ -77,13 +77,13 @@ describe('crew and raids', () => {
     }
   });
 
-  it('rebuilding a wrecked stand costs 30% of what went into it', () => {
+  it('rebuilding a wrecked stand costs 15% of what went into it', () => {
     const s = newGame(9);
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
     s.cash = 500;
-    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(45);
+    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(23);
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
-    expect(s.cash).toBe(455);
+    expect(s.cash).toBe(477);
   });
 
   it('the night is deterministic', () => {

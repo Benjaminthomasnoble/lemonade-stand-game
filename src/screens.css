@@ -61,3 +61,7 @@
 .order { background: #fff; border-radius: 10px; padding: 8px; margin: 6px 0; }
 .order .muted { font-size: 0.8em; }
 .orders h3 { margin-top: 6px; }
+
+.rankbar { position: relative; display: inline-block; width: 60px; height: 6px; margin-left: 6px; background: #f0e3b0; border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.rankbar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--good); }
+.rankbar .invested { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, var(--good) 0 3px, transparent 3px 6px); opacity: 0.7; }

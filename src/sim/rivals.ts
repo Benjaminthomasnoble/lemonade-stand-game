@@ -18,12 +18,13 @@ export const SITDOWN_RANK = 4;
 export const FACTION_BUYOUT_RANK = 5;
 export const TRUCE_DAYS = 7;
 export const TRUCE_BREAK_STARS = 1;
+export const TRUCE_BAN_DAYS = 14;
 export const PLOT_BUYOUT = { home: 2.5, away: 2 };
 export const FIRE_SALE = { share: 0.75, days: 2 };
 export const BANKRUPT_DAYS = 7;
 /** Per faction: HQ assault rank, Gate HP, Faction Buyout multiple (null = never sells), boss and HQ difficulty tier. */
 export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number | null; tier: number; boss: string; move: string }> = {
-  blenders: { rank: 4, gate: 2000, buyout: 1.5, tier: 2, boss: 'Brock "The Blender" Bodine', move: 'Blender Rush' },
+  blenders: { rank: 4, gate: 2000, buyout: 1.5, tier: 1, boss: 'Brock "The Blender" Bodine', move: 'Blender Rush' },
   coldbrew: { rank: 5, gate: 2750, buyout: 1.8, tier: 3, boss: 'Juniper "Juni" Grind', move: 'Espresso Shot' },
   hollis: { rank: 6, gate: 3500, buyout: 1.5, tier: 3, boss: 'Tilly Hollis', move: 'Hay Bale Wall' },
   fizzco: { rank: 7, gate: 4250, buyout: 1.8, tier: 4, boss: 'Preston Fizzwell III', move: 'Hostile Takeover' },
@@ -45,13 +46,37 @@ export function seedRivalFacilities(s: GameState): void {
 
 // ---------- Weakened ----------
 
-/** Weakened: holds 40% or less of its peak plots, or its Net Worth is under 25% of yours. */
+export const OUTSELL = { ratio: 2, days: 7 };
+
+/** Weakened: holds 40% or less of its peak plots, its Net Worth is under 25% of yours, or you've outsold it 2x for 7 days running. */
 export function isWeakened(s: GameState, id: RivalId): boolean {
   const r = s.rivals[id];
   if (!r.alive) return false;
   const plots = ownedPlots(s, id).length;
-  return plots <= r.peakPlots * 0.4 || netWorth(s, id) < netWorth(s) * 0.25;
+  return plots <= r.peakPlots * 0.4 || netWorth(s, id) < netWorth(s) * 0.25 || (r.outsoldDays ?? 0) >= OUTSELL.days;
 }
+
+/** At closing: count the days in a row the player's sales were at least double each rival's. */
+export function trackOutselling(s: GameState): void {
+  for (const id of RIVALS) {
+    const r = s.rivals[id];
+    const theirs = r.salesToday ?? 0;
+    r.outsoldDays = r.alive && s.today.revenue >= OUTSELL.ratio * theirs && s.today.revenue > 0 ? (r.outsoldDays ?? 0) + 1 : 0;
+    r.salesToday = 0;
+  }
+}
+
+// ---------- Trophies ----------
+
+export const TROPHIES: Record<RivalId, { name: string; perk: string }> = {
+  blenders: { name: 'Blender Bar', perk: 'Frozen recipes sell for 20% more' },
+  coldbrew: { name: "Juni's Grapevine", perk: 'Raid warnings arrive 1 game hour earlier' },
+  hollis: { name: 'Hollis Orchards', perk: 'Each Lemon Grove brings +10% traffic instead of +5%' },
+  fizzco: { name: 'Bottling Line', perk: 'Bottles fill 25% faster' },
+  sourwood: { name: 'Family Silver', perk: 'Land, Plot Buyouts and auction bids cost 10% less' },
+};
+export const hasTrophy = (s: GameState, id: RivalId) => s.plots[hqPlot(id).id]?.owner === 'player';
+export const familySilver = (s: GameState) => (hasTrophy(s, 'sourwood') ? 0.9 : 1);
 
 export const hqPlot = (id: RivalId): Plot => PLOTS.find((p) => p.type === 'hq' && p.district === FACTIONS[id].home)!;
 
@@ -64,6 +89,7 @@ export function canTruce(s: GameState, id: RivalId): Blocker {
   if (s.rank < SITDOWN_RANK) return rankNeed(SITDOWN_RANK);
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   if (inTruce(s, id)) return { ok: false, why: `Truce until day ${s.rivals[id].truceUntil}` };
+  if ((s.noTruceUntil ?? 0) >= s.day) return { ok: false, why: `Nobody trusts your handshake until day ${s.noTruceUntil! + 1}` };
   if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
   if (s.cash < truceCost(s)) return { ok: false, why: `Tribute is ${money(truceCost(s))}` };
   return { ok: true };
@@ -89,6 +115,7 @@ export function breakTruce(s: GameState, id: RivalId): void {
   s.rivals[id].respectUntil = 0;
   s.reputation = Math.max(1, round2(s.reputation - TRUCE_BREAK_STARS));
   for (const r of RIVALS) s.rivals[r].grudge = Math.min(100, s.rivals[r].grudge + 25);
+  s.noTruceUntil = s.day + TRUCE_BAN_DAYS - 1;
   s.news.push(`Lottie breaks the truce with ${FACTIONS[id].name}! The whole Bay is talking. (−${TRUCE_BREAK_STARS} star)`);
 }
 
@@ -99,7 +126,7 @@ export function plotBuyoutPrice(s: GameState, plotId: string): number {
   const id = ps.owner as RivalId;
   const home = PLOT_BY_ID[plotId].district === FACTIONS[id].home;
   const nudge = 1 + s.rivals[id].grudge / 200 + (id === 'sourwood' ? 0.2 : 0);
-  return Math.round(ps.landValue * (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away) * nudge);
+  return Math.round(ps.landValue * (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away) * nudge * familySilver(s));
 }
 
 export function canPlotBuyout(s: GameState, plotId: string): Blocker {
@@ -130,9 +157,12 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
 
 // ---------- Faction Buyout ----------
 
+/** The business: their cash plus what's invested in their buildings. The land goes to the Fire Sale. */
 export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
   const m = HQS[id].buyout;
-  return m === null ? null : Math.round(netWorth(s, id) * m);
+  if (m === null) return null;
+  const buildings = ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
+  return Math.round((Math.max(0, s.rivals[id].cash) + buildings) * m);
 }
 
 export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
@@ -151,11 +181,6 @@ export function factionBuyout(s: GameState, id: RivalId): boolean {
   const price = factionBuyoutPrice(s, id)!;
   s.cash = round2(s.cash - price);
   s.today.land = round2(s.today.land + price);
-  for (const p of ownedPlots(s, id)) {
-    const ps = s.plots[p.id];
-    ps.owner = 'player';
-    ps.garrison = 0;
-  }
   s.news.push(`${HQS[id].boss} signs on the napkin at Dot's Diner: Lottie buys out ${FACTIONS[id].name} for ${money(price)}!`);
   eliminate(s, id, 'buyout');
   return true;
@@ -171,9 +196,9 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   r.cash = 0;
   s.raids = s.raids.filter((x) => x.attacker !== id);
   const hq = hqPlot(id);
-  if (how === 'hq') {
+  if (how !== 'bankrupt') {
     s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
-    s.news.push(`${FACTIONS[id].name} are finished! Their HQ, ${hq.name}, is Lottie's trophy now.`);
+    s.news.push(`${FACTIONS[id].name} are finished! Their HQ, ${hq.name}, becomes Lottie's ${TROPHIES[id].name}: ${TROPHIES[id].perk.toLowerCase()}.`);
   }
   if (how === 'bankrupt') s.news.push(`${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.`);
   let sale = 0;
@@ -217,8 +242,8 @@ export interface AssaultResult { won: boolean; stage: 'gate' | 'yard' | 'boss'; 
 
 function boss(id: RivalId, n: number): Fighter {
   const tier = HQS[id].tier;
-  const m = 1 + 0.25 * tier;
-  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 3 * m, hit: 9 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs' };
+  const m = 0.75 + 0.25 * tier;
+  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 2.5 * m, hit: 8 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs' };
 }
 
 /** Three fights in a row: the Gate, the Yard, the Boss Room. Survivors carry on, a little worn. */
@@ -232,7 +257,7 @@ export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultR
   const reports: BattleReport[] = [];
   const stages: AssaultResult['stage'][] = ['gate', 'yard', 'boss'];
   for (const stage of stages) {
-    let defenders = Array.from({ length: stage === 'gate' ? 2 + hq.tier : stage === 'yard' ? 3 + hq.tier * 2 : 2 }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'gate' ? 0 : 1)), rng, i));
+    let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? 2 + hq.tier * 2 : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
     let perimeter = 0, fenceHp = 0;
     if (stage === 'boss') {
       defenders.unshift(boss(id, s.nextId++));
@@ -269,8 +294,8 @@ export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultR
       finish(s, reports);
       return { won: false, stage, reports };
     }
-    // Survivors carry on, worn down a little.
-    squad = squad.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: f.hp * 0.85 }));
+    // Survivors carry on, worn down a little; the knocked-out pick themselves up for the next stage only if it's the Gate.
+    squad = squad.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: f.hp * 0.9 }));
   }
   s.seed = rng.seed;
   s.news.push(`${HQS[id].boss} tries "${hq.move}", but it isn't enough. Lottie's crew takes ${plot.name}!`);

@@ -4,6 +4,7 @@
 import { FACTIONS, RANKS, type RivalId } from './balance.ts';
 import { fightRaid, raidPartyFor, threatLevel, type BattleReport } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
+import { hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, playerStands } from './economy.ts';
@@ -105,7 +106,7 @@ export function buildFacility(s: GameState, plotId: string, kind: FacilityKind):
   return true;
 }
 
-export const bottlingCapacity = (s: GameState) => facilityPlots(s, 'bottling').reduce((a, p) => a + BOTTLES_PER_DAY[s.plots[p.id].facility!.level - 1], 0);
+export const bottlingCapacity = (s: GameState) => Math.round(facilityPlots(s, 'bottling').reduce((a, p) => a + BOTTLES_PER_DAY[s.plots[p.id].facility!.level - 1], 0) * (hasTrophy(s, 'fizzco') ? 1.25 : 1));
 
 // ---------- offers ----------
 

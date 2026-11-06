@@ -181,7 +181,6 @@ export function vipAtDawn(s: GameState): void {
   for (const tier of Object.keys(ORDER_TIERS) as OrderTier[]) {
     if (!tierOpen(s, tier).ok) { delete last[tier]; continue; }
     if (s.offers.length >= MAX_OFFERS || s.offers.some((o) => o.tier === tier)) continue;
-    if (tier === 'deal' && s.orders.some((o) => o.tier === 'deal')) continue; // one Supply Deal at a time
     // VIP tiers: the first Supply Deal comes as soon as the Cargo Terminal stands, and no VIP tier goes 10 days without a call.
     if (isVip(tier) && last[tier] === undefined && tier !== 'deal') last[tier] = s.day;
     const due = isVip(tier) && (last[tier] === undefined || s.day - last[tier]! >= VIP_MAX_GAP);
@@ -214,6 +213,14 @@ export function acceptOrder(s: GameState, id: string): boolean {
 
 export function declineOrder(s: GameState, id: string): void {
   s.offers = s.offers.filter((o) => o.id !== id);
+}
+
+/** For a Supply Deal offer: bottles a day it needs on top of what bottling is already committed to (≤ 0 means it's covered). */
+export function dealShortfallPerDay(s: GameState, o: Order): number {
+  const perDay = o.qty / ORDER_TIERS.deal.days;
+  const committed = s.orders.filter((x) => x.tier === 'deal').length / DEAL_LOADS * perDay
+    + s.orders.filter((x) => x.tier !== 'local' && x.tier !== 'deal').reduce((a, x) => a + x.qty / Math.max(1, x.due - s.day), 0);
+  return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, s.bottles - bottlesNeeded(s)) / ORDER_TIERS.deal.days);
 }
 
 export const bottlesNeeded = (s: GameState) => s.orders.filter((o) => o.tier !== 'local').reduce((a, o) => a + o.qty, 0);

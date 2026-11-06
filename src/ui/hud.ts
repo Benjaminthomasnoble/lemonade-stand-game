@@ -10,7 +10,7 @@ import {
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, incomingRaids, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
-  bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilitiesFor, ORDER_TIERS, tierOpen, PLOTS,
+  bottlesNeeded, bottlingCapacity, canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, tierOpen, PLOTS,
   type FacilityKind, type OrderTier, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
@@ -605,7 +605,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   function orders(s: GameState) {
-    const offers = s.offers.map((o) => `<div class="order"><div><b>${ORDER_TIERS[o.tier].label}:</b> ${esc(o.client)}<div class="muted">${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} for <b>${whole(o.pay)}</b>, pickup day ${o.due}${o.tier === 'heli' || o.tier === 'ship' ? ` · +${'0.2'}★ if delivered` : ''}</div></div>
+    const offers = s.offers.map((o) => `<div class="order"><div><b>${ORDER_TIERS[o.tier].label}:</b> ${esc(o.client)}<div class="muted">${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} for <b>${whole(o.pay)}</b>, ${o.tier === 'deal' ? `in ${DEAL_LOADS} weekly loads` : `pickup day ${o.due}`}${o.tier === 'heli' || o.tier === 'ship' ? ` · +${'0.2'}★ if delivered` : ''}${o.tier === 'deal' ? (dealShortfallPerDay(s, o) > 0 ? ` · <span class="bad">your bottling is ${dealShortfallPerDay(s, o).toLocaleString('en-US')} bottles a day short</span>` : ' · <span class="good">your bottling covers it</span>') : ''}</div></div>
       <div class="acts"><button class="small" data-action="accept" data-id="${o.id}" data-testid="accept">Accept</button><button class="small ghost" data-action="decline" data-id="${o.id}">No thanks</button></div></div>`).join('');
     const need = bottlesNeeded(s);
     const active = s.orders.map((o) => `<div class="muted">📦 ${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'}, ${whole(o.pay)}, pickup day ${o.due}${o.due === s.day ? ' (today!)' : ''}</div>`).join('');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, buildFacility, canBuildFacility, LOTTIES_CORNER, newGame, openStand, PLOTS, simulateRestOfDay, sleepUntilDawn,
+  acceptOrder, dealShortfallPerDay, buildFacility, canBuildFacility, LOTTIES_CORNER, newGame, openStand, PLOTS, simulateRestOfDay, sleepUntilDawn,
   type GameState,
 } from './economy.ts';
 
@@ -61,5 +61,22 @@ describe('VIP clients', () => {
     day(s);
     expect(s.reputation).toBeLessThan(rep);
     expect(s.orders).toHaveLength(0);
+  });
+
+  it('Supply Deals ship in weekly loads, and several can run at once', () => {
+    const { s, dock, lot } = vipGame(4);
+    s.rank = 8;
+    for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier');
+    const deal = (n: string) => ({ id: n, tier: 'deal' as const, client: n, qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false });
+    s.offers.push(deal('a'));
+    expect(dealShortfallPerDay(s, s.offers[0])).toBeGreaterThan(0); // no bottling yet
+    for (let i = 0; i < 3; i++) buildFacility(s, lot.id, 'bottling');
+    expect(dealShortfallPerDay(s, s.offers[0])).toBeLessThanOrEqual(0); // 12,000 a day covers ~7,143
+    acceptOrder(s, 'a');
+    s.offers.push(deal('b'));
+    acceptOrder(s, 'b');
+    expect(s.orders.filter((o) => o.tier === 'deal')).toHaveLength(8);
+    expect(s.orders[0].qty).toBe(50000);
+    expect(s.orders[0].pay).toBe(1500000);
   });
 });

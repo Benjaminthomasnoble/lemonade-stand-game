@@ -21,7 +21,7 @@ import { createBay } from './world/bay.ts';
 import { createCrowd } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
 import { BOSS, CUSTOMER, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
-import { FACTIONS, type RivalId } from './sim/balance.ts';
+import { FACTIONS } from './sim/balance.ts';
 
 const LOOK: Partial<Record<SegmentId, { scale: number; speed: number }>> = {
   kids: { scale: 0.68, speed: 1.15 },

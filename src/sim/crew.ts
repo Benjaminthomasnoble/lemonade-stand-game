@@ -13,6 +13,8 @@ import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots, successScore } from './economy.ts';
+import { FACILITIES } from './vip.ts';
+import { breakTruce } from './rivals.ts';
 
 export interface Guard {
   id: string;
@@ -41,6 +43,7 @@ export interface Raid {
 
 export interface BattleReport {
   delivery?: boolean;
+  hq?: 'gate' | 'yard' | 'boss'; // a stage of an HQ assault
   day: number;
   attacker: FactionId;
   defender: FactionId;
@@ -63,6 +66,18 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 export const NO_DEFENSE = () => ({ tier: 0, fenceHp: 0, gadgets: [] as GadgetId[] });
+
+/** Is the stand or VIP facility here knocked down? */
+export const isWrecked = (ps: PlotState) => !!(ps.stand?.wrecked || ps.facility?.wrecked);
+/** Something standing here worth smashing: a stand or a VIP facility. */
+export const hasBuilding = (ps: PlotState) => !!(ps.stand || ps.facility) && !isWrecked(ps);
+/** Hit points of whatever stands on the plot. */
+export function buildingHp(ps: PlotState): number {
+  if (ps.stand) return ps.stand.wrecked ? 0 : STAND_HP[ps.stand.level - 1];
+  if (ps.facility) return ps.facility.wrecked ? 0 : FACILITIES[ps.facility.kind].hp[ps.facility.level - 1];
+  return 0;
+}
+export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale if it isn't rebuilt by the next dawn but one
 
 // ---------- Threat ----------
 
@@ -145,10 +160,12 @@ export function rebuildCost(ps: PlotState): number {
 export function rebuildStand(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   const cost = rebuildCost(ps);
-  if (ps.owner !== 'player' || !ps.stand?.wrecked || s.cash < cost || s.phase === 'open') return false;
+  if (ps.owner !== 'player' || !isWrecked(ps) || s.cash < cost || s.phase === 'open') return false;
   s.cash = round2(s.cash - cost);
   s.today.land = round2(s.today.land + cost);
-  ps.stand.wrecked = false;
+  if (ps.stand) ps.stand.wrecked = false;
+  if (ps.facility) ps.facility.wrecked = false;
+  delete ps.wreckedDay;
   s.news.push(`Hammers and elbow grease: ${PLOT_BY_ID[plotId].name} is back in business.`);
   return true;
 }
@@ -279,6 +296,8 @@ function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: num
   };
 }
 
+export const henchmanFor = (s: GameState, rival: RivalId, tier: number, rng: Rng, i: number) => henchman(s, rival, tier, rng, i, 'def');
+
 export function raidPartyFor(s: GameState, rival: RivalId): Fighter[] {
   const rng = { seed: s.seed };
   const party = raidParty(s, rival, threatLevel(s), rng);
@@ -296,7 +315,7 @@ function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng): Figh
 function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
   const ps = s.plots[plotId];
   const rival = ps.owner as RivalId;
-  const tier = Math.min(5, Math.max(1, Math.ceil((ps.stand?.level ?? 1) / 1.2)));
+  const tier = Math.min(5, Math.max(1, Math.ceil((ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1)) / 1.2)));
   return Array.from({ length: ps.garrison ?? 0 }, (_, i) => henchman(s, rival, tier, rng, i, 'def'));
 }
 
@@ -308,11 +327,10 @@ function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<str
 
 function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng): BattleInput {
   const ps = s.plots[raid.target];
-  const lvl = ps.stand?.level ?? 0;
   return {
     attackers, defenders: defendersAt(s, raid.target, night, away, rng),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: ps.defense.gadgets,
-    standHp: ps.stand && !ps.stand.wrecked ? STAND_HP[lvl - 1] : 0, objective: raid.objective, detected: raid.detected,
+    standHp: buildingHp(ps), objective: raid.objective, detected: raid.detected,
   };
 }
 
@@ -329,7 +347,7 @@ export function detectionChance(s: GameState, plotId: string, night: boolean): n
 export function raidTargets(s: GameState): Plot[] {
   return PLOTS.filter((p) => {
     const ps = s.plots[p.id];
-    return ps.owner && ps.owner !== 'player' && ps.stand && !ps.stand.wrecked && p.type !== 'hq';
+    return ps.owner && ps.owner !== 'player' && hasBuilding(ps) && p.type !== 'hq';
   });
 }
 
@@ -341,8 +359,8 @@ export function availableRaiders(s: GameState): Guard[] {
 export function canRaid(s: GameState, plotId: string, guardIds: string[]): Blocker {
   const ps = s.plots[plotId];
   if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}, ${RANKS[RAID_RANK - 1].title}` };
-  if (!ps.owner || ps.owner === 'player' || !ps.stand || ps.stand.wrecked) return { ok: false, why: 'Pick a rival stand' };
-  if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'HQ assaults come later' };
+  if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'Storm an HQ from the Rivals board' };
+  if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
   if (s.raids.some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' };
@@ -363,6 +381,7 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
 export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: Objective, when: 'now' | 'tonight'): BattleReport | boolean {
   if (!canRaid(s, plotId, guardIds).ok) return false;
   const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective, guards: guardIds, detected: false, eta: '' };
+  breakTruce(s, s.plots[plotId].owner as RivalId);
   if (when === 'tonight') {
     raid.eta = '01:00';
     s.raids.push(raid);
@@ -382,7 +401,7 @@ export function planNight(s: GameState): void {
   // Rivals scheme against the player.
   const recentlyHit = s.battles.some((b) => b.defender === 'player' && b.day >= s.day - 1);
   if (s.day > NO_RAID_DAYS && !recentlyHit && nextRandom(rng) < RAIDS_PER_WEEK[threat - 1] / 7) {
-    const mine = ownedPlots(s, 'player').filter((p) => s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked);
+    const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
     const candidates = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day + 1);
     if (mine.length && candidates.length) {
       const weights = candidates.map((r) => 1 + s.rivals[r].grudge / 10 + s.rivals[r].attention + FACTIONS[r].strike * 4);
@@ -406,7 +425,7 @@ export function planNight(s: GameState): void {
   // Rivals also raid each other (about 30% of their raids at Threat 1–3).
   if (threat < 5 && nextRandom(rng) < (threat <= 3 ? 0.3 : 0.15)) {
     const a = RIVALS[Math.floor(nextRandom(rng) * RIVALS.length)];
-    const targets = PLOTS.filter((p) => { const o = s.plots[p.id].owner; return o && o !== 'player' && o !== a && s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked && p.type !== 'hq'; });
+    const targets = PLOTS.filter((p) => { const o = s.plots[p.id].owner; return o && o !== 'player' && o !== a && hasBuilding(s.plots[p.id]) && p.type !== 'hq'; });
     const t = targets[Math.floor(nextRandom(rng) * targets.length)];
     if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: '02:00' });
   }
@@ -435,8 +454,10 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
   let loot = 0;
 
   ps.defense.fenceHp = res.fenceHpLeft;
-  if (res.outcome === 'smashed' && ps.stand) {
-    ps.stand.wrecked = true;
+  if (res.outcome === 'smashed' && (ps.stand || ps.facility)) {
+    if (ps.stand) ps.stand.wrecked = true; else ps.facility!.wrecked = true;
+    ps.wreckedDay = s.day;
+    ps.smashedBy = raid.attacker;
     if (defender !== 'player') ps.garrison = 0;
   }
   if (res.outcome === 'robbed' && !raid.delivery) {
@@ -449,16 +470,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
   }
   if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => input.defenders.some((d) => d.id === id)).length);
 
-  // Guards: KOs are out a day (two if a hatchet did it); everyone who fought earns XP.
-  const hatchets = (side: Fighter[]) => side.some((f) => f.weapon === 'hatchets');
-  for (const f of [...input.attackers, ...input.defenders]) {
-    const g = s.guards.find((x) => x.id === f.id);
-    if (!g) continue;
-    const foes = f.side === 'att' ? input.defenders : input.attackers;
-    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (hatchets(foes) ? 2 : 1);
-    g.xp += (res.winner === f.side ? 2 : 1);
-    while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level]) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
-  }
+  creditGuards(s, input, res);
 
   // Grudges and respect.
   if (raid.attacker === 'player' && defender !== 'player') {
@@ -483,21 +495,37 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
   return report;
 }
 
+/** Guards: KOs are out a day (two if a hatchet did it); everyone who fought earns XP. */
+export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; winner: 'att' | 'def' }): void {
+  const hatchets = (side: Fighter[]) => side.some((f) => f.weapon === 'hatchets');
+  for (const f of [...input.attackers, ...input.defenders]) {
+    const g = s.guards.find((x) => x.id === f.id);
+    if (!g) continue;
+    const foes = f.side === 'att' ? input.defenders : input.attackers;
+    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (hatchets(foes) ? 2 : 1);
+    g.xp += (res.winner === f.side ? 2 : 1);
+    while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level]) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
+  }
+}
+
 const fname = (f: FactionId) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
 
 export function battleHeadline(b: BattleReport): string {
   const where = PLOT_BY_ID[b.target].name;
+  if (b.hq) return b.outcome === 'repelled'
+    ? `HQ assault on ${where} stalls at the ${b.hq === 'gate' ? 'Gate' : b.hq === 'yard' ? 'Yard' : 'Boss Room'}.`
+    : `Lottie's crew storms ${where}! ${fname(b.defender)} are finished.`;
   if (b.delivery) return b.outcome === 'robbed' ? `Delivery raid! ${fname(b.attacker)} overrun ${where} and make off with the cargo.` : `Delivery raid at ${where} beaten off! The cargo gets through.`;
   if (b.attacker === 'player') {
     switch (b.outcome) {
-      case 'smashed': return `RAID! Lottie's crew flattens the ${fname(b.defender)} stand at ${where}.`;
+      case 'smashed': return `RAID! Lottie's crew flattens the ${fname(b.defender)} ${b.standLevel ? 'stand' : 'facility'} at ${where}.`;
       case 'robbed': return `RAID! Lottie's crew shakes down ${where} for ${money(b.loot)}.`;
       case 'damaged': return `Lottie's crew roughs up ${where} but runs out of time.`;
       default: return `Raid on ${where} goes bust: ${fname(b.defender)} sends Lottie's crew packing.`;
     }
   }
   switch (b.outcome) {
-    case 'smashed': return `Night raid! ${fname(b.attacker)} smash the stand at ${where}. Rebuild it at Morning Prep.`;
+    case 'smashed': return `Night raid! ${fname(b.attacker)} smash ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. Rebuild it at Morning Prep or lose the plot!`;
     case 'robbed': return `Night raid! ${fname(b.attacker)} grab ${money(b.loot)} from the till at ${where}.`;
     case 'damaged': return `${fname(b.attacker)} rattle ${where} but leave empty-handed.`;
     default: return `Raid repelled at ${where}! ${fname(b.attacker)} limp home. They'll keep their distance for a few days.`;
@@ -524,20 +552,35 @@ export function crewAtDawn(s: GameState): void {
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.dibs && ps.dibs.until < s.day) delete ps.dibs;
-    if (!ps.owner || ps.owner === 'player') continue;
-    const r = s.rivals[ps.owner as RivalId];
-    if (ps.stand?.wrecked) {
-      const cost = rebuildCost(ps);
-      const f = FACTIONS[ps.owner as RivalId];
-      if (r.cash > cost + 500 && nextRandom(rng) < f.rebuild) {
-        r.cash -= cost;
-        ps.stand.wrecked = false;
+    if (!ps.owner || !isWrecked(ps)) continue;
+    const smasher = ps.smashedBy ?? 'player';
+    const forSale = () => {
+      s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: smasher, until: s.day } };
+      if (smasher === 'player') { s.news.push(`${PLOT_BY_ID[p.id].name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
+      // A rival with First Dibs buys straight away if they can.
+      const r = s.rivals[smasher as RivalId];
+      if (r?.alive && r.cash > ps.landValue) {
+        r.cash -= ps.landValue;
+        s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
+        if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${PLOT_BY_ID[p.id].name} after Lottie couldn't rebuild.`);
       } else {
-        // Not rebuilt: the plot goes For Sale, and the smasher gets First Dibs.
-        s.news.push(`${PLOT_BY_ID[p.id].name} is For Sale after the smash. Lottie has First Dibs today!`);
-        s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: 'player', until: s.day } };
+        delete s.plots[p.id].dibs;
+        if (ps.owner === 'player') s.news.push(`${PLOT_BY_ID[p.id].name} lapses and goes For Sale.`);
       }
+    };
+    if (ps.owner === 'player') {
+      if (s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale();
+      continue;
     }
+    const r = s.rivals[ps.owner as RivalId];
+    const cost = rebuildCost(ps);
+    const f = FACTIONS[ps.owner as RivalId];
+    if (r.cash > cost + 500 && nextRandom(rng) < f.rebuild) {
+      r.cash -= cost;
+      if (ps.stand) ps.stand.wrecked = false;
+      if (ps.facility) ps.facility.wrecked = false;
+      delete ps.wreckedDay;
+    } else forSale();
   }
   // Rivals spend their Guard bucket: fences and henchmen on their best stands.
   for (const id of RIVALS) {

@@ -12,6 +12,8 @@ import {
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
   bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilityFor, ORDER_TIERS, tierOpen, PLOTS,
   type FacilityKind, type OrderTier,
+  canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
+  plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from '../sim/economy.ts';
@@ -51,6 +53,10 @@ export type Action =
   | { type: 'facility'; plot: string; kind: FacilityKind }
   | { type: 'accept'; id: string }
   | { type: 'decline'; id: string }
+  | { type: 'truce'; rival: RivalId }
+  | { type: 'plotBuyout'; plot: string }
+  | { type: 'factionBuyout'; rival: RivalId }
+  | { type: 'assault'; rival: RivalId; guards: string[] }
   | { type: 'refresh' };
 
 const ICON: Record<WeatherKind, string> = { scorcher: '🥵', hot: '☀️', warm: '🌤️', cloudy: '☁️', rainy: '🌧️', storm: '⛈️' };
@@ -180,6 +186,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;
+      case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
+      case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
+      case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
       case 'open': case 'skip': case 'sleep': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
         onAction({ type: d.action }); break;
     }
@@ -320,25 +329,28 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const st = ps.stand;
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field (open land)', dock: 'Dock (waterfront)', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
     let actions = '';
-    if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') actions = blockBtn('buyPlot', `Buy for ${whole(ps.landValue)}`, canBuyPlot(s, id), `data-plot="${id}" data-testid="buy-plot"`);
+    if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') actions = blockBtn('buyPlot', `Buy for ${whole(plotPrice(s, id))}`, canBuyPlot(s, id), `data-plot="${id}" data-testid="buy-plot"`);
+    else if (ps.owner === 'player' && isWrecked(ps)) actions = blockBtn('rebuild', `Rebuild for ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}"`) + '<div class="muted">Rebuild by tomorrow or the plot goes For Sale.</div>';
     else if (ps.owner === 'player' && !st) {
       const kind = facilityFor(p.type);
       const lvl = ps.facility?.level ?? 0;
       const fac = kind && lvl < 3 ? blockBtn('facility', `${lvl ? 'Upgrade to' : 'Build'} ${FACILITIES[kind].names[lvl]} (${whole(FACILITIES[kind].costs[lvl])})`, canBuildFacility(s, id, kind), `data-plot="${id}" data-kind="${kind}" data-testid="facility"`) + `<div class="muted">${FACILITIES[kind].blurb[lvl]}</div>` : '';
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : blockBtn('build', `Build a Folding Table (${whole(STAND_LEVELS[0].cost)})`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`);
-      actions = (ps.facility ? `<div>Built: <b>${FACILITIES[ps.facility.kind].names[lvl - 1]}</b></div>` : '') + stand + fac;
+      actions = stand + fac;
     }
     else if (ps.owner === 'player' && st) actions = id === s.selected ? '<div class="muted">Managing this stand in the panel.</div>' : `<button class="small" data-action="select" data-plot="${id}">Manage this stand</button>`;
-    else if (ps.owner && ps.owner !== 'player' && st && p.type !== 'hq') actions = raidPlanner(s, id);
+    else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
+    else if (ps.owner && ps.owner !== 'player') actions = (hasBuilding(ps) ? raidPlanner(s, id) : '') + (s.rank >= SITDOWN_RANK ? blockBtn('plotBuyout', `Buy it from them (${whole(plotBuyoutPrice(s, id))})`, canPlotBuyout(s, id), `data-plot="${id}" data-testid="plot-buyout"`) : '');
     const today = st && s.phase !== 'prep' ? `<div class="muted">Today: ${st.day.customers} cups sold of ${st.day.passersby} walking by</div>` : '';
     return `<div class="card" data-testid="plotcard">
       <div class="row"><b class="name">${esc(p.name)}</b><button class="small ghost" data-action="close-plot">✕</button></div>
       <div class="muted">${d.name} · ${typeLabel}</div>
       <div>Owner: <b>${ownerName(ps.owner)}</b></div>
       ${p.type !== 'civic' ? `<div class="muted">~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}</div>` : `<div class="muted">${d.feel}</div>`}
+      ${ps.facility ? `<div>Built: <b>${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}</b>${ps.facility.wrecked ? ' · <span class="bad">WRECKED</span>' : ''}</div>` : ''}
       ${st ? `<div>Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup${st.wrecked ? ' · <span class="bad">WRECKED</span>' : ''}</div>` : ''}
       ${ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `<div class="muted">Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${ps.garrison ? ` · ${ps.garrison} henchmen on guard` : ''}</div>` : ''}
-      ${ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? '<div class="good">You have First Dibs on this plot today!</div>' : ''}
+      ${ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<div class="good">${ps.dibs.price !== undefined ? `Fire Sale! First Dibs at ${whole(ps.dibs.price)} through day ${ps.dibs.until}.` : 'You have First Dibs on this plot today!'}</div>` : ''}
       ${today}
       <div style="margin-top:6px">${actions}</div>
     </div>`;
@@ -425,6 +437,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const where = PLOT_BY_ID[b.target].name;
     const who = (f: string) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
     const verb = { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
+    if (b.hq) return b.outcome === 'repelled' ? `HQ assault on ${where}: stalled at the ${b.hq}` : `HQ assault on ${where}: captured!`;
     return b.attacker === 'player' ? `Your raid on ${where}: ${b.outcome === 'repelled' ? 'beaten back' : verb}` : `${who(b.attacker)} hit ${where}: ${b.outcome === 'repelled' ? 'you held them off!' : verb}`;
   }
 
@@ -498,6 +511,29 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <p class="muted">${s.rank >= RAID_RANK ? 'To raid a rival, click their stand on the map.' : `Raids unlock at Rank ${RAID_RANK}.`}</p>`;
   }
 
+  function squadPicker(s: GameState) {
+    const crew = availableRaiders(s);
+    for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
+    return `<div class="acts">${crew.map((g) => `<button class="small ${squad.has(g.id) ? 'on' : 'ghost'}" data-action="squad" data-id="${g.id}">${esc(g.name.split(' ')[0])} · ${WEAPONS[g.weapon].name}</button>`).join('')}</div>`;
+  }
+
+  /** A rival's HQ: Dot's Diner sit-downs and the assault. */
+  function hqPanel(s: GameState, id: RivalId) {
+    const st = rivalStatus(s, id);
+    const hq = HQS[id];
+    const price = factionBuyoutPrice(s, id);
+    const head = `<div class="muted">${st.plots} plots (peak ${st.peak}) · worth about ${whole(st.worth)}${st.weakened ? ' · <span class="good">Weakened</span>' : ''}${st.truce ? ` · truce through day ${st.truce}` : ''}</div>`;
+    if (s.rank < SITDOWN_RANK) return head + `<div class="muted">Sit-downs at Dot's Diner open at Rank ${SITDOWN_RANK}.</div>`;
+    const sit = `<b>Sit-down at Dot's Diner</b>
+      ${blockBtn('truce', `Truce for 7 days (${whole(truceCost(s))} tribute)`, canTruce(s, id), `data-rival="${id}" data-testid="truce"`)}
+      ${blockBtn('factionBuyout', price === null ? 'Buy them out' : `Buy them out (${whole(price)})`, canFactionBuyout(s, id), `data-rival="${id}" data-testid="faction-buyout"`)}`;
+    const ids = [...squad];
+    const assault = `<div class="planner" data-testid="hq-assault"><b>Storm the HQ</b> <span class="muted">(Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their "${hq.move}" · squad ${ids.length}/${SQUAD_CAP(s.rank)})</span>
+      ${squadPicker(s)}
+      ${blockBtn('assault', 'Storm it now', canAssault(s, id, ids), `data-rival="${id}" data-testid="assault"`)}</div>`;
+    return head + sit + assault;
+  }
+
   function raidPlanner(s: GameState, id: string) {
     if (s.rank < RAID_RANK) return `<div class="muted">Raids unlock at Rank ${RAID_RANK}.</div>`;
     const crew = availableRaiders(s);
@@ -515,9 +551,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const day = odds(false);
     const can = canRaid(s, id, ids);
     return `<div class="planner" data-testid="raid-planner"><b>Raid Planner</b> <span class="muted">(squad ${ids.length}/${SQUAD_CAP(s.rank)})</span>
-      <div class="acts">${crew.map((g) => `<button class="small ${squad.has(g.id) ? 'on' : 'ghost'}" data-action="squad" data-id="${g.id}">${esc(g.name.split(' ')[0])} · ${WEAPONS[g.weapon].name}</button>`).join('')}</div>
+      ${squadPicker(s)}
       <div class="acts"><button class="small ${objective === 'smash' ? 'on' : 'ghost'}" data-action="objective" data-value="smash">Smash</button><button class="small ${objective === 'shakedown' ? 'on' : 'ghost'}" data-action="objective" data-value="shakedown">Shakedown</button></div>
-      <div class="muted">${objective === 'smash' ? 'Wreck the stand. If they can\'t rebuild, you get First Dibs on the land.' : 'Grab about a day\'s takings from the till.'}</div>
+      <div class="muted">${objective === 'smash' ? 'Wreck it. If they can\'t rebuild, you get First Dibs on the land.' : 'Grab about a day\'s takings from the till.'}</div>
+      ${inTruce(s, s.plots[id].owner as RivalId) ? `<div class="bad">You have a truce with them: raiding breaks it (−1★, and every rival holds a grudge).</div>` : ''}
       <div class="acts">${blockBtn('raid', `Tonight · ${Math.round(night * 100)}% win`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"`)}
       ${blockBtn('raid', `Now · ${Math.round(day * 100)}% · −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now"`)}</div></div>`;
   }

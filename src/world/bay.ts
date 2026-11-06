@@ -156,7 +156,7 @@ export function createBay(scene: THREE.Scene): Bay {
     const p = v.plot;
     if (p.type === 'civic') v.root.add(civicBuilding(p.name));
     else if (p.type === 'hq') v.root.add(hqBuilding(ps.owner as RivalId | 'player', p.name));
-    else if (ps.facility && ps.owner === 'player') v.root.add(facilityModel(ps.facility.kind, ps.facility.level));
+    else if (ps.facility) v.root.add(facilityModel(ps.facility.kind, ps.facility.level));
     else if (p.type === 'field') { v.root.add(fieldRows()); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (p.type === 'dock') { v.root.add(pierModel()); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (ps.stand && ps.owner === 'player') {
@@ -166,7 +166,7 @@ export function createBay(scene: THREE.Scene): Bay {
       v.stand = m;
     } else if (ps.stand) v.root.add(rivalStand(ps.owner as RivalId, ps.stand.level));
     else if (!ps.owner) v.root.add(forSaleSign());
-    if (ps.stand?.wrecked && v.root.children[0]) v.root.add(wreckLook(v.root.children[0]));
+    if ((ps.stand?.wrecked || ps.facility?.wrecked) && v.root.children[0]) v.root.add(wreckLook(v.root.children[0]));
     if (ps.defense.tier && ps.defense.fenceHp > 0 && p.type !== 'civic') v.root.add(fenceModel(ps.defense.tier));
     // Whoever stands guard here waits by the gate.
     const guards = guardsAt(s, p.id);
@@ -192,7 +192,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
     },

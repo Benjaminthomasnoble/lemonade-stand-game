@@ -156,6 +156,36 @@ try {
     await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 60000 });
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
+
+  // Rival endgame: buy a plot at a sit-down, then storm the weakened Blend Shack with a full squad.
+  await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 30000 });
+  const hq = await page.evaluate(() => {
+    const g = window.__game, st = g.state;
+    if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+    st.raids = []; st.rank = 7; st.cash = 50000000; st.clubhouse = 3;
+    const ids = Object.keys(st.plots).filter((id) => st.plots[id].owner === 'blenders');
+    const hqId = ids.find((id) => !st.plots[id].stand);
+    const stands = ids.filter((id) => id !== hqId);
+    for (const id of stands.slice(1)) { st.plots[id].owner = null; st.plots[id].stand = null; }
+    st.guards = Array.from({ length: 12 }, (_, i) => ({ id: 'sg' + i, name: 'Smoke ' + i, trait: 'Loyal', level: 5, xp: 0, weapon: 'hatchets', gear: 'pro', post: null, outUntil: 0, fee: 0 }));
+    g.act({ type: 'refresh' });
+    return { hqId, buy: stands[0] };
+  });
+  await page.evaluate((id) => window.__game.act({ type: 'inspect', plot: id }), hq.buy);
+  await page.click('[data-testid="plot-buyout"]');
+  if (await page.evaluate((id) => window.__game.state.plots[id].owner, hq.buy) !== 'player') fail('plot buyout did not go through');
+  await page.evaluate((id) => window.__game.act({ type: 'inspect', plot: id }), hq.hqId);
+  await page.waitForSelector('[data-testid="hq-assault"]');
+  await page.screenshot({ path: 'test-results/14-hq-panel.png' });
+  for (let i = 0; i < 12; i++) await page.click(`[data-testid="hq-assault"] [data-action="squad"][data-id="sg${i}"]`);
+  await page.click('[data-testid="assault"]');
+  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 10000 });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: 'test-results/15-hq-assault.png' });
+  const out = await page.evaluate(() => [window.__game.state.rivals.blenders.alive, window.__game.state.battles[0]?.hq].join(','));
+  console.log('hq assault (blenders alive, last stage):', out);
+  if (!/gate|yard|boss/.test(out)) fail(`no HQ battle recorded: ${out}`);
+
   if (errors.length) fail(errors.join('\n'));
   await browser.close();
   console.log('SMOKE OK');

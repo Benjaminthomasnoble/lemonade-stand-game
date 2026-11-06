@@ -12,8 +12,8 @@ function vipGame(seed: number) {
   s.reputation = 4.5;
   s.cash = 3_000_000;
   // Hand the player a field, a dock and an industrial lot.
-  const field = PLOTS.find((p) => p.type === 'field')!;
-  const dock = PLOTS.find((p) => p.type === 'dock')!;
+  const field = PLOTS.find((p) => p.type === 'field' && !s.plots[p.id].facility)!;
+  const dock = PLOTS.find((p) => p.type === 'dock' && !s.plots[p.id].facility)!;
   const lot = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
   for (const p of [field, dock, lot]) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null };
   return { s, field, dock, lot };

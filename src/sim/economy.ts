@@ -12,6 +12,7 @@ import {
   type WeatherKind,
 } from './balance.ts';
 import { pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order } from './vip.ts';
+import { rivalsBankrupt, seedRivalFacilities } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -20,9 +21,10 @@ export * from './balance.ts';
 export * from './map.ts';
 export * from './crew.ts';
 export * from './vip.ts';
+export * from './rivals.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface Weather { kind: WeatherKind; temp: number }
 export type Phase = 'prep' | 'open' | 'report';
@@ -62,7 +64,9 @@ export interface PlotState {
   defense: Defense;
   garrison?: number; // rival henchmen on guard here
   facility?: Facility; // Bottling Works, Helipad or Pier
-  dibs?: { who: FactionId; until: number }; // First Dibs after a smash: only they can buy until this day
+  dibs?: { who: FactionId; until: number; price?: number }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
+  wreckedDay?: number; // day the stand or facility here was smashed
+  smashedBy?: FactionId;
 }
 
 export interface Defense { tier: number; fenceHp: number; gadgets: GadgetId[] }
@@ -75,6 +79,8 @@ export interface RivalState {
   peakPlots: number;
   alive: boolean;
   respectUntil: number; // won't raid the player before this day
+  truceUntil?: number; // Sit-down truce: no raids either way through this day
+  brokeDays?: number; // days in a row in the red (7 = bankrupt)
 }
 
 export interface DayStats {
@@ -253,6 +259,7 @@ export function newGame(seed = Date.now() & 0x7fffffff): GameState {
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
   seedRivals(s, rng);
   seedRivalDefenses(s, rng);
+  seedRivalFacilities(s);
   s.seed = rng.seed;
   s.today = emptyStats(s);
   s.peakScore = successScore(s);
@@ -662,6 +669,7 @@ export function sleepUntilDawn(s: GameState): boolean {
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
   crewAtDawn(s);
+  rivalsBankrupt(s);
   vipAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
@@ -712,16 +720,25 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (!dibs && s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
   const reachable = p.district === 'maple' || hasFoothold(s, 'player', p.district) || BORDERS[p.district].some((d) => hasFoothold(s, 'player', d));
   if (!reachable && !dibs) return { ok: false, why: 'Get a Foothold in a bordering district first' };
-  if (s.cash < ps.landValue) return { ok: false, why: `Needs $${ps.landValue.toLocaleString('en-US')}` };
+  const price = plotPrice(s, plotId);
+  if (s.cash < price) return { ok: false, why: `Needs $${price.toLocaleString('en-US')}` };
   return { ok: true };
+}
+
+/** What the player pays for an open plot: land value, or the Fire Sale price while they have First Dibs. */
+export function plotPrice(s: GameState, plotId: string): number {
+  const ps = s.plots[plotId];
+  return ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined ? ps.dibs.price : ps.landValue;
 }
 
 export function buyPlot(s: GameState, plotId: string): boolean {
   if (!canBuyPlot(s, plotId).ok) return false;
   const ps = s.plots[plotId];
-  s.cash = round2(s.cash - ps.landValue);
-  s.today.land = round2(s.today.land + ps.landValue);
+  const price = plotPrice(s, plotId);
+  s.cash = round2(s.cash - price);
+  s.today.land = round2(s.today.land + price);
   ps.owner = 'player';
+  delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
   return true;
 }

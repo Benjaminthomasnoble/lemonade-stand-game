@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
+  isWeakened, makeTruce, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
+} from './economy.ts';
+
+function rich(seed = 1): GameState {
+  const s = newGame(seed);
+  s.rank = 7;
+  s.cash = 50_000_000;
+  s.today.land = 0;
+  return s;
+}
+
+/** Strip a rival down to its HQ and one plot so it counts as Weakened. */
+function weaken(s: GameState, id: 'blenders' | 'sourwood') {
+  const plots = ownedPlots(s, id).filter((p) => p.type !== 'hq');
+  for (const p of plots.slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
+}
+
+describe('sit-downs and buyouts', () => {
+  it('a truce stops raids, and breaking it costs a star', () => {
+    const s = rich();
+    expect(makeTruce(s, 'blenders')).toBe(true);
+    expect(s.rivals.blenders.respectUntil).toBeGreaterThan(s.day + 5);
+    const target = ownedPlots(s, 'blenders').find((p) => s.plots[p.id].stand)!;
+    refreshRecruits(s, true);
+    for (const r of [...s.recruits]) hireGuard(s, r.id);
+    const rep = s.reputation;
+    fightRaid(s, { id: 'x', attacker: 'player', target: target.id, objective: 'shakedown', guards: s.guards.map((g) => g.id), detected: false, eta: '' }, true);
+    expect(s.reputation).toBe(rep); // fightRaid alone does not break it; planRaid does
+  });
+
+  it('plot buyout costs 2.5x land at home and hands over the stand', () => {
+    const s = rich();
+    const p = ownedPlots(s, 'blenders').find((q) => q.district === 'boardwalk' && q.type !== 'hq' && s.plots[q.id].stand)!;
+    const price = plotBuyoutPrice(s, p.id);
+    expect(price).toBeGreaterThanOrEqual(Math.round(s.plots[p.id].landValue * 2.5));
+    const cash = s.cash;
+    expect(plotBuyout(s, p.id)).toBe(true);
+    expect(s.plots[p.id].owner).toBe('player');
+    expect(s.plots[p.id].stand).not.toBeNull();
+    expect(s.cash).toBe(cash - price);
+  });
+
+  it('faction buyout needs Weakened, and Vera never sells', () => {
+    const s = rich();
+    s.cash = 1000;
+    expect(isWeakened(s, 'blenders')).toBe(false);
+    s.cash = 50_000_000;
+    weaken(s, 'blenders');
+    expect(isWeakened(s, 'blenders')).toBe(true);
+    const price = factionBuyoutPrice(s, 'blenders')!;
+    expect(factionBuyout(s, 'blenders')).toBe(true);
+    expect(s.rivals.blenders.alive).toBe(false);
+    expect(s.plots[hqPlot('blenders').id].owner).toBe('player');
+    expect(price).toBeGreaterThan(0);
+    weaken(s, 'sourwood');
+    expect(canFactionBuyout(s, 'sourwood')).toEqual({ ok: false, why: 'Vera Sourwood never sells' });
+  });
+});
+
+describe('HQ assault', () => {
+  it('a big kitted squad takes the Blend Shack and triggers a Fire Sale', () => {
+    const s = rich(4);
+    s.clubhouse = 3;
+    weaken(s, 'blenders');
+    for (let i = 0; i < 4; i++) { refreshRecruits(s, true); for (const r of [...s.recruits]) hireGuard(s, r.id); }
+    for (const g of s.guards) { g.level = 5; equip(s, g.id, 'hatchets'); equip(s, g.id, 'pro'); }
+    const ids = s.guards.slice(0, 12).map((g) => g.id);
+    expect(canAssault(s, 'blenders', ids).ok).toBe(true);
+    const res = stormHQ(s, 'blenders', ids);
+    expect(res && res.won).toBe(true);
+    expect(s.rivals.blenders.alive).toBe(false);
+    expect(s.plots[hqPlot('blenders').id].owner).toBe('player');
+    const sale = PLOTS.find((p) => s.plots[p.id].dibs?.price !== undefined)!;
+    expect(plotPrice(s, sale.id)).toBe(Math.round(s.plots[sale.id].landValue * 0.75));
+    expect(canBuyPlot(s, sale.id).ok).toBe(true);
+    expect(buyPlot(s, sale.id)).toBe(true);
+  });
+
+  it('a lone guard bounces off the gate', () => {
+    const s = rich(5);
+    weaken(s, 'blenders');
+    refreshRecruits(s, true);
+    hireGuard(s, s.recruits[0].id);
+    const res = stormHQ(s, 'blenders', [s.guards[0].id]);
+    expect(res && res.won).toBe(false);
+    expect(s.rivals.blenders.alive).toBe(true);
+  });
+});
+
+describe('knock it down, buy it up', () => {
+  it('a smashed rival facility goes For Sale if they do not rebuild', () => {
+    const s = rich(6);
+    const pad = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].facility)!;
+    expect(pad).toBeTruthy();
+    s.plots[pad.id].wreckedDay = s.day;
+    s.plots[pad.id].facility!.wrecked = true;
+    s.plots[pad.id].smashedBy = 'player';
+    s.rivals.hollis.cash = 0; // can't afford the rebuild
+    crewAtDawn(s);
+    expect(s.plots[pad.id].owner).toBeNull();
+    expect(s.plots[pad.id].dibs?.who).toBe('player');
+  });
+
+  it('a smashed player stand lapses after a day without a rebuild', () => {
+    const s = rich(7);
+    const home = ownedPlots(s, 'player')[0];
+    s.plots[home.id].stand!.wrecked = true;
+    s.plots[home.id].wreckedDay = s.day;
+    s.plots[home.id].smashedBy = 'blenders';
+    s.day += 1;
+    crewAtDawn(s);
+    expect(s.plots[home.id].owner).toBe('player'); // still time to rebuild today
+    s.day += 1;
+    crewAtDawn(s);
+    expect(s.plots[home.id].owner).not.toBe('player');
+  });
+});

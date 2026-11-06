@@ -11,7 +11,7 @@ import { costPerCup, playerStands } from './economy.ts';
 export type FacilityKind = 'bottling' | 'helipad' | 'pier';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship';
 
-export interface Facility { kind: FacilityKind; level: number }
+export interface Facility { kind: FacilityKind; level: number; wrecked?: boolean }
 
 export interface Order {
   id: string;
@@ -27,10 +27,11 @@ export interface Order {
 
 // ---------- tunables (starting values; the balance thread replaces these) ----------
 
-export const FACILITIES: Record<FacilityKind, { names: string[]; costs: number[]; ranks: number[]; on: PlotType[]; blurb: string[] }> = {
-  bottling: { names: ['Bottling Works', 'Bottling Works L2', 'Bottling Works L3'], costs: [25000, 100000, 400000], ranks: [5, 6, 7], on: ['industrial'], blurb: ['1,500 bottles a day', '4,000 bottles a day', '12,000 bottles a day'] },
-  helipad: { names: ['Pad', 'Helipad', 'Heliport'], costs: [50000, 200000, 800000], ranks: [6, 7, 8], on: ['field'], blurb: ['Small choppers: 2,000–4,000 bottles', '4,000–7,000 bottles', 'Big choppers: 7,000–10,000 bottles'] },
-  pier: { names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [250000, 750000, 3000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: 10,000–20,000 bottles', 'Cruise ships: 20,000–40,000 bottles', 'Freighters: 40,000–60,000 bottles'] },
+export const FACILITIES: Record<FacilityKind, { hp: number[]; names: string[]; costs: number[]; ranks: number[]; on: PlotType[]; blurb: string[] }> = {
+  // hp: how much chopping it takes to knock down (Knock it down, buy it up).
+  bottling: { hp: [1000, 2500, 6000], names: ['Bottling Works', 'Bottling Works L2', 'Bottling Works L3'], costs: [25000, 100000, 400000], ranks: [5, 6, 7], on: ['industrial'], blurb: ['1,500 bottles a day', '4,000 bottles a day', '12,000 bottles a day'] },
+  helipad: { hp: [800, 2000, 5000], names: ['Pad', 'Helipad', 'Heliport'], costs: [50000, 200000, 800000], ranks: [6, 7, 8], on: ['field'], blurb: ['Small choppers: 2,000–4,000 bottles', '4,000–7,000 bottles', 'Big choppers: 7,000–10,000 bottles'] },
+  pier: { hp: [1500, 3500, 8000], names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [250000, 750000, 3000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: 10,000–20,000 bottles', 'Cruise ships: 20,000–40,000 bottles', 'Freighters: 40,000–60,000 bottles'] },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
 export const BOTTLE_COST = 0.21 + 0.15; // a Classic cup's ingredients plus the bottle and cap
@@ -65,7 +66,7 @@ const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 // ---------- facilities ----------
 
 export function facilityPlots(s: GameState, kind: FacilityKind) {
-  return PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind);
+  return PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked);
 }
 const bestLevel = (s: GameState, kind: FacilityKind) => Math.max(0, ...facilityPlots(s, kind).map((p) => s.plots[p.id].facility!.level));
 
@@ -82,6 +83,7 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
   if (!f.on.includes(p.type)) return { ok: false, why: `Needs a ${f.on.join(' or ')} plot` };
   if (ps.stand) return { ok: false, why: 'A stand is here' };
   if (ps.facility && ps.facility.kind !== kind) return { ok: false, why: 'Something else is built here' };
+  if (ps.facility?.wrecked) return { ok: false, why: 'Rebuild it first' };
   const lvl = ps.facility?.level ?? 0;
   if (lvl >= 3) return { ok: false, why: 'Top level' };
   if (s.rank < f.ranks[lvl]) return { ok: false, why: `Needs Rank ${f.ranks[lvl]}, ${RANKS[f.ranks[lvl] - 1].title}` };
@@ -212,12 +214,13 @@ function deliver(s: GameState, o: Order): Pickup {
     s.news.push(`Delivered ${o.qty} cups to ${o.client}: ${money(o.pay)}!`);
     return { order: o, ok: true };
   }
+  if (o.plot && s.plots[o.plot].facility?.wrecked) return fail(`The ${o.tier === 'heli' ? 'helipad' : 'pier'} was smashed.`);
   if (s.bottles < o.qty) return fail(`Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
   let raid: BattleReport | undefined;
   if ((o.tier === 'heli' || o.tier === 'ship') && o.plot && threatLevel(s) >= DELIVERY_RAID_THREAT) {
     const rng = { seed: s.seed };
     const roll = nextRandom(rng);
-    const rivals = (Object.keys(FACTIONS) as RivalId[]).filter((r) => s.rivals[r].alive);
+    const rivals = (Object.keys(FACTIONS) as RivalId[]).filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day);
     const rival = rivals[Math.floor(nextRandom(rng) * rivals.length)];
     s.seed = rng.seed;
     if (roll < DELIVERY_RAID_CHANCE && rival) {

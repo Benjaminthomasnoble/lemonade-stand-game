@@ -64,7 +64,7 @@ describe('crew and raids', () => {
     buildClubhouse(s);
     for (const r of [...s.recruits]) hireGuard(s, r.id);
     for (const g of s.guards) { equip(s, g.id, 'hatchets'); equip(s, g.id, 'pro'); }
-    const target = raidTargets(s).find((p) => s.plots[p.id].stand!.level === 1)!;
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!;
     const ids = s.guards.map((g) => g.id);
     expect(raidOdds(s, target.id, ids, 'smash', false)).toBeGreaterThan(0.8);
     const report = planRaid(s, target.id, ids, 'smash', 'now');

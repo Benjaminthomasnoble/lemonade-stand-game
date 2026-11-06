@@ -7,6 +7,7 @@ import {
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
+  factionBuyout, makeTruce, plotBuyout, stormHQ,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
@@ -142,6 +143,14 @@ async function main() {
         const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
         if (typeof r === 'object') { hud.inspected = null; playBattle(r); }
         else if (r) hud.toast(`Raid planned for tonight on ${PLOT_BY_ID[a.plot].name}.`);
+        break;
+      }
+      case 'truce': makeTruce(state, a.rival); break;
+      case 'plotBuyout': plotBuyout(state, a.plot); break;
+      case 'factionBuyout': if (factionBuyout(state, a.rival)) audio.stinger('raid-won'); break;
+      case 'assault': {
+        const r = stormHQ(state, a.rival, a.guards);
+        if (r) { hud.inspected = null; playBattle(r.reports[r.reports.length - 1]); }
         break;
       }
       case 'replay': if (state.battles[a.index]) playBattle(state.battles[a.index]); break;

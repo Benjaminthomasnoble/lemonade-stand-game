@@ -10,7 +10,12 @@ import { mat, SEA_X, SEA_Z, tree } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, type Stand as StandModel } from './stand.ts';
 import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand, wreckLook } from './buildings.ts';
-import { makePerson } from './people.ts';
+import { makeCrew } from './people.ts';
+import { PAL, patternTexture } from './paint.ts';
+import { createStreetlights } from './streetlights.ts';
+
+/** Past this camera distance the bay turns into a tabletop map of owner tiles. */
+const BAY_VIEW_DIST = 90;
 
 export const SIDEWALK_OFFSET = STREET_HALF + 1.1;
 /** How far the stand model's origin sits from the street center. */
@@ -20,6 +25,8 @@ export interface PlotView {
   plot: Plot;
   root: THREE.Group;
   pad: THREE.Mesh;
+  /** Street View grass and the Bay View owner tile. */
+  padMats: [THREE.MeshStandardMaterial, THREE.MeshBasicMaterial];
   border: THREE.Mesh;
   key: string;
   stand?: StandModel;
@@ -47,9 +54,10 @@ function guardsAt(s: GameState, id: string): number {
 }
 
 export function createBay(scene: THREE.Scene): Bay {
-  const roadMat = mat(0x55575c), walkMat = mat(0xd6d2c8), dashMat = mat(0xf4f1d0);
+  const roadMat = mat(PAL.asphalt), walkMat = mat(0xeee4c8), dashMat = mat(PAL.pith);
   let seed = 4242;
   const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const grounds: { mesh: THREE.Mesh; x0: number; x1: number; z: number; from: THREE.Color }[] = [];
 
   // District streets with sidewalks and lane dashes.
   for (const d of DISTRICTS) {
@@ -73,12 +81,13 @@ export function createBay(scene: THREE.Scene): Bay {
       dashes.setMatrixAt(i, m);
     }
     scene.add(dashes);
-    // District ground tint under the plots.
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(len, 36), mat(d.ground));
+    // District ground tint under the plots (its own material, so Domination can paint it).
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(len, 36), new THREE.MeshStandardMaterial({ color: d.ground, roughness: 0.9 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(cx, 0.01, z);
     ground.receiveShadow = true;
     scene.add(ground);
+    grounds.push({ mesh: ground, x0, x1, z, from: new THREE.Color(d.ground) });
   }
   // Connecting roads: cross streets between the rows, a west avenue, and a
   // short connector at each end of every district street.
@@ -127,7 +136,9 @@ export function createBay(scene: THREE.Scene): Bay {
     root.position.set(p.x, 0, p.streetZ - facing * STAND_SETBACK);
     root.rotation.y = p.side === 0 ? 0 : Math.PI;
     scene.add(root);
-    const pad = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ color: 0x8fca6c, roughness: 1 }));
+    const grass = new THREE.MeshStandardMaterial({ color: 0x8fca6c, roughness: 1 });
+    const tile = new THREE.MeshBasicMaterial({ color: PAL.paperWash });
+    const pad = new THREE.Mesh(padGeo, grass);
     pad.rotation.x = -Math.PI / 2;
     pad.position.set(p.x, 0.025, p.z);
     pad.receiveShadow = true;
@@ -138,8 +149,18 @@ export function createBay(scene: THREE.Scene): Bay {
     border.position.set(p.x, 0.13, p.streetZ - facing * (SIDEWALK_OFFSET + 1.4));
     scene.add(border);
     const sidewalkZ = p.streetZ - facing * SIDEWALK_OFFSET;
-    views[p.id] = { plot: p, root, pad, border, key: '', serve: new THREE.Vector3(p.x, 0.12, sidewalkZ - facing * 0.3), sidewalkZ };
+    views[p.id] = { plot: p, root, pad, padMats: [grass, tile], border, key: '', serve: new THREE.Vector3(p.x, 0.12, sidewalkZ - facing * 0.3), sidewalkZ };
   }
+
+  // Night Indigo outlines around every plot, shown in Bay View.
+  const outlines = new THREE.InstancedMesh(new THREE.PlaneGeometry(PLOT_SPACING - 0.2, 10.8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: PAL.indigo }), PLOTS.length);
+  PLOTS.forEach((p, i) => outlines.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, 0.02, p.z)));
+  outlines.computeBoundingSphere();
+  outlines.visible = false;
+  scene.add(outlines);
+  let bayView = false;
+  let synced = false;
+  const lamps = createStreetlights(scene);
 
   const ring = new THREE.Mesh(new THREE.RingGeometry(6.2, 6.9, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
   ring.rotation.x = -Math.PI / 2;
@@ -148,6 +169,37 @@ export function createBay(scene: THREE.Scene): Bay {
 
   const raycaster = new THREE.Raycaster();
   const pads = Object.values(views).map((v) => v.pad);
+
+  // Domination (spec: Juice and motion): a wave of lemon paint rolls out from
+  // Lottie's Corner until the whole map is yellow, and it stays yellow.
+  const home = PLOTS.find((p) => p.id === LOTTIES_CORNER)!;
+  const PAINT_SPEED = 70; // world units per second
+  let paintStart: number | null = null; // null: not painting; -Infinity: already painted
+  let paintClock = 0;
+  const painted = new Set<string>();
+  const lemonGrass = new THREE.Color(0xf3dc6b), lemonTile = new THREE.Color(0xffffff);
+  function paintPad(v: PlotView) {
+    v.padMats[0].color.copy(lemonGrass);
+    v.padMats[1].map = patternTexture('player', 2);
+    v.padMats[1].color.copy(lemonTile);
+    v.padMats[1].needsUpdate = true;
+  }
+  function paintWave(time: number) {
+    if (paintStart === null) return;
+    if (paintStart === -Infinity) paintStart = time - 1e6;
+    const r = (time - paintStart) * PAINT_SPEED;
+    for (const v of Object.values(views)) {
+      if (painted.has(v.plot.id) || Math.hypot(v.plot.x - home.x, v.plot.z - home.z) > r) continue;
+      painted.add(v.plot.id);
+      paintPad(v);
+    }
+    for (const g of grounds) {
+      const near = Math.hypot(THREE.MathUtils.clamp(home.x, g.x0, g.x1) - home.x, g.z - home.z);
+      const far = Math.max(Math.hypot(g.x0 - home.x, g.z - home.z), Math.hypot(g.x1 - home.x, g.z - home.z));
+      const k = THREE.MathUtils.clamp((r - near) / Math.max(1, far - near), 0, 1);
+      (g.mesh.material as THREE.MeshStandardMaterial).color.copy(g.from).lerp(lemonGrass, k);
+    }
+  }
 
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
@@ -171,7 +223,7 @@ export function createBay(scene: THREE.Scene): Bay {
     // Whoever stands guard here waits by the gate.
     const guards = guardsAt(s, p.id);
     for (let i = 0; i < Math.min(guards, ps.owner === 'player' ? 6 : 2); i++) {
-      const g = makePerson(ps.owner === 'player' ? PLAYER_COLOR : FACTIONS[ps.owner as RivalId].color, 0x264653);
+      const g = makeCrew(ps.owner as RivalId | 'player');
       g.position.set((i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.12, 1.5);
       g.rotation.y = 0;
       g.scale.setScalar(0.95);
@@ -184,12 +236,23 @@ export function createBay(scene: THREE.Scene): Bay {
     const color = ownerColor(ps.owner);
     (v.border.material as THREE.MeshBasicMaterial).color.setHex(color);
     v.border.visible = !!ps.owner;
-    (v.pad.material as THREE.MeshStandardMaterial).color.setHex(ps.owner === 'player' ? 0xa6d97a : ps.owner ? 0x8fca6c : 0x9fcf7f);
+    v.padMats[0].color.setHex(ps.owner === 'player' ? 0xa6d97a : ps.owner ? 0x8fca6c : 0x9fcf7f);
+    // Bay View tile: owner pattern, Paper Wash for unowned land, Pith Cream for civic plots.
+    const tile = v.padMats[1];
+    tile.map = ps.owner ? patternTexture(ps.owner as RivalId | 'player', 2) : null;
+    tile.color.setHex(ps.owner ? 0xffffff : p.type === 'civic' ? PAL.pith : PAL.paperWash);
+    tile.needsUpdate = true;
+    if (painted.has(p.id)) paintPad(v);
   }
 
   return {
     views,
     sync(s) {
+      const won = s.outcome?.result === 'won' && s.outcome.how === 'domination';
+      // A game loaded after the win shows the yellow map at once; a fresh win rolls the wave.
+      if (won && paintStart === null) paintStart = synced ? paintClock : -Infinity;
+      if (!won && paintStart !== null) { paintStart = null; painted.clear(); for (const g of grounds) (g.mesh.material as THREE.MeshStandardMaterial).color.copy(g.from); for (const v of Object.values(views)) v.key = ''; }
+      synced = true;
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
         const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
@@ -197,6 +260,16 @@ export function createBay(scene: THREE.Scene): Bay {
       }
     },
     update(s, time) {
+      paintClock = time;
+      paintWave(time);
+      lamps.update();
+      const cam = scene.userData.camera as THREE.Camera | undefined, focus = scene.userData.focus as THREE.Vector3 | undefined;
+      const wantBay = !!cam && !!focus && cam.position.distanceTo(focus) > BAY_VIEW_DIST;
+      if (wantBay !== bayView) {
+        bayView = wantBay;
+        outlines.visible = bayView;
+        for (const v of Object.values(views)) { v.pad.material = v.padMats[bayView ? 1 : 0]; v.pad.position.y = bayView ? 0.06 : 0.025; }
+      }
       for (const v of Object.values(views)) {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;

@@ -286,7 +286,7 @@ async function main() {
       l.el.style.display = show ? '' : 'none';
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }
-    world.renderer.render(world.scene, world.camera);
+    world.render();
     hud.render(state, speed);
   });
   document.body.dataset.ready = '1';

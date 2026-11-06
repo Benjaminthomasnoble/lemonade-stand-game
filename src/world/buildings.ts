@@ -3,16 +3,13 @@
 // Local frame: the street is toward +z; the plot spans z -7.5..2.5.
 import * as THREE from 'three/webgpu';
 import { FACTIONS, PLAYER_COLOR, type RivalId } from '../sim/economy.ts';
+import { block, crateLabelMat, labelSign, paint, PAL, patternMat, windowMat } from './paint.ts';
 
-const mats = new Map<string, THREE.MeshStandardMaterial>();
-function m(color: number, roughness = 0.8, emissive = 0) {
-  const k = `${color}|${roughness}|${emissive}`;
-  let x = mats.get(k);
-  if (!x) { x = new THREE.MeshStandardMaterial({ color, roughness, emissive }); mats.set(k, x); }
-  return x;
+function m(color: number, roughness = 0.8) {
+  return color === PAL.indigo ? windowMat() : paint(color, { rough: roughness });
 }
 function box(g: THREE.Group, w: number, h: number, d: number, color: number, x: number, y: number, z: number, rough = 0.8) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m(color, rough));
+  const mesh = new THREE.Mesh(block(w, h, d), m(color, rough));
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -46,29 +43,96 @@ function sign(g: THREE.Group, text: string, w: number, x: number, y: number, z: 
 }
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
-/** A rival stand: the same five sizes as ours, painted in the faction's colors. */
+/** Each family's stand topper (spec: Stands L1-L5), built once and cloned. */
+const toppers = new Map<RivalId, THREE.Group>();
+function topper(g: THREE.Group, id: RivalId, y: number, z: number) {
+  let tpl = toppers.get(id);
+  if (!tpl) { tpl = buildTopper(id); toppers.set(id, tpl); }
+  const t = tpl.clone();
+  t.position.set(0, y, z);
+  t.rotation.y = 0.3;
+  g.add(t);
+}
+function buildTopper(id: RivalId): THREE.Group {
+  const f = FACTIONS[id];
+  const t = new THREE.Group();
+  const add = (geo: THREE.BufferGeometry, color: number, x: number, yy: number, zz: number, rough = 0.6) => {
+    const mesh = new THREE.Mesh(geo, m(color, rough)); mesh.position.set(x, yy, zz); mesh.castShadow = true; t.add(mesh); return mesh;
+  };
+  switch (id) {
+    case 'sourwood': // a giant bowler
+      add(new THREE.SphereGeometry(0.55, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0x2a1633, 0, 0.1, 0, 0.5);
+      add(new THREE.CylinderGeometry(0.8, 0.8, 0.06, 20), 0x2a1633, 0, 0.1, 0, 0.5);
+      add(new THREE.CylinderGeometry(0.56, 0.56, 0.12, 20, 1, true), f.accent, 0, 0.18, 0, 0.4);
+      break;
+    case 'hollis': // a sun-tea jar
+      add(new THREE.CylinderGeometry(0.42, 0.42, 1.0, 16), 0xe08a3c, 0, 0.5, 0, 0.2).material = new THREE.MeshStandardNodeMaterial({ color: 0xd9822b, transparent: true, opacity: 0.8, roughness: 0.15 });
+      add(new THREE.CylinderGeometry(0.3, 0.3, 0.14, 16), f.accent, 0, 1.05, 0);
+      break;
+    case 'fizzco': // a soda bottle
+      add(new THREE.CylinderGeometry(0.3, 0.32, 0.9, 14), f.color, 0, 0.45, 0, 0.3);
+      add(new THREE.CylinderGeometry(0.12, 0.28, 0.4, 14), f.color, 0, 1.1, 0, 0.3);
+      add(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 12), f.accent, 0, 1.33, 0, 0.3);
+      add(new THREE.CylinderGeometry(0.31, 0.31, 0.25, 14, 1, true), 0xffffff, 0, 0.5, 0);
+      break;
+    case 'coldbrew': // an iced coffee cup with a straw
+      add(new THREE.CylinderGeometry(0.42, 0.3, 1.0, 14), 0xe8dcc4, 0, 0.5, 0);
+      add(new THREE.CylinderGeometry(0.44, 0.44, 0.1, 14), 0xffffff, 0, 1.03, 0);
+      add(new THREE.CylinderGeometry(0.43, 0.38, 0.28, 14, 1, true), f.color, 0, 0.55, 0);
+      add(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 6), f.accent, 0.12, 1.3, 0).rotation.z = -0.25;
+      break;
+    case 'blenders': // a surfboard stood on end
+      add(new THREE.CapsuleGeometry(0.32, 1.5, 4, 12).scale(1, 1, 0.18), 0x00a6a6, 0, 1.0, 0);
+      add(new THREE.BoxGeometry(0.08, 2.0, 0.07), f.color, 0, 1.0, 0.06);
+      break;
+  }
+  return t;
+}
+
+/** A rival stand: the same five silhouettes as ours, in the family's colors and pattern. */
 export function rivalStand(id: RivalId, level: number): THREE.Group {
   const f = FACTIONS[id];
   const g = new THREE.Group();
   const w = [1.8, 3, 3.6, 5, 6][level - 1];
   const h = [0.85, 1.1, 2.6, 3, 3.4][level - 1];
+  const pattern = patternMat(id, 1);
+  const patterned = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(geo, pattern); mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; g.add(mesh); return mesh;
+  };
+  let top = h;
   if (level <= 2) {
     box(g, w, h, 1, f.color, 0, h / 2, 0.3);
     box(g, w + 0.2, 0.08, 1.2, f.accent, 0, h + 0.04, 0.3);
     if (level === 2) {
       for (const x of [-w / 2, w / 2]) box(g, 0.1, 2.5, 0.1, 0x6b4a2e, x, 1.25, 0.8);
-      box(g, w + 0.4, 0.08, 1.6, f.accent, 0, 2.55, 0.45);
+      patterned(block(w + 0.4, 0.08, 1.6), 0, 2.55, 0.45).rotation.x = 0.15;
+      top = 2.6;
     }
   } else {
     box(g, w, h, 2.6, f.color, 0, h / 2, -0.8);
     box(g, w + 0.4, 0.25, 3.0, f.accent, 0, h + 0.12, -0.8);
-    box(g, w * 0.7, 0.9, 0.05, 0x23214a, 0, h * 0.62, 0.52, 0.3);
+    box(g, w * 0.7, 0.9, 0.05, PAL.indigo, 0, h * 0.62, 0.52, 0.3);
     box(g, w + 0.2, 0.12, 0.6, f.accent, 0, 1.1, 0.75);
+    // Patterned awning over the window.
+    patterned(block(w * 0.8, 0.07, 1.0), 0, h * 0.62 + 0.62, 0.95).rotation.x = 0.3;
+    if (level >= 4 || id === 'coldbrew') {
+      // Neon strip in the accent color, lit at golden hour.
+      const neon = new THREE.Mesh(block(w * 0.8, 0.12, 0.08), paint(f.accent, { rough: 0.2, glow: 'neon', glowStrength: 2.5 }));
+      neon.position.set(0, h - 0.25, 0.53);
+      g.add(neon);
+    }
+    top = h + 0.25;
   }
-  sign(g, f.product.toUpperCase(), Math.min(w, 2.6), 0, level <= 2 ? h * 0.55 : 0.6, level <= 2 ? 0.81 : 1.06, hex(f.accent), hex(f.color));
+  // A crate-label logo on the front.
+  const label = labelSign(id, level <= 2 ? Math.min(w * 0.85, 1.6) : 2);
+  if (level <= 2) label.position.set(0, h * 0.5, 0.81);
+  else label.position.set(0, 0.6, 1.06);
+  g.add(label);
+  topper(g, id, top, level <= 2 ? 0.3 : -0.8);
   return g;
 }
 
+const flagGeo = new THREE.PlaneGeometry(1.8, 1.1);
 /** Rival HQs (and later the player's trophies). */
 export function hqBuilding(owner: RivalId | 'player', name: string): THREE.Group {
   const g = new THREE.Group();
@@ -76,7 +140,7 @@ export function hqBuilding(owner: RivalId | 'player', name: string): THREE.Group
   const accent = owner === 'player' ? 0xffffff : FACTIONS[owner].accent;
   if (name === 'FizzCo Tower') {
     box(g, 8, 26, 7, 0xb8c2cc, 0, 13, -3, 0.2);
-    for (let y = 2; y < 26; y += 2.2) box(g, 8.1, 0.25, 7.1, color, 0, y, -3);
+    for (let y = 2; y < 26; y += 2.2) { box(g, 8.1, 0.25, 7.1, color, 0, y, -3); box(g, 8.04, 1.1, 7.04, PAL.indigo, 0, y + 1.05, -3, 0.3); }
   } else if (name === 'Sourwood Manor') {
     box(g, 10, 6, 7, 0xe8e0d0, 0, 3, -3.5);
     const roof = new THREE.Mesh(new THREE.ConeGeometry(7.5, 3, 4), m(color));
@@ -98,6 +162,15 @@ export function hqBuilding(owner: RivalId | 'player', name: string): THREE.Group
     for (const x of [-3, 0, 3]) box(g, 0.2, 2.6, 0.2, accent, x, 5.6, -0.3);
   }
   sign(g, name, 6, 0, 1.6, 0.9, hex(accent), hex(color));
+  // The family's crate-label logo over the door, and a patterned flag.
+  const label = labelSign(owner, 3);
+  label.position.set(0, 3.3, name === 'Sourwood Manor' ? 0.5 : 0.08);
+  g.add(label);
+  const top = { 'FizzCo Tower': 26, 'Sourwood Manor': 9, 'Hollis Homestead': 9.6, 'The Grindhouse': 7 }[name] ?? 4.4;
+  box(g, 0.12, 3, 0.12, 0xffffff, 3, top + 1.5, -3);
+  const flag = new THREE.Mesh(flagGeo, patternMat(owner, 1, { side: THREE.DoubleSide }));
+  flag.position.set(3.95, top + 2.4, -3);
+  g.add(flag);
   return g;
 }
 
@@ -112,6 +185,7 @@ export function civicBuilding(name: string): THREE.Group {
   const [color, w, h] = look[name] ?? [0xdddddd, 8, 5];
   box(g, w, h, 7, color, 0, h / 2, -3.5);
   box(g, w + 0.6, 0.4, 7.6, 0x5b6470, 0, h + 0.2, -3.5);
+  if (h >= 4) for (const x of [-(w / 2 - 1.4), w / 2 - 1.4]) box(g, 1.3, 1.1, 0.08, PAL.indigo, x, h * 0.62, 0.02, 0.3);
   if (name === 'Town Hall and Registry') {
     box(g, 2, 5, 2, color, 0, h + 2.5, -3.5);
     const clock = new THREE.Mesh(new THREE.CircleGeometry(0.7, 20), m(0xffffff));
@@ -172,7 +246,7 @@ export function fenceModel(tier: number): THREE.Group {
     } else if (tier === 2) {
       for (let i = 0; i < posts; i++) { const [x, z] = postAt(i); box(g, 0.1, 1.4, 0.1, 0x8a9099, x, 0.7, z, 0.4); }
       const mesh = run(0.03, 1.2, 0.03, 0xb8c2cc, 0.7, 0.4);
-      mesh.material = new THREE.MeshStandardMaterial({ color: 0xb8c2cc, transparent: true, opacity: 0.45, metalness: 0.5, roughness: 0.4 });
+      (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({ color: 0xb8c2cc, transparent: true, opacity: 0.45, metalness: 0.5, roughness: 0.4 });
     } else if (tier === 3) {
       for (let i = 0; i < posts * 2; i++) {
         const [x, z] = postAt(Math.min(posts - 1, i / 2));
@@ -226,7 +300,9 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier', level: numb
       b.position.set(-(w - 2) / 2 + i * ((w - 2) / 7), 0.97, 0.2);
       g.add(b);
     }
-    sign(g, "LOTTIE'S BOTTLING", 4, 0, h - 0.8, -0.48, '#f6d33c', '#3a2a10');
+    const label = labelSign('player', 3.2);
+    label.position.set(0, h - 1.2, -0.47);
+    g.add(label);
   } else if (kind === 'helipad') {
     const r = 3 + level * 0.8;
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.2, 32), m(0x6b6f76));
@@ -251,7 +327,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier', level: numb
     const len = 12 + level * 6, w = 3 + level;
     box(g, w, 0.35, len, 0x8a5a30, 0, 0.35, -len / 2);
     for (let z = -2; z > -len; z -= 4) for (const x of [-w / 2 + 0.2, w / 2 - 0.2]) box(g, 0.3, 1.8, 0.3, 0x5a3a20, x, 0, z);
-    for (let i = 0; i < level * 2; i++) box(g, 0.9, 0.9, 0.9, i % 2 ? 0xf6d33c : 0xc9a227, (i % 2 ? 1 : -1) * (w / 2 - 0.7), 0.95, -3 - i * 1.6);
+    for (let i = 0; i < level * 2; i++) box(g, 0.9, 0.9, 0.9, 0, (i % 2 ? 1 : -1) * (w / 2 - 0.7), 0.95, -3 - i * 1.6).material = crateLabelMat('player');
     if (level >= 3) { box(g, 0.4, 7, 0.4, 0xd64545, w / 2 + 1, 3.5, -len + 3); box(g, 5, 0.4, 0.4, 0xd64545, w / 2 - 1, 7, -len + 3); }
     const pole = box(g, 0.12, 4, 0.12, 0xffffff, -w / 2 + 0.3, 2, -1);
     pole.castShadow = false;

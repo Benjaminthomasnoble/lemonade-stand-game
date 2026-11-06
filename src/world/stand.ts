@@ -2,7 +2,8 @@
 // Grandma Lottie in her lawn chair. L1 is the Folding Table; L2's striped
 // wooden booth is ready for milestone 2.
 import * as THREE from 'three/webgpu';
-import { makePerson } from './people.ts';
+import { makeLottie, makePeg } from './people.ts';
+import { block, paint } from './paint.ts';
 import { kiosk, palace, shack } from './standLevels.ts';
 
 export interface Stand {
@@ -14,7 +15,7 @@ export interface Stand {
   update(opts: { price: number; pitcherFill: number; open: boolean; time: number }): void;
 }
 
-const mat = (color: number, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness });
+const mat = (color: number, roughness = 0.85) => paint(color, { rough: roughness });
 
 function shadowy<T extends THREE.Mesh>(m: T): T { m.castShadow = true; m.receiveShadow = true; return m; }
 
@@ -47,7 +48,7 @@ function signTexture(text: string, sub: string, crayon: boolean) {
 
 function folkTable(): THREE.Group {
   const g = new THREE.Group();
-  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.9), mat(0x2f6d4f)));
+  const top = shadowy(new THREE.Mesh(block(1.6, 0.06, 0.9), mat(0x2f6d4f)));
   top.position.set(0, 0.78, 0.3);
   g.add(top);
   for (const x of [-0.72, 0.72]) for (const z of [-0.1, 0.7]) {
@@ -56,10 +57,10 @@ function folkTable(): THREE.Group {
     g.add(leg);
   }
   // Blue cooler beside the table.
-  const cooler = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.42, 0.4), mat(0x2d7dd2, 0.5)));
+  const cooler = shadowy(new THREE.Mesh(block(0.6, 0.42, 0.4), mat(0x2d7dd2, 0.5)));
   cooler.position.set(1.15, 0.21, 0.35);
   g.add(cooler);
-  const lid = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), mat(0xf4f4f4, 0.5)));
+  const lid = shadowy(new THREE.Mesh(block(0.62, 0.08, 0.42), mat(0xf4f4f4, 0.5)));
   lid.position.set(1.15, 0.46, 0.35);
   g.add(lid);
   return g;
@@ -67,20 +68,20 @@ function folkTable(): THREE.Group {
 
 function woodenBooth(): THREE.Group {
   const g = new THREE.Group();
-  const counter = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 1.1), mat(0xb07a45)));
+  const counter = shadowy(new THREE.Mesh(block(3, 1.1, 1.1), mat(0xb07a45)));
   counter.position.set(0, 0.55, 0.3);
   g.add(counter);
-  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.1, 1.3), mat(0xcf9a5c)));
+  const top = shadowy(new THREE.Mesh(block(3.3, 0.1, 1.3), mat(0xcf9a5c)));
   top.position.set(0, 1.15, 0.3);
   g.add(top);
   for (const x of [-1.5, 1.5]) for (const z of [-0.2, 0.8]) {
-    const post = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), mat(0x8a5a30)));
+    const post = shadowy(new THREE.Mesh(block(0.12, 2.6, 0.12), mat(0x8a5a30)));
     post.position.set(x, 1.3, z);
     g.add(post);
   }
   const awning = new THREE.Group();
   for (let i = 0; i < 8; i++) {
-    const s = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 1.7), mat(i % 2 ? 0xffffff : 0xf6d33c, 0.7)));
+    const s = shadowy(new THREE.Mesh(block(0.45, 0.06, 1.7), mat(i % 2 ? 0xffffff : 0xf6d33c, 0.7)));
     s.position.x = -1.8 + (i + 0.5) * 0.45;
     awning.add(s);
   }
@@ -94,10 +95,10 @@ function lawnChair(): THREE.Group {
   const g = new THREE.Group();
   const frame = mat(0xcccccc, 0.4);
   const webbing = mat(0x2bb3b1, 0.7);
-  const seat = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.55), webbing));
+  const seat = shadowy(new THREE.Mesh(block(0.6, 0.05, 0.55), webbing));
   seat.position.y = 0.38;
   g.add(seat);
-  const back = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.05), webbing));
+  const back = shadowy(new THREE.Mesh(block(0.6, 0.7, 0.05), webbing));
   back.position.set(0, 0.72, -0.3);
   back.rotation.x = -0.25;
   g.add(back);
@@ -147,7 +148,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   sign.castShadow = true;
   group.add(sign);
 
-  const kid = makePerson(0xf6d33c, 0x3c5aa6, undefined, 0.8);
+  const kid = makePeg({ body: 0x3c5aa6, hat: 'cap', hatColor: 0xf6d33c, scale: 0.8 });
   kid.position.set(0, 0, -0.45);
   group.add(kid);
 
@@ -156,15 +157,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
   if (opts.lottie !== false) group.add(chair);
-  const lottie = makePerson(0xb48ee0, 0xb48ee0, 0xf1c9a5, 0.9);
-  lottie.position.set(-2.0, 0.05, -0.15);
+  const lottie = makeLottie();
+  lottie.position.set(-2.0, 0.3, -0.15); // sitting in the chair
   lottie.rotation.y = 0.5;
-  const limbs = lottie.userData.limbs as THREE.Mesh[];
-  limbs[0].rotation.x = limbs[1].rotation.x = -1.4; // sitting
-  lottie.position.y = -0.3;
-  const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xf4f4f4));
-  bun.position.set(0, 1.6, -0.12);
-  lottie.add(bun);
   if (opts.lottie !== false) group.add(lottie);
 
   // Hand-painted signs (brand tier 1) up and down the block.
@@ -175,7 +170,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     board.position.set(x, 0.9, 1.0);
     board.rotation.y = flip * 0.35;
     board.castShadow = true;
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), mat(0x8a5a30));
+    const post = new THREE.Mesh(block(0.08, 0.9, 0.08), mat(0x8a5a30));
     post.position.set(x, 0.45, 0.98);
     brandSigns.add(board, post);
   }

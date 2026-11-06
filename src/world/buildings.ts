@@ -70,10 +70,11 @@ export function rivalStand(id: RivalId, level: number): THREE.Group {
 }
 
 /** Rival HQs (and later the player's trophies). */
-export function hqBuilding(owner: RivalId | 'player', name: string): THREE.Group {
+export function hqBuilding(owner: RivalId | 'player' | null, name: string): THREE.Group {
   const g = new THREE.Group();
-  const color = owner === 'player' ? PLAYER_COLOR : FACTIONS[owner].color;
-  const accent = owner === 'player' ? 0xffffff : FACTIONS[owner].accent;
+  // An empty HQ (its owners went bust) stands in faded grey.
+  const color = owner === 'player' ? PLAYER_COLOR : owner ? FACTIONS[owner].color : 0x9a9a9a;
+  const accent = owner === 'player' ? 0xffffff : owner ? FACTIONS[owner].accent : 0xd0d0d0;
   if (name === 'FizzCo Tower') {
     box(g, 8, 26, 7, 0xb8c2cc, 0, 13, -3, 0.2);
     for (let y = 2; y < 26; y += 2.2) box(g, 8.1, 0.25, 7.1, color, 0, y, -3);
@@ -208,8 +209,26 @@ export function wreckLook(stand: THREE.Object3D): THREE.Group {
 }
 
 /** Player facilities (milestone 5): Bottling Works, Helipad tiers, Pier tiers. */
-export function facilityModel(kind: 'bottling' | 'helipad' | 'pier', level: number): THREE.Group {
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', level: number): THREE.Group {
   const g = new THREE.Group();
+  if (kind === 'grove') {
+    // A Lemon Grove: rows of round lemon trees dotted with fruit.
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      const x = -4.5 + c * 3, z = -8 + r * 3;
+      box(g, 0.3, 1.2, 0.3, 0x6b4a2b, x, 0.6, z);
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), m(0x3f8f3a));
+      crown.position.set(x, 1.9, z);
+      crown.castShadow = true;
+      g.add(crown);
+      for (const [dx, dy, dz] of [[0.7, 0.2, 0.5], [-0.6, 0.4, 0.6], [0.2, -0.3, 0.9]]) {
+        const lemon = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), m(0xf6d33c));
+        lemon.position.set(x + dx, 1.9 + dy, z + dz);
+        g.add(lemon);
+      }
+    }
+    g.name = 'facility';
+    return g;
+  }
   const yellow = PLAYER_COLOR;
   if (kind === 'bottling') {
     const w = 6 + level, h = 3 + level;

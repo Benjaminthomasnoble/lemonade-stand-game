@@ -11,7 +11,7 @@ import {
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
-import { pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order } from './vip.ts';
+import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
@@ -139,6 +139,7 @@ export interface GameState {
   battles: BattleReport[]; // most recent first
   respectFromPlayer: Partial<Record<RivalId, number>>;
   bottles: number;
+  lastOffer?: Partial<Record<OrderTier, number>>; // day each VIP tier last made an offer
   seenClients?: string[]; // VIP clients who've visited before (no cutscene pause after the first)
   noTruceUntil?: number; // after breaking a truce, no rival accepts one through this day
   offers: Order[];
@@ -416,7 +417,7 @@ export function averageStopChance(s: GameState, plotId: string, w: Weather = s.w
 
 export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand): number {
   const tier = owner === 'player' ? s.brandTier : s.rivals[owner]?.brandTier ?? 0;
-  let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0);
+  let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0);
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
   return m;
 }

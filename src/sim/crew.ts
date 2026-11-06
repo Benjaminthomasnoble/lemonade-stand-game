@@ -80,6 +80,7 @@ export function buildingHp(ps: PlotState): number {
   return 0;
 }
 export const SIDE_LOT_PRICE = 300;
+export const TUTORIAL_RAID_DAY = 15; // the night after the Summer Fair
 export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale if it isn't rebuilt by the next dawn but one
 
 // ---------- Threat ----------
@@ -412,7 +413,11 @@ export function planNight(s: GameState): void {
   const threat = threatLevel(s);
   // Rivals scheme against the player.
   const recentlyHit = s.battles.some((b) => b.defender === 'player' && b.day >= s.day - 1);
-  if (s.day > NO_RAID_DAYS && !recentlyHit && nextRandom(rng) < RAIDS_PER_WEEK[threat - 1] * DIFFICULTY[s.settings.difficulty].raids / 7) {
+  // The first raid on you is the tutorial raid: it comes the night your first Kiosk opens or the night of the Summer Fair (Day 15), whichever is first.
+  const tutorial = !s.battles.some((b) => b.defender === 'player');
+  const tutorialNight = tutorial && (s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3));
+  const roll = nextRandom(rng);
+  if (s.day > NO_RAID_DAYS && !recentlyHit && (tutorial ? tutorialNight : roll < RAIDS_PER_WEEK[threat - 1] * DIFFICULTY[s.settings.difficulty].raids / 7)) {
     const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
     const candidates = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day + 1);
     if (mine.length && candidates.length) {
@@ -429,7 +434,7 @@ export function planNight(s: GameState): void {
       let target = mine.sort((a, b) => score(b) - score(a))[0];
       let party = raidParty(s, rival, threat, rng);
       let detected = nextRandom(rng) < detectionChance(s, target.id, true);
-      if (!s.battles.some((b) => b.defender === 'player')) {
+      if (tutorial) {
         // The tutorial raid: two Smoothie Bros with bare fists, straight at Dex. It always bounces.
         const dex = s.guards.find((g) => g.name === 'Dex Moody' && g.post);
         target = (dex ? PLOT_BY_ID[dex.post!] : target);

@@ -125,11 +125,11 @@ export const RANKS = [
   { rank: 3, title: 'Block Boss', ss: 6000 },
   { rank: 4, title: 'Neighborhood Name', ss: 25000 },
   { rank: 5, title: 'District Big Shot', ss: 100000 },
-  { rank: 6, title: 'Citrus Baron', ss: 400000 },
-  { rank: 7, title: 'Lemon Tycoon', ss: 3000000 },
-  { rank: 8, title: 'Juice Magnate', ss: 10000000 },
-  { rank: 9, title: 'Bay Kingpin', ss: 25000000 },
-  { rank: 10, title: 'The Big Squeeze', ss: 75000000 },
+  { rank: 6, title: 'Citrus Baron', ss: 500000 },
+  { rank: 7, title: 'Lemon Tycoon', ss: 4500000 },
+  { rank: 8, title: 'Juice Magnate', ss: 20000000 },
+  { rank: 9, title: 'Bay Kingpin', ss: 125000000 },
+  { rank: 10, title: 'The Big Squeeze', ss: 200000000 },
 ];
 
 // ---------- land (section 10) ----------

@@ -56,6 +56,7 @@ describe('sit-downs and buyouts', () => {
     expect(s.plots[hqPlot('blenders').id].owner).toBe('player');
     expect(price).toBeGreaterThan(0);
     weaken(s, 'sourwood');
+    s.rank = 9;
     expect(canFactionBuyout(s, 'sourwood')).toEqual({ ok: false, why: 'Vera Sourwood never sells' });
   });
 });

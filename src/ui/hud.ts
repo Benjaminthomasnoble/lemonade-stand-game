@@ -10,7 +10,7 @@ import {
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, incomingRaids, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
-  bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilityFor, ORDER_TIERS, tierOpen, PLOTS,
+  bottlesNeeded, bottlingCapacity, canBuildFacility, FACILITIES, facilitiesFor, ORDER_TIERS, tierOpen, PLOTS,
   type FacilityKind, type OrderTier, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
@@ -416,9 +416,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (ps.owner === 'player' && isWrecked(ps)) actions = blockBtn('rebuild', `${ps.busted ? 'Repair' : 'Rebuild'} for ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}"`)
       + `<div class="muted">${ps.busted ? 'Busted: closed until you repair it. The plot stays yours.' : 'Rebuild by tomorrow or the plot goes For Sale.'}</div>`;
     else if (ps.owner === 'player' && !st) {
-      const kind = facilityFor(p.type);
       const lvl = ps.facility?.level ?? 0;
-      const fac = kind && lvl < 3 ? blockBtn('facility', `${lvl ? 'Upgrade to' : 'Build'} ${FACILITIES[kind].names[lvl]} (${whole(FACILITIES[kind].costs[lvl])})`, canBuildFacility(s, id, kind), `data-plot="${id}" data-kind="${kind}" data-testid="facility"`) + `<div class="muted">${FACILITIES[kind].blurb[lvl]}</div>` : '';
+      const kinds = ps.facility ? [ps.facility.kind] : facilitiesFor(p.type);
+      const fac = kinds.filter((kind) => lvl < FACILITIES[kind].names.length).map((kind) => blockBtn('facility', `${lvl ? 'Upgrade to' : 'Build'} ${FACILITIES[kind].names[lvl]} (${whole(FACILITIES[kind].costs[lvl])})`, canBuildFacility(s, id, kind), `data-plot="${id}" data-kind="${kind}" data-testid="facility"`) + `<div class="muted">${FACILITIES[kind].blurb[lvl]}</div>`).join('');
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : blockBtn('build', `Build a Folding Table (${whole(STAND_LEVELS[0].cost)})`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`);
       actions = stand + fac;
     }

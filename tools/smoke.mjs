@@ -162,9 +162,9 @@ try {
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
     if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
-    st.raids = []; st.rank = 7; st.cash = 50000000; st.clubhouse = 3;
+    st.raids = []; st.rank = 7; st.cash = 50000000; st.clubhouse = 3; // the Blend Shack opens at Rank 5
     const ids = Object.keys(st.plots).filter((id) => st.plots[id].owner === 'blenders');
-    const hqId = ids.find((id) => !st.plots[id].stand);
+    const hqId = window.__game.hqOf('blenders');
     const stands = ids.filter((id) => id !== hqId);
     for (const id of stands.slice(1)) { st.plots[id].owner = null; st.plots[id].stand = null; }
     st.guards = Array.from({ length: 12 }, (_, i) => ({ id: 'sg' + i, name: 'Smoke ' + i, trait: 'Loyal', level: 5, xp: 0, weapon: 'hatchets', gear: 'pro', post: null, outUntil: 0, fee: 0 }));

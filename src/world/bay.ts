@@ -155,7 +155,7 @@ export function createBay(scene: THREE.Scene): Bay {
     v.stand = undefined;
     const p = v.plot;
     if (p.type === 'civic') v.root.add(civicBuilding(p.name));
-    else if (p.type === 'hq') v.root.add(hqBuilding(ps.owner as RivalId | 'player', p.name));
+    else if (p.type === 'hq') v.root.add(hqBuilding(ps.owner as RivalId | 'player' | null, p.name));
     else if (ps.facility) v.root.add(facilityModel(ps.facility.kind, ps.facility.level));
     else if (p.type === 'field') { v.root.add(fieldRows()); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (p.type === 'dock') { v.root.add(pierModel()); if (!ps.owner) v.root.add(forSaleSign()); }

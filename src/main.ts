@@ -7,13 +7,13 @@ import {
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, makeTruce, plotBuyout, stormHQ,
+  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
-import { incomingRaids } from './sim/economy.ts';
+import { bySea, incomingRaids, isVip } from './sim/economy.ts';
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { createWorld } from './world/scene.ts';
@@ -82,16 +82,16 @@ async function main() {
       flushNews();
       if (e.raid) { playBattle(e.raid); continue; }
       const o = e.order;
-      if (!e.ok || !o.plot || (o.tier !== 'heli' && o.tier !== 'ship')) continue;
+      if (!e.ok || !o.plot || !isVip(o.tier)) continue;
       // Only a client's first visit stops the clock for the show; regulars just land and load.
       const seen = (state.seenClients ??= []);
       if (!seen.includes(o.client)) {
         seen.push(o.client);
         crowd.clear();
-        focusPlot(o.plot, o.tier === 'ship' ? 60 : 45);
+        focusPlot(o.plot, bySea(o.tier) ? 60 : 45);
         if (speed) { vipResume = speed; speed = 0; }
       }
-      vip.play(o.tier, bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1);
+      vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1);
       audio.stinger('raid-won');
     }
     const t = world.controls.target;
@@ -249,6 +249,7 @@ async function main() {
     crowd: () => crowd.activeCount(),
     battle: () => battle.active(),
     vip: () => vip.active(),
+    hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
     dex: () => welcomeDex(state),
     focus: (id: string) => focusPlot(id, 18),

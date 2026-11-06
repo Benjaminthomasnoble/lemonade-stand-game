@@ -24,12 +24,12 @@ export const PLOT_BUYOUT = { home: 2.5, away: 2 };
 export const FIRE_SALE = { share: 0.75, days: 2 };
 export const BANKRUPT_DAYS = 7;
 /** Per faction: HQ assault rank, Gate HP, Faction Buyout multiple (null = never sells), boss and HQ difficulty tier. */
-export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number | null; tier: number; boss: string; move: string }> = {
-  blenders: { rank: 4, gate: 2000, buyout: 1.5, tier: 1, boss: 'Brock "The Blender" Bodine', move: 'Blender Rush' },
-  coldbrew: { rank: 5, gate: 2750, buyout: 1.8, tier: 3, boss: 'Juniper "Juni" Grind', move: 'Espresso Shot' },
-  hollis: { rank: 6, gate: 3500, buyout: 1.5, tier: 3, boss: 'Tilly Hollis', move: 'Hay Bale Wall' },
-  fizzco: { rank: 7, gate: 4250, buyout: 1.8, tier: 4, boss: 'Preston Fizzwell III', move: 'Hostile Takeover' },
-  sourwood: { rank: 9, gate: 5000, buyout: null, tier: 5, boss: 'Vera Sourwood', move: 'Old Money' },
+export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number | null; tier: number; yard: number; boss: string; move: string }> = {
+  blenders: { rank: 5, gate: 2000, buyout: 1.5, tier: 1, yard: 4, boss: 'Brock "The Blender" Bodine', move: 'Blender Rush' },
+  coldbrew: { rank: 6, gate: 2750, buyout: 1.8, tier: 2, yard: 6, boss: 'Juniper "Juni" Grind', move: 'Espresso Shot' },
+  hollis: { rank: 7, gate: 3500, buyout: 1.5, tier: 3, yard: 6, boss: 'Tilly Hollis', move: 'Hay Bale Wall' },
+  fizzco: { rank: 8, gate: 4250, buyout: 1.8, tier: 4, yard: 9, boss: 'Preston Fizzwell III', move: 'Hostile Takeover' },
+  sourwood: { rank: 9, gate: 5000, buyout: null, tier: 4, yard: 10, boss: 'Vera Sourwood', move: 'Old Money' },
 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
@@ -170,7 +170,7 @@ export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
 }
 
 export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
-  if (s.rank < FACTION_BUYOUT_RANK) return rankNeed(FACTION_BUYOUT_RANK);
+  if (s.rank < Math.max(FACTION_BUYOUT_RANK, HQS[id].rank)) return rankNeed(Math.max(FACTION_BUYOUT_RANK, HQS[id].rank));
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   const price = factionBuyoutPrice(s, id);
   if (price === null) return { ok: false, why: `${HQS[id].boss} never sells` };
@@ -264,7 +264,7 @@ export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultR
   const reports: BattleReport[] = [];
   const stages: AssaultResult['stage'][] = ['gate', 'yard', 'boss'];
   for (const stage of stages) {
-    let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? 2 + hq.tier * 2 : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
+    let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
     let perimeter = 0, fenceHp = 0;
     if (stage === 'boss') {
       defenders.unshift(boss(id, s.nextId++));

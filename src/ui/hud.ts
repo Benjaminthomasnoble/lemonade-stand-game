@@ -26,7 +26,7 @@ import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { damageHere, damageTickets } from './damage.ts';
+import { damageCard, damageHere, damageTickets } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
@@ -567,6 +567,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const slots = GADGET_SLOTS(ps.stand?.level ?? 1);
     const pb = canBuyPerimeter(s, id);
     const out: string[] = [];
+    out.push(damageCard(s, id)); // the stand itself: its HP, and the repair once it's Damaged (src/ui/damage.ts)
     if (cur) out.push(card(ART.fence(ps.defense.tier), cur.name, cur ? meter(ps.defense.fenceHp / cur.hp, 'hp') : '',
       (fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
       `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands.`));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { approveRepair, LOTTIES_CORNER, newGame, PLOTS, upgradeStand, type GameState } from '../sim/economy.ts';
-import { damageHere, damageTickets } from './damage.ts';
+import { damageCard, damageHere, damageTickets } from './damage.ts';
 import { repairCards } from './evening.ts';
 
 /** Lottie's Corner as a Kiosk ($4,050, 800 HP, 120 cups an hour) at Morning Prep. */
@@ -65,6 +65,26 @@ describe('the HP readout and the repair', () => {
     expect(row).not.toContain('Repair');
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
     expect(damageHere(s, LOTTIES_CORNER)).toBe('');
+  });
+
+  it("the stand panel's Defend card shows the selected stand's HP, and its repair once Damaged", () => {
+    const s = kiosk();
+    const full = damageCard(s, LOTTIES_CORNER);
+    expect(full).toContain('data-testid="stand-hp"');
+    expect(full).toContain('<b>The Kiosk</b>');
+    expect(full).toContain('--v:1.000');
+    expect(full).toContain('title="The Kiosk: 800/800 HP"');
+    expect(full).not.toContain('Repair');
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    const card = damageCard(s, LOTTIES_CORNER);
+    expect(card).toContain('--v:0.500');
+    expect(card).toContain('400/800 HP. Damaged: pours 60 of 120 cups an hour until repaired');
+    expect(card).toContain(`<button class="cl-b go" data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    expect(card).toContain('Repair $304');
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    expect(damageCard(s, rival.id)).toBe('');
+    s.plots[LOTTIES_CORNER].stand!.wrecked = true;
+    expect(damageCard(s, LOTTIES_CORNER)).toBe('');
   });
 
   it('the Evening repair cards list your Damaged buildings', () => {

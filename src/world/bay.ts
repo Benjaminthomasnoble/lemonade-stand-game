@@ -14,10 +14,12 @@ import {
 import { SEA_X, SEA_Z, treeInto } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, type Stand as StandModel } from './stand.ts';
-import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, gadgetModels, hqBuilding, pierModel, rivalStand, wreckLook, wreckPile } from './buildings.ts';
+import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
 import { lemonsExpiringTomorrow, stock } from '../sim/economy.ts';
+import { civicBuilding, facilityModel, fieldRows, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
+import { createTown, townFootprints } from './town.ts';
 import { makePerson } from './people.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
@@ -146,6 +148,8 @@ export function createBay(scene: THREE.Scene): Bay {
   }
   const onRoad = (x: number, z: number, pad = 2) => roads.some((r) => Math.abs(r.x - x) < r.w / 2 + pad && Math.abs(r.z - z) < r.d / 2 + pad);
   const nearPlot = (x: number, z: number, pad = 8) => PLOTS.some((p) => Math.abs(p.x - x) < pad && Math.abs(p.z - z) < pad);
+  const foot = townFootprints();
+  const onBuilding = (x: number, z: number, pad = 0) => foot.some(([fx, fz, r]) => Math.abs(fx - x) < r + pad && Math.abs(fz - z) < r - 1 + pad);
   const onStreet = (x: number, z: number, pad = 7) => DISTRICTS.some((d) => Math.abs(d.origin[1] - z) < pad && x > d.origin[0] - 8 && x < d.origin[0] + d.cols * PLOT_SPACING + 8);
 
   // Soft blob shadows (x, z, radius) for when the sun casts none (phones).
@@ -181,7 +185,7 @@ export function createBay(scene: THREE.Scene): Bay {
   // Trees in the gaps (one in three a lemon tree).
   for (let i = 0; i < 260; i++) {
     const x = -178 + rng() * (SEA_X - 10 + 178), z = -125 + rng() * (SEA_Z - 10 + 125);
-    if (nearPlot(x, z) || onStreet(x, z) || onRoad(x, z)) continue;
+    if (nearPlot(x, z) || onStreet(x, z) || onRoad(x, z) || onBuilding(x, z, 1)) continue;
     const sc = 1.05 + rng() * 0.6;
     treeInto(props.at(x, z), x, z, rng, sc, i);
     blobAt.push([x, z, 2.3 * sc]);
@@ -205,7 +209,7 @@ export function createBay(scene: THREE.Scene): Bay {
   let nt = 0, nf = 0;
   for (let i = 0; i < 20000 && (nt < tufts.count || nf < flowers.count); i++) {
     const x = -182 + rng() * (SEA_X - 4 + 182), z = -132 + rng() * (SEA_Z - 6 + 132);
-    if (onRoad(x, z, 0.8) || onStreet(x, z, 5.8) || nearPlot(x, z, 5.6)) continue;
+    if (onRoad(x, z, 0.8) || onStreet(x, z, 5.8) || nearPlot(x, z, 5.6) || onBuilding(x, z)) continue;
     if (nt < tufts.count) { e.set((rng() - 0.5) * 0.5, rng() * 3, (rng() - 0.5) * 0.5); q.setFromEuler(e); const s = 0.8 + rng() * 0.9; tufts.setMatrixAt(nt, m4.compose(v.set(x, 0.14 * s, z), q, sc.set(s, s, s))); tufts.setColorAt(nt, col.set(greens[nt % 4]).multiplyScalar(0.85 + rng() * 0.3)); nt++; }
     else if (nf < flowers.count) { flowers.setMatrixAt(nf, m4.compose(v.set(x, 0.12, z), q.identity(), sc.set(1, 0.8, 1))); flowers.setColorAt(nf, col.set([P.blush, P.lemon, '#ffffff', P.terra, '#b9a7ea'][nf % 5])); nf++; }
   }
@@ -240,8 +244,31 @@ export function createBay(scene: THREE.Scene): Bay {
     const sidewalkZ = p.streetZ - facing * SIDEWALK_OFFSET;
     views[p.id] = { plot: p, root, pad, tile: i, key: '', serve: new THREE.Vector3(p.x, 0.12, sidewalkZ - facing * 0.3), sidewalkZ };
   });
+  // Owned tiles carry their owner's pattern pressed into the clay and a Plum ink outline
+  // (one instanced draw per owner, one for the outlines); civic plots get a masking-tape border.
+  const TW = PLOT_SPACING - 1.2, TD = 9.8, TOP = 0.04 + 0.08;
+  const patterns = Object.fromEntries((Object.keys(TILE_PATTERN) as (keyof typeof TILE_PATTERN)[]).map((o) => {
+    const m = new THREE.InstancedMesh(tilePattern(o, TW, TD, TOP), K.world, PLOTS.length);
+    m.count = 0;
+    m.receiveShadow = true; m.name = `plot-pattern:${o}`;
+    m.computeBoundingSphere();
+    scene.add(m);
+    return [o, m];
+  })) as unknown as Record<keyof typeof TILE_PATTERN, THREE.InstancedMesh>;
+  const outlines = new THREE.InstancedMesh(tileOutline(TW, TD, TOP), K.world, PLOTS.length);
+  const ownerAt: (string | null)[] = PLOTS.map(() => null);
+  let patternsDirty = true;
+  outlines.name = 'plot-outlines'; outlines.receiveShadow = true;
+  const civics = PLOTS.filter((p) => p.type === 'civic');
+  const tape = new THREE.InstancedMesh(tapeBorder(TW, TD, TOP), K.world, Math.max(1, civics.length));
+  civics.forEach((p, i) => tape.setMatrixAt(i, m4.makeTranslation(p.x, 0, p.z)));
+  tape.name = 'plot-tape'; tape.receiveShadow = true;
+  outlines.count = 0;
+  tape.computeBoundingSphere(); outlines.computeBoundingSphere();
   tiles.computeBoundingSphere(); borders.computeBoundingSphere();
-  scene.add(tiles, borders);
+  scene.add(tiles, borders, outlines, tape);
+  // The town around the plots: backdrop buildings, landmarks, props and eye music.
+  const townLife = createTown(scene);
 
   // Blob shadows: one instanced draw of soft plum discs, shown only when the sun casts no shadows.
   const blobTex = canvasTex(64, 64, (c) => {
@@ -297,17 +324,30 @@ export function createBay(scene: THREE.Scene): Bay {
   const pads = Object.values(views).map((v) => v.pad);
   const tint = new THREE.Color(), ground = new THREE.Color();
 
+  // FOR SALE signs: one instanced draw for every unowned plot; the tape words are added per plot.
+  const saleAt: boolean[] = PLOTS.map(() => false);
+  let salesDirty = true;
+  const sales = new THREE.InstancedMesh(forSaleGeometry(), K.world, PLOTS.length);
+  sales.name = 'sale-signs'; sales.castShadow = true; sales.receiveShadow = true; sales.count = 0;
+  scene.add(sales);
+  function forSale(v: PlotView) {
+    saleAt[v.tile] = true;
+    salesDirty = true;
+    v.root.add(forSaleLabel());
+  }
+
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
     v.root.clear();
+    if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
     v.stand = undefined;
     const p = v.plot;
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
     else if (p.type === 'hq') building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
     else if (ps.facility) building = facilityModel(ps.facility.kind, ps.facility.level);
-    else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows())); if (!ps.owner) v.root.add(forSaleSign()); }
-    else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel())); if (!ps.owner) v.root.add(forSaleSign()); }
+    else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v); }
+    else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel())); if (!ps.owner) forSale(v); }
     else if (ps.stand && ps.owner === 'player') {
       const m = createStand({ lottie: p.id === LOTTIES_CORNER });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
@@ -317,7 +357,7 @@ export function createBay(scene: THREE.Scene): Bay {
       if (v.shownLevel && ps.stand.level > v.shownLevel && !ps.stand.wrecked) m.reveal();
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level);
-    else if (!ps.owner) v.root.add(bakeGroup(forSaleSign()));
+    else if (!ps.owner) forSale(v);
     if (building) {
       if (ps.facility?.wrecked) v.root.add(wreckLook(building, (ps.owner ?? 'player') as Owner));
       v.root.add(building); v.root.updateMatrixWorld(true); bakeGroup(building);
@@ -359,8 +399,11 @@ export function createBay(scene: THREE.Scene): Bay {
     // The tile takes a little of its owner's colour; the border strip carries it in full.
     const facing = p.side === 0 ? 1 : -1;
     ground.set(GROUND[p.district]);
-    tint.copy(ground).lerp(new THREE.Color(ps.owner === 'player' ? '#d8ee72' : ps.owner ? ownerColor(ps.owner) : '#ffffff'), ps.owner === 'player' ? 0.55 : ps.owner ? 0.16 : 0.12);
+    // Owned tiles take their owner's main colour (the pattern carries the accent); unowned land stays bare Clay cream.
+    tint.copy(ground).lerp(new THREE.Color(ps.owner ? TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main : P.cream), ps.owner ? 0.82 : 0.7);
     tiles.setColorAt(v.tile, tint);
+    ownerAt[v.tile] = ps.owner;
+    patternsDirty = true;
     borders.setMatrixAt(v.tile, ps.owner ? m4.makeTranslation(p.x, 0.16, p.streetZ - facing * (SIDEWALK_OFFSET + 1.5)) : zero);
     borders.setColorAt(v.tile, tint.setHex(ownerColor(ps.owner)));
     tiles.instanceColor!.needsUpdate = true;
@@ -377,6 +420,37 @@ export function createBay(scene: THREE.Scene): Bay {
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       borders.computeBoundingSphere();
+      if (salesDirty) {
+        salesDirty = false;
+        let n = 0;
+        for (const v of Object.values(views)) {
+          if (!saleAt[v.tile]) continue;
+          v.root.updateMatrixWorld(true);
+          sales.setMatrixAt(n++, v.root.matrixWorld);
+        }
+        sales.count = n;
+        sales.instanceMatrix.needsUpdate = true;
+        sales.computeBoundingSphere();
+      }
+      if (patternsDirty) {
+        // Only owned tiles are drawn: each owner's pattern and the outlines are packed instance lists.
+        patternsDirty = false;
+        let n = 0;
+        const counts: Record<string, number> = {};
+        PLOTS.forEach((p, i) => {
+          const o = ownerAt[i];
+          if (!o) return;
+          m4.makeTranslation(p.x, 0, p.z);
+          outlines.setMatrixAt(n++, m4);
+          const m = patterns[o as keyof typeof patterns];
+          m.setMatrixAt(counts[o] = (counts[o] ?? 0), m4);
+          counts[o]++;
+        });
+        outlines.count = n;
+        outlines.instanceMatrix.needsUpdate = true;
+        outlines.computeBoundingSphere();
+        for (const [o, m] of Object.entries(patterns)) { m.count = counts[o] ?? 0; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
+      }
     },
     update(s, time, ringing = false) {
       // Detail levels: 0 Street View, 1 mid zoom, 2 Bay View (phones run one level simpler).
@@ -384,6 +458,7 @@ export function createBay(scene: THREE.Scene): Bay {
       flowers.visible = level < 1;
       tufts.visible = level < 2;
       blobs.visible = scene.userData.shadows === false;
+      townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
       let merges = 2;
       for (const [id, f] of far) {
         if (level >= 2 && f.dirty && merges > 0) { buildFar(id, f); merges--; }

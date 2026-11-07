@@ -1,11 +1,11 @@
 // The raids-on-you rules (spec: Threat; Raids on the player; Anti-frustration guarantees), called from crew.ts's
 // planNight and fightRaid: how many raids come tonight and who may send them (Respect, truces), what each is after
-// and how many plots it hits, its makeup (lookouts from Threat 3, a boss at Threat 5), and the scripted tutorial
-// raid that always bounces.
+// and how many plots it hits, its makeup (lookouts from Threat 3, a boss at Threat 5), the rivals' raids on each other,
+// and the scripted tutorial raid that always bounces.
 // Pure and seeded, like the rest of the sim.
 import {
-  FACTIONS, GUARD_BASE, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, SMASH_SHARE,
-  type RivalId,
+  FACTIONS, GUARD_BASE, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
+  SMASH_SHARE, type RivalId,
 } from './balance.ts';
 import type { BattleInput, BattleResult, Fighter, Objective } from './combat.ts';
 import type { GameState } from './economy.ts';
@@ -13,10 +13,11 @@ import { ownedPlots } from './economy.ts';
 import { PLOT_BY_ID, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { guardFighter, hasBuilding, raidParty, threatLevel, TUTORIAL_RAID_DAY, type Guard, type Raid } from './crew.ts';
-import { targetScore } from './rivalAi.ts';
+import { grudge, rivalTarget, targetScore } from './rivalAi.ts';
 import { HQS, inTruce } from './rivals.ts';
 import { difficulty } from './modes.ts';
 import { hhmm, onYou, raidStart, travelMinutes } from './night.ts';
+import { syndicateFormed } from './syndicate.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -119,10 +120,45 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
 function pickRival(s: GameState, rng: Rng): RivalId | null {
   const candidates = RIVALS.filter((r) => mayRaidYou(s, r));
   if (!candidates.length) return null;
-  const weights = candidates.map((r) => 1 + s.rivals[r].grudge / 10 + s.rivals[r].attention + FACTIONS[r].strike * 4);
+  return weighted(rng, candidates, (r) => 1 + s.rivals[r].grudge / 10 + s.rivals[r].attention + FACTIONS[r].strike * 4);
+}
+
+function weighted<T>(rng: Rng, items: T[], weight: (x: T) => number): T {
+  const weights = items.map(weight);
   let x = nextRandom(rng) * weights.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < candidates.length; i++) { x -= weights[i]; if (x <= 0) return candidates[i]; }
-  return candidates[candidates.length - 1];
+  for (let i = 0; i < items.length; i++) { x -= weights[i]; if (x <= 0) return items[i]; }
+  return items[items.length - 1];
+}
+
+// ---------- rivals raiding each other ----------
+
+/** Rival-vs-rival raids a week: of all rival raids, the share aimed at other rivals (30% at Threat 1–3, 15% at
+ * Threat 4, none once the Syndicate forms) over the raids on you, so share / (1 − share) × your weekly rate. */
+export function feudRaids(s: GameState): number {
+  const share = syndicateFormed(s) ? 0 : RIVAL_VS_RIVAL[threatLevel(s) - 1];
+  return (weeklyRaids(s) * share) / (1 - share);
+}
+
+/** Tonight's raids between rivals (planNight): a Poisson count at the feud rate. Grudge picks who goes (each boss at
+ * most once a night) and where (rivalAi rivalTarget: the faction it's angriest with, near its turf); the bosses pay
+ * for them (signatureRaids). Always a Smash at 02:00, with the next Threat tier's crew (at most tier 3). */
+export function rivalRaids(s: GameState, rng: Rng): Raid[] {
+  const u = nextRandom(rng);
+  const open = RIVALS.filter((r) => s.rivals[r].alive);
+  const out: Raid[] = [];
+  if (open.length < 2) return out;
+  const tier = Math.min(3, threatLevel(s) + 1);
+  for (let n = raidCount(feudRaids(s) / 7, u); n > 0 && open.length; n--) {
+    const a = weighted(rng, open, (r) => 1 + Math.max(0, ...RIVALS.map((b) => (b !== r && s.rivals[b].alive ? grudge(s, r, b) : 0))) / 10);
+    open.splice(open.indexOf(a), 1);
+    const t = rivalTarget(s, a);
+    if (!t) continue;
+    out.push({
+      id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, tier, rng), detected: true,
+      eta: hhmm(RIVAL_RAID_AT), leave: RIVAL_RAID_AT - travelMinutes(s, raidStart(s, a, t.id), t.id), at: RIVAL_RAID_AT,
+    });
+  }
+  return out;
 }
 
 // ---------- splitting a raid across plots, and its boss ----------

@@ -7,7 +7,7 @@ import {
   DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
   GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, OPEN, PERIMETERS,
   PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
-  RIVAL_KIT, RIVAL_RAID_AT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
+  RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
   STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
@@ -23,13 +23,13 @@ import { withBell } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
-import { awayGuards, etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
+import { awayGuards, etaMinute, onTheRoad, sendRaid } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
-import { raidsOnYou, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
+import { raidsOnYou, rivalRaids, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
 
 export interface Guard {
   id: string;
@@ -788,15 +788,8 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
 export function planNight(s: GameState): void {
   if (peaceful(s)) return; // Peaceful Sandbox: rivals scheme with prices and land, never fists
   const rng = { seed: s.seed };
-  const threat = threatLevel(s);
   s.raids.push(...raidsOnYou(s, rng));
-  // Rivals also raid each other (about 30% of their raids at Threat 1–3).
-  if (threat < 5 && nextRandom(rng) < (threat <= 3 ? 0.3 : 0.15)) {
-    const a = RIVALS[Math.floor(nextRandom(rng) * RIVALS.length)];
-    const targets = PLOTS.filter((p) => { const o = s.plots[p.id].owner; return o && o !== 'player' && o !== a && hasBuilding(s.plots[p.id]) && p.type !== 'hq'; });
-    const t = targets[Math.floor(nextRandom(rng) * targets.length)];
-    if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: hhmm(RIVAL_RAID_AT), leave: RIVAL_RAID_AT - travelMinutes(s, raidStart(s, a, t.id), t.id), at: RIVAL_RAID_AT });
-  }
+  s.raids.push(...rivalRaids(s, rng)); // threat.ts: rivals raid each other too (30% of their raids, 15% at Threat 4; none once the Syndicate forms)
   s.seed = rng.seed;
   s.raids.push(...signatureRaids(s));
   // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another), and none

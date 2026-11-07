@@ -3,6 +3,7 @@ import {
   CLOSE, HQS, LOTTIES_CORNER, NIGHT_END, newGame, nightStep, onYou, planNight, PLOTS, RAID_PARTY, RAIDS_PER_WEEK, raidCount, raidsCounted,
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
   customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
+  feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 
@@ -303,5 +304,79 @@ describe('Respect and truces keep a rival off you for the whole spell', () => {
     expect(other[0].tutorial).toBe(true);
     expect(other[0].attacker).not.toBe('blenders');
     expect(truced(Object.keys(newGame(1).rivals) as RivalId[])).toEqual([]);
+  });
+});
+
+describe('rivals raiding each other', () => {
+  /** Day 30's Evening with every rival flush, so its Strike can pay for any raid. */
+  function feudEvening(threat: number, difficulty: Difficulty = 'classic', seed = 71): GameState {
+    const s = evening(threat, difficulty, seed);
+    for (const id of Object.keys(s.rivals) as RivalId[]) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
+    return s;
+  }
+  /** Plan many nights from one Evening: tonight's raids between rivals. */
+  function feuds(base: GameState, n: number): Raid[][] {
+    const out: Raid[][] = [];
+    for (let i = 0; i < n; i++) {
+      const s = structuredClone(base);
+      s.seed = (i * 2654435761 + 12345) | 0;
+      planNight(s);
+      out.push(s.raids.filter((r) => r.attacker !== 'player' && !onYou(s, r)));
+    }
+    return out;
+  }
+
+  it('come at share / (1 − share) of your rate: 30% of rival raids at Threat 1–3, 15% at Threat 4, ×0.5 on Laid Back', () => {
+    const want = [0.3 / 0.7, (2 * 0.3) / 0.7, (3 * 0.3) / 0.7, (4 * 0.15) / 0.85];
+    for (let threat = 1; threat <= 4; threat++) {
+      expect(feudRaids(feudEvening(threat))).toBeCloseTo(want[threat - 1]);
+      expect(feudRaids(feudEvening(threat, 'laidback'))).toBeCloseTo(want[threat - 1] / 2);
+      expect(feudRaids(feudEvening(threat, 'cutthroat'))).toBeCloseTo(want[threat - 1] * 1.5);
+    }
+    for (const threat of [2, 4]) {
+      const perWeek = feuds(feudEvening(threat), 1000).reduce((a, x) => a + x.length, 0) / (1000 / 7);
+      expect(perWeek).toBeGreaterThan(want[threat - 1] * 0.75);
+      expect(perWeek).toBeLessThan(want[threat - 1] * 1.25);
+    }
+  });
+
+  it("Grudge picks who goes and whom: a Smash at 02:00 with the next tier's crew, and the victim's Grudge rises", () => {
+    const base = feudEvening(3);
+    (base.rivals.blenders.grudges ??= {}).coldbrew = 100;
+    const raids = feuds(base, 300).flat();
+    const brock = raids.filter((r) => r.attacker === 'blenders');
+    expect(brock.length / raids.length).toBeGreaterThan(0.5);
+    expect(brock.every((r) => base.plots[r.target].owner === 'coldbrew')).toBe(true);
+    const [lo, hi] = RAID_PARTY[2].size; // Threat 3 would send Threat 4's crew, capped at the third tier
+    for (const r of raids) {
+      expect(r).toMatchObject({ objective: 'smash', at: RIVAL_RAID_AT, detected: true });
+      if (r.attacker !== 'blenders') expect(r.party!.length >= lo && r.party!.length <= hi).toBe(true); // the Blenders Rush
+    }
+    for (let i = 0; ; i++) {
+      const s = structuredClone(base);
+      s.seed = i;
+      planNight(s);
+      const r = s.raids.find((x) => x.attacker !== 'player' && !onYou(s, x));
+      if (!r) continue;
+      const victim = s.plots[r.target].owner as RivalId;
+      expect(grudge(s, victim, r.attacker as RivalId)).toBeGreaterThan(grudge(base, victim, r.attacker as RivalId));
+      break;
+    }
+  });
+
+  it('stop once the Syndicate forms (Threat 4 on Cutthroat), with one rival left, and in a Peaceful Sandbox', () => {
+    const before = feudEvening(4, 'cutthroat');
+    expect(feuds(before, 100).some((x) => x.length)).toBe(true);
+    const pact = structuredClone(before);
+    syndicateAtDawn(pact);
+    expect(syndicateFormed(pact)).toBe(true);
+    expect(feudRaids(pact)).toBe(0);
+    expect(feuds(pact, 200).every((x) => !x.length)).toBe(true);
+    const last = structuredClone(before);
+    for (const id of ['blenders', 'coldbrew', 'hollis', 'fizzco'] as RivalId[]) last.rivals[id].alive = false;
+    expect(feuds(last, 100).every((x) => !x.length)).toBe(true);
+    const calm = structuredClone(before);
+    calm.settings.peaceful = true;
+    expect(feuds(calm, 100).every((x) => !x.length)).toBe(true);
   });
 });

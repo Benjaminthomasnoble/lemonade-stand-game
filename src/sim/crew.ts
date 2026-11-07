@@ -526,14 +526,12 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
   return report;
 }
 
-/** Guards: KOs are out a day (two if a hatchet did it); everyone who fought earns XP. */
-export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; winner: 'att' | 'def' }): void {
-  const hatchets = (side: Fighter[]) => side.some((f) => f.weapon === 'hatchets');
+/** Guards: KOs are out a day (two if a hatchet landed the knockout blow); everyone who fought earns XP. */
+export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; hatchetKos?: string[]; winner: 'att' | 'def' }): void {
   for (const f of [...input.attackers, ...input.defenders]) {
     const g = s.guards.find((x) => x.id === f.id);
     if (!g) continue;
-    const foes = f.side === 'att' ? input.defenders : input.attackers;
-    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (hatchets(foes) ? 2 : 1);
+    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (res.hatchetKos?.includes(g.id) ? 2 : 1);
     g.xp += (res.winner === f.side ? 2 : 1);
     while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level]) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
   }

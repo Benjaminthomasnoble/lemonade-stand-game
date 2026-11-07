@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
 import {
-  COMBAT, fightRaid, GUARD_BASE, guardFighter, LOTTIES_CORNER, migrateSave, newGame, PERIMETERS, raidPartyFor, STAND_HP, WEAPONS,
+  COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, LOTTIES_CORNER, migrateSave, newGame, PERIMETERS, raidPartyFor, STAND_HP, WEAPONS,
   type GadgetId, type GameState, type GearId, type Guard, type Trait, type WeaponId,
 } from './economy.ts';
 
@@ -319,6 +319,16 @@ describe('knockouts', () => {
       expect(ko.by).toMatch(/^att/);
     }
     expect(r.hatchetKos).toEqual(r.koed);
+  });
+
+  it('guards are Out 2 days only when a hatchet landed the knockout blow', () => {
+    const s = newGame(1);
+    const a = guard(), b = guard();
+    s.guards.push(a, b);
+    const input = fight({ attackers: [fighter('att', 'hatchets'), fighter('att', 'clubs')], defenders: [guardFighter(a, 'def', true), guardFighter(b, 'def', true)] });
+    creditGuards(s, input, { koed: [a.id, b.id], hatchetKos: [a.id], winner: 'att' });
+    expect(a.outUntil).toBe(s.day + 3); // Out 2 days
+    expect(b.outUntil).toBe(s.day + 2); // a club did it: Out 1 day, hatchets or not on their side
   });
 
   it('stakes and wire are never a hatchet KO', () => {

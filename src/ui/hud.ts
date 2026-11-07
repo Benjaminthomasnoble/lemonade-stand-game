@@ -11,7 +11,7 @@ import {
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
-  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
+  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced,
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK, truceCost,
@@ -583,9 +583,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     t.push(...calendarTickets(s));
     if (s.today.lemonsSpoiled) t.push(`<div class="cl-ticket">${ART.lemon()}<b>${s.today.lemonsSpoiled} lemons went bad</b></div>`);
     for (const o of s.offers) {
-      const short = o.tier === 'deal' ? dealShortfallPerDay(s, o) : 0;
+      const short = paced(o) ? dealShortfallPerDay(s, o) : 0; // world: a Supply Deal or a Mega Contract against your bottling
       const when = o.tier === 'deal' ? `in ${DEAL_LOADS} weekly loads` : `by day ${o.due}`;
-      const fit = o.tier === 'deal' ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
+      const fit = paced(o) ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
       const risk = deliveryRaidRisk(s, o) ? `<span class="cl-short" title="Rivals may raid this pickup">${ART.raid()}</span>` : '';
       t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${esc(orderGoods(s, o))} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
         <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${matchButton(s, o)}${btn('decline', A.glyph('close'), { ok: true }, `data-id="${o.id}" title="No thanks" aria-label="No thanks"`, 'ghost')}</span></div>`);

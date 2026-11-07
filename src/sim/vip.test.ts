@@ -5,6 +5,7 @@ import {
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
+  grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen,
 } from './economy.ts';
 import { rowAmount } from './ledger.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
@@ -693,5 +694,128 @@ describe('VIP clients', () => {
     expect(s.cash).toBe(cash + 1500000);
     expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
     expect(s.news.filter((n) => n.startsWith('Order fell through'))).toEqual(['Order fell through: Gulfstream Grocers. Only 50,000 of 100,000 bottles were loaded in time. (−0.3 star, $4,500,000 unpaid)']);
+  });
+});
+
+/** A Rank 9 business with a Heliport, a Cargo Terminal, an L3 Bottling Works and two premium pages (Frozen, Lavender). */
+function megaGame(seed: number) {
+  const g = vipGame(seed);
+  const { s, field, dock, lot } = g;
+  Object.assign(s, { rank: 9, reputation: 4.6, cash: 20_000_000, phase: 'prep' });
+  for (let i = 0; i < 3; i++) { buildFacility(s, field.id, 'helipad'); buildFacility(s, dock.id, 'pier'); buildFacility(s, lot.id, 'bottling'); }
+  grantPage(s, 'frozen', true);
+  grantPage(s, 'lavender', true);
+  s.offers = []; // the Cargo Terminal's first Supply Deal
+  return g;
+}
+const mega = (s: GameState, dock: string, o: Partial<Order> & Pick<Order, 'id' | 'qty'>) =>
+  order(s, { tier: 'mega', pay: o.qty * 100, plot: dock, recipe: 'frozen', ...o });
+
+describe('Mega Contracts', () => {
+  it('need Rank 9, 4.5 stars, a Heliport, a Cargo Terminal and 2 premium recipes', () => {
+    const { s, field, dock } = vipGame(41);
+    Object.assign(s, { rank: 8, reputation: 4.6, cash: 20_000_000, phase: 'prep' });
+    expect(tierOpen(s, 'mega')).toEqual({ ok: false, why: 'Rank 9' });
+    s.rank = 9;
+    s.reputation = 4.4;
+    expect(tierOpen(s, 'mega')).toEqual({ ok: false, why: '4.5 stars' });
+    s.reputation = 4.6;
+    expect(tierOpen(s, 'mega')).toEqual({ ok: false, why: 'a Cargo Terminal' });
+    for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier');
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, field.id, 'helipad');
+    expect(tierOpen(s, 'mega')).toEqual({ ok: false, why: 'a Heliport' }); // a Helipad is not enough
+    buildFacility(s, field.id, 'helipad');
+    expect(tierOpen(s, 'mega')).toEqual({ ok: false, why: `${MEGA_PREMIUM_PAGES} premium recipes` });
+    grantPage(s, 'strawberry', true); // no premium page
+    grantPage(s, 'frozen', true);
+    expect(tierOpen(s, 'mega').ok).toBe(false);
+    grantPage(s, 'lavender', true);
+    expect(tierOpen(s, 'mega')).toEqual({ ok: true });
+  });
+
+  it('a client calls about 1 in 20 days, with no 10-day floor: 100,000-150,000 bottles of a premium recipe in 14 days at $100 a bottle', () => {
+    const { s, dock } = megaGame(42);
+    const days = 4000;
+    const calls: number[] = [];
+    for (let d = 0; d < days; d++) {
+      s.day++;
+      s.news = [];
+      vipAtDawn(s);
+      if (s.lastOffer!.mega !== s.day) continue;
+      calls.push(s.day);
+      const o = s.offers.find((x) => x.tier === 'mega' && x.expires === s.day + 1)!;
+      expect(o.qty).toBeGreaterThanOrEqual(100000);
+      expect(o.qty).toBeLessThanOrEqual(150000);
+      expect(o.pay).toBe(o.qty * 100);
+      expect(o.due).toBe(s.day + 14);
+      expect(o.plot).toBe(dock.id); // its freighters load at the Cargo Terminal
+      expect(isPremium(o.recipe!)).toBe(true);
+      const line = `Mega Contract! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles of ${RECIPES[o.recipe!].label} in 14 days for $${o.pay.toLocaleString('en-US')}, loaded at your Cargo Terminal.`;
+      expect(s.news.some((n) => n === line || n.startsWith(`${line} `))).toBe(true);
+    }
+    expect(calls.length / days).toBeGreaterThan(0.04);
+    expect(calls.length / days).toBeLessThan(0.06);
+    const gaps = calls.slice(1).map((d, i) => d - calls[i]);
+    expect(Math.max(...gaps)).toBeGreaterThan(VIP_MAX_GAP); // no floor
+  });
+
+  it('loads 25,000 bottles a day at the Cargo Terminal over several days, each pickup paid at $100 a bottle', () => {
+    const { s, dock } = megaGame(43);
+    noRaids(s);
+    s.bottles = 150000;
+    s.bottleStock = { frozen: 120000 }; // and 30,000 Classic
+    const o = mega(s, dock.id, { id: 'gala', qty: 100000, due: s.day + 13 });
+    const cash = s.cash, rep = s.reputation;
+    trips(s);
+    expect(o.loaded).toBe(25000);
+    expect(s.cash).toBe(cash + 2500000);
+    expect(s.news).toContain('Client gala picks up 25,000 bottles: $2,500,000! 25,000 of 100,000 loaded.');
+    for (let d = 0; d < 3; d++) trips(s);
+    expect(s.orders).not.toContain(o);
+    expect(s.cash).toBe(cash + 10000000);
+    expect(s.reputation).toBe(rep); // a freighter adds no star
+    expect(bottlesOf(s, 'frozen')).toBe(20000);
+    expect(bottlesOf(s, 'classic')).toBe(30000); // the Classic stock stays put
+  });
+
+  it('a Mega Contract short at its deadline falls through for 0.3 star, once; the loads already picked up stay paid', () => {
+    const { s, dock } = megaGame(44);
+    noRaids(s);
+    s.bottles = 30000;
+    s.bottleStock = { frozen: 30000 };
+    mega(s, dock.id, { id: 'gala', qty: 100000, due: s.day + 1 });
+    const cash = s.cash, rep = s.reputation;
+    trips(s);
+    trips(s);
+    expect(s.orders).toEqual([]);
+    expect(s.cash).toBe(cash + 3000000);
+    expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
+    expect(s.news.filter((n) => n.startsWith('Order fell through'))).toEqual(['Order fell through: Client gala. Only 30,000 of 100,000 bottles were loaded in time. (−0.3 star, $7,000,000 unpaid)']);
+  });
+
+  it('rivals bid for them, Old Money counts them as VIP, the Order Book flags a Delivery Raid, and Syndicate crews go after them at the Fest', () => {
+    const { s, dock } = megaGame(45);
+    let bid: OrderBid | undefined;
+    for (let d = 0; d < 2000 && !bid; d++) {
+      s.day++;
+      vipAtDawn(s);
+      bid = s.offers.find((o) => o.tier === 'mega' && o.bid)?.bid;
+    }
+    expect(bid).toBeDefined();
+    const t = bid!.rival === 'fizzco' ? FIZZCO_BID : RIVAL_BID;
+    expect(bid!.days).toBe(Math.ceil(ORDER_TIERS.mega.days * t.window));
+    expect(offerChance(s, 'mega')).toBe(ORDER_TIERS.mega.chance);
+    for (const p of PLOTS) if (p.district === 'hilltop' && p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
+    expect(offerChance(s, 'mega')).toBeCloseTo(ORDER_TIERS.mega.chance * OLD_MONEY_OFFERS);
+    s.offers = [{ id: 'm', tier: 'mega', client: "the Governor's Gala", qty: 150000, pay: 15000000, due: s.day + 14, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'lavender' }];
+    const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
+    expect(menuScreen(s, 'orders', parts)).toContain(`150,000 bottles of Lavender Lemonade · day ${s.day + 14} · Delivery Raid possible`);
+    expect(dealShortfallPerDay(s, s.offers[0])).toBeLessThanOrEqual(0); // 12,000 a day covers about 10,700
+    s.plots[PLOTS.find((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === 'bottling')!.id].facility!.level = 2;
+    expect(dealShortfallPerDay(s, s.offers[0])).toBe(Math.ceil(150000 / 14 - 4000));
+    while (!harborFestOn(s)) s.day++;
+    expect(syndicateFestRaid(s, s.offers[0], true)).toBe(true);
+    expect(offerChance(s, 'mega')).toBeLessThan(1); // the Fest's rush is choppers and ships
   });
 });

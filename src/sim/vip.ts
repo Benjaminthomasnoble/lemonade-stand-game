@@ -12,16 +12,18 @@ import { costPerCup, pitcherNeeds, playerStands, stock, useLemons } from './econ
 import { iceMachineOn, machineIce } from './happenings.ts';
 import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { restoreHp } from './damage.ts';
-import { ownedRecipes, ownsRecipe, recipeCost, worldOf } from './recipes.ts';
+import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf } from './recipes.ts';
 import { fullControl, rivalStars } from './demand.ts';
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
-export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
-/** Tiers delivered by sea (a ship scene at the pier). */
-export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal';
+export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal' | 'mega';
+/** Tiers delivered by sea (a ship scene at the pier): a Mega Contract's freighters load at the Cargo Terminal too. */
+export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal' || t === 'mega';
 /** VIP tiers: a chopper or a ship comes to your facility. */
 export const isVip = (t: OrderTier) => t === 'heli' || bySea(t);
+/** The tiers whose clients call at least every 10 days once their facility stands (a Mega client calls about 1 in 20). */
+export const hasFloor = (t: OrderTier) => t === 'heli' || t === 'ship' || t === 'deal';
 
 export interface Facility { kind: FacilityKind; level: number; wrecked?: boolean; hp?: number } // hp: as a Stand's (damage.ts)
 
@@ -95,7 +97,12 @@ export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size:
   heli: { rank: 6, stars: 3.5, size: [2000, 10000], pay: 30, days: 4, chance: 1 / 3, label: 'Helicopter VIP' },
   ship: { rank: 7, stars: 4.0, size: [10000, 60000], pay: 40, days: 7, chance: 1 / 5, label: 'Ship Contract' },
   deal: { rank: 8, stars: 4.0, size: [200000, 200000], pay: 30, days: 28, chance: 1 / 7, label: 'Supply Deal' },
+  // The stretch tier: a Heliport, a Cargo Terminal and 2 premium recipes too (tierOpen). Its freighters load at the Cargo
+  // Terminal, 25,000 a day, so the 14 days are about bottling: 150,000 bottles need about 10,700 a day.
+  mega: { rank: 9, stars: 4.5, size: [100000, 150000], pay: 100, days: 14, chance: 1 / 20, label: 'Mega Contract' },
 };
+/** Premium pages a Mega Contract needs in Lottie's book (any won or recovered page beyond Classic, Pink, Mint and Strawberry). */
+export const MEGA_PREMIUM_PAGES = 2;
 /** Order sizes served by each facility tier. */
 export const HELI_SIZES: [number, number][] = [[2000, 4000], [4000, 7000], [7000, 10000]];
 export const SHIP_SIZES: [number, number][] = [[10000, 20000], [20000, 40000], [40000, 60000]];
@@ -136,7 +143,7 @@ export const MAX_GROVES = 2;
 /** Pickup minute: choppers at 5:30 pm, in the golden hour (spec mood scene "The first helicopter"), ships at 10 am (each
  * opens a 2-hour window), a Local Order's cups an hour before closing (while the stand's ice is still in the cooler),
  * Caterer Trucks at closing. */
-export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 19 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60 };
+export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 19 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60, mega: 10 * 60 };
 
 const CLIENTS: Record<OrderTier, string[]> = {
   local: ['the Maple Row Block Party', 'Little League Opening Day', 'the Old Town Bake Sale', 'the Campus Book Fair', 'a Fire Station Open House'],
@@ -144,6 +151,7 @@ const CLIENTS: Record<OrderTier, string[]> = {
   heli: ['a movie star\'s pool party', 'a tech mogul\'s rooftop launch', 'a celebrity wedding', 'the music festival VIP tent', 'the Governor\'s Gala'],
   deal: ['Gulfstream Grocers', 'the Tri-County School Board', 'Cruise Line Provisioning Co.', 'the Bayside Ballpark'],
   ship: ['the Citrine Bay Regatta', 'the S.S. Sunny Disposition (cruise line)', 'an overseas export deal', 'the Bay Centennial flotilla'],
+  mega: ["the Governor's Gala", 'the Bay Centennial', "the Tri-County World's Fair", 'a royal yacht wedding'],
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -221,7 +229,9 @@ export function tierOpen(s: GameState, tier: OrderTier): Blocker {
   if (tier === 'caterer' && !facilityPlots(s, 'bottling').length) return { ok: false, why: 'a Bottling Works' };
   if (tier === 'heli' && !facilityPlots(s, 'helipad').length) return { ok: false, why: 'a Helipad on a Field plot' };
   if (tier === 'ship' && !facilityPlots(s, 'pier').length) return { ok: false, why: 'a Pier on a Dock plot' };
-  if (tier === 'deal' && bestLevel(s, 'pier') < 3) return { ok: false, why: 'a Cargo Terminal' };
+  if ((tier === 'deal' || tier === 'mega') && bestLevel(s, 'pier') < 3) return { ok: false, why: 'a Cargo Terminal' };
+  if (tier === 'mega' && bestLevel(s, 'helipad') < 3) return { ok: false, why: 'a Heliport' };
+  if (tier === 'mega' && premiumPages(s) < MEGA_PREMIUM_PAGES) return { ok: false, why: `${MEGA_PREMIUM_PAGES} premium recipes` };
   return { ok: true };
 }
 
@@ -250,8 +260,9 @@ function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
     pay: Math.round(qty * unit), due: s.day + t.days, expires: s.day + 1, plot, accepted: false,
   };
   if (stand) o.recipe = stand.recipe; // the stand's card
-  else { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own)
-    const book = ownedRecipes(s);
+  else { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own); a Mega client, a premium one
+    const owned = ownedRecipes(s), premium = owned.filter(isPremium);
+    const book = tier === 'mega' && premium.length ? premium : owned;
     o.recipe = book[Math.floor(nextRandom(rng) * book.length)];
   }
   if (isVip(tier)) rollBid(s, o, rng);
@@ -334,9 +345,10 @@ export function vipAtDawn(s: GameState): void {
   const last = (s.lastOffer ??= {});
   for (const tier of Object.keys(ORDER_TIERS) as OrderTier[]) {
     if (!tierOpen(s, tier).ok) { delete last[tier]; continue; }
-    // VIP tiers: the first Supply Deal comes as soon as the Cargo Terminal stands, and no VIP tier goes 10 days without a call.
-    if (isVip(tier) && last[tier] === undefined && tier !== 'deal') last[tier] = s.day;
-    const due = isVip(tier) && (last[tier] === undefined || s.day - last[tier]! >= VIP_MAX_GAP);
+    // VIP tiers: the first Supply Deal comes as soon as the Cargo Terminal stands, and no chopper, ship or Supply Deal client
+    // goes 10 days without a call (Mega clients have no floor: about 1 in 20 days).
+    if (hasFloor(tier) && last[tier] === undefined && tier !== 'deal') last[tier] = s.day;
+    const due = hasFloor(tier) && (last[tier] === undefined || s.day - last[tier]! >= VIP_MAX_GAP);
     if (!due && nextRandom(rng) >= offerChance(s, tier)) continue;
     makeOffer(s, tier, rng);
   }
@@ -387,6 +399,7 @@ function makeOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   (s.lastOffer ??= {})[tier] = s.day;
   const bid = o.bid ? ` ${FACTIONS[o.bid.rival].name} bids ${money(o.bid.pay)}.` : '';
   if (tier === 'deal') s.news.push(`Supply Deal! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles over ${ORDER_TIERS.deal.days} days for ${money(o.pay)}, shipped weekly from your Cargo Terminal.${bid}`);
+  else if (tier === 'mega') s.news.push(`Mega Contract! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles of ${RECIPES[orderRecipe(o)].label} in ${ORDER_TIERS.mega.days} days for ${money(o.pay)}, loaded at your Cargo Terminal.${bid}`);
   else if (isVip(tier)) s.news.push(`VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.${bid}`);
   return o;
 }
@@ -425,14 +438,18 @@ export function declineOrder(s: GameState, id: string): void {
   s.offers = s.offers.filter((o) => o.id !== id);
 }
 
-/** For a Supply Deal offer: bottles a day it needs on top of what bottling is already committed to (≤ 0 means it's covered). */
+/** For a Supply Deal or a Mega Contract offer: bottles a day it needs on top of what bottling is already committed to (≤ 0
+ * means it's covered). */
 export function dealShortfallPerDay(s: GameState, o: Order): number {
-  const perDay = o.qty / ORDER_TIERS.deal.days;
+  const perDay = o.qty / ORDER_TIERS[o.tier].days;
   const committed = s.orders.filter((x) => x.tier !== 'local').reduce((a, x) => a + bottlesLeft(x) / Math.max(1, x.due - s.day), 0);
   const r = orderRecipe(o);
   const spare = bottlesOf(s, r) - s.orders.filter((x) => x.tier !== 'local' && orderRecipe(x) === r).reduce((a, x) => a + bottlesLeft(x), 0);
-  return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, spare) / ORDER_TIERS.deal.days);
+  return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, spare) / ORDER_TIERS[o.tier].days);
 }
+
+/** The long orders an offer card weighs against your bottling: a Supply Deal's 28 days, a Mega Contract's 14. */
+export const paced = (o: Order) => o.tier === 'deal' || o.tier === 'mega';
 
 /** Bottles an order still has to load. */
 export const bottlesLeft = (o: Order) => Math.max(0, o.qty - (o.loaded ?? 0));

@@ -6,7 +6,7 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, DISTRICT_CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, DISTRICT_CAMPAIGNS, HOURLY_TRAFFIC, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
   PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF, WEATHER,
   type CampaignId, type DistrictCampaignId, type LocalCampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
@@ -17,7 +17,7 @@ import type { Appeal, DayStats, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, cupsInStock, expectedPassersby, rivalPrice } from './economy.ts';
 import { migrateLedger } from './ledger.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
-import { calendarTraffic, crowdAt, underCeaseAndDesist } from './calendar.ts';
+import { calendarTraffic, crowdAt, crowdShareAt, underCeaseAndDesist } from './calendar.ts';
 import { eventDef, eventTraffic, liveEvents } from './events.ts';
 import { kidsShare } from './happenings.ts';
 import { groveTraffic } from './vip.ts';
@@ -263,13 +263,14 @@ export function dayMix(d: DistrictId): [SegmentId, number][] {
 
 /**
  * The day's mix as the forecast sees it: on a festival day half of every passerby in that district is the festival
- * crowd (world: FESTIVAL_CROWD_SHARE), the same draw the business day makes.
+ * crowd (world: crowdShareAt, a Tourist Bus's 70%), the same draw the business day makes.
  */
 export function dayMixOn(s: GameState, d: DistrictId): [SegmentId, number][] {
   const crowd = crowdAt(s, d);
   if (!crowd) return dayMix(d);
-  const mix = dayMix(d).map(([seg, x]) => [seg, x * (1 - FESTIVAL_CROWD_SHARE) + (seg === crowd ? FESTIVAL_CROWD_SHARE : 0)] as [SegmentId, number]);
-  if (!mix.some(([seg]) => seg === crowd)) mix.push([crowd, FESTIVAL_CROWD_SHARE]);
+  const share = crowdShareAt(s, d);
+  const mix = dayMix(d).map(([seg, x]) => [seg, x * (1 - share) + (seg === crowd ? share : 0)] as [SegmentId, number]);
+  if (!mix.some(([seg]) => seg === crowd)) mix.push([crowd, share]);
   return mix;
 }
 

@@ -4,7 +4,7 @@ import {
   eventsOf, eventTraffic, expectedCups, expectedPassersby, festivalCrowd, FOOD_CRITIC, HEAT_WAVE, heatWaveDay, heatWaveOn, liveEvent, liveEvents,
   LOTTIES_CORNER, mainSegment, marketLines, newGame, newStand, openStand, plannedWeather, PLOT_BY_ID, PLOTS, RANDOM_EVENTS, registerEvent, scorcherKeep,
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
-  forgiveSquawk, iceMachineOn, machineIce, stock,
+  forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
   RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL, expectedDemand, kidsShare,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
@@ -337,6 +337,11 @@ describe('the Tourist Bus', () => {
     let tourists = 0;
     for (let i = 0; i < 4000; i++) if (festivalCrowd(s, rng, 'oldtown') === 'tourists') tourists++;
     expect(tourists / 4000).toBeCloseTo(TOURIST_BUS_SHARE, 1);
+    // The forecast sees the same 70%: the bus's tourists, plus the district's own share of the rest.
+    const base = dayMix('oldtown').find(([seg]) => seg === 'tourists')?.[1] ?? 0;
+    const mix = dayMixOn(s, 'oldtown');
+    expect(mix.find(([seg]) => seg === 'tourists')![1]).toBeCloseTo(TOURIST_BUS_SHARE + (1 - TOURIST_BUS_SHARE) * base);
+    expect(mix.reduce((a, [, x]) => a + x, 0)).toBeCloseTo(1);
     expect(shineReason(s, 'oldtown', 'strawberry')).toBe('crowd');
     const p = PLOTS.find((q) => q.district === 'oldtown' && s.plots[q.id].stand)!;
     expect(eventTraffic(s, p.id)).toBe(EVENT_TRAFFIC.touristBus);

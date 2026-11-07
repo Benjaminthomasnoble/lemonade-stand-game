@@ -77,10 +77,13 @@ export function crowdAt(s: GameState, district: DistrictId): SegmentId | undefin
   return crowds[district];
 }
 
+/** The share of a district's passersby who are its crowd today: a Tourist Bus's 70%, a festival's half. */
+export const crowdShareAt = (s: GameState, district: DistrictId) => eventCrowd(s, district)?.share ?? FESTIVAL_CROWD_SHARE;
+
 /** A passerby in a festival district is one of the festival crowd half the time (a Tourist Bus's, 70%). */
 export function festivalCrowd(s: GameState, rng: { seed: number }, district: DistrictId): SegmentId | undefined {
   const crowd = crowdAt(s, district);
-  return crowd && nextRandom(rng) < (eventCrowd(s, district)?.share ?? FESTIVAL_CROWD_SHARE) ? crowd : undefined;
+  return crowd && nextRandom(rng) < crowdShareAt(s, district) ? crowd : undefined;
 }
 
 // ---------- traffic: Taste-Off wins and sponsorships, added into the marketing number ----------

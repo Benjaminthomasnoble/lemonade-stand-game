@@ -815,6 +815,14 @@ async function main() {
 
   // Gull Flight: G (or the button) takes Captain Squawk up; G or Esc lands.
   const flight = createGullFlight(world.camera, world.controls, ambient.squawk, canvas);
+  const flightLook = new THREE.Vector3(), flightFwd = new THREE.Vector3();
+  /** During Gull Flight: the ground about 20 m ahead of the camera, so street life near the gull wakes. */
+  const flightFocus = () => {
+    world.camera.getWorldDirection(flightFwd);
+    flightFwd.y = 0;
+    if (flightFwd.lengthSq() < 1e-6) flightFwd.set(0, 0, 1);
+    return flightLook.copy(world.camera.position).addScaledVector(flightFwd.normalize(), 20).setY(0.8);
+  };
   const gullBtn = document.createElement('button');
   gullBtn.className = 'gullbtn';
   gullBtn.title = 'Fly Captain Squawk over the bay (G)';
@@ -956,14 +964,16 @@ async function main() {
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     world.setClock(state.phase, state.minute);
-    bay.update(state, timer.getElapsed(), phone.ringing(), world.controls.target);
+    // What the world wakes around: the orbit target, or during Gull Flight the ground just ahead of the gull.
+    const focus = flight.active() ? flightFocus() : world.controls.target;
+    bay.update(state, timer.getElapsed(), phone.ringing(), focus);
     crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
     crowd.setSeason(seasonOf(state.day));
     crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(knob.speed, 1) : 1);
     battle.update(frozen ? 0 : dt);
     vip.update(frozen ? 0 : Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
-    traffic.update(state, frozen ? 0 : dt, world.controls.target, { hold: battle.active() || vip.active(), camera: world.camera }); // paused: traffic holds still too
-    ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
+    traffic.update(state, frozen ? 0 : dt, focus, { hold: battle.active() || vip.active(), camera: world.camera }); // paused: traffic holds still too
+    ambient.update(state, dt, timer.getElapsed(), focus, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');
     scenes.update(state, frozen ? 0 : dt, bay.views);
@@ -981,7 +991,7 @@ async function main() {
     }
     if (state.phase === 'report' || state.phase === 'night') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
-    markers.update(state, world.camera, world.controls.target, bay.views, canvas.clientWidth, canvas.clientHeight);
+    markers.update(state, world.camera, focus, bay.views, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) vipResume = 0;
     world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
     world.update(dt);

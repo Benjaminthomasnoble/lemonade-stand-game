@@ -236,11 +236,11 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
 
   it.todo('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)');
 
-  // Measured: the Planner reads 30% (30% over 400 runs). Each of its runs fights its own draw of the garrison the sim
-  // posts at a rival L3 Kiosk (3 Threat 3 henchmen in vests, most with clubs at 21.6 a hit) and rolls the 55% detection;
-  // a raid that's spotted also meets the help the Blenders send from their other Boardwalk plots (1 at Threat 2, there
-  // by contact). Against 3 club Bros at 18 a hit, unseen as the walkthrough has them, the squad wins all 400 (see
-  // raidInput below).
+  // Measured: the Planner reads 61% (69% over 400 runs). Each of its runs fights its own draw of the garrison the sim
+  // posts at a rival L3 Kiosk (crew's kit row: 3 Bros with clubs at 18 a hit, no vests) and rolls the 55% detection;
+  // a raid that's spotted loses its first strike (84% of 400 won) and also meets the help the Blenders send from their
+  // other Boardwalk plots (1 with fists, there by contact). Unseen, as the walkthrough has it, the squad wins all 400
+  // (see raidInput below).
   it.fails('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
     const { s, kiosk } = day24();
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true), 0.81, 0.05);
@@ -286,9 +286,9 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(emptyPosts(s, ids).map((g) => g.name)).toEqual(['Dex', 'Rosa']);
   });
 
-  // Measured: out at 01:00 and home at 04:25. The squad robs the garrison the sim posts in 24 s (the grab starts at
-  // 14 s), not the walkthrough's 18, and the walk home is timed from the fight: contact at 02:30, + 24, + 90.
-  it.fails('the squad is home by 04:20, and the Corner\'s posts are filled again', () => {
+  // Measured: out at 01:00 and home at 04:20 (the walk home is timed from the fight: contact at 02:30, the fight,
+  // then 90 minutes back).
+  it('the squad is home by 04:20, and the Corner\'s posts are filled again', () => {
     const { s, kiosk } = day24Trip();
     const dex = s.guards[0];
     expect(planRaid(s, kiosk, s.guards.map((g) => g.id), 'shakedown', 'tonight')).toBe(true);

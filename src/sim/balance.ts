@@ -433,10 +433,10 @@ export const CLUBHOUSE_HP = [800, 2000, 5000]; // placeholder: spec gap. Chop to
 /**
  * The Clubhouse extras. L2's Training Yard: each dawn a guard who waited at an L2 or L3 Clubhouse all day (off post,
  * not Out, not on a raid) earns a day of duty's XP, 1/`daysPerLevel` of the way to the next level (placeholder: spec
- * gap; the pace of duty, about a level every 35 days). L3's Infirmary: while you have one standing, every KO is Out
+ * gap; crew's pace of duty, DUTY_DAYS_PER_LEVEL). L3's Infirmary: while you have one standing, every KO is Out
  * `days` fewer days, never below 0 (fit again at the next dawn).
  */
-export const CLUBHOUSE_EXTRAS = { yard: { level: 2, daysPerLevel: 35 }, infirmary: { level: 3, days: 1 } };
+export const CLUBHOUSE_EXTRAS = { yard: { level: 2, daysPerLevel: DUTY_DAYS_PER_LEVEL }, infirmary: { level: 3, days: 1 } };
 export const HIRE_RANK = 2;
 export const RAID_RANK = 3;
 export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);
@@ -583,10 +583,9 @@ export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; wea
 export const RIVAL_HELP = { share: 0.5, cap: [1, 1, 2, 2, 3] };
 /**
  * Dex's Auto-Defend (Rank 4): each plot's priority runs 0 (the default: left to the bell) to `top` (placeholder: the
- * spec names no scale). `buildingPosts` is the spec's 3 guard posts on buildings other than stands (crew's postsFor
- * holds it once guard-posts-cap merges).
+ * spec names no scale). He fills a plot's guard posts as crew's postsFor counts them.
  */
-export const AUTO_DEFEND = { rank: 4, top: 3, buildingPosts: 3 };
+export const AUTO_DEFEND = { rank: 4, top: 3 };
 /**
  * Nabbed (spec: Nobody dies): each KO'd raider left behind is Nabbed on this `chance` by the side they raided. Letting
  * a captive go is worth `release` star; the ransom is their hire fee (GUARD_FEE by level). A rival holds a guard of

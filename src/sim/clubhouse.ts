@@ -7,10 +7,10 @@
 // one of them: that's the reserve Ring the Bell calls (reinforce.ts). From L2
 // the reserve trains in the Training Yard; an L3's Infirmary heals KOs a day
 // faster.
-import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_LEVEL_TITLES, GUARD_XP_TO_LEVEL } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL } from './balance.ts';
 import { PLOTS, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
-import type { Guard } from './crew.ts';
+import { levelUp, type Guard } from './crew.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 
 
@@ -59,7 +59,8 @@ export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (h
 
 /**
  * The Training Yard, at dawn: each guard who waited all day at an L2 or L3 Clubhouse (off post, not Out, not away on a
- * raid) earns a day of duty's XP, 1/daysPerLevel of the way to the next level, and levels up when it's full.
+ * raid) earns a day of duty's XP, 1/daysPerLevel of the way to the next level (crew's pace of duty), and levels up
+ * when it's full (crew's levelUp).
  */
 export function trainingYard(s: GameState): void {
   const away = awayOnRaid(s);
@@ -68,7 +69,7 @@ export function trainingYard(s: GameState): void {
     if (!club || g.post || g.level >= 5 || g.outUntil > s.day - 1 || away.has(g.id) || !clubExtras(s.plots[club].facility!.level).yard) continue;
     const step = (GUARD_XP_TO_LEVEL[g.level] - GUARD_XP_TO_LEVEL[g.level - 1]) / CLUBHOUSE_EXTRAS.yard.daysPerLevel;
     g.xp = Math.round((g.xp + step) * 1e6) / 1e6;
-    while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level] - 1e-3) { g.level++; s.news.push(`${g.name} is now a ${GUARD_LEVEL_TITLES[g.level - 1]}!`); }
+    levelUp(s, g);
   }
 }
 

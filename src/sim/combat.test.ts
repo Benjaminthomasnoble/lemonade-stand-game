@@ -704,6 +704,7 @@ describe('rival henchmen after a fight', () => {
   it('the next raid meets only the fit ones, and a fight costs the rival nobody for good', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const { s, plot, raid } = blenders(seed, 3, 2);
+      s.plots[plot].stand!.level = 3; // 3 guard posts (crew's postsFor): the whole garrison stands guard
       const b = fightRaid(s, raid('shakedown'), true);
       const ko = b.koed.filter((id) => b.defenders.some((f) => f.id === id)).length;
       if (!ko) continue;

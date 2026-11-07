@@ -4,13 +4,14 @@
 // When a raid on one of your plots is warned, Dex rings the bell under the
 // normal rules (reinforce.ts): the Clubhouse reserve in range sets out. Each
 // Evening he posts the idle reserve on your plots by the priority you give
-// each one, highest first, within each plot's guard posts; a plot at priority
-// 0 (the default) is left to the bell. Auto-Restock's shape: a switch, a target
-// per plot, an opt-out and a one-line report. Pure, like the rest of the sim.
-import { AUTO_DEFEND, RANKS, STAND_LEVELS } from './balance.ts';
-import { PLOT_BY_ID, PLOTS } from './map.ts';
+// each one, highest first, within each plot's guard posts (crew's postsFor);
+// a plot at priority 0 (the default) is left to the bell. Auto-Restock's
+// shape: a switch, a target per plot, an opt-out and a one-line report. Pure,
+// like the rest of the sim.
+import { AUTO_DEFEND, RANKS } from './balance.ts';
+import { PLOTS } from './map.ts';
 import { awayOnRaid } from './clubhouse.ts';
-import { guardReady, postGuard, type Raid } from './crew.ts';
+import { guardReady, postGuard, postsFor, type Raid } from './crew.ts';
 import { canRingBell, ringTheBell } from './reinforce.ts';
 import type { Blocker, GameState } from './economy.ts';
 
@@ -43,14 +44,6 @@ export function setDefendPriority(s: GameState, plotId: string, n: number): bool
 /** One pip more (past the top, back to none). */
 export const cycleDefendPriority = (s: GameState, plotId: string) => setDefendPriority(s, plotId, (defendPriority(s, plotId) + 1) % (AUTO_DEFEND.top + 1));
 
-/** A plot's guard posts (crew's postsFor once guard-posts-cap merges): a stand's level sets 1, 2, 3, 4 or 6; other
- * buildings and an HQ have AUTO_DEFEND.buildingPosts; a bare lot has none. */
-export function postsAt(s: GameState, plotId: string): number {
-  const ps = s.plots[plotId];
-  if (ps?.stand) return STAND_LEVELS[ps.stand.level - 1].guardPosts;
-  return ps?.facility || PLOT_BY_ID[plotId]?.type === 'hq' ? AUTO_DEFEND.buildingPosts : 0;
-}
-
 /**
  * The Evening: Dex posts the idle reserve (fit, off post, not away on a raid), the most seasoned first, on your plots
  * by priority, highest first (then the plot worth most), filling each one's free posts. Returns how many he posted.
@@ -64,7 +57,7 @@ export function stationByPriority(s: GameState): number {
     .sort((a, b) => defendPriority(s, b.id) - defendPriority(s, a.id) || worth(b.id) - worth(a.id) || a.id.localeCompare(b.id));
   let posted = 0;
   for (const p of plots) {
-    for (let free = postsAt(s, p.id) - s.guards.filter((g) => g.post === p.id).length; free > 0 && idle.length; free--) {
+    for (let free = postsFor(s, p.id) - s.guards.filter((g) => g.post === p.id).length; free > 0 && idle.length; free--) {
       postGuard(s, idle.shift()!.id, p.id);
       posted++;
     }

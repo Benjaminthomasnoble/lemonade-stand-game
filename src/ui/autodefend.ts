@@ -4,7 +4,8 @@
 // each Evening; a tap adds one (past the top, back to none). Mounted from
 // hud.ts on the HUD's existing classes.
 import { AUTO_DEFEND } from '../sim/balance.ts';
-import { autoDefendOn, defendPriority, postsAt } from '../sim/autodefend.ts';
+import { autoDefendOn, defendPriority } from '../sim/autodefend.ts';
+import { postsFor } from '../sim/crew.ts';
 import type { GameState } from '../sim/economy.ts';
 
 const pips = (n: number, of: number) => `<span class="cl-pips">${Array.from({ length: of }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -18,7 +19,7 @@ export function autoDefendSwitch(s: GameState): string {
 
 /** A plot card's priority pips, while Auto-Defend is on and the plot has guard posts. */
 export function defendPriorityHere(s: GameState, plotId: string, tape: (inner: string, cls?: string) => string): string {
-  if (!autoDefendOn(s) || s.plots[plotId]?.owner !== 'player' || !postsAt(s, plotId)) return '';
+  if (!autoDefendOn(s) || s.plots[plotId]?.owner !== 'player' || !postsFor(s, plotId)) return '';
   const n = defendPriority(s, plotId);
   const tip = n ? `Dex's priority here: ${n} of ${AUTO_DEFEND.top}. Its posts fill first each evening.` : "Dex's priority here: none. Left to the bell.";
   return `<button class="cl-auto${n ? ' on' : ''}" data-action="priority" data-plot="${plotId}" data-testid="defend-priority" title="${tip} Tap to raise.">${tape(`Dex ${pips(n, AUTO_DEFEND.top)}`)}</button>`;

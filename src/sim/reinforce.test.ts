@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   AUTO_DEFEND, BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
-  detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
+  detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, postsFor, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
   type Raid, type SimEvent,
 } from './economy.ts';
 import { fitGarrison } from './garrison.ts';
-import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, postsAt, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
+import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 import { reserveAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
@@ -307,7 +307,7 @@ describe('rivals send help', () => {
     for (const { s, target } of [quiet, busy]) {
       Object.assign(s.plots[target].defense, { gadgets: ['alarm', 'watchtower'] });
       s.plots[target].garrison = 1;
-      s.guards = Array.from({ length: 3 }, (_, i) => guard(`G${i}`, { weapon: 'clubs', level: 2 }));
+      s.guards = Array.from({ length: 3 }, (_, i) => guard(`G${i}`, { weapon: 'clubs', gear: 'none' })); // 3 Rookies with clubs: one Bro is easy, four aren't
     }
     const odds = (x: typeof quiet) => raidOdds(x.s, x.target, x.s.guards.map((g) => g.id), 'smash', false, 200);
     expect(odds(busy)).toBeLessThan(odds(quiet) - 0.1);
@@ -365,7 +365,7 @@ describe("Dex's Auto-Defend", () => {
     const kiosk = standIn(s, 'maple', 3), wooden = standIn(s, 'maple', 2), lot = lotIn(s, 'maple');
     s.cash = 1e6;
     buildClubhouse(s, lot);
-    expect([postsAt(s, kiosk), postsAt(s, wooden), postsAt(s, LOTTIES_CORNER), postsAt(s, lot)]).toEqual([3, 2, 1, 3]);
+    expect([postsFor(s, kiosk), postsFor(s, wooden), postsFor(s, LOTTIES_CORNER), postsFor(s, lot)]).toEqual([3, 2, 1, 3]); // crew's posts
     const [a, b, c, d, e, f, g, ko, raider, held] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'Ko', 'Raider', 'Held'].map((n, i) => guard(n, { level: [3, 3, 2, 2, 1, 1, 1, 5, 5, 1][i] }));
     held.post = wooden; // already there: one post left
     ko.outUntil = s.day + 1;

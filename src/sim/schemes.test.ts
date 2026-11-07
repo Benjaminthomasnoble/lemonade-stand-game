@@ -6,7 +6,7 @@ import {
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
   AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
-  blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES,
+  blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
   type DayStats, type GameState, type RivalId, type Scheme,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -672,7 +672,66 @@ describe('Old Money', () => {
     const ticket = schemeTickets(s).find((x) => x.includes('data-testid="freeze"'))!;
     expect(ticket).toContain(`Sale frozen: ${PLOT_BY_ID[plot].name.replace(/'/g, '\'')}`);
     expect(ticket).toContain(`data-action="goto" data-plot="${plot}"`);
-    expect(schemeNote(s, plot)).toBe('<span class="cl-note bad">Sale frozen</span>');
+    expect(schemeNote(s, plot)).toBe(`<span class="cl-note bad">Frozen, thaws day ${job.until + 1}</span>`);
+  });
+
+  /** A Downtown lot of yours borders Hilltop Estates, and the cash for its land. */
+  const uphill = (s: GameState) => {
+    const lot = PLOTS.find((p) => p.district === 'downtown' && !s.plots[p.id].owner && p.type === 'street')!;
+    s.plots[lot.id].owner = 'player';
+    s.cash = 5_000_000;
+    return s;
+  };
+
+  it('Historic hedges: in Act 5 the Mayor freezes your first Hilltop deal, once, and the plot card says when it thaws', () => {
+    const s = uphill(act5(59));
+    const hill = PLOTS.filter((p) => p.district === 'hilltop' && !s.plots[p.id].owner && canBuyPlot(s, p.id).ok);
+    expect(hill.length).toBeGreaterThan(1);
+    const [first, second] = hill.map((p) => p.id);
+    const strike = budgetOf(s, 'sourwood').strike, cash = s.cash;
+    expect(buyPlot(s, first)).toBe(false); // the deal is held
+    expect(s.plots[first].owner).toBeNull();
+    expect(s.cash).toBe(cash);
+    expect(freezeOn(s, first)).toMatchObject({ kind: 'freeze', by: 'sourwood', day: 110, until: 112, cost: 0 });
+    expect(budgetOf(s, 'sourwood').strike).toBe(strike); // the act's lesson, not a scheme Vera pays for
+    expect(canBuyPlot(s, first)).toEqual({ ok: false, why: 'Town Hall froze this sale' });
+    expect(schemeNote(s, first)).toBe('<span class="cl-note bad">Frozen, thaws day 113</span>');
+    expect(s.scenes!.queue.at(-1)).toMatchObject({ id: 'hedges', data: { lines: HEDGES.lines } });
+    expect(HEDGES.lines[0]).toMatchObject({ who: 'Mayor Fontaine' });
+    expect(s.news).toContain('Bugle: Town Hall freezes a Hilltop land sale "to protect historic hedges"');
+    expect(s.rivals.sourwood.hedges).toBe(110);
+    expect(buyPlot(s, second)).toBe(true); // once a run: the next Hilltop deal goes through
+    hush(s);
+    for (const day of [111, 112, 113]) { s.day = day; schemesAtDawn(s); }
+    expect(buyPlot(s, first)).toBe(true); // thawed
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.rivals.sourwood.hedges).toBe(110);
+  });
+
+  it('Historic hedges holds a Sit-down Plot Buyout of a Hilltop plot too, if that is your first Hilltop deal', () => {
+    const s = uphill(act5(63));
+    const theirs = PLOTS.find((p) => p.district === 'hilltop' && s.plots[p.id].owner === 'sourwood' && p.type !== 'hq' && canPlotBuyout(s, p.id).ok)!.id;
+    const cash = s.cash;
+    expect(plotBuyout(s, theirs)).toBe(false);
+    expect(s.plots[theirs].owner).toBe('sourwood');
+    expect(s.cash).toBe(cash);
+    expect(canPlotBuyout(s, theirs)).toEqual({ ok: false, why: 'Town Hall froze this sale' });
+    expect(s.rivals.sourwood.hedges).toBe(110);
+  });
+
+  it('Historic hedges waits for Act 5 and the campaign, and never comes once Vera is out of the game', () => {
+    const early = uphill(act5(60));
+    atRank(early, 8); // Act 4
+    const hill = (s: GameState) => PLOTS.find((p) => p.district === 'hilltop' && !s.plots[p.id].owner && canBuyPlot(s, p.id).ok)!.id;
+    expect(buyPlot(early, hill(early))).toBe(true);
+    const gone = uphill(act5(61));
+    gone.rivals.sourwood.alive = false;
+    expect(buyPlot(gone, hill(gone))).toBe(true);
+    const sandbox = uphill(newGame(62, { mode: 'sandbox' }));
+    sandbox.rank = 9;
+    sandbox.phase = 'prep';
+    expect(buyPlot(sandbox, hill(sandbox))).toBe(true);
+    expect(sandbox.rivals.sourwood.hedges).toBeUndefined();
   });
 });
 

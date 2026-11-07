@@ -18,11 +18,12 @@ import type { GameState, Stand } from './economy.ts';
 import { canBuyPlot, ownedPlots, rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend } from './rivalAi.ts';
-import { AD_BLITZ, CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
+import { AD_BLITZ, CEASE, HEDGES, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { actOf, peaceful } from './modes.ts';
+import { playScene } from './scenes.ts';
 
 export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze';
 export interface Scheme {
@@ -452,22 +453,39 @@ function freezeTarget(s: GameState): string | null {
 }
 
 /**
- * Town Hall freezes a land sale for 3 days (Sourwood's Old Money; `plotId` is the seam for story's Act 5 freeze on
- * your Hilltop deal). Nobody can buy the plot while it's frozen; First Dibs you hold on it waits out the freeze.
+ * Town Hall freezes a land sale for 3 days (Sourwood's Old Money; `plotId` names the plot, as Act 5's Historic hedges
+ * does). Nobody can buy the plot while it's frozen; First Dibs you hold on it waits out the freeze. A `lesson` (the
+ * act's scripted beat) asks nothing of Vera's Strike.
  */
-export function freezeLand(s: GameState, plotId?: string): Scheme | null {
+export function freezeLand(s: GameState, plotId?: string, lesson = false): Scheme | null {
   const id: RivalId = 'sourwood';
   if (!s.rivals[id].alive || actOf(s) < OLD_MONEY.act) return null;
   const plot = plotId ?? freezeTarget(s);
-  if (!plot || landFrozen(s, plot) || !canSpend(s, id, 'strike', OLD_MONEY.freezeCost)) return null;
-  spend(s, id, 'strike', OLD_MONEY.freezeCost);
+  const cost = lesson ? 0 : OLD_MONEY.freezeCost;
+  if (!plot || landFrozen(s, plot) || !canSpend(s, id, 'strike', cost)) return null;
+  spend(s, id, 'strike', cost);
   s.schemes ??= [];
-  const job: Scheme = { kind: 'freeze', by: id, day: s.day, until: s.day + OLD_MONEY.freezeDays - 1, plots: [plot], cost: OLD_MONEY.freezeCost };
+  const job: Scheme = { kind: 'freeze', by: id, day: s.day, until: s.day + OLD_MONEY.freezeDays - 1, plots: [plot], cost };
   s.schemes.push(job);
   const dibs = s.plots[plot].dibs;
   if (dibs?.who === 'player' && dibs.until >= s.day) dibs.until += OLD_MONEY.freezeDays;
   alert(s, { kind: 'note', text: `LAND FREEZE! Town Hall freezes the sale of ${PLOT_BY_ID[plot].name} for ${OLD_MONEY.freezeDays} days, to protect "historic hedges."`, plot });
   return job;
+}
+
+/**
+ * Act 5, Historic hedges: the first time you go to buy a Hilltop Estates plot in the campaign's Act 5 (while Vera is
+ * in business), Mayor Fontaine freezes that sale, the scene plays, and buyPlot holds the purchase (true). Once the
+ * freeze thaws the plot is yours to buy; the beat never comes twice.
+ */
+export function historicHedges(s: GameState, plotId: string): boolean {
+  const vera = s.rivals.sourwood;
+  if (s.settings.mode !== 'campaign' || vera.hedges !== undefined || PLOT_BY_ID[plotId]?.district !== 'hilltop') return false;
+  if (!freezeLand(s, plotId, true)) return false;
+  vera.hedges = s.day;
+  s.news.push('Bugle: Town Hall freezes a Hilltop land sale "to protect historic hedges"');
+  playScene(s, 'hedges', HEDGES);
+  return true;
 }
 
 // ---------- auction snipe ----------

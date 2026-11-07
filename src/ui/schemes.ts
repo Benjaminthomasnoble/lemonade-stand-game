@@ -115,6 +115,7 @@ export function schemeNote(s: GameState, plotId: string): string {
   if (owner && owner !== 'player' && adBlitzIn(s, PLOT_BY_ID[plotId].district, owner as RivalId)) return `<span class="cl-note bad">Ad blitz +${Math.round(AD_BLITZ.traffic * 100)}%</span>`;
   const offer = offerOn(s, plotId);
   if (offer) return `<span class="cl-note">FizzCo bids ${whole(offer.price!)}</span>`;
-  if (freezeOn(s, plotId)) return '<span class="cl-note bad">Sale frozen</span>';
+  const frozen = freezeOn(s, plotId);
+  if (frozen) return `<span class="cl-note bad">Frozen, thaws day ${frozen.until + 1}</span>`;
   return postersAt(s, plotId) ? '<span class="cl-note bad">Smear posters</span>' : '';
 }

@@ -14,7 +14,7 @@ import { retireJingle } from './radio.ts';
 import { bossExit } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import { landFrozen } from './schemes.ts';
+import { historicHedges, landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
 import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
@@ -176,6 +176,20 @@ export const TAKEOVER = { act: 4, price: 1.25, days: 2, snub: 10 };
 export const OLD_MONEY = {
   act: 5, fine: 0.5, minFine: 25, fineCost: 500, freezeDays: 3, freezeCost: 1500,
   mayor: 'I represent all of Citrine Bay. Some of it more than others.',
+};
+/**
+ * Act 5's Historic hedges beat (spec: "the Mayor freezes your Hilltop land deal to protect historic hedges. Teaches
+ * Old Money."): the first time you go to buy a Hilltop Estates plot, Town Hall freezes that sale for
+ * OLD_MONEY.freezeDays days. The scene plays as captions (the world has no staging for the Mayor yet).
+ */
+export const HEDGES = {
+  seconds: 13,
+  lines: [
+    { who: 'Mayor Fontaine', text: 'Terribly sorry. That sale is frozen, to protect the historic hedges.', at: 1 },
+    { who: 'Lottie', text: 'Hedges. Vera planted them herself, I bet.', at: 5.5 },
+    { who: 'Mayor Fontaine', text: OLD_MONEY.mayor, at: 9 },
+  ],
+  recap: `Mayor Fontaine froze your Hilltop deal "to protect historic hedges." It thaws in ${OLD_MONEY.freezeDays} days.`,
 };
 /**
  * Rivals market by your rules (spec: "Rivals market by the same rules, and FizzCo spends the most"). At dawn a rival
@@ -342,6 +356,7 @@ export function canPlotBuyout(s: GameState, plotId: string): Blocker {
 
 export function plotBuyout(s: GameState, plotId: string): boolean {
   if (!canPlotBuyout(s, plotId).ok) return false;
+  if (historicHedges(s, plotId)) return false; // Act 5: the Mayor freezes your first Hilltop deal, a Sit-down's too
   const ps = s.plots[plotId];
   const id = ps.owner as RivalId;
   const price = plotBuyoutPrice(s, plotId);

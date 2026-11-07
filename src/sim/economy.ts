@@ -20,7 +20,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { landFrozen, priceWarCut, schemesAtDawn, type Scheme } from './schemes.ts';
+import { historicHedges, landFrozen, priceWarCut, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -183,6 +183,7 @@ export interface RivalState {
   lost?: string[]; // plots taken from them that went For Sale: whoever buys one takes their land
   rush?: number; // the Blenders: the night of their last Blender Rush on you (Brock phones first)
   haggle?: { day: number; out?: boolean }; // Juni and Preston: their buyout counter-offer stands this day; out: they walked out
+  hedges?: number; // Vera: the day Town Hall froze your first Hilltop deal (Act 5's Historic hedges)
 }
 
 export interface DayStats {
@@ -961,6 +962,7 @@ export function plotPrice(s: GameState, plotId: string): number {
 
 export function buyPlot(s: GameState, plotId: string): boolean {
   if (!canBuyPlot(s, plotId).ok) return false;
+  if (historicHedges(s, plotId)) return false; // rivals: Act 5, the Mayor freezes your first Hilltop deal
   const ps = s.plots[plotId];
   const price = plotPrice(s, plotId);
   book(s, 'invested', -price);

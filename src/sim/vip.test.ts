@@ -3,7 +3,7 @@ import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder,
   DELIVERY_WINDOW, FAILED_ORDER_STARS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
-  pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore,
+  pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
@@ -568,6 +568,17 @@ describe('VIP clients', () => {
       expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance);
     }
     expect(fest).toBe(FESTIVALS.harborFest.to - FESTIVALS.harborFest.from + 1);
+  });
+
+  it("Act 5's Harbor Fest: once the Syndicate has formed, a crew goes after every VIP pickup of the Fest", () => {
+    const { s, field, dock } = vipGame(39);
+    const heli = order(s, { id: 'star', tier: 'heli', qty: 2000, pay: 60000, due: s.day + 60, plot: field.id });
+    const ship = order(s, { id: 'cruise', tier: 'ship', qty: 10000, pay: 400000, due: s.day + 60, plot: dock.id });
+    const tent = order(s, { id: 'tent', tier: 'caterer', qty: 500, pay: 1000, due: s.day + 60 });
+    expect(syndicateFestRaid(s, heli, true)).toBe(false); // no Fest today: the usual 30% at Threat 3+
+    while (!harborFestOn(s)) s.day++;
+    expect([heli, ship, tent].map((o) => syndicateFestRaid(s, o, true))).toEqual([true, true, false]); // a Caterer Truck is no VIP
+    expect(syndicateFestRaid(s, ship, false)).toBe(false); // no Syndicate: nights passes syndicateFormed(s) once it exists
   });
 
   it('bottles on hand count in the Success Score at cost', () => {

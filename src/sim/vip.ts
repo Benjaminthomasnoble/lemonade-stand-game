@@ -354,8 +354,13 @@ export function offerChance(s: GameState, tier: OrderTier): number {
 export const shippingLane = (s: GameState) => fullControl(s, 'harbor');
 /** Hilltop's perk, live while you hold every plot there. Seam: land's perkActive(s, 'oldMoney') once it merges. */
 export const oldMoney = (s: GameState) => fullControl(s, 'hilltop');
-/** Harbor Fest runs today: the Fall VIP rush. Seam for nights: the Syndicate goes after every delivery while it runs. */
+/** Harbor Fest runs today: the Fall VIP rush. */
 export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harborFest');
+/** Act 5's Harbor Fest (spec: "choppers and ships queue for the Fall VIP rush while Syndicate crews go after every
+ * delivery"): once the Syndicate has formed, a Syndicate crew tries a Delivery Raid on every VIP pickup during the Fest,
+ * with the usual warning, in place of the usual 30% at Threat 3+. Seam for nights: the Delivery Raid roll (night.ts
+ * scheduleDeliveryRaid) passes syndicateFormed(s) and sends the crew; until the Syndicate exists nothing passes true. */
+export const syndicateFestRaid = (s: GameState, o: Order, syndicateFormed: boolean) => syndicateFormed && isVip(o.tier) && harborFestOn(s);
 /** A pickup's pay, with Shipping Lane's 15% on a Ship Contract (a Supply Deal keeps its $1.5M a load). */
 const withLane = (s: GameState, o: Order, pay: number) => (o.tier === 'ship' && shippingLane(s) ? Math.round(pay * (1 + SHIPPING_LANE)) : pay);
 

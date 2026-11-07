@@ -3,7 +3,7 @@
 // repairs and send tonight's raids for a moment before the night runs on the
 // clock. Plain controls on the HUD's existing classes; clicks go through the
 // HUD's one listener (data-action).
-import { canBuyPerimeter, fenceRepairCost, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type Guard } from '../sim/economy.ts';
+import { canBuyPerimeter, canPost, fenceRepairCost, fillable, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type Guard } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { damageTickets, rebuildTickets } from './damage.ts';
 
@@ -61,8 +61,8 @@ export function guardsHere(s: GameState, plotId: string, face: (g: Guard) => str
   const here = s.guards.filter((g) => g.post === plotId);
   const free = s.guards.filter((g) => g.post !== plotId && guardReady(s, g) && !away.has(g.id));
   if (!here.length && !free.length) return '';
-  const next = free[0];
+  const next = free.find((g) => canPost(s, g.id, plotId).ok); // the plot's posts cap it (crew)
   const add = next ? btn('post', `+${art('shield', A.shieldSVG)}`, `data-id="${next.id}" data-plot="${plotId}" data-testid="post-here" title="Post ${esc(next.name)} here"`, 'tiny go') : '';
-  const all = free.length > 1 ? btn('defend', 'All here', `data-plot="${plotId}" title="Every ready guard to ${esc(PLOT_BY_ID[plotId].name)}"`) : '';
+  const all = fillable(s, plotId) > 1 ? btn('defend', 'All here', `data-plot="${plotId}" title="Every ready guard to ${esc(PLOT_BY_ID[plotId].name)}"`) : '';
   return `<span class="cl-faces" title="${here.length} guard${here.length === 1 ? '' : 's'} posted here">${here.map(face).join('')}${add}${all}</span>`;
 }

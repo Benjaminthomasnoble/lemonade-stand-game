@@ -4,7 +4,7 @@
 import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, fenceRepairCost, GADGET_SLOTS,
   GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
-  canPromote, detectionChance, freeAlarm, holdsStronghold, neighborhoodWatch, PROMOTE_LEVEL, SPECIALTIES, towerFor,
+  canPost, canPromote, detectionChance, freeAlarm, holdsStronghold, neighborhoodWatch, postedAt, postsFor, PROMOTE_LEVEL, SPECIALTIES, towerFor,
   type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -58,13 +58,16 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
   const watch = freeAlarm(s, id) ? `<span class="cl-slot full" title="Neighborhood Watch: a free ${GADGETS.alarm.name} (+15% detection, no slot used)">${k.GADGET_ART.alarm()}</span>` : '';
   const tower = towerFor(s, id);
   const seenFrom = tower && tower !== id ? `<span class="cl-slot full" title="The ${GADGETS.watchtower.name} at ${k.esc(PLOT_BY_ID[tower].name)} watches this plot too (+30%, no slot used)">${k.GADGET_ART.watchtower()}</span>` : '';
-  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${seen}${watch}${seenFrom}${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
+  const posts = ps.owner === 'player' ? postsFor(s, id) : 0;
+  const manned = posts ? `<div class="cl-slots" title="${postedAt(s, id).length} of ${posts} guard post${posts === 1 ? '' : 's'} filled here"><span class="cl-label">Posts</span>${k.pips(postedAt(s, id).length, posts)}</div>` : '';
+  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${seen}${watch}${seenFrom}${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>${manned}`;
 }
 
 function guardRow(k: Kit, s: GameState, g: Guard): string {
-  const stands = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && (s.plots[p.id].stand || s.plots[p.id].facility));
-  const i = g.post ? stands.findIndex((p) => p.id === g.post) : -1;
-  const nextPost = stands[(i + 1) % stands.length];
+  // The post button steps through your plots with a free post (and the guard's own), then the Clubhouse reserve.
+  const spots: (string | null)[] = [...PLOTS.filter((p) => s.plots[p.id].owner === 'player' && (p.id === g.post || canPost(s, g.id, p.id).ok)).map((p) => p.id), null];
+  const nextPost = spots[(spots.indexOf(g.post) + 1) % spots.length];
+  const where = (id: string | null) => (id ? k.esc(PLOT_BY_ID[id].name) : 'the Clubhouse');
   const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);
   const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
   const wb = nextWeapon ? canEquip(s, g.id, nextWeapon) : null, gb = nextGear ? canEquip(s, g.id, nextGear) : null;
@@ -73,7 +76,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Posted at ${g.post ? k.esc(PLOT_BY_ID[g.post].name) : 'the Clubhouse'}: tap to move">📍</button>
+        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}">📍</button>
         ${nextWeapon && wb && !k.locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${k.whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${k.esc(wb.why)})`}">${k.WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !k.locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${k.whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${k.esc(gb.why)})`}">${k.ART.shield()}</button>` : ''}
         ${promoteButtons(k, s, g)}

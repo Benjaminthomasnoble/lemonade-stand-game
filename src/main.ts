@@ -7,7 +7,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert, buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
+  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert, buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
@@ -621,7 +621,7 @@ async function main() {
       case 'scout': scoutWithLookout(state, a.id, a.plot); break;
       case 'clubhouse': buildClubhouse(state, a.plot); break;
       case 'club': waitAt(state, a.id, a.plot); break;
-      case 'defend': for (const g of state.guards) if (guardReady(state, g)) postGuard(state, g.id, a.plot); break;
+      case 'defend': fillPosts(state, a.plot); break;
       case 'raid': {
         const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
         if (typeof r === 'object') { hud.inspected = null; onFight(r, true); } // fought at once: shown in its turn

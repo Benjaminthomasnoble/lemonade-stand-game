@@ -439,6 +439,8 @@ export const RAID_FIGHT_GUESS = 20; // placeholder: spec gap
 export const DELIVERY_WINDOW = 120;
 /** Juni's Grapevine (the Grindhouse trophy): raid warnings arrive 1 game hour earlier. */
 export const GRAPEVINE_EARLY = 60;
+/** Guard posts on a building other than a stand (a stand's level sets its own: STAND_LEVELS guardPosts). A bare lot has none. */
+export const BUILDING_POSTS = 3;
 /** A Sneaky raider in the party takes this much more off (once per raid). */
 export const SNEAKY_STEALTH = 0.25;
 /** Maple Row at Full Control (Neighborhood Watch): every raid on any plot of yours is detected this much more often. */

@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  BUILDING_POSTS, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
@@ -332,9 +332,10 @@ export function hireGuard(s: GameState, id: string): boolean {
   const i = s.recruits.findIndex((r) => r.id === id);
   const g = s.recruits.splice(i, 1)[0];
   s.cash = round2(s.cash - g.fee);
-  g.post = s.selected;
+  g.post = null;
   s.guards.push(g);
-  s.news.push(`${g.name} (${g.trait}) joins the crew and stands guard at ${PLOT_BY_ID[g.post].name}.`);
+  const posted = postGuard(s, g.id, s.selected); // the plot you're looking at, if it has a free post; else the Clubhouse
+  s.news.push(`${g.name} (${g.trait}) joins the crew and ${posted ? `stands guard at ${PLOT_BY_ID[s.selected].name}` : 'waits at the Clubhouse'}.`);
   return true;
 }
 
@@ -342,9 +343,62 @@ export function fireGuard(s: GameState, id: string): void {
   s.guards = s.guards.filter((g) => g.id !== id);
 }
 
-export function postGuard(s: GameState, id: string, plotId: string | null): void {
+/** Guard posts on a plot: a stand's level sets 1, 2, 3, 4 or 6; other buildings have 3; a bare lot has none. */
+export function postsFor(s: GameState, plotId: string): number {
+  const ps = s.plots[plotId];
+  if (ps.stand) return STAND_LEVELS[ps.stand.level - 1].guardPosts;
+  return ps.facility || PLOT_BY_ID[plotId].type === 'hq' ? BUILDING_POSTS : 0;
+}
+
+/** Everyone holding a post here, including guards who are Out or away on a raid (it stays theirs till they're back). */
+export const postedAt = (s: GameState, plotId: string) => s.guards.filter((g) => g.post === plotId);
+
+/** Can this guard take a post here? (null is the Clubhouse reserve, always open.) */
+export function canPost(s: GameState, id: string, plotId: string | null): Blocker {
   const g = s.guards.find((x) => x.id === id);
-  if (g && (plotId === null || s.plots[plotId].owner === 'player')) g.post = plotId;
+  if (!g) return { ok: false, why: 'No such guard' };
+  if (plotId === null || g.post === plotId) return { ok: true };
+  if (s.plots[plotId].owner !== 'player') return { ok: false, why: 'Not your plot' };
+  const posts = postsFor(s, plotId);
+  if (!posts) return { ok: false, why: 'No guard posts on a bare lot' };
+  if (postedAt(s, plotId).length >= posts) return { ok: false, why: `All ${posts} post${posts === 1 ? '' : 's'} taken` };
+  return { ok: true };
+}
+
+/** Post a guard on a plot of yours (within its posts) or send them to the Clubhouse reserve (null). */
+export function postGuard(s: GameState, id: string, plotId: string | null): boolean {
+  if (!canPost(s, id, plotId).ok) return false;
+  s.guards.find((x) => x.id === id)!.post = plotId;
+  return true;
+}
+
+/** Ready guards who could move to this plot: the reserve first, then guards from plots no raid is heading for tonight. */
+function movers(s: GameState, plotId: string): Guard[] {
+  const threatened = new Set(incomingRaids(s).map((r) => r.target));
+  const raiding = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
+  return s.guards.filter((g) => g.post !== plotId && guardReady(s, g) && !raiding.has(g.id) && !(g.post && threatened.has(g.post)))
+    .sort((a, b) => (a.post ? 1 : 0) - (b.post ? 1 : 0));
+}
+
+/** How many guards "fill the posts" here would move. */
+export const fillable = (s: GameState, plotId: string) =>
+  s.plots[plotId].owner === 'player' ? Math.min(Math.max(0, postsFor(s, plotId) - postedAt(s, plotId).length), movers(s, plotId).length) : 0;
+
+/** Fill a plot's free posts (the raid warning's button). Returns how many guards moved. */
+export function fillPosts(s: GameState, plotId: string): number {
+  let moved = 0;
+  for (const g of movers(s, plotId)) if (postGuard(s, g.id, plotId)) moved++; else break;
+  return moved;
+}
+
+/** Guards on a plot you no longer hold, or past its posts, go back to the Clubhouse (roster order keeps the first ones). */
+export function tidyPosts(s: GameState): void {
+  const held: Record<string, number> = {};
+  for (const g of s.guards) {
+    if (!g.post) continue;
+    const ok = s.plots[g.post]?.owner === 'player' && (held[g.post] ?? 0) < postsFor(s, g.post);
+    if (ok) held[g.post] = (held[g.post] ?? 0) + 1; else g.post = null;
+  }
 }
 
 export function canEquip(s: GameState, id: string, item: WeaponId | GearId): Blocker {
@@ -436,6 +490,7 @@ export const raidSquad = (s: GameState, ids: string[]) => s.guards.filter((g) =>
 export function migrateCrew(s: GameState): void {
   s.guards ??= [];
   s.recruits ??= [];
+  tidyPosts(s); // saves from before guard posts: the extra guards wait at the Clubhouse
   for (const ps of Object.values(s.plots)) {
     const per = ps.defense && PERIMETERS[ps.defense.tier - 1];
     if (per && ps.defense.fenceHp < per.hp && !ps.defense.repairs) ps.defense.repairs = 1; // chopped before overnight repairs: fixed at the next dawn
@@ -805,6 +860,7 @@ export function crewAtDawn(s: GameState): void {
   for (const id of RIVALS) {
     rivalGuardSpend(s, id, rng);
   }
+  tidyPosts(s);
   s.seed = rng.seed;
 }
 
@@ -815,7 +871,7 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
     if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
     const f = FACTIONS[ps.owner as RivalId];
     if (nextRandom(rng) < f.guard + 0.2) { ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; ps.invested += PERIMETERS[0].cost; }
-    ps.garrison = Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level);
+    ps.garrison = Math.min(postsFor(s, p.id), Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level));
   }
 }
 

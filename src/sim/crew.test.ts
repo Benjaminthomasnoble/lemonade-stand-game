@@ -5,8 +5,8 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
 } from './economy.ts';
 import {
-  availableRaiders, fenceRepairCost, fightRaid, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, raidIsNight, raidIsNightAt, raidRepCost,
-  repairFence, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
+  availableRaiders, canPost, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
+  raidIsNight, raidIsNightAt, raidRepCost, repairFence, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
 } from './crew.ts';
 import { CLOSE, PERIMETERS } from './balance.ts';
 import type { Fighter } from './combat.ts';
@@ -544,5 +544,83 @@ describe('overnight repairs', () => {
     expect(migrateSave(JSON.parse(JSON.stringify(loaded)))!.plots[LOTTIES_CORNER].defense.repairs).toBe(1);
     playDay(loaded);
     expect(loaded.plots[LOTTIES_CORNER].defense.fenceHp).toBe(PERIMETERS[0].hp);
+  });
+});
+
+describe('guard posts', () => {
+  const crew = (seed: number, n: number) => {
+    const s = newGame(seed);
+    s.rank = 4;
+    s.cash = 50000;
+    welcomeDex(s);
+    s.clubhouse = 3;
+    for (let i = 1; i < n; i++) {
+      s.guards.push({ id: `p${i}`, name: `Post ${i}`, trait: 'Tough Cookie', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 });
+    }
+    return s;
+  };
+
+  it('a stand\'s level sets its posts (1, 2, 3, 4, 6), other buildings have 3 and a bare lot none', () => {
+    const s = newGame(100);
+    const ps = s.plots[LOTTIES_CORNER];
+    expect([1, 2, 3, 4, 5].map((level) => { ps.stand!.level = level; return postsFor(s, LOTTIES_CORNER); })).toEqual([1, 2, 3, 4, 6]);
+    s.plots['maple-1n'] = { ...s.plots['maple-1n'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
+    expect(postsFor(s, 'maple-1n')).toBe(3);
+    s.plots['maple-0n'].owner = 'player';
+    expect(postsFor(s, 'maple-0n')).toBe(0);
+  });
+
+  it('posting stops at the cap; a new hire waits at the Clubhouse when the posts are full', () => {
+    const s = crew(101, 3);
+    const [dex, a, b] = s.guards;
+    expect(dex.post).toBe(LOTTIES_CORNER); // the Folding Table's one post
+    expect(canPost(s, a.id, LOTTIES_CORNER)).toEqual({ ok: false, why: 'All 1 post taken' });
+    expect(postGuard(s, a.id, LOTTIES_CORNER)).toBe(false);
+    s.plots[LOTTIES_CORNER].stand!.level = 2;
+    expect(postGuard(s, a.id, LOTTIES_CORNER)).toBe(true);
+    expect(canPost(s, b.id, LOTTIES_CORNER)).toEqual({ ok: false, why: 'All 2 posts taken' });
+    s.plots['maple-0n'].owner = 'player';
+    expect(canPost(s, b.id, 'maple-0n')).toEqual({ ok: false, why: 'No guard posts on a bare lot' });
+    expect(postGuard(s, a.id, null)).toBe(true); // the reserve is always open
+    refreshRecruits(s, true);
+    const hire = s.recruits[0].id;
+    postGuard(s, b.id, LOTTIES_CORNER);
+    expect(hireGuard(s, hire)).toBe(true);
+    expect(s.guards.find((g) => g.id === hire)!.post).toBeNull();
+    expect(s.news.at(-1)).toContain('waits at the Clubhouse');
+  });
+
+  it('"fill the posts" takes the reserve first, never a guard from a plot under attack tonight', () => {
+    const s = crew(102, 5);
+    const [, a, b, c, d] = s.guards;
+    s.plots['maple-1s'] = { ...s.plots['maple-1s'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
+    s.plots['maple-3s'] = { ...s.plots['maple-3s'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
+    postGuard(s, a.id, 'maple-1s');
+    postGuard(s, b.id, 'maple-3s');
+    s.raids.push({ id: 'r9', attacker: 'blenders', target: 'maple-3s', objective: 'smash', party: [], detected: true, eta: '23:00' });
+    s.plots[LOTTIES_CORNER].stand!.level = 5; // 6 posts, Dex holds one
+    expect(fillable(s, LOTTIES_CORNER)).toBe(3); // c and d from the reserve, a from quiet maple-1s; b stays put
+    expect(fillPosts(s, LOTTIES_CORNER)).toBe(3);
+    expect([c.post, d.post, a.post, b.post]).toEqual([LOTTIES_CORNER, LOTTIES_CORNER, LOTTIES_CORNER, 'maple-3s']);
+    expect(fillable(s, LOTTIES_CORNER)).toBe(0);
+  });
+
+  it('old saves keep the first guards on a full plot and send the rest to the Clubhouse', () => {
+    const s = crew(103, 4);
+    for (const g of s.guards) g.post = LOTTIES_CORNER;
+    s.guards[3].post = 'oldtown-1s'; // a rival's plot
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.guards.map((g) => g.post)).toEqual([LOTTIES_CORNER, null, null, null]);
+  });
+
+  it('rival garrisons never outnumber their posts', () => {
+    for (const seed of [104, 105, 106]) {
+      const s = newGame(seed);
+      for (let d = 0; d < 6; d++) playDay(s);
+      for (const p of PLOTS) {
+        const ps = s.plots[p.id];
+        if (ps.owner && ps.owner !== 'player' && ps.stand) expect(ps.garrison ?? 0).toBeLessThanOrEqual(postsFor(s, p.id));
+      }
+    }
   });
 });

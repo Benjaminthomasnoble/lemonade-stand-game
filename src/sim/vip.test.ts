@@ -580,6 +580,24 @@ describe('VIP clients', () => {
     expect(successScore(s)).toBe(Math.floor(netWorth(s)));
   });
 
+  it('helicopter VIPs pay $30 a bottle and ships $40 (the VIP table; design-spec line 632 says $12 and $15)', () => {
+    expect([ORDER_TIERS.heli.pay, ORDER_TIERS.ship.pay]).toEqual([30, 40]);
+    const { s, field, dock } = vipGame(38);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    const got = new Map<string, Order>();
+    for (let d = 0; d < 40; d++) {
+      s.day++;
+      vipAtDawn(s);
+      for (const o of s.offers) got.set(o.id, o);
+    }
+    const heli = [...got.values()].filter((o) => o.tier === 'heli'), ship = [...got.values()].filter((o) => o.tier === 'ship');
+    expect(heli.length).toBeGreaterThan(0);
+    expect(ship.length).toBeGreaterThan(0);
+    for (const o of heli) expect(o.pay).toBe(o.qty * 30); // a Pad's 2,000-4,000 bottles: $60,000-$120,000
+    for (const o of ship) expect(o.pay).toBe(o.qty * 40); // a Jetty's 10,000-20,000: $400,000-$800,000
+  });
+
   it('an order with no bottles fails and costs a star', () => {
     const { s, field } = vipGame(3);
     buildFacility(s, field.id, 'helipad');

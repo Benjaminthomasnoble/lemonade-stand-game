@@ -8,7 +8,7 @@ import {
   RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
-import { runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Objective } from './combat.ts';
+import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
@@ -486,17 +486,23 @@ export function resolveNight(s: GameState): void {
   }
 }
 
-export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleReport {
-  const rng = { seed: s.seed };
-  const ps = s.plots[raid.target];
-  const defender = ps.owner as FactionId;
+/** Who fights: the attackers, the detection roll and the defenders on the plot (dice from rng). */
+export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): BattleInput {
   const away = new Set(s.raids.flatMap((r) => r.guards ?? []));
   const attackers = raid.attacker === 'player'
     ? s.guards.filter((g) => raid.guards!.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', night))
     : raid.party!;
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night);
-  const input = battleInput(s, raid, attackers, night, away, rng);
-  const res = runBattle(input, rng);
+  return battleInput(s, raid, attackers, night, away, rng);
+}
+
+/** Fight a raid and live with the result. `fought`: a live fight (fight.ts) already fought it. */
+export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { input: BattleInput; res: BattleResult }): BattleReport {
+  const rng = { seed: s.seed };
+  const ps = s.plots[raid.target];
+  const defender = ps.owner as FactionId;
+  const input = fought?.input ?? raidInput(s, raid, night, rng);
+  const res = fought?.res ?? runBattle(input, rng);
   s.seed = rng.seed;
   let loot = 0;
 

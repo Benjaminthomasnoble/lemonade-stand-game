@@ -1,7 +1,7 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
-import { runBattle, type BattleInput, type Fighter } from './combat.ts';
+import { runBattle, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
 import { creditGuards, guardFighter, guardReady, henchmanFor, NO_DEFENSE, threatLevel, type BattleReport } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
@@ -10,6 +10,7 @@ import { netWorth, ownedPlots } from './economy.ts';
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
+import type { Rng } from './rng.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -324,7 +325,10 @@ export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Block
   return { ok: true };
 }
 
-export interface AssaultResult { won: boolean; stage: 'gate' | 'yard' | 'boss'; reports: BattleReport[] }
+export interface AssaultResult { won: boolean; stage: HqStage; reports: BattleReport[] }
+export type HqStage = 'gate' | 'yard' | 'boss';
+/** An HQ falls in three fights in a row. */
+export const HQ_STAGES: HqStage[] = ['gate', 'yard', 'boss'];
 
 function boss(id: RivalId, n: number): Fighter {
   const tier = HQS[id].tier;
@@ -332,63 +336,87 @@ function boss(id: RivalId, n: number): Fighter {
   return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 2.5 * m, hit: 8 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs' };
 }
 
-/** Three fights in a row: the Gate, the Yard, the Boss Room. Survivors carry on, a little worn. */
-export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultResult | false {
-  if (!canAssault(s, id, guardIds).ok) return false;
+/** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */
+export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[] {
   breakTruce(s, id);
+  return s.guards.filter((g) => guardIds.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', false));
+}
+
+/** One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). */
+export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng): BattleInput {
+  const hq = HQS[id];
+  let attackers = squad;
+  let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
+  let perimeter = 0, fenceHp = 0;
+  if (stage === 'boss') {
+    defenders.unshift(boss(id, s.nextId++));
+    // Boss moves.
+    if (id === 'blenders') for (const a of attackers.slice(0, 3)) a.hp *= 0.5; // Blender Rush
+    if (id === 'coldbrew') for (const d of defenders) d.hit *= 1.3; // Espresso Shot
+    if (id === 'hollis') { perimeter = 2; fenceHp = 500; } // Hay Bale Wall
+    if (id === 'fizzco') { // Hostile Takeover: two guards switch sides unless Loyal
+      const turn = attackers.filter((f) => s.guards.find((g) => g.id === f.id)?.trait !== 'Loyal').slice(0, 2);
+      attackers = attackers.filter((f) => !turn.includes(f));
+      defenders = [...defenders, ...turn.map((f) => ({ ...f, side: 'def' as const, id: `${f.id}-turned` }))];
+    }
+    if (id === 'sourwood') { // Old Money: Steward reinforcements, and her cane disarms one guard
+      defenders.push(...[0, 1, 2].map((i) => henchmanFor(s, id, 5, rng, 10 + i)));
+      if (attackers[0]) attackers = [{ ...attackers[0], weapon: 'fists', hit: attackers[0].hit * 0.6 }, ...attackers.slice(1)];
+    }
+  }
+  return {
+    attackers, defenders, perimeter, fenceHp, gadgets: [],
+    standHp: stage === 'gate' ? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: true,
+  };
+}
+
+/** Survivors carry on to the next stage, worn down a little; the knocked-out and the runners are done. */
+export const hqSurvivors = (input: BattleInput, res: BattleResult): Fighter[] =>
+  input.attackers.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: f.hp * 0.9 }));
+
+/**
+ * A stage is fought: credit the guards and write it up. 'next' when the squad
+ * pushes on; a stall or the Boss Room falling ends the assault here.
+ */
+export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: BattleInput, res: BattleResult, reports: BattleReport[]): 'next' | 'won' | 'lost' {
   const hq = HQS[id];
   const plot = hqPlot(id);
-  const rng = { seed: s.seed };
-  let squad = s.guards.filter((g) => guardIds.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', false));
-  const reports: BattleReport[] = [];
-  const stages: AssaultResult['stage'][] = ['gate', 'yard', 'boss'];
-  for (const stage of stages) {
-    let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
-    let perimeter = 0, fenceHp = 0;
-    if (stage === 'boss') {
-      defenders.unshift(boss(id, s.nextId++));
-      // Boss moves.
-      if (id === 'blenders') for (const a of squad.slice(0, 3)) a.hp *= 0.5; // Blender Rush
-      if (id === 'coldbrew') for (const d of defenders) d.hit *= 1.3; // Espresso Shot
-      if (id === 'hollis') { perimeter = 2; fenceHp = 500; } // Hay Bale Wall
-      if (id === 'fizzco') { // Hostile Takeover: two guards switch sides unless Loyal
-        const turn = squad.filter((f) => s.guards.find((g) => g.id === f.id)?.trait !== 'Loyal').slice(0, 2);
-        squad = squad.filter((f) => !turn.includes(f));
-        defenders = [...defenders, ...turn.map((f) => ({ ...f, side: 'def' as const, id: `${f.id}-turned` }))];
-      }
-      if (id === 'sourwood') { // Old Money: Steward reinforcements, and her cane disarms one guard
-        defenders.push(...[0, 1, 2].map((i) => henchmanFor(s, id, 5, rng, 10 + i)));
-        if (squad[0]) squad[0] = { ...squad[0], weapon: 'fists', hit: squad[0].hit * 0.6 };
-      }
-    }
-    const input: BattleInput = {
-      attackers: squad, defenders, perimeter, fenceHp, gadgets: [],
-      standHp: stage === 'gate' ? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: true,
-    };
-    const res = runBattle(input, rng);
-    creditGuards(s, input, res);
-    const won = res.winner === 'att' && (stage !== 'gate' || res.outcome === 'smashed');
-    reports.push({
-      day: s.day, attacker: 'player', defender: id, target: plot.id, objective: input.objective,
-      outcome: won ? (stage === 'boss' ? 'smashed' : 'damaged') : 'repelled', loot: 0, attackers: input.attackers, defenders: input.defenders,
-      perimeter, standLevel: 3, events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, hq: stage,
-    });
-    if (!won) {
-      s.seed = rng.seed;
-      s.rivals[id].grudge = Math.min(100, s.rivals[id].grudge + 30);
-      s.news.push(`HQ assault on ${plot.name} stalls at the ${stage === 'gate' ? 'Gate' : stage === 'yard' ? 'Yard' : 'Boss Room'}. ${HQS[id].boss} laughs it off.`);
-      finish(s, reports);
-      return { won: false, stage, reports };
-    }
-    // Survivors carry on, worn down a little; the knocked-out pick themselves up for the next stage only if it's the Gate.
-    squad = squad.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: f.hp * 0.9 }));
+  creditGuards(s, input, res);
+  const won = res.winner === 'att' && (stage !== 'gate' || res.outcome === 'smashed');
+  reports.push({
+    day: s.day, attacker: 'player', defender: id, target: plot.id, objective: input.objective,
+    outcome: won ? (stage === 'boss' ? 'smashed' : 'damaged') : 'repelled', loot: 0, attackers: input.attackers, defenders: input.defenders,
+    perimeter: input.perimeter, standLevel: 3, events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, hq: stage,
+  });
+  if (!won) {
+    s.rivals[id].grudge = Math.min(100, s.rivals[id].grudge + 30);
+    s.news.push(`HQ assault on ${plot.name} stalls at the ${stage === 'gate' ? 'Gate' : stage === 'yard' ? 'Yard' : 'Boss Room'}. ${hq.boss} laughs it off.`);
+    finish(s, reports);
+    return 'lost';
   }
-  s.seed = rng.seed;
-  s.news.push(`${HQS[id].boss} tries "${hq.move}", but it isn't enough. Lottie's crew takes ${plot.name}!`);
+  if (stage !== 'boss') return 'next';
+  s.news.push(`${hq.boss} tries "${hq.move}", but it isn't enough. Lottie's crew takes ${plot.name}!`);
   bump(s, 'hqs');
   eliminate(s, id, 'hq');
   finish(s, reports);
-  return { won: true, stage: 'boss', reports };
+  return 'won';
+}
+
+/** Three fights in a row, all at once: the Gate, the Yard, the Boss Room. Survivors carry on, a little worn. */
+export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultResult | false {
+  if (!canAssault(s, id, guardIds).ok) return false;
+  let squad = hqSquad(s, id, guardIds);
+  const rng = { seed: s.seed };
+  const reports: BattleReport[] = [];
+  for (const stage of HQ_STAGES) {
+    const input = hqStageInput(s, id, stage, squad, rng);
+    const res = runBattle(input, rng);
+    s.seed = rng.seed;
+    const next = hqStageOver(s, id, stage, input, res, reports);
+    if (next !== 'next') return { won: next === 'won', stage, reports };
+    squad = hqSurvivors(input, res);
+  }
+  return false; // not reached: the Boss Room always ends it
 }
 
 function finish(s: GameState, reports: BattleReport[]) {

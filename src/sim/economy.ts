@@ -36,6 +36,7 @@ import { migrateStory, storyAtClose, storyAtDawn, storyMinute, type StoryState }
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
+import type { LiveFight } from './fight.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -210,6 +211,7 @@ export interface GameState {
   scenes?: SceneState; // story scenes queued, playing and seen
   phone?: PhoneState; // boss calls waiting, and the moods they watch
   goals?: GoalState; // what Lottie's goal card shows and has ticked off
+  fight?: LiveFight; // the fight playing live right now (fight.ts)
 }
 
 export type SimEvent =

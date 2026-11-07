@@ -421,6 +421,12 @@ export const COMBAT = {
   holdAt: 0.2, // where guards stand when there's no perimeter
   standWidth: 0.5,
 };
+/** The fight buttons (spec: The fight clock and your buttons). Fall Back is once per fight, Ring the Bell once per raid. */
+export const FIGHT_BUTTONS = {
+  rally: { nerve: 20, seconds: 10, every: 30 }, // Rally (either side): +20 Nerve for 10 s, every 30 s
+};
+/** Ring the Bell: the Clubhouse reserve reaches your plots in the same or a bordering district in 30–60 game minutes. */
+export const RESERVE_MINUTES = { same: 30, border: 60 }; // placeholder: spec gap. 30 from the same district, 60 from a bordering one
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

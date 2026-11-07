@@ -12,8 +12,13 @@
 //
 // Positions are in plot-lengths on the plot's own frame: x runs across the
 // plot, z out from the stand's front (z = 0) toward the street.
+//
+// A fight is steppable (createFight): it runs a quarter-second tick at a time
+// and takes commands at given times (Rally, Fall Back, fighters joining), so a
+// live fight can be paused, steered and re-run from (input, seed, commands).
+// runBattle is the same fight run straight to the end, for odds and tests.
 import {
-  COMBAT, FENCE_DEFENDER_BONUS, FIGHT_SECONDS_PER_GAME_MINUTE, GUARD_BASE, PERIMETERS, WEAPONS,
+  COMBAT, FENCE_DEFENDER_BONUS, FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, GUARD_BASE, PERIMETERS, WEAPONS,
   type GadgetId, type GearId, type Trait, type WeaponId,
 } from './balance.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -49,7 +54,15 @@ export interface BattleInput {
   detected: boolean;
   /** Attackers the Guard Goose stuns (at most 2). Unset: 1, or 2 with a Goose Whisperer among the defenders. */
   gooseStuns?: number;
+  /** Fighters who reach the plot mid-fight (Ring the Bell's reserves): they join at fight-second t. */
+  joins?: { t: number; fighters: Fighter[] }[];
 }
+
+/** What the player can do to a running fight, stamped with the fight-second it acts on. */
+export type FightCommand =
+  | { t: number; type: 'rally'; side: Side } // +20 Nerve for 10 s (FIGHT_BUTTONS.rally)
+  | { t: number; type: 'fallBack'; side: Side } // everyone standing retreats, carrying the KO'd: the fight is lost
+  | { t: number; type: 'join'; fighters: Fighter[] }; // they've arrived: into the fight they go
 
 export type BattleEvent =
   | { t: number; type: 'at'; a: string; x: number; z: number } // where each fighter is at contact
@@ -61,7 +74,9 @@ export type BattleEvent =
   | { t: number; type: 'stun'; a: string; by: 'goose' | 'slick' }
   | { t: number; type: 'drop'; a: string } // Butterfingers: the weapon goes flying; fists from here on
   | { t: number; type: 'breach' }
-  | { t: number; type: 'grab' };
+  | { t: number; type: 'grab' }
+  | { t: number; type: 'rally'; side: Side } // Rally: that side's Nerve is up for 10 s
+  | { t: number; type: 'fallBack'; side: Side }; // Fall Back: that side leaves the field
 
 export interface BattleResult {
   winner: Side;
@@ -73,6 +88,31 @@ export interface BattleResult {
   hatchetKos: string[]; // knocked out by a hatchet blow: Out 2 days instead of 1
   duration: number; // fight-seconds (game minutes)
   events: BattleEvent[];
+  fellBack?: Side; // that side retreated, carrying its KO'd (nobody of theirs left behind)
+}
+
+/** A running fight, for the HUD: who's standing and what the buttons can do. */
+export interface FightStatus {
+  t: number; // fight-seconds played
+  done: boolean;
+  up: Record<Side, number>; // fighters still standing (arrived or walking in)
+  rallyUntil: Record<Side, number>; // a Rally lifts Nerve until this fight-second
+  fellBack?: Side;
+}
+
+/** A fight that runs a tick at a time. */
+export interface Fight {
+  readonly events: BattleEvent[];
+  /** Fight-seconds played: the time of the next tick, or the duration once it's over. */
+  time(): number;
+  done(): boolean;
+  /** Run every tick that starts at or before fight-second `until` (Infinity: to the end). */
+  advance(until: number): void;
+  /** Queue a command: it acts at the start of the first tick at or after its time. */
+  command(c: FightCommand): void;
+  status(): FightStatus;
+  /** The outcome so far (final once done). */
+  result(): BattleResult;
 }
 
 const STEP = 0.25;
@@ -107,7 +147,19 @@ const slotX = (k: number) => (k % 2 ? -1 : 1) * Math.ceil(k / 2) * COMBAT.spacin
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-export function runBattle(input: BattleInput, rng: Rng): BattleResult {
+/** The whole fight at once: the same steps as a live fight, run to the end. */
+export function runBattle(input: BattleInput, rng: Rng, commands: FightCommand[] = []): BattleResult {
+  const fight = createFight(input, rng);
+  for (const c of commands) fight.command(c);
+  fight.advance(Infinity);
+  return fight.result();
+}
+
+/**
+ * A fight that runs one tick at a time. Its dice come from `rng` as it goes, so
+ * the same input, seed and commands always give the same fight.
+ */
+export function createFight(input: BattleInput, rng: Rng): Fight {
   const C = COMBAT;
   const per = input.perimeter > 0 ? PERIMETERS[input.perimeter - 1] : undefined;
   let fence = per ? Math.max(0, input.fenceHp) : 0;
@@ -150,10 +202,11 @@ export function runBattle(input: BattleInput, rng: Rng): BattleResult {
   for (const u of att) if (u.arrive > 0) { u.goal = 'line'; events.push({ t: 0, type: 'move', a: u.f.id, x: round3(u.x), z: round3(lineA), speed: round3(u.speed * approachSlow) }); }
 
   // Butterfingers: once a fight, a 10% chance the weapon slips on one of the first three swings.
-  for (const u of [...att, ...def]) {
-    if (u.f.trait !== 'Butterfingers' || u.weapon === 'fists') continue;
+  const butterfingers = (u: Live) => {
+    if (u.f.trait !== 'Butterfingers' || u.weapon === 'fists') return;
     if (nextRandom(rng) < C.butterfingers) u.dropOn = 1 + Math.floor(nextRandom(rng) * 3);
-  }
+  };
+  for (const u of [...att, ...def]) butterfingers(u);
 
   // The goose honks at the first raider to arrive (twice with a Goose Whisperer); the peels trip the first three.
   const whisperer = input.defenders.some((d) => d.trait === 'Goose Whisperer');
@@ -212,14 +265,61 @@ export function runBattle(input: BattleInput, rng: Rng): BattleResult {
     if (weapon === 'hatchets') hatchetKos.push(u.f.id);
     events.push({ t, type: 'ko', a: u.f.id, by: by ? by.f.id : 'fence', weapon });
   };
+  /** Off home: a runner, or everyone at once on a Fall Back. */
+  const goHome = (u: Live, t: number) => {
+    u.ran = true;
+    events.push({ t, type: 'flee', a: u.f.id });
+    u.goal = 'home';
+    events.push({ t, type: 'move', a: u.f.id, x: round3(u.x), z: round3(u.side === 'att' ? lineA + C.approach * 2 : -1), speed: round3(u.speed) });
+  };
+
+  // ---- the player's buttons, and late arrivals ----
+  const queue: FightCommand[] = [];
+  const rallyUntil: Record<Side, number> = { att: -1, def: -1 };
+  let fellBack: Side | undefined;
+  const enqueue = (c: FightCommand) => {
+    let i = queue.length;
+    while (i > 0 && queue[i - 1].t > c.t + EPS) i--;
+    queue.splice(i, 0, c);
+  };
+  for (const j of input.joins ?? []) enqueue({ t: Math.max(0, j.t), type: 'join', fighters: j.fighters });
+  const apply = (c: FightCommand, t: number) => {
+    if (c.type === 'rally') {
+      rallyUntil[c.side] = t + FIGHT_BUTTONS.rally.seconds;
+      events.push({ t, type: 'rally', side: c.side });
+    } else if (c.type === 'fallBack') {
+      if (fellBack) return; // once per fight
+      fellBack = c.side;
+      events.push({ t, type: 'fallBack', side: c.side });
+      for (const u of c.side === 'att' ? att : def) if (up(u)) goHome(u, t);
+    } else {
+      for (const f of c.fighters) {
+        if (fellBack === f.side) continue; // that side has given the fight up: they turn back
+        const team = f.side === 'att' ? att : def;
+        const u = mk(f, team.length);
+        u.x = slotX(team.length);
+        u.z = f.side === 'att' ? lineA : lineD;
+        if (f.side === 'att') u.arrive = t; // raiders still come in through the arrivals (and the gadgets)
+        team.push(u);
+        events.push({ t, type: 'at', a: f.id, x: round3(u.x), z: round3(u.z) });
+        butterfingers(u);
+      }
+    }
+  };
 
   const checked: Record<Side, boolean> = { att: false, def: false };
   let objStart = -1; // when the objective phase began: perimeter down, raiders up, no defender up
   let grab = 0;
-  let done = false;
-  let t = 0;
-  for (let n = 0; ; n++) {
-    t = n * STEP;
+  let objDone = false;
+  let over = false;
+  let n = 0;
+  let duration = 0;
+  const end = (t: number) => { over = true; duration = t; };
+
+  /** One tick, at t = n × STEP. */
+  const tick = () => {
+    const t = n * STEP;
+    while (queue.length && queue[0].t <= t + EPS) apply(queue.shift()!, t);
     // Arrivals, and the gadgets that spring on them.
     for (const u of att) {
       if (u.here || u.arrive > t + EPS || !up(u)) continue;
@@ -229,12 +329,12 @@ export function runBattle(input: BattleInput, rng: Rng): BattleResult {
       if (honks > 0) { honks--; u.stun = Math.max(u.stun, C.goose.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'goose' }); }
       if (slips > 0) { slips--; u.stun = Math.max(u.stun, C.slick.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'slick' }); }
     }
-    if (!isUp(att)) break;
+    if (!isUp(att)) return end(t);
     const fenceUp = !breached;
     const defUp = isUp(def);
     if (objStart < 0 && !fenceUp && !defUp) objStart = t;
-    if (objStart >= 0 && t >= objStart + timer - EPS) break; // out of time: the stand is only Damaged
-    if (objStart < 0 && t >= giveUp - EPS) break; // no way through: the raiders go home
+    if (objStart >= 0 && t >= objStart + timer - EPS) return end(t); // out of time: the stand is only Damaged
+    if (objStart < 0 && t >= giveUp - EPS) return end(t); // no way through: the raiders go home
 
     const hits: Hit[] = [];
     const firstStrike = !input.detected && t < C.firstStrike.seconds - EPS ? 1 + C.firstStrike.bonus : 1;
@@ -291,46 +391,60 @@ export function runBattle(input: BattleInput, rng: Rng): BattleResult {
     }
     if (!breached && fence <= EPS) { fence = 0; breached = true; events.push({ t, type: 'breach' }); }
 
-    if (input.objective === 'smash' && objStart >= 0 && stand <= EPS && isUp(att)) { done = true; break; }
+    if (input.objective === 'smash' && objStart >= 0 && stand <= EPS && isUp(att)) { objDone = true; return end(t); }
     if (input.objective === 'shakedown' && objStart >= 0 && atTill) {
       if (grab === 0) events.push({ t, type: 'grab' });
       grab += STEP;
-      if (grab >= grabFor - EPS) { done = isUp(att); t += STEP; break; }
+      if (grab >= grabFor - EPS) { objDone = isUp(att); return end(t + STEP); }
     }
 
-    // Nerve: once a side has lost half its people (rounded down), everyone left rolls once.
+    // Nerve: once a side has lost half its people (rounded down), everyone left rolls once (a Rally lifts it).
     for (const side of ['att', 'def'] as Side[]) {
       const all = side === 'att' ? att : def;
       const need = Math.floor(all.length / 2);
       if (checked[side] || need < 1) continue;
       if (all.filter((u) => !up(u)).length < need) continue;
       checked[side] = true;
+      const rally = t < rallyUntil[side] - EPS ? FIGHT_BUTTONS.rally.nerve : 0;
       for (const u of all) {
         if (!up(u)) continue;
-        if (nextRandom(rng) * 100 >= u.f.nerve) {
-          u.ran = true;
-          events.push({ t, type: 'flee', a: u.f.id });
-          u.goal = 'home';
-          events.push({ t, type: 'move', a: u.f.id, x: round3(u.x), z: round3(side === 'att' ? lineA + C.approach * 2 : -1), speed: round3(u.speed) });
-        }
+        if (nextRandom(rng) * 100 >= u.f.nerve + rally) goHome(u, t);
       }
     }
-  }
+    n++;
+  };
 
-  const attackersUp = isUp(att);
-  let outcome: BattleResult['outcome'] = 'repelled';
-  if (attackersUp && done) outcome = input.objective === 'smash' ? 'smashed' : 'robbed';
-  else if (attackersUp && !isUp(def) && (stand < input.standHp || grab > 0)) outcome = 'damaged';
+  const result = (): BattleResult => {
+    const attackersUp = isUp(att);
+    let outcome: BattleResult['outcome'] = 'repelled';
+    if (attackersUp && objDone) outcome = input.objective === 'smash' ? 'smashed' : 'robbed';
+    else if (attackersUp && !isUp(def) && (stand < input.standHp || grab > 0)) outcome = 'damaged';
+    return {
+      winner: outcome === 'smashed' || outcome === 'robbed' ? 'att' : 'def',
+      outcome,
+      fenceHpLeft: Math.round(fence),
+      standHpLeft: Math.round(stand),
+      koed,
+      fled: [...att, ...def].filter((u) => u.ran).map((u) => u.f.id),
+      hatchetKos,
+      duration: over ? duration : n * STEP,
+      events,
+      ...(fellBack ? { fellBack } : {}),
+    };
+  };
+
   return {
-    winner: outcome === 'smashed' || outcome === 'robbed' ? 'att' : 'def',
-    outcome,
-    fenceHpLeft: Math.round(fence),
-    standHpLeft: Math.round(stand),
-    koed,
-    fled: [...att, ...def].filter((u) => u.ran).map((u) => u.f.id),
-    hatchetKos,
-    duration: t,
     events,
+    time: () => (over ? duration : n * STEP),
+    done: () => over,
+    advance(until) { while (!over && n * STEP <= until + EPS) tick(); },
+    command(c) { if (!over) enqueue(c); },
+    status: () => ({
+      t: over ? duration : n * STEP, done: over,
+      up: { att: att.filter(up).length, def: def.filter(up).length },
+      rallyUntil: { ...rallyUntil }, ...(fellBack ? { fellBack } : {}),
+    }),
+    result,
   };
 }
 

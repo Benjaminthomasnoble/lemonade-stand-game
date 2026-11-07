@@ -39,7 +39,7 @@ import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
 import { closeTills } from './loot.ts';
-import { isPurchasable, reachBlocker } from './land.ts';
+import { development, isPurchasable, reachBlocker } from './land.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -842,14 +842,11 @@ export function lemonsExpiringTomorrow(s: GameState, st: Stand): number {
 
 // ---------- land ----------
 
-/** Land rises with development (more and bigger stands in a district), up to ×2 base. */
+/** Land rises with development (more and bigger stands in a district), up to ×2 base. HQ land rises with its district too. */
 function updateLandValues(s: GameState): void {
   for (const d of DISTRICTS) {
-    const plots = PLOTS.filter((p) => p.district === d.id && p.type !== 'civic');
-    const levels = plots.reduce((a, p) => a + (s.plots[p.id].stand?.level ?? 0), 0);
-    const facilities = plots.reduce((a, p) => a + 2 * (s.plots[p.id].facility?.level ?? 0), 0); // a facility tier counts as 2 stand levels
-    const dev = Math.min(1, (levels + facilities) / (plots.length * 4));
-    for (const p of plots) s.plots[p.id].landValue = Math.round(p.baseLand * (1 + (LAND_DEVELOPMENT_MAX - 1) * dev));
+    const dev = development(s, d.id);
+    for (const p of PLOTS) if (p.district === d.id && p.type !== 'civic') s.plots[p.id].landValue = Math.round(p.baseLand * (1 + (LAND_DEVELOPMENT_MAX - 1) * dev));
   }
   s.plots[LOTTIES_CORNER].landValue = Math.max(s.plots[LOTTIES_CORNER].landValue, START.landValue);
 }

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canBuyPlot, hasFoothold, hqPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, PLOTS, type DistrictId, type GameState,
+  canBuyPlot, development, hasFoothold, hqPlot, LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PLOTS, purchasablePlots, sleepUntilDawn,
+  type DistrictId, type GameState,
 } from './economy.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
 /** Hand the player a plot outright (tests skip the buying). */
 const give = (s: GameState, id: string) => { s.plots[id] = { ...s.plots[id], owner: 'player', stand: null, invested: 0, defense: NO_DEFENSE() }; };
 const drop = (s: GameState, id: string) => { s.plots[id] = { ...s.plots[id], owner: null, stand: null, invested: 0, defense: NO_DEFENSE() }; };
+/** Jump to the next dawn without playing the day. */
+const dawn = (s: GameState) => { s.phase = 'report'; sleepUntilDawn(s); };
 
 describe('where you can buy', () => {
   it('opens Old Town at Rank 2 with no border, even after losing every Maple plot', () => {
@@ -53,5 +56,29 @@ describe('where you can buy', () => {
     give(s, street(s, 'campus').id);
     expect(hasFoothold(s, 'player', 'campus')).toBe(true);
     expect(canBuyPlot(s, street(s, 'hilltop').id).ok).toBe(true);
+  });
+});
+
+describe('land prices', () => {
+  it('counts purchasable plots only: twelve Kiosks lift Maple Row ×1.75, so Lottie\'s $300 corner is $525', () => {
+    const s = newGame(24);
+    expect(purchasablePlots('maple').length).toBe(12);
+    for (const p of purchasablePlots('maple')) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(3) };
+    expect(development(s, 'maple')).toBeCloseTo(36 / 48);
+    dawn(s);
+    expect(s.plots[LOTTIES_CORNER].landValue).toBe(525);
+  });
+
+  it('leaves the HQ out of the denominator but lets HQ land rise with its district', () => {
+    const s = newGame(25);
+    const campus = purchasablePlots('campus');
+    expect(campus.length).toBe(13); // 14 plots, less the Grindhouse
+    for (const p of campus) s.plots[p.id] = { ...s.plots[p.id], stand: newStand(2), facility: undefined };
+    expect(development(s, 'campus')).toBeCloseTo(26 / 52);
+    dawn(s);
+    const hq = hqPlot('coldbrew');
+    expect(s.plots[hq.id].landValue).toBe(Math.round(hq.baseLand * 1.5));
+    const lot = campus.find((p) => p.type === 'street')!;
+    expect(s.plots[lot.id].landValue).toBe(Math.round(lot.baseLand * 1.5));
   });
 });

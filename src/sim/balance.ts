@@ -281,6 +281,8 @@ export const RANKS = [
 // ---------- land (section 10) ----------
 export const PROPERTY_TAX_WEEKLY = 0.005;
 export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops
+/** Development counts each facility tier as this many stand levels. */
+export const FACILITY_DEVELOPMENT = 2;
 export const AUTO_RESTOCK_DAY = 3; // the Market and Auto-Restock open with Day 3's lesson; Lottie stocks your stands before it
 /** Lottie's side lot next to the Corner, sold to you on Day 3 with an L1 table: fixed values, like the Corner (spec Appendix A). */
 export const SIDE_LOT = { land: 300, traffic: 300, price: 300 } as const;

@@ -5,6 +5,9 @@ import {
   startAssault, startFight, stepFight, watchFights,
 } from './fight.ts';
 import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './fighters.ts';
+import { leftBehind } from './captives.ts';
+import { FACTIONS, PERIMETERS } from './balance.ts';
+import { PLOT_BY_ID } from './map.ts';
 import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
@@ -318,6 +321,38 @@ describe('the fight buttons', () => {
     expect(gaveUp.outcome).toBe('smashed');
     expect(gaveUp.fellBack).toBe('def');
     expect(gaveUp.koed.some((id) => input.defenders.some((d) => d.id === id))).toBe(false);
+  });
+
+  it.each([4, 5])('Fall Back on defense behind a T%i fence: the raiders never reach the stand, but the fight is theirs', (tier) => {
+    const input = battleOf({ attackers: henchmenOf(3, 1, 'clubs'), defenders: guardsOf(2, 'def', 'clubs', 'vest'), ...fencedOf(tier), standHp: STAND_HP[0], objective: 'shakedown' });
+    expect(runBattle(input, { seed: 1 }).winner).toBe('def'); // standing their ground, the guards win it
+    const gaveUp = runBattle(input, { seed: 1 }, [{ t: 0, type: 'fallBack', side: 'def' }]);
+    expect(gaveUp).toMatchObject({ outcome: 'repelled', fellBack: 'def', winner: 'att' }); // still at the fence when their time ran out
+    expect(leftBehind(input.attackers, gaveUp)).toEqual([]); // and nobody stayed behind to nab anyone
+  });
+
+  it.each([0, 5])('guards who Fall Back (fence T%i) have lost: the raiders feel no Respect, the guards earn a loser\'s XP, and the news says so', (tier) => {
+    const s = crew(34);
+    const home = ownedPlots(s, 'player')[0].id;
+    s.plots[home].defense = tier ? { tier, fenceHp: PERIMETERS[tier - 1].hp, gadgets: [] } : { tier: 0, fenceHp: 0, gadgets: [] };
+    for (const g of s.guards) g.post = home;
+    const xp = new Map(s.guards.map((g) => [g.id, g.xp]));
+    const respect = s.rivals.blenders.respectUntil;
+    const raid: Raid = { id: 'rfb', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(3, 1, 'clubs'), detected: true, eta: '' };
+    expect(startFight(s, raid, true)).toBe(true);
+    expect(s.fight!.side).toBe('def');
+    expect(fightCommand(s, 'fallBack')).toBe(true);
+    const { ended } = play(s);
+    expect(ended.fellBack).toBe('def');
+    expect(ended.outcome).toBe(tier ? 'repelled' : 'smashed');
+    expect(s.rivals.blenders.respectUntil).toBe(respect); // they don't back off from guards who left
+    const fought = ended.defenders.filter((d) => xp.has(d.id));
+    expect(fought.length).toBe(s.guards.length);
+    for (const d of fought) expect(s.guards.find((g) => g.id === d.id)!.xp).toBe(xp.get(d.id)! + 1);
+    const line = s.news.find((n) => n.includes('fall back'))!;
+    if (tier) expect(line).toBe(`Your guards fall back from ${PLOT_BY_ID[home].name}, and ${FACTIONS.blenders.name} leave empty-handed.`);
+    else expect(line).toMatch(/^Your guards fall back\. /);
+    expect(s.captives ?? []).toEqual([]);
   });
 
   it('fighters can join mid-fight', () => {

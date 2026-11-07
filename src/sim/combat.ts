@@ -505,7 +505,8 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     if (attackersUp && objDone) outcome = input.objective === 'smash' ? 'smashed' : 'robbed';
     else if (attackersUp && !isUp(def) && (stand < input.standHp || grab > 0)) outcome = 'damaged';
     return {
-      winner: outcome === 'smashed' || outcome === 'robbed' ? 'att' : 'def',
+      // A side that Falls Back has lost the fight, whatever became of the stand (the spec's "the fight is lost").
+      winner: fellBack ? (fellBack === 'att' ? 'def' : 'att') : outcome === 'smashed' || outcome === 'robbed' ? 'att' : 'def',
       outcome,
       fenceHpLeft: Math.round(fence),
       standHpLeft: Math.round(stand),

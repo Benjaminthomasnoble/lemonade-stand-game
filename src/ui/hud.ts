@@ -525,7 +525,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
-        const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+        const good = foughtWell(b);
         t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
       }
       return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
@@ -540,7 +540,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     t.push(...rebuildTickets(s), ...damageTickets(s)); // smashed and Damaged buildings (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
-      const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+      const good = foughtWell(b);
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
     }
     if (isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket red" title="A Sabotage ruined the stock: this stand sells nothing today">${ART.sour()}<b>Stock spoiled: closed today</b></div>`);
@@ -734,15 +734,22 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return out.length ? `<div class="cl-tonight">${out.join('')}</div>` : '';
   }
 
+  /** Your side came out on top: a raid of yours that got what it came for, or a raid on you that didn't; a side that
+   * Fell Back lost the fight, whatever became of the stand. */
+  function foughtWell(b: GameState['battles'][number]) {
+    return b.fellBack ? b.fellBack !== (b.attacker === 'player' ? 'att' : 'def') : (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+  }
   function fightLine(b: GameState['battles'][number]) {
     const where = PLOT_BY_ID[b.target].name;
     const who = (f: string) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
     const verb = b.sabotage ? (b.outcome === 'robbed' ? 'stock spoiled' : 'no time to spoil the stock') : { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
     if (b.hq) return b.outcome === 'repelled' ? `HQ assault on ${where}: stalled at the ${b.hq}` : `HQ assault on ${where}: captured!`;
+    if (b.fellBack) return b.attacker === 'player' ? `Your raid on ${where}: fell back` : `${who(b.attacker)} hit ${where}: your guards fell back${b.outcome === 'repelled' ? '' : `, ${verb}`}`;
     return b.attacker === 'player' ? `Your raid on ${where}: ${b.outcome === 'repelled' ? 'beaten back' : verb}` : `${who(b.attacker)} hit ${where}: ${b.outcome === 'repelled' ? 'you held them off!' : verb}`;
   }
   function fightShort(b: GameState['battles'][number]) {
     if (b.hq) return b.outcome === 'repelled' ? 'HQ held out' : 'HQ captured!';
+    if (b.fellBack && b.outcome === 'repelled') return 'Fell back'; // the side that falls back has lost
     if (b.sabotage) return b.outcome === 'robbed' ? (b.attacker === 'player' ? 'Spoiled their stock!' : 'Stock spoiled!') : b.attacker === 'player' ? 'Sabotage foiled' : 'Stock saved!';
     if (b.attacker === 'player') return b.outcome === 'repelled' ? 'Raid beaten back' : b.outcome === 'robbed' ? `Grabbed ${whole(b.loot)}` : 'Raid: smashed it!';
     return b.outcome === 'repelled' ? 'You held them off!' : b.outcome === 'robbed' ? `Robbed: ${whole(b.loot)}` : 'They hit you!';

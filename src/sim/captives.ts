@@ -57,10 +57,11 @@ export const ransomFor = (level: number) => GUARD_FEE[Math.min(5, Math.max(1, Ma
 
 /**
  * The KO'd raiders a fight leaves behind: none when the raid won, held the field as its time ran out (no defender
- * standing to nab anyone), or Fell Back carrying them. `earlier`: raiders KO'd in rooms already fought (an HQ).
+ * standing to nab anyone), or Fell Back carrying them, nor when the defenders Fell Back (the field was the raiders').
+ * `earlier`: raiders KO'd in rooms already fought (an HQ).
  */
 export function leftBehind(attackers: Fighter[], res: Pick<BattleResult, 'outcome' | 'koed' | 'fellBack'>, earlier: Fighter[] = []): Fighter[] {
-  if (res.outcome !== 'repelled' || res.fellBack === 'att') return [];
+  if (res.outcome !== 'repelled' || res.fellBack) return [];
   return [...earlier, ...attackers.filter((f) => res.koed.includes(f.id))];
 }
 

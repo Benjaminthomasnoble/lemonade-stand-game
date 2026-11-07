@@ -11,7 +11,7 @@ import {
   STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
-import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
+import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective, type Side } from './combat.ts';
 import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
@@ -110,6 +110,7 @@ export interface BattleReport {
   koed: string[];
   fled: string[];
   joins?: BattleInput['joins']; // who reached the fight late (Ring the Bell's reserves), and when
+  fellBack?: Side; // that side Fell Back, and lost the fight
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -894,7 +895,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, ...(input.joins?.length ? { joins: input.joins } : {}),
-    gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined,
+    gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined, ...(res.fellBack ? { fellBack: res.fellBack } : {}),
   };
   if (raid.sabotage) report.sabotage = true;
   if (raid.attacker === 'player' || defender === 'player') {
@@ -923,9 +924,11 @@ export function creditGuards(s: GameState, input: BattleInput, res: { koed: stri
 
 const fname = (f: FactionId) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
 
-/** The Bugle's line for a fight, with the HP a building lost and kept (damage.ts). */
+/** The Bugle's line for a fight, with the HP a building lost and kept (damage.ts). Guards who Fell Back lost the fight,
+ * and the line opens with it. */
 export function battleHeadline(b: BattleReport): string {
-  return headline(b) + hpLostNote(b);
+  const back = b.fellBack === 'def' && b.defender === 'player' && b.outcome !== 'repelled' ? 'Your guards fall back. ' : '';
+  return back + headline(b) + hpLostNote(b);
 }
 
 function headline(b: BattleReport): string {
@@ -933,6 +936,10 @@ function headline(b: BattleReport): string {
   if (b.hq) return b.outcome === 'repelled'
     ? `HQ assault on ${where} stalls at the ${b.hq === 'gate' ? 'Gate' : b.hq === 'yard' ? 'Yard' : 'Boss Room'}.`
     : `Lottie's crew storms ${where}! ${fname(b.defender)} are finished.`;
+  // Fall Back: that side lost, carrying its KO'd. Guards who left a fence the raiders still couldn't get through lost
+  // the fight all the same, and the raiders don't back off for it.
+  if (b.fellBack === 'att' && b.attacker === 'player') return `Lottie's crew falls back from ${where}, carrying its KO'd home.`;
+  if (b.fellBack === 'def' && b.defender === 'player' && b.outcome === 'repelled') return `Your guards fall back from ${where}, and ${fname(b.attacker)} leave empty-handed.`;
   if (b.sabotage) return sabotageHeadline(b);
   if (b.delivery) return b.outcome === 'robbed' ? `Delivery raid! ${fname(b.attacker)} overrun ${where} and make off with the cargo.` : `Delivery raid at ${where} beaten off! The cargo gets through.`;
   if (b.attacker === 'player') {

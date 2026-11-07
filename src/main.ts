@@ -923,7 +923,8 @@ async function main() {
     if (vipResume && !vip.active()) vipResume = 0;
     // A VIP show or a brawl is framed close: phones keep mid-zoom models there instead of Bay View blocks.
     world.capDetail(battle.active() || vip.active() ? 1 : null);
-    if (!flight.active()) world.update(dt);
+    world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
+    world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {
       const show = dist > 90;

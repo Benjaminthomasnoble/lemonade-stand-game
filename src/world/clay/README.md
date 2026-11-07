@@ -121,6 +121,9 @@ with these pieces.
   this aspect needs (`world.bayDistance()`: about 420 on a laptop, 850 on a
   portrait phone); the next close `focus()` turns back to the heading from
   before. `controls.maxDistance` and the camera's near plane follow the fit.
+- `world.pilot(true)` hands the camera to something else (Gull Flight): the
+  clock, twos, light and boil run on, detail and fog come from the camera's
+  height, the shadow box follows what it looks at, and the tilt-shift drops.
 - At detail 2, every top-level object with `userData.limbs` draws as one
   instanced clay speck, so figures cost nothing at Bay View. bay.ts swaps
   each district's plots for one merged block and hides grass and flowers.

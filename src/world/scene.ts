@@ -59,6 +59,12 @@ export interface World {
   panBy(right: number, ahead: number): void;
   /** Swing the camera a quarter-turn around what it looks at, eased (keys Q and E, and the corner's turn buttons). */
   turnStep(dir: 1 | -1): void;
+  /**
+   * Something else steers the camera (Gull Flight): update() leaves the camera's pose alone (no glide, turn or
+   * OrbitControls), drops the tilt-shift for a wide, windy chase, and takes the detail, fog and shadow box from where
+   * the camera is (its height above the bay, the ground it looks at). The clock, the twos and the light run on.
+   */
+  pilot(on: boolean): void;
   update(dt: number): void;
   /** Draw a frame (scene, tilt-shift, vignette). */
   render(): void;
@@ -308,6 +314,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   let lastHalf = 0;
   let detail: Detail = 0;
   let detailCap: Detail | null = null;
+  let piloted = false;
+  const lookPt = new THREE.Vector3(), lookDir = new THREE.Vector3();
   const lightDir = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0), snapR = new THREE.Vector3(), snapU = new THREE.Vector3(), snapP = new THREE.Vector3();
   scene.userData.detail = 0;
@@ -317,6 +325,10 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     renderer, scene, camera, controls, backend, quality,
     detail: () => detail,
     capDetail(max) { detailCap = max; },
+    pilot(on) {
+      if (on && !piloted) { glide = null; turn = null; }
+      piloted = on;
+    },
     setWeather(kind, dayFraction) {
       weather = kind;
       if (!clocked) hour = 8 + 12 * dayFraction;
@@ -360,27 +372,36 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     },
     update(dt) {
       time += dt;
-      if (turn) {
-        turn.t = Math.min(1, turn.t + dt * 2.4);
-        const k = turn.t * turn.t * (3 - 2 * turn.t);
-        const step = turn.by * k - turn.done;
-        turn.done += step;
-        camera.position.sub(controls.target).applyAxisAngle(TURN_AXIS, step).add(controls.target);
-        if (turn.t >= 1) turn = null;
+      let t = controls.target, dist: number;
+      if (piloted) {
+        // Gull Flight: the ground the camera looks at (or a point ahead of it, looking over the horizon) stands in for
+        // the target, and twice its height above the bay stands in for the zoom.
+        camera.getWorldDirection(lookDir);
+        const ahead = lookDir.y < -0.05 ? Math.min(80, camera.position.y / -lookDir.y) : 80;
+        t = lookPt.copy(camera.position).addScaledVector(lookDir, ahead).setY(0);
+        dist = Math.max(8, camera.position.y * 2);
+      } else {
+        if (turn) {
+          turn.t = Math.min(1, turn.t + dt * 2.4);
+          const k = turn.t * turn.t * (3 - 2 * turn.t);
+          const step = turn.by * k - turn.done;
+          turn.done += step;
+          camera.position.sub(controls.target).applyAxisAngle(TURN_AXIS, step).add(controls.target);
+          if (turn.t >= 1) turn = null;
+        }
+        if (glide) {
+          glide.t = Math.min(1, glide.t + dt * 1.6);
+          const k = glide.t * glide.t * (3 - 2 * glide.t);
+          controls.target.lerpVectors(glide.from, glide.to, k);
+          camera.position.lerpVectors(glide.camFrom, glide.camTo, k);
+          if (glide.t >= 1) glide = null;
+        }
+        // Keep the camera over the bay.
+        const cx = THREE.MathUtils.clamp(t.x, BOUNDS.minX, BOUNDS.maxX), cz = THREE.MathUtils.clamp(t.z, BOUNDS.minZ, BOUNDS.maxZ);
+        if (cx !== t.x || cz !== t.z) { camera.position.x += cx - t.x; camera.position.z += cz - t.z; t.x = cx; t.z = cz; }
+        controls.update();
+        dist = camera.position.distanceTo(t);
       }
-      if (glide) {
-        glide.t = Math.min(1, glide.t + dt * 1.6);
-        const k = glide.t * glide.t * (3 - 2 * glide.t);
-        controls.target.lerpVectors(glide.from, glide.to, k);
-        camera.position.lerpVectors(glide.camFrom, glide.camTo, k);
-        if (glide.t >= 1) glide = null;
-      }
-      // Keep the camera over the bay.
-      const t = controls.target;
-      const cx = THREE.MathUtils.clamp(t.x, BOUNDS.minX, BOUNDS.maxX), cz = THREE.MathUtils.clamp(t.z, BOUNDS.minZ, BOUNDS.maxZ);
-      if (cx !== t.x || cz !== t.z) { camera.position.x += cx - t.x; camera.position.z += cz - t.z; t.x = cx; t.z = cz; }
-      controls.update();
-      const dist = camera.position.distanceTo(t);
       const byDist = dist < DETAIL_AT.mid ? 0 : dist < DETAIL_AT.bay ? 1 : 2;
       detail = Math.min(2, byDist + (phone ? 1 : 0)) as Detail;
       if (detailCap !== null && dist < DETAIL_AT.show) detail = Math.max(byDist, Math.min(detail, detailCap)) as Detail;
@@ -451,10 +472,10 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         if (!stillClay) K.U.fig.boil.value.set(hash(f, 1) * 0.035, hash(f, 2) * 0.035, hash(f, 3) * 0.035);
       }
 
-      // Tilt-shift: strongest in Street View, thinnest at Bay View.
+      // Tilt-shift: strongest in Street View, thinnest at Bay View; Gull Flight drops the blur for a wide, windy chase.
       const z = THREE.MathUtils.clamp((Math.log(dist) - Math.log(20)) / (Math.log(380) - Math.log(20)), 0, 1);
       const pr = renderer.getPixelRatio();
-      post.tilt(phone ? 0 : (2.6 - 1.9 * z) * pr, L.vig * (1 - 0.25 * z), 0.5);
+      post.tilt(phone || piloted ? 0 : (2.6 - 1.9 * z) * pr, L.vig * (1 - 0.25 * z), 0.5);
 
       // Weather, and the desk lamp flickering for lightning in a storm.
       const flash = weatherFx.update(dt, weather, t, dist);
@@ -465,7 +486,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     render() {
       renderer.info.reset();
       specks.count = 0;
-      if (detail >= 2) toSpecks(camera.position.distanceTo(controls.target));
+      if (detail >= 2) toSpecks(scene.userData.distance as number);
       specks.visible = specks.count > 0;
       post.render();
       for (const o of hiddenPeople) o.visible = true;

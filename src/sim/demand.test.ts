@@ -136,6 +136,26 @@ describe('price fit', () => {
     for (const seg of Object.keys(SEGMENTS) as SegmentId[]) expect(at(seg, -0.1)).toBeCloseTo(1.1, 6); // under: the same for all
   });
 
+  it("each district's tolerance is the blend of its crowd, so 10% over turns away about a quarter there", () => {
+    // The crowd as the day draws it (dayMix: each hour's mix by its share of the traffic), at the district's stand.
+    const blend = (d: DistrictId) => dayMix(d).reduce((a, [seg, x]) => a + x * SEGMENTS[seg].priceTolerance, 0);
+    const lost = (d: DistrictId, over: number) => {
+      const plot = PLOTS.find((p) => p.district === d && p.type === 'street')!.id;
+      return dayMix(d).reduce((a, [seg, x]) => a + x * (1 - segmentPriceFit(plot, seg, 2 * (1 + over), 2)), 0);
+    };
+    const table: Record<DistrictId, number> = { maple: 1.0, oldtown: 1.0, campus: 0.9, downtown: 1.15, boardwalk: 1.2, harbor: 0.9, groves: 0.9, hilltop: 2.0 };
+    for (const d of Object.keys(table) as DistrictId[]) {
+      if (d === 'maple') continue; // kids, families and seniors (0.8-1.0) can't blend to 1.0: an owner call
+      expect(blend(d) / table[d]).toBeGreaterThan(0.99);
+      expect(blend(d) / table[d]).toBeLessThan(1.011);
+      expect(lost(d, 0.1)).toBeGreaterThan(0.245);
+      expect(lost(d, 0.1)).toBeLessThan(0.26);
+    }
+    expect(dayMix('hilltop').map(([seg]) => seg)).toEqual(['highRollers']); // "Customers: High rollers"
+    expect(lost('hilltop', 0.1)).toBeCloseTo(0.25, 6);
+    expect(lost('hilltop', 0.2)).toBeCloseTo(0.5, 6);
+  });
+
   it('counts "too pricey" only for buyers the price turned away', () => {
     const run = (mult: number) => {
       const s = newGame(5);

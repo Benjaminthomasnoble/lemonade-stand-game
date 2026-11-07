@@ -39,12 +39,12 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'campus', name: 'Campus & Arts', owner: 'coldbrew', traffic: [450, 800], land: [12000, 24000], mix: { students: 0.55, office: 0.1, families: 0.1, tourists: 0.1, seniors: 0.05, kids: 0.1 },
+    id: 'campus', name: 'Campus & Arts', owner: 'coldbrew', traffic: [450, 800], land: [12000, 24000], mix: { students: 0.75, office: 0.05, tourists: 0.05, families: 0.05, seniors: 0.05, kids: 0.05 },
     feel: 'Murals, the Quad, record shops', origin: [-30, -100], cols: 7, ground: 0x7fbf6a,
     special: [{ col: 5, side: 0, type: 'hq', name: 'The Grindhouse' }, { col: 2, side: 1, type: 'landmark', name: 'The Quad' }],
   },
   {
-    id: 'downtown', name: 'Downtown', owner: 'fizzco', traffic: [800, 1500], land: [60000, 120000], specialLand: { industrial: [20000, 40000] }, mix: { office: 0.6, tourists: 0.15, students: 0.1, workers: 0.15 },
+    id: 'downtown', name: 'Downtown', owner: 'fizzco', traffic: [800, 1500], land: [60000, 120000], specialLand: { industrial: [20000, 40000] }, mix: { office: 0.65, tourists: 0.15, students: 0.05, workers: 0.15 },
     feel: 'Glass towers, lunch rush', origin: [48, -25], cols: 9, ground: 0x9aa39a,
     special: [
       { col: 4, side: 0, type: 'hq', name: 'FizzCo Tower' }, { col: 2, side: 0, type: 'prime', name: 'Tower Plaza West' },
@@ -53,12 +53,12 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'boardwalk', name: 'The Boardwalk', owner: 'blenders', traffic: [700, 1400], land: [12000, 24000], mix: { tourists: 0.5, families: 0.2, kids: 0.15, students: 0.1, seniors: 0.05 },
+    id: 'boardwalk', name: 'The Boardwalk', owner: 'blenders', traffic: [700, 1400], land: [12000, 24000], mix: { tourists: 0.75, students: 0.1, families: 0.1, kids: 0.05 },
     feel: 'Beach, pier, arcade, lifeguard towers', origin: [-90, 50], cols: 8, ground: 0xe9d8a6,
     special: [{ col: 6, side: 1, type: 'hq', name: 'The Blend Shack' }, { col: 4, side: 1, type: 'landmark', name: 'The Pier' }],
   },
   {
-    id: 'harbor', name: 'The Harbor', owner: 'neutral', traffic: [300, 600], land: [6000, 12000], specialLand: { industrial: [20000, 40000], dock: [100000, 200000] }, mix: { workers: 0.7, tourists: 0.1, office: 0.1, families: 0.1 },
+    id: 'harbor', name: 'The Harbor', owner: 'neutral', traffic: [300, 600], land: [6000, 12000], specialLand: { industrial: [20000, 40000], dock: [100000, 200000] }, mix: { workers: 0.85, families: 0.05, kids: 0.05, seniors: 0.05 },
     feel: 'Cranes, warehouses, fish market', origin: [72, 50], cols: 7, ground: 0xa7a59c,
     special: [
       { col: 1, side: 1, type: 'dock', name: 'Pier 1' }, { col: 2, side: 1, type: 'dock', name: 'Pier 2' },
@@ -78,7 +78,7 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], land: [240000, 480000], specialLand: { field: [120000, 240000], dock: [300000, 600000] }, mix: { highRollers: 0.7, seniors: 0.15, families: 0.15 },
+    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], land: [240000, 480000], specialLand: { field: [120000, 240000], dock: [300000, 600000] }, mix: { highRollers: 1 },
     feel: 'Mansions, country club, hedges', origin: [92, -100], cols: 5, ground: 0x6fb257,
     special: [
       { col: 2, side: 0, type: 'hq', name: 'Sourwood Manor' }, { col: 0, side: 0, type: 'field', name: 'Polo Lawn' },

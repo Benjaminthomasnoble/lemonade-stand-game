@@ -19,6 +19,8 @@ import { shakedownLoot } from './loot.ts';
 import { ringTheBell } from './reinforce.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
 import { nextRandom } from './rng.ts';
+import { raidOddsRange } from './crew.ts';
+import { gullScout, isScouted, scoutedSnapshot } from './scouting.ts';
 
 const of = <T extends BattleEvent['type']>(events: BattleEvent[], type: T) => events.filter((e): e is Extract<BattleEvent, { type: T }> => e.type === type);
 const near = (got: number, want: number, by: number) => expect(Math.abs(got - want)).toBeLessThanOrEqual(by);
@@ -234,7 +236,28 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(SQUAD.length * (WEAPONS.clubs.cost + GEAR.vest.cost)).toBe(1750);
   });
 
-  it.todo('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)');
+  // Measured: unscouted, the Planner tries the Kiosk fully kitted for an L3 stand (a Picket Fence, a Tin-Can Alarm, a
+  // Guard Goose and 3 henchmen: its rival's row, and what it has) and bare, and reads 53–100% (the scouted 53% below
+  // to bare). The five beat anything short of 3 henchmen: 2 behind the fence still leave them 90%.
+  it.fails('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)', () => {
+    const { s, kiosk } = day24();
+    const [lo, hi] = raidOddsRange(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true);
+    near(lo, 0.4, 0.05);
+    near(hi, 0.85, 0.05);
+  });
+
+  it('unscouted, the range holds the win chance that Gull Flight settles on for 3 days', () => {
+    const { s, kiosk } = day24();
+    const ids = s.guards.map((g) => g.id);
+    const [lo, hi] = raidOddsRange(s, kiosk, ids, 'shakedown', true);
+    const real = raidOdds(s, kiosk, ids, 'shakedown', true);
+    expect(lo).toBeLessThan(hi);
+    expect(real).toBeGreaterThanOrEqual(lo);
+    expect(real).toBeLessThanOrEqual(hi);
+    expect(isScouted(s, kiosk)).toBe(false);
+    expect(gullScout(s, kiosk)).toBe(true);
+    expect(scoutedSnapshot(s, kiosk)).toMatchObject({ tier: 1, gadgets: ['alarm', 'goose'], garrison: 3, until: s.day + 2 });
+  });
 
   // Measured: the Planner reads 53% (61% over 400 runs). Each of its runs fights its own draw of the garrison the sim
   // posts at a rival L3 Kiosk (crew's kit row: 3 Bros with clubs at 18 a hit, no vests) and rolls the 55% detection;

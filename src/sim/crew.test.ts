@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, buyGadget, buyPerimeter, canBuyGadget, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
   payCrew, planRaid, PLOTS, promote,
-  expectedPassersby, raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, servingsAvailable, simulateRestOfDay, sleepUntilDawn,
+  expectedPassersby, raidOdds, raidOddsRange, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, servingsAvailable, simulateRestOfDay, sleepUntilDawn,
   threatLevel, tickMinute, welcomeDex, type GameState,
 } from './economy.ts';
 import {
@@ -14,6 +14,7 @@ import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, t
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { reserveMinutes } from './reinforce.ts';
+import { guardOf } from './fighters.ts';
 import { BORDERS, PLOT_BY_ID } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
@@ -348,6 +349,33 @@ describe('the Lookout', () => {
     s.day += 3;
     expect(isScouted(s, target)).toBe(false);
     expect(gullScout(s, target)).toBe(true);
+  });
+
+  it('unscouted, the win chance is a range from fully kitted for its size to bare, with the real odds inside', () => {
+    const s = newGame(65);
+    s.rank = 4;
+    s.guards = Array.from({ length: 3 }, (_, i) => guardOf('clubs', 'vest', 1, 'Hothead', { id: `r${i}`, name: `Raider ${i}` }));
+    const ids = s.guards.map((g) => g.id);
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand)!.id;
+    const ps = s.plots[target];
+    ps.stand!.level = 3; // a Kiosk's kit: a Picket Fence, cans and a goose, and 3 henchmen
+    ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm'] };
+    ps.garrison = 1;
+    const before = JSON.stringify(ps), id = s.nextId;
+    const full = raidOdds(s, target, ids, 'smash', true, undefined, { tier: 1, gadgets: ['alarm', 'goose'], garrison: postsFor(s, target) });
+    const bare = raidOdds(s, target, ids, 'smash', true, undefined, { tier: 0, gadgets: [], garrison: 0 });
+    const real = raidOdds(s, target, ids, 'smash', true);
+    expect(JSON.stringify(ps)).toBe(before); // a guess is a pure read
+    expect(s.nextId).toBe(id);
+    expect(full).toBeLessThan(bare);
+    const [lo, hi] = raidOddsRange(s, target, ids, 'smash', true);
+    expect([lo, hi]).toEqual([full, bare]);
+    expect(lo).toBeLessThanOrEqual(real);
+    expect(hi).toBeGreaterThanOrEqual(real);
+    // Whatever the rival did past its kit, the real odds stay inside the range.
+    ps.garrison = 9;
+    ps.defense = { tier: 4, fenceHp: PERIMETERS[3].hp, gadgets: ['alarm', 'goose', 'slick'] };
+    expect(raidOddsRange(s, target, ids, 'smash', true)[0]).toBe(raidOdds(s, target, ids, 'smash', true));
   });
 
   it('scouts by day only, and is back on post for the night', () => {

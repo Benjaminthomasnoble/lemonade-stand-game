@@ -770,25 +770,49 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[], object
 /** The Planner's own dice for a plot: the same plot and squad read the same odds from one day to the next. */
 const oddsSeed = (plotId: string) => [...plotId].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0, 0x811c9dc5);
 
+/** Defenses the Raid Planner can't see, as it tries them: a fence tier (0 for none), gadgets and a garrison fit to fight. */
+export interface DefenseGuess { tier: number; gadgets: GadgetId[]; garrison: number }
+
 /**
  * Estimated win chance for the Raid Planner (night or now): the raid fought many times, each against its own draw
  * of the garrison's weapons and its own detection roll (a raid that's seen loses its first strike, and the rival
- * sends help; a Sneaky guard is seen less). It rolls its own dice, so the game's seed doesn't move.
+ * sends help; a Sneaky guard is seen less). It rolls its own dice, so the game's seed doesn't move. With a guess it
+ * tries those defenses in place of the plot's own (the unscouted range); the plot is as it was after.
  */
-export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): number {
+export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80, guess?: DefenseGuess): number {
   if (!guardIds.length) return 0;
-  const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night, s.plots[plotId].owner);
-  const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
-  const lead = travelMinutes(s, squadHome(s, plotId, guardIds), plotId); // spotted as it sets out: the warning comes this far ahead
-  const nextId = s.nextId; // each henchman drawn takes an id: hand them back
+  const ps = s.plots[plotId];
+  const keep = { defense: ps.defense, garrison: ps.garrison, garrisonOut: ps.garrisonOut, nextId: s.nextId }; // each henchman drawn takes an id: hand them back
   try {
+    if (guess) {
+      ps.defense = { tier: guess.tier, fenceHp: guess.tier ? PERIMETERS[guess.tier - 1].hp : 0, gadgets: guess.gadgets };
+      ps.garrison = guess.garrison;
+      ps.garrisonOut = undefined;
+    }
+    const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night, ps.owner);
+    const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
+    const lead = travelMinutes(s, squadHome(s, plotId, guardIds), plotId); // spotted as it sets out: the warning comes this far ahead
     return winChance((rng) => {
       const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: nextRandom(rng) < seen, eta: '' };
       return withRivalHelp(battleInput(s, raid, squad, night, new Set(), rng), rivalHelpFor(s, raid, rng), lead);
     }, oddsSeed(plotId), runs);
   } finally {
-    s.nextId = nextId;
+    ps.defense = keep.defense;
+    ps.garrison = keep.garrison;
+    ps.garrisonOut = keep.garrisonOut;
+    s.nextId = keep.nextId;
   }
+}
+
+/** The win chance on a plot nobody has scouted, as a range (spec: Raid Planner, "the win chance shows as a range"): from
+ * fully kitted for its size (the fence and gadgets its rival builds toward, every post filled) to bare. The real odds
+ * always fall inside it, whatever the rival has done to the plot. */
+export function raidOddsRange(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): [number, number] {
+  const ps = s.plots[plotId];
+  const kit = rivalKit(ps);
+  const full: DefenseGuess = { tier: kit.fence, gadgets: kit.gadgets.slice(0, GADGET_SLOTS(ps.stand?.level ?? 1)), garrison: postsFor(s, plotId) };
+  const odds = [raidOdds(s, plotId, guardIds, objective, night, runs), ...[full, { tier: 0, gadgets: [], garrison: 0 }].map((g) => raidOdds(s, plotId, guardIds, objective, night, runs, g))];
+  return [Math.min(...odds), Math.max(...odds)];
 }
 
 export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, when: 'now' | 'tonight'): BattleReport | boolean {

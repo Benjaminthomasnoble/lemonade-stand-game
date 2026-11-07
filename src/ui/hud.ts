@@ -62,6 +62,7 @@ import {
   auctionControls, landNotes, landTickets, listingControls, priceTip, registryButton, registryScreen, sellPlotButton, TOWN_HALL, type RegistryTab,
 } from './registry.ts';
 import { gullTicket } from './gull.ts';
+import { isScouted } from '../sim/scouting.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -804,7 +805,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field', dock: 'Dock', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
     const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}${ps.owner && ps.owner !== 'player' ? ` · ${rivalStars(s, ps.owner as RivalId).toFixed(1)} stars` : ''}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
-      ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${fitGarrison(s, id)} henchmen${henchmenOut(ps, s.day) ? ` (${henchmenOut(ps, s.day)} seeing stars)` : ''}` : ''}` : '',
+      ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${!isScouted(s, id) ? '?' /* crew: unscouted */ : `${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${fitGarrison(s, id)} henchmen${henchmenOut(ps, s.day) ? ` (${henchmenOut(ps, s.day)} seeing stars)` : ''}` : ''}`}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : '', standRepTip(s, id)].filter(Boolean).join('\n');
     let actions = '';
     if (!ps.owner && ps.auction && (p.district === 'maple' || taught(s, 'land'))) actions = auctionControls(s, id); // bids follow Week 2's land lesson, like Buy

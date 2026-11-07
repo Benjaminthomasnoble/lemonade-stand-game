@@ -439,6 +439,11 @@ export function createBay(scene: THREE.Scene): Bay {
       }
       v.root.add(watch);
       freezeFigures(watch, kit().fig);
+      // Bay View: each guard is a dab of clay in the owner's colour (the full figures cost ~11k triangles a plot).
+      const FB = new Baker();
+      for (let i = 0; i < guards; i++) FB.add(cap(0.42, 0.9, 2, 6), ownerColor(ps.owner), { p: [(i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.95, 1.5] });
+      watch.userData.far = FB.build();
+      watch.userData.ownFar = true;
     }
     // Moving parts (clock hands, windmill sails, windsocks, cranes) pose on twos in update().
     const parts: THREE.Object3D[] = [];

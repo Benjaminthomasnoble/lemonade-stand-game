@@ -1,7 +1,7 @@
 // Headless balance check: plays N days with a simple restocking policy.
 // Usage: npm run sim -- [days] [seed]
 import {
-  buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, rankFor, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
+  approveRepair, buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, PLOTS, rankFor, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
   dayProfit,
 } from '../src/sim/economy.ts';
 import { goalsNow } from '../src/sim/goals.ts';
@@ -15,11 +15,19 @@ for (let d = 0; d < days; d++) {
     while (stock(st, id) < targets[id] && maxPacks(s, st, id) > 0) buySupply(s, id);
   }
   openStand(s);
+  // Like a player with the Damaged ticket's Repair button (Auto-Repair does it from Rank 3): book the fixes for a Storm's
+  // dent at the open or last night's raid, so the stand opens at dawn as good as new.
+  const repairs: string[] = [];
+  for (const p of PLOTS) {
+    const cost = repairCost(s, p.id);
+    if (s.plots[p.id].owner === 'player' && approveRepair(s, p.id)) repairs.push(`   repair: ${p.name} booked for tonight, $${cost}`);
+  }
   simulateRestOfDay(s);
   const t = s.today;
   const w = t.walkedPast;
   const profit = dayProfit(t); // the Ledger's profit: supplies as used, not as bought
   console.log(`day ${String(t.day).padStart(2)} ${t.weather.kind.padEnd(8)} ${t.weather.temp}F  passers ${t.passersby}  sold ${t.customers}  out ${w.soldOut} line ${w.line} pricey ${w.pricey} rival ${w.rival}  profit $${profit.toFixed(2)}  rep ${s.reputation}  cash $${s.cash.toFixed(2)}  SS ${successScore(s)} ${rankFor(successScore(s)).title}`);
+  for (const line of repairs) console.log(line);
   const before = s.battles.length ? s.battles[0] : null;
   sleepUntilDawn(s);
   if (s.battles[0] && s.battles[0] !== before) console.log(`   night: ${battleHeadline(s.battles[0])}`);

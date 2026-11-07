@@ -256,6 +256,8 @@
 .clay .cl-sun i::after { content: ''; position: absolute; right: calc(var(--u) * -1.1); top: 50%; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); margin-top: calc(var(--u) * -1.1); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8d0, #F7C948 60%, #d7a52a); border: calc(var(--u) * .2) solid #2E2A4F; }
 
 /* day's end and other big cards */
+/* story lane: the Domination show's paint, a clear sheet so you watch (src/ui/ending.ts) */
+.clay .cl-modal-bg.cl-paint { background: transparent; }
 .clay .cl-modal-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 50%, rgba(30,20,70,.15), rgba(30,20,70,.45)); pointer-events: auto; overflow: auto; padding: calc(var(--u) * 2) 0; }
 .clay .cl-card-big { position: relative; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.1); width: min(calc(var(--u) * 46), calc(100% - 32px)); margin: auto; padding: calc(var(--u) * 2.4) calc(var(--u) * 2.4) calc(var(--u) * 1.6);
   background: radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.7), transparent 60%), #FFF1D6; border: calc(var(--u) * .35) solid #2E2A4F; border-radius: calc(var(--u) * 3) calc(var(--u) * 2.6) calc(var(--u) * 3.2) calc(var(--u) * 2.8);

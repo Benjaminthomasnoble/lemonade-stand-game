@@ -23,6 +23,7 @@ import { fittedOn } from '../sim/specializations.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
 import { createLemonWave } from './lemonWave.ts';
+import { bayPainted } from '../sim/victory.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
@@ -606,7 +607,8 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     ground.set(GROUND[p.district]);
     // Owned tiles take their owner's main colour (the pattern carries the accent); unowned land stays bare Clay cream.
     // Owners' tiles take their main colour outright; Sourwood's plum is lifted so it never reads as road.
-    if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#4E1F63' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
+    if (bayPainted(s) && plotOnMap(s, p)) tint.set(TILE_PATTERN.player.main); // story: the Domination show paints every plot on the map lemon (src/sim/victory.ts)
+    else if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#4E1F63' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
     else tint.copy(ground).lerp(new THREE.Color(P.cream), plotOnMap(s, p) ? 0.7 : 0); // land: off a Sandbox map, bare ground
     tiles.setColorAt(v.tile, tint);
     ownerAt[v.tile] = ps.owner;
@@ -633,7 +635,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;
@@ -681,7 +683,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
         for (const m of Object.values(farPatterns.meshes)) m.visible = level >= 2;
         farOutlines.visible = level >= 2;
       }
-      if (s.outcome?.result === 'won' && s.outcome.how === 'domination') { const c = PLOTS.find((q) => q.id === LOTTIES_CORNER)!; lemon.dominate(c.x, c.z); }
+      if (bayPainted(s)) { const c = PLOTS.find((q) => q.id === LOTTIES_CORNER)!; lemon.dominate(c.x, c.z); } // from the show's paint on (src/sim/victory.ts)
       lemon.update(time);
       const mf = Math.floor(time * 12);
       sentries.setVisible(level < 2);

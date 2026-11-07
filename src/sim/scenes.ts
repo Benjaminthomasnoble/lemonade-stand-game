@@ -9,6 +9,7 @@ import type { GameState } from './economy.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { CALL_PRIORITY, LINES, phoneCall } from './phone.ts';
 import { grandkid } from './grandkid.ts';
+import { isExitScene, victoryStage } from './victory.ts';
 
 /**
  * Townsfolk the world stages by speaker (src/world/scenes.ts walks them on in their clay look): queue a scene with
@@ -233,9 +234,13 @@ function named(s: GameState, sc: Scene | null): Scene | null {
   return { ...sc, lines: sc.lines.map((l) => ({ ...l, text: fill(l.text) })), recap: fill(sc.recap) };
 }
 
-/** A scene is waiting and the sim is at a lull: Morning Prep, the run going on, no scene yet today. */
+/**
+ * A scene is waiting and the sim is at a lull: Morning Prep, the run going on, no scene yet today. The Domination show
+ * (src/sim/victory.ts) plays the last exits first, the campaign's finale too, at whatever hour, before the Bay paints.
+ */
 export function sceneReady(s: GameState): boolean {
   const sc = s.scenes;
+  if (victoryStage(s) === 'scenes') return !!sc && !sc.playing && sc.queue.some((q) => isExitScene(q) && !stale(s, q));
   const over = gameOver(s) || (s.outcome?.result === 'won' && !isEndless(s));
   return !!sc && !sc.playing && sc.queue.some((q) => !stale(s, q)) && s.phase === 'prep' && sc.lastDay !== s.day && !over;
 }
@@ -245,8 +250,11 @@ export function beginScene(s: GameState): Scene | null {
   if (!sceneReady(s)) return null;
   const sc = s.scenes!;
   dropStale(s);
+  const show = victoryStage(s) === 'scenes'; // the show plays only the exits
   while (sc.queue.length) {
-    const next = sc.queue.shift()!;
+    const at = show ? sc.queue.findIndex(isExitScene) : 0;
+    if (at < 0) break;
+    const [next] = sc.queue.splice(at, 1);
     const def = sceneDef(next.id, next.data);
     if (!def) continue;
     sc.playing = { id: next.id, day: s.day, ...(next.data ? { data: next.data } : {}) };

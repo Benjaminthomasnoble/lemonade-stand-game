@@ -13,6 +13,7 @@ import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
 import { announceControl, awardEveryLastPlot, rivalsInPlay } from './land.ts';
 import type { Grandkid } from './grandkid.ts';
+import { endVictoryShow, type VictoryStage } from './victory.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -58,6 +59,8 @@ export interface Outcome {
   how: 'domination' | 'economic' | 'squeezed' | 'runout';
   day: number;
   ending?: 'beloved' | 'iron'; // campaign Domination only
+  stage?: VictoryStage; // Domination: the show before the victory screen (src/sim/victory.ts); none once it's over
+  painted?: number; // real seconds the paint has run
 }
 
 /** What the run has done, for the ending: buyouts against Smashes and HQ captures. */
@@ -123,7 +126,7 @@ export function checkVictory(s: GameState): boolean {
   if (win === 'none') return false;
   const won = win === 'economic' ? successScore(s) >= s.settings.target : dominationProgress(s).done;
   if (!won) return false;
-  s.outcome = { result: 'won', how: win, day: s.day };
+  s.outcome = { result: 'won', how: win, day: s.day, ...(win === 'domination' ? { stage: 'scenes' as const } : {}) }; // the show first (src/sim/victory.ts)
   if (win === 'domination') {
     if (s.settings.mode === 'campaign') s.outcome.ending = endingFor(s);
     s.news.push('YOU OWN THE BAY! Every rival is gone and every district flies Lottie\'s colors.');
@@ -156,6 +159,7 @@ export const ENDINGS = {
 export function keepSqueezing(s: GameState): boolean {
   if (s.outcome?.result !== 'won' || s.endlessSince !== undefined) return false;
   s.endlessSince = s.day;
+  endVictoryShow(s);
   beginEpilogue(s);
   s.news.push('ENDLESS SUMMER: Lottie\'s Lemonade keeps squeezing. How high can the score go?');
   return true;

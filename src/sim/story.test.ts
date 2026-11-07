@@ -12,18 +12,20 @@ import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
 import { actBegan, dayProfit, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
-import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN } from './balance.ts';
+import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
 import { battleHeadline, crewOf, fightRaid, raidPartyFor, welcomeDex } from './crew.ts';
 import { hqStageOver } from './rivals.ts';
 import { bugleHeadline, frontPage } from './media.ts';
-import { defaultSettings, endingFor } from './modes.ts';
+import { checkVictory, defaultSettings, endingFor, ENDINGS } from './modes.ts';
 import type { BattleInput, BattleResult } from './combat.ts';
 import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
 import { CAMEO_NEWS, cameosAtClose, cameosAtDawn, cameoStories, JUNI_NOBODY, juniGrudgeTip, juniQuietTip, juniRaidTip, PRESTON_CALLS, TILLY_JUDGES } from './cameos.ts';
 import type { Raid } from './crew.ts';
+import { bayPainted, endVictoryShow, victoryStage, victoryTick } from './victory.ts';
+import { BAY_PAGE, victoryShow } from '../ui/ending.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 /** The year-1 Summer Fair's last day: its Taste-Off closes Act 1. */
@@ -870,5 +872,77 @@ describe('Endless: beaten bosses cameo', () => {
     const page = frontPage(s);
     // It leads a quiet morning; here the news of Brock's fall leads, and it prints as a brief.
     expect(page.headline[0] === "SURF'S UP!" || page.briefs.includes(`Brock Bodine's surf school opens for the season: "The ocean never raided anybody, bro."`)).toBe(true);
+  });
+});
+
+describe('the Domination show', () => {
+  /** Every rival out, every purchasable plot yours: the win lands as the last plot changes hands. */
+  const conquer = (s: GameState) => {
+    for (const r of ['blenders', 'coldbrew', 'hollis', 'fizzco', 'sourwood'] as RivalId[]) eliminate(s, r, 'buyout');
+    for (const p of PLOTS) if (p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
+    expect(checkVictory(s)).toBe(true);
+  };
+
+  it('waits on the fight and the last exits, at any hour; then the Bay paints; then the ending; then the victory screen', () => {
+    const s = newGame(81);
+    playScene(s, 'marisol', { until: s.day + 9 }); // a scene that isn't an exit waits its turn
+    conquer(s);
+    expect(s.outcome).toMatchObject({ result: 'won', how: 'domination', ending: endingFor(s), stage: 'scenes' });
+    expect(bayPainted(s)).toBe(false);
+    expect(victoryShow(s)).toBe(''); // nothing over the screen while the fight and the exits play
+    // A fight on screen (main.ts passes free = false): the show waits.
+    s.phase = 'night';
+    expect(victoryTick(s, false, 1)).toBe(false);
+    // The exits play now, at night too, ahead of the queue: the finale among them.
+    const played: string[] = [];
+    while (sceneReady(s)) {
+      played.push(beginScene(s)!.lines[0].who);
+      expect(victoryTick(s, true, 1)).toBe(false); // an exit is playing
+      endScene(s, false);
+    }
+    expect(played).toHaveLength(5);
+    expect(played).toContain('Vera');
+    expect(s.scenes!.queue.map((q) => q.id)).toEqual(['opening', 'marisol']); // Day 1's opening, too, waits
+    // The paint: every plot turns lemon, and the menus stay shut while it runs.
+    expect(victoryTick(s, true, 0.1)).toBe(true);
+    expect(victoryStage(s)).toBe('paint');
+    expect(bayPainted(s)).toBe(true);
+    expect(victoryShow(s)).toContain('data-testid="victory-paint"');
+    let t = 0;
+    while (!victoryTick(s, true, 0.5)) t += 0.5;
+    expect(t + 0.5).toBeCloseTo(VICTORY_PAINT_SECONDS, 5);
+    // The ending: the Bugle's front page and Lottie's last line.
+    expect(victoryStage(s)).toBe('ending');
+    const e = ENDINGS[s.outcome!.ending!];
+    const card = victoryShow(s)!;
+    expect(card).toContain('data-testid="ending"');
+    expect(card).toContain('data-action="victoryNext"');
+    expect(card).toContain(e.bugle);
+    expect(card).toContain(e.lottie);
+    endVictoryShow(s); // Continue: the victory screen
+    expect(victoryShow(s)).toBeNull();
+    expect(bayPainted(s)).toBe(true); // the Bay stays lemon
+    expect(sceneReady(s)).toBe(false); // the rest of the queue waits for Keep squeezing
+  });
+
+  it("Sandbox's plain front page; an economic win and a loss go straight to their screens; Keep squeezing ends a show", () => {
+    const s = newGame(82, { mode: 'sandbox' });
+    conquer(s);
+    while (sceneReady(s)) { beginScene(s); endScene(s, true); }
+    victoryTick(s, true, 0);
+    victoryTick(s, true, VICTORY_PAINT_SECONDS);
+    expect(victoryShow(s)).toContain(BAY_PAGE[0]);
+    expect(victoryShow(s)).not.toContain('cl-lottie');
+    const econ = newGame(83, { mode: 'sandbox', win: 'economic', target: 1 });
+    expect(checkVictory(econ)).toBe(true);
+    expect(econ.outcome!.stage).toBeUndefined();
+    expect(victoryShow(econ)).toBeNull();
+    expect(victoryTick(econ, true, 9)).toBe(false);
+    // Keep squeezing straight from a show still running (a bot, an older build's button): the show is over.
+    const k = newGame(84);
+    conquer(k);
+    expect(keepSqueezing(k)).toBe(true);
+    expect(victoryStage(k)).toBeUndefined();
+    expect(bayPainted(k)).toBe(true);
   });
 });

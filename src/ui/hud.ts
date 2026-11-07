@@ -49,6 +49,7 @@ import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './stor
 import { kidPanel, pickKid, typeName } from './grandkid.ts';
 import { nameDraft } from '../sim/grandkid.ts';
 import { crewOf } from '../sim/crew.ts';
+import { victoryShow } from './ending.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom } from './clubhouse.ts';
@@ -131,6 +132,7 @@ export type Action =
   | { type: 'start'; settings: Settings }
   | { type: 'cancelSetup' }
   | { type: 'keepSqueezing' }
+  | { type: 'victoryNext' }
   | { type: 'reloadDawn'; slot?: number } // a lost run back to a dawn: its newest, or the slot picked
   | { type: 'saveSlot'; slot: number } // Options: save to a manual slot
   | { type: 'loadSlot'; slot: number; dawn?: boolean } // Options: load a manual slot or a dawn autosave
@@ -473,7 +475,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'autoPrice': case 'mute': case 'priceCeiling':
-      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze': case 'gullLand':
+      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze': case 'gullLand': case 'victoryNext':
         onAction({ type: d.action }); break;
       case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
       case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;
@@ -914,14 +916,15 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function outcomeScreen(s: GameState) {
     const o = s.outcome;
     if (!o || (o.result === 'won' && s.endlessSince !== undefined)) return '';
+    const show = victoryShow(s); // the Domination show first: the paint, then the ending's front page (src/ui/ending.ts)
+    if (show !== null) return show;
     const t = s.tally ?? { buyouts: 0, smashes: 0, hqs: 0 };
     const stats = `<div class="cl-end-row" title="Day ${o.day} · Buyouts ${t.buyouts}, Smashes ${t.smashes}, HQs ${t.hqs} · ${MODES[s.settings.mode].label} · ${esc(difficultyLabel(s.settings.difficulty, s.settings.custom))}"><span>${ART.rosette()}<b>R${s.rank}</b></span><span>${ART.coin()}<b>${whole(s.peakScore)}</b></span><span>${ART.egg()}<b>Day ${o.day}</b></span></div>`;
     if (o.result === 'won') {
       const e = o.ending ? ENDINGS[o.ending] : null;
-      const bugle = e ? e.bugle : o.how === 'domination' ? 'LOTTIE\'S OWNS THE BAY!' : `PAST ${whole(s.settings.target)}!`;
+      const head = e ? e.title : o.how === 'domination' ? 'Domination!' : `PAST ${whole(s.settings.target)}!`; // the ending's page and Lottie's line played just before
       return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="victory">
-        ${tape(esc(bugle), 'cl-big')}
-        ${e ? `<div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>"${esc(e.lottie)}"</span></div>` : ''}
+        ${tape(esc(head), 'cl-big')}
         ${s.everyLastPlotEarned ? `<span class="cl-note good" title="Every plot on the map, Day ${s.everyLastPlotEarned.day}">Every Last Plot!</span>` : ''}
         ${stats}
         <button class="cl-sleep" data-action="keepSqueezing" data-testid="keep-squeezing">${ART.sky('hot')}<span>Keep squeezing</span></button>

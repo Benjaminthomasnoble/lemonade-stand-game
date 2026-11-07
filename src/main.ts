@@ -59,6 +59,7 @@ import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
 import { grandkid, renameCrew } from './sim/grandkid.ts';
 import { takeCall } from './sim/phone.ts';
+import { endVictoryShow, victoryStage, victoryTick } from './sim/victory.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { answerOffer } from './sim/beats.ts';
 import { createGullFlight } from './world/gullflight.ts';
@@ -130,7 +131,7 @@ async function main() {
   let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
   let eveningWait = 0; // the Evening's moment, off the Ledger
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
-  const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined); // as the HUD's outcome screen
+  const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined) && victoryStage(state) !== 'scenes'; // as the HUD's outcome screen (the Domination show's fight and exits play first)
   const pause = () => pauseKnob(knob); // a load, an alert or a key: it outlasts the paper (src/ui/knob.ts)
   const resume = () => { vipPaused = ''; resumeKnob(knob); };
   /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
@@ -614,6 +615,7 @@ async function main() {
         break;
       }
       case 'keepSqueezing': keepSqueezing(state); break;
+      case 'victoryNext': endVictoryShow(state); break; // the ending's Continue: the victory screen (src/ui/ending.ts)
       case 'reloadDawn': {
         const d = loadDawn(state.runId, a.slot);
         if (d) restore(d, a.slot === undefined ? 'Back to the last dawn. Let\'s try that again.' : `Back to the dawn of day ${d.day}.`);
@@ -957,7 +959,7 @@ async function main() {
     // A live fight takes the screen once it's free (the brawl before settles first); its own clock moves the game's.
     if (state.fight && onScreen !== state.fight && !battle.active()) playLive();
     if (state.fight) { runFight(dt, frozen || onScreen !== state.fight); acc = 0; }
-    else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
+    else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume && victoryStage(state) !== 'scenes') { // the Domination show holds the clock
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
       const from = state.phase;
       const rate = () => secondsPerMinute(state, knob.speed, { fighting: liveFight, quiet: quiet() });
@@ -1008,6 +1010,7 @@ async function main() {
       if (!sceneWorld) sayScene(sc);
       if ((!sceneWorld && sceneT >= sc.seconds) || sceneT >= SCENE_MAX_SECONDS) finishScene(false);
     } else if (sceneReady(state) && lull()) startScene();
+    if (victoryTick(state, !busy() && !playingScene(state), realDt)) { bay.sync(state); saveGame(state); } // the Domination show: exits, paint, ending (src/sim/victory.ts)
     hud.sceneTime = sceneT;
     // Boss calls ring at a lull too, one a game day (src/sim/phone.ts picks which); never over a scene, fight or pickup.
     if (!busy() && !playingScene(state) && !sceneReady(state) && performance.now() > callsQuietUntil) {

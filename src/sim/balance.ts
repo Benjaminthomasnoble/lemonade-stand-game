@@ -430,6 +430,13 @@ export const CLUBHOUSE = [
   { level: 3, cost: 80000, beds: 24, rank: 7 },
 ];
 export const CLUBHOUSE_HP = [800, 2000, 5000]; // placeholder: spec gap. Chop to knock a Clubhouse down, by level (a Field Helipad's)
+/**
+ * The Clubhouse extras. L2's Training Yard: each dawn a guard who waited at an L2 or L3 Clubhouse all day (off post,
+ * not Out, not on a raid) earns a day of duty's XP, 1/`daysPerLevel` of the way to the next level (placeholder: spec
+ * gap; the pace of duty, about a level every 35 days). L3's Infirmary: while you have one standing, every KO is Out
+ * `days` fewer days, never below 0 (fit again at the next dawn).
+ */
+export const CLUBHOUSE_EXTRAS = { yard: { level: 2, daysPerLevel: 35 }, infirmary: { level: 3, days: 1 } };
 export const HIRE_RANK = 2;
 export const RAID_RANK = 3;
 export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);

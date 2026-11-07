@@ -19,7 +19,7 @@ import { newStand, ownedPlots, priceCeiling } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
-import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
+import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
@@ -900,14 +900,14 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   return report;
 }
 
-/** Guards: KOs are out a day (two if a hatchet landed the knockout blow); everyone who fought earns XP. */
+/** Guards: KOs are out a day (two if a hatchet landed the knockout blow; an L3's Infirmary takes one off); everyone who fought earns XP. */
 export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; hatchetKos?: string[]; winner: 'att' | 'def'; events?: BattleEvent[] }): void {
   // Late arrivals count once they've reached the fight (their 'at' on the timeline).
   const late = (input.joins ?? []).flatMap((j) => j.fighters).filter((f) => res.events?.some((e) => e.type === 'at' && e.a === f.id));
   for (const f of [...input.attackers, ...input.defenders, ...late]) {
     const g = s.guards.find((x) => x.id === f.id);
     if (!g) continue;
-    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (res.hatchetKos?.includes(g.id) ? 2 : 1);
+    if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + koDays(s, !!res.hatchetKos?.includes(g.id));
     g.xp += (res.winner === f.side ? 2 : 1);
     while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level]) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
   }
@@ -957,6 +957,7 @@ export function crewAtDawn(s: GameState): void {
   if (s.day >= 6) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
+  trainingYard(s); // the reserve at an L2+ Clubhouse earns a day's XP (clubhouse.ts)
   plotsAtDawn(s, rng); // First Dibs, rival rebuilds and lapsed plots (damage.ts)
   // Rivals spend their Guard bucket (rivalAi.ts) on repairs and their kit (rivalDefenseSpend).
   for (const id of RIVALS) {

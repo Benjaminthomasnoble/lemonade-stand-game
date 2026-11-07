@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, canBuildClubhouse, canBuildStand, canHire, CLUBHOUSE, damageAtDawn, fightRaid, LOTTIES_CORNER, migrateSave, newGame, PLOTS,
-  rebuildCost, rebuildStand, refreshRecruits, rosterCap, successScore, type GameState,
+  buildClubhouse, canBuildClubhouse, canBuildStand, canHire, CLUBHOUSE, CLUBHOUSE_EXTRAS, creditGuards, crewAtDawn, damageAtDawn, fightRaid, guardFighter,
+  guardReady, LOTTIES_CORNER, migrateSave, newGame, PLOTS, rebuildCost, rebuildStand, refreshRecruits, rosterCap, successScore, type GameState,
 } from './economy.ts';
-import { allBeds, clubhouses, clubhouseSite, clubOf, reserveAt, waitAt } from './clubhouse.ts';
+import { allBeds, clubhouses, clubhouseSite, clubOf, infirmaryDays, reserveAt, trainingYard, waitAt } from './clubhouse.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
+import type { BattleInput } from './combat.ts';
 
 /** k empty Street plots of yours. */
 function lots(s: GameState, k: number): string[] {
@@ -122,6 +123,71 @@ describe('the reserve', () => {
     s.plots[b].facility!.wrecked = true; // they move to a Clubhouse still standing
     expect(clubOf(s, y)).toBe(a);
     expect(waitAt(s, x.id, b)).toBe(false);
+  });
+});
+
+describe('the Training Yard and the Infirmary', () => {
+  it('from L2, the reserve earns a day of duty each dawn; posted, Out and raiding guards do not', () => {
+    const s = rich();
+    const [a] = lots(s, 1);
+    buildClubhouse(s, a);
+    const [x, y, z, w] = [guardOf('clubs', 'none', 1, 'Smooth Talker', { name: 'Pip' }), guardOf('clubs', 'none', 1, 'Smooth Talker', { post: LOTTIES_CORNER }), guardOf('clubs'), guardOf('clubs')];
+    s.guards.push(x, y, z, w);
+    trainingYard(s);
+    expect(x.xp).toBe(0); // an L1 Clubhouse has beds and nothing else
+    expect(buildClubhouse(s, a)).toBe(true); // L2
+    z.outUntil = s.day; // Out yesterday
+    s.raids.push({ id: 'r9', attacker: 'player', target: LOTTIES_CORNER, objective: 'smash', guards: [w.id], detected: true, eta: '23:00' });
+    trainingYard(s);
+    const day = 3 / CLUBHOUSE_EXTRAS.yard.daysPerLevel; // a Rookie needs 3 XP for Regular
+    expect(x.xp).toBeCloseTo(day, 5);
+    expect([y.xp, z.xp, w.xp]).toEqual([0, 0, 0]);
+    for (let d = 2; d < CLUBHOUSE_EXTRAS.yard.daysPerLevel; d++) { s.day++; trainingYard(s); }
+    expect(x.level).toBe(1);
+    s.day++;
+    trainingYard(s);
+    expect(x.level).toBe(2); // a level in daysPerLevel days, like a posted guard's duty
+    expect(s.news.at(-1)).toBe('Pip is now a Regular!');
+    expect(z.xp).toBeGreaterThan(0); // fit again, z trains too
+    expect(w.xp).toBe(0);
+  });
+
+  it('runs at dawn', () => {
+    const s = rich();
+    const [a] = lots(s, 1);
+    buildClubhouse(s, a);
+    buildClubhouse(s, a);
+    const x = guardOf('clubs');
+    s.guards.push(x);
+    crewAtDawn(s);
+    expect(x.xp).toBeCloseTo(3 / CLUBHOUSE_EXTRAS.yard.daysPerLevel, 5);
+  });
+
+  it("an L3's Infirmary heals every KO a day faster, never below 0 days Out", () => {
+    const s = rich();
+    const [a] = lots(s, 1);
+    const [x, y] = [guardOf('clubs'), guardOf('hatchets')];
+    s.guards.push(x, y);
+    const input: BattleInput = {
+      attackers: [guardFighter(x, 'att', true), guardFighter(y, 'att', true)], defenders: [], perimeter: 0, fenceHp: 0, gadgets: [], standHp: 100, objective: 'smash', detected: true,
+    };
+    /** Days Out after a fight where both are knocked out, y by a hatchet. */
+    const ko = () => {
+      creditGuards(s, input, { koed: [x.id, y.id], hatchetKos: [y.id], winner: 'def' });
+      return [x.outUntil - s.day - 1, y.outUntil - s.day - 1];
+    };
+    expect(ko()).toEqual([1, 2]);
+    buildClubhouse(s, a);
+    buildClubhouse(s, a);
+    expect(infirmaryDays(s)).toBe(0); // L2: no Infirmary yet
+    expect(ko()).toEqual([1, 2]);
+    buildClubhouse(s, a);
+    expect(infirmaryDays(s)).toBe(1);
+    expect(ko()).toEqual([0, 1]);
+    s.day++; // the next dawn: x is fit again, y has a day to go
+    expect([guardReady(s, x), guardReady(s, y)]).toEqual([true, false]);
+    s.plots[a].facility!.wrecked = true; // a wrecked Clubhouse's Infirmary is shut
+    expect(ko()).toEqual([1, 2]);
   });
 });
 

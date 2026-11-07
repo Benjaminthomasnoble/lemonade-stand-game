@@ -4,8 +4,10 @@
 // guard posts and Net Worth work through PlotState.facility like any building.
 // Each one upgrades on its own (6, 12, then 24 beds), and the roster holds 2
 // plus the beds of every Clubhouse still standing. A guard off post waits at
-// one of them: that's the reserve Ring the Bell calls (reinforce.ts).
-import { CLUBHOUSE } from './balance.ts';
+// one of them: that's the reserve Ring the Bell calls (reinforce.ts). From L2
+// the reserve trains in the Training Yard; an L3's Infirmary heals KOs a day
+// faster.
+import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_LEVEL_TITLES, GUARD_XP_TO_LEVEL } from './balance.ts';
 import { PLOTS, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import type { Guard } from './crew.ts';
@@ -43,6 +45,31 @@ export function awayOnRaid(s: GameState): Set<string> {
 export function reserveAt(s: GameState, plotId: string): Guard[] {
   const away = awayOnRaid(s);
   return s.guards.filter((g) => !g.post && g.outUntil <= s.day && !away.has(g.id) && clubOf(s, g) === plotId);
+}
+
+/** What a Clubhouse of this level has besides beds: the Training Yard from L2, the Infirmary at L3. */
+export const clubExtras = (level: number) => ({ yard: level >= CLUBHOUSE_EXTRAS.yard.level, infirmary: level >= CLUBHOUSE_EXTRAS.infirmary.level });
+
+/** The Infirmary: any L3 Clubhouse of yours still standing takes this many days off every KO. */
+export const infirmaryDays = (s: GameState): number =>
+  (clubhouses(s).some((p) => clubExtras(s.plots[p.id].facility!.level).infirmary) ? CLUBHOUSE_EXTRAS.infirmary.days : 0);
+
+/** Days Out after a knockout (1, or 2 when a hatchet landed it), less the Infirmary's day, never below 0. */
+export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (hatchet ? 2 : 1) - infirmaryDays(s));
+
+/**
+ * The Training Yard, at dawn: each guard who waited all day at an L2 or L3 Clubhouse (off post, not Out, not away on a
+ * raid) earns a day of duty's XP, 1/daysPerLevel of the way to the next level, and levels up when it's full.
+ */
+export function trainingYard(s: GameState): void {
+  const away = awayOnRaid(s);
+  for (const g of s.guards) {
+    const club = clubOf(s, g);
+    if (!club || g.post || g.level >= 5 || g.outUntil > s.day - 1 || away.has(g.id) || !clubExtras(s.plots[club].facility!.level).yard) continue;
+    const step = (GUARD_XP_TO_LEVEL[g.level] - GUARD_XP_TO_LEVEL[g.level - 1]) / CLUBHOUSE_EXTRAS.yard.daysPerLevel;
+    g.xp = Math.round((g.xp + step) * 1e6) / 1e6;
+    while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level] - 1e-3) { g.level++; s.news.push(`${g.name} is now a ${GUARD_LEVEL_TITLES[g.level - 1]}!`); }
+  }
 }
 
 /** Send a guard off post to wait at this Clubhouse. */

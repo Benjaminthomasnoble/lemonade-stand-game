@@ -13,6 +13,7 @@ import type { GameState } from '../sim/economy.ts';
 import { FACTIONS, LESSON_DAY, type RivalId } from '../sim/balance.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from '../sim/map.ts';
 import { lessonsOn } from '../sim/story.ts';
+import { restockOn } from '../sim/automation.ts';
 import { INK, S, gr, sheenE, svg, uid } from './clay.ts';
 
 const KEY = 'lemonade-stand-wars/coach/v1';
@@ -56,7 +57,7 @@ const stockOf = (s: GameState, id: 'lemons' | 'sugar' | 'ice') => {
   if (!st) return 0;
   return id === 'lemons' ? st.inventory.lemons.reduce((a, b) => a + b.qty, 0) : st.inventory[id];
 };
-const supplied = (s: GameState) => !!own(s)?.autoRestock;
+const supplied = (s: GameState) => { const st = own(s); return !!st && restockOn(s, st); }; // Auto-Restock runs from Day 3
 /** Enough of one supply for the day: some in stock and no "!" on it (lemons and sugar share theirs), or no cash for more. */
 const stocked = (s: GameState, e: CoachEnv, id: 'lemons' | 'sugar' | 'ice') => supplied(s)
   || (stockOf(s, id) > 0 && !e.has(`[data-fill="${id}"][data-low]`))

@@ -366,7 +366,7 @@ export const RECRUIT_LEVELS: number[][] = [
   [0.05, 0.15, 0.3, 0.25, 0.25], // Rank 10
 ];
 export const ROSTER_BASE = 2;
-/** Specialists: from Level 3 a guard can take one specialty, for good (promotion is free: placeholder, spec gap). */
+/** Specialists: from Level 3 a guard can take one specialty, for good. Promotion is free (placeholder: spec gap, no cost given). */
 export type Specialty = 'lookout' | 'wrecker' | 'captain';
 export const SPECIALTIES: Record<Specialty, { name: string; rank: number; text: string }> = {
   lookout: { name: 'Lookout', rank: 4, text: '+25% detection where posted, scouts raid targets, can lead a Sabotage' },
@@ -377,7 +377,7 @@ export const PROMOTE_LEVEL = 3;
 /** A Lookout on the plot adds this to detection (several don't stack); what they scout stays fresh this many days. */
 export const LOOKOUT_DETECTION = 0.25;
 export const SCOUT_DAYS = 3;
-/** A Wrecker's +50% Chop adds to a Lumberjack's +50% (×2 for both: placeholder, the spec only says they stack). */
+/** A Wrecker's +50% Chop adds to a Lumberjack's +50%: ×2 for both (placeholder: spec gap, it only says they stack). */
 export const WRECKER_CHOP = 0.5;
 /** A Captain in the squad (or on the plot) gives the whole side this, once however many Captains there are. */
 export const CAPTAIN = { nerve: 20, hit: 0.1 };
@@ -406,7 +406,6 @@ export const AUTO_REPAIR_RANK = 3;
 export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
-export const REPAIR_SHARE = 0.15; // of the fence's price, times the share of HP lost
 export const NO_RAID_DAYS = 5;
 export const RESPECT_DAYS = 3;
 /** Rival raids on the player per week, by Threat (Classic). */
@@ -419,7 +418,7 @@ export const RAID_PARTY: { size: [number, number]; weapons: [number, number, num
   { size: [8, 12], weapons: [0.1, 0.6, 0.3] },
   { size: [12, 20], weapons: [0, 0.5, 0.5] },
 ];
-/** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off (floor 0%: placeholder, spec gap). */
+/** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off, down to 0% (the floor is a placeholder: spec gap). */
 export const DETECTION_BASE = 0.5;
 export const DETECTION_CAP = 0.95;
 export const EAGLE_EYE_DETECTION = 0.1;

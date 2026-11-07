@@ -554,7 +554,7 @@ function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
     return {
       id: `${rival}-def-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side: 'def' as const,
       hp: (GUARD_BASE.hp + GEAR[kit.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
-      nerve: GUARD_BASE.nerve - 10, armor: GEAR[kit.gear].armor, weapon,
+      nerve: GUARD_BASE.nerve, armor: GEAR[kit.gear].armor, weapon, // everyone starts at Nerve 50 (combat)
     };
   });
 }

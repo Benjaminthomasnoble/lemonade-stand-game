@@ -460,16 +460,19 @@ describe('district control on defense', () => {
 
 describe('the Watchtower', () => {
   it('covers its plot and its owner\'s plots within 2, once, and nothing past them', () => {
+    // Only plots that are "within 2" however neighbors are counted: two along the same side, or across and one along.
     const s = newGame(93);
     expect(LOTTIES_CORNER).toBe('maple-2s');
-    for (const id of ['maple-0n', 'maple-1n', 'maple-4s', 'maple-5n']) s.plots[id].owner = 'player';
+    for (const id of ['maple-0s', 'maple-1n', 'maple-4s', 'maple-5s', 'maple-5n']) s.plots[id].owner = 'player';
     s.plots[LOTTIES_CORNER].defense.gadgets = ['watchtower'];
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.8);
-    expect(detectionChance(s, 'maple-0n', false)).toBe(0.8); // two lots along, across the street
+    expect(detectionChance(s, 'maple-0s', false)).toBe(0.8); // two lots along
     expect(detectionChance(s, 'maple-4s', false)).toBe(0.8);
-    expect(detectionChance(s, 'maple-5n', false)).toBe(0.5); // three along: out of range
+    expect(detectionChance(s, 'maple-1n', false)).toBe(0.8); // across the street and one along
+    expect(detectionChance(s, 'maple-5s', false)).toBe(0.5); // three along: out of range
+    expect(detectionChance(s, 'maple-5n', false)).toBe(0.5);
     s.plots['maple-1n'].defense.gadgets = ['watchtower']; // a second tower in range doesn't stack
-    expect(detectionChance(s, 'maple-0n', false)).toBe(0.8);
+    expect(detectionChance(s, 'maple-0s', false)).toBe(0.8);
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.8);
     s.plots['maple-3n'].owner = 'blenders'; // a rival's lot inside the radius gets nothing from yours
     expect(towerCovers(s, 'maple-3n')).toBe(false);
@@ -698,7 +701,7 @@ describe('rival plot defenses', () => {
     welcomeDex(s);
     const report = fightRaid(s, { id: 'r1', attacker: 'player', target: id, objective: 'shakedown', guards: [s.guards[0].id], detected: false, eta: '01:00' }, true);
     expect(report.defenders).toHaveLength(3);
-    expect(report.defenders.every((f) => f.weapon === 'clubs' && f.hp === GUARD_BASE.hp && f.armor === 0)).toBe(true);
+    expect(report.defenders.every((f) => f.weapon === 'clubs' && f.hp === GUARD_BASE.hp && f.armor === 0 && f.nerve === GUARD_BASE.nerve)).toBe(true);
   });
 });
 

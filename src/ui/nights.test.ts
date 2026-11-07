@@ -221,13 +221,19 @@ describe('the ten menus', () => {
     expect(menuUnlocked(s, 'ledger')).toBe(false); // no books before the first day
     expect(menuUnlocked(s, 'crew')).toBe(false);
     expect(menuUnlocked(s, 'planner')).toBe(false);
-    expect(menuUnlocked(s, 'rank') && menuUnlocked(s, 'goals') && menuUnlocked(s, 'stand') && menuUnlocked(s, 'bugle')).toBe(true);
+    expect(menuUnlocked(s, 'rank')).toBe(false); // the rank badge waits for its lesson (Day 5)
+    expect(menuUnlocked(s, 'goals') && menuUnlocked(s, 'stand') && menuUnlocked(s, 'bugle')).toBe(true);
     const list = menuScreen(s, 'index', parts());
-    expect(list).toContain('data-menu="rank"');
+    expect(list).toContain('data-menu="bugle"');
     expect(list).not.toContain('data-menu="ledger"');
-    expect(list).toContain('Rank and Perks <b>R</b>');
+    expect(list).not.toContain('data-menu="rank"');
+    expect(list).toContain('Morning Bugle <b>B</b>');
     const later = played(2);
     expect(menuUnlocked(later, 'ledger')).toBe(true);
+    later.day = LESSON_DAY.rank;
+    expect(menuUnlocked(later, 'rank')).toBe(true);
+    expect(menuScreen(later, 'index', parts())).toContain('Rank and Perks <b>R</b>');
+    expect(menuUnlocked(newGame(6, { lessons: false }), 'rank')).toBe(true);
     expect(isFullMenu('ledger') && !isFullMenu('goals') && !isFullMenu('stand') && isFullMenu('index')).toBe(true);
   });
 

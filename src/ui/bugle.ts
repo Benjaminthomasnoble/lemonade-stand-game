@@ -6,6 +6,7 @@
 // stand's cost per cup, the week's calendar and today's events.
 import { frontPage, inCelsius, marketText, PLOT_BY_ID, SUPPLIES, weatherText, type FrontPage, type GameState } from '../sim/economy.ts';
 import * as A from './clay.ts';
+import { taught } from '../sim/story.ts';
 import { cents, esc, once } from './recipes.ts';
 
 export interface Snapshot { url: string; headline: string; score: number; day: number; edition?: string /* the campaign's act, for the dateline */ }
@@ -42,7 +43,8 @@ export function bugleSheet(s: GameState, celsius = false): string {
   const market = `<div class="cl-card" title="${esc(marketText(p.market))}"><span class="cl-pic">${lemonArt()}</span><span class="cl-txt"><b>The Market</b><table class="cl-books" data-testid="bugle-market">${rows}${costs}</table></span></div>`;
   const week = p.calendar.length ? `<div class="cl-ticket" data-testid="calendar" title="The week's calendar">${eggArt()}<b>This week</b>${p.calendar.map((l) => `<span class="cl-note">${esc(l)}</span>`).join('')}</div>` : '';
   const events = p.events.map((e) => `<div class="cl-card" data-testid="bugle-event" title="${esc(`How to play it: ${e.counter}`)}"><span class="cl-pic">${boardArt()}</span><span class="cl-txt"><b>${esc(e.name)}</b><i>${esc(e.where)}, ${esc(e.when)}</i><i>${esc(e.counter)}</i></span></div>`).join('');
-  return `<span class="cl-label" title="Morning edition · Day ${p.day} · 5¢">The Citrine Bay Bugle</span>${head}${briefs}${events}${sky}${market}${week}`;
+  // The forecast and the Market print once Lottie has taught them (Day 2's lesson, src/sim/story.ts).
+  return `<span class="cl-label" title="Morning edition · Day ${p.day} · 5¢">The Citrine Bay Bugle</span>${head}${briefs}${events}${taught(s, 'forecast') ? sky : ''}${taught(s, 'market') ? market : ''}${week}`;
 }
 
 /** Halftone the photo on a canvas: newsprint dots over a warm sepia wash. */

@@ -297,7 +297,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
         : outcomeScreen(s) || (hud.menu === 'registry' ? registryScreen(s, registryTab) // the Land Registry (src/ui/registry.ts)
-          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => (crewPanel(kit, s) || defenseSheet(kit, s, s.selected)) + crewExtras(s), options: hud.options, plan: { target: planTarget, panel: (id) => planner.panel(s, id, true) } }) : '');
+          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => (crewPanel(kit, s) || (defendOpen(s) ? defenseSheet(kit, s, s.selected) : '')) + crewExtras(s), options: hud.options, plan: { target: planTarget, panel: (id) => planner.panel(s, id, true) } }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);

@@ -534,6 +534,24 @@ describe('lessons and Dex', () => {
     expect(goalsNow(s)).toHaveLength(3);
   });
 
+  it("menus wait for their lessons: the Hiring Hall for Dex's day, the rank badge for its own, the Bugle's forecast for Day 2", () => {
+    const s = newGame(36);
+    s.cash = 2500;
+    playDay(s); // Rank 2 at the first closing: recruits wait in the Hiring Hall
+    expect(s.rank).toBeGreaterThanOrEqual(2);
+    expect(s.recruits.length).toBeGreaterThan(0);
+    for (; s.day < LESSON_DAY.crew; nextDawn(s)) {
+      expect(menuUnlocked(s, 'crew')).toBe(false);
+      expect(menuUnlocked(s, 'rank')).toBe(s.day >= LESSON_DAY.rank);
+    }
+    expect(menuUnlocked(s, 'crew')).toBe(true);
+    const t = newGame(37);
+    const parts = { head: ['', ''] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
+    expect(menuScreen(t, 'bugle', parts)).not.toContain('4 days in 5'); // Day 1: no forecast yet
+    t.day = LESSON_DAY.forecast;
+    expect(menuScreen(t, 'bugle', parts)).toContain('4 days in 5');
+  });
+
   it('an unpaid Dex stays (Loyal never quits) and joins once a run; an unpaid hire quits instead', () => {
     const s = newGame(35);
     s.day = 3;

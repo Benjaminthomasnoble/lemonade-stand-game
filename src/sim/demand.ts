@@ -6,10 +6,10 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  BASE_STOP_CHANCE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PRICE_FIT, PRICE_TOLERANCE, RECIPES, RIVAL_SHARE_CAP,
-  SEGMENTS, SELLING_HOURS, STAND_LEVELS, type RecipeId, type RivalId, type SegmentId,
+  BASE_STOP_CHANCE, CAMPAIGNS, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS, PRICE_FIT, PRICE_TOLERANCE, RECIPES,
+  RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
-import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type Plot } from './map.ts';
+import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, GameState, Stand, Weather } from './economy.ts';
@@ -64,11 +64,20 @@ export function stopOdds(thirst: number, appealBeforePrice: number, fit: number)
   return { wouldStop, stopChance: wouldStop * Math.min(1, fit) };
 }
 
-// ---------- curb appeal and Majority ----------
+// ---------- curb appeal, Majority and the district perks ----------
 
 /** Majority: the player holds 51%+ of the district's purchasable plots (civic and HQ plots don't count). */
 export function majorityHeld(s: GameState, d: DistrictId): boolean {
   return districtControl(s, d).share >= MAJORITY;
+}
+
+/**
+ * Full Control: the player holds every purchasable plot, and the district's perk is on (live: lose one plot and it
+ * switches off). Seam: land's controlTier(s, d) and perkActive(s, perk) replace this once they merge.
+ */
+export function fullControl(s: GameState, d: DistrictId): boolean {
+  const c = districtControl(s, d);
+  return c.total > 0 && c.mine === c.total;
 }
 
 /**
@@ -80,6 +89,42 @@ export function curbAppeal(s: GameState, plotId: string): number {
   let curb = 1;
   if (majorityHeld(s, PLOT_BY_ID[plotId].district)) curb *= s.plots[plotId].owner === 'player' ? MAJORITY_CURB.player : MAJORITY_CURB.rival;
   return curb;
+}
+
+/** The perks' terms in the marketing number: Orchard Fresh (+10% at all your stands) and Town Favorite (+10% in Old Town and Maple Row). */
+export function perkTraffic(s: GameState, owner: FactionId, plotId?: string): number {
+  if (owner !== 'player') return 0;
+  let t = fullControl(s, 'groves') ? PERKS.orchardFresh : 0;
+  const d = plotId ? PLOT_BY_ID[plotId]?.district : undefined;
+  if ((d === 'oldtown' || d === 'maple') && fullControl(s, 'oldtown')) t += PERKS.townFavorite;
+  return t;
+}
+
+/** Power Lunch (Downtown at Full Control): the lunch rush is ×1.5 at your stands in Downtown and Old Town. A surge on top, not marketing. */
+export function lunchRush(s: GameState, plotId: string, hour: number): number {
+  const L = PERKS.powerLunch;
+  if (hour < L.from || hour >= L.to || s.plots[plotId].owner !== 'player') return 1;
+  const d = PLOT_BY_ID[plotId].district;
+  if (d !== 'downtown' && d !== 'oldtown') return 1;
+  return fullControl(s, 'downtown') ? L.mult : 1;
+}
+
+/** The lunch rush over a whole day's traffic (×1.1 with Power Lunch), for forecasts. */
+export function lunchRushDay(s: GameState, plotId: string): number {
+  return HOURLY_TRAFFIC.reduce((a, w, i) => a + w * lunchRush(s, plotId, FIRST_HOUR + i), 0) / HOURLY_SUM;
+}
+
+/** Tourist Trap (the Boardwalk at Full Control): tourists pay +20% for every cup at your stands, everywhere. */
+export function touristPays(s: GameState, plotId: string, seg: SegmentId): number {
+  return seg === 'tourists' && s.plots[plotId].owner === 'player' && fullControl(s, 'boardwalk') ? 1 + PERKS.touristTrap : 1;
+}
+
+/** What a local campaign costs today: Word of Mouth (Campus & Arts at Full Control) halves the dollars or the free cups. */
+export function campaignCost(s: GameState, id: CampaignId): { cash: number; samples: number; half: boolean } {
+  const c = CAMPAIGNS[id];
+  const half = fullControl(s, 'campus');
+  const k = half ? PERKS.wordOfMouth : 1;
+  return { cash: (c.costPerDay ?? 0) * k, samples: Math.ceil((c.samples ?? 0) * k), half };
 }
 
 // ---------- who walks by, hour by hour ----------
@@ -248,7 +293,7 @@ export function expectedDemand(s: GameState, plotId: string, w: Weather = s.fore
   for (const q of nearbyPlots(p)) {
     const qs = s.plots[q.id].stand;
     if (!qs || qs.wrecked) continue;
-    const passersby = expectedPassersby(s, q.id, w);
+    const passersby = expectedPassersby(s, q.id, w) * lunchRushDay(s, q.id);
     for (const [seg, x] of dayMix(q.district)) {
       const people = passersby * x;
       const share = shareTo(s, q, plotId, (id) => memo(id, seg));

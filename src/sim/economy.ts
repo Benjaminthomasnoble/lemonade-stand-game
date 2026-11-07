@@ -27,8 +27,8 @@ import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  ceilingFor, chooseStand, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, migrateDemand, priceCeiling,
-  segmentPriceFit, serviceLeft, stopOdds,
+  campaignCost, ceilingFor, chooseStand, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
+  migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, touristPays,
 } from './demand.ts';
 
 export * from './balance.ts';
@@ -467,12 +467,12 @@ export function averageStopChance(s: GameState, plotId: string, w: Weather = s.w
 
 /**
  * The marketing number: every traffic bonus adds into one number that multiplies the plot's traffic (spec: How
- * marketing stacks). One term per line: brand tier, Lemon Groves, campaigns.
+ * marketing stacks): brand tier, Lemon Groves, the calendar (Taste-Off wins, sponsorships), district perks, campaigns.
  */
 export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, plotId?: string): number {
-  void plotId; // the district perks read it
   const tier = owner === 'player' ? s.brandTier : s.rivals[owner]?.brandTier ?? 0;
   let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0) + calendarTraffic(s, owner, st);
+  m += perkTraffic(s, owner, plotId); // Town Favorite, Orchard Fresh
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
   return m;
 }
@@ -576,7 +576,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
     st.pitcherCups--;
   }
   st.queue = (st.queue ?? 0) + 1;
-  const paid = st.price;
+  const paid = round2(st.price * touristPays(s, plotId, seg)); // Tourist Trap: tourists pay +20%
   let warm = false;
   let cupCost = CUP_COST;
   if (isPlayer) {
@@ -618,7 +618,7 @@ export function tickMinute(s: GameState): SimEvent[] {
     const ps = s.plots[p.id];
     if (!ps.stand || ps.stand.wrecked) continue;
     drainQueue(s, p.id);
-    const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx]) / HOURLY_SUM / 60;
+    const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx] * lunchRush(s, p.id, 8 + hourIdx)) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);
     while (carry >= 1) {
       carry -= 1;
@@ -951,8 +951,9 @@ export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected
   if (c.maxLevel && st.level > c.maxLevel) return { ok: false, why: `Only for L1–L${c.maxLevel} stands` };
   const left = st.campaigns[id] ?? 0;
   if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
-  if (c.costPerDay && s.cash < c.costPerDay) return { ok: false, why: `Needs $${c.costPerDay}` };
-  if (c.samples && servingsAvailable(st) < c.samples) return { ok: false, why: `Needs stock for ${c.samples} cups` };
+  const cost = campaignCost(s, id); // Word of Mouth halves it
+  if (cost.cash && s.cash < cost.cash) return { ok: false, why: `Needs $${cost.cash}` };
+  if (cost.samples && servingsAvailable(st) < cost.samples) return { ok: false, why: `Needs stock for ${cost.samples} cups` };
   return { ok: true };
 }
 
@@ -960,18 +961,19 @@ export function runCampaign(s: GameState, id: CampaignId, plotId = s.selected): 
   if (!canRunCampaign(s, id, plotId).ok) return false;
   const c = CAMPAIGNS[id];
   const st = s.plots[plotId].stand!;
-  if (c.costPerDay) {
-    s.cash = round2(s.cash - c.costPerDay);
-    s.today.supplies = round2(s.today.supplies + c.costPerDay);
+  const cost = campaignCost(s, id);
+  if (cost.cash) {
+    s.cash = round2(s.cash - cost.cash);
+    s.today.supplies = round2(s.today.supplies + cost.cash);
   }
-  if (c.samples) {
+  if (cost.samples) {
     const n = pitcherNeeds(st);
-    const pitchers = Math.ceil(c.samples / CUPS_PER_PITCHER);
+    const pitchers = Math.ceil(cost.samples / CUPS_PER_PITCHER);
     useLemons(st, n.lemons * pitchers);
     st.inventory.sugar = Math.max(0, st.inventory.sugar - n.sugar * pitchers);
-    st.inventory.ice = Math.max(0, st.inventory.ice - n.icePerCup * c.samples);
-    s.cash = round2(s.cash - CUP_COST * c.samples);
-    s.today.cupCosts = round2(s.today.cupCosts + CUP_COST * c.samples);
+    st.inventory.ice = Math.max(0, st.inventory.ice - n.icePerCup * cost.samples);
+    s.cash = round2(s.cash - CUP_COST * cost.samples);
+    s.today.cupCosts = round2(s.today.cupCosts + CUP_COST * cost.samples);
   }
   if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 100) / 100, 1, 5);
   st.campaigns[id] = c.days;

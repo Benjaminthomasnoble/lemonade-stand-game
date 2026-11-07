@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, ceilingFor, curbAppeal, dailyService, drainQueue, expectedCups, expectedDemand, FACTIONS, hourMix, joinsLine, LOTTIES_CORNER,
-  migrateDemand, migrateSave, nearbyPlots, newGame, newStand, openStands, peopleAhead, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice,
-  rivalShare, SEGMENTS, segmentPriceFit, serviceLeft, simulateRestOfDay, STAND_LEVELS, withinTwo,
+  appealFor, campaignCost, canRunCampaign, ceilingFor, curbAppeal, dailyService, drainQueue, expectedCups, expectedDemand,
+  FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
+  nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
+  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, simulateRestOfDay, STAND_LEVELS, touristPays, withinTwo,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
 
@@ -26,6 +27,11 @@ function playerStand(s: GameState, plotId: string, level = 1) {
 function rivalStand(s: GameState, plotId: string, id: RivalId, level = 2) {
   s.plots[plotId].owner = id;
   s.plots[plotId].stand = newStand(level, rivalPrice(id, level, PLOT_BY_ID[plotId]));
+}
+
+/** Every purchasable plot in the district (civic and HQ plots don't count) goes to the player. */
+function fullControl(s: GameState, d: DistrictId) {
+  for (const p of PLOTS) if (p.district === d && p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
 }
 
 /** Plays one business day in a fixed weather (the forecast and the day agree). */
@@ -288,6 +294,83 @@ describe('who gets the customers', () => {
     expect(appealFor(s, LOTTIES_CORNER, 'families').stopChance).toBeCloseTo(before * 1.1, 9);
     expect(appealFor(s, 'maple-0n', 'families').appeal).toBeCloseTo(rivalBefore * 0.9, 9);
     expect(curbAppeal(s, 'oldtown-0n')).toBe(1); // only in the district you hold
+  });
+});
+
+describe('district perks at Full Control', () => {
+  it('Town Favorite (Old Town): +10% traffic at your stands in Old Town and Maple Row', () => {
+    const s = newGame(1);
+    playerStand(s, 'boardwalk-1n');
+    const corner = marketingMultiplier(s, 'player', s.plots[LOTTIES_CORNER].stand!, LOTTIES_CORNER);
+    fullControl(s, 'oldtown');
+    expect(perkTraffic(s, 'player', LOTTIES_CORNER)).toBeCloseTo(0.1, 9);
+    expect(perkTraffic(s, 'player', 'oldtown-2n')).toBeCloseTo(0.1, 9);
+    expect(perkTraffic(s, 'player', 'boardwalk-1n')).toBe(0);
+    expect(perkTraffic(s, 'fizzco', 'maple-0n')).toBe(0);
+    expect(marketingMultiplier(s, 'player', s.plots[LOTTIES_CORNER].stand!, LOTTIES_CORNER)).toBeCloseTo(corner + 0.1, 9);
+    s.plots['oldtown-2n'].owner = null; // lose one plot and it switches off
+    expect(perkTraffic(s, 'player', LOTTIES_CORNER)).toBe(0);
+  });
+
+  it('Orchard Fresh (the Groves): +10% traffic at every stand you own', () => {
+    const s = newGame(1);
+    playerStand(s, 'boardwalk-1n');
+    fullControl(s, 'groves');
+    expect(perkTraffic(s, 'player', LOTTIES_CORNER)).toBeCloseTo(0.1, 9);
+    expect(perkTraffic(s, 'player', 'boardwalk-1n')).toBeCloseTo(0.1, 9);
+    expect(perkTraffic(s, 'blenders', 'boardwalk-0n')).toBe(0);
+    fullControl(s, 'oldtown');
+    expect(perkTraffic(s, 'player', LOTTIES_CORNER)).toBeCloseTo(0.2, 9); // they add into the marketing number
+  });
+
+  it('Power Lunch (Downtown): the lunch rush is ×1.5 at your stands in Downtown and Old Town', () => {
+    const s = newGame(1);
+    playerStand(s, 'oldtown-2n');
+    for (const q of nearbyPlots(PLOT_BY_ID['oldtown-2n'])) if (q.id !== 'oldtown-2n') s.plots[q.id].stand = null; // a quiet block
+    expect(lunchRush(s, 'oldtown-2n', 12)).toBe(1);
+    const warm = { kind: 'warm', temp: 80 } as const;
+    const before = expectedDemand(s, 'oldtown-2n', warm).visitors;
+    fullControl(s, 'downtown');
+    expect(lunchRush(s, 'oldtown-2n', 12)).toBe(1.5);
+    expect(lunchRush(s, 'oldtown-2n', 13)).toBe(1.5);
+    expect(lunchRush(s, 'oldtown-2n', 14)).toBe(1);
+    expect(lunchRush(s, 'oldtown-2n', 11)).toBe(1);
+    expect(lunchRush(s, LOTTIES_CORNER, 12)).toBe(1); // Maple Row has no lunch crowd to speak of
+    expect(lunchRush(s, 'oldtown-0n', 12)).toBe(1); // rivals don't get it
+    const sum = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
+    expect(lunchRushDay(s, 'oldtown-2n')).toBeCloseTo(1 + (0.5 * (HOURLY_TRAFFIC[4] + HOURLY_TRAFFIC[5])) / sum, 9);
+    expect(expectedDemand(s, 'oldtown-2n', warm).visitors).toBeCloseTo(before * lunchRushDay(s, 'oldtown-2n'), 6);
+  });
+
+  it('Tourist Trap (the Boardwalk): tourists pay +20% for every cup at your stands', () => {
+    const s = newGame(4);
+    playerStand(s, 'oldtown-2n');
+    fullControl(s, 'boardwalk');
+    expect(touristPays(s, 'oldtown-2n', 'tourists')).toBe(1.2);
+    expect(touristPays(s, 'oldtown-2n', 'families')).toBe(1);
+    expect(touristPays(s, 'oldtown-0n', 'tourists')).toBe(1);
+    const price = s.plots['oldtown-2n'].stand!.price;
+    const sales = playDay(s, 'hot', 90).filter((e): e is Extract<SimEvent, { type: 'passerby' }> => e.type === 'passerby' && e.at === 'oldtown-2n' && e.buys);
+    const tourists = sales.filter((e) => e.segment === 'tourists');
+    expect(tourists.length).toBeGreaterThan(0);
+    for (const e of tourists) expect(e.price).toBe(Math.round(price * 1.2 * 100) / 100);
+    for (const e of sales.filter((x) => x.segment !== 'tourists')) expect(e.price).toBe(price);
+    expect(s.plots['oldtown-2n'].stand!.day.revenue).toBeCloseTo(sales.reduce((a, e) => a + e.price, 0), 6);
+  });
+
+  it('Word of Mouth (Campus & Arts): local campaigns cost half', () => {
+    const s = newGame(1);
+    s.rank = 2;
+    s.cash = 100;
+    stockUp(s, LOTTIES_CORNER);
+    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 40, samples: 0, half: false });
+    fullControl(s, 'campus');
+    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 20, samples: 0, half: true });
+    expect(campaignCost(s, 'freeSamples').samples).toBe(15);
+    s.cash = 25;
+    expect(canRunCampaign(s, 'sandwichBoard').ok).toBe(true);
+    expect(runCampaign(s, 'sandwichBoard')).toBe(true);
+    expect(s.cash).toBe(5);
   });
 });
 

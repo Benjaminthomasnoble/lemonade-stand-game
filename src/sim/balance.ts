@@ -144,6 +144,14 @@ export const PRICE_TOLERANCE: Record<string, number> = { maple: 1.0, oldtown: 1.
 export const RIVAL_SHARE_CAP = 0.35;
 /** Majority (51%+ of a district): your stands there sell +10% (curb appeal ×1.1); rival stands there −10% appeal. */
 export const MAJORITY_CURB = { player: 1.1, rival: 0.9 };
+/** District perks at Full Control that move demand (Land and territory; demand constants). */
+export const PERKS = {
+  townFavorite: 0.1, // Old Town: +10% traffic at your stands in Old Town and Maple Row
+  orchardFresh: 0.1, // The Groves: +10% traffic at all your stands
+  powerLunch: { mult: 1.5, from: 12, to: 14 }, // Downtown: lunch rush ×1.5 in Downtown and Old Town. placeholder: spec gap (window = office lunch peak)
+  touristTrap: 0.2, // The Boardwalk: tourists pay +20% everywhere
+  wordOfMouth: 0.5, // Campus & Arts: local campaigns half price everywhere
+};
 
 // ---------- stands ----------
 export interface StandLevel { level: number; name: string; cost: number; draw: number; capacityPerHour: number; topPrice: number; upkeep: number; hp: number; guardPosts: number; storage: Record<SupplyId, number> }

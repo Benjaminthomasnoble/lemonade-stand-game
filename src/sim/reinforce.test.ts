@@ -6,7 +6,8 @@ import {
 } from './economy.ts';
 import type { Fighter } from './combat.ts';
 import { fitGarrison } from './garrison.ts';
-import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
+import { AUTO_DEFEND_ID, autoDefendOn, canAutoDefend, cycleDefendPriority, defendLine, defendPriority, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
+import { helperLines, helpers } from './automation.ts';
 import { reserveAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
@@ -430,6 +431,27 @@ describe("Dex's Auto-Defend", () => {
     setAutoDefend(s, false);
     setDefendPriority(s, lot, 3);
     expect(stationByPriority(s)).toBe(0);
+  });
+
+  it("is a helper in the automation frame: the Evening's posts and the night's bells are the day's Ledger line, free", () => {
+    expect(helpers().map((h) => h.id)).toContain(AUTO_DEFEND_ID);
+    const { s, pip, marnie } = bay();
+    setAutoDefend(s, true);
+    const far = standIn(s, 'hilltop');
+    setDefendPriority(s, far, 1);
+    expect(stationByPriority(s)).toBe(1); // Big Lou, the first of the reserve
+    expect(s.today.auto![AUTO_DEFEND_ID]).toEqual({ spent: 0, count: 1, amount: 0 });
+    expect(helperLines(s.today).find((h) => h.id === AUTO_DEFEND_ID)!.line).toBe('1 guard posted');
+    const r = warned(s, 15);
+    expect(r.bell!.map((b) => b.id)).toEqual([pip.id, marnie.id]);
+    expect(helperLines(s.today).find((h) => h.id === AUTO_DEFEND_ID)).toEqual({ id: AUTO_DEFEND_ID, name: 'Auto-Defend', line: '1 guard posted, bell rung once', spent: 0 });
+    expect(defendLine({ spent: 0, count: 2, amount: 2 })).toBe('Bell rung twice');
+    expect(defendLine({ spent: 0, count: 5, amount: 0 })).toBe('5 guards posted');
+    // Switched off, Dex does nothing and books nothing.
+    const t = bay();
+    const quiet = warned(t.s, 15);
+    expect(quiet.bell).toBeUndefined();
+    expect(t.s.today.auto?.[AUTO_DEFEND_ID]).toBeUndefined();
   });
 
   it('runs as the stands close, before the night is planned', () => {

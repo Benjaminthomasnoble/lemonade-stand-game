@@ -6,14 +6,19 @@
 // Evening he posts the idle reserve on your plots by the priority you give
 // each one, highest first, within each plot's guard posts (crew's postsFor);
 // a plot at priority 0 (the default) is left to the bell. Auto-Restock's
-// shape: a switch, a target per plot, an opt-out and a one-line report. Pure,
-// like the rest of the sim.
+// shape: a switch, a target per plot, an opt-out and a one-line report, as a
+// helper in the automation frame (automation.ts): his posts and bells are the
+// day's Ledger line. Pure, like the rest of the sim.
 import { AUTO_DEFEND, RANKS } from './balance.ts';
 import { PLOTS } from './map.ts';
 import { awayOnRaid } from './clubhouse.ts';
 import { guardReady, postGuard, postsFor, type Raid } from './crew.ts';
 import { canRingBell, ringTheBell } from './reinforce.ts';
+import { bookHelper, registerHelper, type HelperDay } from './automation.ts';
 import type { Blocker, GameState } from './economy.ts';
+
+/** Auto-Defend's id in the automation frame (automation.ts): its Ledger line. */
+export const AUTO_DEFEND_ID = 'defend';
 
 /** Is Dex's Auto-Defend on? (A switch from Rank 4.) */
 export const autoDefendOn = (s: GameState): boolean => !!s.autoDefend && s.rank >= AUTO_DEFEND.rank;
@@ -62,11 +67,31 @@ export function stationByPriority(s: GameState): number {
       posted++;
     }
   }
-  if (posted) s.news.push(`Dex posts ${posted} guard${posted === 1 ? '' : 's'} for the night.`);
+  if (posted) { s.news.push(`Dex posts ${posted} guard${posted === 1 ? '' : 's'} for the night.`); bookDex(s, posted, 0); }
   return posted;
 }
 
 /** A raid on one of your plots is warned: with Auto-Defend on, Dex rings the bell (once a raid, with a reserve in range). */
 export function autoDefendOnWarning(s: GameState, raid: Raid): boolean {
-  return autoDefendOn(s) && canRingBell(s, raid.id) && ringTheBell(s, raid.id, true);
+  if (!(autoDefendOn(s) && canRingBell(s, raid.id) && ringTheBell(s, raid.id, true))) return false;
+  bookDex(s, 0, 1);
+  return true;
 }
+
+/** Dex's day on the Ledger: everything he did (count: each guard posted, each bell rung), the bells among it (amount). */
+function bookDex(s: GameState, posted: number, rang: number): void {
+  const d = s.today.auto?.[AUTO_DEFEND_ID];
+  bookHelper(s, AUTO_DEFEND_ID, 0, { count: (d?.count ?? 0) + posted + rang, amount: (d?.amount ?? 0) + rang });
+}
+
+/** The Ledger's line for Dex's day: "3 guards posted, bell rung once". */
+export function defendLine(d: HelperDay): string {
+  const posted = d.count - d.amount, rang = d.amount;
+  const line = [posted ? `${posted} guard${posted === 1 ? '' : 's'} posted` : '', rang ? `bell rung ${rang === 1 ? 'once' : rang === 2 ? 'twice' : `${rang} times`}` : '']
+    .filter(Boolean).join(', ');
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+// A helper in the automation frame: no dawn run and nothing spent (Dex works in the Evening and at a warning), and
+// what he did is its Ledger line.
+registerHelper({ id: AUTO_DEFEND_ID, name: 'Auto-Defend', unlocked: autoDefendOn, line: defendLine });

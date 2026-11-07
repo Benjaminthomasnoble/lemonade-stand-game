@@ -542,8 +542,10 @@ export function autoRestock(s: GameState, plotId: string): void {
 
 // Appeal only changes between days (price, level, reputation, weather), so
 // cache it for the open day. Cleared whenever the stand opens. Each plot's street
-// (which stands a passerby can pick, demand.ts) is kept too, until a stand opens,
-// is wrecked or changes hands (checked once a minute).
+// (which stands a passerby can pick, demand.ts) is kept too. Both are worked out
+// again when a stand opens, is wrecked or changes hands mid-day (checked once a
+// minute): a table rebuilt on a wrecked plot sells as itself, and a plot that
+// changes hands moves the Majority's curb appeal.
 interface DayCache {
   appeal: Map<string, Partial<Record<SegmentId, Appeal>>>;
   streets: Map<string, Partial<Record<SegmentId, Street>>>;
@@ -567,7 +569,7 @@ function streetFor(s: GameState, p: Plot, seg: SegmentId): Street {
   if (!row) { row = {}; m.set(p.id, row); }
   return (row[seg] ??= streetAt(s, p, (id) => cachedAppeal(s, id, seg)));
 }
-/** Drop the streets if any stand opened, was wrecked or changed hands since the last minute. */
+/** Drop the streets and appeal if any stand opened, was wrecked or changed hands since the last minute. */
 function holdStreets(s: GameState): void {
   const c = cacheFor(s);
   let moved = c.town.length !== PLOTS.length;
@@ -577,6 +579,7 @@ function holdStreets(s: GameState): void {
   }
   if (!moved) return;
   c.streets.clear();
+  c.appeal.clear();
   c.town = PLOTS.map((p) => { const ps = s.plots[p.id]; return { stand: ps.stand, wrecked: ps.stand?.wrecked ?? false, owner: ps.owner }; });
 }
 

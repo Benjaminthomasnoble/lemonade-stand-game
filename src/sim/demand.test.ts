@@ -300,6 +300,24 @@ describe('who gets the customers', () => {
     expect(d.walkedPast.rival).toBeGreaterThan(before);
   });
 
+  it('sells a table rebuilt mid-day as itself, not as the stand it replaced', () => {
+    const s = newGame(2);
+    playerStand(s, 'maple-5n', 3);
+    s.forecast = { kind: 'warm', temp: 80 };
+    openStands(s);
+    s.weather = { kind: 'warm', temp: 80 };
+    for (let i = 0; i < 120; i++) tickMinute(s);
+    const old = s.plots['maple-5n'].stand!;
+    expect(old.day.customers).toBeGreaterThan(0);
+    // A Folding Table at the old $3.00 price: double its ceiling, so nobody buys.
+    s.plots['maple-5n'].stand = newStand(1, old.price);
+    stockUp(s, 'maple-5n');
+    const table = s.plots['maple-5n'].stand!;
+    for (let i = 0; i < 120; i++) tickMinute(s);
+    expect(table.day.customers).toBe(0);
+    expect(table.day.walkedPast.pricey).toBeGreaterThan(0);
+  });
+
   it('never loses customers to your own stands', () => {
     const s = newGame(3);
     stockUp(s, LOTTIES_CORNER);

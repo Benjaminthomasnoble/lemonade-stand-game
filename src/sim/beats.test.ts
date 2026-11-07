@@ -5,16 +5,17 @@ import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
-  type GameState, type Guard,
+  type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer } from './beats.ts';
 import { exitScene, INVOICE } from './exits.ts';
+import { ceaseAndDesist } from './schemes.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
 import { eliminate, hqPlot, inTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
 import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
-import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, taught } from './story.ts';
+import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, storyHeadline, taught } from './story.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 function nextDawn(s: GameState) {
@@ -729,5 +730,38 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     old.lastOffer = { heli: 3 };
     migrateStory(old);
     expect(old.story!.vip).toEqual({ heli: '' });
+  });
+});
+
+describe('Act 4: FizzCo falls', () => {
+  const exitOf = (s: GameState, id: string) => s.scenes!.queue.find((q) => q.id === `exit-${id}`);
+  /** A campaign in Act 4 or 5: the earlier climaxes behind it, at the rank its HQ assault needs. */
+  const lateAct = (seed: number, act: 4 | 5) => {
+    const s = newGame(seed);
+    s.day = 89;
+    for (const r of ['blenders', 'coldbrew', ...(act === 5 ? ['fizzco'] : [])] as RivalId[]) eliminate(s, r, 'buyout');
+    s.day = 90; // their pages came home yesterday
+    Object.assign(s.story!, { act, since: s.day });
+    s.rank = act === 4 ? 8 : 9;
+    s.cash = 50000;
+    s.scenes!.queue = [];
+    return s;
+  };
+
+  it('Act 4 climax: FizzCo Tower falls, Preston leaves in a tow truck, Sparkling comes home, the C&Ds stop, then Act 5', () => {
+    const s = lateAct(110, 4);
+    eliminate(s, 'fizzco', 'hq');
+    const lines = exitOf(s, 'fizzco')!.data!.lines!.map((l) => l.text);
+    expect(lines[0]).toBe("You can't storm a Tower! That's not in the plan!");
+    expect(lines).toEqual(expect.arrayContaining(["Yes, I'm in a tow truck. It's a strategic pivot.", "Let's circle back!", 'And my Sparkling Lemonade page comes home.']));
+    expect(s.world!.pages).toContain('sparkling');
+    expect(s.news.some((n) => n.includes('Bottling Line'))).toBe(true);
+    expect(ceaseAndDesist(s, 'downtown')).toBeNull(); // FizzCo's lawyers are out of the game
+    expect(s.story!.act).toBe(4);
+    nextDawn(s);
+    expect(s.story!.act).toBe(5);
+    expect(s.news).toContain('ACT 5: THE BIG SQUEEZE! Sourwood Manor is watching.');
+    expect(storyHeadline(s)).toEqual(['ACT 5!', 'The Big Squeeze']);
+    expect(s.phone!.queue.some((c) => c.who === 'sourwood' && c.text === LINES.veraAct5)).toBe(true);
   });
 });

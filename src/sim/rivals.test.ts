@@ -5,7 +5,7 @@ import {
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
-  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -55,6 +55,35 @@ describe('sit-downs and buyouts', () => {
     expect(s.cash).toBe(cash - paid);
     s.cash = TRUCE_TRIBUTE.floor - 1; // short of even the smallest tribute
     expect(canTruce(s, 'coldbrew')).toEqual({ ok: false, why: `Tribute is $${truceCost(s, 'coldbrew').toLocaleString('en-US')}` });
+  });
+
+  it('Peaceful sells no Truce, since nobody raids there; Plot and Faction Buyouts stay on the table', () => {
+    const kit: SitKit = {
+      btn: (action, label, b = { ok: true }, extra = '') => `<button data-action="${action}" ${extra} ${b.ok ? '' : 'disabled'}>${label}</button>`,
+      tape: (inner) => `<span>${inner}</span>`, locked: (b) => !b.ok && /Rank \d/.test(b.why), esc: (x) => x,
+      whole: (n) => `$${Math.round(n).toLocaleString('en-US')}`, face: (_s, g: Guard) => `<i>${g.name}</i>`,
+    };
+    const s = newGame(5, { mode: 'sandbox', peaceful: true });
+    s.rank = 4;
+    s.cash = 600; // the $500 tribute a Truce would cost, and change
+    expect(truceCost(s, 'blenders')).toBe(TRUCE_TRIBUTE.floor);
+    expect(canTruce(s, 'blenders')).toEqual({ ok: false, why: 'Peaceful: nobody is raiding' });
+    expect(makeTruce(s, 'blenders')).toBe(false);
+    expect(s.cash).toBe(600);
+    expect(s.rivals.blenders.truceUntil ?? 0).toBeLessThan(s.day);
+    expect(sitDown(kit, s, 'blenders')).not.toContain('data-action="truce"');
+    const plot = ownedPlots(s, 'hollis').find((p) => p.type !== 'hq')!.id;
+    s.cash = 50_000_000;
+    expect(canPlotBuyout(s, plot)).toEqual({ ok: true });
+    expect(plotBuyoutRow(kit, s, plot)).toContain('data-testid="plot-buyout"');
+    s.rank = 7;
+    weaken(s, 'blenders');
+    expect(canFactionBuyout(s, 'blenders')).toEqual({ ok: true });
+    expect(sitDown(kit, s, 'blenders')).toContain('data-testid="faction-buyout"');
+    const classic = rich(5);
+    classic.rank = 4;
+    expect(canTruce(classic, 'blenders')).toEqual({ ok: true }); // outside Peaceful the Truce still sells
+    expect(sitDown(kit, classic, 'blenders')).toContain('data-action="truce"');
   });
 
   it('plot buyout costs 2.5x land at home and hands over the stand', () => {

@@ -286,6 +286,7 @@ export const inTruce = (s: GameState, id: RivalId) => (s.rivals[id].truceUntil ?
 
 export function canTruce(s: GameState, id: RivalId): Blocker {
   if (s.rank < SITDOWN_RANK) return rankNeed(SITDOWN_RANK);
+  if (peaceful(s)) return { ok: false, why: 'Peaceful: nobody is raiding' }; // a Truce stops raids, and there are none to stop
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   if (inTruce(s, id)) return { ok: false, why: `Truce until day ${s.rivals[id].truceUntil}` };
   if ((s.noTruceUntil ?? 0) >= s.day) return { ok: false, why: `Nobody trusts your handshake until day ${s.noTruceUntil! + 1}` };

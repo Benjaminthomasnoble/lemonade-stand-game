@@ -7,7 +7,7 @@
 // its clay kit.
 import {
   BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, FACILITIES, factionBuyoutPrice, guardReady, haggleOffer, haggles,
-  haggling, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, STAND_LEVELS, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard,
+  haggling, peaceful, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, STAND_LEVELS, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard,
   type PlotState, type RivalId,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
@@ -49,11 +49,11 @@ function buyout(k: SitKit, s: GameState, id: RivalId): string {
     + k.btn('haggle', `Hold ${k.whole(offer)}`, canHoldFirm(s, id), `${who} data-move="firm" data-testid="haggle-firm" title="${k.esc(odds)}"`);
 }
 
-/** A rival HQ's Sit-downs: a Truce, and the Faction Buyout once it opens. */
+/** A rival HQ's Sit-downs: a Truce (none in Peaceful, where nobody raids), and the Faction Buyout once it opens. */
 export function sitDown(k: SitKit, s: GameState, id: RivalId): string {
   if (s.rank < SITDOWN_RANK) return '';
   const tb = canTruce(s, id);
-  const truce = k.locked(tb) ? '' : k.btn('truce', `Truce ${k.whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="${TRUCE_DAYS} days of peace. Their Grudge sets the tribute"`);
+  const truce = k.locked(tb) || peaceful(s) ? '' : k.btn('truce', `Truce ${k.whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="${TRUCE_DAYS} days of peace. Their Grudge sets the tribute"`);
   const buy = buyout(k, s, id);
   return truce || buy ? `<div class="cl-acts">${truce}${buy}</div>${negotiatorRow(k, s)}` : '';
 }

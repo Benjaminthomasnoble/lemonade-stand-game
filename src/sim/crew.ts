@@ -17,6 +17,7 @@ import { FACILITIES } from './vip.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, peaceful } from './modes.ts';
 import { etaMinute, hhmm, raidStart, travelMinutes } from './night.ts';
+import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 
 export interface Guard {
   id: string;
@@ -469,6 +470,7 @@ export function planNight(s: GameState): void {
     if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: hhmm(RIVAL_RAID_AT), leave: RIVAL_RAID_AT - travelMinutes(s, raidStart(s, a, t.id), t.id), at: RIVAL_RAID_AT });
   }
   s.seed = rng.seed;
+  s.raids.push(...signatureRaids(s));
 }
 
 /** At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). */
@@ -633,25 +635,7 @@ export function crewAtDawn(s: GameState): void {
   }
   // Rivals spend their Guard bucket: fences and henchmen on their best stands.
   for (const id of RIVALS) {
-    const r = s.rivals[id];
-    if (!r.alive) continue;
-    r.grudge = Math.max(0, r.grudge - 1);
-    let budget = Math.max(0, r.cash - 1500) * FACTIONS[id].guard * 0.5;
-    const plots = ownedPlots(s, id).filter((p) => s.plots[p.id].stand).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
-    for (const p of plots.slice(0, 3)) {
-      const ps = s.plots[p.id];
-      const next = PERIMETERS[ps.defense.tier];
-      if (next && next.tier <= Math.ceil(ps.stand!.level / 1.5) + 1 && next.cost < budget) {
-        budget -= next.cost; r.cash -= next.cost;
-        ps.defense = { ...ps.defense, tier: next.tier, fenceHp: next.hp };
-      } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && budget > 300) {
-        budget -= 300; r.cash -= 300;
-        ps.garrison = (ps.garrison ?? 0) + 1;
-      } else if (ps.defense.tier) {
-        ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
-      }
-    }
-    r.attention = threatLevel(s) + (r.grudge > 30 ? 1 : 0);
+    rivalGuardSpend(s, id, rng);
   }
   s.seed = rng.seed;
 }

@@ -15,6 +15,7 @@ import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
+import { migrateRivals, openBooks, rivalDawn, type Budget } from './rivalAi.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -33,6 +34,7 @@ export * from './night.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
 export * from './calendar.ts';
+export * from './rivalAi.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -97,6 +99,11 @@ export interface RivalState {
   brokeDays?: number; // days in a row in the red (7 = bankrupt)
   outsoldDays?: number; // days in a row the player sold 2x what they did (7 = Weakened)
   salesToday?: number;
+  // Rival AI (rivalAi.ts): the dawn budget.
+  budget?: Budget; // Grow / Guard / Strike money, filled from takings at dawn; unspent buckets roll over
+  cashSeen?: number; // cash after the last dawn's banking, less bucket spending since
+  takings?: number; // what the last dawn banked
+  upgradesDue?: string[]; // plots owed a stand level (every 30 days), waiting for Grow money
 }
 
 export interface DayStats {
@@ -262,6 +269,7 @@ function seedRivals(s: GameState, rng: Rng): void {
     }
   }
   for (const id of RIVAL_IDS) s.rivals[id].peakPlots = ownedPlots(s, id).length;
+  for (const id of RIVAL_IDS) openBooks(s, id);
 }
 
 function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
@@ -827,37 +835,15 @@ export function buildStand(s: GameState, plotId: string): boolean {
   return true;
 }
 
-// ---------- rivals at dawn (Grow only until milestone 3 adds Guard and Strike) ----------
+// ---------- rivals at dawn (the rival AI lives in rivalAi.ts) ----------
 
+/** Each rival banks its takings into Grow / Guard / Strike and spends Grow on upgrades and land. */
 function rivalsAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
   for (const id of RIVAL_IDS) {
     const r = s.rivals[id];
     if (!r.alive) continue;
-    const f = FACTIONS[id];
-    const budget = Math.max(0, r.cash - 2000) * f.grow;
-    // Spec: every 30 days each rival stand rises one level, up to the faction's cap.
-    if (s.day > 1 && (s.day - 1) % 30 === 0) {
-      for (const p of ownedPlots(s, id)) {
-        const st = s.plots[p.id].stand;
-        if (!st || st.wrecked || st.level >= f.maxLevel) continue;
-        const next = STAND_LEVELS[st.level];
-        st.level = next.level;
-        st.price = rivalPrice(id, st.level, p);
-        s.plots[p.id].invested += next.cost;
-      }
-    }
-    // Buy and build on an open plot near their turf, slowly. Maple Row is left to the player for now.
-    if (s.day > 3 && nextRandom(rng) < 0.25) {
-      const targets = PLOTS.filter((p) => !s.plots[p.id].owner && (p.type === 'street' || p.type === 'prime')
-        && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');
-      const p = targets.sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
-      if (p && s.plots[p.id].landValue + STAND_LEVELS[0].cost < budget) {
-        r.cash -= s.plots[p.id].landValue + STAND_LEVELS[0].cost;
-        s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
-        if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
-      }
-    }
+    rivalDawn(s, id, rng);
     r.peakPlots = Math.max(r.peakPlots, ownedPlots(s, id).length);
   }
   s.seed = rng.seed;
@@ -1021,5 +1007,6 @@ export function migrateSave(x: unknown): GameState | null {
   }
   migrateCombat(s);
   if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
+  if (isGameState(s)) migrateRivals(s);
   return isGameState(s) ? migrateWorld(s) : null;
 }

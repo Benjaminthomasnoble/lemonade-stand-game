@@ -34,6 +34,19 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
   sourwood: { rank: 9, gate: 5000, buyout: null, tier: 4, yard: 11, boss: 'Vera Sourwood', move: 'Old Money' },
 };
 
+// ---------- rival AI tunables (spec: Rivals, How rivals think; rivalAi.ts and schemes.ts use them) ----------
+
+/** Cash a rival keeps out of its Grow / Guard / Strike buckets: this many days of upkeep and wages (placeholder: spec gap). */
+export const RIVAL_RESERVE_DAYS = 2;
+/** A rival hires a garrison henchman for this (the spec gives no rival hire fee: the build's own number). */
+export const RIVAL_HIRE_FEE = 300;
+/** On this share of dawns after Day 3 a rival with the Grow money buys a plot near its turf (the build's own pacing). */
+export const RIVAL_LAND_CHANCE = 0.25;
+/** Every this many days each rival stand is owed one level, up to the faction's cap (balance tables: every 30 days). */
+export const RIVAL_UPGRADE_DAYS = 30;
+/** A raid costs the rival this many nights of wages for each henchman it sends (placeholder: spec gap). */
+export const RAID_WAGE_NIGHTS = 1;
+
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 
 /** Rivals hold a few VIP facilities on their Fields and Docks: worth knocking down. */

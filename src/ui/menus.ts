@@ -10,8 +10,8 @@
 // shows the rank ladder (Lottie's tips join it later).
 import {
   canBuyPlot, DEAL_LOADS, deliveryRaidRisk, FACTIONS, hqPlot, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  peaceful, plotPrice, raidTargets, rivalStatus, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID,
-  type GameState, type Goal, type RivalId, type SupplyId,
+  peaceful, plotPrice, raidTargets, rivalStatus, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
+  type FestivalId, type GameState, type Goal, type RivalId, type SupplyId,
 } from '../sim/economy.ts';
 import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
@@ -136,10 +136,15 @@ function bugle(s: GameState, p: MenuParts): string {
   const pack = (id: SupplyId) => s.market[id] * SUPPLIES[id].pack;
   const market = (Object.keys(SUPPLIES) as SupplyId[]).map((id) => `${SUPPLIES[id].label} ${pack(id) < 1 ? `${Math.round(pack(id) * 100)}¢` : `$${pack(id).toFixed(2)}`}`).join(' · ');
   const fights = s.battles.filter((b) => b.day === s.day - 1).length;
+  // Today's events and the week's calendar, each with its district and length (spec: the Bugle prints them).
+  const where = (id: FestivalId) => DISTRICT_BY_ID[FESTIVALS[id].district].name;
+  const today = festivalsOn(s.day).map((id) => { const f = FESTIVALS[id], n = f.to - f.from + 1; return `Today: ${f.name}, ${where(id)}${n > 1 ? `, ${n} days` : ''}`; });
+  const week = upcomingFestivals(s).map((x) => `${x.from === x.to ? `Day ${x.from}` : `Days ${x.from}-${x.to}`}: ${FESTIVALS[x.id].name}, ${where(x.id)}`);
   return sheet('bugle', 'The Citrine Bay Bugle', `${row(`<span class="cl-note">Morning edition · Day ${s.day}</span>`)}
     <span class="cl-tape cl-big">${esc(p.head[0])}</span><span class="cl-tape cl-sub">${esc(p.head[1])}</span>
     ${row(`<span class="cl-note" title="The forecast is right about 4 days in 5">${WEATHER[w.kind].label}, ${tempText(p.options, w.temp)}</span>`)}
     ${row(`<span class="cl-note" title="Market prices a pack today">${market}</span>`)}
+    ${[...today, ...week].map((line) => row(`<span class="cl-note" data-testid="bugle-calendar">${esc(line)}</span>`)).join('')}
     ${fights ? row(`<span class="cl-note">${fights} fight${fights === 1 ? '' : 's'} last night</span>`) : ''}
     ${s.offers.length ? row(`<button class="cl-b go" data-action="menu" data-menu="orders">${s.offers.length} offer${s.offers.length === 1 ? '' : 's'} waiting</button>`) : ''}`);
 }

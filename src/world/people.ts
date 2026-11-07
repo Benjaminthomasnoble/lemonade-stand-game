@@ -257,7 +257,7 @@ export function createCrowd(
       }
       if (w.popup && !w.popup.atCounter && !w.shown && Math.abs(pos.x - w.grumbleX) < 1) {
         w.shown = true;
-        setFace(w, 'shock', 0.9); // price-shock: the eyes pop
+        if (w.popup.text === 'pricey') setFace(w, 'shock', 0.9); // price-shock: the eyes pop (a zzz or a rival's arrow keeps a plain face)
         onArrive(pos.clone().setY(headY(w)), w.popup.text, 'miss', w.obj);
       }
       pos.x += (dx / dist) * move;

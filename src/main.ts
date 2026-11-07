@@ -68,8 +68,10 @@ const LOOK: Record<SegmentId, { scale?: number; speed?: number; gait?: Gait; seg
   tourists: { speed: 0.85, gait: 'tourist', segment: 'tourists' },
   highRollers: { speed: 0.9, segment: 'highRollers' },
 };
-/** Walk-offs carry the reason as a clay reaction icon (see ui/emotes.ts). */
-const MISS_TEXT = { pricey: 'pricey', line: 'line', soldOut: 'soldout' } as const satisfies Record<string, Emote>;
+/** Walk-offs carry the reason as a clay reaction icon (see ui/emotes.ts): zzz for not thirsty, an arrow for a rival. */
+const MISS_TEXT = { pricey: 'pricey', line: 'line', soldOut: 'soldout', notThirsty: 'zzz', rival: 'rival' } as const satisfies Record<string, Emote>;
+/** Most passers-by aren't thirsty: only some nod off in a zzz, or the street turns into a wall of bubbles. */
+const ZZZ_CHANCE = 0.3;
 /** A rush: this many coins landing within RUSH_MS gets a cheer from Lottie. */
 const RUSH_COINS = 5;
 const RUSH_MS = 5000;
@@ -387,9 +389,14 @@ async function main() {
       const route = { x0: from.plot.x - dir * PLOT_SPACING * 2.5, x1: from.plot.x + dir * PLOT_SPACING * 2.5, z: from.sidewalkZ, serve: at.serve, grumbleX: at.plot.x };
       const look = { ...LOOK[e.segment], info: walkerInfo(state, e) }; // tap a walker to hear why
       const mine = e.owner === 'player';
-      if (e.buys) crowd.spawn('sale', route, mine ? (e.price < 1 ? `+${Math.round(e.price * 100)}¢` : `+$${e.price.toFixed(2)}`) : '', look);
+      // Passing your stand for a rival's: an arrow over their head as they go by yours, walking on toward theirs.
+      const toRival = !mine && state.plots[e.plot]?.owner === 'player';
+      const away = at.plot.x >= from.plot.x ? 1 : -1;
+      if (toRival) crowd.spawn('grumble', { ...route, x0: from.plot.x - away * PLOT_SPACING * 2.5, x1: at.plot.x + away * PLOT_SPACING * 2.5, grumbleX: from.plot.x, serve: from.serve }, MISS_TEXT.rival, look);
+      else if (e.buys) crowd.spawn('sale', route, mine ? (e.price < 1 ? `+${Math.round(e.price * 100)}¢` : `+$${e.price.toFixed(2)}`) : '', look);
       else if (mine && (e.reason === 'soldOut' || e.reason === 'line')) crowd.spawn('miss', route, MISS_TEXT[e.reason], look);
       else if (mine && e.reason === 'pricey') crowd.spawn('grumble', route, MISS_TEXT.pricey, look);
+      else if (mine && e.reason === 'notThirsty' && Math.random() < ZZZ_CHANCE) crowd.spawn('grumble', route, MISS_TEXT.notThirsty, look);
       else crowd.spawn('pass', route, '', look);
     }
   };

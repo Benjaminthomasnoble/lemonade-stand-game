@@ -7,25 +7,44 @@ import * as THREE from 'three';
 import { idlePose, MOTION } from './people.ts';
 import { Figure, SPECS, heroDetail } from './clay/figure.ts';
 import { holdProp } from './clay/cast.ts';
-import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
+import { Baker, GLOSS, PAPER, box, canvasTex, cap, cyl, rbox, tor, type Redraw } from './clay/core.ts';
 import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.ts';
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
 import { createRevealCrate } from './clay/crate.ts';
 import { wreckPile } from './clay/defenses.ts';
-import { cardFlap, cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
+import { cardFlap, cardPlane, clayMesh, crayonSign, stick, whenFonts } from './clay/standKit.ts';
 
 export interface StandUpdate {
   price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
   recipe?: string; sweetness?: PropState['sweetness']; stock?: PropState['stock']; stars?: number;
   /** The stand's price ceiling, marked on the chalkboard under the price. */
   ceiling?: number;
+  /** People in line right now (the sim's Stand.queue): the queue counter over the counter shows it while open. */
+  queue?: number;
   /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
   detail?: number;
   /** Storm: an L1-L2's card skirt or awning flaps. Scorcher: the ice pops sag in the cooler. */
   storm?: boolean;
   scorcher?: boolean;
+}
+
+/** The queue counter: a cream clay tag with a little row of heads and the count, the way the spec's mid zoom shows lines. */
+function drawQueue(n: number) {
+  return (c: CanvasRenderingContext2D, w: number, h: number) => {
+    c.fillStyle = '#FFF1D6';
+    c.beginPath(); c.roundRect(5, 5, w - 10, h - 10, 22); c.fill();
+    c.lineWidth = 7; c.strokeStyle = P.ink; c.stroke();
+    for (let i = 0; i < 3; i++) { // three little heads in a line
+      c.fillStyle = ['#E8704F', '#3BB4C1', '#7CC47F'][i];
+      c.beginPath(); c.arc(w * 0.17 + i * 15, h * 0.5 + (i % 2) * 3, 10, 0, 6.3); c.fill();
+      c.lineWidth = 3; c.stroke();
+    }
+    c.fillStyle = P.ink; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `${n > 99 ? 46 : 58}px "Chewy", "Comic Sans MS", cursive`;
+    c.fillText(String(n), w * 0.7, h * 0.54);
+  };
 }
 
 export interface Stand {
@@ -196,6 +215,17 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   tape.add(clayMesh(new Baker().add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, 0.42], fx: PAPER }).add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, -0.42], p: [0, 0, 0.01], fx: PAPER }).build(), kit().world));
   tape.visible = false;
   group.add(tape);
+
+  // The queue counter over the counter (spec: mid zoom shows queue counters): drawn again only when the line moves.
+  let queueNow = 0;
+  const queueTex = canvasTex(128, 88, drawQueue(0));
+  const queueTag = new THREE.Sprite(new THREE.SpriteMaterial({ map: queueTex, transparent: true, depthWrite: false }));
+  queueTag.scale.set(0.62, 0.43, 1);
+  queueTag.position.set(1.1, 1.7, 1.0);
+  queueTag.visible = false;
+  queueTag.renderOrder = 4;
+  group.add(queueTag);
+  whenFonts(() => (queueTex.userData.redraw as Redraw)(drawQueue(queueNow)));
   function applyDamage() {
     if (!model) return;
     const hp = busted ? Math.min(hpNow, 0.25) : hpNow;
@@ -429,6 +459,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       lottie.position.x = model.chairX; lottie.position.z = cz + 0.05;
       phone.position.set(model.chairX - 0.55, 0.4, cz + 0.45);
       stand.servePoint.z = model.serveZ;
+      queueTag.position.set(1.1, model.anchors.counterY + 1.0, model.serveZ - 0.25);
       spring.x = openNow ? 1 : 0; spring.v = 0;
       poseAwning(spring.x);
       applyDamage();
@@ -461,10 +492,14 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     dispose() {
       listen(false);
       disposeTree(group, new Set([kid, lottie]));
+      queueTex.dispose(); queueTag.material.dispose();
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0, storm, scorcher }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, queue = 0, detail = 0, storm, scorcher }) {
       if (detail !== detailNow) { detailNow = detail; showSmall(); }
       if (busted) open = false; // closed for repairs
+      const line = open && !wrecked && detail < 2 ? Math.ceil(queue - 1e-9) : 0;
+      queueTag.visible = line > 0 && revealT < 0;
+      if (line > 0 && line !== queueNow) { queueNow = line; (queueTex.userData.redraw as Redraw)(drawQueue(line)); }
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}), ...(ceiling !== undefined ? { ceiling } : {}) });
       openNow = open;
       props.setScorcher(!!scorcher);

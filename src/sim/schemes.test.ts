@@ -6,7 +6,8 @@ import {
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
   AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
-  type DayStats, type GameState, type RivalId,
+  blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES,
+  type DayStats, type GameState, type RivalId, type Scheme,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
 import { phoneCheck } from './phone.ts';
@@ -753,9 +754,125 @@ describe('FizzCo\'s ad blitz', () => {
     startScheme(s, 'fizzco', 'blitz');
     const ticket = schemeTickets(s).find((t) => t.includes('data-testid="blitz"'))!;
     expect(ticket).toContain('cl-ticket red');
-    expect(ticket).toContain(`Ad blitz: ${DISTRICT_BY_ID[PLOT_BY_ID[theirs].district].name.replace(/&/g, '&amp;')}`);
+    expect(ticket).toContain(`FizzCo blitz: ${DISTRICT_BY_ID[PLOT_BY_ID[theirs].district].name.replace(/&/g, '&amp;')}`);
     expect(ticket).toContain('<i class="on"></i><i class="on"></i><i class="on"></i>');
     expect(ticket).toContain('data-action="goto"');
     expect(schemeNote(s, theirs)).toBe('<span class="cl-note bad">Ad blitz +25%</span>');
   });
+});
+
+describe('Peaceful: rivals scheme instead', () => {
+  const calm = (seed: number) => newGame(seed, { mode: 'sandbox', peaceful: true });
+  /** Every rival can start something: a stand of Lottie's next to each, the day past the first week. */
+  function ready(s: GameState, rank: number) {
+    s.rank = rank;
+    s.day = 20;
+    return { s, fronts: RIVALS.map((id) => ({ id, ...nextTo(s, id) })) };
+  }
+  /** How many schemes start over `n` dawns, each from a clean book, and of which kinds. */
+  function tally(s: GameState, n: number) {
+    const kinds: Record<string, number> = {};
+    let started = 0;
+    for (let i = 0; i < n; i++) {
+      s.schemes = [];
+      schemesAtDawn(s);
+      for (const x of s.schemes) kinds[`${x.kind}:${x.by}`] = (kinds[`${x.kind}:${x.by}`] ?? 0) + 1;
+      started += s.schemes.length;
+    }
+    return { started, kinds };
+  }
+
+  it('schemes come three times as often as in a game with raids', () => {
+    const fists = tally(ready(newGame(41), 1).s, 600).started;
+    const calmly = tally(ready(calm(41), 1).s, 600).started;
+    expect(fists).toBeGreaterThan(20); // 2% a rival a dawn at Threat 1
+    expect(calmly).toBeGreaterThan(2.3 * fists);
+    expect(calmly).toBeLessThan(3.7 * fists);
+  });
+
+  it('a rival you outsold next door answers with a price war, and schemes twice as often', () => {
+    const { s, fronts } = ready(newGame(42), 3);
+    const f = fronts.find((x) => x.id === 'fizzco')!;
+    expect(outsoldAt(s, 'fizzco')).toEqual([]);
+    const before = tally(s, 600);
+    expect(before.kinds['blitz:fizzco']).toBeGreaterThan(0); // left alone, FizzCo often reaches for its mascot first
+    s.plots[f.mine].stand!.day.customers = 40; // yesterday Lottie's next door sold 40 cups to their 10
+    s.plots[f.theirs].stand!.day.customers = 10;
+    expect(outsoldAt(s, 'fizzco')).toEqual([f.theirs]);
+    const after = tally(s, 600);
+    expect(after.kinds['blitz:fizzco'] ?? 0).toBe(0);
+    expect(after.kinds['priceWar:fizzco']).toBeGreaterThan(1.5 * (before.kinds['blitz:fizzco'] + (before.kinds['priceWar:fizzco'] ?? 0)));
+    const { s: t } = ready(newGame(43), 3); // a stand of theirs outselling yours provokes nothing
+    for (const id of RIVALS) {
+      for (const p of warFront(t, id)) t.plots[p].stand!.day.customers = 99;
+      expect(outsoldAt(t, id)).toEqual([]);
+    }
+  });
+
+  it('any rival can run an ad blitz: +25% at its own stands in the district, out of Strike, in the Bugle', () => {
+    const { s, fronts } = ready(calm(44), 3);
+    const b = fronts.find((x) => x.id === 'blenders')!;
+    expect(RIVALS.every((id) => blitzes(s, id))).toBe(true);
+    expect(blitzes(newGame(44), 'blenders')).toBe(false); // with raids on, only FizzCo's mascot blitzes
+    const d = PLOT_BY_ID[b.theirs].district;
+    const st = s.plots[b.theirs].stand!;
+    const before = marketingMultiplier(s, 'blenders', st);
+    const strike = budgetOf(s, 'blenders').strike;
+    const job = startScheme(s, 'blenders', 'blitz')!;
+    expect(job).toMatchObject({ kind: 'blitz', by: 'blenders', district: d, until: s.day + AD_BLITZ.days - 1 });
+    expect(budgetOf(s, 'blenders').strike).toBeCloseTo(strike - AD_BLITZ.perDay, 2);
+    expect(marketingMultiplier(s, 'blenders', st)).toBeCloseTo(before + AD_BLITZ.traffic, 5);
+    expect(adBlitzIn(s, d, 'blenders')).toBe(true);
+    expect(adBlitzIn(s, d)).toBe(false); // not FizzCo's mascot
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (ps.stand && ps.owner && ps.owner !== 'blenders') expect(adBlitzBoost(s, ps.owner, ps.stand)).toBe(0);
+    }
+    expect(s.news.at(-1)).toBe(`Bugle: The Boardwalk Blenders ad blitz in ${DISTRICT_BY_ID[d].name}: +25% at its stands`);
+    const ticket = schemeTickets(s).find((x) => x.includes('data-testid="blitz"'))!;
+    expect(ticket).toContain(`Blenders blitz: ${DISTRICT_BY_ID[d].name.replace(/&/g, '&amp;')}`);
+    expect(schemeNote(s, b.theirs)).toBe('<span class="cl-note bad">Ad blitz +25%</span>');
+    hush(s);
+    s.day++;
+    budgetOf(s, 'blenders').strike = 0;
+    schemesAtDawn(s);
+    expect(job.done).toBe(true);
+    expect(s.news).toContain('Bugle: The Boardwalk Blenders ad blitz ends early');
+    expect(adBlitzBoost(s, 'blenders', st)).toBe(0);
+  });
+
+  it('a blitzing rival\'s jingle opens the morning show, so the radio tips you off', () => {
+    const { s } = ready(calm(45), 3);
+    expect(blitzingToday(s)).toEqual([]);
+    expect(morningShow(s)[0].kind).toBe('id');
+    const job = startScheme(s, 'hollis', 'blitz') as Scheme;
+    expect(job).not.toBeNull();
+    expect(blitzingToday(s)).toEqual(['hollis']); // radio.ts reads the blitzes running today
+    expect(morningShow(s)[0]).toMatchObject({ kind: 'rival', text: `Hollis Sweet Tea Co.'s jingle: "${RIVAL_JINGLES.hollis}"` });
+    expect(startScheme(s, 'fizzco', 'blitz')).not.toBeNull();
+    expect(morningShow(s).filter((l) => l.kind === 'rival')).toHaveLength(2);
+    s.day = job.until + 1; // both blitzes have run their days: the station ID opens the show again
+    expect(blitzingToday(s)).toEqual([]);
+    expect(morningShow(s)[0].kind).toBe('id');
+  });
+
+  it('a real Peaceful month: no raids, and the rivals price, blitz and poster instead', () => {
+    const s = calm(46);
+    s.rank = 3;
+    s.cash = 1_000_000;
+    for (const id of RIVALS) nextTo(s, id);
+    const seen = new Set<string>();
+    for (let d = 0; d < 30; d++) {
+      openStand(s);
+      simulateRestOfDay(s);
+      sleepUntilDawn(s);
+      expect(s.raids).toEqual([]);
+      for (const x of s.schemes ?? []) seen.add(`${x.kind}:${x.by}`);
+    }
+    const kinds = new Set([...seen].map((k) => k.split(':')[0]));
+    const by = new Set([...seen].map((k) => k.split(':')[1]));
+    expect(kinds.has('priceWar')).toBe(true);
+    expect([...seen].some((k) => k.startsWith('blitz:') && k !== 'blitz:fizzco')).toBe(true);
+    expect(by.size).toBeGreaterThanOrEqual(3);
+  }, 120_000); // thirty full days of business
 });

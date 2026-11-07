@@ -127,11 +127,15 @@ export const BLENDER_RUSH = { cost: 0.5, taunt: 'Bro. Tonight we blend your stan
  * unless the plot's night watch catches it; the posters stay up `posters.days` days, or until you hand out free
  * samples there. In Act `posters.act` (Grounds for Revenge) the crew works your Campus & Arts walls with the spec's
  * `slogan`. An auction snipe tops your sealed bid by `snipe.over`, the extra out of Strike. A finished scheme stays on
- * the books `keep` days.
+ * the books `keep` days. A rival that one of your stands outsold next door yesterday schemes on `provoked` times the
+ * chance and reaches for a price war first (spec: Peaceful's "outbid or out-priced"). In Peaceful, where schemes
+ * replace raids, every rival schemes on `peaceful` times the chance, and any rival can run an ad blitz.
  */
 export const SCHEMES = {
   from: 8,
   chance: [0.02, 0.035, 0.05, 0.065, 0.08],
+  provoked: 2,
+  peaceful: 3,
   priceWar: { cut: 0.25, days: 3 },
   posters: { cost: 150, stars: 0.1, days: 3, act: 3, slogan: "LOTTIE'S: LEMONADE FOR PEOPLE WHO LIKE THINGS.", taunt: "It's not graffiti. It's a review." },
   snipe: { over: 0.05 },
@@ -186,7 +190,7 @@ export const RIVAL_BRAND = {
 /**
  * FizzCo's ad blitz (Hostile Takeover): from Rank `rank`, when your own Sunny opens, FizzCo's mascot walks the
  * district where most of its stands share passers-by with yours: +`traffic` at its stands there for `days` days, at
- * `perDay` a day of Strike (Sunny's numbers; the length is a placeholder).
+ * `perDay` a day of Strike (Sunny's numbers; the length is a placeholder). In Peaceful every rival can run one.
  */
 export const AD_BLITZ = { rank: 3, traffic: 0.25, days: 3, perDay: 300 };
 

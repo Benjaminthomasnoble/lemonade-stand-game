@@ -1,6 +1,7 @@
 // Rival schemes on the HUD (spec: Rival marketing; How rivals think): a ticket in
 // the left feed while a rival's price war runs near your stands, FizzCo's
-// mascot blitzes a district where you trade, FizzCo's Cease-and-Desist blocks
+// mascot (or, in Peaceful, any rival's ad campaign) blitzes a district where
+// you trade, FizzCo's Cease-and-Desist blocks
 // your ads in a district, FizzCo's buyout offer stands
 // (Sell or No) or Town Hall holds a land sale frozen, and on the morning a
 // smear-poster crew hits (with Free Sample Day, the spec's answer, one tap
@@ -49,14 +50,15 @@ function posters(s: GameState, job: Scheme): string {
     <span class="cl-acts">${samples}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }
 
-/** FizzCo's ad blitz: the district its mascot works, days left, and Go There. */
+/** An ad blitz (FizzCo's mascot; in Peaceful, any rival's): who, the district it works, days left, and Go There. */
 function blitz(s: GameState, job: Scheme): string {
   const left = job.until - s.day + 1;
   const name = DISTRICT_BY_ID[job.district!].name;
-  const tip = `FizzCo's mascot works ${name}, ${left} day${left === 1 ? '' : 's'} left: +${Math.round(AD_BLITZ.traffic * 100)}% foot traffic at its stands there. `
+  const who = job.by === 'fizzco' ? "FizzCo's mascot works" : `${SHORT[job.by]}'s ads work`;
+  const tip = `${who} ${name}, ${left} day${left === 1 ? '' : 's'} left: +${Math.round(AD_BLITZ.traffic * 100)}% foot traffic at its stands there. `
     + 'Answer with your own marketing in the same district.';
   const go = job.plots[0] ? btn('goto', 'Go there', `data-plot="${job.plots[0]}"`) : '';
-  return `<div class="cl-ticket red" data-testid="blitz" title="${esc(tip)}">${ICON.board()}<b>Ad blitz: ${esc(name)}</b>
+  return `<div class="cl-ticket red" data-testid="blitz" title="${esc(tip)}">${ICON.board()}<b>${SHORT[job.by]} blitz: ${esc(name)}</b>
     <span class="cl-acts">${pips(left, AD_BLITZ.days)}${go}</span></div>`;
 }
 
@@ -99,7 +101,7 @@ export function schemeTickets(s: GameState): string[] {
     else if (x.kind === 'cease' && x.district && ceaseAndDesistIn(s, x.district)) out.push(cease(s, x));
     else if (x.kind === 'buyout' && offerOn(s, x.plots[0]) === x) out.push(buyout(s, x));
     else if (x.kind === 'freeze') out.push(freeze(s, x));
-    else if (x.kind === 'blitz' && s.rivals.fizzco.alive) out.push(blitz(s, x));
+    else if (x.kind === 'blitz' && s.rivals[x.by].alive) out.push(blitz(s, x));
   }
   for (const x of s.schemes ?? []) if (x.kind === 'posters' && x.day === s.day) out.push(posters(s, x));
   return out;
@@ -109,7 +111,8 @@ export function schemeTickets(s: GameState): string[] {
 export function schemeNote(s: GameState, plotId: string): string {
   if (warAt(s, plotId)) return `<span class="cl-note bad">Price war ${CUT}</span>`;
   if (s.plots[plotId]?.owner === 'player' && ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return '<span class="cl-note bad">Ads blocked</span>';
-  if (s.plots[plotId]?.owner === 'fizzco' && adBlitzIn(s, PLOT_BY_ID[plotId].district)) return `<span class="cl-note bad">Ad blitz +${Math.round(AD_BLITZ.traffic * 100)}%</span>`;
+  const owner = s.plots[plotId]?.owner;
+  if (owner && owner !== 'player' && adBlitzIn(s, PLOT_BY_ID[plotId].district, owner as RivalId)) return `<span class="cl-note bad">Ad blitz +${Math.round(AD_BLITZ.traffic * 100)}%</span>`;
   const offer = offerOn(s, plotId);
   if (offer) return `<span class="cl-note">FizzCo bids ${whole(offer.price!)}</span>`;
   if (freezeOn(s, plotId)) return '<span class="cl-note bad">Sale frozen</span>';

@@ -6,8 +6,11 @@
 // of your stands, a snipe at an auction you bid on, FizzCo's Hostile Takeover
 // (an ad blitz by FizzCo's mascot, a Cease-and-Desist on your marketing in one
 // district, or an offer to buy one of your plots), or Sourwood's Old Money
-// (Mayor Fontaine's fine, or a land sale frozen at Town Hall). The Bugle
-// reports each one. Pure and seeded, like the rest of the sim.
+// (Mayor Fontaine's fine, or a land sale frozen at Town Hall). A rival you
+// outsold next door answers with a price war. In Peaceful, schemes replace the
+// raids (spec: "rivals scheme instead"): they come three times as often, and
+// every rival can run an ad blitz. The Bugle reports each one, and a blitzing
+// rival's jingle opens the morning show. Pure and seeded, like the rest of the sim.
 import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -19,7 +22,7 @@ import { AD_BLITZ, CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
-import { actOf } from './modes.ts';
+import { actOf, peaceful } from './modes.ts';
 
 export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze';
 export interface Scheme {
@@ -52,17 +55,24 @@ const PREFERS: Record<RivalId, SchemeKind[]> = {
   blenders: ['priceWar', 'snipe'],
 };
 
+/** What a rival reaches for: its own schemes, and in Peaceful an ad blitz too (its marketing stands in for its raids). */
+const prefers = (s: GameState, id: RivalId): SchemeKind[] => (peaceful(s) && !PREFERS[id].includes('blitz') ? [...PREFERS[id], 'blitz'] : PREFERS[id]);
+
 /**
- * The order a rival tries its schemes in this dawn: a seeded draw that favors the ones it reaches for first. In Act 3
- * (Grounds for Revenge) Cold Brew reaches for its posters before anything else.
+ * The order a rival tries its schemes in this dawn: a seeded draw that favors the ones it reaches for first. A rival
+ * you outsold next door reaches for a price war first. In Act 3 (Grounds for Revenge) Cold Brew reaches for its
+ * posters before anything else.
  */
 function tryOrder(s: GameState, id: RivalId, rng: Rng): SchemeKind[] {
-  const order = drawOrder(id, rng);
-  return campusWalls(s, id) ? ['posters', ...order.filter((k) => k !== 'posters')] : order;
+  let order = drawOrder(s, id, rng);
+  const first = (k: SchemeKind) => { order = [k, ...order.filter((x) => x !== k)]; };
+  if (outsoldAt(s, id).length) first('priceWar');
+  if (campusWalls(s, id)) first('posters');
+  return order;
 }
 
-function drawOrder(id: RivalId, rng: Rng): SchemeKind[] {
-  const left = PREFERS[id].map((kind, i, all) => ({ kind, w: all.length - i }));
+function drawOrder(s: GameState, id: RivalId, rng: Rng): SchemeKind[] {
+  const left = prefers(s, id).map((kind, i, all) => ({ kind, w: all.length - i }));
   const out: SchemeKind[] = [];
   while (left.length > 1) {
     let x = nextRandom(rng) * left.reduce((a, k) => a + k.w, 0);
@@ -99,6 +109,18 @@ export function warFront(s: GameState, id: RivalId): string[] {
     return ps.owner === who && !!ps.stand && !ps.stand.wrecked && PLOT_BY_ID[plotId].type !== 'hq';
   };
   return PLOTS.filter((p) => intact(p.id, id) && nearbyPlots(p).some((q) => intact(q.id, 'player'))).map((p) => p.id);
+}
+
+/**
+ * A rival's stands that one of yours on the same street (within 2 plots) outsold yesterday, in cups: where it answers
+ * with a price war (spec: Peaceful's "outbid or out-priced"). Read at dawn, before the stands open on yesterday's books.
+ */
+export function outsoldAt(s: GameState, id: RivalId): string[] {
+  const mine = (plotId: string) => { const ps = s.plots[plotId]; return ps.owner === 'player' && !!ps.stand && !ps.stand.wrecked ? ps.stand : null; };
+  return warFront(s, id).filter((p) => {
+    const cups = s.plots[p].stand!.day.customers;
+    return nearbyPlots(PLOT_BY_ID[p]).some((q) => (mine(q.id)?.day.customers ?? 0) > cups);
+  });
 }
 
 /** What a day of the war costs the rival at one stand: the cut on every cup it sold, as it shows in its trade. */
@@ -191,49 +213,55 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
   return job;
 }
 
-// ---------- FizzCo's ad blitz ----------
+// ---------- the ad blitz ----------
 
-/** Is FizzCo's mascot working this district today? A blitz is running there, and FizzCo is still in business. */
-export function adBlitzIn(s: GameState, district: DistrictId): boolean {
-  return !!s.schemes?.length && s.rivals.fizzco.alive && runningSchemes(s).some((x) => x.kind === 'blitz' && x.district === district);
+/** Who runs ad blitzes: FizzCo (its Hostile Takeover), and in Peaceful every rival (its marketing stands in for its raids). */
+export const blitzes = (s: GameState, id: RivalId) => id === 'fizzco' || peaceful(s);
+
+/** Is rival `id` (FizzCo's mascot, unless named) blitzing this district today? A blitz is running there, and the rival is still in business. */
+export function adBlitzIn(s: GameState, district: DistrictId, id: RivalId = 'fizzco'): boolean {
+  return !!s.schemes?.length && s.rivals[id].alive && runningSchemes(s).some((x) => x.kind === 'blitz' && x.by === id && x.district === district);
 }
 
-/** marketingMultiplier's ad blitz term: +AD_BLITZ.traffic at FizzCo's stands in the district its mascot works. */
+/** marketingMultiplier's ad blitz term: +AD_BLITZ.traffic at a rival's stands in the district its blitz works. */
 export function adBlitzBoost(s: GameState, owner: FactionId, st?: Stand): number {
-  if (owner !== 'fizzco' || !st || !s.schemes?.some((x) => x.kind === 'blitz' && !x.done)) return 0;
+  if (owner === 'player' || !st || !s.schemes?.some((x) => x.kind === 'blitz' && x.by === owner && !x.done)) return 0;
   const plot = plotOfStand(s, st);
-  return plot && adBlitzIn(s, PLOT_BY_ID[plot].district) ? AD_BLITZ.traffic : 0;
+  return plot && adBlitzIn(s, PLOT_BY_ID[plot].district, owner as RivalId) ? AD_BLITZ.traffic : 0;
 }
 
-/** Where a blitz pulls hardest: the district where most of FizzCo's stands share passers-by with yours (its Downtown on a tie). */
-function blitzTarget(s: GameState): DistrictId | null {
+/** Where a blitz pulls hardest: the district where most of the rival's stands share passers-by with yours (its home on a tie). */
+function blitzTarget(s: GameState, id: RivalId): DistrictId | null {
   const count = new Map<DistrictId, number>();
-  for (const p of warFront(s, 'fizzco')) { const d = PLOT_BY_ID[p].district; count.set(d, (count.get(d) ?? 0) + 1); }
-  const home = (d: DistrictId) => (d === FACTIONS.fizzco.home ? 1 : 0);
+  for (const p of warFront(s, id)) { const d = PLOT_BY_ID[p].district; count.set(d, (count.get(d) ?? 0) + 1); }
+  const home = (d: DistrictId) => (d === FACTIONS[id].home ? 1 : 0);
   return [...count].sort((a, b) => b[1] - a[1] || home(b[0]) - home(a[0]))[0]?.[0] ?? null;
 }
 
-/** FizzCo's ad blitz (Hostile Takeover): from Rank 3, its mascot works one district for 3 days, a day's walk paid each dawn from Strike. */
+/**
+ * An ad blitz (FizzCo's Hostile Takeover; in Peaceful, anyone's): from Rank 3, the rival's campaign works one district
+ * for 3 days, FizzCo's mascot walking it, a day's run paid each dawn from Strike.
+ */
 function startBlitz(s: GameState, id: RivalId): Scheme | null {
-  if (id !== 'fizzco' || s.rank < AD_BLITZ.rank) return null;
-  const district = blitzTarget(s);
+  if (!blitzes(s, id) || s.rank < AD_BLITZ.rank) return null;
+  const district = blitzTarget(s, id);
   if (!district || !canSpend(s, id, 'strike', AD_BLITZ.perDay * AD_BLITZ.days)) return null;
   spend(s, id, 'strike', AD_BLITZ.perDay);
   const plots = PLOTS.filter((p) => p.district === district && s.plots[p.id].owner === id && !!s.plots[p.id].stand && p.type !== 'hq').map((p) => p.id);
   const job: Scheme = { kind: 'blitz', by: id, day: s.day, until: s.day + AD_BLITZ.days - 1, plots, district, cost: AD_BLITZ.perDay };
   s.schemes!.push(job);
-  // world: the radio show can open with FizzCo's jingle while adBlitzIn holds (spec: the radio tips you off).
-  s.news.push(`Bugle: FizzCo's mascot blitzes ${DISTRICT_BY_ID[district].name}: +${Math.round(AD_BLITZ.traffic * 100)}% at its stands`);
+  const where = DISTRICT_BY_ID[district].name, pull = `+${Math.round(AD_BLITZ.traffic * 100)}% at its stands`;
+  s.news.push(id === 'fizzco' ? `Bugle: FizzCo's mascot blitzes ${where}: ${pull}` : `Bugle: ${short(id)} ad blitz in ${where}: ${pull}`);
   return job;
 }
 
-/** Dawn: Strike pays for another day's walk; the blitz ends when its days are up or Strike can't pay. */
+/** Dawn: Strike pays for another day's run; the blitz ends when its days are up or Strike can't pay. */
 function runBlitz(s: GameState, job: Scheme): void {
   if (s.day > job.until) { job.done = true; return; }
   if (!canSpend(s, job.by, 'strike', AD_BLITZ.perDay)) {
     job.done = true;
     job.until = s.day - 1;
-    s.news.push(`Bugle: FizzCo's mascot goes home early`);
+    s.news.push(job.by === 'fizzco' ? `Bugle: FizzCo's mascot goes home early` : `Bugle: ${short(job.by)} ad blitz ends early`);
     return;
   }
   spend(s, job.by, 'strike', AD_BLITZ.perDay);
@@ -495,12 +523,12 @@ export function schemesAtDawn(s: GameState): void {
   }
   s.schemes = s.schemes.filter((x) => !x.done || x.until >= s.day - SCHEMES.keep);
   if (s.day < SCHEMES.from) return;
-  const chance = SCHEMES.chance[threatLevel(s) - 1];
+  const chance = SCHEMES.chance[threatLevel(s) - 1] * (peaceful(s) ? SCHEMES.peaceful : 1); // Peaceful: schemes instead of raids
   const rng = { seed: s.seed };
   for (const id of RIVALS) {
     const r = s.rivals[id];
     if (!r.alive || inTruce(s, id) || runningFor(s, id)) continue;
-    if (nextRandom(rng) >= chance) continue;
+    if (nextRandom(rng) >= chance * (outsoldAt(s, id).length ? SCHEMES.provoked : 1)) continue; // outsold next door: it answers
     for (const kind of tryOrder(s, id, rng)) if (startScheme(s, id, kind, rng)) break;
   }
   s.seed = rng.seed;

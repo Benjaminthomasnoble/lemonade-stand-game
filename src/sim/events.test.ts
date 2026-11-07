@@ -4,7 +4,7 @@ import {
   eventsOf, eventTraffic, expectedCups, expectedPassersby, festivalCrowd, FOOD_CRITIC, HEAT_WAVE, heatWaveDay, heatWaveOn, liveEvent, liveEvents,
   LOTTIES_CORNER, mainSegment, marketLines, newGame, newStand, openStand, plannedWeather, PLOT_BY_ID, PLOTS, RANDOM_EVENTS, registerEvent, scorcherKeep,
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
-  forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn,
+  forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn, ICE_MACHINE_LEVEL, priceCeiling,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
   RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL, expectedDemand, kidsShare,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
@@ -370,6 +370,42 @@ describe('event tickets in the feed', () => {
     expect(eventTickets(s).join('')).toContain('class="cl-ticket red"');
     dawn(s, r.from + 1);
     expect(eventTickets(s).join('')).not.toContain('data-event="roadworks"'); // the Bugle keeps count from here
+  });
+
+  it('every ticket has Go there and a move that plays it at your stand', () => {
+    const s = quietGame(49);
+    s.rank = 4; // campaigns are open
+    const corner = LOTTIES_CORNER, district = PLOT_BY_ID[corner].district;
+    const street = PLOTS.filter((p) => p.district === district && Math.abs(p.col - PLOT_BY_ID[corner].col) <= 1).map((p) => p.id);
+    standIn(s, 'oldtown'); // a stand off any street the event takes
+    s.plots[corner].stand!.level = ICE_MACHINE_LEVEL; // the Power Outage stops its machine
+    const plays: Record<string, string[]> = {};
+    for (const [id, d] of Object.entries(EVENT_DEFS)) {
+      eventsOf(s).on = [];
+      s.selected = corner;
+      const e = force(s, id, d.scope === 'stand' ? { district, plots: [corner] } : d.scope === 'street' ? { district, plots: street } : d.scope === 'district' ? { district } : {});
+      if (e.at !== undefined) {
+        const st = s.plots[corner].stand!, price = st.price;
+        st.inventory.lemons = [{ qty: 20, day: s.day, unitCost: 0.2 }]; // something for the gull to take
+        st.price = 50; // and nobody buys it first
+        openStand(s);
+        while (s.minute < e.at) tickMinute(s);
+        st.price = price;
+      }
+      const card = eventTickets(s).find((t) => t.includes(`data-event="${id}"`));
+      expect(card, id).toBeDefined();
+      plays[id] = [...card!.matchAll(/data-action="(\w+)"/g)].map((m) => m[1]);
+      expect(plays[id][0], id).toBe('goto');
+      expect(plays[id].length, id).toBeGreaterThanOrEqual(2);
+    }
+    expect(plays.roadworks).toEqual(['goto', 'campaign']); // an ad at the Old Town stand
+    expect(plays.captainSquawk).toEqual(['goto', 'restockNow', 'forgive']);
+    for (const id of ['heatWave', 'lemonBlight', 'sugarShortage', 'celebrity', 'touristBus', 'parade', 'powerOutage', 'foodCritic']) expect(plays[id], id).toEqual(['goto', 'restockNow']);
+    // The critic's stand over its ceiling: Fair price brings it back.
+    eventsOf(s).on = [];
+    force(s, 'foodCritic', { district, plots: [corner] });
+    s.plots[corner].stand!.price = priceCeiling(s, corner) + 1;
+    expect(eventTickets(s).join('')).toContain('data-action="priceCeiling"');
   });
 });
 

@@ -1,10 +1,11 @@
 // The random events in the clay HUD's feed (spec: Random events, "each alert card names its counter-play"): a ticket
-// as each one starts, its counter-play under its name, and the buttons that play it (Go there, Restock now). A mid-day
+// as each one starts, its counter-play under its name, and the buttons that play it: Go there, and the move that answers
+// it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks). A mid-day
 // event's ticket stays for as long as it runs; a dawn event's for its first day (the Bugle keeps count after that).
 // Kids' Lemonade Day adds a kid stand's Raid Planner to the plot card, its cost in red first.
 import {
-  canRaidKids, eventDef, eventWhere, ICE_MACHINE_LEVEL, KIDS_DAY, kidsDay, liveEvents, nearbyPlots, peaceful, PLOT_BY_ID, playerStands,
-  type GameState, type WorldEvent,
+  CAMPAIGNS, canRaidKids, canRunCampaign, eventDef, eventWhere, ICE_MACHINE_LEVEL, KIDS_DAY, kidsDay, liveEvents, nearbyPlots, peaceful, PLOT_BY_ID,
+  playerStands, PLOTS, priceCeiling, type CampaignId, type GameState, type WorldEvent,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { btn, esc, locked, once } from './recipes.ts';
@@ -29,20 +30,53 @@ function yourStandsIn(s: GameState, e: WorldEvent): string[] {
   return e.district ? ids.filter((id) => PLOT_BY_ID[id].district === e.district) : [];
 }
 
-/** The buttons that play an event. */
+/** Where Go there takes you: your stand the event touches, else its stand or street, else a stand in its district, else
+ * (a bay-wide event) the stand you have selected. */
+function goal(s: GameState, e: WorldEvent, at: string[]): string {
+  if (at.length) return at[0];
+  if (e.plots?.length) return e.plots[0];
+  const there = e.district ? PLOTS.filter((p) => p.district === e.district) : [];
+  return there.find((p) => s.plots[p.id].stand)?.id ?? there[0]?.id ?? s.selected;
+}
+/** The stand a bay-wide event plays out at: the one you have selected, else your first. */
+const selectedOrFirst = (s: GameState) => (mine(s, s.selected) ? s.selected : playerStands(s).map((p) => p.id).find((id) => mine(s, id)));
+
+/** Roadworks: an ad at one of your stands off the dug-up street (the selected one first): a Sign kid at L1-L3, samples above. */
+function adElsewhere(s: GameState, e: WorldEvent): string {
+  const off = (id: string) => mine(s, id) && !e.plots?.includes(id);
+  const plot = off(s.selected) ? s.selected : playerStands(s).map((p) => p.id).find(off);
+  if (!plot) return '';
+  const id: CampaignId = s.plots[plot].stand!.level <= (CAMPAIGNS.sandwichBoard.maxLevel ?? Infinity) ? 'sandwichBoard' : 'freeSamples';
+  const b = canRunCampaign(s, id, plot);
+  return locked(b) ? '' : btn('campaign', `Ad at ${short(plot)}`, b, `data-id="${id}" data-plot="${plot}"`, 'go');
+}
+
+/** The buttons that play an event: Go there, and the move that answers it at your stand. */
 function acts(s: GameState, e: WorldEvent): string {
   const at = yourStandsIn(s, e);
+  const go = goTo(goal(s, e, at));
+  const here = at[0] ?? (!e.plots?.length && !e.district ? selectedOrFirst(s) : undefined);
+  const fix = here ? restock(here) : '';
   switch (e.id) {
-    case 'viralVideo': return at.length ? goTo(at[0]) + restock(at[0]) : '';
-    case 'parade': return at.slice(0, 2).map((id) => restock(id, at.length > 1 ? `Restock ${short(id)}` : 'Restock now')).join('');
-    case 'foodCritic': case 'celebrity': case 'touristBus': case 'roadworks': return at.length ? goTo(at[0]) : '';
+    case 'parade': return go + at.slice(0, 2).map((id) => restock(id, at.length > 1 ? `Restock ${short(id)}` : 'Restock now')).join('');
+    case 'roadworks': return go + adElsewhere(s, e);
+    case 'foodCritic': { // "fair price": the critic's stand, selected and over its ceiling, goes back to it; else stock it to taste
+      const p = at[0];
+      if (!p) return go;
+      const over = s.selected === p && s.plots[p].stand!.price > priceCeiling(s, p) + 1e-9;
+      return go + (over ? btn('priceCeiling', 'Fair price', { ok: true }, '', 'go') : restock(p));
+    }
     case 'powerOutage': { // "Buy Market ice for those stands": the machine stands in the dark
       const dark = at.filter((id) => s.plots[id].stand!.level >= ICE_MACHINE_LEVEL).slice(0, 2);
-      return dark.map((id) => restock(id, dark.length > 1 ? `Ice ${short(id)}` : 'Buy ice')).join('');
+      return go + (dark.length ? dark.map((id) => restock(id, dark.length > 1 ? `Ice ${short(id)}` : 'Buy ice')).join('') : fix);
     }
-    case 'captainSquawk': return at.length ? restock(at[0]) + btn('forgive', 'Forgive him', { ok: true }, `data-plot="${at[0]}"`) : '';
-    case 'kidsDay': { const k = kidNextToYou(s, e); return k ? goTo(k) : ''; }
-    default: return '';
+    case 'captainSquawk': return go + (at.length ? restock(at[0]) + btn('forgive', 'Forgive him', { ok: true }, `data-plot="${at[0]}"`) : '');
+    case 'kidsDay': { // the kid stand taking your walkers, and your stand next to it
+      const k = kidNextToYou(s, e);
+      const yours = k ? nearbyPlots(PLOT_BY_ID[k]).find((q) => mine(s, q.id))?.id : undefined;
+      return k && yours ? goTo(k) + restock(yours) : go + fix;
+    }
+    default: return go + fix; // Heat Wave, Lemon Blight, Sugar Shortage, Viral Video, Celebrity Sighting, Tourist Bus
   }
 }
 

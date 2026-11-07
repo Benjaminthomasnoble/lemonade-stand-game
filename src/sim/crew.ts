@@ -1004,10 +1004,12 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
     const ps = s.plots[p.id];
     if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
     const f = FACTIONS[ps.owner as RivalId];
-    if (nextRandom(rng) < f.guard + 0.2) { ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; ps.invested += PERIMETERS[0].cost; }
+    const fenced = nextRandom(rng);
+    if (fenced < f.guard + 0.2) { ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; ps.invested += PERIMETERS[0].cost; }
     ps.garrison = Math.min(postsFor(s, p.id), Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level));
-    const first = rivalKit(ps).gadgets[0]; // the careful ones open with their first gadget too
-    if (first && nextRandom(rng) < f.guard) ps.defense.gadgets = [first];
+    // The most careful of the fenced ones open with their first gadget too: the same roll, so a new game's dice run as before.
+    const first = rivalKit(ps).gadgets[0];
+    if (first && fenced < f.guard) { ps.defense.gadgets = [first]; ps.invested += GADGETS[first].cost; } // counts as building investment, like yours
   }
 }
 

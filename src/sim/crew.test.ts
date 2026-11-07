@@ -7,10 +7,10 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, type RivalId } from './balance.ts';
+import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
@@ -724,6 +724,25 @@ describe('rival plot defenses', () => {
     s.rivals.blenders.cash = 1e6;
     rivalDefenseSpend(s, 'blenders', guardPurse(1e6));
     expect(mine.map((p) => s.plots[p.id].defense.tier)).toEqual([1, 1, 1, 0]);
+  });
+
+  it('a new game opens some fenced rival stands with their kit\'s first gadget, counted as investment', () => {
+    let opened = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = newGame(seed);
+      for (const p of PLOTS) {
+        const ps = s.plots[p.id];
+        if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
+        const base = STAND_LEVELS.slice(0, ps.stand.level).reduce((a, l) => a + l.cost, 0);
+        const fence = ps.defense.tier ? PERIMETERS[0].cost : 0;
+        if (!ps.defense.gadgets.length) { expect(ps.invested).toBe(base + fence); continue; }
+        opened++;
+        expect(ps.defense.tier).toBe(1); // only the fenced ones
+        expect(ps.defense.gadgets).toEqual([rivalKit(ps).gadgets[0]]);
+        expect(ps.invested).toBe(base + fence + GADGETS[ps.defense.gadgets[0]].cost);
+      }
+    }
+    expect(opened).toBeGreaterThan(0);
   });
 
   it('the garrison fights with its kit row\'s weapons and padding, never more than its posts', () => {

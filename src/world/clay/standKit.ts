@@ -215,9 +215,10 @@ export function cardSign(text: string, d: Dress) {
     c.fillStyle = fg; c.fillText(text, w / 2, h / 2 + 4);
   });
 }
-/** The chalkboard price: smudged chalk on green-black. */
-export function chalkPrice(price: number) {
-  const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
+/** The chalkboard price: smudged chalk on green-black. `ceiling` is the stand's top price, chalked small under it. */
+export function chalkPrice(price: number, ceiling?: number) {
+  const usd = (p: number) => (p < 1 ? `${Math.round(p * 100)}¢` : `$${p.toFixed(2)}`);
+  const label = usd(price);
   return (c: CanvasRenderingContext2D, w: number, h: number) => {
     c.fillStyle = '#2f3d38'; c.fillRect(0, 0, w, h);
     c.globalAlpha = 0.08;
@@ -227,6 +228,12 @@ export function chalkPrice(price: number) {
     let size = label.length > 4 ? 92 : 118; c.font = `${size}px ${FONTS.hand}`;
     while (c.measureText(label).width > w * 0.9 && size > 40) { size -= 6; c.font = `${size}px ${FONTS.hand}`; }
     c.fillText(label, w / 2, h * 0.58);
+    // the price tag marks the ceiling (spec: Pricing): lemon chalk, pink once the price is past it
+    if (ceiling !== undefined) {
+      c.font = `28px ${FONTS.hand}`;
+      c.fillStyle = price > ceiling + 1e-9 ? '#F4A3B5' : '#F7C948';
+      c.fillText(`top ${usd(ceiling)}`, w / 2, h * 0.79);
+    }
     // a chalk lemon on top and a pink smile underneath
     c.strokeStyle = '#F7C948'; c.lineWidth = 6; c.lineCap = 'round';
     c.beginPath(); c.ellipse(w * 0.5, h * 0.2, 26, 18, 0, 0, 6.3); c.stroke();

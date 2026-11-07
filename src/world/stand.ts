@@ -19,6 +19,8 @@ import { cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
 export interface StandUpdate {
   price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
   recipe?: string; sweetness?: PropState['sweetness']; stock?: PropState['stock']; stars?: number;
+  /** The stand's price ceiling, marked on the chalkboard under the price. */
+  ceiling?: number;
   /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
   detail?: number;
 }
@@ -449,10 +451,10 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       listen(false);
       disposeTree(group, new Set([kid, lottie]));
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, detail = 0 }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0 }) {
       if (detail !== detailNow) { detailNow = detail; showSmall(); }
       if (busted) open = false; // closed for repairs
-      props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}) });
+      props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}), ...(ceiling !== undefined ? { ceiling } : {}) });
       openNow = open;
       const tq = Math.floor(time * 12) / 12;
       if (tq !== lastTq) {

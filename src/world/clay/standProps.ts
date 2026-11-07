@@ -15,6 +15,8 @@ import { RECIPE_COLOR, cardPlane, chalkPrice, clayMesh, openCard, starGeo, stick
 
 export interface PropState {
   price: number;
+  /** The stand's price ceiling, chalked small under the price. */
+  ceiling?: number;
   /** 0..1: how full the pitcher is. */
   pitcherFill: number;
   recipe: string;
@@ -149,10 +151,10 @@ export function createStandProps(): StandProps {
     B.add(box(0.86, 0.9, 0.03), '#2f3d38', { p: [0, 0.76, -0.2], r: [-0.18, 0, 0], fx: PAPER });
     chalkGeo = B.build();
   }
-  let priceNow = 0.75;
+  let priceNow = 0.75, ceilingNow: number | undefined;
   const chalkTex = canvasTex(256, 256, chalkPrice(priceNow));
   const redraw = chalkTex.userData.redraw as (f: ReturnType<typeof chalkPrice>) => void;
-  whenFonts(() => redraw(chalkPrice(priceNow)));
+  whenFonts(() => redraw(chalkPrice(priceNow, ceilingNow)));
   const board = cardPlane(chalkTex, 0.82, 0.86);
   board.position.set(0, 0.76, 0.255); board.rotation.x = -0.18;
   chalk.add(board);
@@ -277,7 +279,11 @@ export function createStandProps(): StandProps {
       apply(true);
     },
     set(s) {
-      if (s.price !== undefined && Math.abs(s.price - st.price) > 1e-6) { priceNow = s.price; redraw(chalkPrice(s.price)); }
+      const priceMoved = s.price !== undefined && Math.abs(s.price - st.price) > 1e-6;
+      if (priceMoved || (s.ceiling !== undefined && s.ceiling !== ceilingNow)) {
+        priceNow = s.price ?? priceNow; ceilingNow = s.ceiling ?? ceilingNow;
+        redraw(chalkPrice(priceNow, ceilingNow));
+      }
       if (s.open !== undefined && wasOpen !== null && s.open !== wasOpen) pendingOpen = true;
       st = { ...st, ...s, stock: { ...st.stock, ...(s.stock ?? {}) } };
       if (s.open !== undefined) wasOpen = s.open;

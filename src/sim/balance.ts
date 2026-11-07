@@ -126,8 +126,6 @@ export const SEGMENTS: Record<SegmentId, { label: string; priceTolerance: number
 };
 /** How much more of the crowd a segment makes up in its peak hours. placeholder: spec gap (the spec gives no size). */
 export const PEAK_BOOST = 1.8;
-/** Who walks down Maple Row. */
-export const MAPLE_ROW_MIX: Partial<Record<SegmentId, number>> = { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 };
 /** Foot traffic shape over business hours (commute, lunch, afternoon heat, evening stroll). */
 export const HOURLY_TRAFFIC = [0.9, 0.7, 0.7, 0.9, 1.3, 1.2, 1.1, 1.3, 1.3, 1.0, 1.1, 1.0]; // 08..19
 export const BASE_STOP_CHANCE = 0.25;

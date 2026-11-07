@@ -4,7 +4,7 @@
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
 import {
-  AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, priceCeiling,
+  AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
@@ -589,17 +589,20 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   // ---------- Grow: picture cards ----------
   const card = (art: string, title: string, sub: string, action: string, tip = '', extra = '') => `<div class="cl-card" ${tip ? `title="${esc(tip)}"` : ''} ${extra}><span class="cl-pic">${art}</span><span class="cl-txt"><b>${title}</b>${sub ? `<i>${sub}</i>` : ''}</span>${action}</div>`;
-  function levelStats(l: StandLevel) {
-    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(l.topPrice)} · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
+  function levelStats(l: StandLevel, top: number) {
+    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
   }
   function growPanel(s: GameState) {
-    const cur = standLevel(selectedStand(s));
+    const st = selectedStand(s);
+    const cur = standLevel(st);
+    // The top price at this stand: the level's top × the district's tolerance × the card's bonus (the price tag's ceiling).
+    const topAt = (l: StandLevel) => ceilingFor(l.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected));
     const next = STAND_LEVELS[cur.level];
     const top = STAND_LEVELS[STAND_LEVELS.length - 1];
     const bars = (l: StandLevel) => `<span class="cl-bars"><span>${ART.cup()}${meter(l.capacityPerHour / top.capacityPerHour)}</span><span>${ART.head(1)}${meter(l.draw / top.draw)}</span><span>${ART.crate()}${meter(l.storage.lemons / top.storage.lemons)}</span></span>`;
     const up = canUpgradeStand(s);
     const out: string[] = [];
-    if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur)}\nNext: ${levelStats(next)}`, 'data-big'));
+    if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur, topAt(cur))}\nNext: ${levelStats(next, topAt(next))}`, 'data-big'));
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
     for (const id of Object.keys(CAMPAIGNS) as CampaignId[]) {
       const c = CAMPAIGNS[id], b = canRunCampaign(s, id);

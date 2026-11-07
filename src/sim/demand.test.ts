@@ -3,7 +3,7 @@ import {
   appealFor, campaignCost, canRunCampaign, ceilingFor, curbAppeal, dailyService, demandChain, drainQueue, expectedCups, expectedDemand,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
-  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, simulateRestOfDay, STAND_LEVELS, touristPays, withinTwo,
+  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, tickMinute, touristPays, withinTwo,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
 
@@ -83,6 +83,17 @@ describe('pricing: one ceiling per stand', () => {
       expect(ps.stand.price).toBe(Math.round(priceCeiling(s, p.id) * FACTIONS[id].price * 100) / 100);
     }
     expect(rivalPrice('sourwood', 3, PLOT_BY_ID['hilltop-1s'])).toBe(6);
+  });
+
+  it('lets the price tag reach late ceilings', () => {
+    expect(ceilingFor(5, 'hilltop', 'classic')).toBe(14);
+    const st = newStand(5);
+    setPrice(st, 21.84); // an L5 in Hilltop with a +30% card and the Fancy Menu's +20%
+    expect(st.price).toBe(21.84);
+    setPrice(st, 99);
+    expect(st.price).toBe(50);
+    setPrice(st, 0);
+    expect(st.price).toBe(0.05);
   });
 });
 
@@ -340,6 +351,29 @@ describe('district perks at Full Control', () => {
     const sum = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
     expect(lunchRushDay(s, 'oldtown-2n')).toBeCloseTo(1 + (0.5 * (HOURLY_TRAFFIC[4] + HOURLY_TRAFFIC[5])) / sum, 9);
     expect(expectedDemand(s, 'oldtown-2n', warm).visitors).toBeCloseTo(before * lunchRushDay(s, 'oldtown-2n'), 6);
+  });
+
+  it('Power Lunch surges the street itself at lunch, not just the forecast', () => {
+    const lunchWalkers = (on: boolean) => {
+      let n = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const s = newGame(seed);
+        playerStand(s, 'oldtown-2n');
+        if (on) fullControl(s, 'downtown');
+        s.forecast = { kind: 'warm', temp: 80 };
+        openStands(s);
+        s.weather = { kind: 'warm', temp: 80 };
+        const d = s.plots['oldtown-2n'].stand!.day;
+        while (s.minute < 12 * 60) tickMinute(s);
+        const before = d.passersby;
+        while (s.minute < 14 * 60) tickMinute(s);
+        n += d.passersby - before;
+      }
+      return n;
+    };
+    const ratio = lunchWalkers(true) / lunchWalkers(false);
+    expect(ratio).toBeGreaterThan(1.4);
+    expect(ratio).toBeLessThan(1.6);
   });
 
   it('Tourist Trap (the Boardwalk): tourists pay +20% for every cup at your stands', () => {

@@ -408,7 +408,8 @@ function useLemons(st: Stand, n: number): void {
 
 export function setRecipe(st: Stand, id: RecipeId): void { st.recipe = id; }
 export function setSweetness(st: Stand, v: Sweetness): void { st.sweetness = v; }
-export function setPrice(st: Stand, price: number): void { st.price = clamp(round2(price), 0.05, 20); }
+/** The tag runs to $50: late ceilings pass $20 (an L5 in Hilltop with a +30% card is $18.20), and nobody buys at 40% over. */
+export function setPrice(st: Stand, price: number): void { st.price = clamp(round2(price), 0.05, 50); }
 
 export function pitcherNeeds(st: Stand): { lemons: number; sugar: number; icePerCup: number } {
   const r = RECIPES[st.recipe];

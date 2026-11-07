@@ -234,19 +234,28 @@ export function vipAtDawn(s: GameState): void {
   const last = (s.lastOffer ??= {});
   for (const tier of Object.keys(ORDER_TIERS) as OrderTier[]) {
     if (!tierOpen(s, tier).ok) { delete last[tier]; continue; }
-    if (s.offers.length >= MAX_OFFERS || s.offers.some((o) => o.tier === tier)) continue;
     // VIP tiers: the first Supply Deal comes as soon as the Cargo Terminal stands, and no VIP tier goes 10 days without a call.
     if (isVip(tier) && last[tier] === undefined && tier !== 'deal') last[tier] = s.day;
     const due = isVip(tier) && (last[tier] === undefined || s.day - last[tier]! >= VIP_MAX_GAP);
-    const roll = nextRandom(rng);
-    if (!due && roll >= ORDER_TIERS[tier].chance) continue;
-    const o = rollOffer(s, tier, rng);
-    s.offers.push(o);
-    last[tier] = s.day;
-    if (tier === 'deal') s.news.push(`Supply Deal! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles over ${ORDER_TIERS.deal.days} days for ${money(o.pay)}, shipped weekly from your Cargo Terminal.`);
-    else if (isVip(tier)) s.news.push(`VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.`);
+    if (!due && nextRandom(rng) >= offerChance(s, tier)) continue;
+    makeOffer(s, tier, rng);
   }
   s.seed = rng.seed;
+}
+
+/** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 days). */
+export const offerChance = (_s: GameState, tier: OrderTier) => ORDER_TIERS[tier].chance;
+
+/** A new offer in the Order Book. One left unanswered never holds the next back (each tier calls at its own rate), and
+ * a full book lets its oldest offer go, a day early, to make room. */
+function makeOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
+  const o = rollOffer(s, tier, rng);
+  if (s.offers.length >= MAX_OFFERS) s.offers.shift();
+  s.offers.push(o);
+  (s.lastOffer ??= {})[tier] = s.day;
+  if (tier === 'deal') s.news.push(`Supply Deal! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles over ${ORDER_TIERS.deal.days} days for ${money(o.pay)}, shipped weekly from your Cargo Terminal.`);
+  else if (isVip(tier)) s.news.push(`VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.`);
+  return o;
 }
 
 export function acceptOrder(s: GameState, id: string): boolean {

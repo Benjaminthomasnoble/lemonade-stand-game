@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, DELIVERY_WINDOW,
   FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame, nextDue, openStand, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose,
-  PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes, VIP_STAR_BONUS, vipAtDawn, type GameState, type Order,
+  PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, MAX_OFFERS,
+  ORDER_TIERS, type GameState, type Order,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -244,6 +245,26 @@ describe('VIP clients', () => {
     expect(bottleStock(s)).toBe('500 Classic Lemonade, 1,000 Pink Lemonade');
     s.offers.push({ id: 'd', tier: 'deal', client: 'Gulfstream Grocers', qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'mint' });
     expect(orderWhen(s, s.offers[0], true)).toBe(`4 weekly loads to day ${s.day + 28}`);
+  });
+
+  it('offers left unanswered never hold the next back: each tier calls at its own rate, and every 10 days at the least', () => {
+    const { s, field, dock, lot } = vipGame(14);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    buildFacility(s, lot.id, 'bottling');
+    const days = 600;
+    const calls: Record<string, Set<string>> = { caterer: new Set(), heli: new Set(), ship: new Set() };
+    for (let d = 0; d < days; d++) {
+      s.day++;
+      vipAtDawn(s); // nobody answers: the offers sit there until they lapse
+      for (const o of s.offers) calls[o.tier]?.add(o.id);
+      expect(s.offers.length).toBeLessThanOrEqual(MAX_OFFERS);
+    }
+    const per = (t: string) => calls[t].size / days;
+    expect(per('caterer')).toBeCloseTo(ORDER_TIERS.caterer.chance, 1); // about 2 per 5 days
+    expect(per('heli')).toBeGreaterThan(0.3); // about 1 per 3 days
+    expect(per('ship')).toBeGreaterThan(0.2); // about 1 per 5 days, with the 10-day floor on top
+    expect(s.day - s.lastOffer!.ship!).toBeLessThan(VIP_MAX_GAP);
   });
 
   it('an order with no bottles fails and costs a star', () => {

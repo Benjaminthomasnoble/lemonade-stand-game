@@ -11,14 +11,14 @@ import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import type { SlotInfo } from '../save.ts';
-import { isFullMenu, menuScreen, menuUnlocked } from './menus.ts';
+import { isFullMenu, menuScreen, menuUnlocked, plannerTargets } from './menus.ts';
 import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
 import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
 import { scoreParts, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
-import { callBigSqueeze, newStand, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
+import { callBigSqueeze, newStand, PLOT_BY_ID, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
 import { squeezePanel } from './squeeze.ts';
 import { bugleSheet } from './bugle.ts';
 
@@ -232,6 +232,28 @@ describe('the ten menus', () => {
     expect(menuScreen(s, 'corkboard', parts()).match(/data-action="inspect"/g)!.length).toBeGreaterThan(3);
     expect(menuScreen(s, 'registry', parts())).toContain('data-action="inspect"');
     expect(menuScreen(s, 'crew', parts())).toContain('CREW');
+  });
+
+  it("the Raid Planner lists the 12 nearest rival plots and mounts crew's planner for the one picked, the nearest until you pick", () => {
+    const s = newGame(5);
+    const near = plannerTargets(s);
+    expect(near.length).toBe(12);
+    const far = (id: string) => Math.hypot(PLOT_BY_ID[id].x - PLOT_BY_ID[s.selected].x, PLOT_BY_ID[id].z - PLOT_BY_ID[s.selected].z);
+    for (let i = 1; i < near.length; i++) expect(far(near[i])).toBeGreaterThanOrEqual(far(near[i - 1]));
+    for (const id of near) expect(s.plots[id].owner && s.plots[id].owner !== 'player').toBeTruthy();
+    const plan = (target: string | null) => ({ ...parts(), plan: { target, panel: (id: string) => `<div data-testid="raid-planner">PLAN ${id}</div>` } });
+    let html = menuScreen(s, 'planner', plan(null));
+    expect(html.match(/data-action="planTarget"/g)).toHaveLength(12);
+    expect(html).toContain(`PLAN ${near[0]}`);
+    expect(html).toContain(`data-action="inspect" data-plot="${near[0]}"`); // Show on map: its card, where the same planner lives
+    html = menuScreen(s, 'planner', plan(near[3]));
+    expect(html).toContain(`PLAN ${near[3]}`);
+    expect(html).not.toContain(`PLAN ${near[0]}`);
+    expect(html).toMatch(new RegExp(`class="cl-b tiny go" data-action="planTarget" data-plot="${near[3]}"[^>]*aria-pressed="true"`));
+    expect(menuScreen(s, 'planner', plan('nowhere'))).toContain(`PLAN ${near[0]}`); // a pick that's gone: the nearest again
+    expect(menuScreen(s, 'planner', parts())).toContain(`data-action="inspect" data-plot="${near[0]}"`); // no planner handed in: each opens its card
+    for (const id of Object.keys(s.plots)) if (s.plots[id].owner !== 'player') { s.plots[id].stand = null; delete s.plots[id].facility; }
+    expect(menuScreen(s, 'planner', plan(null))).toContain('Nothing to hit right now');
   });
 
   it("the Bugle is world's front page, then the festivals on today, each with district and length, and the offers waiting", () => {

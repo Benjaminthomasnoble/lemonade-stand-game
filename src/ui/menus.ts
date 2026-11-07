@@ -6,10 +6,10 @@
 // pauses the clock (Options); Lottie's Goals is her sticky note and the Stand
 // panel is the stand's own card. Clicks go through the HUD's one listener.
 // The Morning Bugle is world's front page (src/ui/bugle.ts) and the Corkboard
-// the rivals lane's board (corkboard.ts). Until other lanes land their
-// screens, the Planner and Registry list what they cover and open each one's
-// plot card on the map; Rank and Perks shows the rank ladder (Lottie's tips
-// join it later).
+// the rivals lane's board (corkboard.ts). The Raid Planner lists the nearest
+// targets and mounts crew's planner (src/ui/raidPlanner.ts) for the one picked,
+// the same panel as on its plot card; Rank and Perks shows the rank ladder
+// (Lottie's tips join it later).
 import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
@@ -65,6 +65,8 @@ export interface MenuParts {
   goals: Goal[];
   crew: () => string; // the crew roster and Hiring Hall (hud.ts)
   options: Options;
+  /** The Raid Planner's pick (the HUD keeps it) and crew's planner panel for a plot (src/ui/raidPlanner.ts). */
+  plan?: { target: string | null; panel: (plotId: string) => string };
 }
 
 const sheet = (id: MenuView, title: string, body: string) => `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="menu-${id}">
@@ -72,10 +74,11 @@ const sheet = (id: MenuView, title: string, body: string) => `<div class="cl-mod
     <div class="cl-setup-foot"><span></span><button class="cl-link" data-action="menu" data-menu="" data-testid="menu-done">Done</button></div>
   </div></div>`;
 const row = (inner: string) => `<div class="cl-row wrap">${inner}</div>`;
-const plotButton = (s: GameState, id: string, line: string, tip: string) => {
+const plotButton = (s: GameState, id: string, line: string, tip: string, action = 'inspect', on = false) => {
   const ps = s.plots[id];
   const color = ps.owner === 'player' ? '#F7C948' : ps.owner ? hex(FACTIONS[ps.owner as RivalId].color) : '#FFF1D6';
-  return `<button class="cl-b tiny ghost" data-action="inspect" data-plot="${id}" title="${esc(tip)}"><span class="cl-dot" style="background:${color}"></span>${esc(line)}</button>`;
+  const pressed = action === 'inspect' ? '' : ` aria-pressed="${on}"`;
+  return `<button class="cl-b tiny ${on ? 'go' : 'ghost'}" data-action="${action}" data-plot="${id}" title="${esc(tip)}"${pressed}><span class="cl-dot" style="background:${color}"></span>${esc(line)}</button>`;
 };
 
 /** The corner's list of every menu open so far, each with its key. */
@@ -144,10 +147,23 @@ function bugle(s: GameState, celsius: boolean): string {
     ${s.offers.length ? row(`<button class="cl-b go" data-action="menu" data-menu="orders">${s.offers.length} offer${s.offers.length === 1 ? '' : 's'} waiting</button>`) : ''}`);
 }
 
-function planner(s: GameState): string {
+/** The 12 rival plots nearest your selected stand, nearest first: the Raid Planner's list. */
+export function plannerTargets(s: GameState): string[] {
   const home = PLOT_BY_ID[s.selected];
-  const near = raidTargets(s).sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z)).slice(0, 12);
-  return sheet('planner', 'Raid Planner', row(near.map((p) => plotButton(s, p.id, p.name, `${FACTIONS[s.plots[p.id].owner as RivalId].name} · ${DISTRICT_BY_ID[p.district].name}`)).join('') || '<span class="cl-note">Nothing to hit right now</span>'));
+  return raidTargets(s).sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z)).slice(0, 12).map((p) => p.id);
+}
+
+/** The Raid Planner: the nearest targets to pick from, and crew's planner for the one picked (the nearest until you
+ * pick), with a way to its card on the map. Without the HUD's planner, each target opens its plot card. */
+function planner(s: GameState, plan?: MenuParts['plan']): string {
+  const near = plannerTargets(s);
+  if (!near.length) return sheet('planner', 'Raid Planner', row('<span class="cl-note">Nothing to hit right now</span>'));
+  const tip = (id: string) => `${FACTIONS[s.plots[id].owner as RivalId].name} · ${DISTRICT_BY_ID[PLOT_BY_ID[id].district].name}`;
+  if (!plan) return sheet('planner', 'Raid Planner', row(near.map((id) => plotButton(s, id, PLOT_BY_ID[id].name, tip(id))).join('')));
+  const pick = near.find((id) => id === plan.target) ?? near[0];
+  const chips = near.map((id) => plotButton(s, id, PLOT_BY_ID[id].name, tip(id), 'planTarget', id === pick)).join('');
+  const head = row(`<b data-testid="plan-target">${esc(PLOT_BY_ID[pick].name)}</b><span class="cl-note">${esc(tip(pick))}</span><button class="cl-b tiny ghost" data-action="inspect" data-plot="${pick}" title="Fly there and open its card">Show on map</button>`);
+  return sheet('planner', 'Raid Planner', `${row(chips)}${head}${plan.panel(pick)}`);
 }
 
 /** The Big Squeeze: tonight's siege targets, pinned over the rivals' board each siege dawn (squeeze.ts names them;
@@ -171,7 +187,7 @@ export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
     case 'rank': return rank(s);
     case 'bugle': return bugle(s, p.options.celsius);
     case 'crew': return sheet('crew', 'Crew roster', p.crew());
-    case 'planner': return planner(s);
+    case 'planner': return planner(s, p.plan);
     case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', siegePins(s) + corkboardBody(s));
     case 'registry': return registry(s);
     default: return '';

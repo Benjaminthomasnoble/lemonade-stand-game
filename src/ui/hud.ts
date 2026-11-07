@@ -236,6 +236,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   let books = false, moreOpts = false, standMath = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
   let registryTab: RegistryTab = 'buy'; // the Land Registry's tab (the Registry itself is the 'registry' menu)
+  let planTarget: string | null = null; // the Raid Planner menu's pick (src/ui/menus.ts)
   const last = new Map<HTMLElement, string>();
   // A pressed button keeps its markup until release: a live panel (the stand's, mid-day) redraws as it sells,
   // and a button swapped out between press and release never gets its click.
@@ -263,7 +264,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
         : outcomeScreen(s) || (hud.menu === 'registry' ? registryScreen(s, registryTab) // the Land Registry (src/ui/registry.ts)
-          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => (crewPanel(kit, s) || defenseSheet(kit, s, s.selected)) + crewExtras(s), options: hud.options }) : '');
+          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => (crewPanel(kit, s) || defenseSheet(kit, s, s.selected)) + crewExtras(s), options: hud.options, plan: { target: planTarget, panel: (id) => planner.panel(s, id) } }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -400,6 +401,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'priority': onAction({ type: 'priority', plot: d.plot! }); break;
       case 'captive': onAction({ type: 'captive', id: d.id!, choice: d.choice as CaptiveChoice }); break;
       case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': planner.click(d); break;
+      case 'planTarget': planTarget = d.plot ?? null; redraw(); break; // the Raid Planner menu's target (src/ui/menus.ts)
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;

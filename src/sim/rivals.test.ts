@@ -5,7 +5,7 @@ import {
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
-  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS, growLand, sleepUntilDawn, plotsAtDawn, type PlotState,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -292,6 +292,8 @@ describe('what a Faction Buyout buys', () => {
 });
 
 describe('a rival out of the game', () => {
+  const RIVALS = Object.keys(FACTIONS) as RivalId[];
+
   it('gone bust, its HQ still becomes your Trophy, perk and all, like a capture or a buyout', () => {
     for (const how of ['hq', 'buyout', 'bankrupt'] as const) {
       const s = rich(7);
@@ -310,6 +312,59 @@ describe('a rival out of the game', () => {
     expect(s.rivals.hollis.alive).toBe(false);
     expect(hasTrophy(s, 'hollis')).toBe(true);
     expect(s.news).toContain(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red. Their HQ, ${hqPlot('hollis').name}, becomes Lottie's ${TROPHIES.hollis.name}: ${TROPHIES.hollis.perk.toLowerCase()}.`);
+  });
+
+  /** The Blenders go out on Day 8, every rival has the Grow money for anything, and their Fire Sale plots are the only open land. */
+  function fireSale(seed: number) {
+    const s = newGame(seed, { difficulty: 'laidback' });
+    s.day = 8;
+    eliminate(s, 'blenders', 'bankrupt');
+    const sale = PLOTS.filter((p) => s.plots[p.id].dibs?.who === 'player').map((p) => p.id);
+    for (const p of PLOTS) {
+      const ps: PlotState = s.plots[p.id];
+      if (!ps.owner && !sale.includes(p.id)) ps.owner = 'player'; // the rest of the map is spoken for
+    }
+    for (const id of RIVALS) budgetOf(s, id).grow = 10_000_000;
+    return { s, sale };
+  }
+
+  it('no rival buys a Fire Sale plot while your First Dibs runs; once it ends, they may bid for it', () => {
+    let early = 0, late = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const { s, sale } = fireSale(seed);
+      expect(sale.length).toBeGreaterThan(0);
+      const until = s.plots[sale[0]].dibs!.until;
+      expect(until).toBe(s.day + FIRE_SALE.days - 1);
+      for (const day of [s.day, until]) {
+        s.day = day;
+        for (const id of RIVALS) if (s.rivals[id].alive) growLand(s, id, { seed: seed * 7 + day });
+        early += sale.filter((p) => s.plots[p].owner).length;
+      }
+      s.day = until + 1; // the window is over: each unsold plot goes to sealed bids at this dawn (auction.ts)
+      plotsAtDawn(s, { seed: seed * 13 });
+      for (const p of sale) expect(s.plots[p].auction).toMatchObject({ kind: 'fire', closes: s.day + 1 });
+      for (const id of RIVALS) if (s.rivals[id].alive) growLand(s, id, { seed: seed * 17 }); // never off the shelf meanwhile
+      for (const p of sale) expect(s.plots[p].owner ?? null).toBeNull();
+      for (const id of RIVALS) s.rivals[id].cash = 10_000_000;
+      s.day++; // the gavel falls at the next dawn
+      closeAuctions(s);
+      late += sale.filter((p) => s.plots[p].owner && s.plots[p].owner !== 'player').length;
+    }
+    expect(early).toBe(0);
+    expect(late).toBeGreaterThan(0);
+  });
+
+  it('the dawn inside the window leaves the Fire Sale to you (rivals buy before the old dibs clear)', () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const { s, sale } = fireSale(seed);
+      openStand(s);
+      simulateRestOfDay(s);
+      s.raids = [];
+      expect(sleepUntilDawn(s)).toBe(true); // Day 8 to Day 9: the window's last day
+      expect(s.day).toBe(9);
+      for (const p of sale) expect(s.plots[p].owner ?? null).toBeNull();
+      for (const p of sale) expect(s.plots[p].dibs).toMatchObject({ who: 'player', until: 9 });
+    }
   });
 });
 

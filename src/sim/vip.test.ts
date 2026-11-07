@@ -5,9 +5,10 @@ import {
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
-  grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen,
+  grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen, DELIVERY_RAID_CHANCE, raidFought, type BattleReport,
 } from './economy.ts';
 import { rowAmount } from './ledger.ts';
+import { nextRandom } from './rng.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -163,6 +164,55 @@ describe('VIP clients', () => {
     expect(s.cash).toBe(cash + 60000);
     expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
     expect(s.news.at(-1)).toBe('Order fell through: a celebrity wedding. Only 2,000 of 4,000 bottles were loaded in time. (−0.3 star, $60,000 unpaid)');
+  });
+
+  it("a Delivery Raid's hold takes its bottles out of stock: nobody else loads them, and they go out or go with the raiders", () => {
+    const { s, dock } = vipGame(16);
+    s.rank = 8;
+    s.cash = 10_000_000;
+    for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier'); // a Cargo Terminal: 25,000 a trip
+    /** The next pickup's raid roll hits (30%), and the one after it misses. */
+    const rollsARaid = () => { for (let seed = 1; ; seed++) { const r = { seed }; if (nextRandom(r) < DELIVERY_RAID_CHANCE) { s.seed = seed; return; } } };
+    const settle = (o: Order, outcome: BattleReport['outcome']) => {
+      const r = s.raids.find((x) => x.delivery && x.order === o.id)!;
+      s.raids = s.raids.filter((x) => x !== r);
+      raidFought(s, r, { outcome, attacker: r.attacker, defender: 'player', target: dock.id } as BattleReport, true);
+    };
+    const pickup = () => { s.phase = 'open'; s.minute = PICKUP_MINUTE.ship; pickupsAt(s); };
+    // Two Classic orders on one trip, 10,000 bottles: the first is held, so the second finds none ready.
+    s.bottles = 10000;
+    const a = order(s, { id: 'a', tier: 'ship', qty: 10000, pay: 400000, due: s.day + 5, plot: dock.id });
+    const b = order(s, { id: 'b', tier: 'ship', qty: 10000, pay: 400000, due: s.day + 5, plot: dock.id });
+    rollsARaid();
+    pickup();
+    expect(s.heldPickups).toEqual(['a']);
+    expect([a.loading, a.reserved, b.loaded]).toEqual([10000, true, undefined]);
+    expect(s.bottles).toBe(0);
+    const tent = order(s, { id: 'tent', tier: 'caterer', qty: 1000, pay: 6000, due: s.day, plot: undefined });
+    pickupsAtClose(s); // the Caterer Truck at closing can't take the bottles on the trip
+    expect(s.orders).not.toContain(tent);
+    expect(s.news.at(-1)).toMatch(/^Order fell through: Client tent\. Only 0 of 1,000 bottles were ready\./);
+    const cash = s.cash;
+    settle(a, 'repelled'); // held off: the load goes out
+    expect(s.orders).not.toContain(a);
+    expect(s.cash).toBe(cash + 400000);
+    expect((a.loaded ?? 0) + (b.loaded ?? 0)).toBeLessThanOrEqual(10000);
+    expect(s.bottles).toBe(0);
+    expect(a.loading ?? a.reserved).toBeUndefined();
+    // Two Pink orders on one trip, 5,000 Pink and 5,000 Classic: the raiders overrun the first, and the Classic stays put.
+    s.orders = [];
+    s.bottles = 10000;
+    s.bottleStock = { pink: 5000 };
+    const p = order(s, { id: 'p', tier: 'ship', qty: 5000, pay: 200000, due: s.day + 5, plot: dock.id, recipe: 'pink' });
+    const q = order(s, { id: 'q', tier: 'ship', qty: 5000, pay: 200000, due: s.day + 5, plot: dock.id, recipe: 'pink' });
+    rollsARaid();
+    pickup();
+    expect([p.reserved, q.loaded]).toEqual([true, undefined]);
+    settle(p, 'robbed');
+    expect(s.orders).toEqual([q]);
+    expect(bottlesOf(s, 'pink')).toBe(0);
+    expect(bottlesOf(s, 'classic')).toBe(5000);
+    expect(Object.values(s.bottleStock ?? {}).reduce((x, n) => x + (n ?? 0), 0)).toBeLessThanOrEqual(s.bottles);
   });
 
   it('a smashed helipad loads nothing, and the order falls through at its deadline', () => {

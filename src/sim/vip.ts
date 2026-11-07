@@ -39,6 +39,7 @@ export interface Order {
   accepted: boolean;
   loaded?: number; // VIP orders: bottles loaded so far (each pickup pays for its own load)
   loading?: number; // the bottles on the trip a Delivery Raid is holding, until it's fought
+  reserved?: boolean; // those bottles came out of stock when the hold began (older saves' holds: they come out at the end)
   loads?: number; // a Supply Deal: its weekly loads, each due a week after the last
   recipe?: RecipeId; // what the client wants bottled (older orders: Classic); a Local Order pours its stand's card
   bid?: OrderBid; // an offer a rival bids for too: the client weighs both when you take it
@@ -452,7 +453,7 @@ export function dealShortfallPerDay(s: GameState, o: Order): number {
 export const paced = (o: Order) => o.tier === 'deal' || o.tier === 'mega';
 
 /** Bottles an order still has to load. */
-export const bottlesLeft = (o: Order) => Math.max(0, o.qty - (o.loaded ?? 0));
+export const bottlesLeft = (o: Order) => Math.max(0, o.qty - (o.loaded ?? 0) - (o.reserved ? o.loading ?? 0 : 0)); // a held trip's are on the way
 /** Bottles the accepted orders still need. */
 export const bottlesNeeded = (s: GameState) => s.orders.filter((o) => o.tier !== 'local').reduce((a, o) => a + bottlesLeft(o), 0);
 
@@ -547,18 +548,24 @@ export function deliver(s: GameState, o: Order): Pickup | null {
 }
 
 /** The client loads up to `room` bottles, as many as are ready, and pays for them; the last load completes the order (a
- * helicopter order adds 0.2 star). A Delivery Raid rolled on the trip holds it until the raid is fought. */
+ * helicopter order adds 0.2 star). A Delivery Raid rolled on the trip holds it until the raid is fought: its bottles come
+ * out of stock as the hold starts (nobody else loads them meanwhile), and go out, or go with the raiders, when it's over. */
 function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: number } | null {
   const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), bottlesOf(s, orderRecipe(o)));
   if (n <= 0) return null;
   o.loading = n;
   const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: a Delivery Raid is warned and fought on the clock
-  if (held) return { pickup: held, load: n };
+  if (held) {
+    if (!o.reserved && s.heldPickups?.includes(o.id)) { stockBottles(s, orderRecipe(o), -n); o.reserved = true; }
+    return { pickup: held, load: n };
+  }
+  const reserved = o.reserved; // taken out of stock when the hold began (an older save's hold takes them now)
   delete o.loading;
+  delete o.reserved;
   const before = o.loaded ?? 0;
   o.loaded = before + n;
   const pay = withLane(s, o, payFor(o, o.loaded) - payFor(o, before));
-  stockBottles(s, orderRecipe(o), -n);
+  if (!reserved) stockBottles(s, orderRecipe(o), -n);
   book(s, 'orders', pay);
   s.today.revenue = round2(s.today.revenue + pay);
   s.lifetimeCups += n;
@@ -573,10 +580,12 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   return { pickup: { order: o, ok: true }, load: n };
 }
 
-/** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded. */
+/** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded (out of stock since the
+ * hold began; an older save's hold takes them now). */
 export function loseLoad(s: GameState, o: Order): void {
-  stockBottles(s, orderRecipe(o), -(o.loading ?? bottlesLeft(o)));
+  if (!o.reserved) stockBottles(s, orderRecipe(o), -(o.loading ?? bottlesLeft(o)));
   delete o.loading;
+  delete o.reserved;
 }
 
 /** Why a VIP order fell short at closing. */

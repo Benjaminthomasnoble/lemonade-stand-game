@@ -29,7 +29,7 @@ import {
 } from './settings.ts';
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { createHud, type Action } from './ui/hud.ts';
-import { walkerLine } from './ui/stand.ts';
+import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
@@ -318,7 +318,7 @@ async function main() {
       if (Math.hypot(from.plot.x - t.x, from.plot.z - t.z) > STREET_VIEW_RADIUS) continue;
       const dir = Math.random() < 0.5 ? 1 : -1;
       const route = { x0: from.plot.x - dir * PLOT_SPACING * 2.5, x1: from.plot.x + dir * PLOT_SPACING * 2.5, z: from.sidewalkZ, serve: at.serve, grumbleX: at.plot.x };
-      const look = { ...LOOK[e.segment], info: { segment: e.segment, line: walkerLine(state, e) } }; // tap a walker to hear why
+      const look = { ...LOOK[e.segment], info: walkerInfo(state, e) }; // tap a walker to hear why
       const mine = e.owner === 'player';
       if (e.buys) crowd.spawn('sale', route, mine ? (e.price < 1 ? `+${Math.round(e.price * 100)}¢` : `+$${e.price.toFixed(2)}`) : '', look);
       else if (mine && (e.reason === 'soldOut' || e.reason === 'line')) crowd.spawn('miss', route, MISS_TEXT[e.reason], look);
@@ -571,8 +571,8 @@ async function main() {
     const ndc = new THREE.Vector2((e.clientX / canvas.clientWidth) * 2 - 1, -(e.clientY / canvas.clientHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, world.camera);
     const walker = crowd.pick(raycaster.ray);
-    const info = walker?.info as { segment: SegmentId; line: string } | undefined;
-    if (walker && info) { bubbles.say(walker.who, info.line, { who: SEGMENTS[info.segment].label, ms: 2600 }); return; }
+    const info = walker?.info as WalkerInfo | undefined;
+    if (walker && info) { bubbles.say(walker.who, info.line, { who: SEGMENTS[info.segment].label, icon: info.icon, ms: 2600 }); return; }
     act({ type: 'inspect', plot: bay.pick(ndc, world.camera) });
   });
 

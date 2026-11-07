@@ -3,8 +3,8 @@
 // while open. Mounted inside the plot card for your own stands (hud.ts); exact numbers sit in the math table and
 // in title tooltips, the panel itself stays a few words a line.
 import {
-  BASE_STOP_CHANCE, demandChain, FACTIONS, peopleAhead, PERKS, RECIPES, seasonOf, serviceLeft, servingsAvailable, WEATHER,
-  type DemandChain, type GameState, type RivalId, type WalkReason,
+  BASE_STOP_CHANCE, demandChain, FACTIONS, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft, servingsAvailable, WEATHER,
+  type DemandChain, type GameState, type RivalId, type SegmentId, type WalkReason,
 } from '../sim/economy.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
 import * as A from './clay.ts';
@@ -30,7 +30,8 @@ const emote = (k: Emote) => {
 };
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
-const times = (x: number) => `×${(Math.round(x * 100) / 100).toString()}`;
+const num = (x: number) => (Math.round(x * 100) / 100).toString();
+const times = (x: number) => `×${num(x)}`;
 const usd = (n: number) => (n < 1 ? `${Math.round(n * 100)}¢` : `$${n.toFixed(2)}`);
 const n0 = (n: number) => (Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : '∞');
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -43,8 +44,12 @@ function chainFor(s: GameState, plotId: string): DemandChain | null {
   if (!st) return null;
   const w = s.phase === 'prep' ? s.forecast : s.weather;
   const owned = Object.values(s.plots).reduce((a, p) => a + (p.owner === 'player' ? 1 : 0), 0);
-  const key = [plotId, s.day, s.phase, w.kind, st.price, st.recipe, st.sweetness, st.level, st.wrecked ? 1 : 0, s.reputation, s.brandTier,
-    servingsAvailable(st), owned, s.phase === 'prep' ? s.cash : 0, JSON.stringify(st.campaigns)].join('|');
+  // The stands within 2 plots share its customers, so any change next door (a new stand, a smash, a price) counts too.
+  const block = nearbyPlots(PLOT_BY_ID[plotId]).map((q) => {
+    const ps = s.plots[q.id], x = ps.stand;
+    return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}` : '-';
+  }).join(',');
+  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, servingsAvailable(st), owned, block].join('|');
   const m = memo.get(s);
   if (m && m.key === key) return m.chain;
   const chain = demandChain(s, plotId);
@@ -105,8 +110,8 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   if (!st || !c || st.wrecked) return '';
   const I = icon();
   const open = s.phase === 'open';
-  const step1 = `Walk by: ${n0(c.traffic)} × ${times(c.draw)} draw × ${times(c.marketing)} marketing × ${times(c.season)} season × ${times(c.weather)} weather${c.lunch !== 1 ? ` × ${times(c.lunch)} lunch` : ''}`;
-  const step2 = `Stop: 25% × ${times(c.thirst)} thirst × ${times(c.curb)} curb × ${times(c.recipe)} recipe × ${times(c.sweet)} sweetness × ${times(c.priceFit)} price × ${times(c.reputation)} stars`;
+  const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing × ${num(c.season)} season × ${num(c.weather)} weather${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''}`;
+  const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars`;
   const caps: [string, number, boolean][] = open
     ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', servingsAvailable(st), servingsAvailable(st) <= 0]]
     : [['want', c.demand, c.binding === 'demand'], ['pour', c.service, c.binding === 'service'], ['stock', c.stock, c.binding === 'stock']];
@@ -136,13 +141,25 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
  * or why they walked past your stand. Captured when they set off, so it stays true while they walk.
  */
 export function walkerLine(s: GameState, e: { plot: string; at: string; buys: boolean; reason?: WalkReason; price: number; owner: string }): string {
-  if (e.owner === 'player') {
-    const st = s.plots[e.at]?.stand;
-    if (e.buys) return `${st ? RECIPES[st.recipe].label : 'Lemonade'}, ${usd(e.price)}!`;
-    const why = WHY.find(([r]) => r === e.reason)?.[2] ?? 'Not today';
-    return e.reason === 'notThirsty' ? `${why}.` : `${why}!`;
-  }
   const f = FACTIONS[e.owner as RivalId];
-  if (e.buys && f) return `${f.product} at ${f.name}`;
-  return s.plots[e.plot]?.owner === 'player' ? 'Went to a rival' : 'Just passing';
+  if (e.buys) {
+    if (f) return `${f.product} at ${f.name}`;
+    const st = s.plots[e.at]?.stand;
+    return `${st ? RECIPES[st.recipe].label : 'Lemonade'}, ${usd(e.price)}!`;
+  }
+  // Passing your stand for a rival's is the reason, whatever happened over there.
+  const reason = walkerReason(s, e);
+  const why = WHY.find(([r]) => r === reason)?.[2] ?? 'Not today';
+  return reason === 'notThirsty' ? `${why}.` : `${why}!`;
+}
+
+type Walk = Parameters<typeof walkerLine>[1] & { segment: SegmentId };
+const walkerReason = (s: GameState, e: Omit<Walk, 'segment'>): WalkReason | undefined =>
+  FACTIONS[e.owner as RivalId] && s.plots[e.plot]?.owner === 'player' ? 'rival' : e.reason;
+
+/** What a walker carries for a tap: who they are, their line and the street's reaction icon for it. */
+export interface WalkerInfo { segment: SegmentId; line: string; icon: Emote }
+export function walkerInfo(s: GameState, e: Walk): WalkerInfo {
+  const reason = e.buys ? undefined : walkerReason(s, e);
+  return { segment: e.segment, line: walkerLine(s, e), icon: WHY.find(([r]) => r === reason)?.[1] ?? 'bought' };
 }

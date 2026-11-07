@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSave, DAWN_SLOTS, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, SAVE_SLOTS,
-  saveDawn, saveGame, saveSlot, saveUnreadable, slotList,
+  saveDawn, saveGame, saveOnHide, saveSlot, saveUnreadable, slotList,
 } from './save.ts';
 import {
   migrateSave, newGame, openStands, simulateRestOfDay, sleepUntilDawn, startNight, successScore, tickMinute, type GameState,
@@ -97,9 +97,25 @@ describe('the current game', () => {
   it('blocked storage never throws', () => {
     vi.stubGlobal('localStorage', { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } });
     const s = run('a');
-    expect(() => { saveGame(s); saveDawn(s); saveSlot(s, 0); clearSave(); }).not.toThrow();
+    expect(() => { saveGame(s); saveDawn(s); saveSlot(s, 0); clearSave(); saveOnHide(s); }).not.toThrow();
     expect(loadGame()).toBeNull();
     expect(slotList().manual).toEqual([null, null, null]);
+  });
+
+  it('closing the page saves where you are, but never refills a store the player wiped', () => {
+    const { store } = memoryStorage();
+    expect(loadGame()).toBeNull(); // a first visit
+    const s = run('a');
+    expect(saveOnHide(s)).toBe(true);
+    expect(loadGame()!.runId).toBe('a');
+    store.clear(); // the site's data cleared with the game open
+    expect(saveOnHide(s)).toBe(false);
+    expect(store.size).toBe(0);
+    expect(saveGame(s)).toBe(true); // playing on saves again, and so does the next close
+    expect(saveOnHide(s)).toBe(true);
+    clearSave(); // New Game drops the save itself: the next close writes the new run
+    expect(saveOnHide(run('b'))).toBe(true);
+    expect(loadGame()!.runId).toBe('b');
   });
 });
 

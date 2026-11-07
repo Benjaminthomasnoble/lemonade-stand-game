@@ -20,7 +20,7 @@ import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, isVip } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import {
-  clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveSlot,
+  clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
   saveUnreadable, slotList,
 } from './save.ts';
 import {
@@ -535,8 +535,9 @@ async function main() {
   hud.options = options;
   twins = createTwins(uiRoot, () => options.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches, () => options.captions);
   onSaveTrouble(() => hud.toast("Couldn't save: this browser's storage is full."));
-  // Closing the tab or switching away saves where you are (never before a first run has started).
-  const saveNow = () => { if (!hud.setup || hud.setup.cancel) saveGame(state); };
+  // Closing the tab or switching away saves where you are (never before a first run has started, and never into a
+  // store the player has just wiped).
+  const saveNow = () => { if (!hud.setup || hud.setup.cancel) saveOnHide(state); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
   window.addEventListener('pagehide', saveNow);
   if (saveUnreadable()) hud.toast("Couldn't read your saved game. It's kept aside.");

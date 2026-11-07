@@ -71,6 +71,8 @@ function parse(raw: string | null): GameState | null {
 
 // ---------- the current game ----------
 
+let stored = false; // the current game is in storage: this page read it there or wrote it
+
 export function loadGame(): GameState | null {
   const raw = get(KEY);
   const s = parse(raw);
@@ -78,12 +80,23 @@ export function loadGame(): GameState | null {
     unreadable = true;
     if (get(UNREADABLE_KEY) !== raw) put(UNREADABLE_KEY, raw);
   }
+  stored = !!s;
   return s;
 }
-export const saveGame = (s: GameState): boolean => put(KEY, JSON.stringify(s));
+export function saveGame(s: GameState): boolean {
+  const ok = put(KEY, JSON.stringify(s));
+  if (ok) stored = true;
+  return ok;
+}
+/** The page is closing or hidden: save where you are, unless the store was wiped since (the player cleared the
+ * site's data with the game open, so closing the tab must not bring the run back). */
+export function saveOnHide(s: GameState): boolean {
+  if (stored && get(KEY) === null) return false;
+  return saveGame(s);
+}
 
 /** New Game: the current game goes; every slot stays (other runs' saves are theirs). */
-export function clearSave(): void { drop(KEY); }
+export function clearSave(): void { drop(KEY); stored = false; }
 
 // ---------- slots ----------
 

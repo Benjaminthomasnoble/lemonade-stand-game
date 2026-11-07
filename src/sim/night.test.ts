@@ -7,7 +7,7 @@ import {
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
-  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays,
+  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
@@ -634,6 +634,25 @@ describe('your raids travel', () => {
     expect(ids(fights[during.id].report)).toEqual(['g2']);
     expect(mine.back).toBe(25 * 60 + trip + Math.ceil(fights[mine.id].report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + trip);
     expect(s.raids.includes(mine) ? mine.back! > DAWN : true).toBe(true); // home by dawn, or in this morning (below)
+  });
+
+  it("an Eagle Eye out with the squad adds nothing at the post: a raid setting out meanwhile is rolled without the +10%, until they're home", () => {
+    const { s, target } = crewed(4);
+    s.guards[0].trait = 'Eagle Eye';
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    expect(planRaid(s, target, ['g0', 'g1'], 'shakedown', 'tonight')).toBe(true);
+    const mine = s.raids[0];
+    const probe: Raid = { id: 'probe', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: [], detected: false, eta: '00:00' };
+    const seen: { minute: number; spot: number; back?: number }[] = [];
+    night(s, () => { if (s.phase === 'night') seen.push({ minute: s.minute, spot: spotChance(s, probe), back: mine.back }); });
+    const before = seen.filter((x) => x.minute < 25 * 60);
+    const out = seen.filter((x) => x.minute >= 25 * 60 && (x.back === undefined || x.minute < x.back));
+    const home = seen.filter((x) => x.back !== undefined && x.minute >= x.back);
+    expect(before[0].spot).toBe(0.65); // 50%, the Watchtower's 30% and the Eagle Eye's 10%, less 25% at night
+    expect(before.every((x) => x.spot === 0.65)).toBe(true);
+    expect(out.some((x) => x.back !== undefined)).toBe(true); // walking home is still away
+    expect(out.every((x) => x.spot === 0.55)).toBe(true);
+    expect(home.every((x) => x.spot === 0.65)).toBe(true);
   });
 
   it('a raid sent now leaves as the stands open, fights on arrival, and costs Reputation only then', () => {

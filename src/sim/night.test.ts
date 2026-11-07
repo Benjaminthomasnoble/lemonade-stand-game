@@ -6,7 +6,7 @@ import {
   QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
-  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, threatLevel,
+  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 
@@ -659,6 +659,19 @@ describe('Custom difficulty', () => {
     const weak = raidPartyFor(s, 'blenders').slice(0, 1).map((f) => ({ ...f, hit: 1, chop: 1, hp: 1, nerve: 1 }));
     expect(fightRaid(s, { id: 'r2', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: weak, detected: true, eta: '23:00' }, true).outcome).toBe('repelled');
     expect(s.rivals.blenders.respectUntil).toBe(s.day + 1 + 5);
+  });
+
+  it("Busted-only caps a Damaged stand's repair at the Busted fix, as on Laid Back", () => {
+    const repairAt40 = (c: Partial<CustomDifficulty>) => {
+      const s = newGame(9, custom(c));
+      s.rank = 6; s.cash = 100000; s.phase = 'prep';
+      upgradeStand(s, LOTTIES_CORNER);
+      upgradeStand(s, LOTTIES_CORNER);
+      s.plots[LOTTIES_CORNER].stand!.hp = 40;
+      return repairCost(s, LOTTIES_CORNER);
+    };
+    expect(repairAt40({ bustOnly: true })).toBe(405);
+    expect(repairAt40({})).toBeGreaterThan(405);
   });
 
   it('the Cookie Jar slider: Always never ends the run; Never squeezes you out after 3 days In the Red', () => {

@@ -5,7 +5,8 @@
 // back to full HP at dawn. Rebuilds and repairs cost a share of what went into the building itself: a stand's level
 // steps or a facility's tiers, never the plot's fences and gadgets. Pure functions over GameState, like the rest of
 // the sim; nothing here rolls dice.
-import { BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, DIFFICULTY, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { buildingHp, isWrecked, type BattleReport } from './crew.ts';
@@ -111,7 +112,7 @@ export function repairCost(s: GameState, plotId: string): number {
   const base = buildingInvested(ps);
   const max = buildingHp(ps);
   const lost = (max - currentHp(ps)) / max;
-  const fall = ps.owner === 'player' && DIFFICULTY[s.settings.difficulty].bustOnly ? BUSTED_REPAIR_SHARE : REBUILD_SHARE;
+  const fall = ps.owner === 'player' && difficulty(s).bustOnly ? BUSTED_REPAIR_SHARE : REBUILD_SHARE;
   return Math.min(dollarsUp(base * DAMAGE_REPAIR_SHARE * lost), dollarsUp(base * fall));
 }
 

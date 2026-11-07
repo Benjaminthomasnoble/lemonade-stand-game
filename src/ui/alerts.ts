@@ -4,7 +4,7 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  canBuyPerimeter, clockText, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID,
+  canBuyPerimeter, clockText, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -28,8 +28,8 @@ const btn = (action: string, label: string, extra = '', cls = 'tiny') => `<butto
 const SHORT: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders' };
 const place = (id: string) => PLOT_BY_ID[id].name.replace(/ lot /, ' ');
 
-/** A Watchtower on the target sees the party coming (crew's towerCovers widens this to 2 plots once it merges). */
-export const towerSees = (s: GameState, plotId: string) => s.plots[plotId].defense.gadgets.includes('watchtower');
+/** A Watchtower sees the party coming: one on the target, or on the owner's plots within 2 (crew's towerCovers). */
+export const towerSees = (s: GameState, plotId: string) => towerCovers(s, plotId);
 
 function warning(s: GameState, a: Alert, r: Raid): string {
   const ps = s.plots[r.target];

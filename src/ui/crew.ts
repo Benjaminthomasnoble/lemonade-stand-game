@@ -4,7 +4,7 @@
 import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, fenceRepairCost, GADGET_SLOTS,
   GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
-  canPromote, detectionChance, freeAlarm, holdsStronghold, neighborhoodWatch, PROMOTE_LEVEL, SPECIALTIES,
+  canPromote, detectionChance, freeAlarm, holdsStronghold, neighborhoodWatch, PROMOTE_LEVEL, SPECIALTIES, towerFor,
   type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -54,7 +54,9 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
   const perks = [neighborhoodWatch(s) ? 'Neighborhood Watch' : '', holdsStronghold(s, PLOT_BY_ID[id].district) ? 'Stronghold' : ''].filter(Boolean);
   const seen = `<span title="Spots ${pct(night)} of night raids here, ${pct(day)} by day${perks.length ? ` (${perks.join(', ')})` : ''}">${k.meter(night)}</span>`;
   const watch = freeAlarm(s, id) ? `<span class="cl-slot full" title="Neighborhood Watch: a free ${GADGETS.alarm.name} (+15% detection, no slot used)">${k.GADGET_ART.alarm()}</span>` : '';
-  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${seen}${watch}${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
+  const tower = towerFor(s, id);
+  const seenFrom = tower && tower !== id ? `<span class="cl-slot full" title="The ${GADGETS.watchtower.name} at ${k.esc(PLOT_BY_ID[tower].name)} watches this plot too (+30%, no slot used)">${k.GADGET_ART.watchtower()}</span>` : '';
+  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${seen}${watch}${seenFrom}${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
 }
 
 function guardRow(k: Kit, s: GameState, g: Guard): string {

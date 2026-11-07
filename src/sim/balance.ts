@@ -325,7 +325,7 @@ export const GADGETS: Record<GadgetId, { name: string; rank: number; cost: numbe
   slick: { name: 'Lemon-Peel Slick', rank: 4, cost: 250, detection: 0, text: 'The first 3 attackers slip (stunned 4s)' },
   sprinkler: { name: 'Sprinkler Ambush', rank: 4, cost: 800, detection: 0, text: 'Soaked attackers deal 20% less damage' },
   floodlights: { name: 'Floodlights', rank: 5, cost: 1500, detection: 0, text: 'Cancels the night stealth bonus' },
-  watchtower: { name: 'Watchtower', rank: 6, cost: 5000, detection: 0.3, text: '+30% detection' },
+  watchtower: { name: 'Watchtower', rank: 6, cost: 5000, detection: 0.3, text: '+30% detection here and on your plots within 2 (no stacking); shows who is coming' },
 };
 export const GADGET_SLOTS = (standLevel: number) => (standLevel >= 4 ? 3 : 2);
 

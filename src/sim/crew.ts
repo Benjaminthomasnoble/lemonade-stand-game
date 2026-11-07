@@ -12,7 +12,7 @@ import {
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
-import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { newStand, ownedPlots, priceCeiling } from './economy.ts';
@@ -473,15 +473,26 @@ export const strongholdTravelMult = (s: GameState, d: DistrictId) => (holdsStron
 export const freeAlarm = (s: GameState, plotId: string) =>
   s.plots[plotId].owner === 'player' && PLOT_BY_ID[plotId].district === 'maple' && !s.plots[plotId].defense.gadgets.includes('alarm') && neighborhoodWatch(s);
 
+/** The Watchtower that watches this plot: one on it, or on a plot of the same owner within 2 plots (the same "nearby" passersby use). */
+export function towerFor(s: GameState, plotId: string): string | null {
+  const owner = s.plots[plotId].owner;
+  if (!owner) return null;
+  if (s.plots[plotId].defense.gadgets.includes('watchtower')) return plotId;
+  return nearbyPlots(PLOT_BY_ID[plotId]).find((q) => s.plots[q.id].owner === owner && s.plots[q.id].defense.gadgets.includes('watchtower'))?.id ?? null;
+}
+/** Does a Watchtower cover this plot? It adds its 30% once however many reach it, and lets the raid warning show the makeup. */
+export const towerCovers = (s: GameState, plotId: string) => towerFor(s, plotId) !== null;
+
 /** Is there a Sneaky guard in this raiding party? (Their stealth counts once per raid.) */
 export const sneakyIn = (s: GameState, guardIds: string[]) => s.guards.some((g) => guardIds.includes(g.id) && g.trait === 'Sneaky');
 
-/** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights) and a Sneaky raider 25 more. Never below 0%. */
+/** The chance a raid on this plot is spotted: 50% plus gadgets, a Watchtower in range and watchers, capped at 95%; then night takes 25 points off (unless Floodlights) and a Sneaky raider 25 more. Never below 0%. */
 export function detectionChance(s: GameState, plotId: string, night: boolean, sneaky = false): number {
   const ps = s.plots[plotId];
   const mine = ps.owner === 'player';
   const here = mine ? presentGuards(s, plotId) : [];
-  let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].detection, 0);
+  let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + (g === 'watchtower' ? 0 : GADGETS[g].detection), 0);
+  if (towerCovers(s, plotId)) d += GADGETS.watchtower.detection;
   if (freeAlarm(s, plotId)) d += GADGETS.alarm.detection;
   if (here.some((g) => g.trait === 'Eagle Eye')) d += EAGLE_EYE_DETECTION;
   if (here.some((g) => g.specialty === 'lookout')) d += LOOKOUT_DETECTION;

@@ -5,7 +5,7 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
 } from './economy.ts';
 import {
-  availableRaiders, guardFighter, holdsStronghold, neighborhoodWatch, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, strongholdTravelMult, type Guard,
+  availableRaiders, guardFighter, holdsStronghold, neighborhoodWatch, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, strongholdTravelMult, towerCovers, type Guard,
 } from './crew.ts';
 import { CLOSE } from './balance.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
@@ -437,5 +437,28 @@ describe('district control on defense', () => {
     expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.35);
     s.plots['harbor-1n'].owner = 'player';
     expect(detectionChance(s, 'harbor-1n', false)).toBe(0.5);
+  });
+});
+
+describe('the Watchtower', () => {
+  it('covers its plot and its owner\'s plots within 2, once, and nothing past them', () => {
+    const s = newGame(93);
+    expect(LOTTIES_CORNER).toBe('maple-2s');
+    for (const id of ['maple-0n', 'maple-1n', 'maple-4s', 'maple-5n']) s.plots[id].owner = 'player';
+    s.plots[LOTTIES_CORNER].defense.gadgets = ['watchtower'];
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.8);
+    expect(detectionChance(s, 'maple-0n', false)).toBe(0.8); // two lots along, across the street
+    expect(detectionChance(s, 'maple-4s', false)).toBe(0.8);
+    expect(detectionChance(s, 'maple-5n', false)).toBe(0.5); // three along: out of range
+    s.plots['maple-1n'].defense.gadgets = ['watchtower']; // a second tower in range doesn't stack
+    expect(detectionChance(s, 'maple-0n', false)).toBe(0.8);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.8);
+    s.plots['maple-3n'].owner = 'blenders'; // a rival's lot inside the radius gets nothing from yours
+    expect(towerCovers(s, 'maple-3n')).toBe(false);
+    expect(detectionChance(s, 'maple-3n', false)).toBe(0.5);
+    s.plots['maple-3s'].owner = 'blenders';
+    s.plots['maple-3s'].defense.gadgets = ['watchtower']; // ...but theirs watches their own
+    expect(detectionChance(s, 'maple-3n', false)).toBe(0.8);
+    expect(towerCovers(s, 'maple-5n')).toBe(false);
   });
 });

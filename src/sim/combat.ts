@@ -29,6 +29,7 @@ import {
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 import { migrateClubhouse } from './clubhouse.ts';
+import { migrateCaptives } from './captives.ts';
 
 export type Side = 'att' | 'def';
 export type Objective = 'smash' | 'shakedown';
@@ -569,5 +570,6 @@ export function migrateCombat(s: GameState): void {
     }
   }
   migrateClubhouse(s); // one Clubhouse level for the crew becomes a Clubhouse on a Street plot
+  migrateCaptives(s);
   s.combatRules = COMBAT_RULES;
 }

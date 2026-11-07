@@ -47,6 +47,8 @@ import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom } from './clubhouse.ts';
 import { autoDefendSwitch, defendPriorityHere } from './autodefend.ts';
+import { captivesPanel } from './captives.ts';
+import type { CaptiveChoice } from '../sim/captives.ts';
 import { fitGarrison, henchmenOut } from '../sim/garrison.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
@@ -94,6 +96,7 @@ export type Action =
   | { type: 'bell'; raid: string } // Ring the Bell: the Clubhouse reserve in range sets out (warning card, fight bar)
   | { type: 'autodefend' } // Dex's Auto-Defend switch (Crew tab, src/ui/autodefend.ts)
   | { type: 'priority'; plot: string } // Dex's priority for a plot: one pip more (past the top, none)
+  | { type: 'captive'; id: string; choice: CaptiveChoice } // the Nabbed: ransom, let go, recruit, or pay for yours (src/ui/captives.ts)
   | { type: 'raid'; plot: string; guards: string[]; objective: RaidObjective; when: 'now' | 'tonight' }
   | { type: 'scout'; id: string; plot: string }
   | { type: 'replay'; index: number }
@@ -395,6 +398,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'bell': onAction({ type: 'bell', raid: d.raid! }); break;
       case 'autodefend': onAction({ type: 'autodefend' }); break;
       case 'priority': onAction({ type: 'priority', plot: d.plot! }); break;
+      case 'captive': onAction({ type: 'captive', id: d.id!, choice: d.choice as CaptiveChoice }); break;
       case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': planner.click(d); break;
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
@@ -630,8 +634,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const card = (art: string, title: string, sub: string, action: string, tip = '', extra = '') => `<div class="cl-card" ${tip ? `title="${esc(tip)}"` : ''} ${extra}><span class="cl-pic">${art}</span><span class="cl-txt"><b>${title}</b>${sub ? `<i>${sub}</i>` : ''}</span>${action}</div>`;
   const kit: Kit = { ART, btn, card, tape, meter, pips, locked, esc, whole, GADGET_ART, WEAPON_ART };
   const clubs = clubKit(kit); // the Clubhouse panels (src/ui/clubhouse.ts) draw with it
-  /** combat's panels under the crew (Defend tab, Crew roster): Dex's Auto-Defend switch (src/ui/autodefend.ts). */
-  const crewExtras = (s: GameState) => autoDefendSwitch(s);
+  /** combat's panels under the crew (Defend tab, Crew roster): the Nabbed (src/ui/captives.ts), Dex's Auto-Defend switch (src/ui/autodefend.ts). */
+  const crewExtras = (s: GameState) => captivesPanel(clubs, s) + autoDefendSwitch(s);
   const planner = createRaidPlanner(kit, redraw, onAction);
   function levelStats(l: StandLevel, top: number) {
     return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;

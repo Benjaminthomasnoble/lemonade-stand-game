@@ -587,6 +587,12 @@ export const RIVAL_HELP = { share: 0.5, cap: [1, 1, 2, 2, 3] };
  * holds it once guard-posts-cap merges).
  */
 export const AUTO_DEFEND = { rank: 4, top: 3, buildingPosts: 3 };
+/**
+ * Nabbed (spec: Nobody dies): each KO'd raider left behind is Nabbed on this `chance` by the side they raided. Letting
+ * a captive go is worth `release` star; the ransom is their hire fee (GUARD_FEE by level). A rival holds a guard of
+ * yours for `days` days (placeholder: spec gap) before they go over to it (a Loyal one walks home).
+ */
+export const NABBED = { chance: 0.1, release: 0.05, days: 3 };
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

@@ -41,6 +41,7 @@ import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
+import type { Captive } from './captives.ts';
 import { closeTills } from './loot.ts';
 import {
   announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
@@ -266,6 +267,7 @@ export interface GameState {
   syndicate?: SyndicateState; // the rivals' Pact against you: Act 5's first day and the day it formed (syndicate.ts)
   squeeze?: SqueezeState; // campaign: the Big Squeeze, its 7-night siege of Sourwood Manor and what it won (squeeze.ts)
   autoDefend?: boolean; // Dex's Auto-Defend switch, from Rank 4 (autodefend.ts)
+  captives?: Captive[]; // the Nabbed: raiders you hold, and your guards a rival holds (captives.ts)
 }
 
 export type SimEvent =

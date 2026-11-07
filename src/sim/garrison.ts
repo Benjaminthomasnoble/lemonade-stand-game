@@ -34,7 +34,7 @@ export function knockOut(s: GameState, plotId: string, ids: string[], hatchetKos
 }
 
 /** A rival's HQ plot while it still holds it. */
-const hqOf = (s: GameState, rival: string) => PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === rival)?.id ?? null;
+export const hqOf = (s: GameState, rival: string) => PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === rival)?.id ?? null;
 
 /** Henchmen walking back to a plot (help home from a fight): onto its garrison, or on to the HQ if the rival has lost
  * the plot (with no HQ left they're gone). Returns where they went. */

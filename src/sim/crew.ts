@@ -22,6 +22,7 @@ import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { fitGarrison, knockOut } from './garrison.ts';
+import { captivesAtDawn, leftBehind, nabLeftBehind } from './captives.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
@@ -48,6 +49,7 @@ export interface Guard {
   face?: number; // portrait seed (guards from before it existed draw their face from the id)
   specialty?: Specialty; // Lookout, Wrecker or Captain: taken from Level 3, for good
   scoutDay?: number; // a Lookout scouting a rival plot is off their post (and out of raids) this day
+  oldFaction?: RivalId; // Former Rival: the rival they came over from, Nabbed and recruited (captives.ts)
 }
 
 export interface Raid {
@@ -78,7 +80,6 @@ export interface Raid {
   syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
   siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
   help?: { from: string; ids: string[] }[]; // your raid was spotted (reinforce.ts): the henchmen each rival plot sent, home after the fight
-  syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
@@ -264,7 +265,7 @@ export const rebuildStand = (s: GameState, plotId: string): boolean => approveRe
 const FIRST = ['Dash', 'Moxie', 'Tank', 'Lulu', 'Big Sal', 'Pip', 'Rocco', 'Juno', 'Biscuit', 'Marge', 'Ziggy', 'Hank', 'Tess', 'Boomer', 'Nell', 'Gus', 'Kiki', 'Otis', 'Pearl', 'Duke'];
 const LAST = ['Moody', 'Malone', 'Pickles', 'Brickman', 'Quill', 'Sorrel', 'Kettle', 'Bramble', 'Gristle', 'Lark', 'Hobbs', 'Puddle'];
 
-function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
+export function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
   const name = `${FIRST[Math.floor(nextRandom(rng) * FIRST.length)]} ${LAST[Math.floor(nextRandom(rng) * LAST.length)]}`;
   const trait = TRAITS[Math.floor(nextRandom(rng) * TRAITS.length)];
   const face = Math.floor(nextRandom(rng) * 0x7fffffff);
@@ -898,6 +899,8 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     s.battles.length = Math.min(s.battles.length, 6);
     s.news.push(battleHeadline(report));
   }
+  // Aftermath: a beaten raid leaves its KO'd behind, and each may be Nabbed (captives.ts).
+  nabLeftBehind(s, raid.attacker, defender, leftBehind(input.attackers, res), raid.target, res.hatchetKos);
   bugleFight(s, report); // world: the Bugle and 101.5 hear about every fight, rival-vs-rival included
   return report;
 }
@@ -960,6 +963,7 @@ export function crewAtDawn(s: GameState): void {
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
   trainingYard(s); // the reserve at an L2+ Clubhouse earns a day's XP (clubhouse.ts)
+  captivesAtDawn(s); // combat: a rival gives up on your guard's ransom (captives.ts)
   plotsAtDawn(s, rng); // First Dibs, rival rebuilds and lapsed plots (damage.ts)
   // Rivals spend their Guard bucket (rivalAi.ts) on repairs and their kit (rivalDefenseSpend).
   for (const id of RIVALS) {

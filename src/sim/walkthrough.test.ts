@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
 import {
   awayGuards, buildClubhouse, buySupply, CLOSE, creditGuards, DAYTIME_RAID_REP, detectionChance, DIFFICULTY, emptyPosts, fenceRepairCost, fightRaid, GEAR,
-  guardFighter, hhmm, isMajor, LOTTIES_CORNER, newGame, nightStep, openStand, ownedPlots, PERIMETERS, planRaid, PLOT_BY_ID, PLOTS, raidInput, raidNotice, raidOdds,
+  guardFighter, hhmm, isMajor, LOTTIES_CORNER, NABBED, newGame, nightStep, openStand, ownedPlots, PERIMETERS, planRaid, PLOT_BY_ID, PLOTS, raidInput, raidNotice, raidOdds,
   setPrice, simulateRestOfDay, SQUAD_CAP, squadTrip, STAND_HP, startNight, threatLevel, tickMinute, travelMinutes, WEAPONS, type Alert, type BattleReport,
   type GameState, type GadgetId, type Guard, type Raid, type SimEvent, type Trait,
 } from './economy.ts';
@@ -17,6 +17,7 @@ import { DEFAULT_OPTIONS, autoPauses } from '../settings.ts';
 import { battleOf, fencedOf, guardOf, guardsOf, henchmenOf, partyOf } from './fighters.ts';
 import { shakedownLoot } from './loot.ts';
 import { ringTheBell } from './reinforce.ts';
+import { leftBehind, nabLeftBehind } from './captives.ts';
 import { nextRandom } from './rng.ts';
 
 const of = <T extends BattleEvent['type']>(events: BattleEvent[], type: T) => events.filter((e): e is Extract<BattleEvent, { type: T }> => e.type === type);
@@ -136,7 +137,22 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
     expect(report.koed.filter((id) => raid.party!.some((f) => f.id === id))).toHaveLength(4);
   });
 
-  it.todo('aftermath: each of the 4 KO\'d Bros has a 10% chance to be Nabbed (nabbed-captives)');
+  it('aftermath: each of the 4 KO\'d Bros has a 10% chance to be Nabbed', () => {
+    const { s, report } = day26({ bell: true });
+    const bros = leftBehind(report.attackers, report); // beaten off: they're left behind
+    expect(bros).toHaveLength(4);
+    expect(NABBED.chance).toBe(0.1);
+    expect((s.captives ?? []).every((c) => c.from === 'blenders' && c.by === 'player')).toBe(true); // tonight's dice
+    // Over 500 nights' dice, the four rolls nab 10% of them.
+    const t = newGame(26);
+    let nabbed = 0;
+    for (let seed = 1; seed <= 500; seed++) {
+      t.seed = seed;
+      delete t.captives;
+      nabbed += nabLeftBehind(t, 'blenders', 'player', bros, LOTTIES_CORNER).length;
+    }
+    near(nabbed / 2000, 0.1, 0.02);
+  });
 
   // PERIMETERS[1].repair: the Chain-Link's flat $120 for the night's one raid (crew's fence-repair-overnight-flat).
   it('aftermath: the night costs $120 of fence repair', () => {
@@ -359,7 +375,17 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(lou.outUntil).toBe(s.day + 3); // misses two days
   });
 
-  it.todo('aftermath: nobody was left behind, so nobody can be Nabbed (nabbed-captives)');
+  it('aftermath: nobody was left behind, so nobody can be Nabbed', () => {
+    const { res, squad } = day24Fight();
+    expect(res.winner).toBe('att');
+    expect(leftBehind(squad, res)).toEqual([]);
+    expect(leftBehind(squad, { ...res, koed: [squad[3].id] })).toEqual([]); // a KO'd Pip wobbles home with the squad
+    const { s, kiosk } = day24();
+    s.guards = SQUAD.map(([name, trait]) => guardOf('hatchets', 'pro', 5, trait, { name })); // a sure win, to read the aftermath
+    const won = fightRaid(s, { id: 'n', attacker: 'player', target: kiosk, objective: 'shakedown', guards: s.guards.map((g) => g.id), detected: false, eta: '01:00' }, true);
+    expect(won.outcome).toBe('robbed');
+    expect(s.captives).toBeUndefined();
+  });
 
   it('Reputation doesn\'t move at night; by day the same raid costs 0.1 star. Brock\'s Grudge jumps', () => {
     const night = day24(), day = day24();

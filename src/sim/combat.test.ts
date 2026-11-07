@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
+import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
 import {
-  BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, fightRaid, GUARD_BASE, guardFighter, hhmm, hqPlot, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER,
-  migrateSave, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets, resolveNight, squadTrip, STAND_HP, stormHQ, WEAPONS,
-  type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait, type WeaponId,
+  BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad, hqStageInput,
+  hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets, resolveNight,
+  rosterCap, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait,
+  type WeaponId,
 } from './economy.ts';
-import { fitGarrison, knockOut } from './garrison.ts';
+import { fitGarrison, hqOf, knockOut } from './garrison.ts';
+import { canSettle, captivesAtDawn, leftBehind, nabLeftBehind, settleCaptive } from './captives.ts';
+import { nextRandom } from './rng.ts';
 
 let n = 0;
 const fighter = (side: Side, weapon: WeaponId = 'fists', o: Partial<Fighter> = {}): Fighter => ({
@@ -726,6 +729,189 @@ describe('rival henchmen after a fight', () => {
     expect(s.plots[plot].owner).toBeNull();
     expect(s.plots[hq].garrison).toBe(before + 3);
     expect(fitGarrison(s, hq)).toBe(before + 3 - b.koed.filter((id) => b.defenders.some((f) => f.id === id)).length);
+  });
+});
+
+describe('the Nabbed', () => {
+  /** The first seed from which the next k rolls all nab. */
+  const nabbing = (k = 1) => { for (let x = 1; ; x++) { const r = { seed: x }; if (Array.from({ length: k }, () => nextRandom(r)).every((v) => v < NABBED.chance)) return x; } };
+  /** Rank 4, Day 30, and these guards on the crew. */
+  function crewOf(...names: [string, Trait?][]) {
+    const s = newGame(5);
+    s.rank = 4;
+    s.cash = 5000;
+    s.day = 30;
+    s.guards = names.map(([name, trait]) => guard({ name, trait: trait ?? 'Smooth Talker', level: 2 }));
+    return s;
+  }
+  const clone = (s: GameState) => JSON.parse(JSON.stringify(s)) as GameState;
+
+  it("a beaten raid leaves its KO'd behind; winners, a raid that holds the field and one that Falls Back carry theirs home", () => {
+    const party = many(3, 'att');
+    const koed = party.slice(0, 2).map((f) => f.id);
+    expect(leftBehind(party, { outcome: 'repelled', koed }).map((f) => f.id)).toEqual(koed);
+    for (const outcome of ['smashed', 'robbed', 'damaged'] as const) expect(leftBehind(party, { outcome, koed })).toEqual([]);
+    // A real Fall Back: one raider is down when the rest turn for home, and they carry him.
+    const weak = fighter('att', 'fists', { hp: 20 });
+    const input = fight({ attackers: [weak, ...many(2, 'att', 'fists', tough)], defenders: many(2, 'def', 'clubs', tough), standHp: STAND_HP[0] });
+    const res = runBattle(input, { seed: 3 }, [{ t: 8, type: 'fallBack', side: 'att' }]);
+    expect(res).toMatchObject({ outcome: 'repelled', fellBack: 'att' });
+    expect(res.koed).toContain(weak.id);
+    expect(leftBehind(input.attackers, res)).toEqual([]);
+  });
+
+  it('each one left behind is Nabbed on a 10% roll, both ways, and never in a fight between rivals', () => {
+    const s = crewOf(['Pip Quill']);
+    const bros = many(400, 'att', 'fists', { level: 2 });
+    const got = nabLeftBehind(s, 'blenders', 'player', bros, LOTTIES_CORNER);
+    expect(got.length / 400).toBeGreaterThan(NABBED.chance - 0.04);
+    expect(got.length / 400).toBeLessThan(NABBED.chance + 0.04);
+    expect(s.captives).toEqual(got);
+    expect(got.every((c) => c.from === 'blenders' && c.by === 'player' && c.guard!.level === 2)).toBe(true);
+    const seed = s.seed;
+    expect(nabLeftBehind(s, 'blenders', 'hollis', bros, LOTTIES_CORNER)).toEqual([]); // rival against rival: nobody holds anybody
+    expect(s.seed).toBe(seed);
+  });
+
+  it('a raider you nab: their side pays their hire fee, you let them go for +0.05 star, or they join you as a Former Rival', () => {
+    const s = crewOf(['Pip Quill']);
+    s.seed = nabbing();
+    const [c] = nabLeftBehind(s, 'blenders', 'player', many(1, 'att', 'clubs', { level: 3 }), LOTTIES_CORNER, []);
+    expect(c.guard).toMatchObject({ level: 3, fee: GUARD_FEE[2], weapon: 'fists', post: null, outUntil: s.day + 2 }); // seeing stars a day
+    expect(s.alerts!.at(-1)!.text).toBe('You nabbed a Smoothie Bro.');
+    expect(canSettle(s, c.id, 'pay').ok).toBe(false); // they're yours: nothing to pay
+
+    const ransom = clone(s);
+    const theirs = ransom.rivals.blenders.cash;
+    expect(settleCaptive(ransom, c.id, 'ransom')).toBe(true);
+    expect(ransom.cash).toBe(s.cash + GUARD_FEE[2]);
+    expect(ransom.rivals.blenders.cash).toBe(theirs - GUARD_FEE[2]);
+    expect(ransom.captives).toBeUndefined();
+    const broke = clone(s);
+    broke.rivals.blenders.budget = { grow: 0, guard: 0, strike: 0 };
+    expect(canSettle(broke, c.id, 'ransom')).toEqual({ ok: false, why: "The Boardwalk Blenders can't pay" });
+
+    const release = clone(s);
+    expect(settleCaptive(release, c.id, 'release')).toBe(true);
+    expect(release.reputation).toBeCloseTo(s.reputation + NABBED.release, 10);
+    expect(release.guards).toHaveLength(1);
+
+    const recruit = clone(s);
+    expect(settleCaptive(recruit, c.id, 'recruit')).toBe(true);
+    expect(recruit.guards.at(-1)).toMatchObject({ id: c.id, name: c.guard!.name, trait: 'Former Rival', oldFaction: 'blenders', level: 3 });
+    expect(recruit.news.at(-1)).toBe(`${c.guard!.name} (Former Rival) joins the crew.`);
+    expect(recruit.captives).toBeUndefined();
+  });
+
+  it("a Loyal captive won't come over, and a full roster has no bed for one", () => {
+    const s = crewOf(['Pip Quill']);
+    s.seed = nabbing();
+    const [c] = nabLeftBehind(s, 'coldbrew', 'player', many(1, 'att'), LOTTIES_CORNER);
+    c.guard!.trait = 'Loyal';
+    expect(canSettle(s, c.id, 'recruit')).toEqual({ ok: false, why: "Loyal: won't switch sides" });
+    expect(canSettle(s, c.id, 'release').ok).toBe(true);
+    c.guard!.trait = 'Hothead';
+    expect(canSettle(s, c.id, 'recruit').ok).toBe(true);
+    while (s.guards.length < rosterCap(s)) s.guards.push(guard());
+    expect(canSettle(s, c.id, 'recruit')).toEqual({ ok: false, why: 'No bed free' });
+  });
+
+  it('a guard of yours a rival nabs is held for their hire fee, off post and Out; pay, and they come home', () => {
+    const s = crewOf(['Pip Quill']);
+    const [pip] = s.guards;
+    pip.post = LOTTIES_CORNER;
+    pip.outUntil = s.day + 2; // the KO: back in two days
+    s.seed = nabbing();
+    const [c] = nabLeftBehind(s, 'player', 'blenders', [guardFighter(pip, 'att', true)], hqPlot('blenders').id);
+    expect(c).toMatchObject({ id: pip.id, from: 'player', by: 'blenders', until: s.day + 1 + NABBED.days, back: s.day + 2 });
+    expect(pip.post).toBeNull();
+    expect(s.alerts!.at(-1)!.text).toBe(`Smoothie Bros nabbed Pip! Ransom: $${GUARD_FEE[1]}.`);
+    s.day += 2;
+    expect(guardReady(s, pip)).toBe(false); // over the KO, still held
+    expect(canSettle(s, pip.id, 'ransom').ok).toBe(false);
+    s.cash = 100;
+    expect(canSettle(s, pip.id, 'pay')).toEqual({ ok: false, why: `Needs $${GUARD_FEE[1]}` });
+    s.cash = 1000;
+    const theirs = s.rivals.blenders.cash;
+    expect(settleCaptive(s, pip.id, 'pay')).toBe(true);
+    expect(s.cash).toBe(1000 - GUARD_FEE[1]);
+    expect(s.rivals.blenders.cash).toBe(theirs + GUARD_FEE[1]);
+    expect(guardReady(s, pip)).toBe(true);
+    expect(s.captives).toBeUndefined();
+  });
+
+  it('unpaid when the days run out, a guard goes over to the rival and a Loyal one walks home; so does one held by a rival that is finished', () => {
+    const s = crewOf(['Pip Quill'], ['Rosa Lark', 'Loyal'], ['Marnie Hobbs']);
+    const [pip, rosa, marnie] = s.guards;
+    s.seed = nabbing(3);
+    nabLeftBehind(s, 'player', 'blenders', [pip, rosa].map((g) => guardFighter(g, 'att', true)), hqPlot('blenders').id);
+    s.seed = nabbing();
+    nabLeftBehind(s, 'player', 'hollis', [guardFighter(marnie, 'att', true)], hqPlot('hollis').id);
+    expect(s.captives).toHaveLength(3);
+    const hq = hqOf(s, 'blenders')!;
+    const before = s.plots[hq].garrison ?? 0;
+    s.rivals.hollis.alive = false; // finished before the deadline: Marnie walks home at the next dawn
+    s.day++;
+    captivesAtDawn(s);
+    expect(s.captives).toHaveLength(2);
+    expect(guardReady(s, marnie)).toBe(true);
+    for (let d = 2; d <= NABBED.days; d++) { s.day++; captivesAtDawn(s); }
+    expect(s.captives).toHaveLength(2); // still waiting on the ransom
+    s.day++;
+    captivesAtDawn(s);
+    expect(s.guards.map((g) => g.name)).toEqual(['Rosa Lark', 'Marnie Hobbs']);
+    expect(guardReady(s, rosa)).toBe(true);
+    expect(s.plots[hq].garrison).toBe(before + 1); // Pip's a henchman now
+    expect(s.news).toContain('Nobody paid: Pip Quill goes over to The Boardwalk Blenders.');
+    expect(s.news).toContain("Rosa Lark won't switch sides, and walks home.");
+    expect(s.captives).toBeUndefined();
+  });
+
+  it("a raid on you that's beaten off leaves its KO'd in your hands now and then", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const s = setUpCorner([]);
+      s.rank = 4;
+      s.guards = Array.from({ length: 3 }, () => guard({ weapon: 'hatchets', gear: 'pro', level: 5, post: LOTTIES_CORNER }));
+      s.seed = seed;
+      const raid = rivalRaid(s);
+      const b = fightRaid(s, raid, true);
+      if (!s.captives) continue;
+      expect(b.outcome).toBe('repelled');
+      expect(s.captives.length).toBeLessThanOrEqual(b.koed.filter((id) => raid.party.some((f) => f.id === id)).length);
+      expect(s.captives.every((c) => c.from === 'blenders' && c.by === 'player' && c.guard)).toBe(true);
+      return;
+    }
+    throw new Error('nobody nabbed');
+  });
+
+  it("a beaten HQ assault leaves its KO'd behind from every room it fought through, unless it Falls Back", () => {
+    const s = newGame(1);
+    s.rank = 10;
+    s.guards = ['Ann Hobbs', 'Bo Lark', 'Cy Quill'].map((name) => guard({ name }));
+    const squad = s.guards.map((g) => guardFighter(g, 'att', false));
+    const [a, b, c] = squad.map((f) => f.id);
+    const gate = { attackers: squad, koed: [a] } as unknown as BattleReport; // Ann went down at the Gate
+    const input = fight({ attackers: squad.slice(1), defenders: many(2, 'def'), objective: 'smash' });
+    const lost: BattleResult = { winner: 'def', outcome: 'repelled', fenceHpLeft: 0, standHpLeft: 0, koed: [b], fled: [c], hatchetKos: [], hpLeft: {}, duration: 9, events: [] };
+    const held = clone(s);
+    held.seed = nabbing(2);
+    expect(hqStageOver(held, 'blenders', 'yard', input, lost, [gate])).toBe('lost');
+    expect(held.captives!.map((x) => x.id)).toEqual([a, b]);
+    const ran = clone(s);
+    ran.seed = nabbing(2);
+    expect(hqStageOver(ran, 'blenders', 'yard', input, { ...lost, fellBack: 'att' }, [gate])).toBe('lost');
+    expect(ran.captives).toBeUndefined();
+  });
+
+  it('captives keep in a save, and a list that is not one goes', () => {
+    const s = crewOf(['Pip Quill']);
+    s.seed = nabbing();
+    nabLeftBehind(s, 'blenders', 'player', many(1, 'att'), LOTTIES_CORNER);
+    const loaded = migrateSave(clone(s))!;
+    expect(loaded.captives).toEqual(s.captives);
+    const bad = clone(s) as unknown as Record<string, unknown>;
+    bad.captives = 'nobody';
+    expect(migrateSave(bad)!.captives).toBeUndefined();
   });
 });
 

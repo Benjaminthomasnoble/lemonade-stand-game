@@ -11,6 +11,7 @@ import { taught } from '../sim/story.ts';
 import { damageCard } from './damage.ts';
 import type { Kit } from './hud.ts';
 import { nextClubhouse, type ClubKit } from './clubhouse.ts';
+import { heldNote } from './captives.ts';
 import { glyph } from './clay.ts';
 
 /** Each specialty's badge: a watchtower for the Lookout, a boom for the Wrecker, a star for the Captain. */
@@ -74,7 +75,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
   const wb = nextWeapon ? canEquip(s, g.id, nextWeapon) : null, gb = nextGear ? canEquip(s, g.id, nextGear) : null;
   const xp = xpToNext(g);
-  const tip = `${g.name}: L${g.level} ${guardTitle(g)}${g.specialty ? ` ${SPECIALTIES[g.specialty].name}` : ''}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}${g.level < 5 ? `. ${Math.round(xp.progress * 100)}% of the way to ${GUARD_LEVEL_TITLES[g.level]}` : ''}`;
+  const tip = `${g.name}: L${g.level} ${guardTitle(g)}${g.specialty ? ` ${SPECIALTIES[g.specialty].name}` : ''}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : heldNote(s, g) || `, knocked out till day ${g.outUntil}`}${g.level < 5 ? `. ${Math.round(xp.progress * 100)}% of the way to ${GUARD_LEVEL_TITLES[g.level]}` : ''}`;
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">

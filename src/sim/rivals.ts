@@ -17,6 +17,7 @@ import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
 import { onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
+import { leftBehind, nabLeftBehind } from './captives.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -467,6 +468,9 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
   if (!won) {
     s.rivals[id].grudge = Math.min(100, s.rivals[id].grudge + 30);
     s.news.push(`HQ assault on ${plot.name} stalls at the ${stage === 'gate' ? 'Gate' : stage === 'yard' ? 'Yard' : 'Boss Room'}. ${hq.boss} laughs it off.`);
+    // The squad's KO'd are left behind, from every room it fought through, and each may be Nabbed (captives.ts).
+    const earlier = reports.slice(0, -1).flatMap((r) => r.attackers.filter((f) => r.koed.includes(f.id)));
+    nabLeftBehind(s, 'player', id, leftBehind(input.attackers, res, earlier), plot.id, res.hatchetKos);
     finish(s, reports);
     return 'lost';
   }

@@ -42,11 +42,11 @@ describe('Auto-Restock', () => {
     expect(st.autoRestock).toBe(true); // a switch every stand has, on unless it opts out
     playTo(s, 2);
     expect(restockOn(s, st)).toBe(false);
-    expect(s.today.auto).toBeUndefined(); // Lottie doesn't buy on Days 1-2
-    expect(servingsAvailable(st)).toBe(0);
+    expect(s.today.auto).toBeUndefined(); // nothing bought on Days 1-2: Lottie stocks the table for free (story.ts)
+    st.inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 }; // her gift gone, Day 3's dawn buys it all
     playTo(s, AUTO_RESTOCK_DAY);
     expect(restockOn(s, st)).toBe(true);
-    expect(s.news.some((n) => n.includes('From today I stock every stand at dawn'))).toBe(true);
+    expect(s.news.some((n) => n.startsWith('Lottie: "From today'))).toBe(true); // the Market's lesson (story.ts)
     const target = stockTarget(s, LOTTIES_CORNER);
     expect(target).toBe(suggestedTarget(s, LOTTIES_CORNER));
     expect(target).toBeGreaterThan(0);

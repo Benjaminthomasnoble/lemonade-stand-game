@@ -104,7 +104,7 @@ export interface Stand {
   /** People in line right now; it moves at the stand's pour rate (demand.ts). Optional for older saves. */
   queue?: number;
   campaigns: Partial<Record<CampaignId, number>>; // days left
-  autoRestock: boolean; // Auto-Restock's switch: on unless this stand opts out, at work from Day 3 (automation.ts)
+  autoRestock: boolean; // Auto-Restock's switch: on unless this stand opts out, at work from the Market's lesson (automation.ts)
   /** Auto-Restock's stock target in cups: null is the suggestion (the forecast day's expected sales). Missing on older saves. */
   stockTarget?: number | null;
   autoPrice?: boolean; // Marisol's Auto-Price switch (Rank 3): off once you price this stand by hand (automation.ts)

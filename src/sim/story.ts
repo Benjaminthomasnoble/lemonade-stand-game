@@ -207,7 +207,7 @@ export const bennyPitch = (what: number | CampaignId): string => (typeof what ==
  * table answered from Day 1; now Lottie nudges it), Day 7's first sign, which Benny Buzz pitches himself.
  */
 function lessonLines(s: GameState): void {
-  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today you buy your own. Or flip on Auto, and I\'ll do the market runs."');
+  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today the market\'s yours. Auto\'s on, so I stock every stand at dawn: set each one\'s target, or switch it off and buy your own."');
   const [table, wooden] = STAND_LEVELS;
   if (lessonsOn(s) && s.day === LESSON_DAY.upgrade && !playerStands(s).some((p) => s.plots[p.id].stand!.level >= wooden.level)) {
     s.news.push(`Lottie: "Time that table grew up. A Wooden Stand draws ${wooden.draw / table.draw}× the walkers and pours ${wooden.capacityPerHour / table.capacityPerHour}× as fast: ${money(wooden.cost)}, back in 2-4 days."`);

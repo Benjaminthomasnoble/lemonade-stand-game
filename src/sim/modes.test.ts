@@ -122,6 +122,7 @@ describe('loans', () => {
 
   it('takes weekly payments with interest, and two missed payments cost your cheapest plot', () => {
     const s = newGame(9);
+    s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the dawns' only bills are the loan's and the wages
     s.phase = 'report';
     borrow(s, 200);
     s.cash = 10_000;

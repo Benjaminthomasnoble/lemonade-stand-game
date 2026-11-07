@@ -46,6 +46,7 @@ describe("Lottie's stock on Days 1-2", () => {
     expect(servingsAvailable(corner(s))).toBeGreaterThanOrEqual(expectedCups(s, LOTTIES_CORNER, s.forecast));
     expect(s.today.supplies).toBe(0);
     s.plots[LOTTIES_CORNER].stand!.inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 };
+    corner(s).autoRestock = false; // Auto-Restock would stock it at Day 3's dawn, paid (automation.ts)
     playDay(s); // Day 3: from today you buy your own
     expect(s.day).toBe(3);
     expect(taught(s, 'market') && !lottieStocks(s)).toBe(true);
@@ -136,6 +137,7 @@ describe('the Day 5 Steward', () => {
   /** Day 4's stock (bought that morning, so nothing spoils overnight), then Day 5's dawn. */
   const day5 = (s: GameState, lemons = 40, sugar = 100) => {
     s.day = 4;
+    corner(s).autoRestock = false; // Auto-Restock would top the table up after the spill, at the dawn's end (automation.ts)
     corner(s).inventory = { lemons: lemons ? [{ qty: lemons, day: 4, unitCost: 0.2 }] : [], sugar, ice: 0, sugarCost: 0.03, iceCost: 0 };
     nextDawn(s);
     expect(s.day).toBe(5);

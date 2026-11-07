@@ -65,6 +65,7 @@ describe('economy', () => {
 
   it('with no stock thirsty people are turned away and reputation drops', () => {
     const s = newGame(7, { lessons: false }); // you buy your own from Day 1
+    selectedStand(s).autoRestock = false; // and Auto-Restock, at work from Day 1 with the lessons off, is switched off
     openStand(s);
     simulateRestOfDay(s);
     expect(s.today.customers).toBe(0);

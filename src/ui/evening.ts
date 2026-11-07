@@ -5,6 +5,7 @@
 // HUD's one listener (data-action).
 import { canBuyPerimeter, fenceRepairCost, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, rebuildCost, type GameState, type Guard } from '../sim/economy.ts';
 import * as A from './clay.ts';
+import { damageTickets } from './damage.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
@@ -39,6 +40,7 @@ export function repairCards(s: GameState): string[] {
       out.push(`<div class="cl-ticket" title="${esc(`${p.name}: the fence is dented`)}">${art(`fence${ps.defense.tier}`, () => A.fenceSVG(ps.defense.tier))}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${fix}</span></div>`);
     }
   }
+  out.push(...damageTickets(s)); // Damaged buildings: the HP left, and the repair or tonight's booking (src/ui/damage.ts)
   return out;
 }
 

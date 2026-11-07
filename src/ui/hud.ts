@@ -26,6 +26,7 @@ import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
+import { damageHere, damageTickets } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
@@ -55,6 +56,7 @@ export type Action =
   | { type: 'gadget'; plot: string; id: GadgetId }
   | { type: 'repairFence'; plot: string }
   | { type: 'rebuild'; plot: string }
+  | { type: 'repair'; plot: string } // approve a Damaged building's repair
   | { type: 'hire'; id: string }
   | { type: 'fire'; id: string }
   | { type: 'post'; id: string; plot: string | null }
@@ -301,6 +303,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'more': moreOpts = !moreOpts; redraw(); break;
       case 'perimeter': case 'repairFence': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
       case 'gadget': onAction({ type: 'gadget', plot: d.plot!, id: d.id as GadgetId }); break;
+      case 'repair': onAction({ type: 'repair', plot: d.plot! }); break;
       case 'hire': case 'fire': onAction({ type: d.action, id: d.id! }); break;
       case 'post': onAction({ type: 'post', id: d.id!, plot: d.plot || null }); break;
       case 'equip': onAction({ type: 'equip', id: d.id!, item: d.item as WeaponId | GearId }); break;
@@ -431,6 +434,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const ps = s.plots[plotId];
       t.push(`<div class="cl-ticket red">${ART.boom()}<b>${ps.busted ? 'Busted up!' : 'Smashed!'}</b>${btn('rebuild', `${ps.busted ? 'Fix' : 'Rebuild'} ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</div>`);
     }
+    t.push(...damageTickets(s)); // Damaged buildings: the HP left and a repair (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
@@ -712,6 +716,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const pb = canPlotBuyout(s, id);
       actions = (hasBuilding(ps) ? raidPlanner(s, id) : '') + (s.rank >= SITDOWN_RANK && !locked(pb) ? btn('plotBuyout', `Buy it ${whole(plotBuyoutPrice(s, id))}`, pb, `data-plot="${id}" data-testid="plot-buyout"`) : '');
     }
+    actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(s, g)); // station guards from the map
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">

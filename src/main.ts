@@ -17,6 +17,7 @@ import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, isVip } from './sim/economy.ts';
+import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { AUTO_CONTINUE_SECONDS, autoPauses, loadOptions, saveOptions, TEXT_SIZES, type Options, type PauseKind } from './settings.ts';
 import { createHud, type Action } from './ui/hud.ts';
@@ -409,6 +410,7 @@ async function main() {
       case 'gadget': buyGadget(state, a.plot, a.id); break;
       case 'repairFence': repairFence(state, a.plot); break;
       case 'rebuild': rebuildStand(state, a.plot); break;
+      case 'repair': approveRepair(state, a.plot); break;
       case 'hire': hireGuard(state, a.id); break;
       case 'fire': fireGuard(state, a.id); break;
       case 'post': postGuard(state, a.id, a.plot); break;

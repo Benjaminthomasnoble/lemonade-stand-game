@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+import { approveRepair, LOTTIES_CORNER, newGame, PLOTS, upgradeStand, type GameState } from '../sim/economy.ts';
+import { damageHere, damageTickets } from './damage.ts';
+import { repairCards } from './evening.ts';
+
+/** Lottie's Corner as a Kiosk ($4,050, 800 HP, 120 cups an hour) at Morning Prep. */
+function kiosk(): GameState {
+  const s = newGame(21);
+  s.rank = 6;
+  s.cash = 100000;
+  s.phase = 'prep';
+  upgradeStand(s, LOTTIES_CORNER);
+  upgradeStand(s, LOTTIES_CORNER);
+  return s;
+}
+
+describe('the HP readout and the repair', () => {
+  it('a stand at full HP shows a full meter with its points in the tooltip, and no repair', () => {
+    const s = kiosk();
+    const row = damageHere(s, LOTTIES_CORNER);
+    expect(row).toContain('cl-snake hp');
+    expect(row).toContain('--v:1.000');
+    expect(row).toContain('The Kiosk: 800/800 HP');
+    expect(row).not.toContain('data-action="repair"');
+    expect(damageTickets(s)).toEqual([]);
+  });
+
+  it('a Damaged stand of yours shows what it still pours and a Repair button with the price', () => {
+    const s = kiosk();
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    const row = damageHere(s, LOTTIES_CORNER);
+    expect(row).toContain('--v:0.500');
+    expect(row).toContain('400/800 HP. Damaged: pours 60 of 120 cups an hour until repaired');
+    expect(row).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    expect(row).toContain('Repair $304');
+    expect(row).not.toContain('disabled');
+    const [ticket] = damageTickets(s);
+    expect(ticket).toContain('data-testid="damaged"');
+    expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
+    expect(ticket).toContain('Repair $304');
+  });
+
+  it('says why a repair cannot be approved, and shows a booked one as fixing tonight', () => {
+    const s = kiosk();
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    s.phase = 'night';
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('disabled title="Too late tonight: approve it tomorrow"');
+    s.phase = 'report';
+    s.cash = 10;
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('disabled title="Needs $304"');
+    s.cash = 1000;
+    approveRepair(s, LOTTIES_CORNER);
+    const row = damageHere(s, LOTTIES_CORNER);
+    expect(row).toContain('Fixing tonight');
+    expect(row).toContain('Paid $304: good as new at dawn');
+    expect(row).not.toContain('data-action="repair"');
+  });
+
+  it("a rival's Damaged stand shows its meter but no repair; a Wrecked one shows none", () => {
+    const s = kiosk();
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    s.plots[rival.id].stand!.hp = 1;
+    const row = damageHere(s, rival.id);
+    expect(row).toContain('cl-snake hp');
+    expect(row).not.toContain('Repair');
+    s.plots[LOTTIES_CORNER].stand!.wrecked = true;
+    expect(damageHere(s, LOTTIES_CORNER)).toBe('');
+  });
+
+  it('the Evening repair cards list your Damaged buildings', () => {
+    const s = kiosk();
+    s.phase = 'report';
+    expect(repairCards(s).join('')).not.toContain('data-testid="damaged"');
+    s.plots[LOTTIES_CORNER].stand!.hp = 200;
+    const cards = repairCards(s).join('');
+    expect(cards).toContain('data-testid="damaged"');
+    expect(cards).toContain('Repair $456');
+  });
+});

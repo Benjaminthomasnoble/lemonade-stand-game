@@ -2,8 +2,8 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  buildStand, buyPlot, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, netWorth, newGame, openStand, PLOTS, servingsAvailable,
-  simulateRestOfDay, sleepUntilDawn, START, stock, type GameState,
+  buildStand, buyPlot, BUILDING_VALUE_SHARE, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame,
+  openStand, PLOT_BY_ID, PLOTS, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, type GameState,
 } from './economy.ts';
 import { lottieStocks, storyAfterAct, taught } from './story.ts';
 
@@ -58,6 +58,15 @@ describe("Lottie's stock on Days 1-2", () => {
     expect(servingsAvailable(corner(s))).toBe(left);
   });
 
+  it('a stand of yours that runs dry mid-day stays dry: no free refill on Days 1-2', () => {
+    const s = newGame(44);
+    openStand(s);
+    corner(s).inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 };
+    corner(s).pitcherCups = 0;
+    simulateRestOfDay(s);
+    expect(s.today.walkedPast.soldOut).toBeGreaterThan(0);
+  });
+
   it('with the lessons off you buy your own from Day 1, and Auto-Restock works from Day 1', () => {
     const s = newGame(43, { lessons: false });
     expect(lottieStocks(s)).toBe(false);
@@ -66,5 +75,50 @@ describe("Lottie's stock on Days 1-2", () => {
     openStand(s);
     expect(servingsAvailable(corner(s))).toBeGreaterThan(0);
     expect(s.cash).toBeLessThan(START.cash);
+  });
+});
+
+describe("Lottie's side lot (Day 3)", () => {
+  it('is a fixed plot next to the Corner: $300 land and 300 passersby', () => {
+    const lot = PLOT_BY_ID[LOTTIES_SIDE_LOT];
+    expect(lot).toMatchObject({ name: "Lottie's Side Lot", district: 'maple', type: 'street', baseLand: SIDE_LOT.land, baseTraffic: SIDE_LOT.traffic });
+    expect(nearbyPlots(PLOT_BY_ID[LOTTIES_CORNER])).toContain(lot); // right beside it
+    expect(newGame(45).plots[LOTTIES_SIDE_LOT].landValue).toBe(300);
+  });
+
+  it("sells for $300 with a table on Day 3: cash becomes land, with no windfall but the table's share", () => {
+    const s = newGame(46);
+    s.day = 2;
+    nextDawn(s);
+    expect(s.plots[LOTTIES_SIDE_LOT].dibs).toMatchObject({ who: 'player', price: SIDE_LOT.price, table: true });
+    expect(s.news).toContain('Lottie: "Two tables, twice the trouble. You\'ll love it."');
+    s.cash = 400;
+    const before = netWorth(s);
+    expect(buyPlot(s, LOTTIES_SIDE_LOT)).toBe(true);
+    expect(s.cash).toBe(100);
+    expect(s.plots[LOTTIES_SIDE_LOT].stand?.level).toBe(1);
+    // The land is worth what you paid, give or take Maple Row's first growth (the Corner's own table develops it).
+    const ps = s.plots[LOTTIES_SIDE_LOT];
+    expect(ps.landValue - SIDE_LOT.price).toBeLessThan(SIDE_LOT.price * 0.05);
+    expect(netWorth(s) - before).toBeCloseTo(ps.landValue - SIDE_LOT.price + BUILDING_VALUE_SHARE * ps.invested, 2);
+  });
+
+  it("grows with Maple Row like any plot, and a lot you bought early gets Lottie's table anyway", () => {
+    const s = newGame(47);
+    for (const p of PLOTS.filter((q) => q.district === 'maple' && q.type === 'street' && !s.plots[q.id].owner && q.id !== LOTTIES_SIDE_LOT)) {
+      s.plots[p.id].owner = 'player';
+      s.plots[p.id].stand = structuredClone(s.plots[LOTTIES_CORNER].stand);
+      s.plots[p.id].stand!.level = 4;
+    }
+    s.cash = 1000;
+    expect(buyPlot(s, LOTTIES_SIDE_LOT)).toBe(true); // a Rank 1 buy from Day 1, at its $300 land value
+    expect(s.cash).toBe(700);
+    s.day = 2;
+    nextDawn(s);
+    const ps = s.plots[LOTTIES_SIDE_LOT];
+    expect(ps.landValue).toBeGreaterThan(SIDE_LOT.land);
+    expect(ps.landValue).toBeLessThanOrEqual(SIDE_LOT.land * 2);
+    expect(ps.stand?.level).toBe(1); // her table goes up on it
+    expect(ps.dibs).toBeUndefined();
   });
 });

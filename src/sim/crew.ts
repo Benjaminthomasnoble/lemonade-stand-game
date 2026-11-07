@@ -5,14 +5,14 @@
 import {
   CLUBHOUSE, COMBAT, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
-import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
+import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
-import { ownedPlots } from './economy.ts';
+import { newStand, ownedPlots, priceCeiling } from './economy.ts';
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn, raidDamage } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
@@ -103,7 +103,7 @@ export function buildingHp(ps: PlotState): number {
   if (ps.facility) return ps.facility.wrecked ? 0 : FACILITIES[ps.facility.kind].hp[ps.facility.level - 1];
   return 0;
 }
-export const SIDE_LOT_PRICE = 300;
+export const SIDE_LOT_PRICE = SIDE_LOT.price;
 export const TUTORIAL_RAID_DAY = 15; // the night after the Summer Fair
 export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale if it isn't rebuilt by the next dawn but one
 
@@ -634,15 +634,25 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
   }
 }
 
-/** Day 3: Lottie sells you the side lot by the Corner for $300, table included. */
+/**
+ * Day 3: Lottie sells you her side lot next to the Corner for $300, table included. The lot is fixed like the Corner
+ * ($300 land, 300 passersby: src/sim/map.ts), so the sale turns $300 of cash into $300 of land. Bought already on
+ * Days 1-2 and still empty, it gets her table anyway.
+ */
 export function offerSideLot(s: GameState): void {
-  const home = PLOT_BY_ID[LOTTIES_CORNER];
-  const lot = PLOTS.filter((p) => p.district === home.district && p.type === 'street' && !s.plots[p.id].owner)
-    .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))[0];
-  if (!lot) return;
-  s.plots[lot.id].dibs = { who: 'player', until: s.day + 6, price: SIDE_LOT_PRICE, table: true };
-  // A card in the feed (Go There opens the lot), as each day's lesson lands.
-  alert(s, { kind: 'note', text: `Side lot by the Corner: ${money(SIDE_LOT_PRICE)}, table included`, plot: lot.id });
+  const ps = s.plots[LOTTIES_SIDE_LOT];
+  if (ps.owner === 'player') {
+    if (ps.stand || ps.facility) return;
+    ps.stand = newStand(1);
+    ps.stand.price = priceCeiling(s, LOTTIES_SIDE_LOT);
+    ps.invested += STAND_LEVELS[0].cost;
+    alert(s, { kind: 'note', text: "Lottie's table goes up on your side lot", plot: LOTTIES_SIDE_LOT });
+  } else if (!ps.owner) {
+    ps.dibs = { who: 'player', until: s.day + 6, price: SIDE_LOT_PRICE, table: true };
+    // A card in the feed (Go There opens the lot), as each day's lesson lands.
+    alert(s, { kind: 'note', text: `Side lot by the Corner: ${money(SIDE_LOT_PRICE)}, table included`, plot: LOTTIES_SIDE_LOT });
+  } else return;
+  s.news.push('Lottie: "Two tables, twice the trouble. You\'ll love it."');
 }
 
 /** Dex Moody, the first guard, joins free on Day 6 (when raids can start), whatever your rank. */

@@ -1,7 +1,7 @@
 // Citrine Bay (spec section 6): 8 districts, 116 plots, laid out for this
 // game. Pure data: positions are world units (1 = 1 m) used by both the
 // sim (neighbors, travel) and the renderer.
-import type { SegmentId } from './balance.ts';
+import { SIDE_LOT, type SegmentId } from './balance.ts';
 
 export type FactionId = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
 export type DistrictId = 'maple' | 'oldtown' | 'campus' | 'downtown' | 'boardwalk' | 'harbor' | 'groves' | 'hilltop';
@@ -27,7 +27,7 @@ export const DISTRICTS: District[] = [
   {
     id: 'maple', name: 'Maple Row', owner: 'neutral', traffic: [250, 400], land: [600, 1200], mix: { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 },
     feel: 'Leafy suburb, picket fences, sprinklers', origin: [-160, -25], cols: 6, ground: 0x7cbf5a,
-    special: [{ col: 2, side: 1, type: 'street', name: "Lottie's Corner" }, { col: 4, side: 0, type: 'landmark', name: 'Maple Park' }],
+    special: [{ col: 2, side: 1, type: 'street', name: "Lottie's Corner" }, { col: 1, side: 1, type: 'street', name: "Lottie's Side Lot" }, { col: 4, side: 0, type: 'landmark', name: 'Maple Park' }],
   },
   {
     id: 'oldtown', name: 'Old Town', owner: 'contested', traffic: [500, 900], land: [8000, 16000], mix: { kids: 0.15, families: 0.2, seniors: 0.15, students: 0.1, office: 0.15, tourists: 0.15, workers: 0.1 },
@@ -161,6 +161,10 @@ export function buildPlots(): Plot[] {
   const lottie = plots.find((p) => p.name === "Lottie's Corner")!;
   lottie.baseTraffic = 400;
   lottie.baseLand = 300;
+  // Lottie's side lot next to it (sold to you on Day 3) is fixed too: 300 passersby, $300 land.
+  const side = plots.find((p) => p.name === "Lottie's Side Lot")!;
+  side.baseTraffic = SIDE_LOT.traffic;
+  side.baseLand = SIDE_LOT.land;
   return plots;
 }
 
@@ -180,6 +184,7 @@ function hash(s: string): number {
 export const PLOTS: Plot[] = buildPlots();
 export const PLOT_BY_ID: Record<string, Plot> = Object.fromEntries(PLOTS.map((p) => [p.id, p]));
 export const LOTTIES_CORNER = PLOTS.find((p) => p.name === "Lottie's Corner")!.id;
+export const LOTTIES_SIDE_LOT = PLOTS.find((p) => p.name === "Lottie's Side Lot")!.id;
 export const DISTRICT_BY_ID: Record<DistrictId, District> = Object.fromEntries(DISTRICTS.map((d) => [d.id, d])) as Record<DistrictId, District>;
 
 /**

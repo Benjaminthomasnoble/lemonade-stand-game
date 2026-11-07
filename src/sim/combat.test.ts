@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
 import {
-  COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, LOTTIES_CORNER, migrateSave, newGame, PERIMETERS, raidPartyFor, STAND_HP, WEAPONS,
-  type GadgetId, type GameState, type GearId, type Guard, type Trait, type WeaponId,
+  canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, LOTTIES_CORNER, migrateSave, newGame, PERIMETERS, raidOdds, raidPartyFor, raidTargets,
+  resolveNight, STAND_HP, WEAPONS, type GadgetId, type GameState, type GearId, type Guard, type Raid, type Trait, type WeaponId,
 } from './economy.ts';
 
 let n = 0;
@@ -101,18 +101,24 @@ describe('Nerve', () => {
 });
 
 describe('Speed and positions', () => {
-  it('Sprinters are 25% faster, reach the fence first and take the goose', () => {
+  it('Sprinters are 25% faster; the squad reaches the fence together, and the goose takes the first in line', () => {
     const pip = asGuard('att', 'clubs', 'none', 'Sprinter');
     expect(pip.speed).toBeCloseTo(COMBAT.speed * 1.25);
     expect(asGuard('att', 'clubs').speed).toBeCloseTo(COMBAT.speed);
     const squad = [asGuard('att', 'clubs'), asGuard('att', 'clubs'), pip];
     const r = runBattle(fight({ attackers: squad, ...fenced(1), gadgets: ['goose'], standHp: 100 }), { seed: 1 });
-    const stun = of(r.events, 'stun');
-    expect(stun).toEqual([{ t: 0, type: 'stun', a: pip.id, by: 'goose' }]);
-    // The others walk the last plot-length in 0.6 s behind her (3 s against 2.4 s), so their first chops come later.
+    expect(of(r.events, 'stun')).toEqual([{ t: 0, type: 'stun', a: squad[0].id, by: 'goose' }]);
+    // Nobody walks in on the fight clock: every first chop comes at contact, but the stunned one's.
     const firstChop = (id: string) => of(r.events, 'chop').find((e) => e.a === id)!.t;
-    expect(firstChop(squad[0].id)).toBe(0.75);
-    expect(firstChop(pip.id)).toBe(3); // stunned for 3 seconds
+    expect(firstChop(squad[1].id)).toBe(0);
+    expect(firstChop(pip.id)).toBe(0);
+    expect(firstChop(squad[0].id)).toBe(3);
+  });
+
+  it('Speed counts inside the fight: a Sprinter gets to the till first', () => {
+    const till = (trait: Trait) =>
+      of(runBattle(fight({ attackers: [{ ...asGuard('att', 'clubs', 'none', trait), ...tough }], perimeter: 2, fenceHp: 5, standHp: 800, objective: 'shakedown' }), { seed: 1 }).events, 'grab')[0].t;
+    expect(till('Sprinter')).toBeLessThan(till('Smooth Talker'));
   });
 
   it('every fighter has a position at contact, and walks in legs the replay can follow', () => {
@@ -123,21 +129,28 @@ describe('Speed and positions', () => {
     expect(at.map((e) => e.a).sort()).toEqual([...squad, dex].map((f) => f.id).sort());
     expect(at.every((e) => e.t === 0)).toBe(true);
     expect(at.find((e) => e.a === dex.id)!.z).toBeLessThan(COMBAT.fenceAt); // behind the fence
-    const pipAt = at.find((e) => e.a === squad[1].id)!, slowAt = at.find((e) => e.a === squad[0].id)!;
-    expect(pipAt.z).toBeCloseTo(COMBAT.fenceAt + COMBAT.reach / 4, 3);
-    expect(slowAt.z).toBeGreaterThan(pipAt.z); // still on the way in
-    expect(of(r.events, 'move').some((e) => e.a === squad[0].id && e.t === 0)).toBe(true);
+    for (const f of squad) expect(at.find((e) => e.a === f.id)!.z).toBeCloseTo(COMBAT.fenceAt + COMBAT.reach / 4, 3); // at it, side by side
+    expect(at.find((e) => e.a === squad[0].id)!.x).toBe(0); // the first in line takes the middle
     expect(at.every((e) => Number.isFinite(e.x) && Number.isFinite(e.z))).toBe(true);
+    // Through the gap to the stand, each leg goes at its walker's Speed.
+    const walk = runBattle(fight({ attackers: squad.map((f) => ({ ...f, ...tough })), perimeter: 2, fenceHp: 5, standHp: 800, objective: 'shakedown' }), { seed: 1 });
+    const legs = of(walk.events, 'move');
+    expect(legs.find((e) => e.a === squad[0].id)!.speed).toBeCloseTo(COMBAT.speed, 3);
+    expect(legs.find((e) => e.a === squad[1].id)!.speed).toBeCloseTo(COMBAT.speed * 1.25, 3);
   });
 
-  it('Barbed Wire slows the walk in by 30%, not the swings', () => {
-    const lagAt = (tier: number) => {
-      const squad = [asGuard('att', 'hatchets', 'pro'), asGuard('att', 'hatchets', 'pro', 'Sprinter')];
-      const r = runBattle(fight({ attackers: squad, ...fenced(tier), standHp: 100 }), { seed: 1 });
-      return of(r.events, 'chop').find((e) => e.a === squad[0].id)!.t;
-    };
-    expect(lagAt(2)).toBe(0.75); // 0.6 s behind the Sprinter
-    expect(lagAt(4)).toBe(1); // 0.6 / 0.7 = 0.86 s behind
+  it('Barbed Wire tangles every raider crossing it at 70% of their Speed, cut or not, and never slows a swing', () => {
+    // The same raider on the same 5 HP of fence: through cut wire, the walk to the till takes longer.
+    const run = (tier: number) => runBattle(fight({ attackers: [fighter('att', 'clubs', tough)], perimeter: tier, fenceHp: 5, standHp: 800, objective: 'shakedown' }), { seed: 1 });
+    const grab = (tier: number) => of(run(tier).events, 'grab')[0].t;
+    expect(grab(4)).toBeGreaterThan(grab(2));
+    const legs = of(run(4).events, 'move');
+    expect(legs[0].speed).toBeCloseTo(COMBAT.speed * 0.7, 3); // in the wire
+    expect(legs[1].speed).toBeCloseTo(COMBAT.speed, 3); // and out of it, the leg announced again
+    expect(of(run(2).events, 'move').every((e) => Math.abs(e.speed - COMBAT.speed) < 1e-3)).toBe(true);
+    // A rival's raiders all share one Speed, and the wire still holds them up.
+    const party = (tier: number) => of(runBattle(fight({ attackers: many(4, 'att', 'clubs', tough), perimeter: tier, fenceHp: 5, standHp: 800, objective: 'shakedown' }), { seed: 1 }).events, 'grab')[0].t;
+    expect(party(4)).toBeGreaterThan(party(2));
     // Five hatchets still breach 2,500 HP of wire on the full swing rate: 13 chops each, the last at t = 18.
     const r = runBattle(fight({ attackers: many(5, 'att', 'hatchets', { hp: 1000 }), ...fenced(4), standHp: 100 }), { seed: 1 });
     expect(of(r.events, 'breach')[0].t).toBe(18);
@@ -181,23 +194,39 @@ describe('swings land for exactly Hit or Chop', () => {
     expect(Math.abs(hatchets.duration - 15.6)).toBeLessThanOrEqual(1);
   });
 
-  it('Day 24: four club guards with first strike chop a Picket Fence down at t = 3', () => {
+  it('four club guards with first strike chop a Picket Fence down at t = 3: three swings each, at 0, 1.5 and 3', () => {
     const squad = [asGuard('att', 'clubs', 'vest'), asGuard('att', 'clubs', 'vest', 'Hothead'), asGuard('att', 'clubs', 'vest', 'Tough Cookie'), asGuard('att', 'clubs', 'vest')];
     const r = runBattle(fight({ attackers: squad, ...fenced(1), standHp: 800, objective: 'shakedown', detected: false }), { seed: 1 });
     expect(of(r.events, 'breach')[0].t).toBe(3);
     expect(of(r.events, 'chop').filter((e) => e.t === 0).every((e) => e.dmg === 12.5)).toBe(true);
   });
 
-  it('Day 24: three club Bros at 22.5 a hit leave a 140-HP guard on 5 HP after 6 hits', () => {
+  it('three club guards at 22.5 a hit put 135 into a 140-HP raider in 6 hits, leaving 5', () => {
     const pip = asGuard('att', 'clubs', 'vest');
     expect(pip.hp).toBe(140);
     const bros = many(3, 'def', 'clubs', tough);
     const r = runBattle(fight({ attackers: [pip], defenders: bros, perimeter: 1, fenceHp: 1e6, standHp: 100 }), { seed: 1 });
     const hits = of(r.events, 'swing').filter((e) => e.b === pip.id);
     expect(hits.slice(0, 6).every((e) => e.dmg === 22.5)).toBe(true);
-    expect(hits.length).toBeGreaterThanOrEqual(6);
     expect(140 - hits.slice(0, 6).reduce((a, e) => a + e.dmg, 0)).toBe(5);
     expect(hits.slice(0, 6).map((e) => e.t)).toEqual([0, 0, 0, 1.5, 1.5, 1.5]);
+  });
+
+  it('Day 24, the whole squad: the goose stuns Dex, first to the fence; the other four breach at t = 3; the Bros are down by 7.5 s', () => {
+    // Dex (Loyal), Rosa (Hothead), Big Lou (Tough Cookie), Pip (Sprinter) and Marnie (Night Owl), clubs and vests, at
+    // night with a first strike, against a Picket Fence, a Tin-Can Alarm, a Guard Goose and 3 club Bros.
+    const names: [string, Trait][] = [['Dex', 'Loyal'], ['Rosa', 'Hothead'], ['Big Lou', 'Tough Cookie'], ['Pip', 'Sprinter'], ['Marnie', 'Night Owl']];
+    const squad = names.map(([name, trait]) => guardFighter(guard({ name, trait, weapon: 'clubs', gear: 'vest' }), 'att', true));
+    const bros = many(3, 'def', 'clubs');
+    const lastDown = (seed: number) => {
+      const r = runBattle(fight({ attackers: squad, defenders: bros, ...fenced(1), gadgets: ['alarm', 'goose'], standHp: STAND_HP[2], objective: 'shakedown', detected: false }), { seed });
+      expect(of(r.events, 'stun')).toEqual([{ t: 0, type: 'stun', a: squad[0].id, by: 'goose' }]);
+      expect(of(r.events, 'breach')[0].t).toBe(3);
+      expect(r.outcome).toBe('robbed');
+      return Math.max(...bros.map((b) => [...of(r.events, 'ko'), ...of(r.events, 'flee')].find((e) => e.a === b.id)?.t ?? Infinity));
+    };
+    expect(lastDown(1)).toBe(7.5); // two drop at 7.5 s, and the Nerve roll sends the third running, as in the walkthrough
+    for (let seed = 2; seed <= 20; seed++) expect(lastDown(seed)).toBeLessThanOrEqual(9); // when he stands, he drops a swing later
   });
 
   it('with no dice to roll, every replay of a fight ends the same way', () => {
@@ -272,6 +301,29 @@ describe('gadgets and objectives', () => {
     whisperer.outUntil = 0;
     s.raids.push({ id: 'away', attacker: 'player', target: 'elsewhere', objective: 'smash', guards: [whisperer.id], detected: false, eta: '01:00' });
     expect(honks()).toBe(1);
+  });
+
+  it('at dawn, a Goose Whisperer out on tonight\'s raid is away from her post for the raid on it, whichever comes first', () => {
+    for (const mineFirst of [true, false]) {
+      const s = setUpCorner(['goose']);
+      s.rank = 4;
+      const wendy = guard({ name: 'Wendy', trait: 'Goose Whisperer', post: LOTTIES_CORNER, weapon: 'clubs' });
+      const rosa = guard({ name: 'Rosa', trait: 'Hothead', post: LOTTIES_CORNER });
+      s.guards.push(wendy, rosa);
+      const target = raidTargets(s)[0].id;
+      s.plots[target].garrison = 0; // nobody home there: she robs it and walks out on her feet
+      s.plots[target].defense = { tier: 0, fenceHp: 0, gadgets: [] };
+      const mine: Raid = { id: 'mine', attacker: 'player', target, objective: 'shakedown', guards: [wendy.id], detected: false, eta: mineFirst ? '23:00' : '03:00' };
+      const theirs = { ...rivalRaid(s), eta: '01:00' };
+      s.raids = [mine, theirs];
+      resolveNight(s);
+      const corner = s.battles.find((b) => b.target === LOTTIES_CORNER)!;
+      expect(corner.defenders.map((d) => d.name)).toEqual(['Rosa']);
+      expect(of(corner.events, 'stun').filter((e) => e.by === 'goose')).toHaveLength(1);
+      expect(s.battles.find((b) => b.target === target)).toMatchObject({ outcome: 'robbed', koed: [] });
+      expect(s.battles.find((b) => b.target === target)!.attackers.map((a) => a.name)).toEqual(['Wendy']);
+      expect(s.raids).toEqual([]);
+    }
   });
 
   it('a Shakedown takes 10 game minutes at the till, with no defender standing', () => {
@@ -373,6 +425,54 @@ describe('Butterfingers', () => {
     expect(g.weapon).toBe('hatchets');
     const plain = runBattle(fight({ attackers: many(3, 'att', 'clubs', tough), defenders: [fighter('def', 'fists', tough)] }), { seed: 5 });
     expect(of(plain.events, 'drop')).toEqual([]);
+  });
+});
+
+describe('the Raid Planner\'s odds', () => {
+  /** A rival Kiosk with a Picket Fence and 3 henchmen whose weapons are drawn fresh each fight (most fists, some clubs). */
+  function kiosk() {
+    const s = newGame(24);
+    s.rank = 4;
+    const id = raidTargets(s).find((p) => s.plots[p.id].stand)!.id;
+    const ps = s.plots[id];
+    ps.stand!.level = 2;
+    ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm'] };
+    ps.garrison = 3;
+    s.guards = [guard({ weapon: 'clubs' }), guard({ weapon: 'clubs' }), guard(), guard()];
+    return { s, id, ids: s.guards.map((g) => g.id) };
+  }
+
+  it('land near what the raid wins when it\'s fought: each run draws its own garrison and detection roll', () => {
+    const { s, id, ids } = kiosk();
+    const odds = raidOdds(s, id, ids, 'shakedown', true);
+    let won = 0;
+    const runs = 300;
+    for (let seed = 1; seed <= runs; seed++) {
+      const t = JSON.parse(JSON.stringify(s)) as GameState;
+      t.seed = seed;
+      if (fightRaid(t, { id: `r${seed}`, attacker: 'player', target: id, objective: 'shakedown', guards: ids, detected: false, eta: '01:00' }, true).outcome === 'robbed') won++;
+    }
+    expect(Math.abs(odds - won / runs)).toBeLessThanOrEqual(0.1);
+    expect(odds).toBeGreaterThan(0.05);
+    expect(odds).toBeLessThan(0.95);
+  });
+
+  it('read the same from day to day, and leave the game\'s dice and ids alone', () => {
+    const { s, id, ids } = kiosk();
+    const seed = s.seed, nextId = s.nextId;
+    const odds = raidOdds(s, id, ids, 'shakedown', true);
+    expect(s.seed).toBe(seed);
+    expect(s.nextId).toBe(nextId);
+    s.day++;
+    s.seed = 12345;
+    expect(raidOdds(s, id, ids, 'shakedown', true)).toBe(odds);
+  });
+
+  it('a plot with a raid of yours playing live there is already planned', () => {
+    const { s, id, ids } = kiosk();
+    expect(canRaid(s, id, ids.slice(2)).ok).toBe(true);
+    s.fight = { id: 'f1', raid: { id: 'live', attacker: 'player', target: id, objective: 'shakedown', guards: ids.slice(0, 2), detected: false, eta: '' }, night: false, input: fight({}), seed: 1, t: 0, ticked: 0, commands: [], side: 'att' };
+    expect(canRaid(s, id, ids.slice(2))).toEqual({ ok: false, why: 'Already planned' });
   });
 });
 

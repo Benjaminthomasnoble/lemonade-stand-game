@@ -3,12 +3,16 @@
 // fight, and the timeline it returns, positions included, is what the 3D
 // replay plays back.
 //
-// The clock starts at contact, when the first raiders reach the fence (or the
-// defenders, or the stand), and one fight-second is one game minute. Every
-// swing lands for exactly its Hit or Chop times the listed multipliers, the
-// first at t = 0 and then one every 1.5 s, and everyone swings at the nearest
-// enemy. The dice are the Nerve and Butterfingers rolls; detection and the
-// raiding party are rolled before the fight.
+// The clock starts at contact, when the raiders reach the fence (or the
+// defenders, or the stand) together, in their line-up's order, and one
+// fight-second is one game minute. Every swing lands for exactly its Hit or
+// Chop times the listed multipliers, the first at t = 0 and then one every
+// 1.5 s, and everyone swings at the nearest enemy. Speed sets how fast each
+// fighter covers the ground inside the fight: closing on the guards after the
+// breach, the walk to the stand and the run home (Sprinters get there first).
+// Barbed Wire tangles every raider who crosses its band at 70% of their Speed,
+// cut or not. The dice are the Nerve and Butterfingers rolls; detection and
+// the raiding party are rolled before the fight.
 //
 // Positions are in plot-lengths on the plot's own frame: x runs across the
 // plot, z out from the stand's front (z = 0) toward the street.
@@ -130,8 +134,9 @@ interface Live {
   speed: number;
   x: number;
   z: number;
-  arrive: number; // attackers: when they reach the line
+  arrive: number; // attackers: when they reach the line (0 at contact; late arrivals later)
   here: boolean;
+  pace: number; // the speed their current leg was announced at (the wire changes it mid-leg)
   cd: number; // seconds until the next swing
   stun: number;
   out: boolean;
@@ -175,32 +180,21 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   const timer = C.objectiveMinutes * FIGHT_SECONDS_PER_GAME_MINUTE;
   const giveUp = C.giveUpSeconds;
   const gap = C.reach / 4; // each side's half of the space across a fence or a scuffle
-  const wireSlow = per?.slow ?? 0; // Barbed Wire: raiders move 30% slower until it falls
+  const wireSlow = per?.slow ?? 0; // Barbed Wire: raiders cross its band 30% slower, standing or cut
 
   // ---- the line-up ----
+  // The raiders reach the line together, in their party's order: the first of them takes the middle.
   const fencedAtStart = !breached;
   const lineA = fencedAtStart ? C.fenceAt + gap : input.defenders.length ? C.holdAt + 2 * gap : gap;
   const lineD = fencedAtStart ? C.fenceAt - gap : C.holdAt;
   const speedOf = (f: Fighter) => f.speed ?? C.speed;
-  const vMax = Math.max(C.speed * 1e-3, ...input.attackers.map(speedOf));
-  const approachSlow = fencedAtStart ? 1 - wireSlow : 1;
   const mk = (f: Fighter, rank: number): Live => ({
     f, side: f.side, rank, hp: f.hp, hit: f.hit, chop: f.chop, weapon: f.weapon, speed: speedOf(f),
-    x: 0, z: 0, arrive: 0, here: f.side === 'def', cd: 0, stun: 0, out: false, ran: false, dropOn: 0, swings: 0, goal: '',
+    x: 0, z: 0, arrive: 0, here: f.side === 'def', pace: 0, cd: 0, stun: 0, out: false, ran: false, dropOn: 0, swings: 0, goal: '',
   });
-  // Raiders walk the last stretch in together; the quick ones reach the line first and take the middle.
-  const lag = (f: Fighter) => C.approach * (1 / speedOf(f) - 1 / vMax) / approachSlow;
-  const order = input.attackers.map((f, i) => ({ f, i, lag: lag(f) })).sort((a, b) => a.lag - b.lag || a.i - b.i);
-  const att = order.map(({ f, lag: l }, k) => {
-    const u = mk(f, k);
-    u.x = slotX(k);
-    u.arrive = Math.ceil(l / STEP - EPS) * STEP;
-    u.z = lineA + C.approach * (1 - u.speed / vMax);
-    return u;
-  });
+  const att = input.attackers.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineA; return u; });
   const def = input.defenders.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineD; return u; });
   for (const u of [...att, ...def]) events.push({ t: 0, type: 'at', a: u.f.id, x: round3(u.x), z: round3(u.z) });
-  for (const u of att) if (u.arrive > 0) { u.goal = 'line'; events.push({ t: 0, type: 'move', a: u.f.id, x: round3(u.x), z: round3(lineA), speed: round3(u.speed * approachSlow) }); }
 
   // Butterfingers: once a fight, a 10% chance the weapon slips on one of the first three swings.
   const butterfingers = (u: Live) => {
@@ -226,18 +220,22 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     return best;
   };
   const inReach = (u: Live, x: number, z: number) => dist(u, x, z) <= C.reach + EPS;
+  /** How fast they cover ground right now: a raider inside Barbed Wire's band goes at 70%. */
+  const paceOf = (u: Live) => (u.side === 'att' && wireSlow && Math.abs(u.z - C.fenceAt) < C.wireBand - EPS ? u.speed * (1 - wireSlow) : u.speed);
   /**
-   * Close in on (x, z) until it's within reach, announcing each new leg once; true when within reach.
-   * Behind a standing fence a defender can only move along it (z stays put).
+   * Close in on (x, z) until it's within reach, announcing each new leg (and each change of pace) once; true when
+   * within reach. Behind a standing fence a defender can only move along it (z stays put).
    */
   const closeIn = (u: Live, goal: string, x: number, z: number, t: number, alongFence = false) => {
     if (inReach(u, x, z)) return true;
     const tz = alongFence ? u.z : z;
     const d = dist(u, x, tz);
-    const go = Math.min(u.speed * STEP, Math.max(0, d - (alongFence ? 0 : C.reach * 0.9)));
-    if (u.goal !== goal) {
+    const pace = paceOf(u);
+    const go = Math.min(pace * STEP, Math.max(0, d - (alongFence ? 0 : C.reach * 0.9)));
+    if (u.goal !== goal || Math.abs(u.pace - pace) > EPS) {
       u.goal = goal;
-      events.push({ t, type: 'move', a: u.f.id, x: round3(x), z: round3(tz), speed: round3(u.speed) });
+      u.pace = pace;
+      events.push({ t, type: 'move', a: u.f.id, x: round3(x), z: round3(tz), speed: round3(pace) });
     }
     if (d > EPS) { u.x += ((x - u.x) / d) * go; u.z += ((tz - u.z) / d) * go; }
     return inReach(u, x, z);
@@ -271,7 +269,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     u.ran = true;
     events.push({ t, type: 'flee', a: u.f.id });
     u.goal = 'home';
-    events.push({ t, type: 'move', a: u.f.id, x: round3(u.x), z: round3(u.side === 'att' ? lineA + C.approach * 2 : -1), speed: round3(u.speed) });
+    events.push({ t, type: 'move', a: u.f.id, x: round3(u.x), z: round3(u.side === 'att' ? lineA + 2 : -1), speed: round3(u.speed) }); // two plot-lengths out to the street, or round the back
   };
 
   // ---- the player's buttons, and late arrivals ----
@@ -326,7 +324,6 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       if (u.here || u.arrive > t + EPS || !up(u)) continue;
       u.here = true;
       u.z = lineA;
-      if (u.goal === 'line') u.goal = '';
       if (honks > 0) { honks--; u.stun = Math.max(u.stun, C.goose.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'goose' }); }
       if (slips > 0) { slips--; u.stun = Math.max(u.stun, C.slick.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'slick' }); }
     }
@@ -449,16 +446,19 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   };
 }
 
-/** Estimated attacker win chance: replay the fight many times on a copy of the seed. */
-export function winChance(input: BattleInput, seed: number, runs = 120): number {
+/**
+ * Estimated attacker win chance: fight it many times on dice of its own. `input` is one fight, or a maker that
+ * draws a fresh one for each run (the Raid Planner: the garrison's weapons and the detection roll change each time).
+ */
+export function winChance(input: BattleInput | ((rng: Rng) => BattleInput), seed: number, runs = 120): number {
   const rng = { seed };
   let wins = 0;
   for (let i = 0; i < runs; i++) {
     const before = rng.seed;
-    const won = runBattle(input, rng).winner === 'att';
+    const won = runBattle(typeof input === 'function' ? input(rng) : input, rng).winner === 'att';
     if (won) wins++;
-    // No dice were rolled (no Nerve check, no Butterfingers): every run would end the same way.
-    if (rng.seed === before) { if (won) wins += runs - i - 1; break; }
+    // One fixed fight and no dice rolled (no Nerve check, no Butterfingers): every run would end the same way.
+    if (typeof input !== 'function' && rng.seed === before) { if (won) wins += runs - i - 1; break; }
   }
   return wins / runs;
 }

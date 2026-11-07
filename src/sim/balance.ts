@@ -542,7 +542,7 @@ export const COMBAT = {
   butterfingers: 0.1, // Butterfingers: chance per fight to drop the weapon and finish on fists
   sprinter: 1.25, // Sprinter: +25% Speed
   speed: 1 / 3, // placeholder: spec gap. Base Speed: one plot-length every 3 seconds
-  approach: 1, // placeholder: spec gap. Raiders walk the last plot-length in, so Sprinters reach the line first
+  wireBand: 0.1, // placeholder: spec gap. Barbed Wire tangles raiders this far either side of the fence line, cut or not
   giveUpSeconds: 120, // placeholder: spec gap. Raiders who can't break through and win the brawl by then go home
   reach: 0.12, // placeholder: spec gap. How far a swing reaches
   spacing: 0.1, // placeholder: spec gap. Shoulder room along a fence or a line

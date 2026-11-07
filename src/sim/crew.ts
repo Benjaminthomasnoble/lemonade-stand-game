@@ -747,23 +747,30 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[], object
   if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
-  if (s.raids.some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' };
+  if ([...s.raids, ...(s.fight ? [s.fight.raid] : [])].some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' }; // a raid there playing live counts too
   if (objective === 'sabotage') return canSabotage(s, plotId, guardIds);
   return { ok: true };
 }
 
-/** Estimated win chance for the Raid Planner (night or now). */
-export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean): number {
+/** The Planner's own dice for a plot: the same plot and squad read the same odds from one day to the next. */
+const oddsSeed = (plotId: string) => [...plotId].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0, 0x811c9dc5);
+
+/**
+ * Estimated win chance for the Raid Planner (night or now): the raid fought many times, each against its own draw
+ * of the garrison's weapons and its own detection roll (a raid that's seen loses its first strike; a Sneaky guard
+ * makes that rarer). It rolls its own dice, so the game's seed doesn't move.
+ */
+export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): number {
   if (!guardIds.length) return 0;
-  const rng = { seed: s.seed ^ 0x0dd5 };
   const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
   const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: false, eta: '' };
-  const input = battleInput(s, raid, squad, night, new Set(), rng);
-  // Spotted or not decides who strikes first: weigh both by the target's real detection chance (Sneaky included).
   const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
-  const spotted = seen > 0 ? winChance({ ...input, detected: true }, rng.seed, 40) : 0;
-  const unseen = seen < 1 ? winChance({ ...input, detected: false }, rng.seed ^ 0x5eed, 40) : 0;
-  return seen * spotted + (1 - seen) * unseen;
+  const nextId = s.nextId; // each henchman drawn takes an id: hand them back
+  try {
+    return winChance((rng) => ({ ...battleInput(s, raid, squad, night, new Set(), rng), detected: nextRandom(rng) < seen }), oddsSeed(plotId), runs);
+  } finally {
+    s.nextId = nextId;
+  }
 }
 
 export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, when: 'now' | 'tonight'): BattleReport | boolean {
@@ -795,15 +802,21 @@ export function planNight(s: GameState): void {
   spreadRaids(s); // threat.ts: a raid on several plots splits its party; a boss-led one gets its boss
 }
 
-/** At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). */
+/**
+ * At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). Every
+ * raid stays on the list until they've all been fought: a guard out on one of your raids tonight isn't at her
+ * post for a raid on it, whichever is fought first.
+ */
 export function resolveNight(s: GameState): void {
   const ord = (r: Raid) => r.at ?? etaMinute(r.eta);
   const left = s.raids.map((r, i) => ({ r, i })).sort((a, b) => ord(a.r) - ord(b.r) || a.i - b.i).map(({ r }) => r);
+  const fought = new Set<Raid>();
   for (const r of left) {
     if (!s.raids.includes(r) || onTheRoad(r)) continue; // nights: your squad carries on into the morning
-    s.raids = s.raids.filter((x) => x !== r);
     fightRaid(s, r, true);
+    fought.add(r);
   }
+  s.raids = s.raids.filter((x) => !fought.has(x));
 }
 
 /** Who fights: the attackers, the detection roll and the defenders on the plot (dice from rng). */

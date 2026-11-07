@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
 import {
   awayGuards, buildClubhouse, buySupply, CLOSE, creditGuards, DAYTIME_RAID_REP, detectionChance, DIFFICULTY, emptyPosts, fenceRepairCost, fightRaid, GEAR,
-  guardFighter, hhmm, isMajor, LOTTIES_CORNER, newGame, nightStep, openStand, ownedPlots, PERIMETERS, planRaid, PLOT_BY_ID, PLOTS, raidInput, raidNotice,
+  guardFighter, hhmm, isMajor, LOTTIES_CORNER, newGame, nightStep, openStand, ownedPlots, PERIMETERS, planRaid, PLOT_BY_ID, PLOTS, raidInput, raidNotice, raidOdds,
   setPrice, simulateRestOfDay, SQUAD_CAP, squadTrip, STAND_HP, startNight, threatLevel, tickMinute, travelMinutes, WEAPONS, type Alert, type BattleReport,
   type GameState, type GadgetId, type Guard, type Raid, type SimEvent, type Trait,
 } from './economy.ts';
@@ -220,21 +220,23 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
 
   it.todo('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)');
 
-  // Measured over 400 fights, each against its own draw of the garrison the sim posts at a rival L3 Kiosk (3 Threat 3
-  // henchmen in vests, most with clubs at 21.6 a hit) and with the Planner's coin flip for being seen: 30% (37% unseen).
-  // The Planner's own figure, from one garrison draw, runs from 3% to 100% by seed. Against 3 club Bros at 18 a hit, as
-  // the walkthrough has them, the squad wins all 400.
+  // Measured: the Planner reads 42% (46% over 400 runs). Each of its runs fights its own draw of the garrison the sim
+  // posts at a rival L3 Kiosk (3 Threat 3 henchmen in vests, most with clubs at 21.6 a hit) and rolls the 55% detection.
+  // Against 3 club Bros at 18 a hit, as the walkthrough has them, the squad wins all 400 (see raidInput below).
   it.fails('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
+    const { s, kiosk } = day24();
+    near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true), 0.81, 0.05);
+  });
+
+  it('the Planner\'s figure is what the raid wins when it\'s fought, each fight with its own garrison and detection roll', () => {
     const { s, kiosk } = day24();
     const raid: Raid = { id: 'odds', attacker: 'player', target: kiosk, objective: 'shakedown', guards: s.guards.map((g) => g.id), detected: false, eta: '' };
     let won = 0;
     for (let seed = 1; seed <= 400; seed++) {
       const rng = { seed };
-      const input = raidInput(s, raid, true, rng);
-      input.detected = nextRandom(rng) < 0.5; // as the Planner reckons it: nobody knows yet whether they'll be seen
-      if (runBattle(input, rng).winner === 'att') won++;
+      if (runBattle(raidInput(s, raid, true, rng), rng).winner === 'att') won++;
     }
-    near(won / 400, 0.81, 0.05);
+    near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 
   // Measured: a Blenders Kiosk on the Boardwalk makes about $1,508 on a hot day (800 cups at $2.16, the rival's price).
@@ -261,8 +263,8 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(emptyPosts(s, ids).map((g) => g.name)).toEqual(['Dex', 'Rosa']);
   });
 
-  // Measured: out at 01:00 and home at 04:25. The squad robs the garrison the sim posts in 25 s (the grab starts at
-  // 15 s), not the walkthrough's 18, and the walk home is timed from the fight: contact at 02:30, + 25, + 90.
+  // Measured: out at 01:00 and home at 04:25. The squad robs the garrison the sim posts in 24 s (the grab starts at
+  // 14 s), not the walkthrough's 18, and the walk home is timed from the fight: contact at 02:30, + 24, + 90.
   it.fails('the squad is home by 04:20, and the Corner\'s posts are filled again', () => {
     const { s, kiosk } = day24Trip();
     const dex = s.guards[0];
@@ -290,29 +292,43 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(chops.every((e) => blow(e.dmg, base(e.a) * (e.t < 5 ? 1.25 : 1)))).toBe(true);
   });
 
-  // The goose stuns the first guard to reach the fence: in the sim that's Pip, a Sprinter (25% faster), not Dex.
-  it('breach: the goose stuns the first guard to the fence for 3 s, and the other 4 chop the 150-HP Picket in 3 s', () => {
+  // The squad reaches the fence together, in its line-up's order, so the first guard to the fence is Dex.
+  it('breach: the goose stuns the first guard to the fence, Dex, for 3 s, and the other 4 chop the 150-HP Picket in 3 s', () => {
     const { res, squad } = day24Fight();
-    const stun = of(res.events, 'stun')[0];
-    expect(stun).toMatchObject({ t: 0, by: 'goose', a: squad.find((f) => f.name === 'Pip')!.id });
-    near(of(res.events, 'breach')[0].t, 3, 1);
+    expect(of(res.events, 'stun')).toEqual([{ t: 0, type: 'stun', a: squad.find((f) => f.name === 'Dex')!.id, by: 'goose' }]);
+    expect(of(res.events, 'breach')[0].t).toBe(3);
+    const dex = squad.find((f) => f.name === 'Dex')!.id;
+    const chops = of(res.events, 'chop').filter((e) => e.target === 'fence');
+    expect(Math.min(...chops.filter((e) => e.a === dex).map((e) => e.t))).toBe(3); // seeing stars till then
+    expect(chops.filter((e) => e.a !== dex).reduce((a, e) => a + e.dmg, 0)).toBeGreaterThanOrEqual(150); // the other 4 do it
   });
 
   it('the Bros swing over the fence at 22.5 a hit (18 plus their fence-line bonus)', () => {
     const { res, bros } = day24Fight();
-    const before = of(res.events, 'breach')[0].t;
+    const breach = of(res.events, 'breach')[0].t;
     const hits = of(res.events, 'swing').filter((e) => bros.some((b) => b.id === e.a));
-    expect(hits.filter((e) => e.t < before).every((e) => e.dmg === 22.5)).toBe(true);
-    expect(hits.filter((e) => e.t >= before).every((e) => e.dmg === 18)).toBe(true);
+    expect(hits.filter((e) => e.t <= breach).every((e) => e.dmg === 22.5)).toBe(true); // the swing as the fence goes still had it
+    expect(hits.filter((e) => e.t > breach).every((e) => e.dmg === 18)).toBe(true);
   });
 
-  // Measured: the squad breaches at 3.75 s; Pip, stunned at the fence, is KO'd at 6 s; two Bros drop together at
-  // 8.25 s and the third runs.
-  it.fails('brawl: the first Bro drops at 4.5 s, and the last, having KO\'d Pip, at 7.5 s', () => {
+  it('brawl: it\'s 5 against 3 with the Bros\' bonus gone, and the last Bro is down at 7.5 s', () => {
     const { res, bros } = day24Fight();
+    const down = bros.map((b) => [...of(res.events, 'ko'), ...of(res.events, 'flee')].find((e) => e.a === b.id)!.t);
+    near(Math.max(...down), 7.5, 1);
+    expect(res.fled).toHaveLength(1); // one bolts for the pier
+  });
+
+  // Measured: each Bro swings at the guard across the fence from it, so Dex, Rosa and Big Lou take 67.5 each before
+  // the breach and Pip takes none; the squad spreads its swings the same way, so two Bros drop together at 7.5 s
+  // (none at 4.5 s), the Nerve roll sends the third running, and Pip is never KO'd.
+  it.fails('... the Bros leave Pip on 5 HP; the first drops at 4.5 s, and the last, having KO\'d Pip, at 7.5 s', () => {
+    const { res, bros, squad } = day24Fight();
+    const pip = squad.find((f) => f.name === 'Pip')!.id;
+    const breach = of(res.events, 'breach')[0].t;
+    near(140 - of(res.events, 'swing').filter((e) => e.b === pip && e.t <= breach).reduce((a, e) => a + e.dmg, 0), 5, 0.5);
     const kos = of(res.events, 'ko').filter((e) => bros.some((b) => b.id === e.a)).map((e) => e.t);
     near(kos[0], 4.5, 1);
-    near(kos[kos.length - 1], 7.5, 1);
+    expect(res.koed).toContain(pip);
   });
 
   it('objective: with no Bro standing, the squad spends 10 game minutes at the till', () => {
@@ -321,8 +337,7 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     near(res.duration - of(res.events, 'grab')[0].t, 10, 1);
   });
 
-  // Measured: out 19.25 game minutes after contact (the grab starts at 9.25 s), so about 02:49 for contact at 02:30.
-  it.fails('... and walks out at 02:48 (18 game minutes after contact at 02:30)', () => {
+  it('... and walks out at 02:48 (18 game minutes after contact at 02:30)', () => {
     const { res } = day24Fight();
     near(res.duration, 18, 1);
   });

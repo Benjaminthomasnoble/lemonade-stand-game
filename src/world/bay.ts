@@ -460,6 +460,7 @@ export function createBay(scene: THREE.Scene): Bay {
       v.hqOwner = ps.owner;
     }
     else if (ps.facility?.kind === 'clubhouse') building = civicBuilding('Clubhouse'); // combat: a stand-in till the art threads model one
+    else if (ps.facility?.kind === 'billboard') building = civicBuilding('Billboard'); // demand: a stand-in till the art threads model one
     else if (ps.facility) {
       const east = ps.facility.kind === 'pier' ? eastReach(v) : null;
       building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, east ?? reachOf(v));

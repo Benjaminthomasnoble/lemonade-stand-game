@@ -175,7 +175,7 @@ export const BRAND_TIERS = [
   { tier: 1, name: 'Hand-Painted Signs', rank: 1, cost: 100, traffic: 0.05 },
   { tier: 2, name: 'Flyers & Sidewalk Chalk', rank: 3, cost: 1500, traffic: 0.12 },
   { tier: 3, name: 'Radio Jingle', rank: 4, cost: 12000, traffic: 0.22 },
-  { tier: 4, name: 'Billboards & TV Spot', rank: 7, cost: 90000, traffic: 0.35 },
+  { tier: 4, name: 'Billboards & TV Spot', rank: 7, cost: 90000, traffic: 0.35, unlocks: 'the Billboard building' },
   { tier: 5, name: 'The Lemon Blimp', rank: 8, cost: 500000, traffic: 0.5 },
 ];
 export type CampaignId = 'sandwichBoard' | 'freeSamples';
@@ -195,6 +195,13 @@ export const DISTRICT_CAMPAIGNS: Record<DistrictCampaignId, { name: string; rank
 };
 /** Every local campaign: a stand's own and a district's. */
 export type LocalCampaignId = CampaignId | DistrictCampaignId;
+/**
+ * The Billboard building (spec: Local campaigns): Rank 7 once M4 is up, $25,000 on a plot of its own, permanent. Each
+ * standing one adds +20% to the marketing number of its owner's stands within 2 plots, and other owners' stands there
+ * lose 10% curb appeal: once, however many Billboards reach them (placeholder: spec gap). Its HP is a Lemon Grove's
+ * (placeholder: spec gap). FACILITIES (vip.ts) builds it on a Street, Prime or Landmark plot.
+ */
+export const BILLBOARD = { rank: 7, brandTier: 4, cost: 25000, hp: 800, traffic: 0.2, rivalCurb: 0.9 };
 
 // ---------- the calendar: fairs, festivals and Taste-Offs (spec: Events and the living world) ----------
 export const YEAR_DAYS = SEASON_DAYS * 4; // a year is 4 seasons of 14 days, starting on Summer Day 1

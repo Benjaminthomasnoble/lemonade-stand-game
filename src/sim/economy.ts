@@ -34,7 +34,7 @@ import {
   adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
   marketingMultiplier, migrateDemand, pourRate, priceCeiling, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
-import { campaignDay, districtBlocker, isDistrictCampaign, planCampaign, salePrice, standCampaignBusy, standPriceFit, startBookings, type MarketingState } from './marketing.ts';
+import { campaignDay, districtBlocker, isDistrictCampaign, planCampaign, salePrice, standCampaignBusy, standingBillboard, standPriceFit, startBookings, type MarketingState } from './marketing.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
@@ -628,6 +628,7 @@ export const openStand = openStands;
 interface TownPlot {
   stand: Stand | null; wrecked: boolean; owner: FactionId | null;
   price: number; recipe: RecipeId | null; sweetness: Sweetness | null; level: number;
+  billboard: boolean; // a Billboard standing here: its traffic and its pull on rival stands within 2 plots (marketing.ts)
 }
 interface DayCache {
   appeal: Map<string, Partial<Record<SegmentId, Appeal>>>;
@@ -656,15 +657,15 @@ function streetFor(s: GameState, p: Plot, seg: SegmentId): Street {
 }
 function townPlot(ps: PlotState): TownPlot {
   const st = ps.stand;
-  return { stand: st, wrecked: st?.wrecked ?? false, owner: ps.owner, price: st?.price ?? 0, recipe: st?.recipe ?? null, sweetness: st?.sweetness ?? null, level: st?.level ?? 0 };
+  return { stand: st, wrecked: st?.wrecked ?? false, owner: ps.owner, price: st?.price ?? 0, recipe: st?.recipe ?? null, sweetness: st?.sweetness ?? null, level: st?.level ?? 0, billboard: standingBillboard(ps) };
 }
-/** Drop what moved since the last minute: the whole town for a new, wrecked or traded stand, one block for a nudge. */
+/** Drop what moved since the last minute: the whole town for a new, wrecked or traded stand (or Billboard), one block for a nudge. */
 function holdStreets(s: GameState): void {
   const c = cacheFor(s);
   let moved = c.town.length !== PLOTS.length || c.reputation !== s.reputation || c.weather !== s.weather.kind;
   for (let i = 0; i < PLOTS.length && !moved; i++) {
     const ps = s.plots[PLOTS[i].id], t = c.town[i];
-    moved = ps.stand !== t.stand || (ps.stand?.wrecked ?? false) !== t.wrecked || ps.owner !== t.owner;
+    moved = ps.stand !== t.stand || (ps.stand?.wrecked ?? false) !== t.wrecked || ps.owner !== t.owner || standingBillboard(ps) !== t.billboard;
   }
   if (moved) {
     c.streets.clear();

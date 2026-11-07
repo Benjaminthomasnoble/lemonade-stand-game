@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, type RecipeId, type RivalId } from './balance.ts';
+import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
@@ -16,7 +16,7 @@ import { ownedRecipes, ownsRecipe, recipeCost, worldOf } from './recipes.ts';
 import { fullControl } from './demand.ts';
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 
-export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
+export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
 /** Tiers delivered by sea (a ship scene at the pier). */
 export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal';
@@ -55,6 +55,8 @@ export const FACILITIES: Record<FacilityKind, { hp: number[]; names: string[]; c
   pier: { hp: [1500, 3500, 8000], names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [250000, 750000, 3000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: 10,000–20,000 bottles', 'Cruise ships: 20,000–40,000 bottles', 'Freighters: 40,000–60,000 bottles'] },
   // The crew's beds (combat: clubhouse.ts). Several allowed, each upgrading on its own.
   clubhouse: { hp: CLUBHOUSE_HP, names: ['Clubhouse', 'Clubhouse L2', 'Clubhouse L3'], costs: CLUBHOUSE.map((c) => c.cost), ranks: CLUBHOUSE.map((c) => c.rank), on: ['street'], blurb: CLUBHOUSE.map((c) => `${c.beds} beds for guards`) },
+  // demand: your stands within 2 plots +20% traffic, rival stands there −10% appeal (marketing.ts). Needs M4 too.
+  billboard: { hp: [BILLBOARD.hp], names: ['Billboard'], costs: [BILLBOARD.cost], ranks: [BILLBOARD.rank], on: ['street', 'prime', 'landmark'], blurb: ['+20% foot traffic at your stands within 2 plots; rival stands there −10% appeal'] },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
 /** The bottle and cap that take the cup's place (balance-tables: Supplies). */
@@ -180,6 +182,7 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
   if (lvl >= f.names.length) return { ok: false, why: 'Top level' };
   if (kind === 'grove' && !lvl && PLOTS.filter((q) => s.plots[q.id].owner === 'player' && s.plots[q.id].facility?.kind === 'grove').length >= MAX_GROVES) return { ok: false, why: `Up to ${MAX_GROVES} Lemon Groves` };
   if (s.rank < f.ranks[lvl]) return { ok: false, why: `Needs Rank ${f.ranks[lvl]}, ${RANKS[f.ranks[lvl] - 1].title}` };
+  if (kind === 'billboard' && s.brandTier < BILLBOARD.brandTier) return { ok: false, why: `Needs M${BILLBOARD.brandTier}, ${BRAND_TIERS[BILLBOARD.brandTier - 1].name}` }; // demand
   if (s.phase === 'open') return { ok: false, why: 'Build after closing or at Morning Prep' };
   if (s.cash < f.costs[lvl]) return { ok: false, why: `Needs ${money(f.costs[lvl])}` };
   return { ok: true };

@@ -2,10 +2,11 @@
 // Coupon Blitz work one district for one day. Morning Prep runs a campaign today; during business hours any of them
 // books for tomorrow, and a booking starts at the next open (spec: Appendix B, Day 12). canRunCampaign and
 // runCampaign (economy.ts) call in here; the marketing number takes Sunny's walk and today's bookings from
-// campaignTerms, appealFor and serveAt take the Coupon Blitz from standPriceFit and salePrice. Pure: no draws.
-import { CAMPAIGNS, DISTRICT_CAMPAIGNS, RANKS, type CampaignId, type DistrictCampaignId, type LocalCampaignId, type SegmentId } from './balance.ts';
-import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
-import type { Blocker, GameState, Stand } from './economy.ts';
+// campaignTerms, appealFor and serveAt take the Coupon Blitz from standPriceFit and salePrice. The Billboard is a
+// building (FACILITIES in vip.ts): billboardTerms adds its traffic, billboardCurb its pull on rival stands. Pure: no draws.
+import { BILLBOARD, CAMPAIGNS, DISTRICT_CAMPAIGNS, RANKS, type CampaignId, type DistrictCampaignId, type LocalCampaignId, type SegmentId } from './balance.ts';
+import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
+import type { Blocker, GameState, PlotState, Stand } from './economy.ts';
 import { canRunCampaign, startCampaign } from './economy.ts';
 import { adsBlocked, campaignCost, segmentPriceFit, type MarketingAdd } from './demand.ts';
 import { isWrecked } from './crew.ts';
@@ -141,6 +142,37 @@ export function campaignTerms(s: GameState, owner: FactionId, add: MarketingAdd,
     const k = CAMPAIGNS[b.id];
     if (b.day === s.day && b.plot === plotId && !(st && k.maxLevel && st.level > k.maxLevel)) add(b.id, k.name, k.traffic, adsBlocked(s, owner, plotId));
   }
+}
+
+// ---------- Billboards ----------
+
+/** A Billboard standing on this plot (a Wrecked one counts for nothing until it's rebuilt). */
+export const standingBillboard = (ps: PlotState): boolean => ps.facility?.kind === 'billboard' && !ps.facility.wrecked;
+
+/** The owners of the standing Billboards within 2 plots of a plot, across district lines too: one entry each. */
+export function billboardsNear(s: GameState, plotId: string): FactionId[] {
+  const out: FactionId[] = [];
+  for (const q of nearbyPlots(PLOT_BY_ID[plotId])) {
+    const ps = s.plots[q.id];
+    if (ps.owner && standingBillboard(ps)) out.push(ps.owner);
+  }
+  return out;
+}
+
+/** The marketing number's Billboard term: +20% for each of the owner's Billboards within 2 plots of its stand. */
+export function billboardTerms(s: GameState, owner: FactionId, add: MarketingAdd, plotId?: string): void {
+  if (!plotId) return;
+  const n = billboardsNear(s, plotId).filter((o) => o === owner).length;
+  if (n) add('billboard', n === 1 ? 'Billboard' : `${n} Billboards`, n * BILLBOARD.traffic, adsBlocked(s, owner, plotId));
+}
+
+/**
+ * Curb appeal from Billboards: a stand within 2 plots of another owner's Billboard is ×0.9, once however many reach
+ * it. A Cease-and-Desist in the stand's district voids your Billboards there.
+ */
+export function billboardCurb(s: GameState, plotId: string): number {
+  const own = s.plots[plotId]?.owner;
+  return billboardsNear(s, plotId).some((o) => o !== own && !adsBlocked(s, o, plotId)) ? BILLBOARD.rivalCurb : 1;
 }
 
 /** The Coupon Blitz's price cut at this stand today: 0 without one, at a rival's stand, or under a Cease-and-Desist. */

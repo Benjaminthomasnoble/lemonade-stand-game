@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  adsBlocked, appealFor, BRAND_TIERS, CAMPAIGNS, canRunCampaign, couponCut, cupsInStock, demandChain, EVENT_TRAFFIC, eventsOf, expectedDemand,
+  adsBlocked, appealFor, BILLBOARD, BRAND_TIERS, buildFacility, buildingHp, BUILDING_POSTS, CAMPAIGNS, canBuildFacility, canBuildStand, canRunCampaign,
+  couponCut, cupsInStock, curbAppeal, demandChain, EVENT_TRAFFIC, eventsOf, expectedDemand, facilitiesFor, netWorth, postsFor,
   expectedPassersby, LOTTIES_CORNER, MARKETING_BLOCKS, MARKETING_TERMS, marketingMultiplier, marketingTerms, migrateSave, nearbyPlots, newGame, newStand,
   openStands, PERKS, PLOT_BY_ID, PLOTS, priceCeiling, RANKS, rivalPrice, runCampaign, salePrice, segmentPriceFit, simulateRestOfDay, sleepUntilDawn,
   TASTE_OFF, tickMinute, type DistrictId, type GameState, type MarketingSource, type RivalId, type SimEvent, type Stand,
@@ -344,5 +345,113 @@ describe('booking campaigns for tomorrow', () => {
     const old = JSON.parse(JSON.stringify(s));
     delete old.marketing;
     expect(migrateSave(old)!.marketing).toBeUndefined(); // an older run simply has none
+  });
+});
+
+describe('the Billboard building', () => {
+  /**
+   * Rank 7 with M4 up and $100,000 at Morning Prep. You own maple-3s, maple-4s (a Wooden Stand) and maple-5s; Hollis
+   * has a Wooden Stand across the Old Town line at oldtown-0n, Cold Brew one at oldtown-2s.
+   */
+  function town(seed = 90): GameState {
+    const s = newGame(seed);
+    s.day = 30;
+    s.rank = 7;
+    s.brandTier = 4;
+    s.cash = 100_000;
+    for (const id of ['maple-3s', 'maple-5s']) s.plots[id].owner = 'player';
+    standOn(s, 'maple-4s', 2);
+    for (const [id, rival] of [['oldtown-0n', 'hollis'], ['oldtown-2s', 'coldbrew']] as [string, RivalId][]) {
+      s.plots[id].owner = rival;
+      s.plots[id].stand = newStand(2, rivalPrice(rival, 2, PLOT_BY_ID[id]));
+    }
+    return s;
+  }
+  const billboard = (s: GameState, plotId: string) => marketingTerms(s, 'player', s.plots[plotId].stand!, plotId).find((t) => t.id === 'billboard');
+
+  it('needs Rank 7 and M4, then costs $25,000 on a Street, Prime or Landmark plot of its own', () => {
+    const s = town();
+    expect(facilitiesFor('street')).toContain('billboard');
+    expect(facilitiesFor('prime')).toContain('billboard');
+    expect(facilitiesFor('landmark')).toContain('billboard');
+    expect(facilitiesFor('field')).not.toContain('billboard');
+    s.rank = 6;
+    expect(canBuildFacility(s, 'maple-5s', 'billboard')).toEqual({ ok: false, why: `Needs Rank 7, ${RANKS[6].title}` });
+    s.rank = 7;
+    s.brandTier = 3;
+    expect(canBuildFacility(s, 'maple-5s', 'billboard')).toEqual({ ok: false, why: 'Needs M4, Billboards & TV Spot' });
+    s.brandTier = 4;
+    expect(canBuildFacility(s, 'maple-4s', 'billboard')).toEqual({ ok: false, why: 'A stand is here' });
+    expect(canBuildFacility(s, 'maple-5s', 'billboard')).toEqual({ ok: true });
+    const worth = netWorth(s);
+    expect(buildFacility(s, 'maple-5s', 'billboard')).toBe(true);
+    expect(s.cash).toBe(75_000);
+    expect(s.today.books?.invested).toBe(-BILLBOARD.cost);
+    expect(netWorth(s)).toBeCloseTo(worth - BILLBOARD.cost * 0.25, 6); // a building: 75% of it counts
+    expect(canBuildFacility(s, 'maple-5s', 'billboard')).toEqual({ ok: false, why: 'Top level' });
+    expect(canBuildStand(s, 'maple-5s').ok).toBe(false); // one building per plot
+    expect(postsFor(s, 'maple-5s')).toBe(BUILDING_POSTS); // 3 guard posts, raided and smashed like any building
+    expect(buildingHp(s.plots['maple-5s'])).toBe(BILLBOARD.hp);
+  });
+
+  it('adds +20% to the marketing number of your stands within 2 plots, each Billboard adding in, and a Wrecked one counts for nothing', () => {
+    const s = town();
+    expect(billboard(s, 'maple-4s')).toBeUndefined();
+    const before = marketingMultiplier(s, 'player', s.plots['maple-4s'].stand!, 'maple-4s');
+    expect(buildFacility(s, 'maple-5s', 'billboard')).toBe(true);
+    expect(billboard(s, 'maple-4s')).toEqual({ id: 'billboard', label: 'Billboard', traffic: 0.2, blocked: false });
+    expect(billboard(s, LOTTIES_CORNER)).toBeUndefined(); // maple-2s is 3 plots from maple-5s
+    expect(buildFacility(s, 'maple-3s', 'billboard')).toBe(true);
+    expect(billboard(s, 'maple-4s')).toEqual({ id: 'billboard', label: '2 Billboards', traffic: 0.4, blocked: false });
+    expect(billboard(s, LOTTIES_CORNER)).toEqual({ id: 'billboard', label: 'Billboard', traffic: 0.2, blocked: false });
+    expect(marketingMultiplier(s, 'player', s.plots['maple-4s'].stand!, 'maple-4s')).toBeCloseTo(before + 0.4, 9);
+    expect(demandChain(s, 'maple-4s')!.marketing).toBeCloseTo(before + 0.4, 9); // the stand panel lists it
+    s.plots['maple-3s'].facility!.wrecked = true;
+    expect(billboard(s, 'maple-4s')!.traffic).toBe(0.2);
+    expect(billboard(s, LOTTIES_CORNER)).toBeUndefined();
+  });
+
+  it('costs rival stands within 2 plots 10% curb appeal, across district lines and only once, never your own', () => {
+    const s = town();
+    const hollis = 'oldtown-0n'; // Hollis's Wooden Stand, across the Old Town line from maple-5s
+    expect(s.plots[hollis].owner).toBe('hollis');
+    expect(curbAppeal(s, hollis)).toBe(1);
+    expect(buildFacility(s, 'maple-5s', 'billboard')).toBe(true);
+    expect(curbAppeal(s, hollis)).toBeCloseTo(0.9, 9);
+    expect(curbAppeal(s, 'maple-4s')).toBe(1);
+    expect(curbAppeal(s, 'oldtown-2s')).toBe(1); // Cold Brew's stand is 3 plots off
+    s.plots['maple-4n'].owner = 'player'; // the landmark next door takes a second one
+    expect(buildFacility(s, 'maple-4n', 'billboard')).toBe(true);
+    expect(curbAppeal(s, hollis)).toBeCloseTo(0.9, 9); // −10% however many reach it
+    const a = appealFor(s, hollis, 'families', s.forecast);
+    s.plots['maple-5s'].facility!.wrecked = true;
+    s.plots['maple-4n'].facility!.wrecked = true;
+    expect(appealFor(s, hollis, 'families', s.forecast).stopChance).toBeCloseTo(a.stopChance / 0.9, 9);
+  });
+
+  it("counts for nothing in a district under a Cease-and-Desist: your stands' traffic there and the rival stands' pull", () => {
+    const s = town();
+    expect(buildFacility(s, 'maple-5s', 'billboard')).toBe(true);
+    ceaseAndDesist('maple');
+    expect(billboard(s, 'maple-4s')).toEqual({ id: 'billboard', label: 'Billboard', traffic: 0.2, blocked: true });
+    s.plots['maple-3s'].owner = 'coldbrew'; // a rival stand in Maple Row, in reach
+    s.plots['maple-3s'].stand = newStand(1);
+    expect(curbAppeal(s, 'maple-3s')).toBe(1);
+    expect(curbAppeal(s, 'oldtown-0n')).toBeCloseTo(0.9, 9); // Old Town has no letter
+  });
+
+  it('drops out of the split the minute a raid knocks it down mid-day', () => {
+    const s = town();
+    expect(buildFacility(s, 'maple-5s', 'billboard')).toBe(true);
+    stockUp(s.plots['maple-4s'].stand!);
+    openStands(s);
+    s.weather = { kind: 'hot', temp: 90 };
+    for (let i = 0; i < 60; i++) tickMinute(s);
+    s.plots['maple-5s'].facility!.wrecked = true;
+    const fresh: GameState = JSON.parse(JSON.stringify(s)); // a copy with no day's appeal kept yet: it reads the plots as they are
+    const walkers = (g: GameState) => Array.from({ length: 90 }, () => tickMinute(g)).flat().filter((e) => e.type === 'passerby');
+    const kept = walkers(s);
+    expect(kept.some((e) => e.type === 'passerby' && e.at === 'oldtown-0n')).toBe(true); // Hollis's stand is selling
+    expect(kept).toEqual(walkers(fresh));
   });
 });

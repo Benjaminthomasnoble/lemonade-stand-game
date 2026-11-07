@@ -24,7 +24,7 @@ import { groveTraffic } from './vip.ts';
 import { adBlitzBoost } from './schemes.ts';
 import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
-import { campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
+import { billboardCurb, billboardTerms, campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -97,11 +97,12 @@ export function fullControl(s: GameState, d: DistrictId): boolean {
 /**
  * Curb appeal is ×1.0 at every stand level (a level pays off through draw, service and top price). Majority pushes
  * it: your stands in a district you hold 51%+ of sell 10% more, and rival stands there lose 10% appeal.
- * Billboards (rival stands within 2 plots −10%) multiply in here too.
+ * Billboards (rival stands within 2 plots −10%) multiply in here too, and the stand panel's curb row is this number.
  */
 export function curbAppeal(s: GameState, plotId: string): number {
   let curb = 1;
   if (majorityHeld(s, PLOT_BY_ID[plotId].district)) curb *= s.plots[plotId].owner === 'player' ? MAJORITY_CURB.player : MAJORITY_CURB.rival;
+  curb *= billboardCurb(s, plotId); // another owner's Billboard within 2 plots: ×0.9 (marketing.ts)
   return curb;
 }
 
@@ -133,7 +134,7 @@ export const adsBlocked = (s: GameState, owner: FactionId, plotId?: string): boo
 /**
  * Every traffic bonus reaching a stand adds into one marketing number, in the order the stand panel lists them.
  * Surges written ×2 (Viral Video, Parade Route; Roadworks ×0.5) multiply on top, in expectedPassersby. A new
- * source (Billboards and Roofs within 2 plots) adds one entry here. A Coupon Blitz is appeal, not traffic (marketing.ts).
+ * source (the Billboard Roof within 2 plots) adds one entry here. A Coupon Blitz is appeal, not traffic (marketing.ts).
  */
 export const MARKETING_TERMS: MarketingSource[] = [
   (s, owner, add, _st, plotId) => { // the brand tier: each replaces the last
@@ -157,6 +158,7 @@ export const MARKETING_TERMS: MarketingSource[] = [
     }
   },
   (s, owner, add, st, plotId) => campaignTerms(s, owner, add, st, plotId), // Sunny's walk, and a campaign booked for today (marketing.ts)
+  (s, owner, add, _st, plotId) => billboardTerms(s, owner, add, plotId), // +20% for each of its owner's Billboards within 2 plots (marketing.ts)
   (s, owner, add, st) => { // FizzCo's ad blitz: its mascot works one district (schemes.ts)
     const b = adBlitzBoost(s, owner, st);
     if (b) add('blitz', "FizzCo's mascot", b);

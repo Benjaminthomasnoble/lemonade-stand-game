@@ -656,7 +656,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
     out.push(...campaignCards(kit, s)); // local campaigns: this stand's and its district's (src/ui/marketing.ts)
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
-    if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
+    if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever${nb.unlocks ? `\nUnlocks ${nb.unlocks}` : ''}`));
     out.push(bank(s));
     return `<div class="cl-cards">${out.join('')}</div>`;
   }

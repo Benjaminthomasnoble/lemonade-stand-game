@@ -371,7 +371,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       if (gadgetsObj && !gadgetsSwap) {
         gadgetsObj.visible = false;
         const rest = gadgets.filter((g) => g !== 'goose');
-        if (rest.length) { gadgetsSwap = gadgetModels(rest); gadgetsSwap.position.copy(gadgetsObj.position); gadgetsSwap.rotation.copy(gadgetsObj.rotation); gadgetsObj.parent?.add(gadgetsSwap); bakeGroup(gadgetsSwap); }
+        if (rest.length) { gadgetsSwap = gadgetModels(rest, (report?.defender ?? 'player') as Owner); gadgetsSwap.position.copy(gadgetsObj.position); gadgetsSwap.rotation.copy(gadgetsObj.rotation); gadgetsObj.parent?.add(gadgetsSwap); bakeGroup(gadgetsSwap); }
       }
     }
     honker.position.copy(gadgetsObj ? gadgetsObj.localToWorld(new THREE.Vector3(-3.3, 0, 1.35)) : local(-3.3, 1.35));

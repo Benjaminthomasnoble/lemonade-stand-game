@@ -23,7 +23,7 @@ import { withBell } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
-import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
+import { awayGuards, etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
@@ -628,12 +628,10 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   };
 }
 
-/** Guards away on one of your raids: only once it has set out (night.ts gives it a leave minute); until then they hold their posts. */
-const raidingNow = (s: GameState) => new Set(s.raids.flatMap((r) => (r.attacker === 'player' && r.leave !== undefined && r.leave <= s.minute ? r.guards ?? [] : [])));
-
-/** Who is really on a plot of yours right now: posted there, not Out, not away on a raid that has set out, not out scouting. */
+/** Who is really on a plot of yours right now: posted there, not Out, not out scouting, and not away on a raid (night.ts
+ * awayGuards: from the minute it sets out until the squad is home again; until it sets out they hold their posts). */
 export function presentGuards(s: GameState, plotId: string): Guard[] {
-  const away = raidingNow(s);
+  const away = awayGuards(s);
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 

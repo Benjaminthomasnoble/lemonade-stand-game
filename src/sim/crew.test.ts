@@ -267,7 +267,7 @@ describe('detection', () => {
     g.outUntil = s.day + 1;
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
     g.outUntil = 0;
-    s.raids.push({ id: 'r1', attacker: 'player', target: 'oldtown-0n', objective: 'smash', guards: [g.id], detected: false, eta: '01:00' });
+    s.raids.push({ id: 'r1', attacker: 'player', target: 'oldtown-0n', objective: 'smash', guards: [g.id], detected: false, eta: '02:00', leave: 25 * 60, at: 26 * 60 });
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6); // planned: still on the plot until it sets out
     s.raids[0].leave = s.minute;
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
@@ -327,17 +327,19 @@ describe('the Lookout', () => {
     expect(canScout(s, dex.id, target)).toEqual({ ok: false, why: 'Scout by day' });
   });
 
-  it('holds the post until their raid sets out', () => {
+  it('holds the post until their raid sets out, and is away till the squad is home', () => {
     const { s, dex } = setup(64);
     const target = raidTargets(s)[0].id;
-    s.raids.push({ id: 'rx', attacker: 'player', target, objective: 'smash', guards: [dex.id], detected: false, eta: '01:00' });
+    s.raids.push({ id: 'rx', attacker: 'player', target, objective: 'smash', guards: [dex.id], detected: false, eta: '02:00', leave: 25 * 60, at: 26 * 60 });
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.75); // planned, not gone
     s.phase = 'night';
     s.minute = 23 * 60;
-    Object.assign(s.raids[0], { leave: 25 * 60, at: 25 * 60 });
     expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.5);
     s.minute = 25 * 60;
     expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.25); // set out: the post stands empty
+    s.raids[0].back = 28 * 60;
+    s.minute = 27 * 60;
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.25); // walking home: still empty
   });
 });
 

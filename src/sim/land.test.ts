@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  announceControl, canBuyPlot, controlTier, development, hasFoothold, hqPlot, LOTTIES_CORNER, migrateSave, newGame, newStand, nextTier,
-  NO_DEFENSE, perkActive, PLOTS, plotsForTier, purchasablePlots, sleepUntilDawn, type DistrictId, type GameState,
+  announceControl, buyPlot, canBuyPlot, controlTier, development, hasFoothold, hqPlot, LOTTIES_CORNER, migrateSave, newGame, newStand,
+  nextTier, NO_DEFENSE, perkActive, plotBuyoutPrice, plotPrice, PLOTS, plotsForTier, purchasablePlots, sleepUntilDawn,
+  type DistrictId, type GameState,
 } from './economy.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -163,5 +164,39 @@ describe('district control', () => {
     announceControl(back);
     expect(back.news).toEqual([]);
     expect(migrateSave(JSON.parse(JSON.stringify(back)))!.control).toEqual(back.control); // idempotent
+  });
+});
+
+describe('Majority land discount', () => {
+  it('takes 10% off unowned land once you hold a Majority, but not on the buy that makes it', () => {
+    const s = newGame(34);
+    s.cash = 1e6;
+    const maple = purchasablePlots('maple').filter((p) => p.id !== LOTTIES_CORNER);
+    for (const p of maple.slice(0, 5)) give(s, p.id); // 6 of 12 with the Corner
+    const seventh = maple[5], eighth = maple[6];
+    expect(plotPrice(s, seventh.id)).toBe(s.plots[seventh.id].landValue);
+    const cash = s.cash;
+    expect(buyPlot(s, seventh.id)).toBe(true);
+    expect(cash - s.cash).toBe(s.plots[seventh.id].landValue); // full price: the Majority came with this buy
+    expect(controlTier(s, 'maple')).toBe('majority');
+    expect(s.news).toContain('MAJORITY in Maple Row! Land there is 10% cheaper for Lottie now.');
+    expect(plotPrice(s, eighth.id)).toBe(Math.round(s.plots[eighth.id].landValue * 0.9));
+    expect(plotPrice(s, street(s, 'oldtown').id)).toBe(s.plots[street(s, 'oldtown').id].landValue); // only in that district
+  });
+
+  it('stacks with Family Silver and applies to First Dibs prices, never to buyouts', () => {
+    const s = newGame(35);
+    const maple = purchasablePlots('maple');
+    for (const p of maple.slice(0, 7)) give(s, p.id);
+    const lot = maple[8];
+    give(s, hqPlot('sourwood').id); // Sourwood Manor's Family Silver
+    expect(plotPrice(s, lot.id)).toBe(Math.round(s.plots[lot.id].landValue * 0.9 * 0.9));
+    s.plots[lot.id].dibs = { who: 'player', until: s.day + 1, price: Math.round(s.plots[lot.id].landValue * 0.75) };
+    expect(plotPrice(s, lot.id)).toBe(Math.round(s.plots[lot.id].dibs!.price! * 0.9 * 0.9)); // a Fire Sale plot: 75% × 0.9 × 0.9
+    const rival = maple[10];
+    s.plots[rival.id].owner = 'fizzco';
+    const plain = plotBuyoutPrice(s, rival.id);
+    for (const p of maple.slice(7, 10)) give(s, p.id);
+    expect(plotBuyoutPrice(s, rival.id)).toBe(plain); // Majority doesn't touch buyouts
   });
 });

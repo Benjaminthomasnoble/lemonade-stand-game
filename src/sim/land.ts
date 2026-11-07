@@ -1,7 +1,7 @@
 // Land and territory (spec: Land and territory; canon section 9): where you may
 // buy, what lifts land prices, district control tiers and the Full Control
 // perks. Pure functions over GameState, like the rest of the sim.
-import { DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, RANKS, STRONGHOLD } from './balance.ts';
+import { DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, RANKS, STRONGHOLD } from './balance.ts';
 import { BORDERS, DISTRICTS, PLOTS, type DistrictId, type Plot } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold } from './economy.ts';
@@ -66,6 +66,14 @@ export function controlTier(s: GameState, d: DistrictId): ControlTier {
   return 'foothold';
 }
 export const tierAtLeast = (t: ControlTier, min: ControlTier) => TIERS.indexOf(t) >= TIERS.indexOf(min);
+
+/**
+ * Majority: unowned land in that district is 10% cheaper for you, First Dibs and
+ * Fire Sale prices included (so a Fire Sale plot there is 67.5% of land value).
+ * It checks before the buy, so the purchase that makes the Majority pays full.
+ * Not for Plot Buyouts or auction bids; rivals never get it.
+ */
+export const majorityDiscount = (s: GameState, d: DistrictId) => (tierAtLeast(controlTier(s, d), 'majority') ? MAJORITY_LAND_DISCOUNT : 1);
 
 /** Plots a tier takes in a district: Maple Row's Majority is 7 of 12, its Stronghold 9, Full Control all 12. */
 export function plotsForTier(d: DistrictId, t: ControlTier): number {

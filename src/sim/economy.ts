@@ -39,7 +39,9 @@ import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
 import { closeTills } from './loot.ts';
-import { announceControl, development, isPurchasable, landAtDawn, migrateLand, reachBlocker, type ControlTier, type PerkId } from './land.ts';
+import {
+  announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
+} from './land.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -879,11 +881,11 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   return { ok: true };
 }
 
-/** What the player pays for an open plot: land value, or the Fire Sale price while they have First Dibs. */
+/** What the player pays for an open plot: land value (or the First Dibs price), less 10% under Majority and 10% with Family Silver. */
 export function plotPrice(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
   const base = ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined ? ps.dibs.price : ps.landValue;
-  return Math.round(base * familySilver(s));
+  return Math.round(base * majorityDiscount(s, PLOT_BY_ID[plotId].district) * familySilver(s));
 }
 
 export function buyPlot(s: GameState, plotId: string): boolean {

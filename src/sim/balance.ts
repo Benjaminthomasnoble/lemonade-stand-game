@@ -547,6 +547,8 @@ export const IN_THE_RED_DAYS = 3;
 export const MAJORITY = 0.51;
 /** District control tiers by share of purchasable plots: Foothold (1 plot), Majority (51%), Stronghold (75%), Full Control (100%). */
 export const STRONGHOLD = 0.75;
+/** Majority: unowned land in that district costs you this share of its price (−10%). */
+export const MAJORITY_LAND_DISCOUNT = 0.9;
 /** Sandbox's Economic win: a Success Score target picked from the rank thresholds (default Rank 8). */
 export const ECONOMIC_DEFAULT_RANK = 8;
 /** Peaceful (Sandbox): Vera finally sells, at this multiple of her cash and buildings, once Weakened. */

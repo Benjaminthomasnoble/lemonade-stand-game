@@ -3,12 +3,13 @@
 // label. Plain markup with the shared clay classes; hud.ts mounts it and every
 // button goes through hud's one click listener.
 import {
-  controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, missingPlots, nextTier, PLOT_BY_ID, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
-  type GameState,
+  controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, familySilver, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID,
+  TIER_EFFECTS, TIER_NAMES, tierAtLeast, type GameState,
 } from '../sim/economy.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const meter = (v: number) => `<span class="cl-snake" style="--v:${Math.max(0, Math.min(1, v)).toFixed(3)}"><i></i></span>`;
+const whole = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
 const named = (list: { name: string }[]) => (list.length <= 2 ? list.map((p) => p.name).join(' and ') : `${list.length} plots`);
 
 /** The district line on a plot card: tier and plots held, the next tier, the effects and the perk (details in the tooltip). */
@@ -45,3 +46,15 @@ export function vacantNote(s: GameState, plotId: string): string {
 
 /** Everything land adds to a plot card under its name. */
 export const landNotes = (s: GameState, plotId: string) => vacantNote(s, plotId) + controlNote(s, plotId);
+
+/** The Buy button's tooltip when a discount applies: "Land $1,000, −10% for your Majority". Empty when you pay the plain price. */
+export function priceTip(s: GameState, plotId: string): string {
+  const ps = s.plots[plotId];
+  const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined;
+  const parts = [
+    dibs ? `${ps.dibs!.table ? "Lottie's price" : 'Fire Sale'} ${whole(ps.dibs!.price!)} (land ${whole(ps.landValue)})` : `Land ${whole(ps.landValue)}`,
+    majorityDiscount(s, PLOT_BY_ID[plotId].district) < 1 ? '−10% for your Majority' : '',
+    familySilver(s) < 1 ? '−10% Family Silver' : '',
+  ].filter(Boolean);
+  return parts.length > 1 || dibs ? parts.join(', ') : '';
+}

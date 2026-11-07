@@ -27,6 +27,10 @@ function oldSave(v: 4 | 5 | 6): Loose {
   return s;
 }
 
+/** Each rival plot's VIP facility (rival pads, piers, plants and groves), as plot:kind. */
+const rivalFacilities = (s: GameState) =>
+  Object.entries(s.plots).flatMap(([id, ps]) => (ps.owner && ps.owner !== 'player' && ps.facility ? [`${id}:${ps.facility.kind}`] : []));
+
 /** A day and a night, start to finish: the run is whole. */
 function playDay(s: GameState): GameState {
   s.cash = Math.max(s.cash, 50);
@@ -74,7 +78,8 @@ describe('every old save loads', () => {
     if (v <= 4) expect(s.guards).toEqual([]);
     expect(Array.isArray(s.raids) && Array.isArray(s.offers) && typeof s.bottles === 'number').toBe(true);
     expect(Object.values(s.plots).every((ps) => !!ps.defense)).toBe(true);
-    expect(Object.values(s.plots).some((ps) => ps.owner === 'hollis' && ps.facility?.kind === 'helipad')).toBe(true);
+    expect(rivalFacilities(s).length).toBeGreaterThan(0);
+    expect(rivalFacilities(s)).toEqual(rivalFacilities(newGame(31))); // v7's rival facilities come back as a new game has them
     expect(json(migrateSave(json(s)))).toEqual(json(s));
     expect(playDay(s).day).toBe(7);
   });

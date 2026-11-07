@@ -20,6 +20,7 @@ import {
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
+  type FestivalId,
 } from '../sim/economy.ts';
 import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
@@ -27,7 +28,8 @@ import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { optionsScreen } from './options.ts';
-import { bookSheet, recipeRow } from './recipes.ts';
+import { recipeRow } from './recipes.ts';
+import { calendarHeadline, calendarTickets, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -83,6 +85,7 @@ export type Action =
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
   | { type: 'options' } // open or close the Options screen
   | { type: 'option'; key: string; value?: string } // flip an option
+  | { type: 'sponsor'; festival: FestivalId }
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,6 +101,7 @@ function clock(min: number) {
 
 function headline(s: GameState): [string, string] {
   if (s.day === 1) return ["SCHOOL'S OUT!", 'Grandkid opens on Maple Row'];
+  const cal = calendarHeadline(s); if (cal) return cal;
   const pool: Record<string, [string, string][]> = {
     scorcher: [['SIZZLER!', 'Hot enough to fry an egg'], ['SCORCHER!', 'Town begs for shade']],
     hot: [['HOT ONE!', 'Thirsty town expected'], ["SUN'S OUT!", 'Cups out']],
@@ -165,7 +169,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     <div id="top"></div><div id="dawn"></div><div id="feed"></div><div id="phase"></div><div id="plotcard"></div><div id="corner"></div><div id="pops"></div>`;
   const q = (id: string) => root.querySelector('#' + id) as HTMLElement;
   const topEl = q('top'), dawnEl = q('dawn'), feedEl = q('feed'), phaseEl = q('phase'), plotEl = q('plotcard'), cornerEl = q('corner'), pops = q('pops');
-  let tab: 'today' | 'grow' | 'crew' | 'book' = 'today';
+  let tab: 'today' | 'grow' | 'crew' | WorldTab = 'today';
   let goalsOpen = false, books = false, moreOpts = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
   const squad = new Set<string>();
@@ -320,6 +324,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'reloadDawn': case 'repay':
         onAction({ type: d.action }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
+      case 'sponsor': onAction(worldAction(d)); break;
       case 'start': if (hud.setup) onAction({ type: 'start', settings: { ...hud.setup.settings } }); break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -427,6 +432,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
     }
+    t.push(...calendarTickets(s));
     if (s.today.lemonsSpoiled) t.push(`<div class="cl-ticket">${ART.lemon()}<b>${s.today.lemonsSpoiled} lemons went bad</b></div>`);
     for (const o of s.offers) {
       const short = o.tier === 'deal' ? dealShortfallPerDay(s, o) : 0;
@@ -456,10 +462,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <button class="cl-tab${tab === 'today' ? ' on' : ''}" data-action="tab" data-tab="today">Today</button>
       <button class="cl-tab${tab === 'grow' ? ' on' : ''}" data-action="tab" data-tab="grow" data-testid="tab-grow">Grow</button>
       ${defendOpen(s) ? `<button class="cl-tab${tab === 'crew' ? ' on' : ''}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defend</button>` : ''}
-      <button class="cl-tab${tab === 'book' ? ' on' : ''}" data-action="tab" data-tab="book" data-testid="tab-book">Book</button>
+      ${worldTabs(s, tab)}
       ${standPicker(s)}</div>`;
     const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
-      : tab === 'book' ? `<div class="cl-sheet">${bookSheet(s)}</div>` : '';
+      : tab === 'book' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
 

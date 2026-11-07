@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, costPerCup, eliminate, expectedPassersby, grantPage, isPremium, LOTTIES_CORNER, migrateSave, migrateWorld, movePage, newGame,
-  newStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pickRecipe, PLOTS, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, sweetnessFit,
+  appealFor, calendarTraffic, canSponsor, costPerCup, crowdAt, eliminate, expectedPassersby, festivalCrowd, festivalDays, festivalsOn,
+  FESTIVALS, grantPage, isEventDay, isPremium, LOTTIES_CORNER, marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand,
+  openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pickRecipe, PLOTS, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS,
+  simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, upcomingFestivals, yearOf,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
 
@@ -12,6 +14,14 @@ function standIn(s: GameState, district: DistrictId, recipe: RecipeId = 'classic
   const p = PLOTS.find((q) => q.district === district && q.type === 'street' && s.plots[q.id].owner !== 'player')!;
   s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: { ...newStand(1), recipe } };
   return p.id;
+}
+
+/** Jump to a day's Morning Prep through the real dawn. */
+function dawn(s: GameState, day: number): void {
+  s.day = day - 1;
+  s.phase = 'report';
+  s.raids = [];
+  sleepUntilDawn(s);
 }
 
 const game = (seed = 1, settings: Partial<Settings> = {}) => newGame(seed, settings);
@@ -83,6 +93,16 @@ describe('where a card shines', () => {
     s.plots[rival.id].stand!.sweetness = 'extra';
     const a = appealFor(s, rival.id, 'kids');
     expect([a.recipeMatch, a.sweetMatch]).toEqual([1, 1]);
+  });
+
+  it('a festival crowd makes its favorites shine there', () => {
+    const s = game();
+    const plot = standIn(s, 'oldtown', 'classic');
+    s.day = 7;
+    expect(recipeMatch(s, plot)).toBe(1);
+    s.day = 10; // the Summer Fair fills Old Town with families, who love Pink and Classic
+    expect(recipeMatch(s, plot)).toBe(1.2);
+    expect(recipeMatch(s, plot, 'mint')).toBe(1);
   });
 });
 
@@ -193,5 +213,75 @@ describe("Lottie's recipe book", () => {
     const once = JSON.stringify(back);
     migrateWorld(back);
     expect(JSON.stringify(back)).toBe(once);
+  });
+});
+
+describe('the calendar', () => {
+  it('repeats every 56 days', () => {
+    expect([1, 56, 57, 113].map(yearOf)).toEqual([1, 1, 2, 3]);
+    expect([1, 2, 3].map((y) => festivalDays('summerFair', y))).toEqual([{ from: 8, to: 14 }, { from: 64, to: 70 }, { from: 120, to: 126 }]);
+    expect([1, 2].map((y) => festivalDays('countyFair', y))).toEqual([{ from: 15, to: 21 }, { from: 71, to: 77 }]);
+    expect(festivalDays('foundersDay', 3)).toEqual({ from: 120, to: 120 });
+    expect(festivalsOn(8)).toEqual(expect.arrayContaining(['summerFair', 'foundersDay']));
+    expect(festivalsOn(4)).toContain('surfContest');
+    const s = game();
+    expect(isEventDay(s, 'electionDay', 54)).toBe(true);
+    expect(isEventDay(s, 'electionDay', 55)).toBe(false);
+    expect(upcomingFestivals(s)[0]).toEqual({ id: 'surfContest', from: 4, to: 6 });
+    for (const f of Object.values(FESTIVALS)) expect(f.from >= 1 && f.to <= 14 && f.from <= f.to).toBe(true);
+  });
+
+  it('festivals fill their district with their crowd, half the passersby', () => {
+    const s = game();
+    expect([10, 7].map((d) => { s.day = d; return crowdAt(s, 'oldtown'); })).toEqual(['families', undefined]);
+    s.day = 24; expect(crowdAt(s, 'campus')).toBe('students'); // Homecoming
+    s.day = 49; expect(crowdAt(s, 'boardwalk')).toBe('students'); // joggers at the Spring Marathon
+    s.day = 26; expect(crowdAt(s, 'harbor')).toBe('workers');
+    s.day = 10;
+    const rng = { seed: 7 };
+    let n = 0;
+    for (let i = 0; i < 4000; i++) if (festivalCrowd(s, rng, 'oldtown')) n++;
+    expect(n / 4000).toBeGreaterThan(0.45);
+    expect(n / 4000).toBeLessThan(0.55);
+    expect(festivalCrowd(s, rng, 'maple')).toBeUndefined();
+  });
+
+  it('a festival shifts who walks past an Old Town stand', () => {
+    const families = (day: number) => {
+      const s = game(3);
+      const plot = standIn(s, 'oldtown');
+      dawn(s, day);
+      openStand(s);
+      const walkers = simulateRestOfDay(s).filter((e) => e.type === 'passerby' && e.plot === plot) as { segment: SegmentId }[];
+      return walkers.filter((e) => e.segment === 'families').length / walkers.length;
+    };
+    expect(families(10)).toBeGreaterThan(families(6) + 0.2);
+  });
+});
+
+describe('Event Sponsorship', () => {
+  it('Rank 5, while the festival runs, $2,000 a day left, +50% traffic for your stands there', () => {
+    const s = game();
+    const plot = standIn(s, 'oldtown');
+    dawn(s, 10);
+    expect(canSponsor(s, 'summerFair')).toEqual({ ok: false, why: 'Needs Rank 5, District Big Shot' });
+    s.rank = 5;
+    s.cash = 50000;
+    expect(canSponsor(s, 'surfContest').ok).toBe(false); // not running today
+    expect(sponsorCost(s, 'summerFair')).toBe(2000 * 5);
+    const corner = s.plots[LOTTIES_CORNER].stand!, there = s.plots[plot].stand!;
+    const before = marketingMultiplier(s, 'player', there);
+    expect(sponsorFestival(s, 'summerFair')).toBe(true);
+    expect(s.cash).toBe(40000);
+    expect(s.today.supplies).toBe(10000);
+    expect(marketingMultiplier(s, 'player', there) - before).toBeCloseTo(0.5, 6);
+    expect(calendarTraffic(s, 'player', corner)).toBe(0); // Maple Row isn't the festival's district
+    expect(canSponsor(s, 'summerFair')).toEqual({ ok: false, why: 'Sponsored' });
+    dawn(s, 15);
+    expect(calendarTraffic(s, 'player', there)).toBe(0);
+    const t = game();
+    t.rank = 5; t.cash = 50000;
+    dawn(t, 10);
+    expect(canSponsor(t, 'summerFair').ok).toBe(false); // no stand in Old Town
   });
 });

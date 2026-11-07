@@ -9,6 +9,7 @@ import { PLOT_BY_ID, type DistrictId } from './map.ts';
 import type { GameState, Stand } from './economy.ts';
 import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
+import { crowdAt, type Sponsorship } from './calendar.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -21,17 +22,19 @@ export const PAGE_HOLDERS: Partial<Record<RecipeId, PageHolder>> = {
   strawberry: 'blenders', frozen: 'blenders', honeyGinger: 'coldbrew', halfAndHalf: 'hollis', lavender: 'harpTeacher', sparkling: 'fizzco', secretReserve: 'sourwood',
 };
 
-/** The world lane's saved state: the recipe book. */
+/** The world lane's saved state: the recipe book and the calendar's sponsorships. */
 export interface WorldState {
   pages: RecipeId[]; // pages in Lottie's book: the cards you can pour
   holders: Partial<Record<RecipeId, PageHolder>>; // who holds each page still missing
+  sponsored: Sponsorship[]; // festivals the player sponsors
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
 export function migrateWorld(s: GameState): GameState {
-  const w = (s.world ??= { pages: [], holders: { ...PAGE_HOLDERS } });
+  const w = (s.world ??= { pages: [], holders: { ...PAGE_HOLDERS }, sponsored: [] });
   w.pages ??= [];
   w.holders ??= { ...PAGE_HOLDERS };
+  w.sponsored ??= [];
   for (const id of START_RECIPES) if (!w.pages.includes(id)) w.pages.push(id);
   for (const id of RECIPE_IDS) {
     if (w.pages.includes(id)) delete w.holders[id];
@@ -103,7 +106,7 @@ export function pickRecipe(s: GameState, st: Stand, id: RecipeId): boolean {
 
 // ---------- where a card shines, the Sweetness dial and the Blender Bar ----------
 
-export type ShineReason = 'everywhere' | 'district' | 'season' | 'heatWave';
+export type ShineReason = 'everywhere' | 'district' | 'season' | 'heatWave' | 'crowd';
 
 /** Seam: the Heat Wave event (world lane, random events) switches this on. */
 export const heatWaveOn = (_s: GameState): boolean => false;
@@ -115,6 +118,8 @@ export function shineReason(s: GameState, district: DistrictId, id: RecipeId): S
   if (r.shines.includes(district)) return 'district';
   if (r.season === seasonOf(s.day)) return 'season';
   if (r.heatWave && heatWaveOn(s)) return 'heatWave';
+  const crowd = crowdAt(s, district);
+  if (crowd && SEGMENTS[crowd].favorites.includes(id)) return 'crowd';
   return null;
 }
 

@@ -154,6 +154,29 @@ export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: 
   freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 30 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 30, reputation: 0.1 },
 };
 
+// ---------- the calendar: fairs and festivals (spec: Events and the living world) ----------
+export const YEAR_DAYS = SEASON_DAYS * 4; // a year is 4 seasons of 14 days, starting on Summer Day 1
+export type FestivalId = 'summerFair' | 'surfContest' | 'foundersDay' | 'countyFair' | 'homecoming' | 'harborFest' | 'winterLights' | 'marathon' | 'electionDay';
+/** `from`/`to` are season days. `crowd` fills the district with its fans; a fair holds a Taste-Off on its last day. */
+export interface Festival { name: string; district: DistrictId; season: Season; from: number; to: number; crowd?: SegmentId; fair?: boolean }
+// The spec fixes the two fairs' weeks; every other day, length and crowd, and the Marathon, Election Day and
+// Founders' Day districts, are placeholders (spec gap). Founders' Day lands on Day 120 in year 3.
+export const FESTIVALS: Record<FestivalId, Festival> = {
+  surfContest: { name: 'Surf Contest', district: 'boardwalk', season: 'summer', from: 4, to: 6, crowd: 'tourists' }, // placeholder: spec gap
+  summerFair: { name: 'Summer Fair', district: 'oldtown', season: 'summer', from: 8, to: 14, crowd: 'families', fair: true },
+  foundersDay: { name: "Founders' Day", district: 'downtown', season: 'summer', from: 8, to: 8, crowd: 'families' }, // placeholder: spec gap
+  countyFair: { name: 'County Fair', district: 'groves', season: 'fall', from: 1, to: 7, crowd: 'families', fair: true },
+  homecoming: { name: 'Campus Homecoming', district: 'campus', season: 'fall', from: 10, to: 11, crowd: 'students' }, // placeholder: spec gap
+  harborFest: { name: 'Harbor Fest', district: 'harbor', season: 'fall', from: 12, to: 14, crowd: 'workers' }, // placeholder: spec gap
+  winterLights: { name: 'Winter Lights Market', district: 'oldtown', season: 'winter', from: 8, to: 14, crowd: 'seniors' }, // placeholder: spec gap
+  marathon: { name: 'Spring Marathon', district: 'boardwalk', season: 'spring', from: 7, to: 7, crowd: 'students' }, // joggers run with the students; placeholder: spec gap
+  electionDay: { name: 'Election Day', district: 'oldtown', season: 'spring', from: 12, to: 12 }, // placeholder: spec gap
+};
+/** Share of a festival district's passersby who are the festival crowd. placeholder: spec gap */
+export const FESTIVAL_CROWD_SHARE = 0.5;
+/** Event Sponsorship (Rank 5): $2,000 per festival day, +50% traffic for your stands in the festival's district. */
+export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5 };
+
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★
 

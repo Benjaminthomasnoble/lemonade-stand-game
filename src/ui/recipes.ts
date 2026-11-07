@@ -32,7 +32,7 @@ const starArt = once(() => A.starSVG(true));
 const blankArt = once(() => A.cardSVG());
 
 const REASON: Record<ShineReason, string> = {
-  everywhere: 'it shines everywhere', district: 'it shines in this district', season: 'it shines this season', heatWave: 'it shines in the Heat Wave',
+  everywhere: 'it shines everywhere', district: 'it shines in this district', season: 'it shines this season', heatWave: 'it shines in the Heat Wave', crowd: 'the crowd here loves it',
 };
 
 /** Where a card shines, in a few words ('' for Classic, the baseline). */

@@ -12,6 +12,7 @@ import {
   type WeatherKind,
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
+import { calendarTraffic, festivalCrowd, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
@@ -31,6 +32,7 @@ export * from './modes.ts';
 export * from './night.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
+export * from './calendar.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -165,7 +167,7 @@ export interface GameState {
   alerts?: Alert[]; // the alert feed's cards (alerts.ts)
   alertSeq?: number;
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
-  world?: WorldState; // Lottie's recipe book
+  world?: WorldState; // Lottie's recipe book and the festivals the player sponsors
 }
 
 export type SimEvent =
@@ -434,7 +436,7 @@ export function averageStopChance(s: GameState, plotId: string, w: Weather = s.w
 
 export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand): number {
   const tier = owner === 'player' ? s.brandTier : s.rivals[owner]?.brandTier ?? 0;
-  let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0);
+  let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0) + calendarTraffic(s, owner, st);
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
   return m;
 }
@@ -613,7 +615,7 @@ export function tickMinute(s: GameState): SimEvent[] {
 
 /** One person walks past plot p and picks the most appealing stand within 2 plots. */
 function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
-  const seg = segmentAt(rng, p.district, 8 + hourIdx);
+  const seg = festivalCrowd(s, rng, p.district) ?? segmentAt(rng, p.district, 8 + hourIdx);
   const home = s.plots[p.id];
   home.stand!.day.passersby++;
   const options = nearbyPlots(p).filter((q) => s.plots[q.id].stand && !s.plots[q.id].stand!.wrecked);
@@ -715,6 +717,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.today.lemonsSpoiled = spoiled;
   crewAtDawn(s);
   rivalsBankrupt(s);
+  worldAtDawn(s);
   vipAtDawn(s);
   fortunesAtDawn(s);
   nightsAtDawn(s);

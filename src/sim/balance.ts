@@ -302,7 +302,7 @@ export const FACTIONS: Record<RivalId, Faction> = {
   blenders: { id: 'blenders', name: 'The Boardwalk Blenders', product: 'Smoothies', boss: 'Brock "The Blender" Bodine', color: 0xff9f1c, accent: 0x00a6a6, home: 'boardwalk', personality: 'Aggressive swarm', startCash: 10000, rebuild: 0.4, maxLevel: 4, homeShare: 0.55, startLevel: 2, oldTownStands: 1, grow: 0.25, guard: 0.15, strike: 0.6, price: 0.9, henchmen: 'Smoothie Bros' },
 };
 export const PLAYER_COLOR = 0xf6d33c;
-/** Rank needed to buy land in a district (Maple Row from the start, Old Town at Rank 2; the rest is an assumption until the spec says otherwise). */
+/** Rank needed to buy land in a district: Maple Row from the start, Old Town at Rank 2, every other district at Rank 3 (spec: Where you can buy). */
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
 
 // ---------- defenses, crew and raids (canon sections 11–14) ----------

@@ -5,7 +5,7 @@
 import { nextRandom, randomRange } from './rng.ts';
 import {
   BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
+  DAWN, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
@@ -22,7 +22,7 @@ import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesA
 import { crewAtDawn, isSpoiled, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
-import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
 import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
@@ -39,6 +39,7 @@ import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
 import { closeTills } from './loot.ts';
+import { isPurchasable, reachBlocker } from './land.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -58,6 +59,7 @@ export * from './events.ts';
 export * from './media.ts';
 export * from './happenings.ts';
 export * from './radio.ts';
+export * from './land.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -854,8 +856,9 @@ function updateLandValues(s: GameState): void {
 
 export type Blocker = { ok: true } | { ok: false; why: string };
 
+/** A Foothold: at least one purchasable plot in the district (a Trophy HQ on its own doesn't count). */
 export function hasFoothold(s: GameState, owner: FactionId, d: DistrictId): boolean {
-  return PLOTS.some((p) => p.district === d && s.plots[p.id].owner === owner);
+  return PLOTS.some((p) => p.district === d && isPurchasable(p) && s.plots[p.id].owner === owner);
 }
 
 export function canBuyPlot(s: GameState, plotId: string): Blocker {
@@ -869,11 +872,8 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
   if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
   const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;
-  // Sandbox: the start district is open from Day 1 and the border rule applies from Rank 2.
-  const gate = s.settings.mode === 'sandbox' ? (p.district === 'maple' ? 1 : 2) : DISTRICT_RANK[p.district] ?? 3;
-  if (!dibs && s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
-  const reachable = p.district === 'maple' || hasFoothold(s, 'player', p.district) || BORDERS[p.district].some((d) => hasFoothold(s, 'player', d));
-  if (!reachable && !dibs) return { ok: false, why: 'Get a Foothold in a bordering district first' };
+  const reach = reachBlocker(s, p.district);
+  if (!dibs && !reach.ok) return reach;
   const price = plotPrice(s, plotId);
   if (s.cash < price) return { ok: false, why: `Needs $${price.toLocaleString('en-US')}` };
   return { ok: true };

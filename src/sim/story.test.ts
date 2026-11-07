@@ -11,7 +11,7 @@ import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTar
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
-import { actBegan, dayProfit, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { actBegan, cornerName, cornerSign, dayProfit, rankTenLine, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
 import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -944,5 +944,34 @@ describe('the Domination show', () => {
     expect(keepSqueezing(k)).toBe(true);
     expect(victoryStage(k)).toBeUndefined();
     expect(bayPainted(k)).toBe(true);
+  });
+});
+
+
+describe('the Epilogue', () => {
+  it("the Corner's sign flips each dawn between Lottie & Vera's and Vera & Lottie's; Lottie names Rank 10", () => {
+    const s = newGame(91);
+    expect(cornerSign(s)).toBeNull();
+    s.outcome = { result: 'won', how: 'domination', day: s.day, ending: 'beloved' };
+    expect(cornerSign(s)).toBeNull(); // the victory screen: not yet
+    expect(keepSqueezing(s)).toBe(true);
+    expect(s.news).toContain(`Lottie: "${rankTenLine()}"`);
+    expect(rankTenLine()).toBe('Rank 10 next, kid: The Big Squeeze. $200,000,000.');
+    const signs: (string | null)[] = [];
+    for (let i = 0; i < 3; i++) { signs.push(cornerSign(s)); s.day++; }
+    expect(signs).toEqual(["Lottie & Vera's", "Vera & Lottie's", "Lottie & Vera's"]);
+    expect(cornerName(s, LOTTIES_CORNER)).toBe("Vera & Lottie's Corner");
+    expect(cornerName(s, PLOTS.find((p) => p.id !== LOTTIES_CORNER)!.id)).toBeNull();
+    // Rank 10 already: no line. Sandbox and Endless Summer: no reconciliation, no sign.
+    const top = newGame(92);
+    top.rank = 10;
+    top.outcome = { result: 'won', how: 'domination', day: top.day };
+    keepSqueezing(top);
+    expect(top.news).not.toContain(`Lottie: "${rankTenLine()}"`);
+    expect(cornerSign(top)).toBe("Lottie & Vera's");
+    const sb = newGame(93, { mode: 'sandbox' });
+    sb.outcome = { result: 'won', how: 'domination', day: sb.day };
+    keepSqueezing(sb);
+    expect([cornerSign(sb), cornerName(sb, LOTTIES_CORNER)]).toEqual([null, null]);
   });
 });

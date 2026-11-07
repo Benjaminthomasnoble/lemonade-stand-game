@@ -44,7 +44,7 @@ import { campaignCards } from './marketing.ts';
 import { specCards } from './specializations.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 import { booksRows } from './ledger.ts';
-import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
+import { bennyPitch, cornerName, storyDateline, taught } from '../sim/story.ts';
 import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { kidPanel, pickKid, typeName } from './grandkid.ts';
 import { nameDraft } from '../sim/grandkid.ts';
@@ -857,7 +857,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (id === TOWN_HALL) actions += registryButton(s);
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good" title="Only you can buy it ${ps.dibs.until > s.day ? `through day ${ps.dibs.until}` : 'today'}">${ps.dibs.price !== undefined ? `${ps.dibs.table ? 'Side lot' : 'Fire Sale'} ${whole(plotPrice(s, id))}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
-      <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
+      <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(cornerName(s, id) ?? p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
       ${dibs}${keptNote(ps)}${schemeNote(s, id)}${wreckNote(s, id)}${landNotes(s, id)}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }

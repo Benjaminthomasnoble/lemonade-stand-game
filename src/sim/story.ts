@@ -8,7 +8,7 @@
 // the lessons (Act 1's one system a day) and the story's hooks into the day:
 // dawn, every few minutes, closing. Pure, like the rest of the sim.
 import {
-  ACT_BY_RANK, ACTS, BELOVED_STARS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, RECORD_GAIN, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
+  ACT_BY_RANK, ACTS, BELOVED_STARS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, RANKS, RECORD_GAIN, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
 } from './balance.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
@@ -115,8 +115,30 @@ export function actBegan(s: GameState): number | null {
 
 /** Keep squeezing after the campaign's win: the Epilogue, Endless Summer, starts today. */
 export function beginEpilogue(s: GameState): void {
-  if (hasStory(s) && s.story && s.story.epilogue === undefined) s.story.epilogue = s.day;
+  if (!hasStory(s) || !s.story || s.story.epilogue !== undefined) return;
+  s.story.epilogue = s.day;
+  if (s.rank < RANKS.length) s.news.push(`Lottie: "${rankTenLine()}"`); // spec: Lottie names Rank 10 as the next goal
 }
+
+/** The Epilogue's next goal, in Lottie's words, while Rank 10 is still ahead (the goal card counts up to it: goals.ts). */
+export const rankTenLine = () => {
+  const top = RANKS[RANKS.length - 1];
+  return `Rank ${top.rank} next, kid: ${top.title}. ${money(top.ss)}.`;
+};
+
+/**
+ * The Epilogue (spec "The Epilogue: Endless Summer"): the sign over Lottie's Corner flips each dawn between Lottie &
+ * Vera's and Vera & Lottie's, by the days since the Epilogue began. The campaign only: it needs the finale's
+ * reconciliation. Null before the Epilogue, and in every other mode. The world's Corner sign is the art thread's to
+ * read (src/world); the HUD's plot card names the Corner by it (cornerName).
+ */
+export function cornerSign(s: GameState): string | null {
+  const ep = s.story?.epilogue;
+  if (!hasStory(s) || ep === undefined) return null;
+  return (s.day - ep) % 2 === 0 ? "Lottie & Vera's" : "Vera & Lottie's";
+}
+/** A plot's name on the HUD: the Corner's in the Epilogue ("Vera & Lottie's Corner"), else null (its own name). */
+export const cornerName = (s: GameState, plotId: string) => { const sign = plotId === LOTTIES_CORNER ? cornerSign(s) : null; return sign ? `${sign} Corner` : null; };
 
 /** Has the climax that closes this act happened? */
 export function climaxDone(s: GameState, act: number): boolean {

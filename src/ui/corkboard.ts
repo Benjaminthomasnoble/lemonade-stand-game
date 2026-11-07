@@ -12,6 +12,7 @@ import {
   successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
+import { pactPhoto, pactStrings } from './pactboard.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -39,6 +40,7 @@ export const broke = (s: GameState, id: RivalId) => budgetOf(s, id).strike < rai
 
 /** Red string from this boss to each faction they hold a Grudge against, thicker (more pips) with more Grudge. */
 function strings(s: GameState, id: RivalId): string {
+  const pact = pactStrings(s, id, BOSS[id]); if (pact !== null) return pact; // nights: once the Pact stands, every string ties to your photo (pactboard.ts)
   const at: FactionId[] = ['player', ...RIVALS.filter((r) => r !== id && s.rivals[r].alive)];
   const out = at.map((f) => ({ f, g: grudgeToward(s, id, f) })).filter((x) => x.g >= PIP / 2)
     .map(({ f, g }) => `<span class="cl-note" title="${esc(`${BOSS[id]}'s Grudge toward ${GANG[f]}: ${Math.round(g)}`)}">${esc(GANG[f])}</span>${pips(Math.min(5, Math.round(g / PIP)), 5)}`);
@@ -78,5 +80,5 @@ export function corkboardBody(s: GameState): string {
   const bosses = boardOrder(s);
   const board = bosses.length ? `<div class="cl-cards">${bosses.map((id) => pin(s, id)).join('')}</div>` : '<span class="cl-note">Every rival is out of business</span>';
   return `<span class="cl-label">Your score ${short$(successScore(s))}</span>
-    ${board}`;
+    ${pactPhoto(s)}${board}`;
 }

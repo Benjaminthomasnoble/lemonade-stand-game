@@ -18,7 +18,7 @@ import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, s
 import { repTip, scoreParts, scoreTip, standRepTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
-import { callBigSqueeze, newStand, PLOT_BY_ID, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
+import { callBigSqueeze, formSyndicate, newStand, PLOT_BY_ID, PLOTS, siegeTargets, syndicateMembers, type Mode } from '../sim/economy.ts';
 import { squeezePanel } from './squeeze.ts';
 import { bugleSheet } from './bugle.ts';
 import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './knob.ts';
@@ -569,5 +569,40 @@ describe("the Big Squeeze on Sourwood Manor's card", () => {
     const card = alertCards(w)[0];
     expect(card).toContain('<b>Siege → ');
     expect(card).toContain('Siege night 3: a Syndicate strike, sent by Sourwoods.');
+  });
+});
+
+describe('the Corkboard once the Pact stands', () => {
+  const menuParts = () => ({ head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => 'CREW', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } });
+  const stringsOf = (html: string) => html.match(/data-testid="cork-strings">.*?<\/span><\/span>/g) ?? [];
+
+  it("pins your photo and ties each member's one string to it, a pip at least; the strings between bosses come down", () => {
+    const s = newGame(3);
+    s.day = 90;
+    eliminate(s, 'blenders', 'hq');
+    for (const id of ['sourwood', 'hollis', 'fizzco', 'coldbrew'] as const) { s.rivals[id].grudge = 0; s.rivals[id].grudges = {}; }
+    s.rivals.hollis.grudges = { fizzco: 80 };
+    s.rivals.fizzco.grudges = { hollis: 60 };
+    s.rivals.sourwood.grudge = 40;
+    const before = menuScreen(s, 'corkboard', menuParts());
+    expect(before).toContain("Big Tilly's Grudge toward FizzCo: 80"); // before the Pact: the bosses' feuds
+    expect(before).toContain("Preston's Grudge toward Hollis: 60");
+    expect(before).not.toContain('data-testid="cork-player"');
+    formSyndicate(s);
+    const board = menuScreen(s, 'corkboard', menuParts());
+    expect(board).toContain('data-testid="cork-player"');
+    expect(board).toContain("<b>You · Lottie's</b><i>Everyone but the kid: 4 in the Pact</i>");
+    expect(board).not.toContain('Grudge toward FizzCo');
+    expect(board).not.toContain('Grudge toward Hollis');
+    const strings = stringsOf(board);
+    expect(strings).toHaveLength(syndicateMembers(s).length); // one a member: the four left standing
+    for (const line of strings) {
+      expect(line.match(/class="cl-note"/g)).toHaveLength(1);
+      expect(line).toContain(">Lottie's</span>");
+      expect(line.match(/<i class="on">/g)!.length).toBeGreaterThanOrEqual(1);
+    }
+    expect(board).toContain('title="Vera is in the Pact against you. Grudge toward you: 40"');
+    expect(strings.filter((l) => l.match(/<i class="on">/g)!.length === 4)).toHaveLength(1); // Vera's 40: four pips
+    expect(strings.filter((l) => l.match(/<i class="on">/g)!.length === 1)).toHaveLength(3); // no Grudge: still in on it
   });
 });

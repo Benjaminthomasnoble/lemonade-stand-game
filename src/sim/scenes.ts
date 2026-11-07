@@ -140,6 +140,18 @@ export const SCENES: Record<string, SceneDef> = {
     recap: 'Captain Squawk caught Cold Brew baristas in beanies at your stand at 3 a.m.',
     call: { who: 'coldbrew', line: 'juniAct3' },
   },
+  // Act 5's tea at the Manor (src/sim/beats.ts): Vera offers to buy you out. Every reply is a no, and none changes a thing.
+  tea: {
+    seconds: 18,
+    lines: [
+      { who: 'Vera', text: 'Tea at the Manor, dear. Do sit.', at: 0.5 },
+      { who: 'Vera', text: "I'd like to buy Lottie's Lemonade.", at: 4.4 },
+      { who: 'Vera', text: "Name your price. Your grandmother needn't know.", at: 8.6 },
+      { who: 'Vera', text: 'Pity. My friends will be less polite.', at: 13.6 },
+    ],
+    replies: ['No', 'No, thank you', "Absolutely not, ma'am."],
+    recap: "Vera had you to tea at Sourwood Manor and offered to buy Lottie's Lemonade. You said no.",
+  },
 };
 
 const DEX = 'Dex Moody';

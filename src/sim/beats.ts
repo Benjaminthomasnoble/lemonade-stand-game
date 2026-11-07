@@ -1,5 +1,7 @@
-// Acts 3 and 4's beats in the campaign (spec "Act 3: Grounds for Revenge" and
-// "Act 4: Fields & Fizz"), told through systems that already exist. The
+// Acts 3 to 5's beats in the campaign (spec "Act 3: Grounds for Revenge",
+// "Act 4: Fields & Fizz" and "Act 5: The Big Squeeze"), told through systems
+// that already exist. Act 5 has Vera's tea at the Manor (her offer to buy you
+// out, every reply a no); its finale is Vera's exit (src/sim/exits.ts). The
 // handshake: Preston invites you to Dot's and offers a 7-day Truce for the
 // usual tribute (the Sit-downs lesson); what you pay him is on Juni's invoice.
 // The night flight: the morning after Cold Brew's first raid on you, Captain
@@ -12,7 +14,7 @@ import type { GameState } from './economy.ts';
 import { alert } from './alerts.ts';
 import { deliveryRaidRisk } from './night.ts';
 import { CALL_PRIORITY, juniInforms, LINES, phoneCall } from './phone.ts';
-import { ownsRecipe } from './recipes.ts';
+import { ownsRecipe, pageHolder } from './recipes.ts';
 import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.ts';
 import { playScene, queued } from './scenes.ts';
 import { hasStory } from './story.ts';
@@ -186,12 +188,29 @@ function mayorsVisit(s: GameState): void {
   if (fine) playScene(s, 'fontaine', { recap: `Mayor Fontaine delivered one of Vera's fines: ${money(fine.price ?? 0)}.` });
 }
 
-/** Dawn (from storyAtDawn): Acts 3 and 4's beats, and the Mayor's visit. */
+// ---------- Act 5: tea at the Manor ----------
+
+/** Vera has you to tea this many days into Act 5 at the latest. Placeholder: spec gap (after the auction, before the Syndicate's two weeks, no day). */
+export const TEA_DAY = 5;
+
+/**
+ * Tea at the Manor (spec Act 5): after the Lavender auction and before the Syndicate forms, Vera offers to buy Lottie's
+ * Lemonade. Seam (land's Lavender auction, not on main yet): the morning after the page leaves the harp teacher, from
+ * the act's second morning; until an auction comes, TEA_DAY days into the act.
+ */
+function teaAtTheManor(s: GameState): void {
+  const st = s.story!;
+  if (st.act !== 5 || s.day <= st.since || !s.rivals.sourwood.alive || queued(s, 'tea')) return;
+  if (pageHolder(s, 'lavender') !== 'harpTeacher' || s.day >= st.since + TEA_DAY) playScene(s, 'tea');
+}
+
+/** Dawn (from storyAtDawn): Acts 3 to 5's beats, and the Mayor's visit. */
 export function beatsAtDawn(s: GameState): void {
   if (!hasStory(s) || !s.story || s.story.epilogue !== undefined) return;
   handshake(s);
   nightFlight(s);
   firstOffers(s);
   chopperTip(s);
+  teaAtTheManor(s);
   mayorsVisit(s);
 }

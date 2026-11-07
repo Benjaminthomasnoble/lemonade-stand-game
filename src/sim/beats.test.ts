@@ -7,13 +7,14 @@ import {
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   type GameState, type Guard, type RivalId,
 } from './economy.ts';
-import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer } from './beats.ts';
+import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, INVOICE } from './exits.ts';
+import { movePage } from './recipes.ts';
 import { ceaseAndDesist } from './schemes.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
 import { eliminate, hqPlot, inTruce, truceCost } from './rivals.ts';
-import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
+import { beginScene, endScene, migrateScenes, playScene, replyScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
 import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
 import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, storyHeadline, taught } from './story.ts';
 
@@ -733,7 +734,7 @@ describe("Juni's tips, the first chopper and the first ship", () => {
   });
 });
 
-describe('Act 4: FizzCo falls', () => {
+describe('Acts 4 and 5: FizzCo falls, tea at the Manor', () => {
   const exitOf = (s: GameState, id: string) => s.scenes!.queue.find((q) => q.id === `exit-${id}`);
   /** A campaign in Act 4 or 5: the earlier climaxes behind it, at the rank its HQ assault needs. */
   const lateAct = (seed: number, act: 4 | 5) => {
@@ -763,5 +764,32 @@ describe('Act 4: FizzCo falls', () => {
     expect(s.news).toContain('ACT 5: THE BIG SQUEEZE! Sourwood Manor is watching.');
     expect(storyHeadline(s)).toEqual(['ACT 5!', 'The Big Squeeze']);
     expect(s.phone!.queue.some((c) => c.who === 'sourwood' && c.text === LINES.veraAct5)).toBe(true);
+  });
+
+  it('tea at the Manor: days into Act 5, or the morning after the Lavender auction, Vera offers to buy you out; every reply is a no', () => {
+    const s = lateAct(111, 5);
+    const tea = (x: GameState) => x.scenes!.queue.some((q) => q.id === 'tea');
+    while (s.day < s.story!.since + TEA_DAY - 1) { nextDawn(s); expect(tea(s)).toBe(false); }
+    nextDawn(s);
+    expect(tea(s)).toBe(true);
+    s.scenes!.queue = s.scenes!.queue.filter((q) => q.id === 'tea');
+    delete s.scenes!.lastDay;
+    const sc = beginScene(s)!;
+    expect(sc.id).toBe('tea');
+    expect(sc.replies).toEqual(['No', 'No, thank you', "Absolutely not, ma'am."]);
+    const before = JSON.stringify([s.cash, s.plots, s.rivals, s.outcome]);
+    replyScene(s, "Absolutely not, ma'am.");
+    endScene(s, false);
+    expect(JSON.stringify([s.cash, s.plots, s.rivals, s.outcome])).toBe(before); // the reply changes nothing
+    nextDawn(s);
+    expect(tea(s)).toBe(false); // once a run
+    // Land's Lavender auction (when it lands): the page leaves the harp teacher, and tea is the next morning.
+    const t = lateAct(112, 5);
+    t.story!.since = t.day - 1;
+    nextDawn(t);
+    expect(tea(t)).toBe(false);
+    movePage(t, 'lavender', 'sourwood');
+    nextDawn(t);
+    expect(tea(t)).toBe(true);
   });
 });

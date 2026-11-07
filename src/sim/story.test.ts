@@ -53,9 +53,15 @@ describe('story acts', () => {
     nextDawn(s); // the fair's last day: the judges set up
     expect(actOf(s)).toBe(1);
     playDay(s); // judged at closing; the next dawn opens Act 2
-    expect(tasteOffResult(s, 'summerFair', 1)).toBeDefined();
+    const fair = tasteOffResult(s, 'summerFair', 1)!;
+    expect(fair).toBeDefined();
     expect(s.day).toBe(SUMMER_FAIR_DAY + 1);
     expect(actOf(s)).toBe(2);
+    fair.winner = 'blenders'; // Brock keeps his page: the act's own banner leads the paper
+    expect(storyHeadline(s)).toEqual(['ACT 2!', 'Surf & Turf']);
+    Object.assign(fair, { winner: 'player', stake: 'strawberry' }); // you took it: the Bugle's Act 1 climax line leads instead
+    expect(storyHeadline(s)).toBeNull();
+    expect(storyDateline(s)).toBe('Act 2: Surf & Turf');
   });
 
   it('Sandbox has no acts or scenes; an old save infers its act from the climaxes behind it', () => {

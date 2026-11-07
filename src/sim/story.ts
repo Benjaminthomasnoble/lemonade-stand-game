@@ -143,10 +143,15 @@ export function storyAfterAct(s: GameState): void {
   phoneCheck(s);
 }
 
-/** The morning's Bugle banner on the first day of a new act. */
+/**
+ * The morning's Bugle banner on the first day of a new act. Act 2's first morning yields to the Bugle's own line for
+ * the Act 1 climax when you took Brock's Strawberry page ("FOLDING TABLE STUNS...", src/ui/calendar.ts).
+ */
 export function storyHeadline(s: GameState): [string, string] | null {
   const st = s.story;
   if (!hasStory(s) || !st || st.banner !== s.day || st.act < 2) return null;
+  const fair = tasteOffResult(s, 'summerFair', 1);
+  if (st.act === 2 && fair?.stake === 'strawberry' && fair.winner === 'player' && s.day === fair.day + 1) return null;
   return [`ACT ${st.act}!`, ACTS[st.act - 1]];
 }
 

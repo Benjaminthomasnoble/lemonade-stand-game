@@ -37,6 +37,7 @@ import {
   type Options, type PauseKind,
 } from './settings.ts';
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
+import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './ui/knob.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
 import { createWorld } from './world/scene.ts';
@@ -102,15 +103,15 @@ async function main() {
   state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`; // saves from before the leaderboard
   watchFights(true); // fights you're in play live on screen (the skips still fight at once)
   // The clock (spec: Clock and speed). speed 0 is a pause, from Space, the ❚❚ knob or an auto-pause on a major
-  // alert: the clock, the brawl on screen and any VIP scene all hold still. Full-screen paper pauses too.
-  let speed = 1;
-  let resumeTo = 1; // the speed a resume goes back to
+  // alert: the clock, the brawl on screen and any VIP scene all hold still. Full-screen paper pauses too, and the
+  // knob knows who holds the pause (src/ui/knob.ts): putting the paper away resumes only a pause the paper made.
+  const knob = newKnob();
   let vipResume = 0; // a watched first visit holds the clock (not its scene) until the show is over
   let vipPaused = ''; // the first-arrival card that auto-paused the clock: Watch or dismiss resumes it
   let acc = 0;
   // A save made during business hours or the night picks up where it left off, paused (Space or a speed goes on).
   const midDay = (s: GameState) => s.phase === 'open' || s.phase === 'night';
-  if (saved && midDay(saved)) speed = 0;
+  if (saved && midDay(saved)) knob.speed = 0;
   let savedHour = -1; // the game hour last saved mid-day (the clock saves once a game hour, and when the page hides)
   let options: Options = loadOptions();
   setReducedMotion(options.reducedMotion); // "Less motion" reaches the world too: no boil, shakes or flashes (src/world/clay/kit.ts)
@@ -121,20 +122,18 @@ async function main() {
   let eveningWait = 0; // the Evening's moment, off the Ledger
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
   const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined); // as the HUD's outcome screen
-  let screenUp = false; // full-screen paper was up last frame
-  let screenPaused = false; // ...and it paused the clock, so putting it away brings the speed back
-  const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
-  const resume = () => { vipPaused = ''; if (!speed) speed = resumeTo || 1; };
+  const pause = () => pauseKnob(knob); // a load, an alert or a key: it outlasts the paper (src/ui/knob.ts)
+  const resume = () => { vipPaused = ''; resumeKnob(knob); };
   /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
   const quiet = () => options.quietNights && !quietOff;
   const setSpeed = (v: number) => {
     if (v <= 0) { pause(); return; }
     vipPaused = ''; // you picked the speed: an old card no longer owns the pause
     if (quiet() && quietNight(state)) quietOff = true;
-    speed = v;
+    setKnob(knob, v);
   };
   /** The speed the clock actually runs at, for the knobs: a quiet night shows its 3×. */
-  const shownSpeed = () => (speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : speed);
+  const shownSpeed = () => (knob.speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : knob.speed);
 
   const audio = createAudio();
   // Every stinger has a visual twin (src/ui/twins.ts): a screen-edge pulse in its colour and pattern beside its card.
@@ -320,7 +319,7 @@ async function main() {
   // Story scenes wait for a lull: Morning Prep with nothing else on screen. One plays at a time, under a minute.
   let sceneT = 0, sceneWorld = false, sceneSaid = 0;
   const busy = () => !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || battle.active() || vip.active() || !!vipResume || phone.ringing() || flight.active() || !!document.querySelector('.frontpage');
-  const lull = () => !busy() && !scenes.active() && speed !== 0; // a paused game starts no scene
+  const lull = () => !busy() && !scenes.active() && knob.speed !== 0; // a paused game starts no scene
   const startScene = () => {
     const sc = beginScene(state);
     if (!sc) return;
@@ -572,7 +571,7 @@ async function main() {
         if (state.day > 1) recordScore(state); // the run being left keeps its row on the leaderboard
         clearSave();
         state = freshRun(a.settings);
-        hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; vipPaused = ''; bubbles.clear();
+        hud.setup = null; hud.inspected = null; Object.assign(knob, newKnob()); vipResume = 0; vipPaused = ''; bubbles.clear();
         crowd.clear(); stopFights(); resetScene(); bay.sync(state); focusPlot(state.selected);
         break;
       }
@@ -819,7 +818,7 @@ async function main() {
     if (!k) return;
     if (k === 'panUp' || k === 'panDown' || k === 'panLeft' || k === 'panRight') { panning.add(k); return; }
     if (e.repeat) return;
-    if (k === 'pause') { if (speed) pause(); else resume(); e.preventDefault(); }
+    if (k === 'pause') { if (knob.speed) pause(); else resume(); e.preventDefault(); }
     else if (k === 'speed1' || k === 'speed2' || k === 'speed3') setSpeed(Number(k.slice(5)));
     else if (k === 'turnLeft' || k === 'turnRight') world.turnStep(k === 'turnLeft' ? -1 : 1);
     else if (k === 'gull') {
@@ -872,7 +871,7 @@ async function main() {
       hud.render(state, shownSpeed());
     },
     /** The clock as it runs now: real seconds per game minute (Infinity: stopped), and the speed knob. */
-    clock: () => ({ phase: state.phase, minute: state.minute, speed, shown: shownSpeed(), spm: secondsPerMinute(state, speed, { fighting: liveFight, quiet: quiet() }) }),
+    clock: () => ({ phase: state.phase, minute: state.minute, speed: knob.speed, shown: shownSpeed(), spm: secondsPerMinute(state, knob.speed, { fighting: liveFight, quiet: quiet() }) }),
   };
 
   morningLine();
@@ -882,15 +881,12 @@ async function main() {
     const realDt = timer.getDelta();
     const dt = Math.min(realDt, 0.1);
     // Full-screen paper (New Game, Options, a menu, the Bugle's front page) pauses the clock while it runs, with its
-    // own switch in Options, and putting it away brings the speed back. Space and 1-3 still work behind it. A won or
-    // lost run and the first visit's New Game hold everything.
+    // own switch in Options, and putting it away brings the speed back, unless a load, an alert's auto-pause or a key
+    // took the pause over meanwhile (src/ui/knob.ts). Space and 1-3 still work behind it. A won or lost run and the
+    // first visit's New Game hold everything.
     const paper = !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || !!uiRoot.querySelector('.frontpage');
-    if (paper !== screenUp) {
-      screenUp = paper;
-      if (paper && speed && (state.phase === 'open' || state.phase === 'night') && options.autoPause && options.pause.screens) { pause(); screenPaused = true; }
-      else if (!paper && screenPaused) { screenPaused = false; if (!speed) resume(); }
-    }
-    const frozen = speed === 0 || outcomeUp() || (!!hud.setup && !hud.setup.cancel); // the clock, the brawl and the scenes hold still
+    if (paperKnob(knob, paper, (state.phase === 'open' || state.phase === 'night') && options.autoPause && options.pause.screens)) vipPaused = '';
+    const frozen = knob.speed === 0 || outcomeUp() || (!!hud.setup && !hud.setup.cancel); // the clock, the brawl and the scenes hold still
     if (panning.size && !flight.active()) {
       const has = (k: KeyAction) => (panning.has(k) ? 1 : 0);
       world.panBy((has('panRight') - has('panLeft')) * Math.min(realDt, 0.1), (has('panUp') - has('panDown')) * Math.min(realDt, 0.1));
@@ -902,13 +898,13 @@ async function main() {
     else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
       const from = state.phase;
-      const rate = () => secondsPerMinute(state, speed, { fighting: liveFight, quiet: quiet() });
+      const rate = () => secondsPerMinute(state, knob.speed, { fighting: liveFight, quiet: quiet() });
       acc += dt;
       let guard = 0;
       while (acc >= rate() && guard++ < 240) {
         acc -= rate();
         drawEvents(tickMinute(state));
-        if (state.phase !== from || speed === 0 || vipResume) { acc = 0; break; }
+        if (state.phase !== from || knob.speed === 0 || vipResume) { acc = 0; break; }
       }
       if (state.phase !== from) { flushNews(); saveGame(state); bay.sync(state); }
       else flushNews();
@@ -923,7 +919,7 @@ async function main() {
     } else if (state.phase !== 'prep') prepWait = 0;
     // The Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
     if (state.phase === 'report' && !frozen && !paper && !state.outcome && (!hud.ledger || options.autoContinue)) {
-      eveningWait += dt * Math.max(speed, 1);
+      eveningWait += dt * Math.max(knob.speed, 1);
       if (eveningWait >= EVENING_REAL_SECONDS) act({ type: 'night' });
     } else if (state.phase !== 'report') eveningWait = 0;
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
@@ -932,7 +928,7 @@ async function main() {
     bay.update(state, timer.getElapsed(), phone.ringing(), world.controls.target);
     crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
     crowd.setSeason(seasonOf(state.day));
-    crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
+    crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(knob.speed, 1) : 1);
     battle.update(frozen ? 0 : dt);
     vip.update(frozen ? 0 : Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
     traffic.update(state, frozen ? 0 : dt, world.controls.target, { hold: battle.active() || vip.active(), camera: world.camera }); // paused: traffic holds still too

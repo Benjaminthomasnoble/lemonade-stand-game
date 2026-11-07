@@ -21,6 +21,7 @@ import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
 import { callBigSqueeze, newStand, PLOT_BY_ID, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
 import { squeezePanel } from './squeeze.ts';
 import { bugleSheet } from './bugle.ts';
+import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './knob.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -314,6 +315,53 @@ describe('the top bar explains itself', () => {
     expect(threatTip(s).split('\n').at(-1)).toBe('Syndicate: 5 bosses against you');
     for (const id of ['blenders', 'coldbrew', 'hollis', 'fizzco'] as const) eliminate(s, id, 'bankrupt');
     expect(threatTip(s).split('\n').at(-1)).toBe('Syndicate: one boss against you');
+  });
+});
+
+describe('the pause knob and full-screen paper', () => {
+  it('paper pauses a running clock and gives the same speed back when put away; over a pause it leaves it paused', () => {
+    const k = newKnob();
+    setKnob(k, 2);
+    paperKnob(k, true, true); // a menu goes up mid-day
+    expect(k.speed).toBe(0);
+    paperKnob(k, true, true); // still up: nothing changes
+    expect(k.speed).toBe(0);
+    expect(paperKnob(k, false, true)).toBe(true);
+    expect(k.speed).toBe(2);
+    pauseKnob(k); // Space
+    paperKnob(k, true, true);
+    expect(paperKnob(k, false, true)).toBe(false);
+    expect(k.speed).toBe(0); // it wasn't the paper's pause
+    resumeKnob(k);
+    paperKnob(k, true, false); // the Screens switch off, or Morning Prep: the clock runs on
+    expect(k.speed).toBe(2);
+    paperKnob(k, false, false);
+    expect(k.speed).toBe(2);
+  });
+
+  it("a mid-day load behind Options stays paused once Options closes", () => {
+    const k = newKnob();
+    paperKnob(k, true, true); // Options open while the day runs
+    pauseKnob(k); // Load: restore() pauses a mid-day save
+    paperKnob(k, false, true); // loading puts Options away
+    expect(k.speed).toBe(0);
+  });
+
+  it("an alert's auto-pause behind a menu outlasts the menu; a speed picked behind it too", () => {
+    const k = newKnob();
+    paperKnob(k, true, true);
+    resumeKnob(k); // Space behind the menu
+    expect(k.speed).toBe(1);
+    pauseKnob(k); // a raid warning auto-pauses
+    paperKnob(k, false, true); // Esc puts the menu away
+    expect(k.speed).toBe(0);
+    paperKnob(k, true, true);
+    setKnob(k, 3); // 3 behind the paper
+    paperKnob(k, false, true);
+    expect(k.speed).toBe(3);
+    pauseKnob(k);
+    resumeKnob(k);
+    expect(k.speed).toBe(3); // a resume goes back to the speed before the pause
   });
 });
 

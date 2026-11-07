@@ -1582,7 +1582,7 @@ The top bar holds four things: Cash (a coin jar), the Rank badge with its progre
 
 Lottie's goals collapse to one goal pill with a progress bar; tap it for the rest. The Bugle headline slides in at dawn as a small banner and slides away; the forecast is the weather chip. Bugle Extras stack small in a corner and fade on their own; only story beats get the big banner.
 
-**Morning dock.** One wooden strip along the bottom: three pitchers (Classic, Pink, Mint) with a three-cube Sweetness toggle, a chalkboard price with − and + and a crowd meter of five little people, three stock gauges (lemons, sugar, ice) each with a + that buys a pack (long-press fills), and a big round Open button. A gauge pulses when it will run short; the price chalk turns red below cost.
+**Morning dock.** One wooden strip along the bottom: three pitchers (Classic, Pink, Mint) with a three-cube Sweetness toggle, a chalkboard price with − and + and a crowd meter of five little people, three supply buttons (lemons, sugar, ice) that each buy a pack (long-press fills), and a big round Open button. How full each supply is shows on the stand itself (lemon crate, sugar sack, ice cooler), so the dock only buys and warns: a supply button pulses when it will run short; the price chalk turns red below cost.
 
 **Day's end.** One card: the profit as a big number that counts up, cups sold and people turned away, Reputation stars with an up or down tick, the Rank meter, one line from Lottie, any raid coming tonight (their fighters against your guards and fence, as icons, with one fix button) and Sleep. The full Ledger sits behind "See the books".
 

@@ -439,13 +439,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const lvl = SWEET.indexOf(st.sweetness);
     const cube = (i: number) => `<button class="cl-cube" data-action="sweet" data-value="${SWEET[i]}" aria-pressed="${i <= lvl}" title="Sweetness: ${['less', 'classic', 'extra'][i]}">${ART.cube()}</button>`;
     const art: Record<SupplyId, (l: string) => string> = { lemons: ART.bowl, sugar: ART.bag, ice: ART.tray };
+    // The stand's crate, sack and cooler show how full each is; the dock only buys and warns.
     const gauge = (id: SupplyId) => {
       const sp = SUPPLIES[id];
       const max = maxPacks(s, st, id);
-      const fill = stock(st, id) / sl.storage[id];
       const note = id === 'ice' ? 'melts tonight' : id === 'lemons' ? (expiring ? `${expiring} spoil tomorrow` : 'keep 3 days') : 'keeps';
       return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${sl.storage[id]} (${note})">
-        <span class="cl-fill${id === 'lemons' && expiring ? ' brown' : ''}"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:${fill.toFixed(3)}"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
+        <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
     };
     const restock = s.day >= AUTO_RESTOCK_DAY ? `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>` : '';

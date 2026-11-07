@@ -46,6 +46,12 @@ export const RIVAL_LAND_CHANCE = 0.25;
 export const RIVAL_UPGRADE_DAYS = 30;
 /** A raid costs the rival this many nights of wages for each henchman it sends (placeholder: spec gap). */
 export const RAID_WAGE_NIGHTS = 1;
+/**
+ * Grudge (0–100) a rival gains toward a faction that raids it, smashes its stand, takes its land or outbids it,
+ * and loses on each quiet day; a feud makes the Bugle (placeholders: the spec gives no amounts). Your raids add
+ * 20 when they win and 8 when they fail (fightRaid); breaking a truce adds 25 with every rival.
+ */
+export const GRUDGE = { raided: 10, smashed: 10, land: 15, outbid: 10, cool: 1, feud: 50 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 
@@ -165,6 +171,7 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
   s.today.land = round2(s.today.land + price);
   s.rivals[id].cash += price;
   ps.owner = 'player';
+  s.rivals[id].held = s.rivals[id].held?.filter((x) => x !== plotId); // a sale, not a taking: no Grudge
   ps.garrison = 0;
   if (ps.stand) ps.stand.price = Math.max(ps.stand.price, 0.5);
   s.news.push(`Skip Larkin: "Done deal! ${FACTIONS[id].name} sell ${PLOT_BY_ID[plotId].name} for ${money(price)}."`);

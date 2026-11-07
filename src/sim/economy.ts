@@ -104,6 +104,10 @@ export interface RivalState {
   cashSeen?: number; // cash after the last dawn's banking, less bucket spending since
   takings?: number; // what the last dawn banked
   upgradesDue?: string[]; // plots owed a stand level (every 30 days), waiting for Grow money
+  grudges?: Partial<Record<RivalId, number>>; // toward the other rivals, 0..100 (grudge holds the one toward the player)
+  grudgeSeen?: Partial<Record<FactionId, number>>; // grudges after the last dawn: no rise since means a quiet day
+  held?: string[]; // plots held at the last dawn
+  lost?: string[]; // plots taken from them that went For Sale: whoever buys one takes their land
 }
 
 export interface DayStats {

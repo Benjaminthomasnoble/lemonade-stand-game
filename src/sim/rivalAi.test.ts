@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bankTakings, budgetOf, crewAtDawn, FACTIONS, growLand, growUpgrades, LOTTIES_CORNER, migrateSave, newGame, ownedPlots, planNight,
-  raidCost, reserveOf, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
+  addGrudge, bankTakings, budgetOf, crewAtDawn, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades, LOTTIES_CORNER, migrateSave, newGame,
+  ownedPlots, planNight, plotBuyout, raidCost, reserveOf, rivalDawn, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -143,5 +143,79 @@ describe('rival dawn budget', () => {
     }
     const again = migrateSave(JSON.parse(JSON.stringify(loaded)))!;
     expect(JSON.stringify(again.rivals)).toBe(JSON.stringify(loaded.rivals));
+  });
+});
+
+describe('rival grudges', () => {
+  const dawn = (s: GameState, id: RivalId) => rivalDawn(s, id, { seed: 1 });
+  const standOf = (s: GameState, id: RivalId, skip = 0) => ownedPlots(s, id).filter((p) => p.type !== 'hq' && s.plots[p.id].stand)[skip];
+
+  it('rise when another rival raids them, and point that rival\'s own raids', () => {
+    const s = newGame(12);
+    s.day = 20;
+    s.rank = 3;
+    (s.rivals.blenders.grudges ??= {}).hollis = 100;
+    let raid = null;
+    for (let i = 0; i < 400 && !raid; i++) {
+      s.raids = [];
+      planNight(s);
+      raid = s.raids.find((r) => r.attacker === 'blenders' && s.plots[r.target].owner !== 'player') ?? null;
+    }
+    expect(raid).not.toBeNull();
+    expect(s.plots[raid!.target].owner).toBe('hollis');
+    expect(grudgeToward(s, 'hollis', 'blenders')).toBeGreaterThanOrEqual(GRUDGE.raided);
+  });
+
+  it('rise when another rival smashes their stand', () => {
+    const s = newGame(13);
+    s.day = 9;
+    const p = standOf(s, 'hollis');
+    s.plots[p.id].stand!.wrecked = true;
+    s.plots[p.id].wreckedDay = 8;
+    s.plots[p.id].smashedBy = 'fizzco';
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'fizzco')).toBe(GRUDGE.smashed);
+  });
+
+  it('rise when someone takes their land, even after it sat For Sale, but not for a Plot Buyout', () => {
+    const s = newGame(14);
+    s.rank = 7;
+    s.cash = 50_000_000;
+    const [a, b, c] = [standOf(s, 'hollis', 0), standOf(s, 'hollis', 1), standOf(s, 'hollis', 2)];
+    s.plots[a.id].owner = 'fizzco';
+    s.plots[b.id] = { ...s.plots[b.id], owner: null, stand: null };
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'fizzco')).toBe(GRUDGE.land);
+    expect(grudgeToward(s, 'hollis', 'player')).toBe(0);
+    s.plots[b.id].owner = 'player'; // bought off the For Sale sign
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'player')).toBe(GRUDGE.land);
+    s.rivals.hollis.grudge = 0;
+    s.rivals.hollis.grudgeSeen = {};
+    expect(plotBuyout(s, c.id)).toBe(true);
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'player')).toBe(0);
+  });
+
+  it('cool a little on each quiet day, but not the day after a hit', () => {
+    const s = newGame(15);
+    s.rivals.hollis.grudges = { blenders: 30 };
+    s.rivals.hollis.grudge = 20;
+    s.rivals.hollis.grudgeSeen = { blenders: 30, player: 20 }; // as angry yesterday
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'blenders')).toBe(30 - GRUDGE.cool);
+    expect(grudgeToward(s, 'hollis', 'player')).toBe(20 - GRUDGE.cool);
+    addGrudge(s, 'hollis', 'blenders', 10);
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'blenders')).toBe(40 - GRUDGE.cool);
+    dawn(s, 'hollis');
+    expect(grudgeToward(s, 'hollis', 'blenders')).toBe(40 - 2 * GRUDGE.cool);
+  });
+
+  it('a feud between two rivals makes the Bugle', () => {
+    const s = newGame(16);
+    s.news = [];
+    addGrudge(s, 'coldbrew', 'fizzco', GRUDGE.feud);
+    expect(s.news.some((n) => n.includes('feud'))).toBe(true);
   });
 });

@@ -1,15 +1,18 @@
 // Rival AI (spec: Rivals, How rivals think). Every dawn each rival banks its
 // takings and splits them into Grow, Guard and Strike buckets that roll over:
 // Grow buys land and stand upgrades, Guard buys defenses and crew, Strike pays
-// for raids. Pure functions over GameState, like the rest of the sim; every
-// random draw goes through a seeded rng that is written back to s.seed.
+// for raids. Each rival also keeps a Grudge toward every other faction.
+// Pure functions over GameState, like the rest of the sim; every random draw
+// goes through a seeded rng that is written back to s.seed.
 import { FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, STAND_LEVELS, type RivalId } from './balance.ts';
-import { PLOT_BY_ID, PLOTS } from './map.ts';
+import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, rivalPrice } from './economy.ts';
-import { inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS } from './rivals.ts';
-import { NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
+import {
+  GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS,
+} from './rivals.ts';
+import { hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -56,6 +59,7 @@ export function openBooks(s: GameState, id: RivalId): void {
   const f = FACTIONS[id];
   r.budget = { grow: round2(r.cash * f.grow), guard: round2(r.cash * f.guard), strike: round2(r.cash * f.strike) };
   r.cashSeen = r.cash;
+  r.held = ownedPlots(s, id).map((p) => p.id);
   fitBudget(s, id);
 }
 
@@ -92,7 +96,92 @@ export function migrateRivals(s: GameState): void {
     if (!r.budget) { r.budget = { grow: 0, guard: 0, strike: 0 }; fitBudget(s, id, true); }
     r.cashSeen ??= r.cash;
     r.upgradesDue ??= [];
+    r.grudges ??= {};
+    r.held ??= ownedPlots(s, id).map((p) => p.id);
   }
+}
+
+// ---------- Grudge toward every faction ----------
+
+/** How angry rival `id` is with faction `at` (0..100). The one toward the player is RivalState.grudge. */
+export function grudgeToward(s: GameState, id: RivalId, at: FactionId): number {
+  const r = s.rivals[id];
+  return at === 'player' ? r.grudge : (r.grudges?.[at as RivalId] ?? 0);
+}
+
+function setGrudge(s: GameState, id: RivalId, at: FactionId, n: number): void {
+  const r = s.rivals[id];
+  const g = Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
+  if (at === 'player') r.grudge = g;
+  else (r.grudges ??= {})[at as RivalId] = g;
+}
+
+/** Rival `id` holds `n` more Grudge toward `at`. A new feud between two rivals makes the Bugle (once, until it cools well off). */
+export function addGrudge(s: GameState, id: RivalId, at: FactionId, n: number): void {
+  if (at === id || !s.rivals[id]?.alive) return;
+  const was = grudgeToward(s, id, at);
+  setGrudge(s, id, at, was + n);
+  const cooledOff = (s.rivals[id].grudgeSeen?.[at] ?? 0) < GRUDGE.feud - 10;
+  if (at !== 'player' && cooledOff && was < GRUDGE.feud && grudgeToward(s, id, at) >= GRUDGE.feud) {
+    s.news.push(`Bugle: ${FACTIONS[id].name} declare a feud on ${FACTIONS[at as RivalId].name}`);
+  }
+}
+
+/** Seam for auctions: whoever outbids a rival earns its Grudge. */
+export const outbidBy = (s: GameState, loser: RivalId, winner: FactionId) => addGrudge(s, loser, winner, GRUDGE.outbid);
+
+/** Dawn: stands smashed last night by another rival (your smashes count in fightRaid). */
+function noteSmashes(s: GameState, id: RivalId): void {
+  for (const p of ownedPlots(s, id)) {
+    const ps = s.plots[p.id];
+    if (ps.wreckedDay === s.day - 1 && ps.smashedBy && ps.smashedBy !== 'player') addGrudge(s, id, ps.smashedBy, GRUDGE.smashed);
+  }
+}
+
+/** Dawn: land they held yesterday that someone else holds now (directly, or bought after it went For Sale). A Plot Buyout is a sale, not a taking. */
+function noteLandTaken(s: GameState, id: RivalId): void {
+  const r = s.rivals[id];
+  const now = ownedPlots(s, id).map((p) => p.id);
+  const lost = [...(r.lost ?? [])];
+  for (const plotId of r.held ?? now) if (!now.includes(plotId) && !lost.includes(plotId)) lost.push(plotId);
+  const forSale: string[] = [];
+  for (const plotId of lost) {
+    const owner = s.plots[plotId].owner;
+    if (owner === id) continue;
+    if (owner) addGrudge(s, id, owner, GRUDGE.land);
+    else forSale.push(plotId);
+  }
+  r.lost = forSale.slice(-8);
+  r.held = now;
+}
+
+/** Dawn: a Grudge that didn't rise since yesterday cools a little. */
+function coolGrudges(s: GameState, id: RivalId): void {
+  const seen = (s.rivals[id].grudgeSeen ??= {});
+  for (const at of ['player', ...RIVALS.filter((x) => x !== id)] as FactionId[]) {
+    const g = grudgeToward(s, id, at);
+    if (g <= (seen[at] ?? 0)) setGrudge(s, id, at, g - GRUDGE.cool);
+    seen[at] = grudgeToward(s, id, at);
+  }
+}
+
+/** Rival-versus-rival targets: Grudge picks the faction (the one the attacker is angriest with, if any), then the weakest valuable building of theirs near the attacker's turf. */
+export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
+  const turf = new Set<string>(PLOTS.filter((p) => s.plots[p.id].owner === attacker).map((p) => p.district));
+  turf.add(FACTIONS[attacker].home);
+  const near = (p: Plot) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d));
+  const score = (p: Plot) => {
+    const ps = s.plots[p.id];
+    return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + (ps.garrison ?? 0) * 3 + ps.defense.gadgets.length);
+  };
+  const anger = (p: Plot) => grudgeToward(s, attacker, s.plots[p.id].owner!);
+  const targets = PLOTS.filter((p) => {
+    const o = s.plots[p.id].owner;
+    return !!o && o !== 'player' && o !== attacker && s.rivals[o as RivalId].alive && p.type !== 'hq' && hasBuilding(s.plots[p.id]) && near(p);
+  });
+  const top = Math.max(0, ...targets.map(anger));
+  const pool = top > 0 ? targets.filter((p) => anger(p) === top) : targets;
+  return pool.sort((a, b) => score(b) - score(a) || a.id.localeCompare(b.id))[0] ?? null;
 }
 
 // ---------- Grow: stand upgrades and land ----------
@@ -147,13 +236,16 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 
-/** One rival's dawn (rivalsAtDawn): bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
+/** One rival's dawn (rivalsAtDawn): grudges from the night, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
 export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   const r = s.rivals[id];
+  noteSmashes(s, id);
+  noteLandTaken(s, id);
+  coolGrudges(s, id);
   bankTakings(s, id);
-  r.grudge = Math.max(0, r.grudge - 1);
   growUpgrades(s, id);
   growLand(s, id, rng);
+  r.held = ownedPlots(s, id).map((p) => p.id);
   r.attention = threatLevel(s) + (r.grudge > 30 ? 1 : 0);
 }
 
@@ -210,7 +302,8 @@ export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null
 /**
  * planNight's last line: settle tonight's rival raids. The raid on the player goes to the keenest boss who can
  * pay for it, and every rival raid is paid from its Strike bucket; one nobody can pay for is called off. The
- * tutorial raid is on the house. Returns any extra raids to add (none yet).
+ * tutorial raid is on the house. A raid on another rival goes where the attacker's Grudge points, and the
+ * target's Grudge toward the attacker rises. Returns any extra raids to add (none yet).
  */
 export function signatureRaids(s: GameState): Raid[] {
   const rng = { seed: s.seed };
@@ -236,7 +329,11 @@ export function signatureRaids(s: GameState): Raid[] {
     } else {
       const cost = raidCost(s, attacker, raid.party.length, Math.min(3, threat + 1));
       if (!s.rivals[attacker]?.alive || !canSpend(s, attacker, 'strike', cost)) continue;
+      const target = rivalTarget(s, attacker);
+      if (!target) continue;
       spend(s, attacker, 'strike', cost);
+      raid.target = target.id;
+      addGrudge(s, s.plots[target.id].owner as RivalId, attacker, GRUDGE.raided);
       kept.push(raid);
     }
   }

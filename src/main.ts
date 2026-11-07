@@ -8,12 +8,13 @@ import {
   alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
+  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
-import { createAudio } from './audio.ts';
+import { createAudio, type Stinger } from './audio.ts';
+import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, isVip } from './sim/economy.ts';
@@ -111,6 +112,9 @@ async function main() {
   const shownSpeed = () => (speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : speed);
 
   const audio = createAudio();
+  // Every stinger has a visual twin (src/ui/twins.ts): a screen-edge pulse in its colour and pattern beside its card.
+  let twins: Twins | null = null; // once the HUD is up
+  const stinger = (id: Stinger) => { audio.stinger(id); twins?.pulse(id); };
   const wake = () => audio.start();
   window.addEventListener('pointerdown', wake, { once: true });
   window.addEventListener('keydown', wake, { once: true });
@@ -118,7 +122,7 @@ async function main() {
   /** A raid warning lands: the Raid Incoming stinger, the boss on the phone, Lottie's fist. */
   const raidWarned = (a: Alert) => {
     const boss = state.raids.find((r) => r.id === a.raid)?.attacker;
-    audio.stinger('raid-incoming');
+    stinger('raid-incoming');
     if (boss && boss !== 'player' && boss in BOSS) phone.ring(boss as RivalId, pick(BOSS[boss as RivalId].warn));
     lottieSays('raidComing', { react: 'fist' });
   };
@@ -137,7 +141,7 @@ async function main() {
     crowd.clear();
     focusPlot(a.plot, a.scene.kind === 'ship' ? 60 : 45);
     vip.play(a.scene.kind, bay.views[a.plot], a.scene.big, state.plots[a.plot].facility?.level ?? 1, a.scene.client);
-    audio.stinger('raid-won');
+    stinger('raid-won');
     if (a.kind === 'vip' && autoPauses(options, state, 'vip')) vipResume = 1;
     if (vipPaused === a.id) resume();
     dismissAlert(state, a.id);
@@ -172,7 +176,7 @@ async function main() {
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);
-    if (fights.length) audio.stinger(fights.every(won) ? 'raid-won' : 'squeezed-out');
+    if (fights.length) stinger(fights.every(won) ? 'raid-won' : 'squeezed-out');
   };
 
   const world = await createWorld(document.getElementById('app')!);
@@ -207,6 +211,7 @@ async function main() {
     else {
       const line = opts.text ?? pick(LOTTIE[moment]);
       bubbles.say(stand.lottie, line, { who: 'Lottie', color: '#7a4fb0', height: 2.0, ms: opts.ms });
+      twins?.caption('Lottie', line);
       audio.babble(line, 0.8, opts.react === 'fist' ? 'grumpy' : opts.react === 'cheer' ? 'happy' : 'flat');
     }
   };
@@ -301,7 +306,7 @@ async function main() {
       flushNews();
       if (first && autoPauses(options, state, 'vip')) continue; // the show waits for its card's Watch
       vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1, o.client);
-      audio.stinger('raid-won');
+      stinger('raid-won');
     }
     const t = world.controls.target;
     const zoomedIn = world.camera.position.distanceTo(t) < STREET_VIEW_MAX_DIST;
@@ -346,7 +351,7 @@ async function main() {
       liveFight = false;
       const next = fightQueue.shift();
       if (next) setTimeout(() => playBattle(next, true), 0);
-      hud.toast(battleHeadline(b)); audio.stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
+      hud.toast(battleHeadline(b)); stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
       snap(battleHeadline(b).toUpperCase(), 5);
       if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
       else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
@@ -490,7 +495,7 @@ async function main() {
       }
       case 'truce': makeTruce(state, a.rival); break;
       case 'plotBuyout': plotBuyout(state, a.plot); break;
-      case 'factionBuyout': if (factionBuyout(state, a.rival)) audio.stinger('raid-won'); break;
+      case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
       case 'assault': {
         const r = stormHQ(state, a.rival, a.guards);
         if (r) { hud.inspected = null; playBattle(r.reports[r.reports.length - 1]); }
@@ -528,6 +533,7 @@ async function main() {
   const uiRoot = document.getElementById('ui')!;
   const hud = createHud(uiRoot, act);
   hud.options = options;
+  twins = createTwins(uiRoot, () => options.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches, () => options.captions);
   onSaveTrouble(() => hud.toast("Couldn't save: this browser's storage is full."));
   // Closing the tab or switching away saves where you are (never before a first run has started).
   const saveNow = () => { if (!hud.setup || hud.setup.cancel) saveGame(state); };
@@ -535,7 +541,7 @@ async function main() {
   window.addEventListener('pagehide', saveNow);
   if (saveUnreadable()) hud.toast("Couldn't read your saved game. It's kept aside.");
   const bugle = createBugle(document.getElementById('ui')!);
-  const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
+  const phone = createPhone(document.getElementById('ui')!, (boss, line) => { audio.ring(); setTimeout(() => { audio.babble(line, 0.9, 'flat'); twins?.caption(HQS[boss].boss, line); }, 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
   hud.muted = audio.muted();
   // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
@@ -546,8 +552,8 @@ async function main() {
     while (state.news.length) {
       const n = state.news.shift()!;
       if (cards.has(n)) continue;
-      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { audio.stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); }
-      if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) audio.stinger('squeezed-out');
+      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); }
+      if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) stinger('squeezed-out');
       hud.toast(n);
     }
   };

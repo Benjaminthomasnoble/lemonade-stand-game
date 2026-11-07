@@ -19,7 +19,7 @@ import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, 
 import { createHud, type Action } from './ui/hud.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
-import { createCrowd, type Gait } from './world/people.ts';
+import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
 import { FACTIONS } from './sim/balance.ts';
 import type { Emote } from './ui/emotes.ts';
@@ -30,12 +30,16 @@ import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { createGullFlight } from './world/gullflight.ts';
 
-const LOOK: Partial<Record<SegmentId, { scale?: number; speed?: number; gait?: Gait }>> = {
-  kids: { scale: 0.68, speed: 1.15, gait: 'skip' },
-  seniors: { scale: 0.95, speed: 0.7, gait: 'shuffle' },
-  office: { speed: 1.15, gait: 'stride' },
-  workers: { gait: 'stride' },
-  tourists: { speed: 0.85, gait: 'tourist' },
+// Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
+const LOOK: Record<SegmentId, { scale?: number; speed?: number; gait?: Gait; segment: SegmentId }> = {
+  kids: { speed: 1.15, gait: 'skip', segment: 'kids' },
+  families: { speed: 0.9, segment: 'families' },
+  seniors: { scale: 0.95, speed: 0.7, gait: 'shuffle', segment: 'seniors' },
+  students: { segment: 'students' },
+  office: { speed: 1.15, gait: 'stride', segment: 'office' },
+  workers: { gait: 'stride', segment: 'workers' },
+  tourists: { speed: 0.85, gait: 'tourist', segment: 'tourists' },
+  highRollers: { speed: 0.9, segment: 'highRollers' },
 };
 /** Walk-offs carry the reason as a clay reaction icon (see ui/emotes.ts). */
 const MISS_TEXT = { pricey: 'pricey', line: 'line', soldOut: 'soldout' } as const satisfies Record<string, Emote>;
@@ -161,6 +165,10 @@ async function main() {
       coinTimes.push(now);
       const size = coinTimes.length >= RUSH_COINS ? 3 : coinTimes.length >= 3 ? 2 : 1;
       hud.popup(x, y, text, 'sale');
+      // The grandkid behind that counter cheers the sale.
+      let near: { d: number; v: (typeof bay.views)[string] } | null = null;
+      for (const v of Object.values(bay.views)) { if (!v.stand) continue; const d = v.serve.distanceTo(pos.clone().setY(0.12)); if (!near || d < near.d) near = { d, v }; }
+      if (near && near.d < 3) near.v.stand?.cheer();
       hud.coin(x, y, size, () => audio.ding(size > 1));
       if (coinTimes.length >= RUSH_COINS) { lottieSays('rush', { react: 'cheer', cooldown: 25000 }); snap('LINE DOWN THE BLOCK AT LOTTIE\'S LEMONADE', 2, 400); }
     } else if (kind === 'miss') {
@@ -174,7 +182,7 @@ async function main() {
       if (Math.random() < 0.5) bubbles.say(who, '', { kind: 'thought', icon: 'bought', ms: 1400 });
       else { const l = pick(CUSTOMER.sip); bubbles.say(who, l, { ms: 1400 }); audio.babble(l, who.scale.y < 0.8 ? 1.7 : 1.1 + Math.random() * 0.4, 'happy'); }
     }
-  });
+  }, world.quality === 'phone' ? CROWD_PHONE : CROWD_POOL);
 
   const ambient = createAmbient(world.scene, {
     onSquawkSteal: (gull) => {
@@ -417,6 +425,7 @@ async function main() {
     world,
     view: (x: number, z: number, distance: number) => world.focus(x, z, distance),
     crowd: () => crowd.activeCount(),
+    people: () => crowd.stats(),
     bubbles: () => bubbles.count(),
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
     bugle: () => { snap('TEST EDITION: LOTTIE\'S CORNER', 9); },

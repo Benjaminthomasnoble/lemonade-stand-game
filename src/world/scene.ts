@@ -185,6 +185,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       const s = Math.max(0.6, o.scale.y) * (dist > DETAIL_AT.bay ? 1.4 : 1);
       specks.setMatrixAt(n, speckM.makeScale(s, s, s).setPosition(o.position.x, o.position.y, o.position.z));
       let col: THREE.Color | null = null;
+      if (o.userData.speckColor) col = speckC.set(o.userData.speckColor as THREE.ColorRepresentation).clone();
       o.traverse((c) => { const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (!col && m?.color) col = m.color; });
       specks.setColorAt(n, speckC.copy(col ?? speckC.set('#e8704f')));
       n++;

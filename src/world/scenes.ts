@@ -4,11 +4,11 @@
 // Which scenes a run has seen is kept per run in localStorage, so the saved
 // game's shape doesn't change.
 import * as THREE from 'three';
-import { FACTIONS } from '../sim/balance.ts';
 import { LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
-import { hopPose, idlePose, makePerson } from './people.ts';
-import { clayFrom } from './clay/kit.ts';
+import { hopPose, idlePose } from './people.ts';
+import { kit } from './clay/kit.ts';
+import { makeTownsfolk } from './clay/cast.ts';
 
 export type SceneId = 'steward' | 'dex';
 
@@ -52,13 +52,8 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
     let beats: Beat[];
     const walkTo = (b: THREE.Vector3, dur: number): Beat['run'] => () => { if (current) current.walk = { a: current.ctx.actor.position.clone(), b, t0: current.t, dur }; };
     if (id === 'steward') {
-      const f = FACTIONS.sourwood;
-      actor = makePerson(f.color, f.accent);
-      // A bowler hat: Sourwood's Stewards read by silhouette.
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.03, 16), clayFrom(0x23214a));
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), brim.material);
-      brim.position.y = 1.6; crown.position.y = 1.6;
-      actor.add(brim, crown);
+      // A Sourwood Steward: stilt-thin, high white collar, white gloves, bowler and cane.
+      actor = makeTownsfolk('steward', kit().fig).root;
       beats = [
         { at: 0, run: walkTo(counter, 4) },
         { at: 4.2, run: (c) => hooks.say(c.actor, 'A reminder. From Mrs. Sourwood.', 'Steward', '#5B2A6E') },
@@ -70,8 +65,8 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
         { at: 13, run: () => hooks.ring?.() },
       ];
     } else {
-      actor = makePerson(0xF7C948, 0x3c5aa6, undefined, 1.12); // lanky Dex
-      base = 1.12;
+      actor = makeTownsfolk('dex', kit().fig).root; // lanky Dex, 3 heads tall, arms crossed
+      base = 1;
       beats = [
         { at: 0, run: walkTo(lottieSpot, 4) },
         { at: 4.2, run: (c) => hooks.say(c.actor, 'Heard you could use some muscle, Miss Lottie.', 'Dex', '#c99a00') },

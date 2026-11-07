@@ -20,7 +20,8 @@ import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
 import { lemonsExpiringTomorrow, stock } from '../sim/economy.ts';
 import { civicBuilding, facilityModel, fieldRows, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
-import { makePerson } from './people.ts';
+import { makeCrew, type Side } from './clay/cast.ts';
+import { freezeFigures } from './clay/figureBatch.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
 import { clayPlain, kit, reflective } from './clay/kit.ts';
@@ -382,16 +383,19 @@ export function createBay(scene: THREE.Scene): Bay {
     if (guards > 0) {
       const watch = new THREE.Group();
       watch.name = 'sentry';
+      const posted = ps.owner === 'player' ? s.guards.filter((g) => g.post === p.id && g.outUntil <= s.day) : [];
       for (let i = 0; i < guards; i++) {
-        const g = makePerson(ps.owner === 'player' ? PLAYER_COLOR : FACTIONS[ps.owner as RivalId].color, 0x264653);
+        // Your guards wear what they carry: gear, level chevrons, and arms crossed on guard.
+        const gd = posted[i];
+        const fig = makeCrew((ps.owner ?? 'player') as Side, gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, onGuard: true, seed: i + 1 } : { weapon: 'clubs', seed: i + 1 }, kit().fig, { scale: 0.95 });
+        fig.pose({}, i * 3);
+        const g = fig.root;
         g.position.set((i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.12, 1.5);
         g.rotation.y = 0;
-        g.scale.setScalar(0.95);
         watch.add(g);
       }
       v.root.add(watch);
-      v.root.updateMatrixWorld(true);
-      bakeGroup(watch);
+      freezeFigures(watch, kit().fig);
     }
     // A blob shadow the size of whatever stands here, and Bay View's block for this district needs redoing.
     box.setFromObject(v.root);
@@ -425,7 +429,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       borders.computeBoundingSphere();

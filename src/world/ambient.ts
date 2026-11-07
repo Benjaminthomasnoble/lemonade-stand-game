@@ -4,13 +4,14 @@
 // the bay and a dog chasing a ball on Maple Row. All of it is presentation:
 // it reads the game state and never changes it.
 import * as THREE from 'three';
-import { FACTIONS, type RivalId } from '../sim/balance.ts';
+import type { RivalId } from '../sim/balance.ts';
 import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import { threatLevel } from '../sim/crew.ts';
 import type { PlotView } from './bay.ts';
-import { hopPose, idlePose, makePerson, MOTION } from './people.ts';
+import { hopPose, idlePose, MOTION } from './people.ts';
 import { gull, dog } from './clay/creatures.ts';
-import { clayFrom } from './clay/kit.ts';
+import { clayFrom, kit } from './clay/kit.ts';
+import { makeCrew } from './clay/cast.ts';
 
 const mat = (color: number, roughness = 0.8) => clayFrom(color, roughness);
 
@@ -44,7 +45,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
 
   // ---- Smoothie Bros jogging in formation on the Boardwalk ----
   const bros = [0, 1, 2].map(() => {
-    const p = makePerson(FACTIONS.blenders.color, FACTIONS.blenders.accent);
+    const p = makeCrew('blenders', { weapon: 'fists', seed: 3 }, kit().fig).root; // V-shaped bros on tiny legs
     p.visible = false;
     scene.add(p);
     return p;
@@ -106,8 +107,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         for (const h of hench) {
           if (h.obj || !want.length) continue;
           const w = want.shift()!;
-          const f = FACTIONS[w.rival];
-          h.obj = makePerson(f.color, f.accent);
+          h.obj = makeCrew(w.rival, { weapon: 'clubs', seed: w.slot + 1 }, kit().fig).root;
           h.rival = w.rival; h.plot = w.plot; h.slot = w.slot; h.glare = 3 + Math.random() * 8;
           const v = views[w.plot];
           if (v) {

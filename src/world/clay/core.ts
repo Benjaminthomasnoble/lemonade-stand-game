@@ -74,6 +74,9 @@ mat3 clayM = normalMatrix;
   vClayP += instanceMatrix[3].xyz * 0.713;
   clayM = normalMatrix * mat3( instanceMatrix );
 #endif
+#ifdef USE_BATCHING
+  clayM = normalMatrix * mat3( batchingMatrix );
+#endif
 vClayM0 = clayM[0]; vClayM1 = clayM[1]; vClayM2 = clayM[2];`;
 const FPARS = `uniform sampler2D uClayMap; uniform float uClayStr; uniform float uClayWrap; uniform float uClayTerm; uniform float uClayGlow; uniform float uClayA;
 varying vec3 vClayP; varying vec3 vClayN; varying vec3 vClayM0; varying vec3 vClayM1; varying vec3 vClayM2;`;

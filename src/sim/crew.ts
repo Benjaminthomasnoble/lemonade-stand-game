@@ -5,7 +5,8 @@
 import {
   CLUBHOUSE, COMBAT, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
+  SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -38,6 +39,7 @@ export interface Guard {
   club?: string; // off post, they wait at this Clubhouse (clubhouse.ts clubOf); unset: your first one
   outUntil: number; // knocked out: back on this day
   fee: number; // hire fee (recruits)
+  face?: number; // portrait seed (guards from before it existed draw their face from the id)
 }
 
 export interface Raid {
@@ -205,16 +207,24 @@ const LAST = ['Moody', 'Malone', 'Pickles', 'Brickman', 'Quill', 'Sorrel', 'Kett
 function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
   const name = `${FIRST[Math.floor(nextRandom(rng) * FIRST.length)]} ${LAST[Math.floor(nextRandom(rng) * LAST.length)]}`;
   const trait = TRAITS[Math.floor(nextRandom(rng) * TRAITS.length)];
-  return { id: `g${s.nextId++}`, name, trait, level, xp: GUARD_XP_TO_LEVEL[level - 1], weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: GUARD_FEE[level - 1] };
+  const face = Math.floor(nextRandom(rng) * 0x7fffffff);
+  return { id: `g${s.nextId++}`, name, trait, level, xp: GUARD_XP_TO_LEVEL[level - 1], weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: GUARD_FEE[level - 1], face };
 }
 
-/** The Hiring Hall's pool refreshes every week (and the first time you reach Rank 2). */
+/** A recruit's level: any from Rookie to Legend, likelier higher as your Rank climbs. */
+function recruitLevel(rank: number, roll: number): number {
+  const odds = RECRUIT_LEVELS[Math.min(Math.max(rank, 1), RECRUIT_LEVELS.length) - 1];
+  for (let i = 0; i < odds.length; i++) { roll -= odds[i]; if (roll < 0) return i + 1; }
+  return 1;
+}
+
+/** The Hiring Hall's 6 recruits refresh every 7 days (and the first time the Hall opens, at Rank 2). */
 export function refreshRecruits(s: GameState, force = false): void {
   if (s.rank < HIRE_RANK) return;
-  if (!force && s.recruits.length && s.day % 7 !== 1) return;
+  if (!force && s.recruitDay !== undefined && s.day - s.recruitDay < RECRUIT_DAYS) return;
   const rng = { seed: s.seed };
-  const n = 4;
-  s.recruits = Array.from({ length: n }, () => makeGuard(s, rng, nextRandom(rng) < 0.25 ? 2 : 1));
+  s.recruits = Array.from({ length: RECRUIT_POOL }, () => makeGuard(s, rng, recruitLevel(s.rank, nextRandom(rng))));
+  s.recruitDay = s.day;
   s.seed = rng.seed;
 }
 
@@ -307,6 +317,12 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait, gear: g.gear, level: g.level };
+}
+
+/** Saves from before a crew rule existed pick up its defaults (idempotent; migrateSave runs it on every load). */
+export function migrateCrew(s: GameState): void {
+  s.guards ??= [];
+  s.recruits ??= [];
 }
 
 // ---------- henchmen ----------

@@ -347,6 +347,22 @@ export const GUARD_LEVEL_TITLES = ['Rookie', 'Regular', 'Veteran', 'Elite', 'Leg
 export const GUARD_WAGE = [15, 25, 40, 60, 90];
 export const GUARD_FEE = [50, 150, 400, 1000, 2500];
 export const GUARD_XP_TO_LEVEL = [0, 3, 8, 15, 25];
+/** The Hiring Hall lists 6 recruits and refreshes them every 7 days. */
+export const RECRUIT_POOL = 6;
+export const RECRUIT_DAYS = 7;
+/** A recruit's level (chance of L1..L5) by your Rank. placeholder: spec gap (fees run to L5; the spread isn't given). */
+export const RECRUIT_LEVELS: number[][] = [
+  [1, 0, 0, 0, 0], // Rank 1 (the Hall opens at Rank 2)
+  [0.75, 0.25, 0, 0, 0],
+  [0.55, 0.3, 0.15, 0, 0],
+  [0.4, 0.3, 0.2, 0.1, 0],
+  [0.3, 0.3, 0.25, 0.1, 0.05],
+  [0.2, 0.3, 0.25, 0.15, 0.1],
+  [0.15, 0.25, 0.3, 0.2, 0.1],
+  [0.1, 0.2, 0.3, 0.25, 0.15],
+  [0.1, 0.15, 0.3, 0.25, 0.2],
+  [0.05, 0.15, 0.3, 0.25, 0.25], // Rank 10
+];
 export const ROSTER_BASE = 2;
 /** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
 export const CLUBHOUSE = [

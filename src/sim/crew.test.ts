@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, buyGadget, buyPerimeter, canHire, equip, hireGuard, LOTTIES_CORNER, newGame, openStand, planRaid, raidOdds,
-  raidTargets, rebuildCost, rebuildStand, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport,
-  type GameState, PLOTS,
+  buildClubhouse, buyGadget, buyPerimeter, canHire, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand, planRaid,
+  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex,
+  type BattleReport, type GameState, PLOTS,
 } from './economy.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
@@ -21,7 +21,7 @@ describe('crew and raids', () => {
     s.rank = 2;
     welcomeDex(s);
     expect(s.guards.map((g) => g.name)).toContain('Dex Moody');
-    expect(s.recruits.length).toBe(4);
+    expect(s.recruits.length).toBe(6);
     s.cash = 10000;
     expect(hireGuard(s, s.recruits[0].id)).toBe(true);
     expect(canHire(s, s.recruits[0].id)).toEqual({ ok: false, why: 'Build a Clubhouse to house more guards' });
@@ -98,5 +98,55 @@ describe('crew and raids', () => {
     const a = newGame(11), b = newGame(11);
     for (let d = 0; d < 12; d++) { playDay(a); playDay(b); }
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('the Hiring Hall', () => {
+  it('lists 6 recruits with faces, fees by level, and refreshes every 7 days', () => {
+    const s = newGame(21);
+    s.rank = 2;
+    welcomeDex(s);
+    expect(s.recruits).toHaveLength(6);
+    for (const r of s.recruits) {
+      expect(typeof r.face).toBe('number');
+      expect(r.fee).toBe(GUARD_FEE[r.level - 1]);
+    }
+    s.cash = 10000;
+    buildClubhouse(s);
+    hireGuard(s, s.recruits[0].id);
+    const left = s.recruits.map((r) => r.id);
+    for (let d = 0; d < 6; d++) { s.cash = Math.max(s.cash, 500); playDay(s); }
+    expect(s.recruits.map((r) => r.id)).toEqual(left); // no early refill
+    s.cash = Math.max(s.cash, 500);
+    playDay(s);
+    expect(s.recruits).toHaveLength(6);
+    expect(s.recruits.some((r) => left.includes(r.id))).toBe(false);
+  });
+
+  it('recruits come at any level, likelier higher at higher Ranks', () => {
+    const s = newGame(22);
+    const levels = (rank: number) => {
+      s.rank = rank;
+      const out: number[] = [];
+      for (let i = 0; i < 40; i++) { refreshRecruits(s, true); out.push(...s.recruits.map((r) => r.level)); }
+      return out;
+    };
+    const low = levels(2), high = levels(9);
+    expect(Math.max(...low)).toBeLessThanOrEqual(2);
+    expect(high).toContain(5);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(mean(high)).toBeGreaterThan(mean(low) + 1);
+  });
+
+  it('an older save with four recruits gets a full Hall at the next dawn', () => {
+    const s = newGame(23);
+    s.rank = 2;
+    welcomeDex(s);
+    s.recruits = s.recruits.slice(0, 4);
+    delete s.recruitDay;
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded).not.toBeNull();
+    playDay(loaded);
+    expect(loaded.recruits).toHaveLength(6);
   });
 });

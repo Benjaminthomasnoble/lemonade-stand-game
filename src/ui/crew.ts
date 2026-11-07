@@ -14,7 +14,7 @@ import { nextClubhouse, type ClubKit } from './clubhouse.ts';
 /** A guard's face: their weapon in hand, a bandage while they're Out. */
 export function guardFace(k: Kit, s: GameState, g: Guard): string {
   const out = !guardReady(s, g);
-  return `<span class="cl-face${out ? ' out' : ''}">${k.ART.face(g.id)}${out ? `<span class="cl-band">${k.ART.bandage()}</span>` : ''}<span class="cl-wpn">${k.WEAPON_ART[g.weapon]()}</span></span>`;
+  return `<span class="cl-face${out ? ' out' : ''}">${k.ART.face(g.face === undefined ? g.id : `f${g.face}`)}${out ? `<span class="cl-band">${k.ART.bandage()}</span>` : ''}<span class="cl-wpn">${k.WEAPON_ART[g.weapon]()}</span></span>`;
 }
 
 /** The clay kit as the Clubhouse panels (src/ui/clubhouse.ts) take it: with the guards' faces. */

@@ -377,6 +377,10 @@ export const PROMOTE_LEVEL = 3;
 /** A Lookout on the plot adds this to detection (several don't stack); what they scout stays fresh this many days. */
 export const LOOKOUT_DETECTION = 0.25;
 export const SCOUT_DAYS = 3;
+/** A Wrecker's +50% Chop adds to a Lumberjack's +50% (×2 for both: placeholder, the spec only says they stack). */
+export const WRECKER_CHOP = 0.5;
+/** A Captain in the squad (or on the plot) gives the whole side this, once however many Captains there are. */
+export const CAPTAIN = { nerve: 20, hit: 0.1 };
 /** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
 export const CLUBHOUSE = [
   { level: 1, cost: 2000, beds: 6, rank: 2 },

@@ -5,7 +5,7 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
   PLOTS,
 } from './economy.ts';
-import { availableRaiders } from './crew.ts';
+import { availableRaiders, guardFighter, squadFighters, type Guard } from './crew.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
@@ -291,5 +291,42 @@ describe('the Lookout', () => {
     playDay(s);
     expect(isScouted(s, target)).toBe(false);
     expect(s.scouting?.[target]).toBeUndefined();
+  });
+});
+
+describe('Wreckers and Captains', () => {
+  const guard = (over: Partial<Guard> = {}): Guard => ({ id: 'g', name: 'Test Guard', trait: 'Hothead', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0, ...over });
+
+  it('a Wrecker chops 50% harder, and a Lumberjack Wrecker twice as hard', () => {
+    expect(guardFighter(guard(), 'att', false).chop).toBeCloseTo(10);
+    expect(guardFighter(guard({ specialty: 'wrecker' }), 'att', false).chop).toBeCloseTo(15);
+    expect(guardFighter(guard({ trait: 'Lumberjack' }), 'att', false).chop).toBeCloseTo(15);
+    expect(guardFighter(guard({ trait: 'Lumberjack', specialty: 'wrecker' }), 'att', false).chop).toBeCloseTo(20);
+  });
+
+  it('a Captain gives the whole side +20 Nerve and +10% Hit, once', () => {
+    const plain = squadFighters([guard({ id: 'a' }), guard({ id: 'b', trait: 'Sprinter' })], 'att', false);
+    const led = squadFighters([guard({ id: 'a', specialty: 'captain' }), guard({ id: 'b', trait: 'Sprinter' })], 'att', false);
+    const twice = squadFighters([guard({ id: 'a', specialty: 'captain' }), guard({ id: 'b', trait: 'Sprinter', specialty: 'captain' })], 'att', false);
+    for (let i = 0; i < 2; i++) {
+      expect(led[i].nerve).toBe(plain[i].nerve + 20);
+      expect(led[i].hit).toBeCloseTo(plain[i].hit * 1.1);
+      expect(twice[i].nerve).toBe(led[i].nerve);
+    }
+  });
+
+  it('a Captain on a raid leads the squad in the fight itself', () => {
+    const s = newGame(71);
+    s.rank = 6;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    dex.level = 3;
+    promote(s, dex.id, 'captain');
+    s.guards.push(guard({ id: 'gb', name: 'Bea B', trait: 'Sprinter' }));
+    const target = raidTargets(s)[0].id;
+    const report = planRaid(s, target, [dex.id, 'gb'], 'shakedown', 'now');
+    if (typeof report !== 'object') throw new Error('raid did not run');
+    const bea = report.attackers.find((f) => f.id === 'gb')!;
+    expect(bea.nerve).toBe(guardFighter(guard({ trait: 'Sprinter' }), 'att', true).nerve + 20);
   });
 });

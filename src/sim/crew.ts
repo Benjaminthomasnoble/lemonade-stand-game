@@ -3,12 +3,12 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CLUBHOUSE, COMBAT, DETECTION_BASE, DETECTION_CAP, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  CAPTAIN, CLUBHOUSE, COMBAT, DETECTION_BASE, DETECTION_CAP, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
-  SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -377,11 +377,21 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   if (g.trait === 'Tough Cookie') hp *= 1.2;
   if (g.trait === 'Gentle Giant') { hp *= 1.4; hit *= 0.7; }
   if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 20; }
-  if (g.trait === 'Lumberjack') chop *= 1.5;
+  chop *= 1 + (g.trait === 'Lumberjack' ? 0.5 : 0) + (g.specialty === 'wrecker' ? WRECKER_CHOP : 0); // Lumberjack and Wrecker: +50% each
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait, gear: g.gear, level: g.level };
 }
+
+/** Your guards as one side of a fight: a Captain among them gives everyone on that side +20 Nerve and +10% Hit (Captains don't stack). */
+export function squadFighters(guards: Guard[], side: 'att' | 'def', night: boolean): Fighter[] {
+  const fighters = guards.map((g) => guardFighter(g, side, night));
+  if (guards.some((g) => g.specialty === 'captain')) for (const f of fighters) { f.nerve += CAPTAIN.nerve; f.hit *= 1 + CAPTAIN.hit; }
+  return fighters;
+}
+
+/** The guards picked for a raid who are fit to go. */
+export const raidSquad = (s: GameState, ids: string[]) => s.guards.filter((g) => ids.includes(g.id) && guardReady(s, g));
 
 /** Saves from before a crew rule existed pick up its defaults (idempotent; migrateSave runs it on every load). */
 export function migrateCrew(s: GameState): void {
@@ -431,7 +441,7 @@ function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
 
 function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng): Fighter[] {
   const ps = s.plots[plotId];
-  if (ps.owner === 'player') return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id)).map((g) => guardFighter(g, 'def', night));
+  if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id)), 'def', night);
   return garrisonFighters(s, plotId, rng);
 }
 
@@ -492,7 +502,7 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[]): Block
 export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: Objective, night: boolean): number {
   if (!guardIds.length) return 0;
   const rng = { seed: s.seed ^ 0x0dd5 };
-  const squad = s.guards.filter((g) => guardIds.includes(g.id)).map((g) => guardFighter(g, 'att', night));
+  const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
   const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective, detected: false, eta: '' };
   const input = battleInput(s, raid, squad, night, new Set(), rng);
   input.detected = nextRandom(rng) < 0.5; // unknown: call it a coin flip
@@ -577,7 +587,7 @@ export function resolveNight(s: GameState): void {
 export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): BattleInput {
   const away = awayOnRaid(s); // out on a raid, or in the fight playing live: not at their posts
   const attackers = raid.attacker === 'player'
-    ? s.guards.filter((g) => raid.guards!.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', night))
+    ? squadFighters(raidSquad(s, raid.guards!), 'att', night)
     : raid.party!;
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night);
   return withBell(s, raid, battleInput(s, raid, attackers, night, away, rng), night); // Ring the Bell: the reserve on its way

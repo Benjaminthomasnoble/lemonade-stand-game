@@ -14,7 +14,7 @@ import type { SlotInfo } from '../save.ts';
 import { isFullMenu, menuScreen, menuUnlocked } from './menus.ts';
 import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
-import { eliminate, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
+import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
 import { scoreParts, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
@@ -124,6 +124,9 @@ describe('a sold-out card', () => {
     const s = newGame(5);
     openStands(s);
     alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
+    expect(alertCards(s)[0]).not.toContain('restockNow'); // Days 1-2: Lottie stocks you; the Market opens on Day 3
+    s.day = LESSON_DAY.market;
+    s.alerts!.forEach((a) => (a.day = s.day));
     expect(alertCards(s)[0]).toContain('data-action="restockNow"');
     for (const phase of ['report', 'night'] as const) {
       s.phase = phase;

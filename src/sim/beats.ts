@@ -7,15 +7,16 @@
 // movie star's pool party wants 4,000 bottles of Pink, and Juni warns that
 // FizzCo will hit the pad (the Delivery Raids lesson). The first ship: the
 // Regatta's flagship, and Lottie blames the wind. Pure, like the rest of the sim.
-import type { RivalId } from './balance.ts';
+import { FACTIONS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { alert } from './alerts.ts';
 import { deliveryRaidRisk } from './night.ts';
 import { CALL_PRIORITY, juniInforms, LINES, phoneCall } from './phone.ts';
+import { ownsRecipe } from './recipes.ts';
 import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.ts';
 import { playScene, queued } from './scenes.ts';
 import { hasStory } from './story.ts';
-import { ORDER_TIERS, PICKUP_MINUTE, type Order } from './vip.ts';
+import { bottlesOf, ORDER_TIERS, orderRecipe, PICKUP_MINUTE, type Order } from './vip.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -85,8 +86,9 @@ function nightFlight(s: GameState): void {
 
 // ---------- Act 4: the first chopper and the first ship ----------
 
-/** vip.ts's line for a new VIP offer, so a scripted one can take its place in this morning's news. */
-const offerLine = (o: Order) => `VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.`;
+/** vip.ts's line for a new VIP offer (a rival's bid on the end), so a scripted one can take its place in this morning's news. */
+const offerLine = (o: Order) =>
+  `VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.${o.bid ? ` ${FACTIONS[o.bid.rival].name} bids ${money(o.bid.pay)}.` : ''}`;
 
 function rewrite(s: GameState, o: Order, change: () => string): void {
   const i = s.news.indexOf(offerLine(o));
@@ -95,7 +97,10 @@ function rewrite(s: GameState, o: Order, change: () => string): void {
   else s.news.push(line);
 }
 
-/** The campaign's first chopper and first ship offers are the spec's: rewritten the morning they come in. */
+/**
+ * The campaign's first chopper and first ship offers are the spec's: rewritten the morning they come in. Each calls you
+ * alone (no rival bid on it), so its lesson isn't lost to a bid: FizzCo, bidding hardest, would win most first choppers.
+ */
 function firstOffers(s: GameState): void {
   const v = (s.story!.vip ??= {});
   for (const o of s.offers) {
@@ -104,7 +109,9 @@ function firstOffers(s: GameState): void {
         o.client = MOVIE_STAR;
         o.qty = CHOPPER_BOTTLES; // the first Pad serves 2,000-4,000 bottles
         o.pay = Math.round(o.qty * ORDER_TIERS.heli.pay);
-        return `VIP call! A movie star wants ${o.qty.toLocaleString('en-US')} bottles of Pink for a pool party: ${money(o.pay)}.`;
+        if (ownsRecipe(s, 'pink')) o.recipe = 'pink';
+        delete o.bid;
+        return `VIP call! A movie star wants ${o.qty.toLocaleString('en-US')} bottles${o.recipe === 'pink' ? ' of Pink' : ''} for a pool party: ${money(o.pay)}.`;
       });
       v.heli = o.id;
       s.news.push(deliveryRaidRisk(s, o) ? 'Lottie: "A chopper, kid! Post a crew at the pad. Rivals love a loaded pickup."' : 'Lottie: "A chopper, kid! Have every bottle ready when it lands."');
@@ -112,10 +119,11 @@ function firstOffers(s: GameState): void {
     if (o.tier === 'ship' && v.ship === undefined) {
       rewrite(s, o, () => {
         o.client = REGATTA;
+        delete o.bid;
         return `Ship Contract! The Regatta's flagship wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.`;
       });
       v.ship = o.id;
-      s.news.push(`Lottie: "A ship, kid! ${money(ORDER_TIERS.ship.pay)} a bottle. Bottle early: a flagship drinks a lot."`);
+      s.news.push(`Lottie: "A ship, kid! ${money(ORDER_TIERS.ship.pay)} a bottle. It loads a day at a time: bottle early."`);
     }
   }
 }
@@ -124,31 +132,52 @@ function firstOffers(s: GameState): void {
 const fizzcoCanHit = (s: GameState, o: Order) =>
   s.rivals.fizzco.alive && !inTruce(s, 'fizzco') && s.rivals.fizzco.respectUntil <= s.day && deliveryRaidRisk(s, o);
 
+/** The movie star's chopper before its first trip: taken, nothing loaded yet and no raid holding it. */
+const firstTrip = (s: GameState, o: Order) => s.story?.vip?.heli === o.id && !o.loaded && !s.heldPickups?.includes(o.id);
+
 /**
- * Seam (nights lane, scheduleDeliveryRaid in src/sim/night.ts): the campaign's first chopper pickup is FizzCo's to hit,
- * with no roll. Until that's wired, the pickup takes the usual Delivery Raid roll.
+ * Seam (nights lane, scheduleDeliveryRaid in src/sim/night.ts): the first trip of the campaign's first chopper is
+ * FizzCo's to hit, with no roll. Until that's wired, the trip takes the usual Delivery Raid roll.
  */
 export function scriptedRaider(s: GameState, o: Order): RivalId | null {
-  return hasStory(s) && !!o.id && s.story?.vip?.heli === o.id && fizzcoCanHit(s, o) ? 'fizzco' : null;
+  return hasStory(s) && !!o.id && firstTrip(s, o) && fizzcoCanHit(s, o) ? 'fizzco' : null;
 }
 
-/** The chopper's pickup day: Juni, FizzCo's informant now, phones at dawn that FizzCo will hit the pad. */
+/**
+ * The day the movie star's chopper first lands to load (you took it, its bottles are ready and its pad stands): Juni,
+ * FizzCo's informant now, phones before the 5:30 pm pickup that FizzCo will hit the pad. At dawn, or as you take it.
+ */
 function chopperTip(s: GameState): void {
-  const id = s.story!.vip?.heli;
-  const o = id ? s.orders.find((x) => x.id === id && x.due === s.day) : undefined;
-  if (o && juniInforms(s) && fizzcoCanHit(s, o)) phoneCall(s, 'coldbrew', LINES.juniPad, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
+  const v = s.story?.vip;
+  if (!v?.heli || v.tip === s.day || !(s.phase === 'prep' || (s.phase === 'open' && s.minute < PICKUP_MINUTE.heli))) return;
+  const o = s.orders.find((x) => x.id === v.heli && x.due >= s.day);
+  const pad = o?.plot ? s.plots[o.plot]?.facility : undefined;
+  if (!o || !firstTrip(s, o) || !pad || pad.wrecked || bottlesOf(s, orderRecipe(o)) <= 0 || !juniInforms(s) || !fizzcoCanHit(s, o)) return;
+  v.tip = s.day;
+  phoneCall(s, 'coldbrew', LINES.juniPad, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
 }
 
-/** The first ship docks at its pickup (10 am): its horn plays the first 3 notes of Lottie's Theme (audio's), and she blames the wind. */
-export function shipDocks(s: GameState): void {
+/**
+ * The first ship docks at its first trip (10 am, loading a day at a time): its horn plays the first 3 notes of Lottie's
+ * Theme (audio's), and she blames the wind. It has docked once the contract has bottles aboard, a raid holds its
+ * loading, or it left your Order Book while you were open (its whole load in one trip, or raiders overran it).
+ */
+function shipDocks(s: GameState): void {
   const v = s.story?.vip;
-  if (!hasStory(s) || !v?.ship || v.docked) return;
+  if (!v?.ship || v.docked) return;
   const o = s.orders.find((x) => x.id === v.ship);
-  if (o) v.sail = o.due; // you took the contract: it docks on its pickup day
-  const due = v.sail;
-  if (due === undefined || s.day < due || (s.day === due && (s.phase === 'prep' || (s.phase === 'open' && s.minute < PICKUP_MINUTE.ship)))) return;
+  const docked = o ? !!o.loaded || !!s.heldPickups?.includes(o.id) : v.booked === s.day && s.phase === 'open';
+  if (o) v.booked = s.day;
+  if (!docked) return;
   v.docked = true;
   alert(s, { kind: 'note', text: 'Lottie: "That horn? Just the wind, kid. Just the wind."', ...(o?.plot ? { plot: o.plot } : {}) });
+}
+
+/** On the clock (storyMinute, and after each tap): the first ship's docking, and Juni's tip before the chopper loads. */
+export function beatsOnTheClock(s: GameState): void {
+  if (!hasStory(s) || !s.story || s.story.epilogue !== undefined) return;
+  shipDocks(s);
+  chopperTip(s);
 }
 
 /** Vera's first fine through Mayor Fontaine (rivals' Old Money, src/sim/schemes.ts): he brings it to the Corner himself. */

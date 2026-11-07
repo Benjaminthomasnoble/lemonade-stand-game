@@ -7,13 +7,13 @@ import {
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   type GameState, type Guard,
 } from './economy.ts';
-import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, shipDocks, storyOffer } from './beats.ts';
+import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer } from './beats.ts';
 import { exitScene, INVOICE } from './exits.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
 import { eliminate, hqPlot, inTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
-import { acceptOrder, ORDER_TIERS, type Order } from './vip.ts';
+import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
 import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, taught } from './story.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
@@ -579,8 +579,8 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     s.phone!.queue = [];
     return s;
   };
-  const offer = (s: GameState, tier: 'heli' | 'ship'): Order => {
-    const o: Order = { id: `o${s.nextId++}`, tier, client: tier === 'heli' ? "the Governor's Gala" : 'an overseas export deal', qty: tier === 'heli' ? 2500 : 15000, pay: 0, due: s.day + 5, expires: s.day + 2, plot: LOTTIES_CORNER, accepted: false };
+  const offer = (s: GameState, tier: 'heli' | 'ship', plot = LOTTIES_CORNER): Order => {
+    const o: Order = { id: `o${s.nextId++}`, tier, client: tier === 'heli' ? "the Governor's Gala" : 'an overseas export deal', qty: tier === 'heli' ? 2500 : 15000, pay: 0, due: s.day + 5, expires: s.day + 2, plot, accepted: false };
     o.pay = o.qty * ORDER_TIERS[tier].pay;
     s.offers.push(o);
     return o;
@@ -601,43 +601,130 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     expect(done.phone!.queue.some((c) => c.who === 'coldbrew')).toBe(false);
   });
 
-  it("the first chopper is a movie star's 4,000 bottles of Pink, and Juni warns that FizzCo will hit the pad", () => {
+  /** A facility of yours on the first free plot of its type: a Pad on a Field, a Jetty on a Dock. */
+  const site = (s: GameState, kind: 'helipad' | 'pier') => {
+    const p = kind === 'helipad' ? PLOTS.find((x) => x.type === 'field')! : PLOTS.find((x) => x.type === 'dock' && !s.plots[x.id].facility)!; // a field cleared of Hollis's Lemon Grove
+    s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    s.cash = 3_000_000;
+    expect(buildFacility(s, p.id, kind)).toBe(true);
+    return p.id;
+  };
+  /** Lottie's line on the feed (its card also lands in the news, which a test run keeps). */
+  const wind = (s: GameState) => s.news.filter((n) => n === 'Lottie: "That horn? Just the wind, kid. Just the wind."').length;
+
+  it("the first chopper is a movie star's 4,000 bottles of Pink, called to you alone; only the first is scripted", () => {
     const s = act4(112);
-    expect(threatLevel(s)).toBeGreaterThanOrEqual(3);
-    const o = offer(s, 'heli');
+    s.reputation = 4;
+    const pad = site(s, 'helipad');
+    s.lastOffer = { heli: s.day - VIP_MAX_GAP }; // the chopper calls at the next dawn (vip.ts)
     nextDawn(s);
-    expect(o).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, pay: CHOPPER_BOTTLES * ORDER_TIERS.heli.pay });
-    expect(o.pay).toBe(120000);
+    const o = s.offers.find((x) => x.tier === 'heli')!;
+    expect(o).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, pay: 120000, recipe: 'pink', plot: pad });
+    expect(o.bid).toBeUndefined();
     expect(s.news).toContain('VIP call! A movie star wants 4,000 bottles of Pink for a pool party: $120,000.');
+    expect(s.news.filter((n) => n.startsWith('VIP call!'))).toHaveLength(1); // vip.ts's line gave way to it
     expect(s.news.some((n) => n.startsWith('Lottie: "A chopper, kid!'))).toBe(true);
-    expect(scriptedRaider(s, o)).toBe('fizzco');
-    const next = offer(s, 'heli'); // only the first is scripted
-    nextDawn(s);
-    expect(next.client).toBe("the Governor's Gala");
-    expect(scriptedRaider(s, next)).toBeNull();
+    const next = offer(s, 'heli');
+    next.bid = { rival: 'fizzco', pay: Math.round(next.pay * 0.85), days: 1 };
+    beatsAtDawn(s);
+    expect(next).toMatchObject({ client: "the Governor's Gala", bid: { rival: 'fizzco' } }); // a later chopper keeps its client and bid
+    // A rival's bid on the first offer: vip.ts's line (bid and all) gives way, and the movie star calls you alone.
+    const t = act4(115);
+    t.reputation = 4;
+    const bid = offer(t, 'heli');
+    bid.bid = { rival: 'fizzco', pay: Math.round(bid.pay * 0.85), days: 1 };
+    t.news.push("VIP call! the Governor's Gala wants 2,500 bottles for $75,000. FizzCo Beverages bids $63,750.");
+    beatsAtDawn(t);
+    expect(bid.bid).toBeUndefined();
+    expect(t.news.filter((n) => n.startsWith('VIP call!'))).toEqual(['VIP call! A movie star wants 4,000 bottles of Pink for a pool party: $120,000.']);
+  });
+
+  it('Juni warns that FizzCo will hit the pad on the day the chopper first loads, and FizzCo is the first trip’s raider', () => {
+    const s = act4(116);
+    s.reputation = 4;
+    expect(threatLevel(s)).toBeGreaterThanOrEqual(3);
+    const o = offer(s, 'heli', site(s, 'helipad'));
+    beatsAtDawn(s);
+    expect(o.client).toBe(MOVIE_STAR);
     expect(acceptOrder(s, o.id)).toBe(true);
-    o.due = s.day + 1;
-    nextDawn(s);
-    expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniPad)).toBe(true);
+    const tip = () => s.phone!.queue.filter((c) => c.who === 'coldbrew' && c.text === LINES.juniPad && c.tip).length;
+    storyAfterAct(s);
+    expect(tip()).toBe(0); // no Pink bottled yet: nothing loads today
+    stockBottles(s, 'pink', 2500);
+    storyAfterAct(s); // the tap after bottles are ready (or the next dawn's bottling)
+    expect(tip()).toBe(1);
+    storyAfterAct(s);
+    expect(tip()).toBe(1); // once a day
+    expect(scriptedRaider(s, o)).toBe('fizzco');
+    o.loaded = 2000; // the first trip went out: later trips take the usual roll
+    expect(scriptedRaider(s, o)).toBeNull();
+    const calm = act4(117); // FizzCo's Respect for you: no tip, no scripted raid
+    calm.reputation = 4;
+    const c = offer(calm, 'heli', site(calm, 'helipad'));
+    beatsAtDawn(calm);
+    acceptOrder(calm, c.id);
+    stockBottles(calm, 'pink', 4000);
+    calm.rivals.fizzco.respectUntil = calm.day + 5;
+    storyAfterAct(calm);
+    expect(calm.phone!.queue.some((x) => x.text === LINES.juniPad)).toBe(false);
+    expect(scriptedRaider(calm, c)).toBeNull();
   });
 
   it('the first ship is the Regatta flagship, and at its first docking Lottie blames the wind', () => {
     const s = act4(113);
     s.rank = 7;
-    const o = offer(s, 'ship');
+    s.reputation = 4.5;
+    for (const r of Object.values(s.rivals)) r.respectUntil = 999; // no Delivery Raids: the trips load in peace
+    const jetty = site(s, 'pier');
+    s.lastOffer = { ship: s.day - VIP_MAX_GAP };
     nextDawn(s);
-    expect(o.client).toBe(REGATTA);
+    const o = s.offers.find((x) => x.tier === 'ship')!;
+    expect(o).toMatchObject({ client: REGATTA, plot: jetty });
+    expect(o.bid).toBeUndefined();
+    expect(s.news.some((n) => n.startsWith("Ship Contract! The Regatta's flagship wants"))).toBe(true);
     expect(acceptOrder(s, o.id)).toBe(true);
+    stockBottles(s, orderRecipe(o), o.qty); // bottled ahead: the Jetty loads 5,000 a day
     storyAfterAct(s);
-    o.due = s.day;
-    shipDocks(s);
-    const wind = () => (s.alerts ?? []).filter((a) => a.text === 'Lottie: "That horn? Just the wind, kid. Just the wind."').length;
-    expect(wind()).toBe(0); // not before the pickup
+    expect(wind(s)).toBe(0); // not before it docks
     openStand(s);
     simulateRestOfDay(s);
-    expect(wind()).toBe(1);
-    shipDocks(s);
-    expect(wind()).toBe(1);
+    expect(o.loaded).toBe(5000);
+    expect(wind(s)).toBe(1);
+    nextDawn(s);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(o.loaded).toBe(10000);
+    expect(wind(s)).toBe(1); // the first docking only
+    // A contract that leaves the book in one trip (a small load) still docked; one that fell through unloaded never did.
+    const one = act4(118);
+    one.rank = 7;
+    one.reputation = 4.5;
+    for (const r of Object.values(one.rivals)) r.respectUntil = 999;
+    const small = offer(one, 'ship', site(one, 'pier'));
+    small.qty = 3000;
+    beatsAtDawn(one);
+    acceptOrder(one, small.id);
+    stockBottles(one, orderRecipe(small), 3000);
+    storyAfterAct(one);
+    openStand(one);
+    simulateRestOfDay(one);
+    expect(one.orders).not.toContain(small);
+    expect(wind(one)).toBe(1);
+    const dry = act4(119);
+    dry.rank = 7;
+    dry.reputation = 4.5;
+    const late = offer(dry, 'ship', site(dry, 'pier'));
+    beatsAtDawn(dry);
+    acceptOrder(dry, late.id);
+    late.due = dry.day; // due today with no bottles: it falls through at closing
+    storyAfterAct(dry);
+    openStand(dry);
+    simulateRestOfDay(dry);
+    expect(dry.orders).not.toContain(late);
+    nextDawn(dry);
+    openStand(dry);
+    simulateRestOfDay(dry);
+    expect(wind(dry)).toBe(0);
     const old = newGame(114); // an older save that had VIP offers already keeps its own
     delete old.story!.vip;
     old.lastOffer = { heli: 3 };

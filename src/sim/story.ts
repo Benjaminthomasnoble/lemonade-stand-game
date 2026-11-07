@@ -18,7 +18,7 @@ import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLev
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
-import { beatsAtDawn, shipDocks } from './beats.ts';
+import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -33,8 +33,8 @@ export interface StoryState {
   offer?: { from: RivalId; until: number };
   asked?: boolean;
   tribute?: number;
-  /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the ship's pickup day once you took the contract, and its docking. */
-  vip?: { heli?: string; ship?: string; sail?: number; docked?: boolean };
+  /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the day Juni last tipped you off about the pad, the last day the ship's contract was in your Order Book, and its docking. */
+  vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean };
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -290,7 +290,7 @@ export function storyAtDawn(s: GameState): void {
 export function storyMinute(s: GameState): void {
   if (s.minute % 10 !== 0) return;
   checkGoals(s);
-  shipDocks(s);
+  beatsOnTheClock(s); // the first ship docks; Juni's tip before the first chopper loads
   phoneCheck(s);
 }
 
@@ -309,7 +309,7 @@ export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);
   if (s.brandTier >= 1) playScene(s, 'benny'); // once a run, campaign only
   notePayback(s); // a daytime raid just fought
-  shipDocks(s); // a ship contract just taken
+  beatsOnTheClock(s); // a chopper order just taken, with its bottles ready: Juni's tip now
   checkGoals(s);
   phoneCheck(s);
 }

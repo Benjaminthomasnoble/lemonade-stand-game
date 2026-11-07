@@ -20,6 +20,7 @@ import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
+import { clubhouses } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
@@ -97,13 +98,12 @@ export function raidStart(s: GameState, rival: RivalId, target: string): string 
   return best;
 }
 
-/** Where your squad sets out from and walks home to: your Clubhouse nearest the target, else Lottie's Corner. */
+/** Where your squad sets out from and walks home to: your Clubhouse nearest the target (one on a Street plot that
+ * stands; a wrecked one houses nobody), else Lottie's Corner. */
 export function squadHome(s: GameState, target: string): string {
   const t = PLOT_BY_ID[target];
   let best = LOTTIES_CORNER, d = Infinity;
-  for (const p of PLOTS) {
-    const ps = s.plots[p.id];
-    if (ps.owner !== 'player' || (ps.facility?.kind as string) !== 'clubhouse') continue; // combat's Clubhouse on a plot
+  for (const p of clubhouses(s)) {
     const dd = Math.hypot(p.x - t.x, p.z - t.z);
     if (dd < d) { d = dd; best = p.id; }
   }

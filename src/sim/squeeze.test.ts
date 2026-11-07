@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   bigSqueezeGoal, callBigSqueeze, canAssault, canCallBigSqueeze, CLOSE, eliminate, HQS, hqPlot, isWeakened, manorStewards, migrateSave, newGame, newStand,
-  onYou, planNight, PLOTS, raidsCounted, rivalsBankrupt, siegeDone, siegeFought, siegeTargets, siegeTonight, sleepUntilDawn, SQUEEZE_READY,
+  NIGHT_END, nightStep, onYou, planNight, PLOTS, raidsCounted, rivalsBankrupt, siegeDone, siegeFought, siegeTargets, siegeTonight, sleepUntilDawn, SQUEEZE_READY, startNight,
   squeezeAtDawn, squeezedHq, stormHQ, SYNDICATE_CALL, syndicateFormed, type BattleReport, type GameState, type Guard, type Mode, type Raid, type RivalId,
 } from './economy.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
 import { CALL_PRIORITY } from './phone.ts';
+import { stepFight, watchFights } from './fight.ts';
 
 const RIVALS: RivalId[] = ['sourwood', 'fizzco', 'hollis', 'coldbrew', 'blenders'];
 
@@ -217,6 +218,30 @@ describe('the siege', () => {
       const smashed = fights.filter((b) => b.outcome === 'smashed').length;
       expect(s.squeeze).toMatchObject({ nights: 1, held: fights.every((b) => b.outcome === 'repelled') ? 1 : 0, lost: smashed });
       expect(siegeTargets(s).length).toBeGreaterThan(0); // night 2's, named at dawn
+    }
+  });
+
+  it('a siege fight played live (the game watching) is scored as it ends', () => {
+    watchFights(true);
+    try {
+      for (let seed = 1; seed <= 4; seed++) {
+        const s = finale(seed);
+        callBigSqueeze(s);
+        closing(s);
+        startNight(s);
+        while (!s.fight && s.minute < NIGHT_END) nightStep(s);
+        expect(s.fight?.raid.siege).toBe(true);
+        const before = { fought: 0, repelled: 0, fell: 0, ...s.squeeze!.tonight };
+        let ended: BattleReport | undefined;
+        for (let i = 0; !ended && i < 1e5; i++) ended = stepFight(s, 0.5).ended;
+        expect(s.squeeze!.tonight).toEqual({
+          fought: before.fought + 1,
+          repelled: before.repelled + (ended!.outcome === 'repelled' ? 1 : 0),
+          fell: before.fell + (ended!.outcome === 'smashed' ? 1 : 0),
+        });
+      }
+    } finally {
+      watchFights(false);
     }
   });
 });

@@ -11,6 +11,7 @@ import {
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
+import { stepFight, watchFights } from './fight.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
 function evening(seed: number, settings: Partial<Settings> = {}): GameState {
@@ -337,6 +338,29 @@ describe('the tutorial raid', () => {
     }
     expect(n).toBe(40);
   });
+
+  it('played live as it arrives (the game watching), it bounces all the same, and the tutorial is done', () => {
+    watchFights(true);
+    try {
+      for (let seed = 1; seed <= 10; seed++) {
+        const { s, side } = fairNight(seed);
+        const r = tutorialRaid(s);
+        startNight(s);
+        while (!r.warned) nightStep(s);
+        postGuard(s, dexOf(s)!.id, side); // moved off after the warning
+        while (!s.fight && s.minute < NIGHT_END) nightStep(s);
+        expect(s.fight?.raid.id).toBe(r.id); // on screen, not fought at once
+        let ended: BattleReport | undefined;
+        for (let i = 0; !ended && i < 1e5; i++) ended = stepFight(s, 0.5).ended;
+        expect(ended).toMatchObject({ outcome: 'repelled', loot: 0 });
+        expect(ended!.defenders.some((f) => f.name === DEX)).toBe(true);
+        expect(s.tutorialRaidDone).toBe(true);
+        expect(s.plots[LOTTIES_CORNER].stand!.wrecked).toBeFalsy();
+      }
+    } finally {
+      watchFights(false);
+    }
+  });
 });
 
 describe('Delivery Raids', () => {
@@ -564,6 +588,21 @@ describe('your raids travel', () => {
     const { s: c, target, trip } = crewed(2);
     expect(squadTrip(c, target, 'tonight')).toEqual({ leave: 25 * 60, at: 25 * 60 + trip, back: 25 * 60 + 2 * trip + RAID_FIGHT_GUESS, travel: trip });
     expect(squadHome(c, target)).toBe(LOTTIES_CORNER); // no Clubhouse on a plot yet
+  });
+
+  it('a squad sets out from your standing Clubhouse nearest the target, and walks home there; else from the Corner', () => {
+    const { s, target } = crewed(2);
+    const t = PLOTS.find((p) => p.id === target)!;
+    const far = (p: (typeof PLOTS)[number]) => Math.hypot(p.x - t.x, p.z - t.z);
+    const lots = PLOTS.filter((p) => p.type === 'street' && !s.plots[p.id].owner && !s.plots[p.id].stand).sort((a, b) => far(a) - far(b));
+    const near = lots[0], away = lots[lots.length - 1];
+    for (const p of [away, near]) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null, facility: { kind: 'clubhouse', level: 1 } };
+    expect(squadHome(s, target)).toBe(near.id);
+    expect(squadTrip(s, target, 'tonight').travel).toBe(travelMinutes(s, near.id, target));
+    s.plots[near.id].facility!.wrecked = true; // a wrecked Clubhouse houses nobody
+    expect(squadHome(s, target)).toBe(away.id);
+    s.plots[away.id].facility!.wrecked = true;
+    expect(squadHome(s, target)).toBe(LOTTIES_CORNER);
   });
 
   it("tonight's squad leaves its posts at 01:00; a raid on them meanwhile finds them empty until the squad is home", () => {

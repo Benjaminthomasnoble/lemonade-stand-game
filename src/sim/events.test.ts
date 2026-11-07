@@ -476,7 +476,10 @@ describe('the L4+ ice machine and the Power Outage', () => {
 });
 
 describe('Captain Squawk', () => {
-  /** A day on the clock up to the gull's minute, with yesterday's lemons and a fresh delivery this morning. */
+  /**
+   * A day on the clock up to the gull's minute, with yesterday's lemons and a fresh delivery this morning. Nobody buys
+   * at the morning's sky-high price, so this morning's 40 are still whole when he comes; then the price is back.
+   */
   function squawk(seed: number): { s: GameState; e: WorldEvent } {
     const s = quietGame(seed);
     const e = force(s, 'captainSquawk');
@@ -484,8 +487,11 @@ describe('Captain Squawk', () => {
     s.cash = 5000;
     st.inventory.lemons = [{ qty: 20, day: s.day - 1, unitCost: 0.2 }, { qty: 40, day: s.day, unitCost: 0.2 }];
     while (buySupply(s, 'sugar', 1, st));
+    const price = st.price;
+    st.price = 50;
     openStand(s);
     while (s.minute < e.at!) tickMinute(s);
+    st.price = price;
     return { s, e };
   }
 

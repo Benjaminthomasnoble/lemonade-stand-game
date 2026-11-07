@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AUTO_RESTOCK_DAY, LOTTIES_CORNER, newGame, openStands, setRecipe, setStockTarget, simulateRestOfDay, sleepUntilDawn, stockTarget, suggestedTarget,
-  toggleAutoRestock, type GameState,
+  AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, LOTTIES_CORNER, newGame, openStands, setByHand, setRecipe, setStockTarget, simulateRestOfDay, sleepUntilDawn,
+  stockTarget, suggestedTarget, toggleAutoPrice, toggleAutoRestock, type GameState,
 } from '../sim/economy.ts';
-import { autoTickets, helperRows, restockControl } from './automation.ts';
+import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 
 function dawnOfDay3(): GameState {
   const s = newGame(21);
@@ -55,5 +55,28 @@ describe('Auto-Restock on screen', () => {
     const row = helperRows(s.history[s.history.length - 1]);
     expect(row).toContain(`Auto-Restock: 1 stand to ${atOpen} cups`);
     expect(row).toContain(`$${s.today.auto!.restock!.spent.toFixed(2)}`);
+  });
+});
+
+describe('Auto-Price on screen', () => {
+  it('the price tag has the switch from Rank 3, and Morning Prep shows what Marisol set', () => {
+    const s = dawnOfDay3();
+    expect(priceSwitch(s, LOTTIES_CORNER)).toBe('');
+    s.rank = AUTO_PRICE_RANK;
+    s.cash = Math.max(s.cash, 400);
+    openStands(s);
+    simulateRestOfDay(s);
+    s.cash = Math.max(s.cash, 5000);
+    sleepUntilDawn(s);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    expect(priceSwitch(s, LOTTIES_CORNER)).toContain('data-action="autoPrice" data-testid="auto-price" aria-pressed="true"');
+    const ticket = autoTickets(s).find((t) => t.includes('data-testid="auto-price"'))!;
+    expect(ticket).toContain('Auto-Price: 1 stand at the top');
+    expect(ticket).toContain(`$${st.price.toFixed(2)}`);
+    setByHand(s, LOTTIES_CORNER, 'price');
+    expect(priceSwitch(s, LOTTIES_CORNER)).toContain('aria-pressed="false"');
+    expect(autoTickets(s).find((t) => t.includes('data-testid="auto-price"'))).not.toContain('$'); // no price of hers to show
+    toggleAutoPrice(s, LOTTIES_CORNER);
+    expect(priceSwitch(s, LOTTIES_CORNER)).toContain('aria-pressed="true"');
   });
 });

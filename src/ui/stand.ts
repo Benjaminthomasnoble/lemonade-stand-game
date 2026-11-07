@@ -10,6 +10,7 @@ import {
 import { taught } from '../sim/story.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
 import { recipeRow } from './recipes.ts';
+import { priceSwitch } from './automation.ts';
 import * as A from './clay.ts';
 
 /** Why people walked past, in the order the panel lists them, with the street's reaction icon for each. */
@@ -139,7 +140,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
     ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${cubes}</div></div>` : ''}
     <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
       <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > c.ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${usd(c.ceiling)}: past it, buyers walk off. Costs you ${usd(cost)} a cup. Tap to price at the top"><b>${usd(st.price)}</b><i>top ${usd(c.ceiling)}</i></div>
-      <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div></div>
+      <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>${priceSwitch(s, plotId)}</div>
     <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div></div>
   </div>`;
 }

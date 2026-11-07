@@ -35,7 +35,7 @@ import {
 } from './demand.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
-import { automationAtDawn, restockAtOpen, type HelperDay } from './automation.ts';
+import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -105,6 +105,8 @@ export interface Stand {
   autoRestock: boolean; // Auto-Restock's switch: on unless this stand opts out, at work from Day 3 (automation.ts)
   /** Auto-Restock's stock target in cups: null is the suggestion (the forecast day's expected sales). Missing on older saves. */
   stockTarget?: number | null;
+  autoPrice?: boolean; // Marisol's Auto-Price switch (Rank 3): off once you price this stand by hand (automation.ts)
+  ownCard?: boolean; // you picked this stand's card or Sweetness by hand: Auto-Price keeps them and still prices the stand
   day: StandDay;
   hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
@@ -238,6 +240,7 @@ export interface GameState {
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
   world?: WorldState; // Lottie's recipe book, the calendar's Taste-Offs, boosts and sponsorships
   schemes?: Scheme[]; // rivals' Strike schemes running or just done (schemes.ts)
+  helpersMet?: string[]; // automation helpers that have introduced themselves (automation.ts)
   story?: StoryState; // the campaign's act (src/sim/story.ts)
   scenes?: SceneState; // story scenes queued, playing and seen
   phone?: PhoneState; // boss calls waiting, and the moods they watch
@@ -307,7 +310,7 @@ function emptyStats(s: GameState): DayStats {
 export function newStand(level = 1, price = STAND_LEVELS[level - 1].topPrice): Stand {
   return {
     level, inventory: { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 }, recipe: 'classic', sweetness: 'classic',
-    price, pitcherCups: 0, queue: 0, campaigns: {}, autoRestock: true, stockTarget: null, day: emptyStandDay(),
+    price, pitcherCups: 0, queue: 0, campaigns: {}, autoRestock: true, stockTarget: null, autoPrice: true, day: emptyStandDay(),
   };
 }
 
@@ -579,7 +582,8 @@ function segmentAt(rng: Rng, district: DistrictId, hour: number): SegmentId {
 
 export function openStands(s: GameState): boolean {
   if (s.phase !== 'prep' || gameOver(s)) return false;
-  restockAtOpen(s); // Auto-Restock tops up what Morning Prep changed (automation.ts)
+  holdPrices(s); // Auto-Price re-posts any ceiling Morning Prep moved, then Auto-Restock tops up (automation.ts)
+  restockAtOpen(s);
   const rng = { seed: s.seed };
   let weather: Weather;
   if (nextRandom(rng) < FORECAST_ACCURACY) {
@@ -1051,6 +1055,7 @@ export function upgradeStand(s: GameState, plotId = s.selected): boolean {
   s.today.land = round2(s.today.land + next.cost);
   ps.invested += next.cost;
   ps.stand!.level = next.level;
+  repostPrice(s, plotId); // Auto-Price follows the new level's ceiling (automation.ts)
   restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
   s.news.push(`${PLOT_BY_ID[plotId].name} gets a makeover: say hello to ${next.name}!`);
   checkRank(s);

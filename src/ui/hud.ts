@@ -39,7 +39,7 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
-import { autoTickets, helperRows, restockControl } from './automation.ts';
+import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
@@ -67,6 +67,7 @@ export type Action =
   | { type: 'brand' }
   | { type: 'campaign'; id: CampaignId; plot?: string } // plot: a ticket's stand (else the selected one)
   | { type: 'restock' }
+  | { type: 'autoPrice' } // the selected stand's Auto-Price switch (Rank 3)
   | { type: 'stockTarget'; delta: number } // Auto-Restock's target: a step down (-1) or up (1), or back to the suggestion (0)
   | { type: 'select'; plot: string }
   | { type: 'inspect'; plot: string | null }
@@ -403,7 +404,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'dismiss': case 'watch': onAction({ type: d.action, id: d.id! }); break;
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
-      case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute': case 'priceCeiling':
+      case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'autoPrice': case 'mute': case 'priceCeiling':
       case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze':
         onAction({ type: d.action }); break;
       case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
@@ -611,7 +612,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
         <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${cents(ceiling)}: past it, buyers walk off. Costs you ${cents(cost)} a cup. Tap to price at the top"><b data-testid="price">${cents(st.price)}</b><i data-testid="ceiling">top ${cents(ceiling)}</i></div>
         <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>
-        <div class="cl-row cl-crowd" data-action="inspect" data-plot="${plotId}" title="About ${Math.round(stop * 100)}% of ~${Math.round(people)} walkers stop: ~${cups} cups. Tap for the math">${[0, 1, 2, 3, 4].map((i) => `<i aria-pressed="${i < lit}">${ART.head(i)}</i>`).join('')}</div></div>
+        <div class="cl-row cl-crowd" data-action="inspect" data-plot="${plotId}" title="About ${Math.round(stop * 100)}% of ~${Math.round(people)} walkers stop: ~${cups} cups. Tap for the math">${[0, 1, 2, 3, 4].map((i) => `<i aria-pressed="${i < lit}">${ART.head(i)}</i>`).join('')}</div>${priceSwitch(s, plotId)}</div>
       ${taught(s, 'market') ? `<div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div>${restock}</div>` : ''}
       <button class="cl-open" data-action="open" data-testid="open" aria-label="Open ${n > 1 ? 'all stands' : 'the stand'}" title="Open at ${clock(OPEN)}"><span class="cl-btn"></span>${tape('OPEN', 'cl-t-open')}</button>
     </div>`;

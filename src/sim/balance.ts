@@ -291,6 +291,8 @@ export const FACILITY_DEVELOPMENT = 2;
 export const AUTO_RESTOCK_DAY = 3; // the Market and Auto-Restock open with Day 3's lesson; Lottie stocks your stands before it
 /** Lottie's side lot next to the Corner, sold to you on Day 3 with an L1 table: fixed values, like the Corner (spec Appendix A). */
 export const SIDE_LOT = { land: 300, traffic: 300, price: 300 } as const;
+/** Marisol's Auto-Price arrives at Rank 3, Block Boss (spec: Helpers that keep a big empire calm). */
+export const AUTO_PRICE_RANK = 3;
 
 // ---------- rivals (section 13) ----------
 export type RivalId = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';

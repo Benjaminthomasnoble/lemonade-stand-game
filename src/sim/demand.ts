@@ -6,7 +6,7 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  BASE_STOP_CHANCE, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  AUTO_PRICE_RANK, BASE_STOP_CHANCE, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
   PRICE_FIT, PRICE_TOLERANCE, RECIPES, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
@@ -407,13 +407,16 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
 /**
  * Fills this lane's new fields on older saves (idempotent). Old rival stands priced off the old curve move to their
  * ceiling. Auto-Restock was a switch you turned on; now every stand has it unless it opts out, so a save from before
- * stock targets (no stockTarget field) gets the switch on and the suggested target.
+ * stock targets (no stockTarget field) gets the switch on and the suggested target. Auto-Price is new: a run past
+ * Rank 3 priced its stands by hand, so they keep their prices until switched on; an earlier run (and every rival
+ * stand, should you take one) gets it on.
  */
 export function migrateDemand(s: GameState): void {
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;
     if (!st) continue;
     if (st.stockTarget === undefined) { st.stockTarget = null; st.autoRestock = true; }
+    if (st.autoPrice === undefined) st.autoPrice = s.rank < AUTO_PRICE_RANK || ps.owner !== 'player';
     if (st.queue !== undefined) continue;
     st.queue = 0;
     if (ps.owner && ps.owner !== 'player' && PLOT_BY_ID[id]) st.price = rivalPrice(ps.owner as RivalId, st.level, PLOT_BY_ID[id]);

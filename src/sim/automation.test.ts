@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AUTO_RESTOCK_DAY, autoRestock, automationAtDawn, helperLines, LOTTIES_CORNER, migrateSave, newGame, newStand, nudgeStockTarget, openStands,
-  pitcherNeeds, playerStands, prepPreview, priceCeiling, registerHelper, restockGoal, restockOn, restockPlan, servingsAvailable, setRecipe,
-  setStockTarget, simulateRestOfDay, sleepUntilDawn, stock, stockCapCups, stockTarget, suggestedTarget, SUPPLIES, tickMinute, toggleAutoRestock,
-  unregisterHelper, type GameState, type SupplyId,
+  AUTO_PRICE, AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, autoRestock, automationAtDawn, bestSetting, costPerCup, expectedCups, helperLines, helpers,
+  LOTTIES_CORNER, migrateSave, newGame, newStand, nudgeStockTarget, openStands, ownedRecipes, pickRecipe, pitcherNeeds, playerStands, prepPreview,
+  priceCeiling, pricingOn, registerHelper, restockGoal, restockOn, restockPlan, servingsAvailable, setByHand, setPrice, setRecipe, setStockTarget,
+  simulateRestOfDay, sleepUntilDawn, stock, stockCapCups, stockTarget, suggestedTarget, SUPPLIES, tickMinute, toggleAutoPrice, toggleAutoRestock,
+  unregisterHelper, upgradeStand, type GameState, type RecipeId, type SupplyId, type Sweetness,
 } from './economy.ts';
 
 const SUPPLY_IDS = Object.keys(SUPPLIES) as SupplyId[];
+const SWEETS: Sweetness[] = ['less', 'classic', 'extra'];
 
 /** Business days and nights until dawn of `day`, cash topped up so the run never goes broke. */
 function playTo(s: GameState, day: number): void {
@@ -129,7 +131,7 @@ describe('Auto-Restock', () => {
     playTo(s, AUTO_RESTOCK_DAY);
     const st = s.plots[LOTTIES_CORNER].stand!;
     const dawn = s.today.auto!.restock!.spent;
-    expect(prepPreview(s)).toEqual([{ id: 'restock', name: 'Auto-Restock', count: 1, spent: dawn, pending: 0 }]);
+    expect(prepPreview(s)).toEqual([{ id: 'restock', name: 'Auto-Restock', count: 1, spent: dawn, pending: 0, line: `1 stand to ${s.today.auto!.restock!.amount} cups` }]);
     setRecipe(st, 'frozen'); // twice the ice a cup
     const pending = prepPreview(s)[0].pending;
     expect(pending).toBeGreaterThan(0);
@@ -171,6 +173,142 @@ describe('Auto-Restock', () => {
     automationAtDawn(s);
     expect(servingsAvailable(st)).toBe(0);
     expect(s.today.auto).toBeUndefined();
+  });
+});
+
+/** One business day and night, with cash enough that nothing runs short at the next dawn. */
+function nextDawn(s: GameState): void {
+  s.cash = Math.max(s.cash, 400);
+  openStands(s);
+  simulateRestOfDay(s);
+  s.cash = Math.max(s.cash, 5000);
+  sleepUntilDawn(s);
+}
+
+/** What a card and Sweetness should make at a stand on the forecast day, priced at its top. */
+function profitOf(s: GameState, plotId: string, recipe: RecipeId, sweetness: Sweetness): number {
+  const c = structuredClone(s);
+  const st = c.plots[plotId].stand!;
+  st.recipe = recipe;
+  st.sweetness = sweetness;
+  st.price = priceCeiling(c, plotId, st);
+  return expectedCups(c, plotId, c.forecast) * (st.price - costPerCup(c, st));
+}
+
+describe("Marisol's Auto-Price", () => {
+  it('waits for Rank 3, then each dawn gives every stand the card and Sweetness that should make the most, priced at the top', () => {
+    const s = newGame(31);
+    const side = sideLot(s);
+    playTo(s, AUTO_RESTOCK_DAY);
+    expect(s.today.auto!.price).toBeUndefined(); // below Rank 3 you price your own stands
+    expect(prepPreview(s).map((p) => p.id)).toEqual(['restock']);
+    s.rank = AUTO_PRICE_RANK;
+    for (const id of [LOTTIES_CORNER, side]) setPrice(s.plots[id].stand!, 0.5);
+    nextDawn(s);
+    for (const id of [LOTTIES_CORNER, side]) {
+      const st = s.plots[id].stand!;
+      expect(st.price).toBe(priceCeiling(s, id));
+      const mine = profitOf(s, id, st.recipe, st.sweetness);
+      for (const r of ownedRecipes(s)) for (const v of SWEETS) expect(profitOf(s, id, r, v)).toBeLessThanOrEqual(mine + 1e-9);
+      expect(restockPlan(s, id).cost).toBe(0); // Auto-Restock came after and stocked the card she picked
+    }
+    expect(helpers().map((h) => h.id).slice(0, 2)).toEqual([AUTO_PRICE, 'restock']);
+    const book = s.today.auto!.price!;
+    expect(book).toMatchObject({ spent: 0, count: 2 });
+    expect(helperLines(s.today)[0]).toEqual({
+      id: AUTO_PRICE, name: 'Auto-Price', spent: 0, line: `2 stands at the top${book.amount ? `, ${book.amount} new card${book.amount === 1 ? '' : 's'}` : ''}`,
+    });
+    nextDawn(s);
+    expect(s.news.filter((n) => n.includes('Each morning I price every stand'))).toHaveLength(1); // she says it once
+    expect(s.today.auto!.price).toMatchObject({ spent: 0, count: 2 });
+  });
+
+  it('a price set by hand takes the stand off Auto-Price; a card picked by hand stays, priced at its top', () => {
+    const s = newGame(32);
+    const side = sideLot(s);
+    playTo(s, AUTO_RESTOCK_DAY);
+    s.rank = AUTO_PRICE_RANK;
+    nextDawn(s);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    const ss = s.plots[side].stand!;
+    const other = ownedRecipes(s).find((r) => r !== st.recipe)!;
+    pickRecipe(s, st, other);
+    setByHand(s, LOTTIES_CORNER, 'card');
+    expect(st.ownCard).toBe(true);
+    expect(pricingOn(s, st)).toBe(true);
+    expect(st.price).toBe(priceCeiling(s, LOTTIES_CORNER));
+    const sweet = st.sweetness;
+    setPrice(ss, 0.95);
+    setByHand(s, side, 'price');
+    expect(pricingOn(s, ss)).toBe(false);
+    openStands(s);
+    expect(ss.price).toBe(0.95); // the stands open with the price you set
+    simulateRestOfDay(s);
+    s.cash = 5000;
+    sleepUntilDawn(s);
+    expect([st.recipe, st.sweetness]).toEqual([other, sweet]);
+    expect(st.price).toBe(priceCeiling(s, LOTTIES_CORNER));
+    expect(ss.price).toBe(0.95);
+    expect(s.today.auto!.price).toEqual({ spent: 0, count: 1, amount: 0 });
+    // Switched back on at Morning Prep, Marisol sets the whole stand at once.
+    toggleAutoPrice(s, side);
+    expect(pricingOn(s, ss)).toBe(true);
+    expect(ss.price).toBe(priceCeiling(s, side));
+    expect(ss.recipe).toBe(bestSetting(s, side).recipe);
+    toggleAutoPrice(s, LOTTIES_CORNER);
+    expect(pricingOn(s, st)).toBe(false);
+    toggleAutoPrice(s, LOTTIES_CORNER);
+    expect(st.ownCard).toBe(false); // the card is hers to pick again
+    const best = bestSetting(s, LOTTIES_CORNER);
+    expect([st.recipe, st.sweetness, st.price]).toEqual([best.recipe, best.sweetness, priceCeiling(s, LOTTIES_CORNER)]);
+  });
+
+  it('follows the ceiling: an upgrade re-posts the price, and the stands open at the top', () => {
+    const s = newGame(33);
+    playTo(s, AUTO_RESTOCK_DAY);
+    s.rank = AUTO_PRICE_RANK;
+    nextDawn(s);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    const before = st.price;
+    s.cash = 10000;
+    expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
+    expect(st.price).toBe(priceCeiling(s, LOTTIES_CORNER));
+    expect(st.price).toBeGreaterThan(before);
+    st.price = 1; // anything Morning Prep moved behind her back
+    openStands(s);
+    expect(st.price).toBe(priceCeiling(s, LOTTIES_CORNER));
+  });
+
+  it('skips a wrecked stand, and does nothing below Rank 3', () => {
+    const s = newGame(34);
+    playTo(s, AUTO_RESTOCK_DAY);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    setPrice(st, 0.5);
+    setByHand(s, LOTTIES_CORNER, 'price'); // no Marisol yet: nothing to opt out of
+    expect(st.autoPrice).toBe(true);
+    toggleAutoPrice(s, LOTTIES_CORNER);
+    expect(st.autoPrice).toBe(true);
+    expect(st.price).toBe(0.5);
+    s.rank = AUTO_PRICE_RANK;
+    st.wrecked = true;
+    s.today.auto = undefined;
+    automationAtDawn(s);
+    expect(st.price).toBe(0.5);
+    expect(s.today.auto).toBeUndefined(); // no line for her, nor for Auto-Restock
+  });
+
+  it('older saves: a run past Rank 3 keeps its own prices until switched on; an earlier run gets Auto-Price', () => {
+    const s = newGame(35);
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    for (const ps of Object.values(old.plots)) if (ps.stand) delete ps.stand.autoPrice;
+    expect(migrateSave(JSON.parse(JSON.stringify(old)))!.plots[LOTTIES_CORNER].stand!.autoPrice).toBe(true);
+    old.rank = AUTO_PRICE_RANK;
+    const m = migrateSave(old)!;
+    expect(pricingOn(m, m.plots[LOTTIES_CORNER].stand!)).toBe(false);
+    const rival = Object.values(m.plots).find((ps) => ps.stand && ps.owner && ps.owner !== 'player')!;
+    expect(rival.stand!.autoPrice).toBe(true); // a rival stand you take later comes with it on
+    const again = migrateSave(JSON.parse(JSON.stringify(m)))!;
+    expect(again.plots[LOTTIES_CORNER].stand!.autoPrice).toBe(false);
   });
 });
 

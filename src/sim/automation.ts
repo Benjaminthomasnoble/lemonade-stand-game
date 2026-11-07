@@ -1,15 +1,17 @@
 // Automation (spec: Automation; Helpers that keep a big empire calm). Every helper is a switch, a target you set
 // and a one-line Ledger report; any single stand can opt out, and Morning Prep previews the day's automatic
 // spending. Auto-Restock is the first (Day 3): it tops each stand up to its stock target every dawn, at that day's
-// market price, within the stand's stock cap and your cash.
+// market price, within the stand's stock cap and your cash. Marisol's Auto-Price (Rank 3) runs just before it:
+// each stand's card and Sweetness for the forecast, priced at its ceiling.
 //
 // A later helper (Auto-Repair, Dex's Auto-Defend, bulk actions) keeps its own switch and opt-out, like
 // Stand.autoRestock, and registers here with registerHelper to get its dawn run, its Ledger line and its share of
 // the Prep preview. A helper that spends at another hour books it with bookHelper.
-import { AUTO_RESTOCK_DAY, CUPS_PER_PITCHER, SUPPLIES, type SupplyId } from './balance.ts';
+import { AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, CUPS_PER_PITCHER, RECIPES, SUPPLIES, type RecipeId, type SupplyId, type Sweetness } from './balance.ts';
 import type { DayStats, GameState, Stand } from './economy.ts';
-import { buySupply, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, stock, storageFor } from './economy.ts';
-import { serviceLeft, stockCapCups } from './demand.ts';
+import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, stock, storageFor } from './economy.ts';
+import { priceCeiling, serviceLeft, stockCapCups } from './demand.ts';
+import { ownedRecipes, pickRecipe } from './recipes.ts';
 import { gameOver } from './modes.ts';
 
 /** What a helper did today: what it spent, how many stands it looked after and how much it handled (cups, for Auto-Restock). */
@@ -77,16 +79,131 @@ export function helperLines(t: DayStats): { id: string; name: string; line: stri
   return out;
 }
 
-/** Morning Prep's preview: per helper at work today, what it spent at dawn and what it will spend at Open. */
-export function prepPreview(s: GameState): { id: string; name: string; count: number; spent: number; pending: number }[] {
-  const out: { id: string; name: string; count: number; spent: number; pending: number }[] = [];
+export interface PrepLine { id: string; name: string; count: number; spent: number; pending: number; line: string }
+
+/** Morning Prep's preview: per helper at work today, what it spent at dawn, what it will spend at Open and its line. */
+export function prepPreview(s: GameState): PrepLine[] {
+  const out: PrepLine[] = [];
   for (const h of helpers()) {
     if (!h.unlocked(s)) continue;
     const d = s.today.auto?.[h.id];
     const pending = h.pending ? round2(h.pending(s)) : 0;
-    if (d || pending > 0) out.push({ id: h.id, name: h.name, count: d?.count ?? 0, spent: d?.spent ?? 0, pending });
+    if (d || pending > 0) out.push({ id: h.id, name: h.name, count: d?.count ?? 0, spent: d?.spent ?? 0, pending, line: d ? h.line(d) : '' });
   }
   return out;
+}
+
+// ---------- Marisol's Auto-Price ----------
+
+export const AUTO_PRICE = 'price';
+const SWEETS: Sweetness[] = ['less', 'classic', 'extra'];
+
+/** Is Auto-Price setting this stand? From Rank 3, unless the stand opts out (switched off, or priced by hand). */
+export const pricingOn = (s: GameState, st: Stand) => s.rank >= AUTO_PRICE_RANK && st.autoPrice !== false;
+
+export interface PriceSetting { recipe: RecipeId; sweetness: Sweetness; price: number; cups: number; profit: number }
+
+/**
+ * The card and Sweetness Auto-Price picks (the spec leaves the rule open): of the cards in the book and the three
+ * Sweetness settings, the pair that should make the most on the forecast day, each card priced at its own ceiling.
+ * A card that shines here (×1.2, Secret Reserve ×1.3) wins on its own numbers; the current pair keeps a tie. A stand
+ * whose card you picked keeps it and its Sweetness. Changes nothing.
+ */
+export function bestSetting(s: GameState, plotId: string): PriceSetting {
+  const st = s.plots[plotId].stand!;
+  const keep = { recipe: st.recipe, sweetness: st.sweetness, price: st.price };
+  const cards = st.ownCard ? [st.recipe] : [st.recipe, ...ownedRecipes(s).filter((r) => r !== st.recipe)];
+  const sweets = st.ownCard ? [st.sweetness] : [st.sweetness, ...SWEETS.filter((v) => v !== st.sweetness)];
+  let best: PriceSetting | null = null;
+  try {
+    for (const recipe of cards) for (const sweetness of sweets) {
+      st.recipe = recipe;
+      st.sweetness = sweetness;
+      st.price = priceCeiling(s, plotId, st);
+      const cups = expectedCups(s, plotId, s.forecast);
+      const profit = cups * (st.price - costPerCup(s, st));
+      if (!best || profit > best.profit + 1e-9) best = { recipe, sweetness, price: st.price, cups, profit };
+    }
+  } finally {
+    st.recipe = keep.recipe;
+    st.sweetness = keep.sweetness;
+    st.price = keep.price;
+  }
+  return best!;
+}
+
+/** Post an automated stand's price at its ceiling again (the ceiling moved: an upgrade, a card swap). */
+export function repostPrice(s: GameState, plotId: string): void {
+  const st = s.plots[plotId]?.stand;
+  if (st && s.plots[plotId].owner === 'player' && pricingOn(s, st) && !st.wrecked) setPrice(st, priceCeiling(s, plotId, st));
+}
+
+/** Every automated stand back at its ceiling (the stands opening: whatever Morning Prep moved). */
+export function holdPrices(s: GameState): void {
+  for (const p of playerStands(s)) repostPrice(s, p.id);
+}
+
+/** Marisol's morning at one stand: its card and Sweetness for the forecast, priced at the top. True if the card changed. */
+export function autoPrice(s: GameState, plotId: string): boolean {
+  const st = s.plots[plotId].stand!;
+  const pick = bestSetting(s, plotId);
+  const swapped = pick.recipe !== st.recipe;
+  if (swapped) pickRecipe(s, st, pick.recipe);
+  st.sweetness = pick.sweetness;
+  setPrice(st, priceCeiling(s, plotId, st));
+  return swapped;
+}
+
+/**
+ * You set something by hand (from Rank 3, while Auto-Price runs the stand): a price takes the stand off Auto-Price;
+ * a card or Sweetness stays yours, and Marisol re-posts the price at the new card's ceiling.
+ */
+export function setByHand(s: GameState, plotId: string, what: 'price' | 'card'): void {
+  const st = s.plots[plotId]?.stand;
+  if (!st || !pricingOn(s, st)) return;
+  if (what === 'price') st.autoPrice = false;
+  else { st.ownCard = true; repostPrice(s, plotId); }
+}
+
+/** Flip a stand's Auto-Price switch. Switched on, Marisol takes the whole stand back: at Morning Prep she sets it now. */
+export function toggleAutoPrice(s: GameState, plotId: string): void {
+  const st = s.plots[plotId]?.stand;
+  if (!st || s.rank < AUTO_PRICE_RANK) return;
+  if (pricingOn(s, st)) { st.autoPrice = false; return; }
+  st.autoPrice = true;
+  st.ownCard = false;
+  if (s.phase === 'prep' && !st.wrecked) autoPrice(s, plotId);
+  else repostPrice(s, plotId);
+}
+
+registerHelper({
+  id: AUTO_PRICE,
+  name: 'Auto-Price',
+  unlocked: (s) => s.rank >= AUTO_PRICE_RANK,
+  atDawn(s) {
+    const met = (s.helpersMet ??= []);
+    if (!met.includes(AUTO_PRICE)) {
+      met.push(AUTO_PRICE);
+      s.news.push('Marisol: "Each morning I price every stand at the top and pick its card. Set one by hand and I leave it be."');
+    }
+    let count = 0, cards = 0;
+    for (const p of playerStands(s)) {
+      const st = s.plots[p.id].stand!;
+      if (!pricingOn(s, st) || st.wrecked) continue;
+      count++;
+      if (autoPrice(s, p.id)) cards++;
+    }
+    return count ? { spent: 0, count, amount: cards } : null;
+  },
+  line: (d) => `${d.count} stand${d.count === 1 ? '' : 's'} at the top${d.amount ? `, ${d.amount} new card${d.amount === 1 ? '' : 's'}` : ''}`,
+});
+
+/** What Auto-Price set at a stand, for Morning Prep: "Pink, extra sweet, $2.10". */
+export function priceNote(s: GameState, plotId: string): string {
+  const st = s.plots[plotId]?.stand;
+  if (!st || !pricingOn(s, st)) return '';
+  const sweet = st.sweetness === 'classic' ? '' : `, ${st.sweetness === 'less' ? 'less' : 'extra'} sweet`;
+  return `${RECIPES[st.recipe].label}${sweet}, $${st.price.toFixed(2)}`;
 }
 
 // ---------- Auto-Restock ----------

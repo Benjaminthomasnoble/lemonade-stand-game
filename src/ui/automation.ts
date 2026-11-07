@@ -1,9 +1,9 @@
-// Automation in the clay HUD (spec: Automation): Auto-Restock's switch and stock target on the Morning Prep dock,
-// a ticket with the day's automatic spending (what the helpers bought at dawn and will buy at Open), and each
-// helper's one-line report in the Ledger. Mounted from hud.ts.
+// Automation in the clay HUD (spec: Automation): Auto-Restock's switch and stock target and Auto-Price's switch on
+// the Morning Prep dock, a ticket per helper with the day's automatic spending (what they bought at dawn and will
+// buy at Open) or what they set, and each helper's one-line report in the Ledger. Mounted from hud.ts.
 import {
-  AUTO_RESTOCK_DAY, helperLines, playerStands, prepPreview, stock, stockCapCups, stockTarget, suggestedTarget,
-  type DayStats, type GameState,
+  AUTO_PRICE, AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, helperLines, playerStands, prepPreview, priceNote, pricingOn, stock, stockCapCups, stockTarget,
+  suggestedTarget, type DayStats, type GameState,
 } from '../sim/economy.ts';
 import { btn, esc, tape } from './recipes.ts';
 import * as A from './clay.ts';
@@ -28,24 +28,39 @@ export function restockControl(s: GameState, plotId: string): string {
   return `<span class="cl-acts" title="${esc(tip)}">${sw}${btn('stockTarget', '−', target > 0 ? { ok: true } : { ok: false, why: 'Nothing to stock' }, 'data-delta="-1" aria-label="Lower the stock target"', 'tiny ghost')}<span class="cl-note" data-testid="stock-target">${target.toLocaleString('en-US')} cups</span>${btn('stockTarget', '+', target < cap ? { ok: true } : { ok: false, why: 'The stand is full at that' }, 'data-delta="1" aria-label="Raise the stock target"', 'tiny ghost')}${own ? btn('stockTarget', 'Suggested', { ok: true }, `data-delta="0" title="Back to ${suggested} cups"`, 'tiny ghost') : ''}</span>`;
 }
 
+/** The price tag's Auto-Price switch, from Rank 3: Marisol sets this stand's price, card and Sweetness each dawn. */
+export function priceSwitch(s: GameState, plotId: string): string {
+  const st = s.plots[plotId]?.stand;
+  if (!st || s.rank < AUTO_PRICE_RANK) return '';
+  const on = pricingOn(s, st);
+  const tip = !on ? 'Auto-Price is off: you price this stand. Tap and Marisol takes it over each dawn'
+    : st.ownCard ? 'Auto-Price: Marisol prices your card at the top. Change the price and she lets go'
+    : 'Auto-Price: each dawn Marisol picks the card and Sweetness for the forecast and prices it at the top. Set it by hand and she lets go';
+  return `<button class="cl-auto${on ? ' on' : ''}" data-action="autoPrice" data-testid="auto-price" aria-pressed="${on}" title="${esc(tip)}">${tape(on ? 'Auto ✓' : 'Auto')}</button>`;
+}
+
 // The preview works out each stand's restock, so it's redone only when something it reads changes.
 let memo: { key: string; out: string[] } | null = null;
 function previewKey(s: GameState): string {
-  const k: (string | number)[] = [s.day, s.phase, s.cash, s.forecast.kind, s.forecast.temp, s.reputation, s.brandTier, JSON.stringify(s.today.auto ?? {})];
+  const k: (string | number)[] = [s.day, s.phase, s.cash, s.rank, s.selected, s.forecast.kind, s.forecast.temp, s.reputation, s.brandTier, JSON.stringify(s.today.auto ?? {})];
   for (const p of playerStands(s)) {
     const st = s.plots[p.id].stand!;
-    k.push(p.id, st.level, st.recipe, st.sweetness, st.price, st.autoRestock ? 1 : 0, st.stockTarget ?? -1, st.wrecked ? 1 : 0,
-      stock(st, 'lemons'), st.inventory.sugar, st.inventory.ice, Object.keys(st.campaigns).join());
+    k.push(p.id, st.level, st.recipe, st.sweetness, st.price, st.autoRestock ? 1 : 0, st.stockTarget ?? -1, st.autoPrice === false ? 0 : 1, st.ownCard ? 1 : 0,
+      st.wrecked ? 1 : 0, stock(st, 'lemons'), st.inventory.sugar, st.inventory.ice, Object.keys(st.campaigns).join());
   }
   return k.join('|');
 }
 
-/** Morning Prep's preview of the day's automatic spending: a ticket per helper at work today. */
+/** Morning Prep's preview: a ticket per helper at work today, with what it spent at dawn and will spend at Open, or what it set. */
 export function autoTickets(s: GameState): string[] {
   if (s.phase !== 'prep') return [];
   const key = previewKey(s);
   if (memo?.key === key) return memo.out;
   const out = prepPreview(s).map((p) => {
+    if (p.id === AUTO_PRICE) { // nothing spent: what Marisol set, for the stand you're managing
+      const note = priceNote(s, s.selected);
+      return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(`${p.name}: ${p.line}`)}">${crateArt()}<b>${esc(p.name)}: ${esc(p.line)}</b>${note ? `<span class="cl-note">${esc(note)}</span>` : ''}</div>`;
+    }
     const more = p.pending > 0 ? `+${money(p.pending)} at Open` : '';
     const note = [p.count ? `${p.count} stand${p.count === 1 ? '' : 's'}` : '', more].filter(Boolean).join(' · ');
     const tip = `${p.name} spent ${money(p.spent)} at dawn${more ? `, and buys ${money(p.pending)} more when the stands open` : ''}`;

@@ -21,10 +21,11 @@ import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
+import { FACTIONS } from './sim/balance.ts';
 import type { Emote } from './ui/emotes.ts';
 import { createPhone } from './ui/phone.ts';
 import { createBugle } from './ui/bugle.ts';
-import { BOSS, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
+import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { createGullFlight } from './world/gullflight.ts';
@@ -227,7 +228,22 @@ async function main() {
     }
   };
 
-  const battle = createBattle(world.scene, (pos, text, kind) => { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); }, world.camera);
+  const sideColor = (o: 'player' | RivalId) => (o === 'player' ? '#c99a00' : `#${FACTIONS[o].color.toString(16).padStart(6, '0')}`);
+  const battle = createBattle(world.scene, (pos, text, kind) => { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); }, world.camera, {
+    // Not every KO yelps, or the cloud turns into a wall of bubbles; the last one always does.
+    onKO: (who, _side, owner, last) => {
+      if (!last && Math.random() > 0.35) return;
+      const l = pick(BRAWL.ko[owner]);
+      bubbles.say(who, l, { ms: 1500, color: sideColor(owner), height: 1.9 });
+      audio.babble(l, owner === 'player' ? 1.1 : 0.85, 'grumpy');
+    },
+    onHome: (who) => { if (Math.random() < 0.25) bubbles.say(who, '', { kind: 'thought', icon: 'zzz', ms: 1200 }); },
+    onWin: (winners, _side, owner) => {
+      const l = pick(BRAWL.win[owner]);
+      winners.slice(0, 2).forEach((w, i) => setTimeout(() => bubbles.say(w, i ? pick(BRAWL.win[owner]) : l, { ms: 1800, color: sideColor(owner), height: 1.9 }), i * 350));
+      audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
+    },
+  });
   const playBattle = (b: BattleReport) => {
     crowd.clear();
     focusPlot(b.target, 20);

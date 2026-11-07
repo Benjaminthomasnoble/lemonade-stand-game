@@ -75,3 +75,23 @@ export const HENCH: Record<RivalId, string[]> = {
   fizzco: ['Noted.', 'Reporting this.', '*on the phone*'],
   sourwood: ['Tsk.', 'How common.', 'Ahem.'],
 };
+
+/** Brawl barks (spec "Brawls" and "Voice"): a yelp as someone goes flat, a whoop from the side left standing. */
+export const BRAWL = {
+  ko: {
+    player: ['Oof!', 'Ow, my lemons!', 'Peel… out…'],
+    blenders: ['Brooo…', 'Not the visor!', 'Skipped leg day…'],
+    coldbrew: ['Mm. Ow.', 'This is art…', 'Ugh. Derivative.'],
+    hollis: ['Dagnabbit!', 'My hay…', 'Oof, sugar.'],
+    fizzco: ['Noted… ow.', 'Legal will hear…', 'Circling… back…'],
+    sourwood: ['How… common.', 'My bowler!', 'Unseemly!'],
+  } as Record<'player' | RivalId, string[]>,
+  win: {
+    player: ['Peel Patrol!', 'Nobody touches the Corner!', 'Squeeze!'],
+    blenders: ['BROOO!', 'Blended!', 'Gains!'],
+    coldbrew: ['Curated.', 'Mm. Done.', 'Art.'],
+    hollis: ['My land!', 'Yee-haw!', 'Dug in!'],
+    fizzco: ['Synergy!', 'Acquired.', 'Closed!'],
+    sourwood: ['Order restored.', 'How quaint.', 'Tidy.'],
+  } as Record<'player' | RivalId, string[]>,
+};

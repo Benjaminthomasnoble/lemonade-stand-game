@@ -21,6 +21,7 @@ import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
+import { fitGarrison, knockOut } from './garrison.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
@@ -545,13 +546,13 @@ export function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng
 /** The kit row a rival plot builds toward: its stand's level, or a facility's tier + 2. */
 export const rivalKit = (ps: PlotState) => RIVAL_KIT[Math.min(5, Math.max(1, ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1))) - 1];
 
-/** A rival plot's defenders: its garrison (never more than its posts), armed and padded as its kit row says. */
+/** A rival plot's defenders: its garrison fit to fight (the knocked-out are Out; never more than its posts), armed and padded as its kit row says. */
 function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
   const ps = s.plots[plotId];
   const rival = ps.owner as RivalId;
   const kit = rivalKit(ps);
   const m = 1 + 0.1 * (kit.level - 1);
-  return Array.from({ length: Math.min(ps.garrison ?? 0, postsFor(s, plotId)) }, (_, i) => {
+  return Array.from({ length: Math.min(fitGarrison(s, plotId), postsFor(s, plotId)) }, (_, i) => {
     const r = nextRandom(rng);
     const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
     return {
@@ -855,8 +856,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     ps.wreckedDay = s.day;
     ps.smashedBy = raid.attacker;
     ps.smashes = [...(ps.smashes ?? []).filter((d) => d > s.day - 7), s.day];
-    if (busted) ps.busted = true;
-    if (defender !== 'player') ps.garrison = 0;
+    if (busted) ps.busted = true; // a rival's garrison stays on: a smash scatters nobody (garrison.ts)
     if (raid.attacker === 'player') bump(s, 'smashes');
   }
   if (raid.sabotage && res.outcome === 'robbed') spoilStock(s, raid.target);
@@ -868,7 +868,8 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     else s.rivals[raid.attacker as RivalId].cash = round2(s.rivals[raid.attacker as RivalId].cash + loot);
   }
   const helpers = new Set((raid.help ?? []).flatMap((h) => h.ids));
-  if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => !helpers.has(id) && input.defenders.some((d) => d.id === id)).length);
+  // A rival's knocked-out are Out a day (two after a hatchet KO), then back on guard.
+  if (defender !== 'player') knockOut(s, raid.target, res.koed.filter((id) => !helpers.has(id) && input.defenders.some((d) => d.id === id)), res.hatchetKos);
   helpHome(s, raid, res); // the help the rival sent walks home
 
   creditGuards(s, input, res);

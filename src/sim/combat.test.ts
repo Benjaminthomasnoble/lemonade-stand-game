@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
 import {
-  BOSS_MOVES, canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, hhmm, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER, migrateSave,
-  newGame, ownedPlots, PERIMETERS, raidOdds, raidPartyFor, raidTargets, resolveNight, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId,
-  type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait, type WeaponId,
+  BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, fightRaid, GUARD_BASE, guardFighter, hhmm, hqPlot, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER,
+  migrateSave, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets, resolveNight, squadTrip, STAND_HP, stormHQ, WEAPONS,
+  type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait, type WeaponId,
 } from './economy.ts';
+import { fitGarrison, knockOut } from './garrison.ts';
 
 let n = 0;
 const fighter = (side: Side, weapon: WeaponId = 'fists', o: Partial<Fighter> = {}): Fighter => ({
@@ -666,6 +667,65 @@ describe('HQ assaults', () => {
     expect(hqStageInput(s, 'sourwood', 'gate', squad, rng, siege).standHp).toBe(1500);
     expect(hqStageInput(s, 'sourwood', 'yard', squad, rng, siege).defenders).toHaveLength(HQS.sourwood.yard - 3);
     expect(hqStageInput(s, 'sourwood', 'boss', squad, rng, siege).defenders).toHaveLength(2 + Math.ceil(HQS.sourwood.tier / 2) + 2);
+  });
+});
+
+describe('rival henchmen after a fight', () => {
+  /** A Blenders stand holding `garrison`, and a squad of `k` kitted Legends to raid it. */
+  function blenders(seed: number, garrison: number, k = 5) {
+    const s = newGame(seed);
+    s.rank = 6;
+    const plot = ownedPlots(s, 'blenders').find((p) => s.plots[p.id].stand && p.type !== 'hq')!.id;
+    Object.assign(s.plots[plot], { garrison, defense: { tier: 0, fenceHp: 0, gadgets: [] } });
+    s.guards = Array.from({ length: k }, () => guard({ weapon: 'hatchets', gear: 'pro', level: 5 }));
+    const raid = (objective: 'smash' | 'shakedown'): Raid => ({ id: `r${s.nextId++}`, attacker: 'player', target: plot, objective, guards: s.guards.map((g) => g.id), detected: false, eta: '' });
+    return { s, plot, raid };
+  }
+
+  it("knocked out defending their plot, they're Out a day (two after a hatchet KO), then back on guard", () => {
+    const { s, plot } = blenders(1, 4);
+    knockOut(s, plot, ['a', 'b', 'c'], ['c']);
+    expect(s.plots[plot].garrison).toBe(4); // still on its books
+    const fit = () => fitGarrison(s, plot);
+    expect(fit()).toBe(1);
+    s.day++;
+    expect(fit()).toBe(1); // the next day: all three seeing stars
+    s.day++;
+    expect(fit()).toBe(3); // a day out, and back
+    s.day++;
+    expect(fit()).toBe(4); // two after the hatchet
+    knockOut(s, plot, ['d']);
+    expect(s.plots[plot].garrisonOut).toEqual([{ n: 1, back: s.day + 2 }]); // the fit drop off the list
+  });
+
+  it('the next raid meets only the fit ones, and a fight costs the rival nobody for good', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const { s, plot, raid } = blenders(seed, 3, 2);
+      const b = fightRaid(s, raid('shakedown'), true);
+      const ko = b.koed.filter((id) => b.defenders.some((f) => f.id === id)).length;
+      if (!ko) continue;
+      expect(s.plots[plot].garrison).toBe(3);
+      expect(raidInput(s, raid('shakedown'), true, { seed: 9 }).defenders).toHaveLength(3 - ko);
+      s.day += 3;
+      expect(raidInput(s, raid('shakedown'), true, { seed: 9 }).defenders).toHaveLength(3);
+      return;
+    }
+    throw new Error('nobody knocked out');
+  });
+
+  it('a smash scatters nobody: they stay on the plot, and if it lapses they go home to their HQ', () => {
+    const { s, plot, raid } = blenders(2, 3, 6);
+    const b = fightRaid(s, raid('smash'), true);
+    expect(b.outcome).toBe('smashed');
+    expect(s.plots[plot].garrison).toBe(3);
+    const hq = hqPlot('blenders').id;
+    const before = s.plots[hq].garrison ?? 0;
+    s.rivals.blenders.cash = 0; // can't rebuild: it lapses at dawn
+    s.day++;
+    crewAtDawn(s);
+    expect(s.plots[plot].owner).toBeNull();
+    expect(s.plots[hq].garrison).toBe(before + 3);
+    expect(fitGarrison(s, hq)).toBe(before + 3 - b.koed.filter((id) => b.defenders.some((f) => f.id === id)).length);
   });
 });
 

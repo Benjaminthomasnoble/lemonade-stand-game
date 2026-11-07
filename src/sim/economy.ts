@@ -125,6 +125,7 @@ export interface PlotState {
   landValue: number;
   defense: Defense;
   garrison?: number; // rival henchmen on guard here
+  garrisonOut?: { n: number; back: number }[]; // of the garrison, n are knocked out and back on day `back` (garrison.ts)
   facility?: Facility; // Bottling Works, Helipad or Pier
   repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
   noAutoRepair?: boolean; // Auto-Repair (Rank 3) skips this plot of yours (damage.ts)

@@ -4,6 +4,7 @@ import {
   detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
   type Raid, type SimEvent,
 } from './economy.ts';
+import { fitGarrison } from './garrison.ts';
 import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, postsAt, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 import { reserveAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
@@ -273,7 +274,7 @@ describe('rivals send help', () => {
     expect(rivalHelpFor(t.s, raidOn(t.s, t.target, 600), { seed: 1 })).toEqual([]);
   });
 
-  it('after the fight the help walks home, less the knocked-out, and the target keeps its own count', () => {
+  it('after the fight the help walks home, its knocked-out Out a day or two there, and the target keeps its own', () => {
     for (let seed = 1; seed <= 40; seed++) {
       const { s, target, near } = spotted(4, 6, seed);
       s.plots[target].garrison = 2;
@@ -286,8 +287,13 @@ describe('rivals send help', () => {
       expect(helpers).toHaveLength(2);
       const ownKo = report.koed.filter((id) => report.defenders.slice(0, 2).some((f) => f.id === id)).length;
       const helpKo = report.koed.filter((id) => helpers.some((f) => f.id === id)).length;
-      expect(s.plots[target].garrison).toBe(report.outcome === 'smashed' ? 0 : 2 - ownKo);
-      expect(s.plots[near].garrison).toBe(4 - helpKo);
+      expect(ownKo + helpKo).toBeGreaterThan(0);
+      expect(s.plots[target].garrison).toBe(2); // a smash scatters nobody, and the knocked-out stay on its books
+      expect(fitGarrison(s, target)).toBe(2 - ownKo);
+      expect(s.plots[near].garrison).toBe(4);
+      expect(fitGarrison(s, near)).toBe(4 - helpKo);
+      s.day += 3; // two days at most, then all back on guard
+      expect([fitGarrison(s, target), fitGarrison(s, near)]).toEqual([2, 4]);
       expect(r.help).toBeUndefined();
       return;
     }

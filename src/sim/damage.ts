@@ -31,6 +31,7 @@ import { FACILITIES } from './vip.ts';
 import { openAuction } from './auction.ts';
 import { announceControl } from './land.ts';
 import { canSpend, spend } from './rivalAi.ts';
+import { garrisonHome } from './garrison.ts';
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
 export { buildingHp } from './crew.ts';
@@ -304,6 +305,7 @@ function forSale(s: GameState, p: Plot, toAuction: Plot[]): void {
   const ps = s.plots[p.id];
   const smasher = ps.smashedBy ?? 'player';
   if (ps.owner === 'player') for (const g of s.guards) if (g.post === p.id) g.post = null; // back to the Clubhouse
+  garrisonHome(s, p.id); // combat: a rival's henchmen go home to their HQ (garrison.ts)
   s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: smasher, until: s.day } };
   if (smasher === 'player') { s.news.push(`${p.name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
   const r = s.rivals[smasher as RivalId];

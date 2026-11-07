@@ -67,7 +67,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     if (objective === 'sabotage' && !sabotage) objective = 'smash';
     const odds = (night: boolean) => {
       const ps = s.plots[id];
-      const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, ps.defense, ps.garrison, s.guards.map((g) => [g.id, g.weapon, g.gear, g.level])]);
+      const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, ps.defense, ps.garrison, ps.garrisonOut, s.guards.map((g) => [g.id, g.weapon, g.gear, g.level])]);
       let v = oddsMemo.get(key);
       if (v === undefined) { v = raidOdds(s, id, ids, objective, night); if (oddsMemo.size > 200) oddsMemo.clear(); oddsMemo.set(key, v); }
       return v;

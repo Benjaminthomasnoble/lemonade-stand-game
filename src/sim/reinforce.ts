@@ -20,6 +20,7 @@ import type { BattleInput, BattleResult, Fighter } from './combat.ts';
 import { clubhouses, reserveAt } from './clubhouse.ts';
 import { guardFighter, guardReady, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
 import { garrisonTier } from './rivalAi.ts';
+import { backOnGuard, fitGarrison, knockOut } from './garrison.ts';
 import { joinFight } from './fight.ts';
 import { travelMinutes } from './night.ts';
 import type { Rng } from './rng.ts';
@@ -122,7 +123,7 @@ export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
   let room = RIVAL_HELP.cap[threatLevel(s) - 1] ?? 0;
   const out: RivalHelp[] = [];
   for (const { id, minutes } of near) {
-    const n = Math.min(room, Math.floor((s.plots[id].garrison ?? 0) * RIVAL_HELP.share));
+    const n = Math.min(room, Math.floor(fitGarrison(s, id) * RIVAL_HELP.share));
     if (n <= 0) continue;
     const tier = garrisonTier(s.plots[id]);
     out.push({ from: id, minutes, fighters: Array.from({ length: n }, (_, i) => henchmanFor(s, rival as RivalId, tier, rng, 10 + i)) });
@@ -159,12 +160,13 @@ export function sendHelp(s: GameState, raid: Raid, input: BattleInput, rng: Rng)
   return withRivalHelp(input, help, lead);
 }
 
-/** The fight's over: the help walks home to its plots (still theirs); the knocked-out are lost to them. */
-export function helpHome(s: GameState, raid: Raid, res: Pick<BattleResult, 'koed'>): void {
+/** The fight's over: the help walks home to its plots (to the HQ if one was lost meanwhile), the knocked-out too:
+ * they're Out a day there (two after a hatchet KO). */
+export function helpHome(s: GameState, raid: Raid, res: Pick<BattleResult, 'koed'> & Partial<Pick<BattleResult, 'hatchetKos'>>): void {
   const rival = s.plots[raid.target]?.owner;
   for (const h of raid.help ?? []) {
-    const ps = s.plots[h.from];
-    if (ps && ps.owner === rival) ps.garrison = (ps.garrison ?? 0) + h.ids.filter((id) => !res.koed.includes(id)).length;
+    const home = rival ? backOnGuard(s, rival, h.from, h.ids.length) : null;
+    if (home) knockOut(s, home, h.ids.filter((id) => res.koed.includes(id)), res.hatchetKos);
   }
   delete raid.help;
 }

@@ -219,6 +219,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     // Furled: rolled up tight at the hinge, a fat card roll rather than a sliver.
     hinge.rotation.x = open - (1 - u) * 0.5;
     hinge.scale.set(1, 1 + (1 - u) * 1.4, 0.28 + 0.72 * u);
+    if (model.awning.lights) model.awning.lights.visible = u > 0.75;
   }
   let openNow = false, lastTq = -1;
 

@@ -147,11 +147,11 @@ export function pattern(B: Baker, d: Dress, w: number, h: number, m: THREE.Matri
  * origin and hanging out along +z. Torn (75% HP): a slat is ripped and its
  * flap dangles. String lights along the lip are optional.
  */
-export function awning(d: Dress, w: number, depth: number, opts: { lights?: boolean; torn?: boolean } = {}): THREE.BufferGeometry {
+export function awning(d: Dress, w: number, depth: number, opts: { lights?: boolean; torn?: boolean; lightsOnly?: boolean } = {}): THREE.BufferGeometry {
   const B = new Baker();
   const n = Math.max(5, Math.round(w / 0.32));
   const sw = w / n;
-  for (let k = 0; k < n; k++) {
+  for (let k = 0; k < (opts.lightsOnly ? 0 : n); k++) {
     const x = -w / 2 + (k + 0.5) * sw;
     const torn = opts.torn && (k === 2 || k === n - 3);
     const col = d.pattern === 'stripes' ? (k % 2 ? d.accent : d.main) : d.main;
@@ -164,7 +164,7 @@ export function awning(d: Dress, w: number, depth: number, opts: { lights?: bool
     B.add(box(sw, 0.035, depth), col, { p: [x, 0, depth / 2], fx: PAPER });
     B.add(new THREE.CylinderGeometry(sw / 2, sw / 2, 0.032, lod.seg === 2 ? 10 : 6, 1, false, Math.PI / 2, Math.PI), col, { p: [x, 0, depth], r: [Math.PI / 2 + 1.2, 0, 0], fx: PAPER });
   }
-  if (d.pattern !== 'stripes') {
+  if (opts.lightsOnly) { /* just the string of lights */ } else if (d.pattern !== 'stripes') {
     const m = new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(0, 0.02, depth / 2);
     pattern(B, d, w * 0.96, depth * 0.9, m, 0);
   } else if (d.inkEdge) {
@@ -174,7 +174,7 @@ export function awning(d: Dress, w: number, depth: number, opts: { lights?: bool
       B.add(box(0.018, 0.04, tornHere ? depth * 0.45 : depth), INK, { p: [-w / 2 + k * sw, 0.003, tornHere ? depth * 0.22 : depth / 2] });
     }
   }
-  if (opts.lights) {
+  if (opts.lights || opts.lightsOnly) {
     const pts: V3[] = [];
     for (let k = 0; k <= 12; k++) pts.push([-w / 2 + (k / 12) * w, -0.3 - Math.sin((k / 12) * Math.PI * 4) * 0.05, depth + 0.1]);
     B.add(rope(pts, 0.011, 24, 3), INK);

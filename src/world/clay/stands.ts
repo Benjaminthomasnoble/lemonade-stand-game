@@ -41,7 +41,7 @@ export interface LevelModel {
   /** The giant lemon on L5. */
   spin?: THREE.Object3D;
   /** Hinged awning, if any: rotation.x when open and when furled. */
-  awning?: { hinge: THREE.Group; intact: THREE.Mesh; torn: THREE.Mesh; open: number; shut: number };
+  awning?: { hinge: THREE.Group; intact: THREE.Mesh; torn: THREE.Mesh; open: number; shut: number; lights?: THREE.Mesh };
   /** The sign group; falls at 50% HP. */
   sign: THREE.Group;
   /** Card parts that tear at 75% HP (the L1 skirt). */
@@ -163,12 +163,20 @@ function hingedAwning(c: Ctx, at: V3, w: number, depth: number, lights: boolean,
   const hinge = new THREE.Group();
   hinge.position.set(...at);
   hinge.rotation.x = shut;
-  const intact = clayMesh(awning(c.d, w, depth, { lights }), kit().world);
-  const tornM = clayMesh(awning(c.d, w, depth, { lights, torn: true }), kit().world);
+  // The string lights hang off the lip in their own mesh, so furling never stretches the bulbs.
+  const intact = clayMesh(awning(c.d, w, depth), kit().world);
+  const tornM = clayMesh(awning(c.d, w, depth, { torn: true }), kit().world);
+  let lightsM: THREE.Mesh | undefined;
+  if (lights) {
+    lightsM = clayMesh(awning(c.d, w, depth, { lightsOnly: true }), kit().world, false, false);
+    lightsM.position.set(...at);
+    lightsM.rotation.x = open;
+    c.root.add(lightsM);
+  }
   tornM.visible = false;
   hinge.add(intact, tornM);
   c.root.add(hinge);
-  return { hinge, intact, torn: tornM, open, shut };
+  return { hinge, intact, torn: tornM, open, shut, lights: lightsM };
 }
 
 /** A striped (or patterned) card panel facing +z, centred at p. */
@@ -182,6 +190,11 @@ function panel(c: Ctx, B: Baker, w: number, h: number, p: V3, ry = 0) {
 function hem(c: Ctx, B: Baker, w: number, y: number, z: number) {
   const n = Math.max(5, Math.round(w / 0.27));
   for (let k = 0; k < n; k++) B.add(new THREE.CylinderGeometry(w / n / 2, w / n / 2, 0.03, 6, 1, false, Math.PI / 2, Math.PI), k % 2 ? c.d.main : c.d.accent, { p: [-w / 2 + (k + 0.5) * (w / n), y, z], r: [Math.PI / 2, 0, 0], fx: PAPER });
+  // Where main and accent share a lightness, a Plum ink seam between scallops and along the top.
+  if (c.d.inkEdge) {
+    for (let k = 1; k < n; k++) B.add(box(0.016, w / n / 2, 0.034), INK, { p: [-w / 2 + k * (w / n), y - w / n / 4, z + 0.002] });
+    B.add(box(w, 0.016, 0.034), INK, { p: [0, y, z + 0.002] });
+  }
 }
 
 // ---------- L1 The Folding Table ----------
@@ -355,7 +368,7 @@ const NEON: Record<string, V3[][]> = {
   A: [[[0.1, 0.1, 0], [0.5, 1.3, 0], [0.9, 0.1, 0]], [[0.28, 0.55, 0], [0.72, 0.55, 0]]],
 };
 /** Each owner's neon: Lottie's lemon yellow, and the factions' signature glows. */
-const NEON_COLOR: Record<Owner, string> = { player: '#FFE14A', sourwood: '#F2CF4A', hollis: '#FF6A4D', fizzco: '#FF3B4E', coldbrew: '#FF4FA3', blenders: '#2EE6D6' };
+const NEON_COLOR: Record<Owner, string> = { player: '#FFE14A', sourwood: '#C77DEB', hollis: '#FF6A4D', fizzco: '#FF3B4E', coldbrew: '#FF4FA3', blenders: '#2EE6D6' };
 const charW = (ch: string) => (ch === "'" ? 0.4 : ch === 'I' ? 0.5 : ch === ' ' ? 0.55 : 1);
 const wordW = (word: string, cell: number) => [...word].reduce((a, ch) => a + charW(ch) * cell + cell * 0.12, 0) - cell * 0.12;
 /** Rolled clay letters that glow from golden hour; drawn in order so the reveal can buzz them on one at a time. */
@@ -387,7 +400,7 @@ function neonWord(word: string, h: number, color: string, cheap = false): { geo:
  * baked into the body. Rivals' words sit on a dark board so their colours
  * pop. The group falls at 50% HP; the letters buzz on during the reveal.
  */
-function neonSign(c: Ctx, at: V3, maxW: number, hMax = 0.62): { group: THREE.Group; mesh: THREE.Mesh | null; ends: number[]; top: number } {
+function neonSign(c: Ctx, at: V3, maxW: number, hMax = 0.62, board = false): { group: THREE.Group; mesh: THREE.Mesh | null; ends: number[]; top: number } {
   const player = c.d.owner === 'player';
   const word = c.d.sign;
   const h = Math.min(hMax, (maxW / wordW(word, 1)) * 1.4);
@@ -396,7 +409,12 @@ function neonSign(c: Ctx, at: V3, maxW: number, hMax = 0.62): { group: THREE.Gro
   for (const s of [-1, 1]) stick(c.B, 0.75, [at[0] + s * (w / 2 - 0.15), at[1] + 0.05, at[2] - 0.06], [0, 0, 0], P.walnut, 0.08, 0.05);
   const RB = new Baker();
   RB.add(rbox(w + 0.3, 0.06, 0.06, 0.02), P.walnut, { p: [0, 0.05, -0.06], fx: PAPER });
-  if (!player) RB.add(rbox(w + 0.36, h + 0.34, 0.05, 0.06), '#2b2b38', { p: [0, h / 2 + 0.02, -0.07], fx: PAPER });
+  // A dark board behind the letters (Sourwood's framed in its gold), and behind
+  // LOTTIE'S too on the Palace, where lemon letters would vanish into the dome.
+  if (!player || board) RB.add(rbox(w + 0.36, h + 0.34, 0.05, 0.06), player ? P.plum : '#2b2b38', { p: [0, h / 2 + 0.02, -0.07], fx: PAPER });
+  if (c.d.owner === 'sourwood') RB.add(rbox(w + 0.48, h + 0.46, 0.03, 0.08), '#C9A227', { p: [0, h / 2 + 0.02, -0.1], fx: GLOSS });
+  // Lottie's mascot rides the rail beside the word.
+  if (player) mascot(RB, [-w / 2 - 0.32, h * 0.45, 0.02], 1.25);
   const g = new THREE.Group();
   g.position.set(...at);
   if (c.hp <= 0.5) fallSign(g, at);
@@ -528,7 +546,7 @@ function palaceModel(c: Ctx, gilded: boolean): Parts {
   // Pole for the giant spinning lemon.
   stick(B, 4.6, [3.4, 2.3, 0.7], [0, 0, 0], gilded ? P.gold : P.stick, 0.2, 0.2);
   // The clay-snake neon across the facade.
-  const neon = neonSign(c, [0, 2.78, 0.32], 3.7, 0.55);
+  const neon = neonSign(c, [0, 2.78, 0.32], 3.3, 0.55, true);
   // The dome rises like a sunrise on the reveal.
   const DB = new Baker();
   DB.add(lumpy(new THREE.SphereGeometry(R + 0.05, player ? 32 : 20, player ? 14 : 9, 0, Math.PI * 2, 0, Math.PI / 2), 0.04, 1.2, 9), gold, { s: [1, 0.85, 1], fx: gilded ? GLOSS : 0 });

@@ -15,7 +15,7 @@ import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
-import { migrateRivals, openBooks, rivalDawn, stockCups, type Budget } from './rivalAi.ts';
+import { migrateRivals, openBooks, rivalDawn, stockCups, type Budget, type TradeBooks } from './rivalAi.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -104,6 +104,7 @@ export interface RivalState {
   cashSeen?: number; // cash after the last dawn's banking, less bucket spending since
   takings?: number; // what the last dawn banked
   upgradesDue?: string[]; // plots owed a stand level (every 30 days), waiting for Grow money
+  trade?: TradeBooks; // how much of its stands' margin a rival keeps (about 1% of its cash a day)
   grudges?: Partial<Record<RivalId, number>>; // toward the other rivals, 0..100 (grudge holds the one toward the player)
   grudgeSeen?: Partial<Record<FactionId, number>>; // grudges after the last dawn: no rise since means a quiet day
   held?: string[]; // plots held at the last dawn

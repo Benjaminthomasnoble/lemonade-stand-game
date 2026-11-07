@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
-  fenceRepairCost, henchWage, payWages, raidCost, reserveOf, rivalDawn, simulateRestOfDay, stockCups,
+  fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -354,5 +354,32 @@ describe('rival trade', () => {
     rivalGuardSpend(s, 'sourwood', { seed: 1 });
     expect(ps.defense.fenceHp).toBe(PERIMETERS[ps.defense.tier - 1].hp);
     expect(budgetOf(s, 'sourwood').guard).toBe(0);
+  });
+});
+
+describe('rival cash growth', () => {
+  it('trade earns about 1% of a rival\'s cash a day, never more than its whole margin', () => {
+    const s = newGame(24);
+    const income: Record<string, number[]> = {};
+    for (let d = 0; d < 14; d++) {
+      s.cash = Math.max(s.cash, 500);
+      openStand(s);
+      simulateRestOfDay(s);
+      sleepUntilDawn(s);
+      for (const id of RIVALS) if (s.day > RIVAL_TRADE.days + 1) (income[id] ??= []).push(s.rivals[id].trade!.last / FACTIONS[id].startCash);
+    }
+    for (const id of RIVALS) {
+      const t = s.rivals[id].trade!;
+      expect(t.days).toBe(RIVAL_TRADE.days);
+      expect(t.scale).toBeLessThanOrEqual(1);
+      if (t.scale < 1) {
+        // Over the first week, the kept share of an average season's margin pays the upkeep plus 1% of the starting cash.
+        expect(t.scale * t.margin / t.days - t.upkeep / t.days).toBeCloseTo(RIVAL_TRADE.share * t.base, -1);
+        const mean = income[id].reduce((a, b) => a + b, 0) / income[id].length;
+        expect(mean).toBeGreaterThan(0.002);
+        expect(mean).toBeLessThan(0.03);
+      }
+    }
+    expect(RIVALS.filter((id) => s.rivals[id].trade!.scale < 1).length).toBeGreaterThanOrEqual(2); // the small gangs carry overheads
   });
 });

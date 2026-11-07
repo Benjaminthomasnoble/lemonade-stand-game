@@ -4,19 +4,24 @@
 // for raids. Each rival also keeps a Grudge toward every other faction.
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
-import { CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, STAND_LEVELS, type RivalId } from './balance.ts';
+import {
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, SEASON_DEMAND, SEASONS, STAND_LEVELS, type RivalId,
+} from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
-import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice } from './economy.ts';
+import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS, RIVAL_WAGE_RUNWAY,
+  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  RIVAL_WAGE_RUNWAY,
 } from './rivals.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
 export interface Budget { grow: number; guard: number; strike: number }
+/** A rival's trade calibration: its first week's margin and upkeep, the share of margin it keeps, and yesterday's trade income. */
+export interface TradeBooks { base: number; days: number; margin: number; upkeep: number; scale: number; last: number }
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const BUCKETS: Bucket[] = ['grow', 'guard', 'strike'];
@@ -60,6 +65,7 @@ export function openBooks(s: GameState, id: RivalId): void {
   r.budget = { grow: round2(r.cash * f.grow), guard: round2(r.cash * f.guard), strike: round2(r.cash * f.strike) };
   r.cashSeen = r.cash;
   r.held = ownedPlots(s, id).map((p) => p.id);
+  r.trade = { base: r.cash, days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 };
 }
 
 /** Dawn: everything that moved the rival's cash since the last dawn, other than bucket spending (trade, upkeep, loot, rebuilds, sales), goes into the buckets by the split. */
@@ -97,7 +103,54 @@ export function migrateRivals(s: GameState): void {
     r.upgradesDue ??= [];
     r.grudges ??= {};
     r.held ??= ownedPlots(s, id).map((p) => p.id);
+    r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 };
   }
+}
+
+// ---------- trade: about 1% of cash a day ----------
+
+/**
+ * Yesterday's trade at a rival's stands: what customers paid less what the cups cost, the stands' upkeep, and the
+ * margin as it would be in an average season (for setting the trade share without a summer or winter bias).
+ */
+export function standTrade(s: GameState, id: RivalId): { margin: number; upkeep: number; yearly: number } {
+  const season = seasonOf(s.day - 1);
+  const mean = (t: Record<string, number>) => SEASONS.reduce((a, k) => a + t[k], 0) / SEASONS.length;
+  let margin = 0, upkeep = 0, yearly = 0;
+  for (const p of ownedPlots(s, id)) {
+    const st = s.plots[p.id].stand;
+    if (!st) continue;
+    const m = st.day.revenue - st.day.cupCosts;
+    const table = p.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND;
+    margin += m;
+    yearly += m * mean(table) / table[season];
+    upkeep += STAND_LEVELS[st.level - 1].upkeep;
+  }
+  return { margin: round2(margin), upkeep, yearly: round2(yearly) };
+}
+
+/**
+ * Dawn: a rival keeps its share of yesterday's margin (the rest is overheads), so its trade earns about 1% of its
+ * cash a day. The share is set over its first week: enough for its opening stands to earn 1% of its starting cash
+ * after upkeep in an average season, never more than the whole margin. A smashed stand earns nothing and a bigger
+ * one earns more.
+ * Returns yesterday's trade income.
+ */
+export function settleTrade(s: GameState, id: RivalId): number {
+  const r = s.rivals[id];
+  const { margin, upkeep, yearly } = standTrade(s, id);
+  const t = (r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 });
+  if (t.days < RIVAL_TRADE.days && yearly > 0) {
+    t.days++;
+    t.margin = round2(t.margin + yearly);
+    t.upkeep += upkeep;
+    const want = RIVAL_TRADE.share * t.base + t.upkeep / t.days;
+    t.scale = Math.round(Math.min(1, Math.max(RIVAL_TRADE.floor, want / (t.margin / t.days))) * 1e4) / 1e4;
+  }
+  const kept = round2(margin * t.scale);
+  r.cash = round2(r.cash - (margin - kept));
+  t.last = round2(kept - upkeep);
+  return t.last;
 }
 
 // ---------- Grudge toward every faction ----------
@@ -234,12 +287,13 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 
-/** One rival's dawn (rivalsAtDawn): grudges from the night, wages, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
+/** One rival's dawn (rivalsAtDawn): grudges from the night, yesterday's trade, bank the takings, wages, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
 export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   const r = s.rivals[id];
   noteSmashes(s, id);
   noteLandTaken(s, id);
   coolGrudges(s, id);
+  settleTrade(s, id);
   bankTakings(s, id);
   payWages(s, id);
   growUpgrades(s, id);

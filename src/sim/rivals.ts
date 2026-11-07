@@ -44,6 +44,12 @@ export const RIVAL_HIRE_FEE = 300;
 export const RIVAL_WAGE_RUNWAY = 7;
 /** On this share of dawns after Day 3 a rival with the Grow money buys a plot near its turf (the build's own pacing). */
 export const RIVAL_LAND_CHANCE = 0.25;
+/**
+ * Rival cash grows about 1% a day from trade (balance tables). Over its first `days` dawns of trading, each rival's
+ * share of its stands' margin is set so its opening stands earn about `share` of its starting cash a day after
+ * upkeep (the rest is overheads), never more than the full margin you'd keep and never under `floor`.
+ */
+export const RIVAL_TRADE = { share: 0.01, days: 7, floor: 0.02 };
 /** Every this many days each rival stand is owed one level, up to the faction's cap (balance tables: every 30 days). */
 export const RIVAL_UPGRADE_DAYS = 30;
 /** A raid costs the rival this many nights of wages for each henchman it sends (placeholder: spec gap). */

@@ -108,25 +108,25 @@ export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It 
  */
 export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2, taunt: "Bring all the hatchets you want. I've got hay bales till Tuesday." };
 /**
- * FizzCo's Cease-and-Desist (Hostile Takeover): from Rank `rank` (Act 4), a letter costs FizzCo's Strike `cost`
- * and blocks your marketing in one district for `days` days: your tier bonus and campaigns count for nothing there.
- * The letters stop when FizzCo falls (placeholders for rank and cost; the 3 days are the spec's).
+ * FizzCo's Cease-and-Desist (Hostile Takeover): from Act `act` (Fields & Fizz, where the spec's first letter comes), a
+ * letter costs FizzCo's Strike `cost` and blocks your marketing in one district for `days` days: your tier bonus and
+ * campaigns count for nothing there. The letters stop when FizzCo falls (placeholder cost; the 3 days are the spec's).
  */
-export const CEASE = { rank: 6, cost: 2000, days: 3, taunt: "I'm not threatening you. Legal says I can't. I'm forecasting." };
+export const CEASE = { act: 4, cost: 2000, days: 3, taunt: "I'm not threatening you. Legal says I can't. I'm forecasting." };
 /**
- * FizzCo's buyout offers (Hostile Takeover): from Rank `rank`, FizzCo offers `price` times a plot's land and building
+ * FizzCo's buyout offers (Hostile Takeover): from Act `act`, FizzCo offers `price` times a plot's land and building
  * value, out of its Grow, for your best plot on or beside its turf. The offer stands `days` days, and you answer at
  * Morning Prep. Turning it down adds `snub` to Preston's Grudge (placeholders: the spec gives no numbers).
  */
-export const TAKEOVER = { rank: 6, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
+export const TAKEOVER = { act: 4, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
 /**
- * Old Money, Sourwood's signature move: from Rank `rank` (Act 5), Mayor Fontaine fines you `fine` of your average
+ * Old Money, Sourwood's signature move: from Act `act` (The Big Squeeze, where the spec teaches it), Mayor Fontaine fines you `fine` of your average
  * daily sales over the last week (at least `minFine`, never more than your cash) for `fineCost` of Vera's Strike, or
  * freezes a land sale for `freezeDays` days for `freezeCost`. Vera's raids on you send elite Stewards: one henchman
  * level higher, every weapon one tier toward hatchets (placeholders: the spec gives no numbers).
  */
 export const OLD_MONEY = {
-  rank: 8, fine: 0.5, minFine: 25, fineCost: 500, freezeDays: 3, freezeCost: 1500,
+  act: 5, fine: 0.5, minFine: 25, fineCost: 500, freezeDays: 3, freezeCost: 1500,
   mayor: 'I represent all of Citrine Bay. Some of it more than others.',
 };
 

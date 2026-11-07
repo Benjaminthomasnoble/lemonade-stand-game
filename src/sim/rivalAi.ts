@@ -22,6 +22,7 @@ import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
 import { raidCall } from './phone.ts';
 import { landFrozen } from './schemes.ts';
+import { actOf } from './modes.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -695,7 +696,7 @@ export function signatureRaids(s: GameState): Raid[] {
         s.rivals.blenders.rush = s.day;
         raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)
       }
-      const elite = raider === 'sourwood' && s.rank >= OLD_MONEY.rank; // Old Money: Vera sends her elite Stewards
+      const elite = raider === 'sourwood' && actOf(s) >= OLD_MONEY.act; // Old Money: Vera sends her elite Stewards
       if (elite) raid.party = eliteStewards(raid.party);
       spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, elite ? Math.min(5, threat + 1) : threat));
       kept.push(raid);

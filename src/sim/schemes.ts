@@ -18,6 +18,7 @@ import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAt
 import { CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
+import { actOf } from './modes.ts';
 
 export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease' | 'buyout' | 'fine' | 'freeze';
 export interface Scheme {
@@ -206,11 +207,11 @@ function ceaseTarget(s: GameState): DistrictId | null {
 /**
  * FizzCo's lawyers send a Cease-and-Desist: your marketing counts for nothing in one district for 3 days (the one
  * where it pulls the most, unless `district` is given: the seam for story's Act 4 letter on Downtown). It comes with
- * a fruit basket. From Rank 6, paid from FizzCo's Strike; null if there's nothing of yours to block there.
+ * a fruit basket. From Act 4, paid from FizzCo's Strike; null if there's nothing of yours to block there.
  */
 export function ceaseAndDesist(s: GameState, district?: DistrictId): Scheme | null {
   const id: RivalId = 'fizzco';
-  if (!s.rivals[id].alive || s.rank < CEASE.rank) return null;
+  if (!s.rivals[id].alive || actOf(s) < CEASE.act) return null;
   const d = district ?? ceaseTarget(s);
   const mine = d ? yoursIn(s, d) : [];
   if (!d || !mine.length || runningSchemes(s).some((x) => x.kind === 'cease' && x.district === d) || !canSpend(s, id, 'strike', CEASE.cost)) return null;
@@ -249,9 +250,9 @@ function takeoverTarget(s: GameState): string | null {
   return wanted.sort((a, b) => value(b.id) - value(a.id) || a.id.localeCompare(b.id))[0]?.id ?? null;
 }
 
-/** FizzCo offers to buy one of your plots (Hostile Takeover): from Rank 6, if its Grow can pay. The offer stands 2 days. */
+/** FizzCo offers to buy one of your plots (Hostile Takeover): from Act 4, if its Grow can pay. The offer stands 2 days. */
 function startBuyout(s: GameState, id: RivalId): Scheme | null {
-  if (id !== 'fizzco' || s.rank < TAKEOVER.rank) return null;
+  if (id !== 'fizzco' || actOf(s) < TAKEOVER.act) return null;
   const plot = takeoverTarget(s);
   if (!plot) return null;
   const price = takeoverPrice(s, plot);
@@ -322,7 +323,7 @@ export function mayorsFine(s: GameState): number {
 
 /** Mayor Fontaine fines you, on Vera's word: under a day's sales, straight out of the till. */
 function startFine(s: GameState, id: RivalId): Scheme | null {
-  if (id !== 'sourwood' || s.rank < OLD_MONEY.rank) return null;
+  if (id !== 'sourwood' || actOf(s) < OLD_MONEY.act) return null;
   const fine = mayorsFine(s);
   if (fine <= 0 || !canSpend(s, id, 'strike', OLD_MONEY.fineCost)) return null;
   spend(s, id, 'strike', OLD_MONEY.fineCost);
@@ -351,7 +352,7 @@ function freezeTarget(s: GameState): string | null {
  */
 export function freezeLand(s: GameState, plotId?: string): Scheme | null {
   const id: RivalId = 'sourwood';
-  if (!s.rivals[id].alive || s.rank < OLD_MONEY.rank) return null;
+  if (!s.rivals[id].alive || actOf(s) < OLD_MONEY.act) return null;
   const plot = plotId ?? freezeTarget(s);
   if (!plot || landFrozen(s, plot) || !canSpend(s, id, 'strike', OLD_MONEY.freezeCost)) return null;
   spend(s, id, 'strike', OLD_MONEY.freezeCost);

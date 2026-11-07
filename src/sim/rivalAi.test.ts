@@ -453,7 +453,7 @@ describe('Old Money: elite Stewards', () => {
     });
   });
 
-  it('Vera sends them on her raids on you from Rank 8 (Act 5), at the next tier\'s wages', () => {
+  it('Vera sends them on her raids on you from Act 5 (Rank 9): on Classic, every Steward a hatchet', () => {
     const raidBy = (rank: number) => {
       const s = newGame(62);
       s.day = 120;
@@ -462,10 +462,14 @@ describe('Old Money: elite Stewards', () => {
       for (const id of RIVALS) budgetOf(s, id).strike = 0;
       s.rivals.sourwood.cash = 1e7;
       budgetOf(s, 'sourwood').strike = 1e6;
-      return nightsUntilRaid(s)!;
+      const raid = nightsUntilRaid(s)!;
+      expect(raid.attacker).toBe('sourwood');
+      return raid.party!;
     };
-    for (const f of raidBy(8).party!) { expect(f.weapon).not.toBe('fists'); expect(f.level).toBeGreaterThan(1); }
-    expect(raidBy(7).party!.some((f) => f.weapon === 'fists' || f.level === 1)).toBe(true);
+    expect(raidBy(9).every((f) => f.weapon === 'hatchets' && f.level === 5)).toBe(true); // Threat 5 alone is half clubs
+    const act4 = raidBy(8);
+    expect(act4.every((f) => f.level === 4)).toBe(true); // Threat 4's henchmen, not one up
+    expect(act4.some((f) => f.weapon !== 'hatchets')).toBe(true);
   });
 });
 

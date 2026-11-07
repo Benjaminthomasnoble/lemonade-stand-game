@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  airedToday, BANKRUPT_DAYS, BLITZ_PROVIDERS, BRAND_TIERS, eliminate, RIVAL_JINGLES, sleepUntilDawn, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
+  AD_BLITZ, airedToday, BANKRUPT_DAYS, blitzingToday, BRAND_TIERS, budgetOf, eliminate, nearbyPlots, newStand, schemesAtDawn, startScheme, RIVAL_JINGLES, sleepUntilDawn, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
   PLOT_BY_ID, PLOTS, RADIO_STAND_LEVEL, radioOn, radioToday, sayNumber, SIGN_OFF, simulateRestOfDay, STATION_IDS, tickMinute, toCelsius, weatherTalk,
   type FightNote, type GameState, type RivalId, type TasteOffResult,
 } from './economy.ts';
@@ -15,9 +15,20 @@ function at(s: GameState, minute: number): GameState {
   return s;
 }
 
-describe('101.5 The Squeeze', () => {
-  afterEach(() => { BLITZ_PROVIDERS.length = 0; });
+/** Day 10 at Rank 3, with a stand of yours next to one of FizzCo's: where its ad blitz would send the mascot. */
+function fizzcoNextDoor(seed: number): GameState {
+  const s = newGame(seed);
+  s.day = 10;
+  s.rank = 3;
+  const street = (p: (typeof PLOTS)[number]) =>
+    nearbyPlots(p).find((x) => x.id !== p.id && (x.type === 'street' || x.type === 'prime') && s.plots[x.id].owner !== 'fizzco');
+  const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'fizzco' && s.plots[p.id].stand && p.type !== 'hq' && street(p))!;
+  const mine = street(theirs)!;
+  s.plots[mine.id] = { ...s.plots[mine.id], owner: 'player', stand: newStand(1, 1) };
+  return s;
+}
 
+describe('101.5 The Squeeze', () => {
   it('Cal says the numbers and the weather (the spec\'s Scorcher at 97)', () => {
     expect([7, 19, 60, 97, 102, 215].map(sayNumber)).toEqual(['seven', 'nineteen', 'sixty', 'ninety-seven', 'a hundred and two', 'two hundred and fifteen']);
     expect(weatherTalk({ kind: 'scorcher', temp: 97 })).toBe('Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation. Lock up your sugar, Maple Row.');
@@ -164,13 +175,17 @@ describe('101.5 The Squeeze', () => {
     expect(Object.keys(RIVAL_JINGLES).sort()).toEqual([...RIVALS].sort());
     const s = newGame(39);
     const show = () => morningShow(s).map((l) => l.text);
-    let on: RivalId[] = [];
-    BLITZ_PROVIDERS.push({ id: 'test', blitzing: () => on });
+    /** These rivals' blitzes run today, as their schemes start them at dawn. */
+    const blitz = (...by: RivalId[]) => {
+      s.schemes = by.map((r) => ({ kind: 'blitz' as const, by: r, day: s.day, until: s.day + AD_BLITZ.days - 1, plots: [] }));
+    };
     expect(morningShow(s)[0].kind).toBe('id'); // no blitz: the station ID opens
-    on = ['fizzco'];
+    blitz('fizzco');
     expect(morningShow(s)[0]).toEqual({ minute: OPEN - 1, kind: 'rival', text: 'FizzCo Beverages\' jingle: "Bubbles mean business!"' });
     expect(morningShow(s)[1].kind).toBe('id');
-    on = ['blenders', 'sourwood'];
+    s.schemes![0].done = true; // over: no jingle
+    expect(morningShow(s)[0].kind).toBe('id');
+    blitz('blenders', 'sourwood');
     expect(show().slice(0, 2)).toEqual([
       'The Sourwood Family\'s jingle: "Some families are simply better."',
       'The Boardwalk Blenders\' jingle: "Smoothies so big they need a lifeguard!"',
@@ -182,6 +197,7 @@ describe('101.5 The Squeeze', () => {
     eliminate(s, 'blenders', 'hq');
     const sleep = () => { s.raids = []; s.cash = Math.max(s.cash, 1000); if (!sleepUntilDawn(s)) throw new Error('no dawn'); };
     sleep();
+    blitz('blenders', 'sourwood'); // a blitz of theirs still on the books plays no jingle
     expect(morningShow(s)[0]).toMatchObject({ kind: 'silence', text: "[One second of silence: The Boardwalk Blenders' jingle is off the air for good.]" });
     expect(show()[1]).toBe('The Sourwood Family\'s jingle: "Some families are simply better."');
     expect(show().join(' ')).not.toContain('lifeguard');
@@ -189,13 +205,41 @@ describe('101.5 The Squeeze', () => {
     sleep();
     expect(morningShow(s).some((l) => l.kind === 'silence')).toBe(false);
     // Gone bust at dawn, before the show airs: the silence opens that morning's show.
-    on = [];
+    blitz();
     s.rivals.coldbrew.cash = -1e9;
     s.rivals.coldbrew.brokeDays = BANKRUPT_DAYS - 1;
     s.phase = 'report';
     sleep();
     expect(s.rivals.coldbrew.alive).toBe(false);
     expect(show()[0]).toBe("[One second of silence: The Cold Brew Collective's jingle is off the air for good.]");
+  });
+
+  it("FizzCo's ad blitz opens each of its mornings with FizzCo's jingle, until the mascot goes home", () => {
+    const fizz = { kind: 'rival', text: 'FizzCo Beverages\' jingle: "Bubbles mean business!"' };
+    const s = fizzcoNextDoor(80);
+    expect(blitzingToday(s)).toEqual([]);
+    const job = startScheme(s, 'fizzco', 'blitz')!; // its Hostile Takeover starts one at dawn, before the show airs
+    expect(job).toMatchObject({ kind: 'blitz', by: 'fizzco', day: 10, until: 10 + AD_BLITZ.days - 1 });
+    for (const r of RIVALS) s.rivals[r].truceUntil = 999; // nobody starts anything else
+    expect(morningShow(s)[0]).toMatchObject(fizz);
+    for (const day of [11, 12]) {
+      s.day = day;
+      schemesAtDawn(s); // Strike pays for another day's walk
+      expect(morningShow(s)[0]).toMatchObject(fizz);
+    }
+    s.day = 13;
+    schemesAtDawn(s);
+    expect(job.done).toBe(true);
+    expect(morningShow(s)[0].kind).toBe('id'); // its days are up: the station ID opens again
+    // Strike runs dry: the mascot goes home early, and that morning's show has no jingle.
+    const t = fizzcoNextDoor(81);
+    startScheme(t, 'fizzco', 'blitz');
+    for (const r of RIVALS) t.rivals[r].truceUntil = 999;
+    budgetOf(t, 'fizzco').strike = AD_BLITZ.perDay - 1;
+    t.day = 11;
+    schemesAtDawn(t);
+    expect(blitzingToday(t)).toEqual([]);
+    expect(morningShow(t)[0].kind).toBe('id');
   });
 
   it('the HUD ticket carries the morning show and turns through it in place; All day keeps it on', () => {

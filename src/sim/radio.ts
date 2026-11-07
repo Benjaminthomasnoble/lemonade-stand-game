@@ -12,7 +12,7 @@
 import { BRAND_TIERS, CLOSE, FACTIONS, OPEN, RADIO_STAND_LEVEL, type RivalId, type WeatherKind } from './balance.ts';
 import { PLOT_BY_ID, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
-import { playerStands } from './economy.ts';
+import { playerStands, runningSchemes } from './economy.ts';
 import { storyFairs, tasteOffResult } from './calendar.ts';
 import { bugleNews, lookAhead, marketLines, marketText, type FightNote } from './media.ts';
 import { kidsDay } from './happenings.ts';
@@ -53,15 +53,10 @@ const whose = (r: RivalId) => (FACTIONS[r].name.endsWith('s') ? `${FACTIONS[r].n
 
 // ---------- the rivals' jingles ----------
 
-/**
- * Who is on a marketing blitz today, from each system that runs one. Seam: the rivals lane's ad blitz (FizzCo's Hostile
- * Takeover, design-spec "Rival schemes") registers here with one push; none is on main yet, so no jingle opens the show.
- */
-export const BLITZ_PROVIDERS: { id: string; blitzing: (s: GameState) => RivalId[] }[] = [];
-
-/** The rivals on a marketing blitz today, still in business. */
+/** The rivals on a marketing blitz today, still in business: FizzCo's ad blitz (its Hostile Takeover, schemes.ts), or any
+ * rival's scheme of that kind. A blitz starts and pays for its day at dawn, so the Morning Prep show already knows. */
 export function blitzingToday(s: GameState): RivalId[] {
-  const on = new Set(BLITZ_PROVIDERS.flatMap((p) => p.blitzing(s)));
+  const on = new Set(runningSchemes(s).filter((x) => x.kind === 'blitz').map((x) => x.by));
   return RIVALS.filter((r) => on.has(r) && s.rivals[r]?.alive);
 }
 

@@ -11,6 +11,7 @@ import { taught } from '../sim/story.ts';
 import { damageCard } from './damage.ts';
 import type { Kit } from './hud.ts';
 import { nextClubhouse, type ClubKit } from './clubhouse.ts';
+import { glyph } from './clay.ts';
 
 /** Each specialty's badge: a watchtower for the Lookout, a boom for the Wrecker, a star for the Captain. */
 const SPECIALTY_ART: Record<Specialty, (k: Kit) => string> = { lookout: (k) => k.ART.tower(), wrecker: (k) => k.ART.boom(), captain: (k) => k.ART.star(true) };
@@ -77,11 +78,11 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}">${k.ART.foot()}</button>
+        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}" aria-label="Move post">${k.ART.foot()}</button>
         ${nextWeapon && wb && !k.locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${k.whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${k.esc(wb.why)})`}">${k.WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !k.locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${k.whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${k.esc(gb.why)})`}">${k.ART.shield()}</button>` : ''}
         ${promoteButtons(k, s, g)}
-        ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${k.esc(g.name)} go">✕</button>`}
+        ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${k.esc(g.name)} go" aria-label="Let ${k.esc(g.name)} go">${glyph('close')}</button>`}
       </span></div>`;
 }
 

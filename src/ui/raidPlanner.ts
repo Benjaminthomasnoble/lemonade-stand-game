@@ -10,6 +10,7 @@ import type { Action, Kit } from './hud.ts';
 import { guardFace } from './crew.ts';
 import { tripNote } from './trips.ts';
 import { shakedownLoot } from '../sim/loot.ts';
+import { glyph } from './clay.ts';
 
 export interface Planner {
   /** Guards picked for the next raid or HQ assault. */
@@ -88,7 +89,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"${tip(`${Math.round(night * 100)}% to win`)}`, 'go')}
-      ${s.phase === 'report' || s.phase === 'night' ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}★</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now"${tip(`${Math.round(now * 100)}% to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}`)}`)}</div></div>`;
+      ${s.phase === 'report' || s.phase === 'night' ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}${glyph('star')}</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now"${tip(`${Math.round(now * 100)}% to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}`)}`)}</div></div>`;
   }
 
   function click(d: DOMStringMap) {

@@ -532,9 +532,16 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         // First frame: compile every clay program the scene can reach (hidden parts too: night glow, weather, brawl
         // beams, fx pools, specks), so none compiles mid-day for the first time and stalls a frame.
         // (Without parallel compiling the cost lands here, on the first frame, rather than mid-day.)
+        // A program's key includes the render target bound when it's built: the scene draws into the composer's
+        // half-float target (no tone mapping, linear output; OutputPass does both), so compile with that target bound,
+        // or the warm-up builds canvas variants nothing draws with. compileAsync builds synchronously, then waits.
         warmed = true;
-        if (renderer.extensions.has('KHR_parallel_shader_compile')) renderer.compileAsync(scene, camera).catch(() => { /* a lost context: they compile when first drawn */ });
-        else renderer.compile(scene, camera);
+        const was = renderer.getRenderTarget();
+        renderer.setRenderTarget(post.composer.readBuffer);
+        try {
+          if (renderer.extensions.has('KHR_parallel_shader_compile')) renderer.compileAsync(scene, camera).catch(() => { /* a lost context: they compile when first drawn */ });
+          else renderer.compile(scene, camera);
+        } finally { renderer.setRenderTarget(was); }
       }
       renderer.info.reset();
       specks.count = 0;

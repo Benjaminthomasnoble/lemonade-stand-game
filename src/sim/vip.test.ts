@@ -61,6 +61,7 @@ describe('VIP clients', () => {
     buildFacility(s, lot.id, 'bottling');
     buildFacility(s, lot.id, 'bottling');
     buildFacility(s, lot.id, 'bottling');
+    s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the stand stays bare: the cups here are bottled
     let paid = 0, vip = 0;
     for (let d = 0; d < 30; d++) {
       for (const o of [...s.offers]) { acceptOrder(s, o.id); if (o.tier === 'heli' || o.tier === 'ship') vip++; }

@@ -404,11 +404,17 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
 
 // ---------- saves ----------
 
-/** Fills this lane's new fields on older saves (idempotent). Old rival stands priced off the old curve move to their ceiling. */
+/**
+ * Fills this lane's new fields on older saves (idempotent). Old rival stands priced off the old curve move to their
+ * ceiling. Auto-Restock was a switch you turned on; now every stand has it unless it opts out, so a save from before
+ * stock targets (no stockTarget field) gets the switch on and the suggested target.
+ */
 export function migrateDemand(s: GameState): void {
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;
-    if (!st || st.queue !== undefined) continue;
+    if (!st) continue;
+    if (st.stockTarget === undefined) { st.stockTarget = null; st.autoRestock = true; }
+    if (st.queue !== undefined) continue;
     st.queue = 0;
     if (ps.owner && ps.owner !== 'player' && PLOT_BY_ID[id]) st.price = rivalPrice(ps.owner as RivalId, st.level, PLOT_BY_ID[id]);
   }

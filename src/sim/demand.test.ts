@@ -569,6 +569,7 @@ describe('stock in cups', () => {
   it('counts the smallest of the cups\' worth of lemons, sugar and ice, and pours no cup without its ice', () => {
     const s = workedExample(1);
     const st = s.plots[LOTTIES_CORNER].stand!;
+    st.autoRestock = false; // this stand opts out: Lottie would top the ice up at Open
     st.inventory.ice = 30; // 10 cups' worth at 3 cubes a cup
     expect(servingsAvailable(st)).toBe(10);
     playDay(s, 'hot', 88);

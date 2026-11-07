@@ -379,9 +379,10 @@ describe('Event Sponsorship', () => {
     expect(sponsorCost(s, 'summerFair')).toBe(2000 * 5);
     const corner = s.plots[LOTTIES_CORNER].stand!, there = s.plots[plot].stand!;
     const before = marketingMultiplier(s, 'player', there);
+    const booked = s.today.supplies; // what Auto-Restock bought at dawn
     expect(sponsorFestival(s, 'summerFair')).toBe(true);
     expect(s.cash).toBe(40000);
-    expect(s.today.supplies).toBe(10000);
+    expect(s.today.supplies - booked).toBeCloseTo(10000, 6);
     expect(marketingMultiplier(s, 'player', there) - before).toBeCloseTo(0.5, 6);
     expect(calendarTraffic(s, 'player', corner)).toBe(0); // Maple Row isn't the festival's district
     expect(canSponsor(s, 'summerFair')).toEqual({ ok: false, why: 'Sponsored' });

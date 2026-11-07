@@ -4,7 +4,7 @@
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
 import {
-  averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
+  averageStopChance, restockOn, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
@@ -39,6 +39,7 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
+import { autoTickets, helperRows, restockControl } from './automation.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
@@ -66,6 +67,7 @@ export type Action =
   | { type: 'brand' }
   | { type: 'campaign'; id: CampaignId; plot?: string } // plot: a ticket's stand (else the selected one)
   | { type: 'restock' }
+  | { type: 'stockTarget'; delta: number } // Auto-Restock's target: a step down (-1) or up (1), or back to the suggestion (0)
   | { type: 'select'; plot: string }
   | { type: 'inspect'; plot: string | null }
   | { type: 'buyPlot'; plot: string }
@@ -370,6 +372,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'turn': onAction({ type: 'turn', dir: d.dir === '-1' ? -1 : 1 }); break;
       case 'radio': toggleSoundtrack(); redraw(); break; // world: 101.5 all day, or mornings only
       case 'books': books = !books; redraw(); break;
+      case 'stockTarget': onAction({ type: 'stockTarget', delta: Number(d.delta) }); break;
       case 'standMath': standMath = !standMath; redraw(); break;
       case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
       case 'more': moreOpts = !moreOpts; redraw(); break;
@@ -540,7 +543,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     t.push(...landTickets(s));
     const servings = servingsAvailable(st);
-    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons, sugar and ice!</b></div>`);
+    if (servings === 0 && !restockOn(s, st) && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons, sugar and ice!</b></div>`);
+    t.push(...autoTickets(s)); // the day's automatic spending (src/ui/automation.ts)
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
   }
 
@@ -584,7 +588,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const lit = Math.max(1, Math.min(5, Math.ceil((stop / 0.45) * 5)));
     const expiring = lemonsExpiringTomorrow(s, st);
     const short = (id: SupplyId) => {
-      if (st.autoRestock) return false;
+      if (restockOn(s, st)) return false;
       if (id === 'ice') return !iceMachineOn(s, plotId) && st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(cups, Math.max(servings, 1)); // world: the L4+ ice machine
       return servings < cups * 0.8;
     };
@@ -600,7 +604,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
     };
-    const restock = `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>`;
+    const restock = restockControl(s, plotId); // Auto-Restock's switch and target, from Day 3 (src/ui/automation.ts)
     const n = playerStands(s).length;
     return `<div class="cl-tray">
       ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>` : ''}
@@ -689,7 +693,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const bookTable = `<table class="cl-books">
         <tr><td>People walking by</td><td>${t.passersby}</td></tr><tr><td>Cups sold</td><td>${t.customers}</td></tr>${playerStands(s).length > 1 ? rows : ''}
         <tr><td>Not thirsty / too pricey</td><td>${w.notThirsty} / ${w.pricey}</td></tr><tr><td>Line / sold out / a rival</td><td>${w.line} / ${w.soldOut} / ${w.rival}</td></tr>
-        <tr><td>Sales</td><td class="good">${money(t.revenue)}</td></tr><tr><td>Supplies, cups, upkeep, tax</td><td class="bad">${money(-costs)}</td></tr>
+        <tr><td>Sales</td><td class="good">${money(t.revenue)}</td></tr><tr><td>Supplies, cups, upkeep, tax</td><td class="bad">${money(-costs)}</td></tr>${helperRows(t)}
         ${t.land ? `<tr><td>Invested in land and stands</td><td>${money(t.land)}</td></tr>` : ''}
         <tr><td>Reputation</td><td>${t.reputationAfter.toFixed(2)} (${repDelta >= 0 ? '+' : ''}${repDelta.toFixed(2)})</td></tr>
         <tr><td>Success Score</td><td>${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})</td></tr></table>`;

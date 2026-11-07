@@ -33,8 +33,9 @@ import {
   campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
   migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
-import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, taught, type StoryState } from './story.ts';
+import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
+import { automationAtDawn, restockAtOpen, type HelperDay } from './automation.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -69,6 +70,7 @@ export * from './happenings.ts';
 export * from './radio.ts';
 export * from './land.ts';
 export * from './auction.ts';
+export * from './automation.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -100,7 +102,9 @@ export interface Stand {
   /** People in line right now; it moves at the stand's pour rate (demand.ts). Optional for older saves. */
   queue?: number;
   campaigns: Partial<Record<CampaignId, number>>; // days left
-  autoRestock: boolean;
+  autoRestock: boolean; // Auto-Restock's switch: on unless this stand opts out, at work from Day 3 (automation.ts)
+  /** Auto-Restock's stock target in cups: null is the suggestion (the forecast day's expected sales). Missing on older saves. */
+  stockTarget?: number | null;
   day: StandDay;
   hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
@@ -178,6 +182,7 @@ export interface DayStats {
   reputationBefore: number;
   reputationAfter: number;
   scoreBefore: number;
+  auto?: Partial<Record<string, HelperDay>>; // each helper's day: what it spent and looked after (automation.ts)
 }
 
 export interface GameState {
@@ -302,7 +307,7 @@ function emptyStats(s: GameState): DayStats {
 export function newStand(level = 1, price = STAND_LEVELS[level - 1].topPrice): Stand {
   return {
     level, inventory: { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 }, recipe: 'classic', sweetness: 'classic',
-    price, pitcherCups: 0, queue: 0, campaigns: {}, autoRestock: false, day: emptyStandDay(),
+    price, pitcherCups: 0, queue: 0, campaigns: {}, autoRestock: true, stockTarget: null, day: emptyStandDay(),
   };
 }
 
@@ -574,6 +579,7 @@ function segmentAt(rng: Rng, district: DistrictId, hour: number): SegmentId {
 
 export function openStands(s: GameState): boolean {
   if (s.phase !== 'prep' || gameOver(s)) return false;
+  restockAtOpen(s); // Auto-Restock tops up what Morning Prep changed (automation.ts)
   const rng = { seed: s.seed };
   let weather: Weather;
   if (nextRandom(rng) < FORECAST_ACCURACY) {
@@ -596,23 +602,11 @@ export function openStands(s: GameState): boolean {
     if (!st) continue;
     st.day = emptyStandDay();
     st.queue = 0;
-    if (s.plots[p.id].owner === 'player' && st.autoRestock && taught(s, 'market')) autoRestock(s, p.id); // the Market's lesson (Day 3)
   }
   return true;
 }
 /** Older name kept for tests and tools. */
 export const openStand = openStands;
-
-export function autoRestock(s: GameState, plotId: string): void {
-  const st = s.plots[plotId].stand!;
-  const want = Math.ceil(expectedCups(s, plotId) * 1.2);
-  const n = pitcherNeeds(st);
-  const pitchers = Math.ceil(want / CUPS_PER_PITCHER);
-  const targets: Record<SupplyId, number> = { lemons: pitchers * n.lemons, sugar: pitchers * n.sugar, ice: iceMachineOn(s, plotId) ? 0 : want * n.icePerCup }; // world: the ice machine
-  for (const id of Object.keys(targets) as SupplyId[]) {
-    while (stock(st, id) < targets[id] && maxPacks(s, st, id) > 0) { if (!buySupply(s, id, 1, st)) break; }
-  }
-}
 
 // Appeal is cached for the open day: worked out once per stand and segment, and each plot's street (which
 // stands a passerby can pick, demand.ts) with it. Cleared whenever the stands open. The whole town is judged
@@ -879,6 +873,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   fortunesAtDawn(s);
   nightsAtDawn(s);
   storyAtDawn(s);
+  automationAtDawn(s); // the helpers' dawn runs, Auto-Restock first, at today's prices (automation.ts)
   return true;
 }
 

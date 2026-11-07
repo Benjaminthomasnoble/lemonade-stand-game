@@ -126,7 +126,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
   const cost = costPerCup(s, st);
   const left = Math.max(0, c.cups - st.day.customers); // what the rest of the day should sell
   const servings = servingsAvailable(st);
-  const short = (id: SupplyId) => !st.autoRestock && left > 0
+  const short = (id: SupplyId) => left > 0 // mid-day nobody restocks for you: Auto-Restock buys at dawn and at Open
     && (id === 'ice' ? st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(left, Math.max(servings, 1)) : servings < left * 0.8);
   const gauge = (id: SupplyId) => {
     const sp = SUPPLIES[id];

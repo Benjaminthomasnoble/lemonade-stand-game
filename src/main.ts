@@ -12,7 +12,7 @@ import {
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
-  setTasteOffEntry, sponsorFestival, forgiveSquawk,
+  setTasteOffEntry, sponsorFestival, forgiveSquawk, nudgeStockTarget, setStockTarget, toggleAutoRestock,
   announceControl, listPlot, placeBid, unlistPlot, withdrawBid,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
@@ -517,7 +517,8 @@ async function main() {
       case 'sweet': setSweetness(st, a.value); break;
       case 'price': setPrice(st, st.price + a.delta); break;
       case 'priceCeiling': setPrice(st, priceCeiling(state, state.selected)); break;
-      case 'restock': st.autoRestock = !st.autoRestock; break;
+      case 'restock': toggleAutoRestock(state, state.selected); break;
+      case 'stockTarget': if (a.delta) nudgeStockTarget(state, state.selected, a.delta > 0 ? 1 : -1); else setStockTarget(state, state.selected, null); break;
       case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
       case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).

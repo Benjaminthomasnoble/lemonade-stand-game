@@ -70,6 +70,7 @@ describe('crew and raids', () => {
   it('no raids on the player in days 1-5, then they come', () => {
     const s = newGame(7);
     s.reputation = 4;
+    s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // a bare stand all along: this test is about raids
     let early = 0, later = 0;
     for (let d = 0; d < 40; d++) {
       s.cash = Math.max(s.cash, 200); // stay out of the red: this test is about raids, not going broke

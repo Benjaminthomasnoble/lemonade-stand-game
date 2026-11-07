@@ -413,7 +413,7 @@ export function buySupply(s: GameState, id: SupplyId, packs = 1, st: Stand = sel
   return true;
 }
 
-function useLemons(st: Stand, n: number): void {
+export function useLemons(st: Stand, n: number): void { // world: a Local Order's pitchers take them too (vip.ts)
   const batches = st.inventory.lemons; // oldest first
   while (n > 0 && batches.length) {
     const b = batches[0];

@@ -1,14 +1,15 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, DELIVERY_WINDOW, RANKS, type RecipeId } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, RANKS, RECIPES, type RecipeId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
 import { hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
-import { costPerCup, playerStands } from './economy.ts';
+import { pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
+import { iceMachineOn, machineIce } from './happenings.ts';
 import { restoreHp } from './damage.ts';
 import { ownedRecipes, ownsRecipe, recipeCost } from './recipes.ts';
 
@@ -101,8 +102,9 @@ export const DEAL_LOADS = 4;
 export const GROVE_TRAFFIC = 0.05;
 export const MAX_GROVES = 2;
 /** Pickup minute: choppers at 5:30 pm, in the golden hour (spec mood scene "The first helicopter"), ships at 10 am (each
- * opens a 2-hour window; Caterer Trucks and Local Orders at closing). */
-export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 20 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60 };
+ * opens a 2-hour window), a Local Order's cups an hour before closing (while the stand's ice is still in the cooler),
+ * Caterer Trucks at closing. */
+export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 19 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60 };
 
 const CLIENTS: Record<OrderTier, string[]> = {
   local: ['the Maple Row Block Party', 'Little League Opening Day', 'the Old Town Bake Sale', 'the Campus Book Fair', 'a Fire Station Open House'],
@@ -183,7 +185,7 @@ export function tierOpen(s: GameState, tier: OrderTier): Blocker {
   const t = ORDER_TIERS[tier];
   if (s.rank < t.rank) return { ok: false, why: `Rank ${t.rank}` };
   if (s.reputation < t.stars) return { ok: false, why: `${t.stars.toFixed(1)} stars` };
-  if (tier === 'local' && !playerStands(s).some((p) => s.plots[p.id].stand!.level >= 3 && !s.plots[p.id].stand!.wrecked)) return { ok: false, why: 'an L3 Kiosk' };
+  if (tier === 'local' && !kiosks(s).length) return { ok: false, why: 'an L3 Kiosk' };
   if (tier === 'caterer' && !facilityPlots(s, 'bottling').length) return { ok: false, why: 'a Bottling Works' };
   if (tier === 'heli' && !facilityPlots(s, 'helipad').length) return { ok: false, why: 'a Helipad on a Field plot' };
   if (tier === 'ship' && !facilityPlots(s, 'pier').length) return { ok: false, why: 'a Pier on a Dock plot' };
@@ -197,28 +199,30 @@ function bestFacility(s: GameState, kind: 'helipad' | 'pier'): string | undefine
   return facilityPlots(s, kind).find((p) => s.plots[p.id].facility!.level === lvl)?.id;
 }
 
+/** Your working L3+ stands: each can take Local Orders. */
+const kiosks = (s: GameState) => playerStands(s).filter((p) => s.plots[p.id].stand!.level >= 3 && !s.plots[p.id].stand!.wrecked).map((p) => p.id);
+
 function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const t = ORDER_TIERS[tier];
   const [lo, hi] = tier === 'heli' ? HELI_SIZES[bestLevel(s, 'helipad') - 1] : tier === 'ship' ? SHIP_SIZES[bestLevel(s, 'pier') - 1] : t.size;
   const qty = Math.round((lo + (hi - lo) * nextRandom(rng)) / 100) * 100;
-  const unit = tier === 'local' ? localPrice(s) * t.pay : t.pay;
-  const days = t.days;
-  const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : undefined;
+  // A Local Order goes to one L3+ stand: it pays 1.5x that stand's price and is poured from its stock.
+  const ks = tier === 'local' ? kiosks(s) : [];
+  const local = ks.length ? ks[Math.floor(nextRandom(rng) * ks.length)] : undefined;
+  const stand = local ? s.plots[local].stand! : undefined;
+  const unit = stand ? stand.price * t.pay : t.pay;
+  const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : local;
   const clients = CLIENTS[tier];
   const o: Order = {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
-    pay: Math.round(qty * unit), due: s.day + days, expires: s.day + 1, plot, accepted: false,
+    pay: Math.round(qty * unit), due: s.day + t.days, expires: s.day + 1, plot, accepted: false,
   };
-  if (tier !== 'local') { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own)
+  if (stand) o.recipe = stand.recipe; // the stand's card
+  else { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own)
     const book = ownedRecipes(s);
     o.recipe = book[Math.floor(nextRandom(rng) * book.length)];
   }
   return o;
-}
-
-function localPrice(s: GameState): number {
-  const stands = playerStands(s).map((p) => s.plots[p.id].stand!).filter((st) => st.level >= 3);
-  return stands.length ? Math.max(...stands.map((st) => st.price)) : 1;
 }
 
 /** At dawn: production, expiring offers, new offers. */
@@ -340,7 +344,7 @@ export function nextDue(o: Order, day: number): number {
 const payFor = (o: Order, n: number) => Math.round((o.pay * n) / o.qty);
 
 /** Called every game minute while open: at each facility's trip minutes its clients load, oldest order first, up to the
- * trip's load; Caterer Trucks and Local Orders go out at their minute. */
+ * trip's load; a Local Order's stand pours its cups an hour before closing, each day until it's due. */
 export function pickupsAt(s: GameState): Pickup[] {
   const out: Pickup[] = [];
   for (const line of ['pier', 'helipad'] as const) {
@@ -357,26 +361,30 @@ export function pickupsAt(s: GameState): Pickup[] {
       }
     }
   }
-  for (const o of [...s.orders]) if (!isVip(o.tier) && o.due === s.day && PICKUP_MINUTE[o.tier] === s.minute) out.push(handOver(s, o));
+  for (const o of [...s.orders]) {
+    if (o.tier === 'local') { if (s.minute === PICKUP_MINUTE.local && o.due >= s.day) { const p = pour(s, o); if (p) out.push(p); } continue; }
+    if (!isVip(o.tier) && o.due === s.day && PICKUP_MINUTE[o.tier] === s.minute) out.push(handOver(s, o));
+  }
   return out;
 }
 
-/** At closing: Local Orders and Caterer Trucks still due go out, and a VIP order short of what it owes by tonight (all of it
- * on its deadline, a Supply Deal's load at the end of each week) falls through. */
+/** At closing: Caterer Trucks due today go out, and an order short of what it owes by tonight (all of it on its deadline, a
+ * Supply Deal's load at the end of each week) falls through. */
 export function pickupsAtClose(s: GameState): Pickup[] {
   const out: Pickup[] = [];
   for (const o of [...s.orders]) {
     if (s.heldPickups?.includes(o.id)) continue; // a Delivery Raid is still out on its trip: that settles it first
-    if (!isVip(o.tier)) { if (o.due <= s.day) out.push(handOver(s, o)); continue; }
+    if (o.tier === 'caterer') { if (o.due <= s.day) out.push(handOver(s, o)); continue; }
     const owed = owedBy(o, s.day);
-    if ((o.loaded ?? 0) < owed) out.push(failOrder(s, o, shortWhy(s, o, owed)));
+    if ((o.loaded ?? 0) < owed) out.push(failOrder(s, o, o.tier === 'local' ? cupsWhy(s, o) : shortWhy(s, o, owed)));
   }
   return out;
 }
 
 /** One trip of an order (night.ts calls it again to settle a Delivery Raid's hold: the held load goes out, or the order
- * fails). Local Orders and Caterer Trucks go out in one go. */
+ * fails). A Local Order pours what its stand can; a Caterer Truck goes out in one go. */
 export function deliver(s: GameState, o: Order): Pickup | null {
+  if (o.tier === 'local') return pour(s, o);
   if (!isVip(o.tier)) return handOver(s, o);
   const f = o.plot ? s.plots[o.plot].facility : undefined;
   return trip(s, o, f && !f.wrecked ? tripLoad(f) : 0)?.pickup ?? null;
@@ -434,19 +442,55 @@ function failOrder(s: GameState, o: Order, why: string): Pickup {
   return { order: o, ok: false };
 }
 
-/** Local Orders and Caterer Trucks: the whole order in one go. */
+/** The stand a Local Order is poured at (one from before Local Orders named a stand: your first working Kiosk). */
+const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
+
+/** A Local Order's cups, an hour before closing on each day until it's due: poured at its stand from the stand's own stock
+ * (the pitcher on hand, then whole pitchers from its lemons and sugar, each cup with its ice, an ice machine making what
+ * the cooler lacks), the cup and the card's extra paid as they go, and the client paying for each cup. A Warehouse will
+ * top the stand up (seam: no Warehouse on main yet). */
+function pour(s: GameState, o: Order): Pickup | null {
+  const plot = localStand(s, o);
+  const ps = plot ? s.plots[plot] : undefined;
+  const st = ps?.owner === 'player' ? ps.stand : null;
+  if (!plot || !st || st.wrecked) return null;
+  const n = pitcherNeeds(st);
+  const ice = RECIPES[st.recipe].icePerCup;
+  const pitchers = Math.min(Math.floor(stock(st, 'lemons') / n.lemons), n.sugar > 0 ? Math.floor(st.inventory.sugar / n.sugar) : Infinity);
+  const cooler = iceMachineOn(s, plot) || ice <= 0 ? Infinity : Math.floor(st.inventory.ice / ice);
+  const cups = Math.min(bottlesLeft(o), st.pitcherCups + pitchers * CUPS_PER_PITCHER, cooler);
+  if (cups <= 0) return null;
+  const mixed = Math.ceil(Math.max(0, cups - st.pitcherCups) / CUPS_PER_PITCHER);
+  useLemons(st, mixed * n.lemons);
+  st.inventory.sugar -= mixed * n.sugar;
+  st.pitcherCups += mixed * CUPS_PER_PITCHER - cups; // what's left in the last pitcher sells as usual
+  const made = machineIce(s, plot, st, cups * ice);
+  st.inventory.ice = Math.max(0, st.inventory.ice - cups * ice);
+  const cost = round2(cups * (CUP_COST + RECIPES[st.recipe].extraPerCup) + made);
+  const before = o.loaded ?? 0;
+  o.loaded = before + cups;
+  const pay = payFor(o, o.loaded) - payFor(o, before);
+  st.day.revenue = round2(st.day.revenue + pay);
+  st.day.cupCosts = round2(st.day.cupCosts + cost);
+  s.cash = round2(s.cash + pay - cost);
+  s.lifetimeCups += cups;
+  const done = o.loaded >= o.qty;
+  if (done) s.orders = s.orders.filter((x) => x !== o);
+  s.news.push(`${done && !before ? 'Delivered' : 'Poured'} ${cups.toLocaleString('en-US')} cups for ${o.client}: ${money(pay)}!${done ? '' : ` ${o.loaded.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} made.`}`);
+  return { order: o, ok: true };
+}
+
+/** Why a Local Order fell short on its deadline. */
+function cupsWhy(s: GameState, o: Order): string {
+  const plot = localStand(s, o);
+  const st = plot && s.plots[plot].owner === 'player' ? s.plots[plot].stand : null;
+  if (!st) return 'Its stand is gone.';
+  if (st.wrecked) return 'Its stand was smashed.';
+  return `Only ${(o.loaded ?? 0).toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} cups were made in time.`;
+}
+
+/** Caterer Trucks: the whole order in one go, at closing. */
 function handOver(s: GameState, o: Order): Pickup {
-  if (o.tier === 'local') {
-    const st = playerStands(s).map((p) => s.plots[p.id].stand!).find((x) => x.level >= 3 && !x.wrecked);
-    if (!st) return failOrder(s, o, 'No working Kiosk to make it.');
-    s.orders = s.orders.filter((x) => x !== o);
-    const cost = round2(o.qty * costPerCup(s, st));
-    s.cash = round2(s.cash - cost + o.pay);
-    s.today.supplies = round2(s.today.supplies + cost);
-    s.today.revenue = round2(s.today.revenue + o.pay);
-    s.news.push(`Delivered ${o.qty} cups to ${o.client}: ${money(o.pay)}!`);
-    return { order: o, ok: true };
-  }
   const ready = bottlesOf(s, orderRecipe(o));
   if (ready < o.qty) return failOrder(s, o, `Only ${ready.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
   s.orders = s.orders.filter((x) => x !== o);

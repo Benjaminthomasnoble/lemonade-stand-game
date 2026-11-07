@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, DELIVERY_WINDOW,
-  FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame, nextDue, openStand, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose,
-  PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, MAX_OFFERS,
-  ORDER_TIERS, type GameState, type Order,
+  FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, openStand, ORDER_TIERS, owedBy, ownsRecipe,
+  PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, stock, tripLoad,
+  tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, type GameState, type Order,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -289,6 +289,118 @@ describe('VIP clients', () => {
     expect(Math.max(...gaps)).toBeLessThanOrEqual(VIP_MAX_GAP);
     expect(1400 / gaps.length).toBeGreaterThan(4.5); // 1 in 7 a day, and the floor at 10: about 5.5 days apart
     expect(1400 / gaps.length).toBeLessThan(7);
+  });
+
+  it("a Local Order goes to one of your L3+ stands, pays 1.5x that stand's price, and pours its card", () => {
+    const { s } = vipGame(23);
+    const [home] = playerStands(s);
+    const spare = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!;
+    const small = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner && p.id !== spare.id)!;
+    Object.assign(s.plots[home.id].stand!, { level: 3, price: 2, recipe: 'pink' });
+    s.plots[spare.id] = { ...s.plots[spare.id], owner: 'player', stand: newStand(4, 1.6) };
+    s.plots[small.id] = { ...s.plots[small.id], owner: 'player', stand: newStand(2, 3) };
+    const seen = new Set<string>(), at = new Set<string>();
+    for (let d = 0; d < 60; d++) {
+      s.day++;
+      vipAtDawn(s);
+      for (const o of s.offers.filter((x) => x.tier === 'local' && !seen.has(x.id))) {
+        seen.add(o.id);
+        at.add(o.plot!);
+        const st = s.plots[o.plot!].stand!;
+        expect(st.level).toBeGreaterThanOrEqual(3); // never the L2 stand
+        expect(o.pay).toBe(Math.round(o.qty * st.price * 1.5));
+        expect(o.recipe).toBe(st.recipe);
+      }
+    }
+    expect([...at].sort()).toEqual([home.id, spare.id].sort()); // either Kiosk can get the call
+    expect(seen.size).toBeGreaterThan(15); // about 1 in 2 days
+    expect(ORDER_TIERS.local.pay).toBe(1.5);
+  });
+
+  it("a Local Order's cups are poured from its stand's own stock an hour before closing, and the client pays for each", () => {
+    const { s } = vipGame(24);
+    const [home] = playerStands(s);
+    const st = s.plots[home.id].stand!;
+    Object.assign(st, { level: 3, price: 1, recipe: 'classic', pitcherCups: 4 });
+    st.inventory.lemons = [{ qty: 400, day: s.day, unitCost: 0.2 }];
+    st.inventory.sugar = 1000;
+    st.inventory.ice = 900; // 300 cups' worth
+    const o = order(s, { id: 'l1', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day + 2 });
+    const cash = s.cash;
+    s.phase = 'open';
+    s.minute = PICKUP_MINUTE.local - 1;
+    expect(pickupsAt(s)).toEqual([]); // not before 7 pm
+    s.minute = PICKUP_MINUTE.local;
+    expect(pickupsAt(s)).toHaveLength(1);
+    expect(o.loaded).toBe(300);
+    expect(s.orders).not.toContain(o);
+    // 4 cups from the pitcher on hand, then 30 pitchers (150 lemons, 300 sugar); 4 cups stay in the last pitcher.
+    expect(stock(st, 'lemons')).toBe(250);
+    expect(st.inventory.sugar).toBe(700);
+    expect(st.pitcherCups).toBe(4);
+    expect(st.inventory.ice).toBe(0);
+    expect(st.day.revenue).toBe(450);
+    expect(st.day.cupCosts).toBe(round(300 * CUP_COST));
+    expect(s.cash).toBe(round(cash + 450 - 300 * CUP_COST));
+    expect(s.news.at(-1)).toBe(`Delivered 300 cups for ${o.client}: $450!`);
+    expect(orderWhen(s, { ...o, accepted: false, loaded: 0 }, true)).toBe(`day ${o.due} at ${PLOT_BY_ID[home.id].name}`);
+  });
+
+  it('a Local Order short of stock pours what it can each day, and falls through on its deadline for 0.3 star, once', () => {
+    const { s } = vipGame(25);
+    const [home] = playerStands(s);
+    const st = s.plots[home.id].stand!;
+    Object.assign(st, { level: 3, price: 1, recipe: 'classic', pitcherCups: 0 });
+    st.inventory.lemons = [{ qty: 50, day: s.day, unitCost: 0.2 }]; // 10 pitchers: 100 cups
+    st.inventory.sugar = 1000;
+    st.inventory.ice = 2400;
+    const o = order(s, { id: 'l2', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day + 1 });
+    const rep = s.reputation;
+    s.phase = 'open';
+    s.minute = PICKUP_MINUTE.local;
+    pickupsAt(s);
+    expect(o.loaded).toBe(100);
+    expect(s.news.at(-1)).toBe(`Poured 100 cups for ${o.client}: $150! 100 of 300 made.`);
+    expect(orderWhen(s, o, false)).toBe(`100 of 300 made at ${PLOT_BY_ID[home.id].name} · due day ${o.due}`);
+    expect(orderTicket(s, o)).toContain('--v:0.333');
+    pickupsAtClose(s); // not due yet
+    expect(s.orders).toContain(o);
+    s.day++;
+    pickupsAt(s); // nothing left to pour with
+    pickupsAtClose(s);
+    expect(s.orders).not.toContain(o);
+    expect(s.reputation).toBe(round(rep - FAILED_ORDER_STARS));
+    expect(s.news.at(-1)).toBe(`Order fell through: ${o.client}. Only 100 of 300 cups were made in time. (−0.3 star, $300 unpaid)`);
+  });
+
+  it('a Local Order at a smashed stand makes nothing and falls through on its deadline', () => {
+    const { s } = vipGame(26);
+    const [home] = playerStands(s);
+    const st = s.plots[home.id].stand!;
+    Object.assign(st, { level: 3, wrecked: true });
+    const o = order(s, { id: 'l3', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day });
+    s.phase = 'open';
+    s.minute = PICKUP_MINUTE.local;
+    expect(pickupsAt(s)).toEqual([]);
+    pickupsAtClose(s);
+    expect(o.loaded ?? 0).toBe(0);
+    expect(s.news.at(-1)).toBe(`Order fell through: ${o.client}. Its stand was smashed. (−0.3 star)`);
+  });
+
+  it('a Local Order goes out on a real business day before the ice melts', () => {
+    const { s } = vipGame(27);
+    const [home] = playerStands(s);
+    const st = s.plots[home.id].stand!;
+    Object.assign(st, { level: 3, price: 1 });
+    st.inventory.lemons = [{ qty: 400, day: s.day, unitCost: 0.2 }];
+    st.inventory.sugar = 1000;
+    st.inventory.ice = 2400;
+    const o = order(s, { id: 'l4', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day });
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.orders).not.toContain(o);
+    expect(o.loaded).toBe(300);
+    expect(s.history.at(-1)!.revenue).toBeGreaterThanOrEqual(450); // the order is part of the day's sales
   });
 
   it('an order with no bottles fails and costs a star', () => {

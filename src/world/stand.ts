@@ -17,6 +17,8 @@ import { cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
 export interface StandUpdate {
   price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
   recipe?: string; sweetness?: PropState['sweetness']; stock?: PropState['stock']; stars?: number;
+  /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
+  detail?: number;
 }
 
 export interface Stand {
@@ -140,6 +142,12 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     if (knockT > 5.2) { knockT = -1; levelRoot.rotation.x = 0; levelRoot.position.z = 0; props.group.visible = !wrecked; }
   }
 
+  // Mid zoom drops the small props; a sign knocked down at half HP takes its stars with it.
+  let detailNow = 0;
+  function showSmall() {
+    props.showSmall(detailNow < 1, hpNow > 0.5);
+  }
+
   // ---------- damage ----------
   function applyDamage() {
     if (!model) return;
@@ -151,8 +159,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       if (hp <= 0.5) fallSign(model.sign);
       else { model.sign.position.copy(rest.p); model.sign.rotation.copy(rest.r); }
     }
-    const starMesh = props.group.getObjectByName('stars');
-    if (starMesh) starMesh.visible = hp > 0.5;
+    showSmall();
     model.sticks.visible = hp <= 0.25;
     // Squashed corners: the whole stand slumps a little.
     model.root.scale.set(hp <= 0.25 ? 1.04 : 1, hp <= 0.25 ? 0.9 : 1, 1);
@@ -341,7 +348,8 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       props.group.visible = !w;
       if (w) endReveal(), levelRoot.visible = false, props.group.visible = false;
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, detail = 0 }) {
+      if (detail !== detailNow) { detailNow = detail; showSmall(); }
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}) });
       openNow = open;
       const tq = Math.floor(time * 12) / 12;

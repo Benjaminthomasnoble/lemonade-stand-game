@@ -7,6 +7,7 @@
 // levels: place() moves them onto the new level's anchors.
 import * as THREE from 'three';
 import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lathe, lumpy, rbox, sph, tor } from './core.ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
 import type { Anchors } from './stands.ts';
@@ -36,8 +37,8 @@ export interface StandProps {
   bounce(): { sx: number; sy: number };
   /** The coin jar in world space (sales arc their coins into it). */
   jarWorld(): THREE.Vector3;
-  /** The props a low-detail view drops. */
-  small: THREE.Object3D[];
+  /** Mid zoom drops the small props; `stars` false hides the stars too (the sign is down). */
+  showSmall(on: boolean, stars: boolean): void;
 }
 
 const SWEET_CUBES = { less: 1, classic: 2, extra: 3 } as const;
@@ -51,6 +52,9 @@ export function createStandProps(): StandProps {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
 
   // Lemon crate of popsicle sticks with a terracotta label, lemons heaped inside.
+  // Every prop that never moves or swaps is baked into one body mesh (and the
+  // small ones into a second, so mid zoom can drop them) each time place() runs.
+  let crateGeo: THREE.BufferGeometry, coolerGeo: THREE.BufferGeometry, chalkGeo: THREE.BufferGeometry, jarClayGeo: THREE.BufferGeometry;
   const crate = new THREE.Group();
   {
     const B = new Baker();
@@ -60,7 +64,7 @@ export function createStandProps(): StandProps {
     for (const x of [-0.44, 0.44]) for (const z of [-0.28, 0.28]) B.add(box(0.06, 0.44, 0.06), P.walnut, { p: [x, 0.22, z], fx: PAPER });
     B.add(rbox(0.46, 0.14, 0.012, 0.01), P.terra, { p: [0, 0.24, 0.3], fx: PAPER });
     B.add(sph(0.05, 8, 6), P.lemon, { p: [-0.12, 0.24, 0.31], s: [1.3, 1, 0.4] });
-    crate.add(clayMesh(B.build(), K.world));
+    crateGeo = B.build();
   }
   const lemonGeo = new Baker().add(lumpy(sph(0.105, 10, 8), 0.01, 12, 2), P.lemon).build();
   const lemons = new THREE.InstancedMesh(lemonGeo, K.world, LEMONS);
@@ -75,10 +79,10 @@ export function createStandProps(): StandProps {
 
   // The sugar sack: slumps as it empties.
   const sackRoot = new THREE.Group();
-  const sack = clayMesh(new Baker().add(lumpy(lathe([[0, 0], [0.3, 0.02], [0.38, 0.24], [0.36, 0.52], [0.21, 0.72], [0.11, 0.77], [0.15, 0.86], [0, 0.88]], 18), 0.03, 4, 5), '#efe3c8').build(), K.world);
-  const sackTag = clayMesh(new Baker().add(rbox(0.28, 0.18, 0.02, 0.01), P.terra, { fx: PAPER }).add(new THREE.BoxGeometry(0.06, 0.06, 0.03), '#ffffff', { p: [0, 0, 0.01], fx: GLOSS }).build(), K.world, false, false);
-  sackTag.position.set(0, 0.34, 0.37);
-  sackRoot.add(sack, sackTag);
+  // The tag is part of the sack's mesh, so it slumps with it.
+  const sack = clayMesh(new Baker().add(lumpy(lathe([[0, 0], [0.3, 0.02], [0.38, 0.24], [0.36, 0.52], [0.21, 0.72], [0.11, 0.77], [0.15, 0.86], [0, 0.88]], 18), 0.03, 4, 5), '#efe3c8')
+    .add(rbox(0.28, 0.18, 0.02, 0.01), P.terra, { p: [0, 0.34, 0.37], fx: PAPER }).add(new THREE.BoxGeometry(0.06, 0.06, 0.03), '#ffffff', { p: [0, 0.34, 0.38], fx: GLOSS }).build(), K.world);
+  sackRoot.add(sack);
   group.add(sackRoot);
 
   // The ice cooler: open lid, cubes inside.
@@ -89,7 +93,7 @@ export function createStandProps(): StandProps {
     B.add(rbox(0.75, 0.05, 0.5, 0.02), '#ffffff', { p: [0, 0.5, 0] });
     B.add(rbox(0.85, 0.08, 0.6, 0.04), '#ffffff', { p: [0, 0.75, -0.38], r: [-1.2, 0, 0] });
     for (const s of [-1, 1]) B.add(box(0.05, 0.08, 0.2), '#ffffff', { p: [s * 0.45, 0.38, 0] });
-    cooler.add(clayMesh(B.build(), K.world));
+    coolerGeo = B.build();
   }
   const ice = new THREE.InstancedMesh(new Baker().add(rbox(0.13, 0.13, 0.13, 0.03), '#dff6ff', { fx: GLOSS }).build(), K.world, ICE);
   for (let k = 0; k < ICE; k++) {
@@ -101,10 +105,8 @@ export function createStandProps(): StandProps {
 
   // The pitcher: glass, liquid in the recipe's colour, and its garnish.
   const pitcher = new THREE.Group();
-  const glass = new THREE.Mesh(lathe([[0, 0], [0.22, 0.01], [0.24, 0.1], [0.23, 0.42], [0.2, 0.55], [0.22, 0.6], [0.2, 0.6], [0.19, 0.55], [0.21, 0.42], [0.22, 0.1], [0, 0.03]], 24), K.glass);
-  glass.renderOrder = 3;
-  const handle = clayMesh(new Baker().add(tor(0.14, 0.03, 6, 14, Math.PI * 1.1), '#e8f6f4', { fx: GLOSS }).build(), K.world, false, false);
-  handle.position.set(0.24, 0.32, 0); handle.rotation.z = -Math.PI * 0.55;
+  const glassGeo = (lathe([[0, 0], [0.22, 0.01], [0.24, 0.1], [0.23, 0.42], [0.2, 0.55], [0.22, 0.6], [0.2, 0.6], [0.19, 0.55], [0.21, 0.42], [0.22, 0.1], [0, 0.03]], 24));
+  const handleGeo = new Baker().add(tor(0.14, 0.03, 6, 14, Math.PI * 1.1), '#e8f6f4', { p: [0.24, 0.32, 0], r: [0, 0, -Math.PI * 0.55], fx: GLOSS }).build();
   const liqMat = new THREE.MeshStandardMaterial({ color: RECIPE_COLOR.classic, roughness: 0.15, transparent: true, opacity: 0.9 });
   const liquid = new THREE.Mesh(lathe([[0, 0], [0.2, 0], [0.21, 0.07], [0.2, 0.39], [0, 0.39]], 20), liqMat);
   liquid.position.y = 0.03;
@@ -114,7 +116,7 @@ export function createStandProps(): StandProps {
     mint: clayMesh(new Baker().add(sph(0.08, 8, 6), '#5fb06a', { s: [1.4, 0.25, 0.8], r: [0, 0, 0.4] }).add(sph(0.07, 8, 6), '#7cc47f', { p: [0.08, 0.02, 0.05], s: [1.3, 0.25, 0.7], r: [0, 0.8, -0.3] }).build(), K.world, false, false),
   };
   for (const g of Object.values(garnishes)) { g.position.set(-0.05, 0.6, 0.04); g.rotation.set(0.3, 0, 0.2); pitcher.add(g); }
-  pitcher.add(glass, handle, liquid);
+  pitcher.add(liquid);
   group.add(pitcher);
 
   // Sugar cubes: one for Less, two for Classic, three for Extra.
@@ -125,17 +127,16 @@ export function createStandProps(): StandProps {
 
   // The coin jar and a stack of striped cups.
   const jar = new THREE.Group();
-  const jarGlass = new THREE.Mesh(lathe([[0, 0], [0.15, 0.01], [0.16, 0.05], [0.16, 0.3], [0.11, 0.36], [0.11, 0.4], [0, 0.4]], 20), K.glass);
-  jarGlass.renderOrder = 3;
+  const jarGlassGeo = lathe([[0, 0], [0.15, 0.01], [0.16, 0.05], [0.16, 0.3], [0.11, 0.36], [0.11, 0.4], [0, 0.4]], 20);
   {
     const B = new Baker();
     B.add(cyl(0.12, 0.12, 0.05, 14), P.terra, { p: [0, 0.42, 0] });
     for (let k = 0; k < 9; k++) B.add(cyl(0.06, 0.06, 0.02, 10), P.gold, { p: [(hash(k) - 0.5) * 0.1, 0.03 + k * 0.022, (hash(k, 2) - 0.5) * 0.1], r: [hash(k, 3) * 0.4, 0, hash(k, 4) * 0.4], fx: GLOSS });
-    jar.add(clayMesh(B.build(), K.world, false, false));
+    jarClayGeo = B.build();
   }
-  jar.add(jarGlass);
   group.add(jar);
-  const cups = clayMesh((() => { const B = new Baker(); for (let k = 0; k < 5; k++) B.add(cyl(0.085, 0.065, 0.18, 12, true), k % 2 ? P.lemon : '#ffffff', { p: [0, 0.09 + k * 0.05, 0], fx: PAPER }); return B.build(); })(), K.world);
+  const cupsGeo = (() => { const B = new Baker(); for (let k = 0; k < 5; k++) B.add(cyl(0.085, 0.065, 0.18, 12, true), k % 2 ? P.lemon : '#ffffff', { p: [0, 0.09 + k * 0.05, 0], fx: PAPER }); return B.build(); })();
+  const cups = new THREE.Group();
   group.add(cups);
 
   // The A-frame chalkboard with the price.
@@ -146,7 +147,7 @@ export function createStandProps(): StandProps {
     B.add(box(0.94, 0.08, 0.05), P.walnut, { p: [0, 1.2, 0.07], r: [0.18, 0, 0], fx: PAPER });
     B.add(box(0.94, 0.08, 0.05), P.walnut, { p: [0, 0.3, 0.23], r: [0.18, 0, 0], fx: PAPER });
     B.add(box(0.86, 0.9, 0.03), '#2f3d38', { p: [0, 0.76, -0.2], r: [-0.18, 0, 0], fx: PAPER });
-    chalk.add(clayMesh(B.build(), K.world));
+    chalkGeo = B.build();
   }
   let priceNow = 0.75;
   const chalkTex = canvasTex(256, 256, chalkPrice(priceNow));
@@ -166,10 +167,23 @@ export function createStandProps(): StandProps {
   let starsAt: Anchors | null = null;
 
   // OPEN / CLOSED card on a string.
+  // Both faces are one mesh on one texture sheet: the front shows CLOSED (top
+  // half), the back, turned to face out when open, shows OPEN.
   const card = new THREE.Group();
-  const cardFront = cardPlane(openCard(false), 0.8, 0.4), cardBack = cardPlane(openCard(true), 0.8, 0.4);
-  cardFront.position.z = 0.012; cardBack.position.z = -0.012; cardBack.rotation.y = Math.PI;
-  card.add(cardFront, cardBack);
+  {
+    const face = (back: boolean) => {
+      const g = new THREE.PlaneGeometry(0.8, 0.4);
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * 0.5 + (back ? 0 : 0.5));
+      if (back) g.rotateY(Math.PI);
+      g.translate(0, 0, back ? -0.012 : 0.012);
+      return g;
+    };
+    const faces = mergeGeometries([face(false), face(true)]);
+    const m = new THREE.Mesh(faces, new THREE.MeshStandardMaterial({ map: openCard(), roughness: 0.9 }));
+    m.castShadow = true;
+    card.add(m);
+  }
   group.add(card);
 
   // Clay-pellet confetti for the opening.
@@ -177,6 +191,7 @@ export function createStandProps(): StandProps {
   const cols = [P.lemon, P.terra, P.teal, P.blush, P.green, P.cream];
   const cp = Array.from({ length: CONFETTI }, (_, k) => { conf.setColorAt(k, new THREE.Color(cols[k % cols.length])); return { p: new THREE.Vector3(), v: new THREE.Vector3(), r: hash(k, 9) * 6 }; });
   conf.count = 0;
+  conf.visible = false;
   conf.frustumCulled = false;
   group.add(conf);
 
@@ -213,19 +228,47 @@ export function createStandProps(): StandProps {
     ice.count = Math.round(Math.max(0, Math.min(1, st.stock.ice)) * ICE);
     const s = Math.max(0, Math.min(1, st.stock.sugar));
     sack.scale.set(1 + (1 - s) * 0.25, 0.3 + s * 0.7, 1 + (1 - s) * 0.25);
-    sackTag.position.y = 0.34 * (0.3 + s * 0.7);
     paintStars();
   }
 
+  const body = clayMesh(new THREE.BufferGeometry(), K.world);
+  const smallBody = clayMesh(new THREE.BufferGeometry(), K.world, false, false);
+  body.name = 'propsBody'; smallBody.name = 'propsSmall';
+  // Both glasses in one mesh, the pitcher's first so mid zoom can draw just that.
+  const glass = new THREE.Mesh(new THREE.BufferGeometry(), K.glass);
+  glass.renderOrder = 3;
+  glass.name = 'propsGlass';
+  group.add(body, smallBody, glass);
+  let pitcherGlassEnd = 0, smallOn = true;
+  const handleAt = new THREE.Matrix4();
+  function bake() {
+    for (const o of [crate, cooler, chalk, pitcher, jar, cups]) o.updateMatrix();
+    body.geometry.dispose(); smallBody.geometry.dispose();
+    body.geometry = new Baker().raw(crateGeo, crate.matrix).raw(coolerGeo, cooler.matrix).raw(chalkGeo, chalk.matrix).raw(handleGeo, handleAt.copy(pitcher.matrix)).build();
+    smallBody.geometry = new Baker().raw(jarClayGeo, jar.matrix).raw(cupsGeo, cups.matrix).build();
+    glass.geometry.dispose();
+    const pg = glassGeo.clone().applyMatrix4(pitcher.matrix), jg = jarGlassGeo.clone().applyMatrix4(jar.matrix);
+    pitcherGlassEnd = pg.index!.count;
+    glass.geometry = mergeGeometries([pg, jg]);
+    pg.dispose(); jg.dispose();
+    glass.geometry.computeBoundingSphere();
+    glass.geometry.setDrawRange(0, smallOn ? Infinity : pitcherGlassEnd);
+  }
   const at = (o: THREE.Object3D, p: [number, number, number], ry = 0) => { o.position.set(...p); o.rotation.y = ry; };
   const props: StandProps = {
     group,
-    small: [cups, jar, cubes, stars, sackRoot],
+    showSmall(on, starsOn) {
+      smallOn = on;
+      for (const o of [smallBody, cubes, sackRoot]) o.visible = on;
+      stars.visible = on && starsOn;
+      glass.geometry.setDrawRange(0, on ? Infinity : pitcherGlassEnd);
+    },
     place(a) {
       anchors = a;
       at(crate, a.crate, 0.15); at(sackRoot, a.sack, -0.3); at(cooler, a.cooler, -0.2); at(chalk, a.chalk, -0.35);
       at(pitcher, a.pitcher); at(cubes, a.cubes); at(jar, a.jar); at(cups, a.cups); at(card, a.card);
       starsAt = a;
+      bake();
       apply();
     },
     set(s) {
@@ -260,6 +303,7 @@ export function createStandProps(): StandProps {
         });
         conf.instanceMatrix.needsUpdate = true;
       } else if (conf.count) conf.count = 0;
+      conf.visible = conf.count > 0;
     },
     bounce: () => bounceK,
     jarWorld: () => jar.localToWorld(new THREE.Vector3(0, 0.26, 0)),

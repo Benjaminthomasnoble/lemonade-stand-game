@@ -228,13 +228,17 @@ export function chalkMenu(k = 1) {
   };
 }
 /** The OPEN / CLOSED card. */
-export function openCard(open: boolean) {
-  return fontTex(256, 128, (c) => {
-    c.fillStyle = open ? '#5FA35A' : '#E8704F';
-    c.beginPath(); c.roundRect(6, 6, 244, 116, 22); c.fill();
-    c.lineWidth = 8; c.strokeStyle = INK; c.stroke();
-    c.fillStyle = '#fff8ea'; c.font = `${open ? 78 : 66}px ${FONTS.display}`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(open ? 'OPEN' : 'CLOSED', 128, 70);
+/** The OPEN / CLOSED card's two faces on one sheet: CLOSED on the top half, OPEN below. */
+export function openCard() {
+  return fontTex(256, 256, (c) => {
+    for (const open of [false, true]) {
+      const y0 = open ? 128 : 0;
+      c.fillStyle = open ? '#5FA35A' : '#E8704F';
+      c.beginPath(); c.roundRect(6, y0 + 6, 244, 116, 22); c.fill();
+      c.lineWidth = 8; c.strokeStyle = INK; c.stroke();
+      c.fillStyle = '#fff8ea'; c.font = `${open ? 78 : 66}px ${FONTS.display}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(open ? 'OPEN' : 'CLOSED', 128, y0 + 70);
+    }
   });
 }
 /** Canvas art drawn before the web fonts load is redrawn once they have. */
@@ -250,10 +254,12 @@ export function fontTex(w: number, h: number, draw: Draw) {
   return t;
 }
 
-/** A flat plane carrying a canvas texture (signs, chalkboards). */
+/** A flat plane carrying a canvas texture (signs, chalkboards). One-sided
+ * labels sit on a clay board that already casts the shadow, so only a
+ * free-standing double-sided card casts its own. */
 export function cardPlane(tex: THREE.Texture, w: number, h: number, doubleSided = false) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, side: doubleSided ? THREE.DoubleSide : THREE.FrontSide }));
-  m.castShadow = true;
+  m.castShadow = doubleSided;
   return m;
 }
 

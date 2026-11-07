@@ -287,7 +287,7 @@ function kioskModel(c: Ctx): Parts {
   for (const s of [-1, 1]) stick(MB, 1.75, [s * 0.5, 0.86, -0.12], [0.15, 0, 0], P.walnut, 0.08, 0.06);
   MB.add(rbox(1.05, 1.1, 0.05, 0.02), P.walnut, { p: [0, 1.15, 0.08], r: [-0.15, 0, 0], fx: PAPER });
   const menuAt = m4([2.45, 0, 0.6], [0, -0.35, 0]);
-  part(c, MB.build(), menuAt);
+  c.B.raw(MB.build(), menuAt); // the legs never move: baked into the body
   const menuTex = canvasTex(256, 280, chalkMenu(1));
   const menu = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.98), new THREE.MeshStandardMaterial({ map: menuTex, roughness: 0.95 }));
   menu.applyMatrix4(menuAt.clone().multiply(m4([0, 1.15, 0.115], [-0.15, 0, 0])));
@@ -380,7 +380,8 @@ function shackModel(c: Ctx): Parts {
   for (const s of [-1, 1]) stick(NB, 0.75, [s * 1.6, 0.05, -0.06], [0, 0, 0], P.walnut, 0.08, 0.05);
   NB.add(rbox(3.6, 0.06, 0.06, 0.02), P.walnut, { p: [0, 0.05, -0.06], fx: PAPER });
   }
-  const neonMesh = player ? (part(c, NB.build(), neonAt.clone()), part(c, neon.geo, neonAt.clone())) : null;
+  if (player) c.B.raw(NB.build(), neonAt); // posts baked into the body
+  const neonMesh = player ? part(c, neon.geo, neonAt.clone()) : null;
   const signGroup = new THREE.Group();
   if (neonMesh) { neonMesh.removeFromParent(); signGroup.add(neonMesh); neonMesh.position.y = 0; }
   signGroup.position.set(0, H + 0.62, zf + 0.15);

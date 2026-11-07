@@ -10,11 +10,12 @@ import { BORDERS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId } from './ma
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
-import { FIRE_SALE, familySilver, hqPlot, HQS } from './rivals.ts';
+import { FIRE_SALE, familySilver, hqPlot } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
 import { grantPage, movePage, pageHolder } from './recipes.ts';
+import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
 import { snipeBid } from './schemes.ts';
 
@@ -48,15 +49,6 @@ export const bidStrength = (id: RivalId) => AUCTION.push[id];
 
 /** Preston's taunt after he outbids Lottie (spec: Phone taunts). */
 export const PRESTON_OUTBID = "Hold, please. I'm on the other line, buying your street.";
-
-/**
- * A boss rings the Corner's phone. Seam: story's phoneCall(s, who, text) after
- * merge; until then the line runs in the Bugle in the boss's voice.
- */
-export function bossCall(s: GameState, who: RivalId, text: string): void {
-  if (!s.rivals[who]?.alive) return;
-  s.news.push(`${HQS[who].boss} phones the Corner: "${text}"`);
-}
 
 /** Whoever outbids a rival earns its Grudge (spec: Grudge rises when that faction outbids them), Lottie or another rival. */
 export function outbid(s: GameState, loser: RivalId, winner: FactionId): void {
@@ -267,7 +259,7 @@ function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
   if (ps.stand) ps.stand.price = rivalPrice(id, ps.stand.level, PLOT_BY_ID[plotId]);
   if (bids.some((b) => b.who === 'player')) {
     s.news.push(`Skip Larkin: "Outbid on ${name}. ${FACTIONS[id].name} went to ${money(win.amount)}."`);
-    if (id === 'fizzco') bossCall(s, 'fizzco', PRESTON_OUTBID);
+    if (id === 'fizzco') phoneCall(s, 'fizzco', PRESTON_OUTBID, { mood: 'gloat' }); // Preston rings the Corner (src/sim/phone.ts)
   } else res.taken.push(`${FACTIONS[id].name} take ${name} for ${money(win.amount)}`);
 }
 
@@ -377,6 +369,6 @@ function settlePage(s: GameState, rng: Rng): void {
   const hangs = `It hangs in ${hqPlot(id).name} till they fall.`;
   if (bids.some((b) => b.who === 'player')) {
     s.news.push(`Skip Larkin: "Outbid on the Lavender page. ${FACTIONS[id].name} went to ${money(win.amount)}. ${hangs}"`);
-    if (id === 'fizzco') bossCall(s, 'fizzco', PRESTON_OUTBID);
+    if (id === 'fizzco') phoneCall(s, 'fizzco', PRESTON_OUTBID, { mood: 'gloat' }); // Preston rings the Corner (src/sim/phone.ts)
   } else s.news.push(`Skip Larkin: "Gavel's down: ${FACTIONS[id].name} take the Lavender page for ${money(win.amount)}. ${hangs}"`);
 }

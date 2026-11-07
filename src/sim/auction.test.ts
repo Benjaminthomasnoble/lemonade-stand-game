@@ -5,6 +5,7 @@ import {
   sleepUntilDawn, unlistPlot, withdrawBid,
   type DistrictId, type GameState, type Guard, type Order, type RivalId,
 } from './economy.ts';
+import { takeCall } from './phone.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -64,7 +65,8 @@ describe('sealed-bid auctions', () => {
     const paid = theirs - s.rivals.fizzco.cash;
     expect(paid).toBeGreaterThan(2000 * 1.25); // at least +27% on its home turf
     expect(paid).toBeLessThanOrEqual(2000 * 1.81);
-    expect(s.news).toContain(`Preston Fizzwell III phones the Corner: "${PRESTON_OUTBID}"`);
+    expect(s.news.some((n) => n.includes('phones the Corner'))).toBe(false); // the phone rings, not the Bugle
+    expect(takeCall(s)).toMatchObject({ who: 'fizzco', text: PRESTON_OUTBID, mood: 'gloat' });
     expect(PRESTON_OUTBID).toBe("Hold, please. I'm on the other line, buying your street.");
   });
 
@@ -81,7 +83,7 @@ describe('sealed-bid auctions', () => {
     const line = s.news.find((n) => n.startsWith('Skip Larkin: "Gavel\'s down.'))!;
     expect(line).toContain(`FizzCo Beverages take ${PLOTS.find((p) => p.id === id)!.name} for $`);
     expect(line).toContain(`No bids on ${far.name}: back For Sale at land value`);
-    expect(s.news.some((n) => n.startsWith('Preston'))).toBe(false); // he only gloats when he beats your bid
+    expect(s.phone?.queue ?? []).toEqual([]); // Preston only gloats when he beats your bid
   });
 
   it('an outbid rival holds a Grudge toward the winner, Lottie or another rival', () => {
@@ -462,7 +464,7 @@ describe('the Lavender page auction', () => {
     expect(s.lavender!.paid).toBeGreaterThan(LAVENDER.open);
     expect(s.rivals.fizzco.cash).toBe(5e6 - s.lavender!.paid!);
     expect(s.news.some((n) => n.startsWith('Skip Larkin: "Outbid on the Lavender page') && n.includes('It hangs in FizzCo Tower till they fall.'))).toBe(true);
-    expect(s.news).toContain(`Preston Fizzwell III phones the Corner: "${PRESTON_OUTBID}"`);
+    expect(s.phone!.queue).toContainEqual(expect.objectContaining({ who: 'fizzco', text: PRESTON_OUTBID, mood: 'gloat' }));
     openLavender(s);
     expect(s.lavender?.auction).toBeUndefined();
     eliminate(s, 'fizzco', 'buyout');

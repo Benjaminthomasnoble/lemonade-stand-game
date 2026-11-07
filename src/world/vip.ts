@@ -1,14 +1,15 @@
 // Pickup moments (canon section 15): a VIP chopper lands on your helipad or
 // a ship ties up at your pier, loads, and leaves. Purely visual: the sim has
 // already paid out by the time this plays.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { PLAYER_COLOR } from '../sim/economy.ts';
+import { clayFrom } from './clay/kit.ts';
 import type { PlotView } from './bay.ts';
 
 const mats = new Map<number, THREE.MeshStandardMaterial>();
 const m = (c: number, rough = 0.5, metal = 0.2) => {
   let x = mats.get(c);
-  if (!x) { x = new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: metal }); mats.set(c, x); }
+  if (!x) { x = clayFrom(c, rough, 0, metal); mats.set(c, x); }
   return x;
 };
 function add(g: THREE.Object3D, geo: THREE.BufferGeometry, c: number, x: number, y: number, z: number) {

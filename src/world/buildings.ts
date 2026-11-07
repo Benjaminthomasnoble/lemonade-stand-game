@@ -1,14 +1,15 @@
 // Code-built buildings for non-player plots: rival stands in faction
 // colors, rival HQs, civic buildings, fields, piers and FOR SALE signs.
 // Local frame: the street is toward +z; the plot spans z -7.5..2.5.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { FACTIONS, PLAYER_COLOR, type RivalId } from '../sim/economy.ts';
+import { clayFrom } from './clay/kit.ts';
 
 const mats = new Map<string, THREE.MeshStandardMaterial>();
 function m(color: number, roughness = 0.8, emissive = 0) {
   const k = `${color}|${roughness}|${emissive}`;
   let x = mats.get(k);
-  if (!x) { x = new THREE.MeshStandardMaterial({ color, roughness, emissive }); mats.set(k, x); }
+  if (!x) { x = clayFrom(color, roughness, emissive); mats.set(k, x); }
   return x;
 }
 function box(g: THREE.Group, w: number, h: number, d: number, color: number, x: number, y: number, z: number, rough = 0.8) {

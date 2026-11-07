@@ -2,7 +2,7 @@
 // One shared mechanism for everything that talks: customers' reactions,
 // Lottie's lines, Dex and the bosses' barks. The words and icons come from
 // the caller; this module only places, pops and retires the bubbles.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { emoteUrl, type Emote } from '../ui/emotes.ts';
 
 export type BubbleKind = 'speech' | 'thought';

@@ -2,7 +2,7 @@
 // He flies forward on his own; you steer. Keys: A/D or arrows turn, W/S
 // climb and dive, Shift for a burst of flapping, Esc or G lands. On touch,
 // drag left and right to steer. The tycoon camera comes back where it was.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BOUNDS } from './scene.ts';
 

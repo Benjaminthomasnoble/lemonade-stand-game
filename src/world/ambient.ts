@@ -3,14 +3,15 @@
 // circling Lottie's Corner (and stealing a lemon now and then), gulls over
 // the bay and a dog chasing a ball on Maple Row. All of it is presentation:
 // it reads the game state and never changes it.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { FACTIONS, type RivalId } from '../sim/balance.ts';
 import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import { threatLevel } from '../sim/crew.ts';
 import type { PlotView } from './bay.ts';
 import { hopPose, idlePose, makePerson, MOTION } from './people.ts';
+import { clayFrom } from './clay/kit.ts';
 
-const mat = (color: number, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
+const mat = (color: number, roughness = 0.8) => clayFrom(color, roughness);
 
 /** Only bother near what the camera looks at. */
 const NEAR = 42;

@@ -1,9 +1,10 @@
 // Lottie's Corner: the stand (built per level), the grandkid behind it and
 // Grandma Lottie in her lawn chair. L1 is the Folding Table; L2's striped
 // wooden booth is ready for milestone 2.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { idlePose, MOTION, makePerson } from './people.ts';
 import { kiosk, palace, shack } from './standLevels.ts';
+import { clayFrom } from './clay/kit.ts';
 
 export interface Stand {
   group: THREE.Group;
@@ -25,7 +26,7 @@ export interface Stand {
 
 export type LottieReaction = 'cheer' | 'fist';
 
-const mat = (color: number, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness });
+const mat = (color: number, roughness = 0.85) => clayFrom(color, roughness); // clay (art thread)
 
 function shadowy<T extends THREE.Mesh>(m: T): T { m.castShadow = true; m.receiveShadow = true; return m; }
 

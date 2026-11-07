@@ -3,11 +3,12 @@
 // is a tiny timeline: someone walks on, does a thing, says a line, walks off.
 // Which scenes a run has seen is kept per run in localStorage, so the saved
 // game's shape doesn't change.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { FACTIONS } from '../sim/balance.ts';
 import { LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
 import { hopPose, idlePose, makePerson } from './people.ts';
+import { clayFrom } from './clay/kit.ts';
 
 export type SceneId = 'steward' | 'dex';
 
@@ -54,7 +55,7 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
       const f = FACTIONS.sourwood;
       actor = makePerson(f.color, f.accent);
       // A bowler hat: Sourwood's Stewards read by silhouette.
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.03, 16), new THREE.MeshStandardMaterial({ color: 0x23214a }));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.03, 16), clayFrom(0x23214a));
       const crown = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), brim.material);
       brim.position.y = 1.6; crown.position.y = 1.6;
       actor.add(brim, crown);

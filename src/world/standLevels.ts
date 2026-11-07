@@ -1,11 +1,12 @@
 // Stand models for levels 3 to 5 (spec section 8 visual identity), built
 // from simple shapes. Each returns a group plus where the counter top is
 // (props sit there) and where the price sign hangs.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
+import { clayFrom } from './clay/kit.ts';
 
 export interface LevelModel { group: THREE.Group; surfaceY: number; sign: THREE.Vector3; spin?: THREE.Object3D }
 
-const mat = (color: number, roughness = 0.8, emissive = 0) => new THREE.MeshStandardMaterial({ color, roughness, emissive });
+const mat = (color: number, roughness = 0.8, emissive = 0) => clayFrom(color, roughness, emissive);
 function add(g: THREE.Group, geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) {
   const mesh = new THREE.Mesh(geo, m);
   mesh.position.set(x, y, z);

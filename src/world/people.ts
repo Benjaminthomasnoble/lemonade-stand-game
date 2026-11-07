@@ -3,7 +3,8 @@
 // they arrive so the HUD can pop "+50¢" over their heads. Everyone hops as
 // they walk and squashes when they land; a buyer leaves with a cup and
 // takes a sip a few steps later.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
+import { clayPlain } from './clay/kit.ts';
 
 const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
 const SHIRTS = [0xe63946, 0x457b9d, 0x2a9d8f, 0xf4a261, 0x9b5de5, 0xffbe0b, 0x06d6a0, 0xef476f];
@@ -17,7 +18,7 @@ limbGeo.translate(0, -0.24, 0); // pivot at the hip/shoulder
 const materials = new Map<number, THREE.MeshStandardMaterial>();
 function m(color: number) {
   let mm = materials.get(color);
-  if (!mm) { mm = new THREE.MeshStandardMaterial({ color, roughness: 0.8 }); materials.set(color, mm); }
+  if (!mm) { mm = clayPlain(color, { family: 'fig' }); materials.set(color, mm); }
   return mm;
 }
 

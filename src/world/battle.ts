@@ -2,10 +2,11 @@
 // at the plot. The sim already decided everything; this only moves people:
 // the raiders march in from the street, chop the fence, brawl, and either
 // wreck the stand or limp home.
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import { FACTIONS, PLAYER_COLOR, type BattleReport, type Fighter, type RivalId } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
 import { makePerson } from './people.ts';
+import { clayPlain, GLOSS, PAPER } from './clay/kit.ts';
 
 type Pop = (pos: THREE.Vector3, text: string, kind: 'sale' | 'miss') => void;
 
@@ -23,9 +24,9 @@ const APPROACH = 3.5; // seconds of marching before the timeline starts
 const PLAY_SPEED = 1.5;
 const LINGER = 2.5;
 
-const toolMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
-const tapeMat = new THREE.MeshStandardMaterial({ color: 0xf6d33c, roughness: 0.6 });
-const bladeMat = new THREE.MeshStandardMaterial({ color: 0xb8c2cc, roughness: 0.3, metalness: 0.6 });
+const toolMat = clayPlain(0x8b5a2b, { fx: PAPER });
+const tapeMat = clayPlain(0xf6d33c);
+const bladeMat = clayPlain(0xb8c2cc, { fx: GLOSS });
 
 function weapon(kind: Fighter['weapon']): THREE.Object3D | null {
   if (kind === 'fists') return null;

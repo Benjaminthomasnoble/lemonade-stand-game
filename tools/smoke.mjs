@@ -8,8 +8,10 @@ import { mkdirSync } from 'node:fs';
 const PORT = 4173;
 const base = process.env.SMOKE_URL ?? `http://localhost:${PORT}/`;
 mkdirSync('test-results', { recursive: true });
-const server = process.env.SMOKE_URL ? null : spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--base', '/'], { stdio: 'ignore' });
-const fail = (msg) => { console.error('SMOKE FAIL:', msg); server?.kill(); process.exit(1); };
+// Detached, so stopping its process group also stops the vite child that npx starts (a stray server would serve the next run).
+const server = process.env.SMOKE_URL ? null : spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--base', '/'], { stdio: 'ignore', detached: true });
+const stopServer = () => { if (server) try { process.kill(-server.pid, 'SIGTERM'); } catch { server.kill(); } };
+const fail = (msg) => { console.error('SMOKE FAIL:', msg); stopServer(); process.exit(1); };
 
 try {
   for (let i = 0; i < 50; i++) {
@@ -17,6 +19,8 @@ try {
   }
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // Software WebGL with the clay HUD can take many seconds a frame on a busy container: give screenshots room.
+  page.setDefaultTimeout(180000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -221,4 +225,4 @@ try {
 } catch (e) {
   fail(e);
 }
-server?.kill();
+stopServer();

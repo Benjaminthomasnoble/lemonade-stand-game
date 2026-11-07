@@ -1,6 +1,6 @@
 import './style.css';
 import './screens.css';
-import * as THREE from 'three/webgpu';
+import * as THREE from 'three';
 import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   REAL_SECONDS_PER_MINUTE, runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
@@ -16,7 +16,7 @@ import { createVip } from './world/vip.ts';
 import { bySea, incomingRaids, isVip } from './sim/economy.ts';
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
-import { createWorld } from './world/scene.ts';
+import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
@@ -293,7 +293,7 @@ async function main() {
       case 'inspect': hud.inspected = a.plot; break;
       case 'buyPlot': buyPlot(state, a.plot); break;
       case 'build': buildStand(state, a.plot); break;
-      case 'view': if (a.target === 'home') focusPlot(state.selected); else world.focus(40, -15, 285); break;
+      case 'view': if (a.target === 'home') focusPlot(state.selected); else world.focus(BAY_VIEW.x, BAY_VIEW.z, BAY_VIEW.distance); break;
       case 'perimeter': buyPerimeter(state, a.plot); break;
       case 'gadget': buyGadget(state, a.plot, a.id); break;
       case 'repairFence': repairFence(state, a.plot); break;
@@ -394,6 +394,10 @@ async function main() {
     get state() { return state; },
     act,
     backend: world.backend,
+    quality: world.quality,
+    renderStats: () => world.stats(),
+    world,
+    view: (x: number, z: number, distance: number) => world.focus(x, z, distance),
     crowd: () => crowd.activeCount(),
     bubbles: () => bubbles.count(),
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
@@ -418,7 +422,8 @@ async function main() {
   const timer = new THREE.Timer();
   world.renderer.setAnimationLoop(() => {
     timer.update();
-    const dt = Math.min(timer.getDelta(), 0.1);
+    const realDt = timer.getDelta();
+    const dt = Math.min(realDt, 0.1);
     if (state.phase === 'open' && speed > 0) {
       acc += dt * speed;
       let guard = 0;
@@ -430,11 +435,12 @@ async function main() {
     }
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
+    world.setClock(state.phase, state.minute);
     bay.update(state, timer.getElapsed(), phone.ringing());
     crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
-    vip.update(dt);
+    vip.update(Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
     ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');
@@ -449,7 +455,7 @@ async function main() {
       l.el.style.display = show ? '' : 'none';
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }
-    world.renderer.render(world.scene, world.camera);
+    world.render();
     if (snapReq) {
       try { bugle.offer({ url: canvas.toDataURL('image/jpeg', 0.7), ...snapReq, day: state.day }); } catch { /* tainted or lost canvas: no photo today */ }
       snapReq = null;

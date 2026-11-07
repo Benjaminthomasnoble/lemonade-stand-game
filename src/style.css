@@ -149,3 +149,13 @@ body.gull-flight #goals, body.gull-flight #plotcard { display: none; }
 #ui .clay .cl-short svg { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
 body.gull-flight .cl-sticky, body.gull-flight .cl-plot { display: none; }
 #ui .gullbtn { bottom: calc(var(--u) * 7.5); font-family: Fredoka, system-ui, sans-serif; }
+/* Phones: the dock fills the bottom, so the gull flies up to the right edge as a
+   round icon above the corner buttons' column (which moves to top: u*22 there). */
+@media (max-width: 640px) {
+  #ui .gullbtn {
+    bottom: auto; top: calc(var(--u) * 15.5); right: calc(var(--u) * 1.8);
+    width: calc(var(--u) * 5.4); height: calc(var(--u) * 5.4); min-width: 34px; min-height: 34px;
+    padding: 0; justify-content: center; border-radius: 50%;
+  }
+  #ui .gullbtn .lbl { display: none; }
+}

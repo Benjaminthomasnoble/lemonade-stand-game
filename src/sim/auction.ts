@@ -9,7 +9,8 @@ import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
-import { familySilver, HQS } from './rivals.ts';
+import { FIRE_SALE, familySilver, HQS } from './rivals.ts';
+import { NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
 
@@ -33,6 +34,26 @@ export const bidStrength = (id: RivalId) => AUCTION.push[id];
 export const bidCost = (s: GameState, amount: number) => Math.round(amount * familySilver(s));
 
 export const auctionPlots = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].auction);
+
+/**
+ * Elimination: every plot the rival held goes to a Fire Sale, cleared of its
+ * buildings. Lottie has First Dibs at 75% of land value for 2 days; then each
+ * unsold plot opens a 24-hour auction to the factions still in the game.
+ */
+export function startFireSale(s: GameState, id: RivalId): void {
+  let sale = 0;
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (ps.owner !== id) continue;
+    if (p.type === 'hq') { s.plots[p.id] = { ...ps, owner: null, garrison: 0 }; continue; }
+    s.plots[p.id] = {
+      owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(),
+      dibs: { who: 'player', until: s.day + FIRE_SALE.days - 1, price: Math.round(ps.landValue * FIRE_SALE.share) },
+    };
+    sale++;
+  }
+  if (sale) s.news.push(`FIRE SALE: ${sale} ${FACTIONS[id].name} plot${sale === 1 ? '' : 's'} at 25% off. Lottie has First Dibs for ${FIRE_SALE.days} days, then they go to auction.`);
+}
 
 /** Open a 24-hour sealed-bid auction on a plot, bids from its land value (any First Dibs is over). */
 export function openAuction(s: GameState, plotId: string, kind: AuctionKind): void {

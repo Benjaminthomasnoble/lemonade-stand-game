@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bidGuess, bidSteps, canBid, canBuyPlot, closeAuctions, FACTIONS, hqPlot, newGame, openAuction, placeBid, PLOTS, sleepUntilDawn,
-  withdrawBid, type DistrictId, type GameState, type RivalId,
+  bidGuess, bidSteps, canBid, canBuyPlot, closeAuctions, eliminate, FACTIONS, hqPlot, newGame, newStand, NO_DEFENSE, offerSideLot,
+  openAuction, ownedPlots, placeBid, PLOTS, sleepUntilDawn, withdrawBid, type DistrictId, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -126,5 +126,89 @@ describe('sealed-bid auctions', () => {
     expect(withdrawBid(s, id)).toBe(true);
     expect(s.plots[id].auction!.bid).toBeUndefined();
     expect(canBid(s, id, 2e6)).toEqual({ ok: false, why: 'Needs $2,000,000 on hand at dawn' });
+  });
+});
+
+describe('knock it down, buy it up: First Dibs, then the auction', () => {
+  it('a rival plot you smashed: First Dibs for the day, then a 24-hour auction, then back to the Registry', () => {
+    const s = newGame(50);
+    const plot = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    const ps = s.plots[plot.id];
+    ps.stand!.wrecked = true;
+    ps.wreckedDay = s.day;
+    ps.smashedBy = 'player';
+    purse(s, {}); // nobody can rebuild or bid
+    dawn(s);
+    expect(s.plots[plot.id].owner).toBeNull();
+    expect(s.plots[plot.id].dibs).toEqual({ who: 'player', until: s.day });
+    expect(s.plots[plot.id].auction).toBeUndefined();
+    dawn(s); // First Dibs unused
+    expect(s.plots[plot.id].dibs).toBeUndefined();
+    expect(s.plots[plot.id].auction).toEqual({ kind: 'sale', closes: s.day + 1, min: s.plots[plot.id].landValue });
+    expect(s.news.some((n) => n.includes(`${plot.name} goes to sealed bids today`))).toBe(true);
+    dawn(s); // no bids
+    expect(s.plots[plot.id].auction).toBeUndefined();
+    expect(s.plots[plot.id].owner).toBeNull();
+  });
+
+  it("your lapsed plot goes straight to auction when the rival that smashed it can't pay for First Dibs", () => {
+    const s = newGame(52);
+    const lot = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[lot.id] = { owner: 'player', stand: newStand(1), invested: 150, landValue: s.plots[lot.id].landValue, defense: NO_DEFENSE() };
+    s.plots[lot.id].stand!.wrecked = true;
+    s.plots[lot.id].wreckedDay = s.day;
+    s.plots[lot.id].smashedBy = 'blenders';
+    const guard: Guard = { id: 'gt', name: 'Test Guard', trait: 'Loyal', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: lot.id, outUntil: 0, fee: 0 };
+    s.guards.push(guard);
+    purse(s, {});
+    s.cash = 5000;
+    dawn(s);
+    expect(s.plots[lot.id].owner).toBe('player'); // still a day to rebuild
+    dawn(s);
+    expect(s.plots[lot.id].owner).toBeNull();
+    expect(s.plots[lot.id].auction).toMatchObject({ kind: 'sale', closes: s.day + 1 });
+    expect(guard.post).toBeNull(); // back to the Clubhouse
+    expect(s.news.some((n) => n.includes(`${lot.name} goes to sealed bids today`))).toBe(true);
+    expect(placeBid(s, lot.id, s.plots[lot.id].auction!.min)).toBe(true); // win it back
+    dawn(s);
+    expect(s.plots[lot.id].owner).toBe('player');
+  });
+
+  it('Fire Sale: 2 days of First Dibs at 75%, then each unsold plot goes to auction among the rivals still in', () => {
+    const s = newGame(51);
+    const theirs = ownedPlots(s, 'blenders').filter((p) => p.type !== 'hq');
+    eliminate(s, 'blenders', 'bankrupt');
+    const one = theirs[0];
+    expect(s.plots[one.id].dibs).toEqual({ who: 'player', until: s.day + 1, price: Math.round(s.plots[one.id].landValue * 0.75) });
+    expect(s.plots[one.id].stand).toBeNull(); // cleared of buildings
+    expect(s.news.some((n) => n.startsWith('FIRE SALE') && n.endsWith('then they go to auction.'))).toBe(true);
+    dawn(s);
+    expect(s.plots[one.id].dibs).toBeTruthy();
+    expect(s.plots[one.id].auction).toBeUndefined();
+    dawn(s);
+    expect(s.plots[one.id].auction).toEqual({ kind: 'fire', closes: s.day + 1, min: s.plots[one.id].landValue });
+    expect(canBuyPlot(s, one.id).ok).toBe(false);
+    dawn(s);
+    for (const p of theirs) {
+      expect(s.plots[p.id].auction).toBeUndefined();
+      expect(s.plots[p.id].owner).not.toBe('blenders');
+    }
+  });
+
+  it("rivals shopping at dawn leave First Dibs plots alone, and Lottie's side-lot offer just ends", () => {
+    const s = newGame(53);
+    const best = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner).sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
+    s.plots[best.id].dibs = { who: 'player', until: s.day + 8 };
+    purse(s, { fizzco: 5e6, sourwood: 5e6, hollis: 5e6, coldbrew: 5e6, blenders: 5e6 });
+    s.day = 4; // rivals start buying land after Day 3
+    for (let i = 0; i < 6; i++) dawn(s);
+    expect(s.plots[best.id].owner).toBeNull();
+    const t = newGame(54);
+    t.day = 3;
+    offerSideLot(t);
+    const lot = PLOTS.find((p) => t.plots[p.id].dibs?.table)!;
+    for (let i = 0; i < 7; i++) dawn(t);
+    expect(t.plots[lot.id].dibs).toBeUndefined();
+    expect(t.plots[lot.id].auction).toBeUndefined();
   });
 });

@@ -4,10 +4,11 @@
 // damage is the late-game Hurricane's seam too). A Damaged stand stays open and pours its HP share of its cups an hour
 // until a repair, approved by the end of the Evening and paid on approval, puts it back to full HP at dawn. Wrecked
 // rebuilds and Busted fixes join the same overnight queue: the building stays closed for the rest of the day and opens
-// at dawn as good as new, so a stand smashed at night misses a day of sales. An unrebuilt plot lapses For Sale. Rebuilds
-// and repairs cost a share of what went into the building itself: a stand's level steps or a facility's tiers, never
-// the plot's fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's
-// rebuild) takes the dawn's rng.
+// at dawn as good as new, so a stand smashed at night misses a day of sales. An unrebuilt plot lapses: For Sale with
+// First Dibs for whoever smashed it, then a 24-hour sealed-bid auction, then back to the Registry. Rebuilds and repairs
+// cost a share of what went into the building itself: a stand's level steps or a facility's tiers, never the plot's
+// fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes
+// the dawn's rng.
 import {
   AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, STORM_DAMAGE,
   type RivalId,
@@ -19,6 +20,8 @@ import { alert } from './alerts.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
+import { openAuction } from './auction.ts';
+import { announceControl } from './land.ts';
 import { canSpend, spend } from './rivalAi.ts';
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
@@ -250,19 +253,28 @@ function rebuilt(ps: PlotState): void {
   delete ps.busted;
 }
 
+const listed = (list: Plot[]) => (list.length <= 2 ? list.map((p) => p.name).join(' and ') : `${list.length} plots`);
+
 /**
- * Dawn, after the night's work is done (damageAtDawn): First Dibs runs out, and each Wrecked plot with no rebuild booked
- * faces Knock it down, buy it up. Yours has until the end of the day after the smash to book one (Busted ones never
- * lapse). A rival decides the morning after: if its Grow money covers the bill and its personality says so, it books
- * the rebuild (closed today, open tomorrow); otherwise the plot goes For Sale, with First Dibs for whoever smashed it.
+ * Dawn, after the night's work is done (damageAtDawn): unused First Dibs after a Smash or a Fire Sale goes to a 24-hour
+ * sealed-bid auction (auction.ts), and each Wrecked plot with no rebuild booked faces Knock it down, buy it up. Yours
+ * has until the end of the day after the smash to book one (Busted ones never lapse). A rival decides the morning
+ * after: if its Grow money covers the bill and its personality says so, it books the rebuild (closed today, open
+ * tomorrow); otherwise the plot goes For Sale, with First Dibs for whoever smashed it.
  */
 export function plotsAtDawn(s: GameState, rng: Rng): void {
+  const toAuction: Plot[] = [];
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (ps.dibs && ps.dibs.until < s.day) delete ps.dibs;
+    if (ps.dibs && ps.dibs.until < s.day) {
+      const lapsed = ps.dibs;
+      delete ps.dibs;
+      // Unused First Dibs after a Smash or a Fire Sale: a sealed-bid auction. Lottie's side-lot offer just ends.
+      if (!lapsed.table && !ps.owner) { openAuction(s, p.id, lapsed.price !== undefined ? 'fire' : 'sale'); if (lapsed.who === 'player') toAuction.push(p); }
+    }
     if (!ps.owner || !isWrecked(ps) || rebuilding(ps)) continue;
     if (ps.owner === 'player') {
-      if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(s, p); // Busted stands wait for their fix
+      if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(s, p, toAuction); // Busted stands wait for their fix
       continue;
     }
     const owner = ps.owner as RivalId;
@@ -271,14 +283,18 @@ export function plotsAtDawn(s: GameState, rng: Rng): void {
       spend(s, owner, 'grow', cost); // a rival rebuild is Grow money (rivalAi.ts)
       ps.repair = { by: owner, cost, hp: standingHp(ps), rebuild: true };
       if (ps.smashedBy === 'player') s.news.push(`${FACTIONS[owner].name} rebuild ${p.name} tonight: it opens again tomorrow.`);
-    } else forSale(s, p);
+    } else forSale(s, p, toAuction);
   }
+  if (toAuction.length) s.news.push(`Skip Larkin: "${listed(toAuction)} ${toAuction.length === 1 ? 'goes' : 'go'} to sealed bids today, opening at land value. Bids close at dawn."`);
+  announceControl(s);
 }
 
-/** A Wrecked plot nobody rebuilt goes For Sale: whoever smashed it has First Dibs today (a rival buys at once if it can). */
-function forSale(s: GameState, p: Plot): void {
+/** A Wrecked plot nobody rebuilt goes For Sale: whoever smashed it has First Dibs today. A rival buys at once if it
+ * can; if it can't, the plot goes straight to auction. */
+function forSale(s: GameState, p: Plot, toAuction: Plot[]): void {
   const ps = s.plots[p.id];
   const smasher = ps.smashedBy ?? 'player';
+  if (ps.owner === 'player') for (const g of s.guards) if (g.post === p.id) g.post = null; // back to the Clubhouse
   s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: smasher, until: s.day } };
   if (smasher === 'player') { s.news.push(`${p.name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
   const r = s.rivals[smasher as RivalId];
@@ -287,8 +303,8 @@ function forSale(s: GameState, p: Plot): void {
     s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
     if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${p.name} after Lottie couldn't rebuild.`);
   } else {
-    delete s.plots[p.id].dibs;
-    if (ps.owner === 'player') s.news.push(`${p.name} lapses and goes For Sale.`);
+    openAuction(s, p.id, 'sale');
+    if (ps.owner === 'player') toAuction.push(p);
   }
 }
 

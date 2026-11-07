@@ -421,13 +421,13 @@ export function growUpgrades(s: GameState, id: RivalId): void {
   }
 }
 
-/** Some dawns a rival with the Grow money buys the busiest open street or prime plot near its turf and opens a stand. Maple Row is left to the player; First Dibs is respected. */
+/** Some dawns a rival with the Grow money buys the busiest open street or prime plot near its turf and opens a stand. Maple Row is left to the player; First Dibs and auctions are respected. */
 export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (s.day <= 3 || nextRandom(rng) >= RIVAL_LAND_CHANCE) return;
   const f = FACTIONS[id];
   const open = (plotId: string) => {
     const ps = s.plots[plotId];
-    return !ps.owner && !ps.auction && !(ps.dibs && ps.dibs.who !== id && ps.dibs.until >= s.day) && !landFrozen(s, plotId); // land: a plot on the block takes sealed bids only
+    return !ps.owner && !ps.auction && !ps.dibs && !landFrozen(s, plotId); // land: First Dibs, then a sealed-bid auction (auction.ts); never off the shelf meanwhile
   };
   const targets = PLOTS.filter((p) => open(p.id) && (p.type === 'street' || p.type === 'prime')
     && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');

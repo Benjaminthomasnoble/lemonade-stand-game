@@ -2,7 +2,7 @@
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
-import { creditGuards, henchmanFor, NO_DEFENSE, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport } from './crew.ts';
+import { creditGuards, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -14,6 +14,7 @@ import { bossExit } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
+import { startFireSale } from './auction.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -345,18 +346,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   recoverPage(s, id); // world: their recipe page comes home, on every route
   retireJingle(s, id); // world: 101.5 retires their jingle with a second of silence
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)
-  let sale = 0;
-  for (const p of PLOTS) {
-    const ps = s.plots[p.id];
-    if (ps.owner !== id) continue;
-    if (p.type === 'hq') { s.plots[p.id] = { ...ps, owner: null, garrison: 0 }; continue; }
-    s.plots[p.id] = {
-      owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(),
-      dibs: { who: 'player', until: s.day + FIRE_SALE.days - 1, price: Math.round(ps.landValue * FIRE_SALE.share) },
-    };
-    sale++;
-  }
-  if (sale) s.news.push(`FIRE SALE: ${sale} ${FACTIONS[id].name} plot${sale === 1 ? '' : 's'} at 25% off. Lottie has First Dibs for ${FIRE_SALE.days} days.`);
+  startFireSale(s, id);
   checkVictory(s);
 }
 

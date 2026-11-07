@@ -19,7 +19,7 @@ import { bottleValue, groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type F
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
-import { crewAtDawn, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
+import { crewAtDawn, isSpoiled, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -94,6 +94,7 @@ export interface Stand {
   hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
   lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)
+  spoiledDay?: number; // a Sabotage spoiled the stock: no sales this day
 }
 
 export interface PlotState {
@@ -512,7 +513,7 @@ export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, 
 
 export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.weather): number {
   const ps = s.plots[plotId];
-  if (!ps.stand || ps.stand.wrecked) return 0;
+  if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps)) return 0;
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand, plotId)
     * seasonDemand(s, plotId) * WEATHER[w.kind].traffic * eventTraffic(s, plotId); // world: Viral Video, Parade, Roadworks...
 }
@@ -685,7 +686,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   holdStreets(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (!ps.stand || ps.stand.wrecked) continue;
+    if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps)) continue;
     drainQueue(s, p.id);
     const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx] * lunchRush(s, p.id, 8 + hourIdx)) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);

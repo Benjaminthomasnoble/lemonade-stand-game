@@ -9,7 +9,7 @@ import {
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   PERIMETERS, SQUAD_CAP, threatLevel,
-  type GadgetId, type GearId, type Objective, type Specialty, type WeaponId,
+  type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId, isSpoiled,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
@@ -82,7 +82,7 @@ export type Action =
   | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
   | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
   | { type: 'bell'; raid: string } // Ring the Bell: the Clubhouse reserve in range sets out (warning card, fight bar)
-  | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
+  | { type: 'raid'; plot: string; guards: string[]; objective: RaidObjective; when: 'now' | 'tonight' }
   | { type: 'scout'; id: string; plot: string }
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
@@ -501,6 +501,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
     }
+    if (isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket red" title="A Sabotage ruined the stock: this stand sells nothing today">${ART.sour()}<b>Stock spoiled: closed today</b></div>`);
     t.push(...calendarTickets(s));
     if (s.today.lemonsSpoiled) t.push(`<div class="cl-ticket">${ART.lemon()}<b>${s.today.lemonsSpoiled} lemons went bad</b></div>`);
     for (const o of s.offers) {
@@ -513,7 +514,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     const servings = servingsAvailable(st);
-    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market')) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
+    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
   }
 
@@ -693,12 +694,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function fightLine(b: GameState['battles'][number]) {
     const where = PLOT_BY_ID[b.target].name;
     const who = (f: string) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
-    const verb = { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
+    const verb = b.sabotage ? (b.outcome === 'robbed' ? 'stock spoiled' : 'no time to spoil the stock') : { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
     if (b.hq) return b.outcome === 'repelled' ? `HQ assault on ${where}: stalled at the ${b.hq}` : `HQ assault on ${where}: captured!`;
     return b.attacker === 'player' ? `Your raid on ${where}: ${b.outcome === 'repelled' ? 'beaten back' : verb}` : `${who(b.attacker)} hit ${where}: ${b.outcome === 'repelled' ? 'you held them off!' : verb}`;
   }
   function fightShort(b: GameState['battles'][number]) {
     if (b.hq) return b.outcome === 'repelled' ? 'HQ held out' : 'HQ captured!';
+    if (b.sabotage) return b.outcome === 'robbed' ? (b.attacker === 'player' ? 'Spoiled their stock!' : 'Stock spoiled!') : b.attacker === 'player' ? 'Sabotage foiled' : 'Stock saved!';
     if (b.attacker === 'player') return b.outcome === 'repelled' ? 'Raid beaten back' : b.outcome === 'robbed' ? `Grabbed ${whole(b.loot)}` : 'Raid: smashed it!';
     return b.outcome === 'repelled' ? 'You held them off!' : b.outcome === 'robbed' ? `Robbed: ${whole(b.loot)}` : 'They hit you!';
   }

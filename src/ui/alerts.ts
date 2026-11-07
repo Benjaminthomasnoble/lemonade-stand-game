@@ -39,7 +39,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const them = seen ? `${r.objective === 'smash' ? ICON.boom() : ICON.bag()}${r.party!.slice(0, 6).map((f) => ICON.weapon(f.weapon)).join('')}${r.party!.length > 6 ? `<i>+${r.party!.length - 6}</i>` : ''}` : '';
   const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length;
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
-  const after = r.delivery ? 'the cargo' : r.objective === 'smash' ? 'a smash' : 'the till';
+  const after = r.delivery ? 'the cargo' : r.sabotage ? 'the stock' : r.objective === 'smash' ? 'a smash' : 'the till'; // crew: Sabotage spoils the stock
   const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
   // The one action: Ring the Bell while a reserve is in range (then when help gets there), else a fence.
   const next = PERIMETERS[ps.defense.tier];

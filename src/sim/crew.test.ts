@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, buyGadget, buyPerimeter, canBuyGadget, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
   payCrew, planRaid, PLOTS, promote,
-  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex,
-  type BattleReport, type GameState,
+  expectedPassersby, raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, servingsAvailable, simulateRestOfDay, sleepUntilDawn,
+  threatLevel, tickMinute, welcomeDex, type GameState,
 } from './economy.ts';
 import {
   availableRaiders, canPost, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
+  canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, squadFighters, strongholdTravelMult, towerCovers,
+  type BattleReport, type Guard, type Raid,
 } from './crew.ts';
 import { CLOSE, GUARD_BASE, PERIMETERS } from './balance.ts';
 import type { Fighter } from './combat.ts';
@@ -698,5 +699,131 @@ describe('rival plot defenses', () => {
     const report = fightRaid(s, { id: 'r1', attacker: 'player', target: id, objective: 'shakedown', guards: [s.guards[0].id], detected: false, eta: '01:00' }, true);
     expect(report.defenders).toHaveLength(3);
     expect(report.defenders.every((f) => f.weapon === 'clubs' && f.hp === GUARD_BASE.hp && f.armor === 0)).toBe(true);
+  });
+});
+
+describe('Sabotage', () => {
+  const saboteurs = (seed: number) => {
+    const s = newGame(seed);
+    s.rank = 4;
+    s.cash = 5000;
+    welcomeDex(s);
+    s.guards.push({ id: 'sn', name: 'Sly Sneak', trait: 'Sneaky', level: 3, xp: 0, weapon: 'clubs', gear: 'vest', post: null, outUntil: 0, fee: 0 });
+    for (let i = 0; i < 3; i++) s.guards.push({ id: `m${i}`, name: `Muscle ${i}`, trait: 'Tough Cookie', level: 3, xp: 0, weapon: 'clubs', gear: 'vest', post: null, outUntil: 0, fee: 0 });
+    const target = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
+    s.plots[target].defense = { tier: 0, fenceHp: 0, gadgets: [] };
+    s.plots[target].garrison = 0;
+    return { s, target, muscle: ['m0', 'm1', 'm2'] };
+  };
+
+  it('opens at Rank 4, needs a stand and a Lookout or a Sneaky guard, and costs 0.1 star by day', () => {
+    const { s, target, muscle } = saboteurs(120);
+    s.rank = 3;
+    expect(canRaid(s, target, ['sn'], 'sabotage')).toEqual({ ok: false, why: 'Sabotage unlocks at Rank 4, Neighborhood Name' });
+    s.rank = 4;
+    expect(canRaid(s, target, muscle, 'sabotage')).toEqual({ ok: false, why: 'Sabotage needs a Lookout or a Sneaky guard' });
+    expect(canRaid(s, target, [...muscle, 'sn'], 'sabotage').ok).toBe(true);
+    s.guards[1].trait = 'Tough Cookie';
+    s.guards[1].specialty = 'lookout';
+    expect(canRaid(s, target, [...muscle, s.guards[1].id], 'sabotage').ok).toBe(true);
+    expect(raidRepCost(s, ['sn'], 'sabotage', false)).toBe(0.1);
+    expect(raidRepCost(s, ['sn'], 'sabotage', true)).toBe(0);
+  });
+
+  it('a won Sabotage takes nothing, spoils the stock and shuts the stand for its next day only', () => {
+    const { s, target, muscle } = saboteurs(121);
+    expect(planRaid(s, target, [...muscle, 'sn'], 'sabotage', 'tonight')).toBe(true);
+    openStand(s);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    const b = s.battles.find((x) => x.target === target)!;
+    expect(b.sabotage).toBe(true);
+    expect(b.outcome).toBe('robbed');
+    expect(b.loot).toBe(0);
+    expect(s.news.join(' ')).toContain('SABOTAGE!');
+    expect(isSpoiled(s, s.plots[target])).toBe(true);
+    expect(expectedPassersby(s, target)).toBe(0);
+    expect(canRaid(s, target, [...muscle, 'sn'], 'sabotage')).toEqual({ ok: false, why: 'Their stock is already spoiled' });
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.plots[target].stand!.day.customers).toBe(0);
+    sleepUntilDawn(s);
+    expect(isSpoiled(s, s.plots[target])).toBe(false);
+    expect(expectedPassersby(s, target)).toBeGreaterThan(0);
+  });
+
+  it('a Sabotage sent now lands by day: customers see it, and the stand sells nothing its next day', () => {
+    const { s, target, muscle } = saboteurs(124);
+    expect(s.phase).toBe('prep');
+    const stars = s.reputation;
+    expect(planRaid(s, target, [...muscle, 'sn'], 'sabotage', 'now')).toBe(true); // it sets out as the stands open
+    openStand(s);
+    let b: BattleReport | undefined;
+    while (!b && s.minute < CLOSE) for (const e of tickMinute(s)) if (e.type === 'fight') b = e.report;
+    expect([b?.outcome, b?.sabotage]).toEqual(['robbed', true]);
+    expect(s.reputation).toBeCloseTo(stars - 0.1, 5); // customers see a daytime raid
+    expect(isSpoiled(s, s.plots[target])).toBe(false); // today's stock was already out
+    expect(s.plots[target].stand!.spoiledDay).toBe(s.day + 1);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    expect(isSpoiled(s, s.plots[target])).toBe(true);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.plots[target].stand!.day.customers).toBe(0);
+    sleepUntilDawn(s);
+    expect(isSpoiled(s, s.plots[target])).toBe(false);
+  });
+
+  it('the tutorial raid is never a Sabotage, and Peaceful has none at all', () => {
+    const s = newGame(126);
+    s.rank = 4;
+    s.reputation = 4;
+    welcomeDex(s);
+    for (let d = 0; d < 30 && !s.battles.some((b) => b.defender === 'player'); d++) {
+      s.cash = Math.max(s.cash, 500);
+      openStand(s);
+      simulateRestOfDay(s);
+      for (const r of s.raids) if (r.attacker !== 'player' && s.plots[r.target].owner === 'player') expect(r.sabotage).toBeUndefined();
+      sleepUntilDawn(s);
+    }
+    expect(s.battles.some((b) => b.defender === 'player')).toBe(true);
+    const calm = newGame(127);
+    calm.settings.mode = 'sandbox';
+    calm.settings.peaceful = true;
+    calm.rank = 4;
+    expect(canRaid(calm, PLOTS.find((p) => calm.plots[p.id].owner === 'blenders' && calm.plots[p.id].stand && p.type !== 'hq')!.id, ['x'], 'sabotage'))
+      .toEqual({ ok: false, why: 'Peaceful: no raids in this Sandbox' });
+  });
+
+  it('rivals sabotage your stands from Rank 4, Cold Brew most of all', () => {
+    const s = newGame(122);
+    const raid = (attacker: Raid['attacker']): Raid => ({ id: 'x', attacker, target: LOTTIES_CORNER, objective: 'smash', party: [], detected: true, eta: '01:00' });
+    const share = (attacker: Raid['attacker']) => {
+      let n = 0;
+      for (let i = 0; i < 2000; i++) { const r = raid(attacker); maybeSabotage(s, r, { seed: i * 7919 }); if (r.sabotage) n++; }
+      return n / 2000;
+    };
+    s.rank = 3;
+    expect(share('coldbrew')).toBe(0);
+    s.rank = 4;
+    expect(share('coldbrew')).toBeCloseTo(0.4, 1);
+    expect(share('fizzco')).toBeCloseTo(0.1, 1);
+  });
+
+  it('a Sabotage on your stand empties its stock and closes it tomorrow, with no cash taken', () => {
+    const s = newGame(123);
+    s.rank = 4;
+    openStand(s);
+    simulateRestOfDay(s);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.inventory.sugar = 50;
+    const cash = s.cash;
+    const bros: Fighter[] = [0, 1, 2].map((i) => ({ id: `c${i}`, name: `Barista ${i}`, side: 'att', hp: 100, hit: 18, chop: 10, nerve: 50, armor: 0, weapon: 'clubs' }));
+    const report = fightRaid(s, { id: 'r1', attacker: 'coldbrew', target: LOTTIES_CORNER, objective: 'shakedown', sabotage: true, party: bros, detected: false, eta: '02:00' }, true);
+    expect(report.outcome).toBe('robbed');
+    expect(s.cash).toBe(cash);
+    expect(servingsAvailable(st)).toBe(0);
+    expect(st.spoiledDay).toBe(s.day + 1);
+    expect(s.news.at(-1)).toContain('spoil the stock');
   });
 });

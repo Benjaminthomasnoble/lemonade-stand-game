@@ -3,12 +3,12 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  BUILDING_POSTS, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, RIVAL_KIT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
-  GUARD_BASE, GUARD_LEVEL_TITLES,
-  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
-  RAID_PARTY, RAID_RANK, RAID_LEAVE,
-  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
-  SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS, WRECKER_CHOP,
+  BUILDING_POSTS, BUSTED_REPAIR_SHARE, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
+  DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
+  GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, OPEN, PERIMETERS,
+  PROMOTE_LEVEL, RAIDS_PER_WEEK, RAID_PARTY, RAID_RANK, RAID_LEAVE, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, RIVAL_RAID_AT,
+  RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP, STAND_HP,
+  STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -66,10 +66,15 @@ export interface Raid {
   back?: number; // your raid: fought, and the squad walks home by this minute (their posts sit empty till then)
   order?: string; // a Delivery Raid: the VIP order it's after
   bell?: { id: string; at: number }[]; // Ring the Bell (reinforce.ts): the reserve on its way, and the minute each gets there
+  sabotage?: boolean; // fought as a Shakedown, but the 10 minutes go on spoiling the stock instead of the till
 }
+
+/** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
+export type RaidObjective = Objective | 'sabotage';
 
 export interface BattleReport {
   delivery?: boolean;
+  sabotage?: boolean; // the stock was the target: on a win it's spoiled, nothing is taken
   busted?: boolean; // Laid Back: your stand was Busted (closed until a repair), not Wrecked
   hq?: 'gate' | 'yard' | 'boss'; // a stage of an HQ assault
   hpLost?: number; // HP the building lost and kept (damage.ts): Damaged until a repair
@@ -680,7 +685,7 @@ export const raidIsNightAt = (minute: number) => minute < OPEN || minute >= CLOS
 export const raidIsNight = (s: GameState) => raidIsNightAt(s.minute);
 
 /** Stars a raid fought now costs: 0.1 by day (0.2 for a Smash), nothing at night, nothing when Gentle Giants go alone. */
-export function raidRepCost(s: GameState, guardIds: string[], objective: Objective, night = raidIsNight(s)): number {
+export function raidRepCost(s: GameState, guardIds: string[], objective: RaidObjective, night = raidIsNight(s)): number {
   if (night) return 0;
   const squad = s.guards.filter((g) => guardIds.includes(g.id));
   if (squad.length && squad.every((g) => g.trait === 'Gentle Giant')) return 0;
@@ -699,7 +704,38 @@ export function availableRaiders(s: GameState): Guard[] {
   return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id) && g.scoutDay !== s.day);
 }
 
-export function canRaid(s: GameState, plotId: string, guardIds: string[]): Blocker {
+/** The day a Sabotage now would close the stand: today if it hasn't opened yet (Morning Prep), else tomorrow. */
+const spoilDay = (s: GameState) => (s.phase === 'prep' ? s.day : s.day + 1);
+
+/** Is this stand's stock spoiled today (a Sabotage): it sells nothing until tomorrow. */
+export const isSpoiled = (s: GameState, ps: PlotState) => ps.stand?.spoiledDay === s.day;
+
+/** Sabotage's own locks: Rank 4, a stand to spoil, stock not already spoiled, and a Lookout or a Sneaky guard to lead it. */
+export function canSabotage(s: GameState, plotId: string, guardIds: string[]): Blocker {
+  const st = s.plots[plotId].stand;
+  if (s.rank < SABOTAGE_RANK) return { ok: false, why: `Sabotage unlocks at Rank ${SABOTAGE_RANK}, ${RANKS[SABOTAGE_RANK - 1].title}` };
+  if (!st || st.wrecked) return { ok: false, why: 'Sabotage needs a stand to spoil' };
+  if ((st.spoiledDay ?? 0) >= spoilDay(s)) return { ok: false, why: 'Their stock is already spoiled' };
+  if (!raidSquad(s, guardIds).some((g) => g.specialty === 'lookout' || g.trait === 'Sneaky')) return { ok: false, why: 'Sabotage needs a Lookout or a Sneaky guard' };
+  return { ok: true };
+}
+
+/** A Sabotage that got its 10 minutes with the stock: every lemon, scoop of sugar and cube of ice is ruined, and the stand can't sell its next day. */
+export function spoilStock(s: GameState, plotId: string): void {
+  const st = s.plots[plotId].stand;
+  if (!st) return;
+  st.spoiledDay = spoilDay(s);
+  st.inventory = { ...st.inventory, lemons: [], sugar: 0, ice: 0 };
+  st.pitcherCups = 0;
+}
+
+/** Rivals sabotage your stands too, from Rank 4: Cold Brew's Night Shift often, the others now and then. */
+export function maybeSabotage(s: GameState, raid: Raid, rng: Rng): void {
+  if (s.rank < SABOTAGE_RANK || raid.attacker === 'player' || raid.delivery || !s.plots[raid.target].stand) return;
+  if (nextRandom(rng) < RIVAL_SABOTAGE[raid.attacker as RivalId]) { raid.objective = 'shakedown'; raid.sabotage = true; }
+}
+
+export function canRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective = 'smash'): Blocker {
   const ps = s.plots[plotId];
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no raids in this Sandbox' };
   if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}, ${RANKS[RAID_RANK - 1].title}` };
@@ -708,15 +744,16 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[]): Block
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
   if (s.raids.some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' };
+  if (objective === 'sabotage') return canSabotage(s, plotId, guardIds);
   return { ok: true };
 }
 
 /** Estimated win chance for the Raid Planner (night or now). */
-export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: Objective, night: boolean): number {
+export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean): number {
   if (!guardIds.length) return 0;
   const rng = { seed: s.seed ^ 0x0dd5 };
   const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
-  const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective, detected: false, eta: '' };
+  const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: false, eta: '' };
   const input = battleInput(s, raid, squad, night, new Set(), rng);
   // Spotted or not decides who strikes first: weigh both by the target's real detection chance (Sneaky included).
   const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
@@ -725,9 +762,10 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
   return seen * spotted + (1 - seen) * unseen;
 }
 
-export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: Objective, when: 'now' | 'tonight'): BattleReport | boolean {
-  if (!canRaid(s, plotId, guardIds).ok) return false;
-  const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective, guards: guardIds, detected: false, eta: '' };
+export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, when: 'now' | 'tonight'): BattleReport | boolean {
+  if (!canRaid(s, plotId, guardIds, objective).ok) return false;
+  const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, guards: guardIds, detected: false, eta: '' };
+  if (objective === 'sabotage') raid.sabotage = true;
   breakTruce(s, s.plots[plotId].owner as RivalId);
   return sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
 }
@@ -786,6 +824,11 @@ export function planNight(s: GameState): void {
   }
   s.seed = rng.seed;
   s.raids.push(...signatureRaids(s));
+  if (tutorial) return;
+  // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another).
+  const dice = { seed: s.seed };
+  for (const raid of s.raids) if (s.plots[raid.target].owner === 'player') maybeSabotage(s, raid, dice);
+  s.seed = dice.seed;
 }
 
 /** At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). */
@@ -832,7 +875,8 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     if (defender !== 'player') ps.garrison = 0;
     if (raid.attacker === 'player') bump(s, 'smashes');
   }
-  if (res.outcome === 'robbed' && !raid.delivery) {
+  if (raid.sabotage && res.outcome === 'robbed') spoilStock(s, raid.target);
+  if (res.outcome === 'robbed' && !raid.delivery && !raid.sabotage) {
     loot = shakedownLoot(s, raid.target); // the till: about a day of that stand's profit (loot.ts)
     if (defender === 'player') s.cash = round2(s.cash - loot); // ledger: loot
     else s.rivals[defender as RivalId].cash = round2(s.rivals[defender as RivalId].cash - loot);
@@ -861,6 +905,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, ...(input.joins?.length ? { joins: input.joins } : {}),
     gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined,
   };
+  if (raid.sabotage) report.sabotage = true;
   if (raid.attacker === 'player' || defender === 'player') {
     s.battles.unshift(report);
     s.battles.length = Math.min(s.battles.length, 6);
@@ -895,6 +940,7 @@ function headline(b: BattleReport): string {
   if (b.hq) return b.outcome === 'repelled'
     ? `HQ assault on ${where} stalls at the ${b.hq === 'gate' ? 'Gate' : b.hq === 'yard' ? 'Yard' : 'Boss Room'}.`
     : `Lottie's crew storms ${where}! ${fname(b.defender)} are finished.`;
+  if (b.sabotage) return sabotageHeadline(b);
   if (b.delivery) return b.outcome === 'robbed' ? `Delivery raid! ${fname(b.attacker)} overrun ${where} and make off with the cargo.` : `Delivery raid at ${where} beaten off! The cargo gets through.`;
   if (b.attacker === 'player') {
     switch (b.outcome) {
@@ -933,6 +979,22 @@ export function crewAtDawn(s: GameState): void {
   }
   tidyPosts(s);
   s.seed = rng.seed;
+}
+
+function sabotageHeadline(b: BattleReport): string {
+  const where = PLOT_BY_ID[b.target].name;
+  if (b.attacker === 'player') {
+    switch (b.outcome) {
+      case 'robbed': return `SABOTAGE! Lottie's crew spoils the stock at ${where}: it sells nothing on its next day.`;
+      case 'damaged': return `Lottie's crew gets into ${where} but runs out of time to spoil the stock.`;
+      default: return `Sabotage at ${where} foiled: ${fname(b.defender)} chase Lottie's crew off.`;
+    }
+  }
+  switch (b.outcome) {
+    case 'robbed': return `${fname(b.attacker)} spoil the stock at ${where}! It sells nothing on its next day.`;
+    case 'damaged': return `${fname(b.attacker)} sneak into ${where} but run out of time: the stock is safe.`;
+    default: return `You caught ${fname(b.attacker)} creeping round ${where}: the stock is safe.`;
+  }
 }
 
 /** Rival plots start with a little protection, by personality. */

@@ -19,6 +19,7 @@ import { blenderBar, seasonDemand } from './recipes.ts';
 import { crowdAt } from './calendar.ts';
 import { kidsShare } from './happenings.ts';
 import { stockCups } from './rivalAi.ts';
+import { isSpoiled } from './crew.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -197,7 +198,7 @@ function standsNear(s: GameState, p: Plot, appealOf: (plotId: string) => Appeal)
   const own: Option[] = [], rivals: Option[] = [];
   for (const q of nearbyPlots(p)) {
     const st = s.plots[q.id].stand;
-    if (!st || st.wrecked) continue;
+    if (!st || st.wrecked || isSpoiled(s, s.plots[q.id])) continue; // crew: a Sabotaged stand sells nothing today
     (s.plots[q.id].owner === owner ? own : rivals).push({ id: q.id, a: appealOf(q.id) });
   }
   return { own, rivals };
@@ -317,7 +318,7 @@ export interface DemandForecast {
 export function expectedDemand(s: GameState, plotId: string, w: Weather = s.forecast): DemandForecast {
   const out: DemandForecast = { visitors: 0, demand: 0, kept: 1, inflow: 0, recipe: 1, sweet: 1, priceFit: 1 };
   const st = s.plots[plotId]?.stand;
-  if (!st || st.wrecked) return out;
+  if (!st || st.wrecked || isSpoiled(s, s.plots[plotId])) return out; // crew: a Sabotaged stand sells nothing today
   const memo = appealMemo(s, w);
   const p = PLOT_BY_ID[plotId];
   let recipe = 0, sweet = 0, fit = 0, ownPeople = 0, ownKept = 0;

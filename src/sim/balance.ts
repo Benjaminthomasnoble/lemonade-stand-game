@@ -449,6 +449,10 @@ export const NEIGHBORHOOD_WATCH_DETECTION = 0.1;
 export const STRONGHOLD_DETECTION = 0.1;
 export const STRONGHOLD_TRAVEL = 0.5;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
+/** Sabotage (spoil a stand's stock: it can't sell its next day) opens at this Rank, for you and for rivals raiding you. */
+export const SABOTAGE_RANK = 4;
+/** Each rival's chance that a raid on one of your stands is a Sabotage: Cold Brew's Night Shift leans on it (placeholder: spec gap, no rates given). */
+export const RIVAL_SABOTAGE: Record<RivalId, number> = { sourwood: 0.1, hollis: 0.1, fizzco: 0.1, coldbrew: 0.4, blenders: 0.1 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',
   'Gentle Giant', 'Lumberjack', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',

@@ -10,7 +10,7 @@ import {
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
-  sponsorFestival,
+  setTasteOffEntry, sponsorFestival,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
@@ -433,6 +433,7 @@ async function main() {
       case 'facility': buildFacility(state, a.plot, a.kind); break;
       case 'accept': acceptOrder(state, a.id); break;
       case 'decline': declineOrder(state, a.id); break;
+      case 'entry': setTasteOffEntry(state, a); break;
       case 'sponsor': sponsorFestival(state, a.festival); break;
       case 'refresh': break;
     }

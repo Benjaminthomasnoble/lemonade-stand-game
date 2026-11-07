@@ -4,7 +4,7 @@
 // clay-markup helpers the world lane's panels share (the same markup as hud.ts).
 import {
   DISTRICT_BY_ID, hqPlot, ownedRecipes, PAGE_HOLDERS, pageHolder, PLOT_BY_ID, RECIPE_IDS, RECIPES, recipeCost, selectedStand, shineReason,
-  type Blocker, type GameState, type PageHolder, type RecipeId, type ShineReason,
+  storyFairs, tasteOffResult, type Blocker, type GameState, type PageHolder, type RecipeId, type ShineReason,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -57,15 +57,20 @@ export function recipeRow(s: GameState): string {
 }
 
 const HELD_BY: Partial<Record<RecipeId, string>> = {
-  strawberry: 'Waits at the Blend Shack', frozen: "Framed over Brock's blenders", honeyGinger: "Taped inside Juni's register", halfAndHalf: 'Tilly put her own name on it',
+  frozen: "Framed over Brock's blenders", honeyGinger: "Taped inside Juni's register", halfAndHalf: 'Tilly put her own name on it',
   lavender: "Vera's old harp teacher has it", sparkling: "Laminated in Preston's boardroom", secretReserve: 'Vera keeps it sealed',
 };
 const HOW_HOME: Partial<Record<RecipeId, string>> = {
-  strawberry: 'Comes home when the Blenders are out', frozen: 'Comes home when the Blenders are out',
+  strawberry: 'Win the Summer Fair Taste-Off, or knock out the Blenders', frozen: 'Comes home when the Blenders are out',
   honeyGinger: 'Comes home when the Cold Brew Collective is out', halfAndHalf: 'Comes home when Hollis is beaten or bought out',
   lavender: 'The Hilltop estate auction, at Rank 8', sparkling: 'Comes home when FizzCo Tower falls or sells', secretReserve: "Waits in Sourwood Manor's Boss Room",
 };
-function holderLine(id: RecipeId, h: PageHolder): string {
+/** Sandbox and Endless: Strawberry, and any page whose holder isn't on the map, come from a fair win. */
+const fairPage = (s: GameState, id: RecipeId, h: PageHolder) => !storyFairs(s) && (id === 'strawberry' || h === 'harpTeacher' || !(h in s.rivals));
+
+function holderLine(s: GameState, id: RecipeId, h: PageHolder): string {
+  if (fairPage(s, id, h)) return 'Win any Taste-Off for it';
+  if (id === 'strawberry') return !tasteOffResult(s, 'summerFair', 1) && s.day <= 14 ? 'Brock stakes it at the Summer Fair' : 'Waits at the Blend Shack';
   if (h !== PAGE_HOLDERS[id] && h !== 'harpTeacher') return `At ${hqPlot(h).name}`;
   return HELD_BY[id] ?? '';
 }
@@ -76,7 +81,7 @@ export function bookSheet(s: GameState): string {
   const pages = RECIPE_IDS.map((id) => {
     const r = RECIPES[id];
     const h = pageHolder(s, id);
-    if (h) return card(blankArt(), esc(r.label), esc(holderLine(id, h)), '', HOW_HOME[id] ?? '', 'data-page="missing"');
+    if (h) return card(blankArt(), esc(r.label), esc(holderLine(s, id, h)), '', fairPage(s, id, h) ? 'Any Taste-Off win brings it home' : HOW_HOME[id] ?? '', 'data-page="missing"');
     const pour = st.recipe === id ? tape('Pouring') : btn('recipe', 'Pour', { ok: true }, `data-id="${id}"`);
     return card(pitcherArt(id), esc(r.label), esc(shineText(id) || r.blurb), pour, `${r.blurb}. ${cents(recipeCost(s, id))} a cup, +${Math.round(r.priceBonus * 100)}% price`);
   });

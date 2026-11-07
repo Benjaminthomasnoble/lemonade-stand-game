@@ -20,7 +20,7 @@ import {
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
-  type FestivalId,
+  tasteOffToday, type FestivalId,
 } from '../sim/economy.ts';
 import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
@@ -29,7 +29,7 @@ import { alertCards } from './alerts.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
-import { calendarHeadline, calendarTickets, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
+import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -85,6 +85,7 @@ export type Action =
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
   | { type: 'options' } // open or close the Options screen
   | { type: 'option'; key: string; value?: string } // flip an option
+  | { type: 'entry'; recipe?: RecipeId; sweetness?: Sweetness; delta?: number } // Taste-Off entry
   | { type: 'sponsor'; festival: FestivalId }
   | { type: 'refresh' };
 
@@ -324,7 +325,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'reloadDawn': case 'repay':
         onAction({ type: d.action }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
-      case 'sponsor': onAction(worldAction(d)); break;
+      case 'entry': case 'sponsor': onAction(worldAction(d)); break;
       case 'start': if (hud.setup) onAction({ type: 'start', settings: { ...hud.setup.settings } }); break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -458,6 +459,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   function prepPanel(s: GameState) {
     if (tab === 'crew' && !defendOpen(s)) tab = 'today';
+    if (tab === 'fair' && !tasteOffToday(s)) tab = 'today';
     const tabs = `<div class="cl-tabs">
       <button class="cl-tab${tab === 'today' ? ' on' : ''}" data-action="tab" data-tab="today">Today</button>
       <button class="cl-tab${tab === 'grow' ? ' on' : ''}" data-action="tab" data-tab="grow" data-testid="tab-grow">Grow</button>
@@ -465,7 +467,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${worldTabs(s, tab)}
       ${standPicker(s)}</div>`;
     const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
-      : tab === 'book' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
+      : tab === 'book' || tab === 'fair' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
 
@@ -647,6 +649,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? '▲' : repDelta < -0.004 ? '▼' : ''}</span>
         <span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span></div>
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>${tip}</span></div>
+      ${tasteOffLine(s, t.day)}
       ${tonight(s)}
       ${books ? bookTable : ''}
       <button class="cl-sleep" data-action="night" data-testid="night" title="Night falls: it runs on the clock, quiet nights at 3×">${ART.moon()}<span>Sleep</span></button>

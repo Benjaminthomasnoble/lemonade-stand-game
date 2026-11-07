@@ -9,6 +9,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { netWorth, ownedPlots } from './economy.ts';
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
+import { tillyFieldRate, tillyWaits } from './calendar.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -128,7 +129,7 @@ export function plotBuyoutPrice(s: GameState, plotId: string): number {
   const id = ps.owner as RivalId;
   const home = PLOT_BY_ID[plotId].district === FACTIONS[id].home;
   const nudge = 1 + s.rivals[id].grudge / 200 + (id === 'sourwood' ? 0.2 : 0);
-  return Math.round(ps.landValue * (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away) * nudge * familySilver(s));
+  return Math.round(ps.landValue * (tillyFieldRate(s, plotId) ?? (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away)) * nudge * familySilver(s));
 }
 
 export function canPlotBuyout(s: GameState, plotId: string): Blocker {
@@ -173,6 +174,7 @@ export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
 export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
   if (s.rank < Math.max(FACTION_BUYOUT_RANK, HQS[id].rank)) return rankNeed(Math.max(FACTION_BUYOUT_RANK, HQS[id].rank));
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
+  const tilly = tillyWaits(s, id, 'buyout'); if (tilly) return tilly;
   const price = factionBuyoutPrice(s, id);
   if (price === null) return { ok: false, why: `${HQS[id].boss} never sells` };
   if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
@@ -240,6 +242,7 @@ export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Block
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no HQ assaults in this Sandbox' };
   if (s.rank < hq.rank) return rankNeed(hq.rank);
+  const tilly = tillyWaits(s, id, 'assault'); if (tilly) return tilly;
   if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
   if (s.phase !== 'prep') return { ok: false, why: 'Storm the HQ at Morning Prep' };
   if (!guardIds.length) return { ok: false, why: 'Pick your squad' };

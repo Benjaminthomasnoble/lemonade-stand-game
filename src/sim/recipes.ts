@@ -9,7 +9,7 @@ import { PLOT_BY_ID, type DistrictId } from './map.ts';
 import type { GameState, Stand } from './economy.ts';
 import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
-import { crowdAt, type Sponsorship } from './calendar.ts';
+import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -22,18 +22,24 @@ export const PAGE_HOLDERS: Partial<Record<RecipeId, PageHolder>> = {
   strawberry: 'blenders', frozen: 'blenders', honeyGinger: 'coldbrew', halfAndHalf: 'hollis', lavender: 'harpTeacher', sparkling: 'fizzco', secretReserve: 'sourwood',
 };
 
-/** The world lane's saved state: the recipe book and the calendar's sponsorships. */
+/** The world lane's saved state: the recipe book, the calendar's Taste-Offs, boosts and sponsorships. */
 export interface WorldState {
   pages: RecipeId[]; // pages in Lottie's book: the cards you can pour
   holders: Partial<Record<RecipeId, PageHolder>>; // who holds each page still missing
+  fairs: TasteOffResult[]; // every Taste-Off so far, oldest first
+  tasteOff?: TasteOff; // today's, set up at dawn and judged at closing
+  boosts: Boost[]; // Taste-Off wins: +20% traffic in a district for 7 days
   sponsored: Sponsorship[]; // festivals the player sponsors
+  tillyWon?: boolean; // out-brewed Tilly at the County Fair: she sells Fields at 1.5×
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
 export function migrateWorld(s: GameState): GameState {
-  const w = (s.world ??= { pages: [], holders: { ...PAGE_HOLDERS }, sponsored: [] });
+  const w = (s.world ??= { pages: [], holders: { ...PAGE_HOLDERS }, fairs: [], boosts: [], sponsored: [] });
   w.pages ??= [];
   w.holders ??= { ...PAGE_HOLDERS };
+  w.fairs ??= [];
+  w.boosts ??= [];
   w.sponsored ??= [];
   for (const id of START_RECIPES) if (!w.pages.includes(id)) w.pages.push(id);
   for (const id of RECIPE_IDS) {
@@ -45,6 +51,7 @@ export function migrateWorld(s: GameState): GameState {
     const h = w.holders[id];
     if (h && h !== 'harpTeacher' && s.rivals[h] && !s.rivals[h].alive) grantPage(s, id, true);
   }
+  if (!w.tasteOff && s.phase !== 'report') setupTasteOff(s); // loaded on a Taste-Off morning
   return s;
 }
 

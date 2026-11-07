@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, calendarTraffic, canSponsor, costPerCup, crowdAt, eliminate, expectedPassersby, festivalCrowd, festivalDays, festivalsOn,
-  FESTIVALS, grantPage, isEventDay, isPremium, LOTTIES_CORNER, marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand,
-  openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pickRecipe, PLOTS, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS,
-  simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, upcomingFestivals, yearOf,
+  appealFor, boothCeiling, calendarTraffic, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
+  expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
+  marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pickRecipe,
+  PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry, simulateRestOfDay,
+  sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday, tickMinute,
+  tillyWaits, upcomingFestivals, worldOf, yearOf,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
 
@@ -22,6 +24,42 @@ function dawn(s: GameState, day: number): void {
   s.phase = 'report';
   s.raids = [];
   sleepUntilDawn(s);
+}
+
+/** Open and run straight to closing time (the judges taste at closing). */
+function close(s: GameState): void {
+  openStand(s);
+  s.minute = CLOSE - 1;
+  tickMinute(s);
+}
+
+/** Answer all three judges' hints exactly. */
+function ace(s: GameState): void {
+  const t = tasteOffToday(s)!;
+  for (const j of t.judges) {
+    if (j.kind === 'recipe') setTasteOffEntry(s, { recipe: SEGMENTS[j.segment].favorites.find((r) => ownedRecipes(s).includes(r))! });
+    if (j.kind === 'sweet') setTasteOffEntry(s, { sweetness: j.want });
+  }
+  const price = t.judges.find((j) => j.kind === 'price')!;
+  const top = boothCeiling(s, entryOf(s).recipe, t.district);
+  const target = [0.5, 0.75, 0.95][PRICE_BANDS.indexOf((price as { band: (typeof PRICE_BANDS)[number] }).band)] * top;
+  setTasteOffEntry(s, { delta: Math.round((target - entryOf(s).price) * 100) / 100 });
+}
+
+/** Answer every hint wrong: the wrong card, the far Sweetness, and over the booth's top price. */
+function flub(s: GameState): void {
+  const t = tasteOffToday(s)!;
+  for (const j of t.judges) {
+    if (j.kind === 'recipe') setTasteOffEntry(s, { recipe: ownedRecipes(s).find((r) => !SEGMENTS[j.segment].favorites.includes(r))! });
+    if (j.kind === 'sweet') setTasteOffEntry(s, { sweetness: j.want === 'extra' ? 'less' : 'extra' });
+  }
+  setTasteOffEntry(s, { delta: 5 });
+}
+
+function withSkill<T>(skill: number, f: () => T): T {
+  const saved = { ...TASTE_OFF_SKILL };
+  for (const k of Object.keys(TASTE_OFF_SKILL) as (keyof typeof TASTE_OFF_SKILL)[]) TASTE_OFF_SKILL[k] = skill;
+  try { return f(); } finally { Object.assign(TASTE_OFF_SKILL, saved); }
 }
 
 const game = (seed = 1, settings: Partial<Settings> = {}) => newGame(seed, settings);
@@ -283,5 +321,176 @@ describe('Event Sponsorship', () => {
     t.rank = 5; t.cash = 50000;
     dawn(t, 10);
     expect(canSponsor(t, 'summerFair').ok).toBe(false); // no stand in Old Town
+  });
+});
+
+describe('Taste-Offs', () => {
+  it('judges mark the card, the Sweetness and the price', () => {
+    const e = { recipe: 'pink' as RecipeId, sweetness: 'less' as Sweetness, price: 1.5 };
+    expect(judgeMark({ kind: 'recipe', segment: 'kids' }, e, 1.575)).toBe(1.2);
+    expect(judgeMark({ kind: 'recipe', segment: 'office' }, e, 1.575)).toBe(1);
+    expect(['less', 'classic', 'extra'].map((want) => judgeMark({ kind: 'sweet', want: want as Sweetness }, e, 1.575))).toEqual([1.1, 1, 0.85]);
+    expect([0.5, 1.2, 1.5, 1.7].map((p) => priceBand(p, 1.575))).toEqual([0, 1, 2, 3]);
+    expect(PRICE_BANDS.map((band) => judgeMark({ kind: 'price', band }, e, 1.575))).toEqual([0.85, 1, 1.1]);
+    expect(judgeMark({ kind: 'price', band: 'extra' }, { ...e, price: 1.7 }, 1.575)).toBe(0.85); // over the top price
+  });
+
+  it('only on a fair\'s last day; Act 1 is Brock with the spec\'s three hints', () => {
+    const s = game();
+    dawn(s, 13);
+    expect(tasteOffToday(s)).toBeUndefined();
+    dawn(s, 14);
+    const t = tasteOffToday(s)!;
+    expect([t.fair, t.vs, t.stake]).toEqual(['summerFair', ['blenders'], 'strawberry']);
+    expect(t.judges).toEqual([{ kind: 'recipe', segment: 'kids' }, { kind: 'sweet', want: 'less' }, { kind: 'price', band: 'extra' }]);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    expect(entryOf(s)).toEqual({ recipe: st.recipe, sweetness: st.sweetness, price: st.price });
+    expect(setTasteOffEntry(s, { recipe: 'frozen' })).toBe(false); // not in the book
+    setTasteOffEntry(s, { recipe: 'pink', sweetness: 'less', delta: 0.1 });
+    expect(entryOf(s)).toEqual({ recipe: 'pink', sweetness: 'less', price: Math.round((st.price + 0.1) * 100) / 100 });
+    dawn(s, 21);
+    expect(tasteOffToday(s)!.fair).toBe('countyFair');
+  });
+
+  it('win the Summer Fair: Strawberry, a star, the prize, +20% Old Town traffic for 7 days', () => {
+    const s = game(4);
+    const plot = standIn(s, 'oldtown');
+    dawn(s, 14);
+    ace(s);
+    const rep = s.reputation, cash = s.cash;
+    close(s);
+    const r = tasteOffResult(s, 'summerFair', 1)!;
+    expect(r.winner).toBe('player');
+    expect(r.score).toBeCloseTo(1.2 * 1.1 * 1.1, 6);
+    expect(ownedRecipes(s)).toContain('strawberry');
+    expect(s.news.some((n) => n.includes('revenge'))).toBe(true);
+    expect(s.today.revenue).toBeGreaterThanOrEqual(TASTE_OFF.prize);
+    expect(s.cash - cash).toBeGreaterThan(TASTE_OFF.prize - 100); // the prize, less the day's upkeep
+    expect(s.reputation).toBeGreaterThan(rep + 0.05);
+    sleepUntilDawn(s);
+    expect(calendarTraffic(s, 'player', s.plots[plot].stand!)).toBeCloseTo(0.2, 6);
+    expect(calendarTraffic(s, 'player', s.plots[LOTTIES_CORNER].stand!)).toBe(0);
+    dawn(s, 22);
+    expect(calendarTraffic(s, 'player', s.plots[plot].stand!)).toBe(0);
+  });
+
+  it('lose it, and Strawberry waits at the Blend Shack while Brock takes the star and the prize', () => {
+    const s = game(4);
+    dawn(s, 14);
+    flub(s);
+    const brock = s.rivals.blenders.cash;
+    withSkill(1, () => close(s));
+    expect(tasteOffResult(s, 'summerFair')!.winner).toBe('blenders');
+    expect(pageHolder(s, 'strawberry')).toBe('blenders');
+    expect(s.rivals.blenders.cash).toBeGreaterThan(brock + TASTE_OFF.prize - 1000); // the prize, less a day's upkeep
+    expect(worldOf(s).boosts).toEqual([{ owner: 'blenders', district: 'oldtown', from: 15, to: 21 }]);
+    expect(s.news.some((n) => n.includes('Blend Shack'))).toBe(true);
+  });
+
+  it('ties go to the player', () => {
+    const s = game(5);
+    dawn(s, 14);
+    ace(s);
+    withSkill(1, () => close(s)); // Brock aces it too
+    const r = tasteOffResult(s, 'summerFair')!;
+    expect(r.best).toBe(r.score);
+    expect(r.winner).toBe('player');
+  });
+
+  it('Sandbox: any fair win brings Strawberry, then a page whose holder is off the map', () => {
+    const s = game(6, { mode: 'sandbox', peaceful: true }); // Taste-Offs run even in Peaceful
+    const wins: RecipeId[][] = [];
+    for (const day of [14, 21, 70]) {
+      dawn(s, day);
+      const t = tasteOffToday(s)!;
+      expect(t.stake).toBeUndefined();
+      expect(t.vs.length).toBeGreaterThan(0);
+      ace(s);
+      withSkill(0, () => close(s));
+      wins.push(ownedRecipes(s));
+    }
+    expect(wins[0]).toContain('strawberry');
+    expect(wins[1]).toContain('lavender');
+    expect(wins[2]).toHaveLength(5);
+  });
+
+  it('Endless Summer after a campaign win plays open fairs, and Tilly waits no more', () => {
+    const s = game(6);
+    s.endlessSince = 1;
+    dawn(s, 14);
+    expect(tasteOffToday(s)!.stake).toBeUndefined(); // no Act 1 stake once the story is over
+    ace(s);
+    withSkill(0, () => close(s));
+    expect(ownedRecipes(s)).toContain('strawberry');
+    s.rank = 7;
+    expect(tillyWaits(s, 'hollis', 'buyout')).toBeNull();
+  });
+
+  it('with no rival stand in the district, Dot\'s Diner enters', () => {
+    const s = game(7, { mode: 'sandbox' });
+    for (const p of PLOTS) if (p.district === 'groves' && s.plots[p.id].owner !== 'player') s.plots[p.id].stand = null;
+    dawn(s, 21);
+    expect(tasteOffToday(s)!.vs).toEqual(['local']);
+  });
+});
+
+describe('Tilly and the County Fair', () => {
+  /** A campaign at Rank 7 with Hollis Weakened. */
+  function tillyGame(seed = 8) {
+    const s = game(seed);
+    s.rank = 7;
+    s.cash = 50_000_000;
+    s.rivals.hollis.outsoldDays = 7;
+    return s;
+  }
+
+  it('the Act 4 County Fair is a duel with Tilly; win it and her Fields sell at 1.5x', () => {
+    const s = tillyGame();
+    dawn(s, 21);
+    expect(tasteOffToday(s)!.stake).toBeUndefined(); // year 1 is an open fair
+    ace(s);
+    withSkill(0, () => close(s));
+    expect(worldOf(s).tillyWon).toBeFalsy();
+    dawn(s, 77);
+    const t = tasteOffToday(s)!;
+    expect([t.vs, t.stake]).toEqual([['hollis'], 'tilly']);
+    const field = PLOTS.find((p) => p.type === 'field' && s.plots[p.id].owner === 'hollis')!;
+    const street = PLOTS.find((p) => p.type === 'street' && p.district === 'groves' && s.plots[p.id].owner === 'hollis')!;
+    const fieldBefore = plotBuyoutPrice(s, field.id), streetBefore = plotBuyoutPrice(s, street.id);
+    ace(s);
+    withSkill(0, () => close(s));
+    expect(worldOf(s).tillyWon).toBe(true);
+    expect(plotBuyoutPrice(s, field.id)).toBe(Math.round(fieldBefore * 1.5 / 2.5));
+    expect(plotBuyoutPrice(s, street.id)).toBe(streetBefore);
+  });
+
+  it('outside the campaign, beating Tilly at any County Fair wins her over', () => {
+    const s = game(9, { mode: 'sandbox' });
+    dawn(s, 21);
+    expect(tasteOffToday(s)!.vs).toContain('hollis');
+    ace(s);
+    withSkill(0, () => close(s));
+    expect(worldOf(s).tillyWon).toBe(true);
+  });
+
+  it('in the campaign Tilly waits for the County Fair before selling out or falling', () => {
+    const s = tillyGame();
+    dawn(s, 60);
+    expect(canFactionBuyout(s, 'hollis')).toEqual({ ok: false, why: "Tilly won't talk business until the County Fair" });
+    expect(canAssault(s, 'hollis', ['g1'])).toEqual({ ok: false, why: "Tilly won't budge until the County Fair" });
+    expect(tillyWaits(s, 'blenders', 'buyout')).toBeNull();
+    dawn(s, 77);
+    expect(canFactionBuyout(s, 'hollis').ok).toBe(false); // the Fair's last day: the duel comes first
+    close(s);
+    sleepUntilDawn(s);
+    s.rivals.hollis.outsoldDays = 7;
+    expect(canFactionBuyout(s, 'hollis')).toEqual({ ok: true });
+    const later = tillyGame();
+    dawn(later, 80); // an old save that never held the duel: the normal rules apply after the Fair
+    expect(tillyWaits(later, 'hollis', 'buyout')).toBeNull();
+    const sandbox = game(10, { mode: 'sandbox' });
+    sandbox.rank = 7;
+    expect(tillyWaits(sandbox, 'hollis', 'assault')).toBeNull();
+    expect(hqPlot('hollis').district).toBe('groves');
   });
 });

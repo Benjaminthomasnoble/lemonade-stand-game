@@ -154,7 +154,7 @@ export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: 
   freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 30 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 30, reputation: 0.1 },
 };
 
-// ---------- the calendar: fairs and festivals (spec: Events and the living world) ----------
+// ---------- the calendar: fairs, festivals and Taste-Offs (spec: Events and the living world) ----------
 export const YEAR_DAYS = SEASON_DAYS * 4; // a year is 4 seasons of 14 days, starting on Summer Day 1
 export type FestivalId = 'summerFair' | 'surfContest' | 'foundersDay' | 'countyFair' | 'homecoming' | 'harborFest' | 'winterLights' | 'marathon' | 'electionDay';
 /** `from`/`to` are season days. `crowd` fills the district with its fans; a fair holds a Taste-Off on its last day. */
@@ -174,8 +174,24 @@ export const FESTIVALS: Record<FestivalId, Festival> = {
 };
 /** Share of a festival district's passersby who are the festival crowd. placeholder: spec gap */
 export const FESTIVAL_CROWD_SHARE = 0.5;
+/** Taste-Offs: the winner, rivals included, gets +0.1 star and +20% traffic in the district for 7 days. */
+export const TASTE_OFF = {
+  stars: 0.1, traffic: 0.2, days: 7,
+  prize: 500, // to the winner, rivals included. placeholder: spec gap (the spec lists fair prizes but sets no amount)
+  // Judging is the build's own (the spec gives no formula): the three judges' marks multiply.
+  recipeHit: 1.2, hit: 1.1, near: 1, miss: 0.85,
+  bands: [0.6, 0.85, 1], // price bands as shares of the booth's top price: bargain, fair, worth a little extra
+  nearShare: 0.7, // a rival who misses a hint still lands near it this often
+};
+/** How often each contestant reads a judge's hint right. placeholder: spec gap */
+export const TASTE_OFF_SKILL: Record<RivalId | 'local', number> = { blenders: 0.6, hollis: 0.65, sourwood: 0.5, fizzco: 0.45, coldbrew: 0.45, local: 0.4 };
 /** Event Sponsorship (Rank 5): $2,000 per festival day, +50% traffic for your stands in the festival's district. */
 export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5 };
+/** Tilly, out-brewed at the County Fair, sells a Field at 1.5× land value instead of her home-turf 2.5×. */
+export const TILLY_FIELD_BUYOUT = 1.5;
+/** Campaign: Tilly won't sell out or be stormed before the Act 4 County Fair (year 2, Days 71-77) has run its Taste-Off. */
+export const TILLY_WAITS_FOR_FAIR = true;
+export const TILLY_FAIR_YEAR = 2;
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★

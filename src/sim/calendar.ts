@@ -1,15 +1,26 @@
 // The calendar (spec: Events and the living world): fairs and festivals on a
-// 56-day year, festival crowds and Event Sponsorship. Pure functions over
-// GameState, like the rest of the sim.
+// 56-day year, festival crowds, Event Sponsorship, and the Taste-Offs at the
+// Summer Fair and the County Fair, with their prizes and stakes (Strawberry,
+// Tilly's Fields). Pure functions over GameState, like the rest of the sim.
 import { nextRandom } from './rng.ts';
-import { FESTIVAL_CROWD_SHARE, FESTIVALS, RANKS, SEASON_DAYS, SEASONS, SPONSORSHIP, YEAR_DAYS, type FestivalId, type SegmentId } from './balance.ts';
+import {
+  FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
+  TASTE_OFF_SKILL, TILLY_FAIR_YEAR, TILLY_FIELD_BUYOUT, TILLY_WAITS_FOR_FAIR, YEAR_DAYS,
+  type FestivalId, type RecipeId, type RivalId, type SegmentId, type Sweetness,
+} from './balance.ts';
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import type { Blocker, GameState, Stand } from './economy.ts';
-import { playerStands, seasonDay, seasonOf } from './economy.ts';
-import { worldOf } from './recipes.ts';
+import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
+import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, RECIPE_IDS, worldOf } from './recipes.ts';
+import { isEndless } from './modes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const RIVALS = Object.keys(FACTIONS) as RivalId[];
 export const FESTIVAL_IDS = Object.keys(FESTIVALS) as FestivalId[];
+export type FairId = 'summerFair' | 'countyFair';
+export const FAIRS = FESTIVAL_IDS.filter((id) => FESTIVALS[id].fair) as FairId[];
+const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
 
 // ---------- dates ----------
 
@@ -65,8 +76,9 @@ export function festivalCrowd(s: GameState, rng: { seed: number }, district: Dis
   return crowd && nextRandom(rng) < FESTIVAL_CROWD_SHARE ? crowd : undefined;
 }
 
-// ---------- traffic: sponsorships, added into the marketing number ----------
+// ---------- traffic: Taste-Off wins and sponsorships, added into the marketing number ----------
 
+export interface Boost { owner: FactionId; district: DistrictId; from: number; to: number }
 export interface Sponsorship { festival: FestivalId; district: DistrictId; from: number; to: number }
 
 const standPlots = new WeakMap<Stand, string>();
@@ -78,16 +90,18 @@ function plotOfStand(s: GameState, st: Stand): string | undefined {
   return p?.id;
 }
 
-/** marketingMultiplier's one term: +50% for your stands in a sponsored festival's district. */
+/** marketingMultiplier's one term: +20% after a Taste-Off win, +50% at sponsored festivals, in that district. */
 export function calendarTraffic(s: GameState, owner: FactionId, st?: Stand): number {
   const w = s.world;
-  if (!st || !w || owner !== 'player' || !w.sponsored.length) return 0;
-  const live = w.sponsored.filter((x) => x.from <= s.day && x.to >= s.day);
-  if (!live.length) return 0;
+  if (!st || !w || (!w.boosts.length && !w.sponsored.length)) return 0;
+  const live = (x: { from: number; to: number }) => x.from <= s.day && x.to >= s.day;
+  const won = w.boosts.filter((b) => b.owner === owner && live(b));
+  const sponsored = owner === 'player' ? w.sponsored.filter(live) : [];
+  if (!won.length && !sponsored.length) return 0;
   const plot = plotOfStand(s, st);
   if (!plot) return 0;
   const d = PLOT_BY_ID[plot].district;
-  return live.some((x) => x.district === d) ? SPONSORSHIP.traffic : 0;
+  return (won.some((b) => b.district === d) ? TASTE_OFF.traffic : 0) + (sponsored.some((x) => x.district === d) ? SPONSORSHIP.traffic : 0);
 }
 
 // ---------- Event Sponsorship ----------
@@ -122,10 +136,214 @@ export function sponsorFestival(s: GameState, id: FestivalId): boolean {
   return true;
 }
 
-// ---------- the hook ----------
+// ---------- Taste-Offs ----------
 
-/** Dawn: sponsorships run out. */
+export type PriceBand = 'bargain' | 'fair' | 'extra';
+export const PRICE_BANDS: PriceBand[] = ['bargain', 'fair', 'extra'];
+/** Each judge's hint points at recipe match (a segment's favorites), Sweetness or price fit. */
+export type Judge = { kind: 'recipe'; segment: SegmentId } | { kind: 'sweet'; want: Sweetness } | { kind: 'price'; band: PriceBand };
+export type Contestant = RivalId | 'local'; // 'local': Dot's Diner, when no rival enters
+export type Stake = 'strawberry' | 'tilly';
+export interface TasteOffEntry { recipe?: RecipeId; sweetness?: Sweetness; price?: number }
+export interface TasteOff { fair: FairId; day: number; district: DistrictId; judges: Judge[]; vs: Contestant[]; stake?: Stake; entry: TasteOffEntry }
+export interface TasteOffResult {
+  fair: FairId; day: number; district: DistrictId; winner: 'player' | Contestant; vs: Contestant[]; stake?: Stake;
+  score: number; best: number; marks: number[]; entry: Required<TasteOffEntry>;
+}
+/** First names for news lines and the HUD. */
+export const CONTESTANT_NAME: Record<Contestant, string> = { blenders: 'Brock', hollis: 'Tilly', fizzco: 'Preston', coldbrew: 'Juni', sourwood: 'Vera', local: 'Dot' };
+
+/** Act 1's climax uses the spec's own three hints: for the kids, not too sweet, worth a little extra. */
+const ACT1_JUDGES: Judge[] = [{ kind: 'recipe', segment: 'kids' }, { kind: 'sweet', want: 'less' }, { kind: 'price', band: 'extra' }];
+
+/** Today's Taste-Off, if one is waiting to be judged. */
+export function tasteOffToday(s: GameState): TasteOff | undefined {
+  const t = s.world?.tasteOff;
+  return t && t.day === s.day ? t : undefined;
+}
+
+/** The most recent result for a fair (or that fair in a given year): story's seam for goals and scenes. */
+export function tasteOffResult(s: GameState, fair: FairId, year?: number): TasteOffResult | undefined {
+  const all = (s.world?.fairs ?? []).filter((r) => r.fair === fair && (year === undefined || yearOf(r.day) === year));
+  return all[all.length - 1];
+}
+
+/** The campaign's scripted fairs (Brock's stake, Tilly's duel). Sandbox and Endless Summer play open fairs instead. */
+export const storyFairs = (s: GameState) => s.settings.mode === 'campaign' && !isEndless(s);
+
+function contestants(s: GameState, fair: FairId, district: DistrictId): { vs: Contestant[]; stake?: Stake } {
+  const campaign = storyFairs(s);
+  const year = yearOf(s.day);
+  // Act 1: Brock stakes his Strawberry page against one of Lottie's pies.
+  if (campaign && fair === 'summerFair' && year === 1 && s.rivals.blenders.alive) return { vs: ['blenders'], stake: 'strawberry' };
+  // Act 4 (and every year after, until she's won over): out-brew Tilly.
+  if (campaign && fair === 'countyFair' && year >= TILLY_FAIR_YEAR && s.rivals.hollis.alive && !s.world?.tillyWon) return { vs: ['hollis'], stake: 'tilly' };
+  const vs = RIVALS.filter((id) => s.rivals[id]?.alive && PLOTS.some((p) => p.district === district && s.plots[p.id].owner === id && s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked));
+  return { vs: vs.length ? vs : ['local'] };
+}
+
+function pickJudges(s: GameState, rng: { seed: number }, fair: FairId, district: DistrictId): Judge[] {
+  const owned = ownedRecipes(s);
+  const crowd = FESTIVALS[fair].crowd;
+  const segs = [...new Set([...(crowd ? [crowd] : []), ...(Object.keys(DISTRICT_BY_ID[district].mix) as SegmentId[])])]
+    .filter((seg) => SEGMENTS[seg].favorites.some((r) => owned.includes(r))); // always a hint you can answer
+  const pickOne = <T>(list: T[]) => list[Math.floor(nextRandom(rng) * list.length)];
+  return [
+    { kind: 'recipe', segment: pickOne(segs.length ? segs : ['families']) },
+    { kind: 'sweet', want: pickOne(SWEET) },
+    { kind: 'price', band: pickOne(PRICE_BANDS) },
+  ];
+}
+
+/** At dawn on a fair's last day: three judges, their hints and who enters against you. */
+export function setupTasteOff(s: GameState): void {
+  const w = worldOf(s);
+  const fair = FAIRS.find((id) => runsOn(id, s.day) && seasonDay(s.day) === FESTIVALS[id].to);
+  if (!fair || w.tasteOff?.day === s.day || w.fairs.some((r) => r.day === s.day)) return;
+  const district = FESTIVALS[fair].district;
+  const { vs, stake } = contestants(s, fair, district);
+  const rng = { seed: s.seed };
+  const judges = stake === 'strawberry' ? ACT1_JUDGES.map((j) => ({ ...j })) : pickJudges(s, rng, fair, district);
+  s.seed = rng.seed;
+  w.tasteOff = { fair, day: s.day, district, judges, vs, ...(stake ? { stake } : {}), entry: {} };
+}
+
+/** What you'll enter: whatever you've set at the fair, else the selected stand's card, Sweetness and price. */
+export function entryOf(s: GameState): Required<TasteOffEntry> {
+  const e = tasteOffToday(s)?.entry ?? {};
+  const st = selectedStand(s);
+  const recipe = e.recipe && ownsRecipe(s, e.recipe) ? e.recipe : ownsRecipe(s, st.recipe) ? st.recipe : 'classic';
+  return { recipe, sweetness: e.sweetness ?? st.sweetness, price: e.price ?? st.price };
+}
+
+/** Change today's entry: a card from the book, a Sweetness setting, or the price by a nudge. */
+export function setTasteOffEntry(s: GameState, change: { recipe?: RecipeId; sweetness?: Sweetness; delta?: number }): boolean {
+  const t = tasteOffToday(s);
+  if (!t || s.phase === 'report') return false;
+  if (change.recipe && !ownsRecipe(s, change.recipe)) return false;
+  const now = entryOf(s);
+  if (change.recipe) t.entry.recipe = change.recipe;
+  if (change.sweetness) t.entry.sweetness = change.sweetness;
+  if (change.delta) t.entry.price = clamp(round2(now.price + change.delta), 0.05, 20);
+  return true;
+}
+
+/** The booth's top price: your best stand's top price × the card's price bonus × the district's tolerance. */
+export function boothCeiling(s: GameState, recipe: RecipeId, district: DistrictId): number {
+  const level = Math.max(1, ...playerStands(s).map((p) => s.plots[p.id].stand!.level));
+  return STAND_LEVELS[level - 1].topPrice * (1 + RECIPES[recipe].priceBonus) * (DISTRICT_BY_ID[district].priceMult ?? 1) * blenderBar(s, recipe);
+}
+
+/** 0 bargain, 1 fair, 2 worth a little extra, 3 over the top price. */
+export function priceBand(price: number, ceiling: number): number {
+  const i = TASTE_OFF.bands.findIndex((b) => price <= ceiling * b + 1e-9);
+  return i < 0 ? 3 : i;
+}
+
+/** One judge's mark for an entry: the demand model in miniature. */
+export function judgeMark(j: Judge, e: Required<TasteOffEntry>, ceiling: number): number {
+  const byGap = (gap: number) => (gap === 0 ? TASTE_OFF.hit : gap === 1 ? TASTE_OFF.near : TASTE_OFF.miss);
+  if (j.kind === 'recipe') return SEGMENTS[j.segment].favorites.includes(e.recipe) ? TASTE_OFF.recipeHit : TASTE_OFF.near;
+  if (j.kind === 'sweet') return byGap(Math.abs(SWEET.indexOf(j.want) - SWEET.indexOf(e.sweetness)));
+  const band = priceBand(e.price, ceiling);
+  return band === 3 ? TASTE_OFF.miss : byGap(Math.abs(band - PRICE_BANDS.indexOf(j.band)));
+}
+
+const score = (marks: number[]) => Math.round(marks.reduce((a, b) => a * b, 1) * 10000) / 10000;
+
+/** Rivals' tongues are rolled per judge: a hit, near it, or a miss. */
+function rivalScore(rng: { seed: number }, c: Contestant, judges: Judge[]): number {
+  const p = TASTE_OFF_SKILL[c];
+  return score(judges.map((j) => {
+    const r = nextRandom(rng);
+    return r < p ? (j.kind === 'recipe' ? TASTE_OFF.recipeHit : TASTE_OFF.hit) : r < p + (1 - p) * TASTE_OFF.nearShare ? TASTE_OFF.near : TASTE_OFF.miss;
+  }));
+}
+
+/** Seam: demand's rival Reputation (addRivalStars) after merge. Rivals sit at a fixed 3 stars until then. */
+const addRivalStars = (_s: GameState, _id: RivalId, _delta: number): void => {};
+
+/** Sandbox and Endless: a fair win brings Strawberry home, else one page whose holder isn't on the map (one per win). */
+function fairPage(s: GameState): void {
+  if (grantPage(s, 'strawberry')) return;
+  const orphan = RECIPE_IDS.find((id) => { const h = pageHolder(s, id); return h && (h === 'harpTeacher' || !(h in s.rivals)); });
+  if (orphan) grantPage(s, orphan);
+}
+
+/** At closing on a fair's last day: the judges taste, the winner takes the star, the traffic and the prize. */
+function judgeTasteOff(s: GameState, t: TasteOff): TasteOffResult {
+  const w = worldOf(s);
+  const entry = entryOf(s);
+  const marks = t.judges.map((j) => judgeMark(j, entry, boothCeiling(s, entry.recipe, t.district)));
+  const mine = score(marks);
+  const rng = { seed: s.seed };
+  let best = 0, top: Contestant | null = null;
+  for (const c of t.vs) {
+    const sc = rivalScore(rng, c, t.judges);
+    if (sc > best) { best = sc; top = c; }
+  }
+  s.seed = rng.seed;
+  const winner: 'player' | Contestant = top && best > mine ? top : 'player'; // ties go to the newcomer
+  const result: TasteOffResult = { fair: t.fair, day: s.day, district: t.district, winner, vs: t.vs, ...(t.stake ? { stake: t.stake } : {}), score: mine, best, marks, entry };
+  w.fairs.push(result);
+  delete w.tasteOff;
+  const fair = FESTIVALS[t.fair].name;
+  if (winner !== 'local') w.boosts.push({ owner: winner, district: t.district, from: s.day + 1, to: s.day + TASTE_OFF.days });
+  if (winner === 'player') {
+    s.reputation = clamp(round2(s.reputation + TASTE_OFF.stars), 1, 5);
+    s.today.reputationAfter = s.reputation;
+    s.cash = round2(s.cash + TASTE_OFF.prize); // ledger: fair prizes
+    s.today.revenue = round2(s.today.revenue + TASTE_OFF.prize);
+    s.news.push(`TASTE-OFF! Lottie's Lemonade wins the ${fair}: +${TASTE_OFF.stars} star and a $${TASTE_OFF.prize} prize!`);
+  } else if (winner === 'local') {
+    s.news.push(`TASTE-OFF: Dot's Diner wins the ${fair}. The locals cheer.`);
+  } else {
+    addRivalStars(s, winner, TASTE_OFF.stars);
+    s.rivals[winner].cash = round2(s.rivals[winner].cash + TASTE_OFF.prize);
+    s.news.push(`TASTE-OFF: ${FACTIONS[winner].name} win the ${fair}.`);
+  }
+  if (t.stake === 'strawberry') {
+    if (winner === 'player') {
+      grantPage(s, 'strawberry');
+      s.news.push('On 101.5 The Squeeze, Brock swears revenge: "This isn\'t over, bro!"'); // seam: story's playScene after merge
+    } else s.news.push('Brock keeps the Strawberry page at the Blend Shack. "Undefeated, bro!"');
+  } else if (t.stake === 'tilly') {
+    s.news.push(winner === 'player' ? 'Tilly tips her hat: "You out-brewed me, sugar. Come buy a Field at a friendly price."' : 'Tilly takes the County Fair: "Come back next year, sugar."');
+  } else if (winner === 'player' && !storyFairs(s)) fairPage(s);
+  // Tilly is won over by the Act 4 duel; outside the campaign's story, by beating her at any County Fair.
+  if (winner === 'player' && t.fair === 'countyFair' && t.vs.includes('hollis') && (t.stake === 'tilly' || !storyFairs(s))) w.tillyWon = true;
+  return result;
+}
+
+// ---------- Tilly and the County Fair ----------
+
+export const tillyDuelHeld = (s: GameState) => !!s.world?.fairs.some((r) => r.stake === 'tilly');
+
+/** Won over at the County Fair, Tilly sells her Fields at 1.5× land value instead of 2.5×. */
+export function tillyFieldRate(s: GameState, plotId: string): number | undefined {
+  return s.world?.tillyWon && s.plots[plotId].owner === 'hollis' && PLOT_BY_ID[plotId].type === 'field' ? TILLY_FIELD_BUYOUT : undefined;
+}
+
+/** Campaign: until the Act 4 County Fair has run its Taste-Off, Tilly neither sells out nor falls to an assault. */
+export function tillyWaits(s: GameState, id: RivalId, what: 'buyout' | 'assault'): Blocker | null {
+  if (id !== 'hollis' || !TILLY_WAITS_FOR_FAIR || !storyFairs(s) || !s.rivals.hollis.alive) return null;
+  if (tillyDuelHeld(s) || s.day > festivalDays('countyFair', TILLY_FAIR_YEAR).to) return null;
+  return { ok: false, why: what === 'buyout' ? "Tilly won't talk business until the County Fair" : "Tilly won't budge until the County Fair" };
+}
+
+// ---------- the two hooks ----------
+
+/** Dawn: boosts and sponsorships run out; on a fair's last day the Taste-Off is set up. */
 export function worldAtDawn(s: GameState): void {
   const w = worldOf(s);
+  w.boosts = w.boosts.filter((b) => b.to >= s.day);
   w.sponsored = w.sponsored.filter((x) => x.to >= s.day);
+  if (w.tasteOff && w.tasteOff.day < s.day) delete w.tasteOff;
+  setupTasteOff(s);
+}
+
+/** Closing: judge today's Taste-Off. */
+export function worldAtClose(s: GameState): void {
+  const t = tasteOffToday(s);
+  if (t) judgeTasteOff(s, t);
 }

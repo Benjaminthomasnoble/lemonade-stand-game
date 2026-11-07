@@ -12,7 +12,7 @@ import {
   type WeatherKind,
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
-import { calendarTraffic, festivalCrowd, worldAtDawn } from './calendar.ts';
+import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
@@ -167,7 +167,7 @@ export interface GameState {
   alerts?: Alert[]; // the alert feed's cards (alerts.ts)
   alertSeq?: number;
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
-  world?: WorldState; // Lottie's recipe book and the festivals the player sponsors
+  world?: WorldState; // Lottie's recipe book, the calendar's Taste-Offs, boosts and sponsorships
 }
 
 export type SimEvent =
@@ -674,6 +674,7 @@ function closeDay(s: GameState): void {
   rep -= Math.min(0.15, t.walkedPast.soldOut * 0.004) + Math.min(0.1, t.walkedPast.line * 0.002);
   s.reputation = clamp(Math.round(rep * 100) / 100, 1, 5);
   t.reputationAfter = s.reputation;
+  worldAtClose(s); // world: judge today's Taste-Off
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
   const score = successScore(s);

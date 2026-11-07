@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { demandChain, LOTTIES_CORNER, newGame, openStands, priceCeiling, tickMinute, type GameState } from '../sim/economy.ts';
+import { demandChain, eventsOf, LOTTIES_CORNER, newGame, openStands, priceCeiling, tickMinute, type GameState } from '../sim/economy.ts';
 import { standPanel, walkerInfo, walkerLine } from './stand.ts';
 
 // The reaction icons draw on a canvas; Node has none, so they come out blank here.
@@ -78,6 +78,19 @@ describe('the stand panel', () => {
     }
     expect(html).toContain('<td>400</td>');
     expect(html).toContain('<td>×1.3</td>');
+  });
+
+  it('breaks the marketing number into its terms, and names a surge on top', () => {
+    const s = corner();
+    s.rank = 3;
+    s.brandTier = 1;
+    s.plots[LOTTIES_CORNER].stand!.campaigns.sandwichBoard = 1;
+    eventsOf(s).on.push({ id: 'viralVideo', from: s.day, to: s.day + 1, live: true, plots: [LOTTIES_CORNER], district: 'maple' });
+    const html = standPanel(s, LOTTIES_CORNER, true);
+    expect(html).toContain('<td>Marketing</td><td>×1.25</td>');
+    expect(html).toContain('<td>· Hand-Painted Signs</td><td>+5%</td>');
+    expect(html).toContain('<td>· Sandwich-Board Kid</td><td>+20%</td>');
+    expect(html).toContain('<td>Viral Video</td><td class="good">×2</td>');
   });
 
   it('flags a price past the top, and goes live once the stand opens', () => {

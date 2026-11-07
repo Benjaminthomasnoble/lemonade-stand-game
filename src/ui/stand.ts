@@ -60,7 +60,8 @@ function chainFor(s: GameState, plotId: string): DemandChain | null {
     const ps = s.plots[q.id], x = ps.stand;
     return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}` : '-';
   }).join(',');
-  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, block].join('|');
+  const surging = (s.world?.events?.on ?? []).map((e) => `${e.id}${e.live ? 1 : 0}`).join(); // a surge starts mid-day too
+  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, block, surging].join('|');
   const m = memo.get(s);
   if (m && m.key === key) return m.chain;
   const chain = demandChain(s, plotId);
@@ -87,8 +88,10 @@ function mathTable(s: GameState, plotId: string, c: DemandChain): string {
     ['Plot traffic', n0(c.traffic)],
     ['Stand draw', times(c.draw)],
     ['Marketing', times(c.marketing)],
+    ...c.terms.map((t): [string, string, string?] => [`· ${t.label}`, t.blocked ? `<s>+${pct(t.traffic)}</s> C&amp;D` : `+${pct(t.traffic)}`, t.blocked ? 'bad' : undefined]),
     [`${season[0].toUpperCase()}${season.slice(1)}`, times(c.season)],
     [`${WEATHER[w.kind].label} streets`, times(c.weather)],
+    ...c.surges.map((x): [string, string, string?] => [x.label, times(x.mult), x.mult > 1 ? 'good' : 'bad']),
     ...(c.lunch !== 1 ? [['Lunch rush', times(c.lunch)] as [string, string]] : []),
     ['Walk by', n0(c.passersby), 'good'],
     ...(c.kept < 1 ? [['Kept from rivals', pct(c.kept)] as [string, string]] : []),
@@ -156,7 +159,8 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   if (!st || !c || st.wrecked) return '';
   const I = icon();
   const open = s.phase === 'open';
-  const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing × ${num(c.season)} season × ${num(c.weather)} weather${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''}`;
+  const ads = c.terms.filter((t) => !t.blocked).map((t) => `${t.label} +${pct(t.traffic)}`).join(', ');
+  const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing${ads ? ` (${ads})` : ''} × ${num(c.season)} season × ${num(c.weather)} weather${c.surge !== 1 ? ` × ${num(c.surge)} events` : ''}${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''}`;
   const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars`;
   const caps: [string, number, boolean][] = open
     ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', cupsInStock(s, plotId), cupsInStock(s, plotId) <= 0]]

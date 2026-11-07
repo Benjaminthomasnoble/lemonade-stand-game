@@ -6,19 +6,22 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  AUTO_PRICE_RANK, BASE_STOP_CHANCE, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
-  PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
+  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, DayStats, GameState, Stand, Weather } from './economy.ts';
-import { appealFor, cupsInStock, expectedPassersby, marketingMultiplier, rivalPrice } from './economy.ts';
+import { appealFor, cupsInStock, expectedPassersby, rivalPrice } from './economy.ts';
 import { migrateLedger } from './ledger.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
-import { crowdAt } from './calendar.ts';
+import { calendarTraffic, crowdAt, underCeaseAndDesist } from './calendar.ts';
+import { eventDef, eventTraffic, liveEvents } from './events.ts';
 import { kidsShare } from './happenings.ts';
+import { groveTraffic } from './vip.ts';
+import { adBlitzBoost } from './schemes.ts';
 import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
 
@@ -103,11 +106,96 @@ export function curbAppeal(s: GameState, plotId: string): number {
 
 /** The perks' terms in the marketing number: Orchard Fresh (+10% at all your stands) and Town Favorite (+10% in Old Town and Maple Row). */
 export function perkTraffic(s: GameState, owner: FactionId, plotId?: string): number {
-  if (owner !== 'player') return 0;
-  let t = fullControl(s, 'groves') ? PERKS.orchardFresh : 0;
-  const d = plotId ? PLOT_BY_ID[plotId]?.district : undefined;
-  if ((d === 'oldtown' || d === 'maple') && fullControl(s, 'oldtown')) t += PERKS.townFavorite;
+  let t = 0;
+  perkTerms(s, owner, (_id, _label, traffic) => { t += traffic; }, plotId);
   return t;
+}
+
+function perkTerms(s: GameState, owner: FactionId, add: MarketingAdd, plotId?: string): void {
+  if (owner !== 'player') return;
+  if (fullControl(s, 'groves')) add('orchardFresh', 'Orchard Fresh', PERKS.orchardFresh);
+  const d = plotId ? PLOT_BY_ID[plotId]?.district : undefined;
+  if ((d === 'oldtown' || d === 'maple') && fullControl(s, 'oldtown')) add('townFavorite', 'Town Favorite', PERKS.townFavorite);
+}
+
+// ---------- the marketing number (spec: How marketing stacks) ----------
+
+/** One traffic bonus at a stand (0.2 is +20%). A blocked one counts for nothing: a Cease-and-Desist is on its district. */
+export interface MarketingTerm { id: string; label: string; traffic: number; blocked: boolean }
+export type MarketingAdd = (id: string, label: string, traffic: number, blocked?: boolean) => void;
+export type MarketingSource = (s: GameState, owner: FactionId, add: MarketingAdd, st?: Stand, plotId?: string) => void;
+
+/** Your brand tier, campaigns and Billboards count for nothing in a district under a Cease-and-Desist (calendar.ts's seam). */
+export const adsBlocked = (s: GameState, owner: FactionId, plotId?: string): boolean =>
+  owner === 'player' && !!plotId && underCeaseAndDesist(s, PLOT_BY_ID[plotId].district);
+
+/**
+ * Every traffic bonus reaching a stand adds into one marketing number, in the order the stand panel lists them.
+ * Surges written ×2 (Viral Video, Parade Route; Roadworks ×0.5) multiply on top, in expectedPassersby. A new
+ * source (Billboards and Roofs within 2 plots, Sunny, a rival's ad blitz) adds one entry here.
+ */
+export const MARKETING_TERMS: MarketingSource[] = [
+  (s, owner, add, _st, plotId) => { // the brand tier: each replaces the last
+    const tier = owner === 'player' ? s.brandTier : s.rivals[owner as RivalId]?.brandTier ?? 0;
+    if (tier) add('brand', BRAND_TIERS[tier - 1].name, BRAND_TIERS[tier - 1].traffic, adsBlocked(s, owner, plotId));
+  },
+  (s, owner, add) => { // the Lemon Groves, +5% each at all your stands (vip.ts)
+    const g = owner === 'player' ? groveTraffic(s) : 0;
+    if (g) add('groves', 'Lemon Groves', g);
+  },
+  (s, owner, add, st) => { // a Taste-Off win (rivals too) and an Event Sponsorship, in that district (calendar.ts)
+    const c = calendarTraffic(s, owner, st);
+    if (c) add('calendar', c === TASTE_OFF.traffic ? 'Taste-Off win' : c === SPONSORSHIP.traffic ? 'Event Sponsorship' : 'Taste-Off win and sponsorship', c);
+  },
+  (s, owner, add, _st, plotId) => perkTerms(s, owner, add, plotId), // Orchard Fresh, Town Favorite
+  (s, owner, add, st, plotId) => { // the stand's own campaigns
+    if (!st) return;
+    for (const id in st.campaigns) {
+      const c = CAMPAIGNS[id as CampaignId];
+      if (c && (st.campaigns[id as CampaignId] ?? 0) > 0) add(id, c.name, c.traffic, adsBlocked(s, owner, plotId));
+    }
+  },
+  (s, owner, add, st) => { // FizzCo's ad blitz: its mascot works one district (schemes.ts)
+    const b = adBlitzBoost(s, owner, st);
+    if (b) add('blitz', "FizzCo's mascot", b);
+  },
+];
+
+const standPlots = new WeakMap<Stand, string>();
+/** The plot a stand stands on, for a caller that names only the stand (stands don't move, so it's kept). */
+function plotOf(s: GameState, st?: Stand): string | undefined {
+  if (!st) return undefined;
+  const known = standPlots.get(st);
+  if (known && s.plots[known]?.stand === st) return known;
+  for (const id in s.plots) if (s.plots[id].stand === st) { standPlots.set(st, id); return id; }
+  return undefined;
+}
+
+/** The marketing number: 1 + every traffic bonus at this stand. It runs for every stand every minute, so it builds no list. */
+export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, plotId = plotOf(s, st)): number {
+  let m = 1;
+  const add: MarketingAdd = (_id, _label, traffic, blocked) => { if (!blocked) m += traffic; };
+  for (const source of MARKETING_TERMS) source(s, owner, add, st, plotId);
+  return m;
+}
+
+/** The marketing number's terms at a stand, as the stand panel lists them. */
+export function marketingTerms(s: GameState, owner: FactionId, st?: Stand, plotId = plotOf(s, st)): MarketingTerm[] {
+  const out: MarketingTerm[] = [];
+  const add: MarketingAdd = (id, label, traffic, blocked = false) => { out.push({ id, label, traffic, blocked }); };
+  for (const source of MARKETING_TERMS) source(s, owner, add, st, plotId);
+  return out;
+}
+
+/** Today's surges on a stand's walkers (world events), each multiplying on top of the marketing number. */
+export function surges(s: GameState, plotId: string): { label: string; mult: number }[] {
+  const out: { label: string; mult: number }[] = [];
+  for (const e of liveEvents(s)) {
+    const d = eventDef(e);
+    const m = d?.traffic?.(s, e, plotId);
+    if (d && m !== undefined && m !== 1) out.push({ label: d.name, mult: m });
+  }
+  return out;
 }
 
 /** Power Lunch (Downtown at Full Control): the lunch rush is ×1.5 at your stands in Downtown and Old Town. A surge on top, not marketing. */
@@ -360,7 +448,9 @@ export type Binding = 'demand' | 'service' | 'stock';
 /** Every number in the three demand steps, for the stand panel (forecast at Morning Prep, today's weather while open). */
 export interface DemandChain {
   // 1. Passersby
-  traffic: number; draw: number; marketing: number; season: number; weather: number; lunch: number; passersby: number;
+  traffic: number; draw: number; marketing: number; season: number; weather: number; surge: number; lunch: number; passersby: number;
+  /** The marketing number's terms, and the surges multiplying on top. */
+  terms: MarketingTerm[]; surges: { label: string; mult: number }[];
   kept: number; inflow: number; visitors: number;
   // 2. Stop chance
   base: number; thirst: number; curb: number; recipe: number; sweet: number; priceFit: number; reputation: number; stopChance: number;
@@ -387,7 +477,8 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
   const binding: Binding = cups === demand ? 'demand' : cups === service ? 'service' : 'stock';
   return {
     traffic: p.baseTraffic, draw: STAND_LEVELS[st.level - 1].draw, marketing: marketingMultiplier(s, owner, st, plotId),
-    season: seasonDemand(s, plotId), weather: WEATHER[w.kind].traffic, lunch,
+    season: seasonDemand(s, plotId), weather: WEATHER[w.kind].traffic, surge: eventTraffic(s, plotId), lunch,
+    terms: marketingTerms(s, owner, st, plotId), surges: surges(s, plotId),
     passersby: Math.round(passersby * lunch), kept: f.kept, inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
     base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
     reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,

@@ -12,13 +12,13 @@ import {
   type WeatherKind,
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
-import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
+import { festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
-import { bottleValue, groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
+import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
+import { landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -30,8 +30,8 @@ import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
-  migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
+  adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
+  marketingMultiplier, migrateDemand, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
@@ -550,20 +550,6 @@ export function appealFor(s: GameState, plotId: string, seg: SegmentId, w: Weath
 /** Average stop chance across a plot's day-long customer mix. */
 export function averageStopChance(s: GameState, plotId: string, w: Weather = s.weather): number {
   return dayMixOn(s, PLOT_BY_ID[plotId].district).reduce((a, [seg, x]) => a + appealFor(s, plotId, seg, w).stopChance * x, 0);
-}
-
-/**
- * The marketing number: every traffic bonus adds into one number that multiplies the plot's traffic (spec: How
- * marketing stacks): brand tier, Lemon Groves, the calendar (Taste-Off wins, sponsorships), district perks, campaigns.
- */
-export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, plotId?: string): number {
-  const tier = owner === 'player' ? s.brandTier : s.rivals[owner]?.brandTier ?? 0;
-  let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0) + calendarTraffic(s, owner, st);
-  m += perkTraffic(s, owner, plotId); // Town Favorite, Orchard Fresh
-  if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
-  m -= ceaseAndDesistCut(s, owner, st); // FizzCo's Cease-and-Desist: your tier bonus and campaigns count for nothing in its district
-  m += adBlitzBoost(s, owner, st); // FizzCo's ad blitz: its mascot works one district
-  return m;
 }
 
 export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.weather): number {
@@ -1093,7 +1079,7 @@ export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected
   if (s.phase !== 'prep') return { ok: false, why: 'Plan campaigns during Morning Prep' };
   if (s.rank < c.rank) return { ok: false, why: `Needs Rank ${c.rank}, ${RANKS[c.rank - 1].title}` };
   if (c.maxLevel && st.level > c.maxLevel) return { ok: false, why: `Only for L1–L${c.maxLevel} stands` };
-  if (ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return { ok: false, why: 'Cease-and-Desist: ads count for nothing here' };
+  if (adsBlocked(s, 'player', plotId)) return { ok: false, why: 'Cease-and-Desist: ads count for nothing here' };
   const left = st.campaigns[id] ?? 0;
   if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
   const cost = campaignCost(s, id); // Word of Mouth halves it

@@ -21,6 +21,7 @@ import { lemonsExpiringTomorrow, priceCeiling, seasonOf, stock } from '../sim/ec
 import { hpShare } from '../sim/damage.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
+import { createLemonWave } from './lemonWave.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
@@ -46,6 +47,8 @@ export interface PlotView {
   /** World-space spot where customers queue. */
   serve: THREE.Vector3;
   sidewalkZ: number;
+  /** Who owned the HQ last drawn here, so a capture can play the lemon-clay wave. */
+  hqOwner?: string | null;
   /** The player's stand level last drawn here, so an upgrade can play its crate reveal. */
   shownLevel?: number;
   /** Whether the kept stand was built with Lottie (her corner only). */
@@ -293,6 +296,7 @@ export function createBay(scene: THREE.Scene): Bay {
   scene.add(tiles, borders, outlines, tape);
   // The town around the plots: backdrop buildings, landmarks, props and eye music.
   const townLife = createTown(scene);
+  const lemon = createLemonWave(scene);
 
   // Blob shadows: one instanced draw of soft plum discs, shown only when the sun casts no shadows.
   const blobTex = canvasTex(64, 64, (c) => {
@@ -319,14 +323,26 @@ export function createBay(scene: THREE.Scene): Bay {
     f.views.push(v);
     far.set(v.plot.district, f);
   }
+  // Each plot's Bay View clay is cached (keyed by the plot's key), so a change re-collects only that plot
+  // and the district block is just a merge of cached pieces.
+  const farGeo = new Map<PlotView, { key: string; geo: THREE.BufferGeometry | null }>();
+  function plotFar(v: PlotView) {
+    const c = farGeo.get(v);
+    if (c && c.key === v.key) return c.geo;
+    c?.geo?.dispose();
+    const B = new Baker();
+    const shown = v.root.visible;
+    v.root.visible = true;
+    collectClay(v.root, B);
+    v.root.visible = shown;
+    const geo = B.size ? B.build() : null;
+    farGeo.set(v, { key: v.key, geo });
+    return geo;
+  }
+  let idleTick = 0;
   function buildFar(id: DistrictId, f: { views: PlotView[]; mesh: THREE.Mesh | null; dirty: boolean }) {
     const B = new Baker();
-    for (const v of f.views) {
-      const shown = v.root.visible;
-      v.root.visible = true;
-      collectClay(v.root, B);
-      v.root.visible = shown;
-    }
+    for (const v of f.views) { const g = plotFar(v); if (g) B.raw(g); }
     if (f.mesh) { scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh = null; }
     if (B.size) {
       f.mesh = new THREE.Mesh(B.build(), K.world);
@@ -421,7 +437,11 @@ export function createBay(scene: THREE.Scene): Bay {
     const p = v.plot;
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
-    else if (p.type === 'hq') building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
+    else if (p.type === 'hq') {
+      building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
+      if (synced && ps.owner === 'player' && v.hqOwner !== undefined && v.hqOwner !== 'player') lemon.capture(v.root.position.x, p.z, 10);
+      v.hqOwner = ps.owner;
+    }
     else if (ps.facility?.kind === 'clubhouse') building = civicBuilding('Clubhouse'); // combat: a stand-in till the art threads model one
     else if (ps.facility) {
       const east = ps.facility.kind === 'pier' ? eastReach(v) : null;
@@ -589,6 +609,8 @@ export function createBay(scene: THREE.Scene): Bay {
         for (const m of Object.values(farPatterns.meshes)) m.visible = level >= 2;
         farOutlines.visible = level >= 2;
       }
+      if (s.outcome?.result === 'won' && s.outcome.how === 'domination') { const c = PLOTS.find((q) => q.id === LOTTIES_CORNER)!; lemon.dominate(c.x, c.z); }
+      lemon.update(time);
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm');
       const mf = Math.floor(time * 12);
       sentries.setVisible(level < 2);
@@ -621,10 +643,12 @@ export function createBay(scene: THREE.Scene): Bay {
         }
         sentries.sync();
       }
-      let merges = 2;
+      // One district merge a frame in Bay View, and one every half second while zoomed in (idle time),
+      // so zooming out never waits on a pile of merges; a stale block stays up until its new one is ready.
+      let merges = level >= 2 || ++idleTick % 30 === 0 ? 1 : 0;
       for (const [id, f] of farList) {
-        if (level >= 2 && f.dirty && merges > 0) { buildFar(id, f); merges--; }
-        const block = level >= 2 && !f.dirty && !!f.mesh;
+        if (f.dirty && merges > 0) { buildFar(id, f); merges--; }
+        const block = level >= 2 && !!f.mesh;
         if (f.mesh) f.mesh.visible = block;
         for (const v of f.views) v.root.visible = !block;
       }

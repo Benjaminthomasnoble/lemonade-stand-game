@@ -69,6 +69,8 @@ export function weatherOn(l: Look, kind: WeatherKind): Look {
   if (dim === 1) return l;
   l.sunI *= dim;
   if (dim < 1) {
+    // overcast light casts soft, faint shadows (storm about half, rain about 0.6)
+    l.shadowI *= dim + (1 - dim) * 0.12;
     const grey = (1 - dim) * 0.7;
     l.hemiI *= 1 + (1 - dim) * 0.5;
     l.sky.lerp(GREY, grey * (1 - l.night));

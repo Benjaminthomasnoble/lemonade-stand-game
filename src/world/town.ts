@@ -164,7 +164,7 @@ const cottage: Style = (C, x, z, f, seed) => {
   win(C, x - w * 0.25, h * 0.5, z + f * (d / 2), 1.1, 1, f);
   // a flower box under the window
   add(C.props, rbox(1.2, 0.22, 0.3, 0.06), P.walnut, { p: [x - w * 0.25, h * 0.5 - 0.65, z + f * (d / 2 + 0.16)] });
-  for (let k = 0; k < 4; k++) add(C.props, sph(0.11, 6, 4), [P.blush, '#FF9F1C', P.terra, '#FFFFFF'][(k + seed) % 4], { p: [x - w * 0.25 - 0.4 + k * 0.27, h * 0.5 - 0.47, z + f * (d / 2 + 0.18)] });
+  for (let k = 0; k < 4; k++) add(C.props, sph(0.11, 6, 4), [P.blush, '#C8325A', P.terra, '#FFFFFF'][(k + seed) % 4], { p: [x - w * 0.25 - 0.4 + k * 0.27, h * 0.5 - 0.47, z + f * (d / 2 + 0.18)] });
   // matchstick pickets along the front lawn, red clay tips
   const fz = z + f * (d / 2 + 1.8);
   for (let k = 0, xx = x - w / 2 - 0.4; xx < x + w / 2 + 0.4; xx += 0.5, k++) {
@@ -216,7 +216,7 @@ const sawtooth: Style = (C, x, z, f, seed) => {
   clayBlock(C.full, w, h, d, wall, x, 0, z, seed);
   for (let i = 0; i < 3; i++) add(C.full, rbox(3.2, 0.25, d + 0.3, 0.08), '#5B5568', { p: [x - 3 + i * 3, h + 0.8, z], r: [0, 0, -0.5] });
   // a mural on card
-  const mural = ['#FF4FA3', '#FF9F1C', P.teal, P.terra, '#7CC47F', '#B9A7EA'];
+  const mural = ['#FF4FA3', '#C8325A', P.teal, P.terra, '#7CC47F', '#B9A7EA'];
   add(C.full, rbox(5, 2.4, 0.06, 0.03), '#FFFDF6', { p: [x - 1.2, 2, z + f * (d / 2 + 0.04)], fx: PAPER });
   for (let k = 0; k < 6; k++) add(C.full, sph(0.5 + hash(seed, k) * 0.4, 7, 4), mural[(k + seed + SEASONS.indexOf(SEASON) * 2) % 6], { p: [x - 3.2 + k * 0.8, 1.4 + hash(k, seed) * 1.3, z + f * (d / 2 + 0.07)], s: [1, 0.8, 0.06], fx: PAPER });
   win(C, x + 2.8, 2, z + f * (d / 2), 1.6, 1.4, f);
@@ -230,29 +230,31 @@ const sawtooth: Style = (C, x, z, f, seed) => {
     add(C.full, cyl(1.2, 1.2, 0.1, 20), '#2E2A4F', { p: [x + 2.8, h + 0.6, vz], r: [Math.PI / 2, 0, 0], fx: GLOSS });
     add(C.full, cyl(0.45, 0.45, 0.12, 14), '#FF4FA3', { p: [x + 2.8, h + 0.6, vz + f * 0.02], r: [Math.PI / 2, 0, 0], fx: PAPER });
     add(C.full, rbox(1.1, 0.6, 0.8, 0.06), P.stick, { p: [x + 1.2, 0.3, z + f * (d / 2 + 0.8)], fx: PAPER });
-    for (let k = 0; k < 5; k++) add(C.full, box(0.9, 0.9, 0.04), ['#FF4FA3', P.teal, '#FF9F1C', '#B9A7EA', P.terra][(k + seed) % 5], { p: [x + 1.2, 0.75, z + f * (d / 2 + 0.55 + k * 0.12)], r: [f * 0.15, 0, 0], fx: PAPER });
+    for (let k = 0; k < 5; k++) add(C.full, box(0.9, 0.9, 0.04), ['#FF4FA3', P.teal, '#C8325A', '#B9A7EA', P.terra][(k + seed) % 5], { p: [x + 1.2, 0.75, z + f * (d / 2 + 0.55 + k * 0.12)], r: [f * 0.15, 0, 0], fx: PAPER });
   }
   lumpBlock(C.block, w, h + 1, d, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, w, h + 1, d);
 };
 
 const tower: Style = (C, x, z, f, seed) => {
-  const glass = ['#9FB4C8', '#AFC3D6', '#8EA5BD', '#B8C2CC'];
+  // printed-card colours: sky blue, lilac and mint card with cream trim, and a few bolder towers
+  const glass = ['#8FC3E8', '#C3B3EA', '#A8DDC4', '#F2A7B8', '#7FB7C9', '#F5C38B'];
+  const G = (k: number) => glass[(seed + k) % glass.length];
   // The camera looks south over the bay, so the north row (side 0, fronts facing +z) is the camera side:
   // it stays low so it never hides the plots; the tall towers stand across the street.
   const w = 7, d = 6, h = f > 0 ? 5 + (seed % 2) * 1.6 : 12 + (seed % 4) * 4;
   // tall towers step back two-thirds of the way up and wear a rounded crown
   const hb = h > 10 ? Math.round(h * 0.66 / 1.6) * 1.6 + 0.2 : h, w2 = w - 1.8, d2 = d - 1.6;
-  clayBlock(C.full, w, hb, d, glass[seed % 4], x, 0, z, seed, 0.45);
+  clayBlock(C.full, w, hb, d, G(0), x, 0, z, seed, 0.45);
   if (hb < h) {
-    clayBlock(C.full, w2, h - hb, d2, glass[(seed + 1) % 4], x, hb, z, seed + 5, 0.45);
-    add(C.full, rbox(w + 0.3, 0.3, d + 0.3, 0.12), '#6C7A90', { p: [x, hb, z] });
+    clayBlock(C.full, w2, h - hb, d2, G(1), x, hb, z, seed + 5, 0.45);
+    add(C.full, rbox(w + 0.3, 0.3, d + 0.3, 0.12), '#FFF1D6', { p: [x, hb, z] });
   }
   // printed-card glass: window bands on every face, panes in slightly different card tints
   const tints = ['#ffffff', '#F2F7FF', '#FFF6E2'];
   for (let y = 1.6; y < h - 0.6; y += 1.6) {
     const up = y >= hb, ww = up ? w2 : w, dd = up ? d2 : d, nf = up ? 3 : 4, ns = up ? 2 : 3;
-    add(C.full, rbox(ww + 0.08, 0.2, dd + 0.08, 0.05), '#6C7A90', { p: [x, y - 0.15, z] });
+    add(C.full, rbox(ww + 0.08, 0.2, dd + 0.08, 0.05), '#FFF1D6', { p: [x, y - 0.15, z] });
     for (let k = 0; k < nf; k++) for (const s of [1, -1]) add(C.win, box(1.2, 1.05, 0.06), tints[(k + Math.round(y)) % 3], { p: [x + (k - (nf - 1) / 2) * 1.6, y + 0.6, z + s * f * (dd / 2 + 0.03)] });
     for (let k = 0; k < ns; k++) for (const s of [1, -1]) add(C.win, box(0.06, 1.05, 1.2), tints[(k + Math.round(y) + 1) % 3], { p: [x + s * (ww / 2 + 0.03), y + 0.6, z + (k - (ns - 1) / 2) * 1.6] });
   }
@@ -260,21 +262,31 @@ const tower: Style = (C, x, z, f, seed) => {
     // clay-snake neon across the front (glows from golden hour) and a revolving door
     const zz: [number, number, number][] = [];
     for (let k = 0; k <= 10; k++) zz.push([x - 2.8 + k * 0.56, 3.6 + (k % 2 ? 0.3 : -0.3), z + f * (d / 2 + 0.12)]);
-    add(C.full, snake(zz, 0.08, 30, 5), ['#FF4FA3', '#2EC4F1', '#FF9F1C', '#7CF07C'][seed % 4], { fx: 1 });
+    add(C.full, snake(zz, 0.08, 30, 5), ['#FF4FA3', '#2EC4F1', '#FFB878', '#7CF07C'][seed % 4], { fx: 1 });
     add(C.full, cyl(1.1, 1.1, 0.25, 12), P.chrome, { p: [x - 1.5, 2.35, z + f * (d / 2 + 0.6)], fx: GLOSS });
     add(C.full, cyl(1.1, 1.1, 0.1, 12), '#5B5568', { p: [x - 1.5, 0.05, z + f * (d / 2 + 0.6)] });
     C.movers.push({ kind: 'door', x: x - 1.5, y: 0.1, z: z + f * (d / 2 + 0.6), ph: seed });
   }
   if (hb < h) {
     // a rounded crown with a spire
-    add(C.full, sph(Math.min(w2, d2) / 2, 14, 7, ), glass[(seed + 2) % 4], { p: [x, h, z], s: [w2 / Math.min(w2, d2), 0.7, d2 / Math.min(w2, d2)] });
+    add(C.full, sph(Math.min(w2, d2) / 2, 14, 7, ), G(2), { p: [x, h, z], s: [w2 / Math.min(w2, d2), 0.7, d2 / Math.min(w2, d2)] });
     add(C.full, cone(0.18, 2.2, 6), P.chrome, { p: [x, h + 2.2, z], fx: GLOSS });
     add(C.full, sph(0.2, 8, 6), '#FF4FA3', { p: [x, h + 3.3, z], fx: GLOSS + 1 });
-  } else add(C.full, rbox(w - 1.6, 0.8, d - 1.6, 0.25), P.chrome, { p: [x, h + 0.4, z], fx: GLOSS });
+    // an antenna with a paper pennant
+    add(C.full, cyl(0.05, 0.05, 2.4, 4), '#5B5568', { p: [x + w2 / 2 - 0.5, h - 0.2 + 1.2, z] });
+    add(C.full, cone(0.3, 1, 3), [P.terra, P.teal, P.blush][seed % 3], { p: [x + w2 / 2 - 0.05, h + 1.5, z], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
+  } else {
+    // a lumpy cap, a water tank on stilts and a striped card awning over the door
+    add(C.full, lumpy(rbox(w + 0.3, 0.5, d + 0.3, 0.2), 0.04, 1, seed), '#FFF1D6', { p: [x, h + 0.2, z] });
+    for (const sx of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) add(C.full, cyl(0.07, 0.07, 1.2, 4), P.walnut, { p: [x + 1.8 + sx, h + 1, z - f * 1 + sz] });
+    add(C.full, lumpy(cyl(0.85, 0.85, 1.4, 10), 0.03, 2, seed), '#C98F5E', { p: [x + 1.8, h + 2.2, z - f * 1], fx: PAPER });
+    add(C.full, cone(0.95, 0.6, 10), '#8B5E3C', { p: [x + 1.8, h + 3.2, z - f * 1] });
+    for (let i = 0; i < 6; i++) add(C.full, box(0.9, 0.04, 1.1), i % 2 ? '#FFF1D6' : [P.terra, P.teal, P.blush][seed % 3], { p: [x - 2.25 + i * 0.9, 2.9, z + f * (d / 2 + 0.5)], r: [f * 0.4, 0, 0], fx: PAPER });
+  }
   // a food cart on the plaza out front
   if (seed % 2) {
     const cx = x + 2, cz = z + f * (d / 2 + 2.4);
-    add(C.props, rbox(1.6, 0.9, 0.9, 0.1), ['#FF9F1C', P.terra, P.teal][seed % 3], { p: [cx, 0.75, cz] });
+    add(C.props, rbox(1.6, 0.9, 0.9, 0.1), ['#C8325A', P.terra, P.teal][seed % 3], { p: [cx, 0.75, cz] });
     for (const dx of [-0.5, 0.5]) add(C.props, cyl(0.22, 0.22, 0.1, 10), P.plum, { p: [cx + dx, 0.22, cz], r: [Math.PI / 2, 0, 0] });
     stick(C.props, cx, 1.2, 2.2, cz, 0.06, P.cream);
     for (let k = 0; k < 6; k++) add(C.props, new THREE.ConeGeometry(0.8, 0.35, 3, 1, true, (k / 6) * Math.PI * 2, Math.PI / 3), k % 2 ? P.cream : P.terra, { p: [cx, 2.3, cz], fx: PAPER });
@@ -282,7 +294,7 @@ const tower: Style = (C, x, z, f, seed) => {
   // a paved plaza out front with planters and a bench
   add(C.full, rbox(w + 2, 0.12, 3.4, 0.05), '#E3D8C6', { p: [x, 0.06, z + f * (d / 2 + 1.8)] });
   for (const dx of [-w / 2 - 0.2, w / 2 + 0.2]) { add(C.full, rbox(1, 0.7, 1, 0.12), '#C9A27A', { p: [dx + x, 0.4, z + f * (d / 2 + 2.6)] }); ball(C.full, 0.6, '#5FA35A', x + dx, 1.05, z + f * (d / 2 + 2.6), seed, 7); }
-  lumpBlock(C.block, w, h, d, glass[seed % 4], x, 0, z, seed, 0.4);
+  lumpBlock(C.block, w, h, d, G(0), x, 0, z, seed, 0.4);
   blockLit(C, x, z, f, w, h, d);
 };
 
@@ -356,17 +368,17 @@ const beachHut: Style = (C, x, z, f, seed) => {
   // a popsicle-stick deck and a striped hut
   for (let k = 0; k < 10; k++) add(C.full, rbox(0.55, 0.1, 5, 0.03), P.stick, { p: [x - 2.6 + k * 0.58, 0.3, z], fx: PAPER });
   clayBlock(C.full, 4, 2.8, 3.4, wall, x - 0.6, 0.35, z - f * 0.4, seed);
-  gable(C.full, 4.6, 3.8, 1.2, [P.terra, P.teal, '#FF9F1C'][seed % 3], x - 0.6, 3.1, z - f * 0.4);
+  gable(C.full, 4.6, 3.8, 1.2, [P.terra, P.teal, '#C8325A'][seed % 3], x - 0.6, 3.1, z - f * 0.4);
   for (let k = 0; k < 6; k++) add(C.props, box(0.6, 2.6, 0.03), k % 2 ? '#FFFDF6' : wall, { p: [x - 2.1 + k * 0.6, 1.7, z - f * 0.4 + f * 1.72], fx: PAPER });
   // surfboards leaning on the wall
-  for (let k = 0; k < 2; k++) add(C.props, lumpy(cap(0.32, 2.2, 3, 8), 0.02, 2, k), [P.terra, '#FF9F1C', P.teal][(k + seed) % 3], { p: [x + 2 + k * 0.6, 1.5, z + f * 1.5], r: [f * 0.2, 0, 0.1], s: [1, 1, 0.25] });
+  for (let k = 0; k < 2; k++) add(C.props, lumpy(cap(0.32, 2.2, 3, 8), 0.02, 2, k), [P.terra, '#C8325A', P.teal][(k + seed) % 3], { p: [x + 2 + k * 0.6, 1.5, z + f * 1.5], r: [f * 0.2, 0, 0.1], s: [1, 1, 0.25] });
   if (seed % 2) gull(C, x - 0.6, 4.35, z - f * 0.4, seed);
   // the back: a round porthole window, a door and a towel drying on the rail
   win(C, x - 1.6, 1.9, z - f * 2.11, 0.8, 0.8, -f);
   add(C.full, rbox(0.8, 1.6, 0.14, 0.05), P.walnut, { p: [x + 0.3, 1.15, z - f * 2.12] });
   for (const dx of [1.6, 2.8]) stick(C.full, x + dx, 0.3, 1.75, z - f * 2.4, 0.08);
   add(C.full, box(1.3, 0.03, 0.03), '#FFFDF6', { p: [x + 2.2, 1.65, z - f * 2.4] });
-  add(C.full, rbox(1, 1.1, 0.04, 0.02), [P.blush, P.teal, '#FF9F1C'][seed % 3], { p: [x + 2.2, 1.1, z - f * 2.4], fx: PAPER });
+  add(C.full, rbox(1, 1.1, 0.04, 0.02), [P.blush, P.teal, '#C8325A'][seed % 3], { p: [x + 2.2, 1.1, z - f * 2.4], fx: PAPER });
   lumpBlock(C.block, 5, 3.4, 4, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, 5, 3.4, 4);
 };
@@ -393,7 +405,7 @@ function ferrisWheel(x: number, z: number, parts: THREE.Object3D[], C: Chunk, y0
   for (let k = 0; k < 10; k++) {
     const a = (k / 10) * Math.PI * 2;
     b.add(rbox(0.16, R * 2, 0.12, 0.05), P.stick, { r: [0, 0, a], fx: PAPER });
-    b.add(rbox(0.9, 0.7, 1.2, 0.2), [P.terra, '#7EA6D8', P.teal, P.blush, '#FF9F1C'][k % 5], { p: [Math.cos(a) * R, Math.sin(a) * R - 0.5, 0] });
+    b.add(rbox(0.9, 0.7, 1.2, 0.2), [P.terra, '#7EA6D8', P.teal, P.blush, '#C8325A'][k % 5], { p: [Math.cos(a) * R, Math.sin(a) * R - 0.5, 0] });
     b.add(sph(0.14, 6, 4), '#FFE2A8', { p: [Math.cos(a) * (R + 0.2), Math.sin(a) * (R + 0.2), 0.8], fx: GLOSS + 1 });
   }
   b.add(cyl(0.5, 0.5, 2, 10), P.terra, { r: [Math.PI / 2, 0, 0] });
@@ -421,7 +433,7 @@ function bandstand(x: number, z: number, C: Chunk) {
   add(C.full, cyl(4, 4.2, 0.8, 12), P.cream, { p: [x, 0.4, z] });
   for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; add(C.full, cyl(0.15, 0.15, 3.4, 6), '#FFFFFF', { p: [x + Math.cos(a) * 3.4, 2.5, z + Math.sin(a) * 3.4] }); }
   for (let k = 0; k < 8; k++) add(C.full, new THREE.ConeGeometry(4.6, 2.2, 8, 1, true, (k / 8) * Math.PI * 2, Math.PI / 4), k % 2 ? P.cream : P.terra, { p: [x, 5.2, z], fx: PAPER });
-  add(C.full, sph(0.3, 8, 6), '#FF9F1C', { p: [x, 6.4, z] });
+  add(C.full, sph(0.3, 8, 6), '#C8325A', { p: [x, 6.4, z] });
   lumpBlock(C.block, 8, 6, 8, P.cream, x, 0, z, 2, 1);
 }
 function fountain(x: number, z: number, C: Chunk) {
@@ -451,7 +463,7 @@ function clubhouse(x: number, z: number, C: Chunk) {
 }
 function fairTents(x: number, z: number, C: Chunk) {
   for (let k = 0; k < 3; k++) {
-    const tx = x - 5 + k * 5, c = [P.terra, '#7EA6D8', '#FF9F1C'][k];
+    const tx = x - 5 + k * 5, c = [P.terra, '#7EA6D8', '#C8325A'][k];
     add(C.full, cyl(1.8, 1.8, 2, 12), '#FFFDF6', { p: [tx, 1, z] });
     for (let s = 0; s < 8; s++) add(C.full, new THREE.ConeGeometry(2.2, 2, 8, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? '#FFFDF6' : c, { p: [tx, 3, z], fx: PAPER });
     stick(C.full, tx, 4, 5, z, 0.06, P.walnut);
@@ -459,7 +471,7 @@ function fairTents(x: number, z: number, C: Chunk) {
   }
   // the big-top pole with its pennants, so the fair stands over the barns and silos
   stick(C.full, x, 0, 9.5, z, 0.22, P.cream);
-  for (let k = 0; k < 4; k++) add(C.full, cone(0.35, 1.1, 3), [P.terra, P.teal, '#FF9F1C', P.blush][k], { p: [x + 0.6, 9.2 - k * 1.1, z], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
+  for (let k = 0; k < 4; k++) add(C.full, cone(0.35, 1.1, 3), [P.terra, P.teal, '#C8325A', P.blush][k], { p: [x + 0.6, 9.2 - k * 1.1, z], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
   for (let s = 0; s < 8; s++) add(C.full, new THREE.ConeGeometry(2.6, 3, 8, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? '#FFFDF6' : P.terra, { p: [x, 5.3, z], fx: PAPER });
   lumpBlock(C.block, 14, 4, 4, P.terra, x, 0, z, 5, 1);
 }
@@ -498,7 +510,7 @@ function crane(x: number, z: number, parts: THREE.Object3D[], C: Chunk, seed: nu
   for (let y = 1.5; y < 9; y += 2) add(C.full, rbox(1.9, 0.18, 0.18, 0.05), '#E8704F', { p: [x, y, z + 0.8], r: [0, 0, 0.6], fx: PAPER });
   const b = new Baker();
   b.add(rbox(10, 0.4, 0.5, 0.1), '#E8704F', { p: [2.5, 0, 0], fx: PAPER });
-  b.add(rbox(1.6, 1.2, 1.4, 0.15), '#FF9F1C', { p: [0, 0.6, 0] });
+  b.add(rbox(1.6, 1.2, 1.4, 0.15), '#C8325A', { p: [0, 0.6, 0] });
   b.add(cyl(0.02, 0.02, 4, 4), P.plum, { p: [6.5, -2, 0] });
   b.add(rbox(1, 0.8, 1, 0.06), [P.stick, P.teal, P.terra][seed % 3], { p: [6.5, -4.2, 0], fx: PAPER });
   const m = new THREE.Mesh(b.build(), kit().world);
@@ -541,7 +553,7 @@ function moverGeometry(kind: Mover['kind']) {
     // a paper kite on a thread, with a bow tail
     b.add(cone(0.8, 1.6, 4), '#FF4FA3', { s: [1, 1, 0.08], fx: PAPER });
     b.add(cone(0.8, 0.6, 4), P.teal, { p: [0, -1.1, 0], r: [Math.PI, 0, 0], s: [1, 1, 0.08], fx: PAPER });
-    for (let k = 0; k < 4; k++) b.add(sph(0.1, 5, 3), [P.teal, '#FF9F1C'][k % 2], { p: [Math.sin(k) * 0.2, -1.8 - k * 0.45, 0], s: [1.6, 0.7, 0.5], fx: PAPER });
+    for (let k = 0; k < 4; k++) b.add(sph(0.1, 5, 3), [P.teal, '#C8325A'][k % 2], { p: [Math.sin(k) * 0.2, -1.8 - k * 0.45, 0], s: [1.6, 0.7, 0.5], fx: PAPER });
     b.add(cyl(0.012, 0.012, 9, 3), '#FFFDF6', { p: [0, -4.8, 2], r: [-0.45, 0, 0] });
   } else {
     b.add(lathe2(), P.terra, { s: [0.35, 1.4, 0.35] });
@@ -743,7 +755,7 @@ function streetLine(C: Chunk, x: number, z: number, season: Season, seed: number
     const u = k / n, zz = z - zs + u * zs * 2, y = top - Math.sin(u * Math.PI) * 0.9;
     if (k < n) add(C.full, box(0.03, 0.03, (zs * 2) / n + 0.05), '#FFFDF6', { p: [x, y - Math.cos(u * Math.PI) * 0.1, zz + zs / n], r: [-Math.cos((u + 0.5 / n) * Math.PI) * 0.36, 0, 0] });
     if (k === 0 || k === n) continue;
-    if (season === 'summer') add(C.full, cone(0.32, 0.7, 3), [P.terra, '#FF9F1C', P.teal, P.blush][(k + seed) % 4], { p: [x, y - 0.42, zz], r: [Math.PI, 0, 0], s: [1, 1, 0.12], fx: PAPER });
+    if (season === 'summer') add(C.full, cone(0.32, 0.7, 3), [P.terra, '#C8325A', P.teal, P.blush][(k + seed) % 4], { p: [x, y - 0.42, zz], r: [Math.PI, 0, 0], s: [1, 1, 0.12], fx: PAPER });
     else add(C.full, sph(0.13, 6, 4), ['#FFE2A8', '#FF8FB1', '#9FE3FF', '#B8F28C'][(k + seed) % 4], { p: [x, y - 0.18, zz], s: [1, 1.3, 1], fx: GLOSS + 1 });
   }
 }
@@ -768,9 +780,9 @@ function golfCart(d: District) {
   b.add(rbox(2.2, 0.6, 1.2, 0.2), '#FFFDF6', { p: [0, 0.6, 0] });
   b.add(rbox(0.8, 0.6, 1.1, 0.15), '#3F7F45', { p: [-0.3, 1.1, 0] });
   for (const dx of [-0.9, 0.8]) for (const s of [-1, 1]) b.add(cyl(0.08, 0.08, 1.3, 5), '#FFFDF6', { p: [dx, 1.5, s * 0.5] });
-  b.add(rbox(2.4, 0.12, 1.4, 0.05), '#5B2A6E', { p: [0, 2.15, 0] });
+  b.add(rbox(2.4, 0.12, 1.4, 0.05), P.teal, { p: [0, 2.15, 0] });
   for (const dx of [-0.7, 0.7]) for (const s of [-1, 1]) b.add(cyl(0.3, 0.3, 0.2, 10), '#2E2A4F', { p: [dx, 0.3, s * 0.6], r: [Math.PI / 2, 0, 0] });
-  b.add(cyl(0.2, 0.2, 0.8, 8), '#B5651D', { p: [-1.1, 1.0, 0.3], r: [0.2, 0, 0] }); // a golf bag
+  b.add(cyl(0.2, 0.2, 0.8, 8), P.terra, { p: [-1.1, 1.0, 0.3], r: [0.2, 0, 0] }); // a golf bag
   return driver(b, 'drive:cart', d.origin[0] + 4, d.origin[0] + d.cols * PLOT_SPACING - 4, d.origin[1] + BACK + 7.5, 1.2);
 }
 function driver(b: Baker, name: string, x0: number, x1: number, z: number, speed: number) {
@@ -787,10 +799,10 @@ function yacht(d: District) {
   b.add(lumpy(rbox(5.5, 1.1, 2, 0.5), 0.03, 2, 7), '#FFFDF6', { p: [0, 0.4, 0], fx: GLOSS });
   b.add(cone(1, 1.6, 8), '#FFFDF6', { p: [3.2, 0.4, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 1], fx: GLOSS });
   b.add(rbox(2.4, 0.9, 1.5, 0.3), '#9ED3D6', { p: [-0.5, 1.4, 0], fx: GLOSS });
-  b.add(rbox(2.6, 0.12, 1.7, 0.05), '#5B2A6E', { p: [-0.5, 1.9, 0] });
-  b.add(box(5.6, 0.12, 2.05), '#5B2A6E', { p: [0, 0.75, 0] });
+  b.add(rbox(2.6, 0.12, 1.7, 0.05), P.teal, { p: [-0.5, 1.9, 0] });
+  b.add(box(5.6, 0.12, 2.05), P.teal, { p: [0, 0.75, 0] });
   b.add(cyl(0.05, 0.05, 2.2, 5), P.chrome, { p: [-2.4, 2, 0], fx: GLOSS });
-  b.add(cone(0.35, 0.8, 3), '#C9A227', { p: [-2.1, 2.8, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.15], fx: PAPER });
+  b.add(cone(0.35, 0.8, 3), P.blush, { p: [-2.1, 2.8, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.15], fx: PAPER });
   const marina = d.special.find((p) => p.name === 'Yacht Marina');
   const m = new THREE.Mesh(b.build(), kit().world);
   m.name = 'bob:yacht';
@@ -881,8 +893,8 @@ function beach(C: Chunk, d: District) {
     } else if (SEASON === 'summer') {
       // umbrellas are a summer thing (the beach empties out in winter)
       add(C.full, cyl(0.04, 0.04, 2.2, 5), P.cream, { p: [x, 1.0, zb], r: [0, 0, 0.12] });
-      for (let s = 0; s < 8; s++) add(C.full, new THREE.ConeGeometry(1.1, 0.5, 3, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? [P.terra, P.teal, '#FF9F1C'][k % 3] : P.cream, { p: [x - 0.13, 2.25, zb], fx: PAPER });
-      add(C.props, rbox(1, 0.04, 1.8, 0.02), [P.teal, P.blush, '#FF9F1C'][(k + 1) % 3], { p: [x + 1.2, 0.07, zb + 0.4], r: [0, 0.3, 0], fx: PAPER });
+      for (let s = 0; s < 8; s++) add(C.full, new THREE.ConeGeometry(1.1, 0.5, 3, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? [P.terra, P.teal, '#C8325A'][k % 3] : P.cream, { p: [x - 0.13, 2.25, zb], fx: PAPER });
+      add(C.props, rbox(1, 0.04, 1.8, 0.02), [P.teal, P.blush, '#C8325A'][(k + 1) % 3], { p: [x + 1.2, 0.07, zb + 0.4], r: [0, 0.3, 0], fx: PAPER });
     }
     if (k % 2 && SEASON !== 'winter') {
       const sx = x + 3.5;

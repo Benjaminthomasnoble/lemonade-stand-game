@@ -288,7 +288,8 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     }
     for (let k = 0; k < 10; k++) M.add(sph(0.22, 8, 6), own.accent, { p: [-2.8 + (k % 5) * 1.4, 0.6 + Math.floor(k / 5) * 0.55, fz - 0.42], s: [1, 1, 0.5], fx: GLOSS });
     door(M, 0, fz - 0.4, '#5B6470', 1.8, 1.9);
-    M.add(lathe([[0, 0], [0.9, 0], [0.95, 1.6], [0.5, 2.6], [0.35, 3.4], [0.38, 3.6], [0, 3.6]], 16), tint('#C8102E'), { p: [0, H, fz - 3.5], fx: GLOSS });
+    // the soda-bottle crown (kept cola red under lemon clay as the Trophy when you capture it)
+    M.add(lathe([[0, 0], [0.9, 0], [0.95, 1.6], [0.5, 2.6], [0.35, 3.4], [0.38, 3.6], [0, 3.6]], 16), owner ? '#C8102E' : '#B9B4C4', { p: [0, H, fz - 3.5], fx: GLOSS });
     M.add(cyl(0.4, 0.4, 0.2, 12), own.accent, { p: [0, H + 3.7, fz - 3.5], fx: GLOSS });
     medallion(M, owner, 0, 4.6, fz - 0.2, 1.5, 4.6);
     const g = M.done('hq');
@@ -299,7 +300,8 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     // a cream mansion with a plum dome studded in gold diamonds, columns and topiaries
     block(M, 10, 5.2, 6, tint('#F6EEDF'), 0, 0, fz - 3.5, 4);
     M.add(rbox(10.6, 0.4, 7, 0.12), own.main, { p: [0, 5.3, fz - 3.5] });
-    M.add(sph(2.6, 18, 10, ), own.main, { p: [0, 5.5, fz - 3.5], s: [1, 0.85, 1] });
+    // the plum dome (kept plum as the Trophy when you capture it)
+    M.add(sph(2.6, 18, 10, ), owner ? '#5B2A6E' : '#B9B4C4', { p: [0, 5.5, fz - 3.5], s: [1, 0.85, 1] });
     for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; M.add(new THREE.OctahedronGeometry(0.18, 0), own.accent, { p: [Math.cos(a) * 2.2, 6.6 + (k % 2) * 0.5, fz - 3.5 + Math.sin(a) * 2.2], s: [1, 1.3, 0.6], fx: GLOSS }); }
     M.add(cyl(0.12, 0.12, 1.2, 6), own.accent, { p: [0, 8.2, fz - 3.5], fx: GLOSS });
     M.add(sph(0.3, 10, 8), own.accent, { p: [0, 8.9, fz - 3.5], fx: GLOSS });

@@ -13,6 +13,7 @@ import { createPost, type ClayPost } from './clay/post.ts';
 import { buildDiorama, DESK_LAMP, PLINTH } from './diorama.ts';
 import { cloneLook, hourOf, lookAt, LOOKS, mixLook, weatherOn } from './lighting.ts';
 import { createWeather } from './weather.ts';
+import { createMist } from './mist.ts';
 
 import { setCrowdDetail } from './clay/figure.ts';
 const stillClay = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -171,6 +172,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
 
   // Weather looks: beaded-fishing-line rain, storm cups and lightning, scorcher shimmer (weather.ts).
   const weatherFx = createWeather(scene, phone);
+  const mist = createMist(scene, phone);
 
   // Bay View people: every figure (anything with userData.limbs at the top of the scene) draws as one clay speck in one instanced draw.
   const SPECKS = 400;
@@ -375,6 +377,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
 
       // Weather, and the desk lamp flickering for lightning in a storm.
       const flash = weatherFx.update(dt, weather, t, dist);
+      mist.update(hour, performance.now() / 1000);
       if (flash > 0) { hemi.intensity += flash * 1.6; sun.intensity += flash * 2.2; renderer.toneMappingExposure += flash * 0.25; }
       scene.userData.weather = weather;
     },

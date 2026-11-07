@@ -120,8 +120,8 @@ describe("Lottie's side lot (Day 3)", () => {
       s.plots[p.id].stand!.level = 4;
     }
     s.cash = 1000;
-    expect(buyPlot(s, LOTTIES_SIDE_LOT)).toBe(true); // a Rank 1 buy from Day 1, at its $300 land value
-    expect(s.cash).toBe(700);
+    expect(buyPlot(s, LOTTIES_SIDE_LOT)).toBe(true); // a Rank 1 buy from Day 1: its $300 land value, less Majority's 10% (the rest of Maple Row is yours)
+    expect(s.cash).toBe(730);
     s.day = 2;
     nextDawn(s);
     const ps = s.plots[LOTTIES_SIDE_LOT];

@@ -41,7 +41,7 @@ export function bugleSheet(s: GameState, celsius = false): string {
   const costs = p.costs.map((c) => `<tr><td>${esc(short(c.plot))}, a cup</td><td>${cents(c.cost)}</td></tr>`).join('');
   const market = `<div class="cl-card" title="${esc(marketText(p.market))}"><span class="cl-pic">${lemonArt()}</span><span class="cl-txt"><b>The Market</b><table class="cl-books" data-testid="bugle-market">${rows}${costs}</table></span></div>`;
   const week = p.calendar.length ? `<div class="cl-ticket" data-testid="calendar" title="The week's calendar">${eggArt()}<b>This week</b>${p.calendar.map((l) => `<span class="cl-note">${esc(l)}</span>`).join('')}</div>` : '';
-  const events = p.events.map((e) => `<div class="cl-card" data-testid="bugle-event" title="${esc(`How to play it: ${e.counter}`)}"><span class="cl-pic">${boardArt()}</span><span class="cl-txt"><b>${esc(e.name)}</b><i>${esc(e.where)}, ${e.left === e.days ? (e.days === 1 ? 'today only' : `${e.days} days`) : e.left === 1 ? 'last day' : `${e.left} days left`}</i><i>${esc(e.counter)}</i></span></div>`).join('');
+  const events = p.events.map((e) => `<div class="cl-card" data-testid="bugle-event" title="${esc(`How to play it: ${e.counter}`)}"><span class="cl-pic">${boardArt()}</span><span class="cl-txt"><b>${esc(e.name)}</b><i>${esc(e.where)}, ${esc(e.when)}</i><i>${esc(e.counter)}</i></span></div>`).join('');
   return `<span class="cl-label" title="Morning edition · Day ${p.day} · 5¢">The Citrine Bay Bugle</span>${head}${briefs}${events}${sky}${market}${week}`;
 }
 

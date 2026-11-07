@@ -5,7 +5,7 @@
 // 2-3 briefs. Headlines go story beat, then rank-up, then last night's raid or the biggest rival move, then today's
 // events, then the weather. Mid-day events break in on 101.5 instead (radio.ts). s.news stays the headline source
 // for other lanes: what it holds at dawn prints as a brief. Pure: the paper is read off the state.
-import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SUPPLIES, WEATHER, YEAR_DAYS, type RivalId, type SupplyId, type WeatherKind } from './balance.ts';
+import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SEGMENTS, SUPPLIES, WEATHER, YEAR_DAYS, type FestivalId, type RivalId, type SupplyId, type WeatherKind } from './balance.ts';
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
 import { costPerCup, playerStands, seasonDay, seasonOf } from './economy.ts';
@@ -92,7 +92,9 @@ export function mediaAtDawn(s: GameState): void {
 // ---------- the front page ----------
 
 export interface MarketLine { id: SupplyId; change: number; text: string; shock?: { name: string; left: number } }
-export interface EventLine { id: string; name: string; where: string; days: number; left: number; counter: string }
+/** Something on today: a random event or a festival, where, how long it runs and how long it has left ("when", as the
+ * paper prints it: "3 days", "2 days left", "last day"; a festival's "day 3 of 7"), and how to play it. */
+export interface EventLine { id: string; name: string; where: string; days: number; left: number; when: string; counter: string }
 export interface FrontPage {
   day: number;
   headline: [string, string]; // big tape, small tape
@@ -247,11 +249,16 @@ function stories(s: GameState): { lead: Story[]; pinned: string[]; briefs: strin
     const f = FESTIVALS[x.id];
     briefs.push(`${f.name} opens ${x.from === s.day + 1 ? 'tomorrow' : 'in 2 days'} in ${DISTRICT_BY_ID[f.district].name}.`);
   }
-  // Event notes: the ones running on, with their days left.
+  // Event and festival notes: the ones running on, with their days left or their day of how many.
   for (const e of liveEvents(s)) {
     if (e.from === s.day) continue;
     const left = daysLeft(s, e);
     briefs.push(`${eventDef(e)!.name}, ${eventWhere(e)}: ${left === 1 ? 'last day' : `${left} days left`}.`);
+  }
+  for (const id of festivalsOn(s.day)) {
+    if (FESTIVALS[id].from === seasonDay(s.day)) continue; // its opening is a story of its own
+    const f = festivalLine(s, id);
+    briefs.push(`${f.name}, ${f.where}: ${f.when}.`);
   }
   for (const line of paper?.wire ?? []) {
     const story = wireStory(line);
@@ -328,8 +335,22 @@ export function frontPage(s: GameState): FrontPage {
     market: marketLines(s),
     costs: playerStands(s).map((p) => ({ plot: p.id, cost: costPerCup(s, s.plots[p.id].stand!) })),
     calendar: upcomingFestivals(s).map(calendarLine),
-    events: liveEvents(s).filter((e) => eventDef(e)).map((e) => ({
-      id: e.id, name: eventDef(e)!.name, where: eventWhere(e), days: e.to - e.from + 1, left: daysLeft(s, e), counter: eventDef(e)!.counter,
-    })),
+    events: [
+      ...liveEvents(s).filter((e) => eventDef(e)).map((e) => {
+        const days = e.to - e.from + 1, left = daysLeft(s, e);
+        const when = left === days ? lengthText(days) : left === 1 ? 'last day' : `${left} days left`;
+        return { id: e.id, name: eventDef(e)!.name, where: eventWhere(e), days, left, when, counter: eventDef(e)!.counter };
+      }),
+      ...festivalsOn(s.day).map((id) => festivalLine(s, id)),
+    ],
   };
+}
+
+/** A festival running today: its district, and its day of how many ("day 3 of 7", "last day"). */
+export function festivalLine(s: GameState, id: FestivalId): EventLine {
+  const f = FESTIVALS[id];
+  const days = f.to - f.from + 1, day = seasonDay(s.day) - f.from + 1;
+  const when = days === 1 ? 'today only' : day === days ? 'last day' : `day ${day} of ${days}`;
+  const counter = f.crowd ? `${SEGMENTS[f.crowd].label} fill the street` : id === 'electionDay' ? 'Citation rules may change' : 'The town turns out';
+  return { id, name: f.name, where: DISTRICT_BY_ID[f.district].name, days, left: days - day + 1, when, counter };
 }

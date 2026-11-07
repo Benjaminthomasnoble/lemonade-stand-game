@@ -132,6 +132,24 @@ describe('the Morning Bugle', () => {
     }
   }, 120_000); // 90 whole days: about 30 s alone, much longer while other checks share the machine
 
+  it('a festival stays in the paper after its opening day: its day of how many, then its last day', () => {
+    const s = newGame(37);
+    dawn(s, 8); // the Summer Fair opens: Days 8-14 in Old Town
+    expect(frontPage(s).events.find((e) => e.id === 'summerFair')).toMatchObject({ name: 'Summer Fair', where: 'Old Town', days: 7, left: 7, when: 'day 1 of 7' });
+    dawn(s, 10);
+    quiet(s);
+    eventsOf(s).on = [];
+    const p = frontPage(s);
+    expect(p.events).toEqual([{ id: 'summerFair', name: 'Summer Fair', where: 'Old Town', days: 7, left: 5, when: 'day 3 of 7', counter: 'Families fill the street' }]);
+    expect(p.briefs).toContain('Summer Fair, Old Town: day 3 of 7.');
+    expect(bugleSheet(s)).toContain('Old Town, day 3 of 7');
+    dawn(s, 14);
+    quiet(s);
+    eventsOf(s).on = [];
+    expect(frontPage(s).events.find((e) => e.id === 'summerFair')?.when).toBe('last day');
+    expect(frontPage(s).briefs).toContain('Summer Fair, Old Town: last day.');
+  });
+
   it("other lanes' overnight lines print on the wire; one written the paper's way can lead", () => {
     const s = newGame(33);
     dawn(s, 3);

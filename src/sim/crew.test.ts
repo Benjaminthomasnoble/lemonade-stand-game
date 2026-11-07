@@ -271,6 +271,12 @@ describe('detection', () => {
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6); // planned: still on the plot until it sets out
     s.raids[0].leave = s.minute;
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    const [r] = s.raids.splice(0); // there and fought live (fight.ts): off the raid clock, in the fight
+    s.fight = { id: 'f1', raid: r, night: false, seed: 1, t: 0, ticked: 0, commands: [], side: 'att',
+      input: { attackers: [], defenders: [], perimeter: 0, fenceHp: 0, gadgets: [], standHp: 0, objective: 'smash', detected: false } };
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    delete s.fight;
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6);
   });
 });
 

@@ -629,9 +629,11 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
 }
 
 /** Who is really on a plot of yours right now: posted there, not Out, not out scouting, and not away on a raid (night.ts
- * awayGuards: from the minute it sets out until the squad is home again; until it sets out they hold their posts). */
+ * awayGuards: from the minute it sets out until the squad is home again; until it sets out they hold their posts), the
+ * one being fought live included (fight.ts keeps it off the raid clock till it ends). */
 export function presentGuards(s: GameState, plotId: string): Guard[] {
   const away = awayGuards(s);
+  if (s.fight?.raid.attacker === 'player') for (const id of s.fight.raid.guards ?? []) away.add(id);
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 

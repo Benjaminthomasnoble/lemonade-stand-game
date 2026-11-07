@@ -556,14 +556,13 @@ describe('stock in cups', () => {
     expect(storageFor(filled(1).st, 'lemons')).toBe(160); // 150 lemons, up to whole packs of 20
   });
 
-  it('holds the card\'s own mix: Frozen twice the ice, Honey-Ginger none', () => {
-    const frozen = filled(1, 'frozen').st;
-    expect(storageFor(frozen, 'ice')).toBe(1800);
-    expect(servingsAvailable(frozen)).toBe(300);
-    const hot = filled(1, 'honeyGinger');
-    expect(storageFor(hot.st, 'ice')).toBe(0);
-    expect(maxPacks(hot.s, hot.st, 'ice')).toBe(0);
-    expect(servingsAvailable(hot.st)).toBe(300);
+  it('holds the same stock whatever the card, so a Frozen or Honey-Ginger stand keeps Classic\'s ice', () => {
+    for (const recipe of ['classic', 'frozen', 'honeyGinger'] as RecipeId[]) {
+      const { st } = filled(1, recipe);
+      for (const id of ['lemons', 'sugar', 'ice'] as const) expect(storageFor(st, id)).toBe(storageFor(filled(1).st, id));
+      expect(storageFor(st, 'ice')).toBe(900); // 300 cups at 3 cubes a cup
+      expect(servingsAvailable(st)).toBe(300);
+    }
   });
 
   it('counts the smallest of the cups\' worth of lemons, sugar and ice, and pours no cup without its ice', () => {

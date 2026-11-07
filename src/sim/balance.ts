@@ -154,8 +154,8 @@ export const PERKS = {
 // ---------- stands ----------
 /**
  * `stock`: the cups of lemons, sugar and ice a stand holds, one and a half days at full pour (spec: Stands).
- * `storage`: those cups in Classic's mix (half a lemon, a scoop and 3 cubes a cup), in whole packs; a stand
- * holds its own card's mix (economy.ts storageFor), so Frozen holds twice the ice and Honey-Ginger none.
+ * `storage`: those cups in Classic's mix (half a lemon, a scoop and 3 cubes a cup), in whole packs. Every card pours
+ * that same stock (RECIPES below), so every card holds the same (economy.ts storageFor).
  */
 export interface StandLevel { level: number; name: string; cost: number; draw: number; capacityPerHour: number; topPrice: number; upkeep: number; hp: number; guardPosts: number; stock: number; storage: Record<SupplyId, number> }
 export const STAND_LEVELS: StandLevel[] = [

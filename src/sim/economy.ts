@@ -432,8 +432,8 @@ function inventoryValue(st: Stand): number {
 }
 
 /**
- * The most of a supply a stand holds: its level's cups of stock (300 / 750 / 1,800 / 4,500 / 10,500) in its own
- * card's mix, up to whole packs. A Frozen stand holds twice the ice, a Honey-Ginger one none.
+ * The most of a supply a stand holds: its level's cups of stock (300 / 750 / 1,800 / 4,500 / 10,500) in the stock
+ * its card pours, up to whole packs. Every card pours the same stock (balance.ts RECIPES), so a switch strands none.
  */
 export function storageFor(st: Stand, id: SupplyId): number {
   const n = pitcherNeeds(st);

@@ -414,9 +414,10 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       const [kx, ky, kz] = model.kid;
       kid.position.set(kx, ky, kz);
       kid.userData.baseY = ky;
-      chair.position.x = model.chairX;
-      lottie.position.x = model.chairX;
-      phone.position.x = model.chairX - 0.55;
+      const cz = model.chairZ ?? -0.2;
+      chair.position.set(model.chairX, 0, cz);
+      lottie.position.x = model.chairX; lottie.position.z = cz + 0.05;
+      phone.position.set(model.chairX - 0.55, 0.4, cz + 0.45);
       stand.servePoint.z = model.serveZ;
       spring.x = openNow ? 1 : 0; spring.v = 0;
       poseAwning(spring.x);

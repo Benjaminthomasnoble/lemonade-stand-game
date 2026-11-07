@@ -37,6 +37,8 @@ export interface LevelModel {
   /** Where the kid stands, and how far out Lottie's chair goes. */
   kid: V3;
   chairX: number;
+  /** Where Lottie's chair sits front-to-back (default -0.2). */
+  chairZ?: number;
   serveZ: number;
   /** The giant lemon on L5. */
   spin?: THREE.Object3D;
@@ -68,7 +70,7 @@ export interface BuildOpts {
 
 /** What each level builder hands back. */
 interface Parts {
-  anchors: Anchors; kid: V3; chairX: number; serveZ: number; sign: THREE.Group; sticks: THREE.Object3D;
+  anchors: Anchors; kid: V3; chairX: number; chairZ?: number; serveZ: number; sign: THREE.Group; sticks: THREE.Object3D;
   awning?: LevelModel['awning']; tearable?: LevelModel['tearable']; spin?: THREE.Object3D;
   bell?: THREE.Mesh | null; menuTex?: THREE.Texture; neon?: THREE.Mesh | null; neonEnds?: number[]; dome?: THREE.Mesh | null;
 }
@@ -565,7 +567,8 @@ function palaceModel(c: Ctx, gilded: boolean): Parts {
       crate: [-2.65, 0, -0.6], sack: [-2.95, 0, -1.4], cooler: [2.25, 0, 1.0], chalk: [1.5, 0, 1.6],
       stars: [0, neon.top, 0.32], starSpan: 1.9, card: [0, 0.55, 0.36], pole: [3.4, 4.6, 0.7],
     },
-    kid: [0, 0.3, -0.3], chairX: -4.3, serveZ: 1.4, sign: neon.group, dome, spin: spin ?? undefined, tearable, neon: neon.mesh, neonEnds: neon.ends,
+    // Lottie sits behind the fountain, clear of its bowl and inside the fence.
+    kid: [0, 0.3, -0.3], chairX: -4.0, chairZ: -1.75, serveZ: 1.4, sign: neon.group, dome, spin: spin ?? undefined, tearable, neon: neon.mesh, neonEnds: neon.ends,
     sticks: danglers(c, 4.0, 1.0, 0.4),
   };
 }
@@ -642,7 +645,7 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   const domeY = m.dome?.position.y ?? 0;
   const calm = reducedMotion();
   return {
-    level: L, root, anchors: m.anchors, kid: m.kid, chairX: m.chairX, serveZ: m.serveZ, spin: m.spin,
+    level: L, root, anchors: m.anchors, kid: m.kid, chairX: m.chairX, chairZ: m.chairZ, serveZ: m.serveZ, spin: m.spin,
     awning: m.awning, sign: m.sign, tearable: m.tearable, sticks: m.sticks,
     revealSeconds: L >= 4 ? 6 : 3,
     flourish(k) {

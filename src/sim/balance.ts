@@ -488,7 +488,7 @@ export const RESERVE_MINUTES = { same: 30, border: 60 }; // placeholder: spec ga
 /**
  * What a rival builds up on a plot, by stand level (facilities count as their tier + 2): the fence tier, the gadgets
  * (in buying order) and the henchmen on its posts (as many as the posts hold). The Kiosk row is the spec's Day 24
- * Shakedown target (a Picket, cans, a goose and 3 Smoothie Bros with paddleboards); the other rows are placeholders.
+ * Shakedown target (a Picket, cans, a goose and 3 Smoothie Bros with paddleboards); the other rows are a placeholder: spec gap.
  */
 export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; weapons: [number, number, number]; gear: GearId }[] = [
   { fence: 1, gadgets: [], level: 1, weapons: [1, 0, 0], gear: 'none' },

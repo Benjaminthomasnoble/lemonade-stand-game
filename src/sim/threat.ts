@@ -208,7 +208,7 @@ export function raidBoss(s: GameState, id: RivalId): Fighter {
   const m = 0.75 + 0.25 * HQS[id].tier;
   return {
     id: `${id}-boss-${s.nextId++}`, name: HQS[id].boss, side: 'att', hp: GUARD_BASE.hp * RAID_BOSS.hp * m, hit: RAID_BOSS.hit * m,
-    chop: RAID_BOSS.chop, nerve: RAID_BOSS.nerve, armor: RAID_BOSS.armor, weapon: 'clubs', level: 5,
+    chop: RAID_BOSS.chop, nerve: RAID_BOSS.nerve, armor: RAID_BOSS.armor, weapon: 'clubs', level: 5, boss: true,
   };
 }
 

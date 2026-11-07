@@ -397,7 +397,7 @@ export const HQ_STAGES: HqStage[] = ['gate', 'yard', 'boss'];
 function boss(id: RivalId, n: number): Fighter {
   const tier = HQS[id].tier;
   const m = 0.75 + 0.25 * tier;
-  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 2.5 * m, hit: 8 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs' };
+  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 2.5 * m, hit: 8 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs', boss: true };
 }
 
 /** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */

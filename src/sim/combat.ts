@@ -48,6 +48,7 @@ export interface Fighter {
   trait?: Trait; // Butterfingers and Goose Whisperer act inside the fight
   gear?: GearId; // what they wear (for the replay: vests, Pro Gear)
   level?: number; // 1 Rookie .. 5 Legend (for the replay's sleeve chevrons)
+  boss?: boolean; // a rival's boss (threat.ts raidBoss, rivals.ts boss()): a named character, never Nabbed
 }
 
 export interface BattleInput {
@@ -572,5 +573,13 @@ export function migrateCombat(s: GameState): void {
   }
   migrateClubhouse(s); // one Clubhouse level for the crew becomes a Clubhouse on a Street plot
   migrateCaptives(s);
+  tagBosses(s);
   s.combatRules = COMBAT_RULES;
+}
+
+/** Bosses saved before the boss flag, in a raid tonight or a fight saved mid-brawl, known by their id. */
+function tagBosses(s: GameState): void {
+  const f = s.fight;
+  const live = f ? [...(f.raid.party ?? []), ...f.input.attackers, ...f.input.defenders, ...(f.input.joins ?? []).flatMap((j) => j.fighters)] : [];
+  for (const x of [...(s.raids ?? []).flatMap((r) => r.party ?? []), ...live]) if (x.id.includes('-boss-')) x.boss = true;
 }

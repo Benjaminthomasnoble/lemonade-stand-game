@@ -3,12 +3,13 @@ import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput,
 import {
   BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, FACTIONS, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad,
   hqStageInput, hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets,
-  refreshRecruits, resolveNight, rosterCap, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait,
+  raidBoss, refreshRecruits, resolveNight, rosterCap, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait,
   type WeaponId,
 } from './economy.ts';
 import { fitGarrison, hqOf, knockOut } from './garrison.ts';
 import { canSettle, captivesAtDawn, leftBehind, nabLeftBehind, settleCaptive } from './captives.ts';
 import { nextRandom } from './rng.ts';
+import { startFight, watchFights } from './fight.ts';
 import { manorStewards } from './squeeze.ts';
 
 let n = 0;
@@ -773,6 +774,33 @@ describe('the Nabbed', () => {
     expect(leftBehind(input.attackers, res)).toEqual([]);
   });
 
+  it('a beaten boss-led raid never nabs the boss: he always gets away, his crew carrying him off', () => {
+    const s = crewOf(['Pip Quill']);
+    const boss = raidBoss(s, 'blenders');
+    expect(boss.boss).toBe(true);
+    const bro = fighter('att', 'fists', { level: 1 });
+    const left = leftBehind([boss, bro], { outcome: 'repelled', koed: [boss.id, bro.id] });
+    expect(left).toEqual([bro]);
+    s.seed = nabbing(); // the roll lands
+    expect(nabLeftBehind(s, 'blenders', 'player', left, LOTTIES_CORNER).map((c) => c.guard!.level)).toEqual([1]);
+    // Fought for real: Brock leads Level 1 Bros into three Legends, and goes down. Bros are Nabbed now and then; Brock never.
+    let beaten = 0, nabbed = 0;
+    for (let seed = 1; beaten < 30 && seed < 400; seed++) {
+      const t = crewOf(['Pip Quill'], ['Rosa Vance'], ['Tank Brickman']);
+      t.seed = seed;
+      for (const g of t.guards) Object.assign(g, { level: 5, weapon: 'hatchets', gear: 'pro', post: LOTTIES_CORNER });
+      const lead = raidBoss(t, 'blenders');
+      const raid: Raid = { id: 'rb', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: [lead, ...many(3, 'att', 'fists', { level: 1 })], detected: true, eta: '23:00' };
+      const report = fightRaid(t, raid, true);
+      if (report.outcome !== 'repelled' || !report.koed.includes(lead.id)) continue;
+      beaten++;
+      nabbed += t.captives?.length ?? 0;
+      expect((t.captives ?? []).map((c) => c.guard!.level).filter((l) => l !== 1)).toEqual([]);
+    }
+    expect(beaten).toBe(30);
+    expect(nabbed).toBeGreaterThan(0);
+  });
+
   it('each one left behind is Nabbed on a 10% roll, both ways, and never in a fight between rivals', () => {
     const s = crewOf(['Pip Quill']);
     const bros = many(400, 'att', 'fists', { level: 2 });
@@ -1008,6 +1036,31 @@ describe('saves', () => {
     expect(loaded.combatRules).toBe(COMBAT_RULES);
     const again = migrateSave(JSON.parse(JSON.stringify(loaded)))!;
     expect(ids.map((id) => again.plots[id].defense.fenceHp)).toEqual([150, 250, 600, 2500, 3750, 0]);
+  });
+
+  it("an old save's bosses get their flag: a boss-led raid tonight, and a boss in a fight saved mid-brawl", () => {
+    const s = newGame(3);
+    const lead = raidBoss(s, 'hollis');
+    const raid: Raid = { id: 'rb', attacker: 'hollis', target: LOTTIES_CORNER, objective: 'smash', party: [lead, ...many(2, 'att')], detected: true, eta: '23:00' };
+    s.raids.push(raid);
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    for (const f of old.raids[0].party!) delete f.boss;
+    const loaded = migrateSave(old)!;
+    expect(loaded.raids[0].party!.map((f) => !!f.boss)).toEqual([true, false, false]);
+    expect(migrateSave(JSON.parse(JSON.stringify(loaded)))!.raids[0].party!.map((f) => !!f.boss)).toEqual([true, false, false]);
+    watchFights(true);
+    try {
+      const live = newGame(4);
+      const brock = raidBoss(live, 'blenders');
+      expect(startFight(live, { id: 'rl', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: [brock, ...many(2, 'att')], detected: true, eta: '23:00' }, true)).toBe(true);
+      const mid = JSON.parse(JSON.stringify(live)) as GameState;
+      for (const f of [...mid.fight!.raid.party!, ...mid.fight!.input.attackers]) delete f.boss;
+      const back = migrateSave(mid)!;
+      expect(back.fight!.input.attackers.filter((f) => f.boss).map((f) => f.id)).toEqual([brock.id]);
+      expect(back.fight!.raid.party!.filter((f) => f.boss).map((f) => f.id)).toEqual([brock.id]);
+    } finally {
+      watchFights(false);
+    }
   });
 
   it('a save from this build loads its fences as they were', () => {

@@ -4,7 +4,8 @@
 // "It works both ways: rivals can nab your guards and ask you for a ransom").
 // Winners carry their KO'd home, and so does a side that Falls Back, or a raid
 // that holds the field when its time runs out; a beaten raid leaves its KO'd
-// behind, and each rolls the chance, wherever you're one side of the fight.
+// behind (never its boss, who always gets away), and each rolls the chance,
+// wherever you're one side of the fight.
 //
 // A henchman you nab waits in your Crew tab until you choose: their side pays
 // their hire fee to get them back, you let them go, or they come over as a
@@ -58,11 +59,12 @@ export const ransomFor = (level: number) => GUARD_FEE[Math.min(5, Math.max(1, Ma
 /**
  * The KO'd raiders a fight leaves behind: none when the raid won, held the field as its time ran out (no defender
  * standing to nab anyone), or Fell Back carrying them, nor when the defenders Fell Back (the field was the raiders').
- * `earlier`: raiders KO'd in rooms already fought (an HQ).
+ * A boss is never left behind: he always gets away, his crew carrying him off. `earlier`: raiders KO'd in rooms
+ * already fought (an HQ).
  */
 export function leftBehind(attackers: Fighter[], res: Pick<BattleResult, 'outcome' | 'koed' | 'fellBack'>, earlier: Fighter[] = []): Fighter[] {
   if (res.outcome !== 'repelled' || res.fellBack) return [];
-  return [...earlier, ...attackers.filter((f) => res.koed.includes(f.id))];
+  return [...earlier, ...attackers.filter((f) => res.koed.includes(f.id))].filter((f) => !f.boss);
 }
 
 /** Your guard is held: off post and Out till the rival gives up on the ransom. */

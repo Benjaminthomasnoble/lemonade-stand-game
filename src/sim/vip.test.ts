@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder, DELIVERY_WINDOW,
-  FAILED_ORDER_STARS, FIZZCO_BID, FIZZCO_PLANT, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, openStand, ORDER_TIERS,
-  owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, simulateRestOfDay,
-  sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, yourDays, type GameState, type Order, type OrderBid,
+  FAILED_ORDER_STARS, FIZZCO_BID, FIZZCO_PLANT, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS,
+  oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost,
+  RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, yourDays,
+  type GameState, type Order, type OrderBid,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -506,6 +507,48 @@ describe('VIP clients', () => {
     expect(book).toContain('>Match $102,000</button>');
     s.rivals.fizzco.alive = false; // out of business: the bid is gone
     expect(menuScreen(s, 'orders', parts)).not.toContain('data-action="match"');
+  });
+
+  it('Shipping Lane: Full Control of The Harbor adds 15% to Ship Contract pay at each pickup', () => {
+    const { s, field, dock } = vipGame(34);
+    noRaids(s);
+    buildFacility(s, dock.id, 'pier'); // a Jetty: 5,000 bottles a day
+    buildFacility(s, field.id, 'helipad');
+    s.bottles = 20000;
+    const ship = order(s, { id: 'cruise', tier: 'ship', qty: 10000, pay: 400000, due: s.day + 6, plot: dock.id });
+    const cash = s.cash;
+    trips(s);
+    expect(s.cash).toBe(cash + 200000); // no lane yet
+    for (const p of PLOTS) if (p.district === 'harbor' && p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
+    expect(shippingLane(s)).toBe(true);
+    const chopper = order(s, { id: 'star', tier: 'heli', qty: 2000, pay: 60000, due: s.day + 3, plot: field.id });
+    trips(s);
+    expect(s.orders).not.toContain(ship);
+    expect(s.orders).not.toContain(chopper);
+    expect(s.cash).toBe(cash + 200000 + 230000 + 60000); // the ship's second load +15%, the chopper as it was
+    expect(s.news).toContain('Client cruise picks up 5,000 bottles: $230,000! Order complete!');
+    s.offers.push({ id: 'o7', tier: 'ship', client: 'a cruise line', qty: 10000, pay: 400000, due: s.day + 7, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'classic' });
+    const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
+    expect(menuScreen(s, 'orders', parts)).toContain(`10,000 bottles of Classic Lemonade · day ${s.day + 7} · Delivery Raid possible · Shipping Lane +15%`);
+  });
+
+  it('Old Money: Full Control of Hilltop brings VIP offers 50% more often', () => {
+    const { s, field } = vipGame(35);
+    buildFacility(s, field.id, 'helipad');
+    for (const t of ['caterer', 'heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBe(ORDER_TIERS[t].chance);
+    for (const p of PLOTS) if (p.district === 'hilltop' && p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
+    expect(oldMoney(s)).toBe(true);
+    for (const t of ['heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBeCloseTo(ORDER_TIERS[t].chance * OLD_MONEY_OFFERS);
+    expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance); // a Caterer Truck is no VIP
+    const seen = new Set<string>();
+    const days = 400;
+    for (let d = 0; d < days; d++) {
+      s.day++;
+      vipAtDawn(s);
+      for (const o of s.offers) if (o.tier === 'heli') seen.add(o.id);
+    }
+    expect(seen.size / days).toBeGreaterThan(0.44); // about 1 in 2 days, up from 1 in 3
+    expect(seen.size / days).toBeLessThan(0.58);
   });
 
   it('an order with no bottles fails and costs a star', () => {

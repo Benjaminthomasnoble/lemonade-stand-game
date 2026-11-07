@@ -12,6 +12,7 @@ import { pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
 import { restoreHp } from './damage.ts';
 import { ownedRecipes, ownsRecipe, recipeCost } from './recipes.ts';
+import { fullControl } from './demand.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -111,6 +112,10 @@ export const RIVAL_BID_STARS: Record<RivalId, number> = { sourwood: 4, hollis: 3
 /** How the client weighs a bid, in stars: its Reputation, a star for each 10% under the client's price, a quarter star
  * off for each day it takes. */
 export const BID_WEIGHTS = { tenPercent: 1, day: 0.25 };
+/** District perks at Full Control (spec: district perks): Shipping Lane (The Harbor) adds 15% to Ship Contract pay, at
+ * each pickup; Old Money (Hilltop) brings VIP offers 50% more often. */
+export const SHIPPING_LANE = 0.15;
+export const OLD_MONEY_OFFERS = 1.5;
 /** Once a facility tier stands, its client type offers a job at least this often. */
 export const VIP_MAX_GAP = 10;
 /** A Supply Deal ships in weekly loads (4 of 50,000 bottles). */
@@ -328,8 +333,18 @@ export function vipAtDawn(s: GameState): void {
   s.seed = rng.seed;
 }
 
-/** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 days). */
-export const offerChance = (_s: GameState, tier: OrderTier) => ORDER_TIERS[tier].chance;
+/** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 days): VIP clients 50% more
+ * often with Old Money. */
+export function offerChance(s: GameState, tier: OrderTier): number {
+  return ORDER_TIERS[tier].chance * (isVip(tier) && oldMoney(s) ? OLD_MONEY_OFFERS : 1);
+}
+
+/** The Harbor's perk, live while you hold every plot there. Seam: land's perkActive(s, 'shippingLane') once it merges. */
+export const shippingLane = (s: GameState) => fullControl(s, 'harbor');
+/** Hilltop's perk, live while you hold every plot there. Seam: land's perkActive(s, 'oldMoney') once it merges. */
+export const oldMoney = (s: GameState) => fullControl(s, 'hilltop');
+/** A pickup's pay, with Shipping Lane's 15% on a Ship Contract (a Supply Deal keeps its $1.5M a load). */
+const withLane = (s: GameState, o: Order, pay: number) => (o.tier === 'ship' && shippingLane(s) ? Math.round(pay * (1 + SHIPPING_LANE)) : pay);
 
 /** A new offer in the Order Book. One left unanswered never holds the next back (each tier calls at its own rate), and
  * a full book lets its oldest offer go, a day early, to make room. */
@@ -493,7 +508,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   delete o.loading;
   const before = o.loaded ?? 0;
   o.loaded = before + n;
-  const pay = payFor(o, o.loaded) - payFor(o, before);
+  const pay = withLane(s, o, payFor(o, o.loaded) - payFor(o, before));
   stockBottles(s, orderRecipe(o), -n);
   s.cash = round2(s.cash + pay);
   s.today.revenue = round2(s.today.revenue + pay);

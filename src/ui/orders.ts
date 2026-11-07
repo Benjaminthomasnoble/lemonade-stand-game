@@ -2,8 +2,8 @@
 // the recipe, the size, the deadline and the pay, and flags a possible Delivery Raid (menus.ts draws the card, the HUD the
 // feed's tickets). A job you took shows how far its pickups have loaded and when the next bottles are due.
 import {
-  bottlesLeft, bottlesOf, DEAL_LOADS, FACTIONS, isVip, liveBid, nextDue, orderRecipe, PLOT_BY_ID, RECIPES, yourDays, type GameState, type Order,
-  type RecipeId,
+  bottlesLeft, bottlesOf, DEAL_LOADS, FACTIONS, isVip, liveBid, nextDue, orderRecipe, PLOT_BY_ID, RECIPES, SHIPPING_LANE, shippingLane, yourDays,
+  type GameState, type Order, type RecipeId,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { esc, once, whole } from './recipes.ts';
@@ -41,6 +41,12 @@ export function bidNote(s: GameState, o: Order): string {
   const b = liveBid(s, o);
   if (!b) return '';
   return ` · ${FACTIONS[b.rival].name} bids ${whole(b.pay)}${o.tier === 'deal' ? '' : `, ${days(b.days)} (you: ${days(yourDays(s, o))})`}`;
+}
+
+/** The card's extra notes: Shipping Lane's 15% on a Ship Contract, and on an offer a rival's bid. */
+export function orderNote(s: GameState, o: Order, waiting: boolean): string {
+  const lane = o.tier === 'ship' && shippingLane(s) ? ` · Shipping Lane +${Math.round(SHIPPING_LANE * 100)}%` : '';
+  return `${lane}${waiting ? bidNote(s, o) : ''}`;
 }
 
 /** The offer's Match button: bid the rival's price (the client still weighs delivery time and Reputation). */

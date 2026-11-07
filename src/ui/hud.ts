@@ -14,8 +14,8 @@ import {
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
-  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, ENDINGS, everyLastPlot,
-  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
+  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
+  isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales,
@@ -47,6 +47,7 @@ import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
 import { createRaidPlanner } from './raidPlanner.ts';
+import { landNotes } from './registry.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -712,9 +713,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const d = DISTRICT_BY_ID[p.district];
     const st = ps.stand;
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field', dock: 'Dock', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
-    const c = districtControl(s, p.district);
-    const share = c.total ? `You own ${c.mine} of ${c.total} plots here${c.share >= MAJORITY ? ' (Majority)' : c.mine ? `, ${Math.ceil(c.total * MAJORITY) - c.mine} more for a Majority` : ''}` : '';
-    const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel, share,
+    const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${ps.garrison} henchmen` : ''}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
@@ -744,7 +743,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
-      ${dibs}${schemeNote(s, id)}${wreckNote(s, id)}
+      ${dibs}${schemeNote(s, id)}${wreckNote(s, id)}${landNotes(s, id)}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
 

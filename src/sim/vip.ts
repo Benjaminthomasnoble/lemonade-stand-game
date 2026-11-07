@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { RANKS } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_HP, RANKS } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
@@ -11,7 +11,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, playerStands } from './economy.ts';
 import { restoreHp } from './damage.ts';
 
-export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove';
+export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
 /** Tiers delivered by sea (a ship scene at the pier). */
 export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal';
@@ -40,6 +40,8 @@ export const FACILITIES: Record<FacilityKind, { hp: number[]; names: string[]; c
   helipad: { hp: [800, 2000, 5000], names: ['Pad', 'Helipad', 'Heliport'], costs: [50000, 200000, 800000], ranks: [6, 7, 8], on: ['field'], blurb: ['Small choppers: 2,000–4,000 bottles', '4,000–7,000 bottles', 'Big choppers: 7,000–10,000 bottles'] },
   grove: { hp: [800], names: ['Lemon Grove'], costs: [25000], ranks: [5], on: ['field'], blurb: ['+5% foot traffic at all your stands (up to 2 Groves)'] },
   pier: { hp: [1500, 3500, 8000], names: ['Jetty', 'Pier', 'Cargo Terminal'], costs: [250000, 750000, 3000000], ranks: [7, 7, 8], on: ['dock'], blurb: ['Yachts: 10,000–20,000 bottles', 'Cruise ships: 20,000–40,000 bottles', 'Freighters: 40,000–60,000 bottles'] },
+  // The crew's beds (combat: clubhouse.ts). Several allowed, each upgrading on its own.
+  clubhouse: { hp: CLUBHOUSE_HP, names: ['Clubhouse', 'Clubhouse L2', 'Clubhouse L3'], costs: CLUBHOUSE.map((c) => c.cost), ranks: CLUBHOUSE.map((c) => c.rank), on: ['street'], blurb: CLUBHOUSE.map((c) => `${c.beds} beds for guards`) },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
 export const BOTTLE_COST = 0.21 + 0.15; // a Classic cup's ingredients plus the bottle and cap

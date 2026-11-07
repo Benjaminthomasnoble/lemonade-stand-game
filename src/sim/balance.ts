@@ -346,11 +346,13 @@ export const GUARD_WAGE = [15, 25, 40, 60, 90];
 export const GUARD_FEE = [50, 150, 400, 1000, 2500];
 export const GUARD_XP_TO_LEVEL = [0, 3, 8, 15, 25];
 export const ROSTER_BASE = 2;
+/** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
 export const CLUBHOUSE = [
-  { level: 1, cost: 2000, beds: 6 },
-  { level: 2, cost: 15000, beds: 12 },
-  { level: 3, cost: 80000, beds: 24 },
+  { level: 1, cost: 2000, beds: 6, rank: 2 },
+  { level: 2, cost: 15000, beds: 12, rank: 5 },
+  { level: 3, cost: 80000, beds: 24, rank: 7 },
 ];
+export const CLUBHOUSE_HP = [800, 2000, 5000]; // placeholder: spec gap. Chop to knock a Clubhouse down, by level (a Field Helipad's)
 export const HIRE_RANK = 2;
 export const RAID_RANK = 3;
 export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);

@@ -15,6 +15,7 @@ import {
   setTasteOffEntry, sponsorFestival, forgiveSquawk,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
+import { waitAt } from './sim/clubhouse.ts';
 import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
@@ -514,7 +515,8 @@ async function main() {
       case 'fire': fireGuard(state, a.id); break;
       case 'post': postGuard(state, a.id, a.plot); break;
       case 'equip': equip(state, a.id, a.item); break;
-      case 'clubhouse': buildClubhouse(state); break;
+      case 'clubhouse': buildClubhouse(state, a.plot); break;
+      case 'club': waitAt(state, a.id, a.plot); break;
       case 'defend': for (const g of state.guards) if (guardReady(state, g)) postGuard(state, g.id, a.plot); break;
       case 'raid': {
         const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
@@ -534,7 +536,7 @@ async function main() {
         break;
       }
       case 'replay': if (state.battles[a.index]) playBattle(state.battles[a.index]); break;
-      case 'facility': buildFacility(state, a.plot, a.kind); break;
+      case 'facility': if (a.kind === 'clubhouse') buildClubhouse(state, a.plot); else buildFacility(state, a.plot, a.kind); break;
       case 'accept': acceptOrder(state, a.id); break;
       case 'decline': declineOrder(state, a.id); break;
       case 'entry': setTasteOffEntry(state, a); break;

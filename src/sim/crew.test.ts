@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, buyGadget, buyPerimeter, canHire, equip, hireGuard, LOTTIES_CORNER, newGame, openStand, planRaid, raidOdds,
   raidTargets, rebuildCost, rebuildStand, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport,
-  type GameState,
+  type GameState, PLOTS,
 } from './economy.ts';
+
+/** An empty Street plot of yours, for a Clubhouse. */
+const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
 
 function playDay(s: GameState) {
   openStand(s);
@@ -22,7 +25,7 @@ describe('crew and raids', () => {
     s.cash = 10000;
     expect(hireGuard(s, s.recruits[0].id)).toBe(true);
     expect(canHire(s, s.recruits[0].id)).toEqual({ ok: false, why: 'Build a Clubhouse to house more guards' });
-    expect(buildClubhouse(s)).toBe(true);
+    expect(buildClubhouse(s, streetLot(s))).toBe(true);
     expect(canHire(s, s.recruits[0].id).ok).toBe(true);
   });
 
@@ -63,7 +66,7 @@ describe('crew and raids', () => {
     welcomeDex(s);
     s.cash = 100000;
     s.rank = 6;
-    buildClubhouse(s);
+    buildClubhouse(s, streetLot(s));
     for (const r of [...s.recruits]) hireGuard(s, r.id);
     for (const g of s.guards) { equip(s, g.id, 'hatchets'); equip(s, g.id, 'pro'); }
     const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!;

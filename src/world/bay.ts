@@ -422,6 +422,7 @@ export function createBay(scene: THREE.Scene): Bay {
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
     else if (p.type === 'hq') building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
+    else if (ps.facility?.kind === 'clubhouse') building = civicBuilding('Clubhouse'); // combat: a stand-in till the art threads model one
     else if (ps.facility) {
       const east = ps.facility.kind === 'pier' ? eastReach(v) : null;
       building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, east ?? reachOf(v));

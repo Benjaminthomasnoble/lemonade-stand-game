@@ -13,8 +13,9 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
-import { FACILITIES } from './vip.ts';
+import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
+import { allBeds, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
@@ -32,6 +33,7 @@ export interface Guard {
   weapon: WeaponId;
   gear: GearId;
   post: string | null; // plot id where they stand guard
+  club?: string; // off post, they wait at this Clubhouse (clubhouse.ts clubOf); unset: your first one
   outUntil: number; // knocked out: back on this day
   fee: number; // hire fee (recruits)
 }
@@ -223,7 +225,8 @@ export function refreshRecruits(s: GameState, force = false): void {
   s.seed = rng.seed;
 }
 
-export const clubhouseBeds = (s: GameState) => (s.clubhouse ? CLUBHOUSE[s.clubhouse - 1].beds : 0);
+/** Beds in every Clubhouse you have standing (they add up). */
+export const clubhouseBeds = (s: GameState) => allBeds(s);
 export const rosterCap = (s: GameState) => ROSTER_BASE + clubhouseBeds(s);
 export const guardWage = (g: Guard) => GUARD_WAGE[g.level - 1];
 
@@ -231,7 +234,7 @@ export function canHire(s: GameState, id: string): Blocker {
   const g = s.recruits.find((r) => r.id === id);
   if (!g) return { ok: false, why: 'Gone' };
   if (s.rank < HIRE_RANK) return { ok: false, why: `Needs Rank ${HIRE_RANK}, ${RANKS[HIRE_RANK - 1].title}` };
-  if (s.guards.length >= rosterCap(s)) return { ok: false, why: s.clubhouse ? 'Clubhouse is full' : 'Build a Clubhouse to house more guards' };
+  if (s.guards.length >= rosterCap(s)) return { ok: false, why: clubhouses(s).length ? 'Clubhouse is full' : 'Build a Clubhouse to house more guards' };
   if (s.cash < g.fee) return { ok: false, why: `Needs ${money(g.fee)}` };
   return { ok: true };
 }
@@ -274,22 +277,23 @@ export function equip(s: GameState, id: string, item: WeaponId | GearId): boolea
   return true;
 }
 
-export function canBuildClubhouse(s: GameState): Blocker {
-  const next = CLUBHOUSE[s.clubhouse];
-  if (!next) return { ok: false, why: 'Biggest Clubhouse already' };
-  const need = [2, 5, 7][s.clubhouse];
-  if (s.rank < need) return { ok: false, why: `Needs Rank ${need}` };
-  if (s.cash < next.cost) return { ok: false, why: `Needs ${money(next.cost)}` };
-  return { ok: true };
+/**
+ * A Clubhouse on this plot: a new one on an empty Street plot of yours, or the
+ * next level of the one standing there. With no plot named, where the next
+ * beds go (clubhouseSite: an empty Street plot first, else the smallest one).
+ */
+export function canBuildClubhouse(s: GameState, plotId: string | null = clubhouseSite(s)): Blocker {
+  if (!plotId) return { ok: false, why: 'Needs an empty Street plot of yours' };
+  return canBuildFacility(s, plotId, 'clubhouse');
 }
 
-export function buildClubhouse(s: GameState): boolean {
-  if (!canBuildClubhouse(s).ok) return false;
-  const next = CLUBHOUSE[s.clubhouse];
-  s.cash = round2(s.cash - next.cost);
-  s.today.land = round2(s.today.land + next.cost);
-  s.clubhouse = next.level;
-  s.news.push(`The Clubhouse opens: beds for ${next.beds} guards. Dex no longer sleeps in the shed.`);
+export function buildClubhouse(s: GameState, plotId: string | null = clubhouseSite(s)): boolean {
+  if (!plotId || !canBuildClubhouse(s, plotId).ok) return false;
+  const first = !clubhouses(s).length;
+  if (!buildFacility(s, plotId, 'clubhouse')) return false;
+  const level = s.plots[plotId].facility!.level;
+  s.news.pop(); // the facility's opening line, said with the beds instead
+  s.news.push(`${FACILITIES.clubhouse.names[level - 1]} opens at ${PLOT_BY_ID[plotId].name}: beds for ${CLUBHOUSE[level - 1].beds} guards.${first ? ' Dex no longer sleeps in the shed.' : ''}`);
   return true;
 }
 

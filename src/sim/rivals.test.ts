@@ -65,7 +65,8 @@ describe('sit-downs and buyouts', () => {
 describe('HQ assault', () => {
   it('a big kitted squad takes the Blend Shack and triggers a Fire Sale', () => {
     const s = rich(4);
-    s.clubhouse = 3;
+    const lot = PLOTS.find((q) => q.type === 'street' && !s.plots[q.id].owner)!;
+    Object.assign(s.plots[lot.id], { owner: 'player', facility: { kind: 'clubhouse', level: 3 } }); // 24 beds
     weaken(s, 'blenders');
     for (let i = 0; i < 4; i++) { refreshRecruits(s, true); for (const r of [...s.recruits]) hireGuard(s, r.id); }
     for (const g of s.guards) { g.level = 5; equip(s, g.id, 'hatchets'); equip(s, g.id, 'pro'); }

@@ -8,7 +8,7 @@ import {
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
-  availableRaiders, canBuildClubhouse, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid, CLUBHOUSE, clubhouseBeds,
+  availableRaiders, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid,
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
@@ -44,6 +44,7 @@ import { storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
+import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -73,7 +74,8 @@ export type Action =
   | { type: 'fire'; id: string }
   | { type: 'post'; id: string; plot: string | null }
   | { type: 'equip'; id: string; item: WeaponId | GearId }
-  | { type: 'clubhouse' }
+  | { type: 'clubhouse'; plot?: string } // the next beds: a new Clubhouse, or a level on this one
+  | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
   | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
@@ -344,7 +346,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'hire': case 'fire': onAction({ type: d.action, id: d.id! }); break;
       case 'post': onAction({ type: 'post', id: d.id!, plot: d.plot || null }); break;
       case 'equip': onAction({ type: 'equip', id: d.id!, item: d.item as WeaponId | GearId }); break;
-      case 'clubhouse': onAction({ type: 'clubhouse' }); break;
+      case 'clubhouse': onAction({ type: 'clubhouse', plot: d.plot }); break;
+      case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); redraw(); break;
       case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); break; }
       case 'objective': objective = d.value as Objective; redraw(); break;
@@ -576,6 +579,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   // ---------- Grow: picture cards ----------
   const card = (art: string, title: string, sub: string, action: string, tip = '', extra = '') => `<div class="cl-card" ${tip ? `title="${esc(tip)}"` : ''} ${extra}><span class="cl-pic">${art}</span><span class="cl-txt"><b>${title}</b>${sub ? `<i>${sub}</i>` : ''}</span>${action}</div>`;
+  const kit: ClubKit = { ART, btn, card, tape, locked, esc, whole, face: guardFace };
   function levelStats(l: StandLevel, top: number) {
     return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
   }
@@ -658,11 +662,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   function crewPanel(s: GameState) {
     if (!s.guards.length && (s.rank < HIRE_RANK || !taught(s, 'crew'))) return '';
-    const club = CLUBHOUSE[s.clubhouse], cb = canBuildClubhouse(s);
     const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${whole(guardWage(g))}/day">${guardFace(s, g)}<span class="cl-name">${esc(g.name.split(' ')[0])}</span>${pips(g.level, 5)}${btn('hire', whole(g.fee), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
     return `<div class="cl-crew"><span class="cl-label">Crew ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(s, g)).join('')}</div>
       ${recruits ? `<span class="cl-label">Hiring Hall</span><div class="cl-faces">${recruits}</div>` : ''}
-      ${club && !locked(cb) && s.guards.length >= rosterCap(s) - 1 ? `<div class="cl-cards">${card(ART.house(), `Clubhouse L${club.level}`, `${club.beds} beds${s.clubhouse ? ` (now ${clubhouseBeds(s)})` : ''}`, btn('clubhouse', whole(club.cost), cb))}</div>` : ''}</div>`;
+      ${nextClubhouse(kit, s)}</div>`;
   }
 
   // ---------- selling: a cup counter; the crowd shows the rest ----------
@@ -761,7 +764,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fac = kinds.filter((kind) => lvl < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl]} ${whole(FACILITIES[kind].costs[lvl])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(FACILITIES[kind].blurb[lvl])}"`, 'go')).join('');
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
-      actions = stand + fac + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
+      actions = stand + fac + clubhouseRoom(kit, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
     // and your own stand answers with its next upgrade (before the Grow tab's lesson too).

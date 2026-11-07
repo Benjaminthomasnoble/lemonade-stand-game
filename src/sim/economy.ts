@@ -181,7 +181,7 @@ export interface GameState {
   news: string[]; // fresh headlines for the UI (rank-ups, upgrades, rival moves)
   guards: Guard[];
   recruits: Guard[];
-  clubhouse: number; // 0..3
+  clubhouse?: number; // old saves: one Clubhouse level for the whole crew (clubhouse.ts moves it onto a Street plot)
   nextId: number;
   raids: Raid[]; // planned for tonight (theirs and yours)
   battles: BattleReport[]; // most recent first
@@ -333,7 +333,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
     cash: START.cash, reputation: START.reputation, rank: 1, brandTier: 0, market, forecast, weather: forecast,
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
-    guards: [], recruits: [], clubhouse: 0, nextId: 1, raids: [], battles: [], respectFromPlayer: {},
+    guards: [], recruits: [], nextId: 1, raids: [], battles: [], respectFromPlayer: {},
     bottles: 0, offers: [], orders: [], settings: defaultSettings(settings), peakDay: 1,
     combatRules: COMBAT_RULES,
   };

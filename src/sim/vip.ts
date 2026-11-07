@@ -23,7 +23,8 @@ export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal' || t === 'me
 /** VIP tiers: a chopper or a ship comes to your facility. */
 export const isVip = (t: OrderTier) => t === 'heli' || bySea(t);
 /** The tiers whose clients call at least every 10 days once their facility stands (a Mega client calls about 1 in 20). */
-export const hasFloor = (t: OrderTier) => t === 'heli' || t === 'ship' || t === 'deal';
+export const hasFloor = (t: OrderTier): t is FloorTier => t === 'heli' || t === 'ship' || t === 'deal';
+type FloorTier = 'heli' | 'ship' | 'deal';
 
 export interface Facility { kind: FacilityKind; level: number; wrecked?: boolean; hp?: number } // hp: as a Stand's (damage.ts)
 
@@ -134,6 +135,10 @@ export const BID_WEIGHTS = { tenPercent: 1, day: 0.25 };
  * each pickup; Old Money (Hilltop) brings VIP offers 50% more often. */
 export const SHIPPING_LANE = 0.15;
 export const OLD_MONEY_OFFERS = 1.5;
+/** Old Money's daily chance for the tiers with the 10-day floor: 50% more calls means gaps a third shorter (2, 3.3 and
+ * 4.7 days), and with the floor that takes more than 1.5x the base chance. A Mega client, with no floor, calls
+ * OLD_MONEY_OFFERS times as often. */
+export const OLD_MONEY_CHANCE: Record<FloorTier, number> = { heli: 0.5, ship: 0.29, deal: 0.187 };
 /** Harbor Fest's VIP rush (spec: "extra helicopter and ship offers every Fall"): on each of its days the chance a chopper
  * or a ship client calls (placeholder: the spec gives no number). */
 export const HARBOR_FEST_CHANCE = 1;
@@ -359,9 +364,9 @@ export function vipAtDawn(s: GameState): void {
 }
 
 /** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 / 20 days, the 10-day floor
- * included): VIP clients 50% more often with Old Money, and choppers and ships every day of Harbor Fest. */
+ * included): VIP clients 50% more often with Old Money (OLD_MONEY_CHANCE), and choppers and ships every day of Harbor Fest. */
 export function offerChance(s: GameState, tier: OrderTier): number {
-  const base = ORDER_TIERS[tier].chance * (isVip(tier) && oldMoney(s) ? OLD_MONEY_OFFERS : 1);
+  const base = !isVip(tier) || !oldMoney(s) ? ORDER_TIERS[tier].chance : hasFloor(tier) ? OLD_MONEY_CHANCE[tier] : ORDER_TIERS[tier].chance * OLD_MONEY_OFFERS;
   return (tier === 'heli' || tier === 'ship') && harborFestOn(s) ? Math.max(base, HARBOR_FEST_CHANCE) : base;
 }
 

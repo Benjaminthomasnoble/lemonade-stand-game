@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, costPerCup, CUP_COST, dealShortfallPerDay, declineOrder,
   DELIVERY_WINDOW, FAILED_ORDER_STARS, FEST_HUMS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
-  netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
+  netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_CHANCE, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
   grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen, DELIVERY_RAID_CHANCE, raidFought, type BattleReport,
@@ -596,7 +596,7 @@ describe('VIP clients', () => {
     for (const t of ['caterer', 'heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBe(ORDER_TIERS[t].chance);
     for (const p of PLOTS) if (p.district === 'hilltop' && p.type !== 'civic' && p.type !== 'hq') s.plots[p.id].owner = 'player';
     expect(oldMoney(s)).toBe(true);
-    for (const t of ['heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBeCloseTo(ORDER_TIERS[t].chance * OLD_MONEY_OFFERS);
+    for (const t of ['heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBe(OLD_MONEY_CHANCE[t]);
     expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance); // a Caterer Truck is no VIP
     const seen = new Set<string>();
     let days = 0;
@@ -610,6 +610,22 @@ describe('VIP clients', () => {
     expect(seen.size / days).toBeGreaterThan(0.44); // about 1 in 2 days, up from 1 in 3
     expect(seen.size / days).toBeLessThan(0.58);
   });
+
+  it('Old Money: every VIP tier calls about 1.5x as often, the 10-day floor and all', () => {
+    const base = megaGame(51).s;
+    const rich = megaGame(52).s;
+    for (const p of PLOTS) if (p.district === 'hilltop' && p.type !== 'civic' && p.type !== 'hq') rich.plots[p.id].owner = 'player';
+    expect([oldMoney(base), oldMoney(rich)]).toEqual([false, true]);
+    const days = 20000;
+    const [a, b] = [cadence(base, days), cadence(rich, days)];
+    for (const t of ['heli', 'ship', 'deal'] as const) {
+      expect(a.gap(t) / b.gap(t)).toBeGreaterThan(1.4);
+      expect(a.gap(t) / b.gap(t)).toBeLessThan(1.6);
+      expect(b.longest[t]).toBeLessThanOrEqual(VIP_MAX_GAP);
+    }
+    expect(a.gap('mega') / b.gap('mega')).toBeGreaterThan(1.3); // no floor: 1.5x the chance (fewer calls, so a wider band)
+    expect(a.gap('mega') / b.gap('mega')).toBeLessThan(1.7);
+  }, 120_000);
 
   it('Harbor Fest brings the Fall VIP rush: choppers and ships call on every day of it', () => {
     const { s, field, dock } = vipGame(36);

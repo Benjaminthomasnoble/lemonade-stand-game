@@ -320,6 +320,21 @@ describe("Lottie's goals", () => {
     }
   });
 
+  it("the Summer Fair's Taste-Off is Act 1's long goal in its week: a win pays, a loss takes it off the card", () => {
+    for (const winner of ['player', 'blenders'] as const) {
+      const s = newGame(35);
+      s.day = festivalDays('summerFair', 1).from - 1;
+      nextDawn(s); // the fair opens
+      expect(goalsNow(s)[2]).toMatchObject({ text: `Win the Summer Fair Taste-Off on Day ${SUMMER_FAIR_DAY}`, story: true, done: false });
+      s.world!.fairs.push({ fair: 'summerFair', day: s.day, winner } as never); // judged (src/sim/calendar.ts)
+      const cash = s.cash;
+      checkGoals(s);
+      if (winner === 'player') expect(s.cash).toBeGreaterThan(cash);
+      else expect(s.cash).toBe(cash);
+      expect(goalsNow(s)[2].text).toBe('Learn the trade, one idea a day');
+    }
+  });
+
   it('a story goal from another system takes its slot, wears the page icon and pays', () => {
     const s = newGame(35);
     let met = false;

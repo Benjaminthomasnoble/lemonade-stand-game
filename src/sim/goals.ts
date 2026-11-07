@@ -17,7 +17,7 @@ import { FACILITIES, type FacilityKind } from './vip.ts';
 import { HQS } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
 import { hasStory, lessonsOn, storyAct, taught } from './story.ts';
-import { festivalDays } from './calendar.ts';
+import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
 
 export type GoalSlot = 'short' | 'medium' | 'long';
@@ -232,6 +232,8 @@ function longGoals(s: GameState): Candidate[] {
     // The campaign: each act's goal, until the act's climax moves the story on.
     const act = storyAct(s);
     const out: Candidate[] = [];
+    const fair = act === 1 ? summerFairGoal(s) : null;
+    if (fair) out.push(fair);
     for (let a = 1; a <= act; a++) out.push(actGoal(s, a, act));
     if (act === 5 && !s.rivals.sourwood.alive) out.push(bayGoal(s));
     return out;
@@ -241,6 +243,18 @@ function longGoals(s: GameState): Candidate[] {
   if (!endless && win === 'domination') return [...rankGoals(s).filter((g) => g.done || s.rank < 3), bayGoal(s)];
   // Endless Summer (and Sandbox with no end): Rank 10 first, then the Peak Success Score, again and again.
   return [...rankGoals(s), peakGoal(s)];
+}
+
+/**
+ * Act 1's climax as a beat goal (spec walkthrough, Day 12: "win the Summer Fair Taste-Off on Day 14"), from the fair's
+ * first day. Judged at closing on its last day (src/sim/calendar.ts): a win pays, a loss takes it off the card.
+ */
+function summerFairGoal(s: GameState): Candidate | null {
+  const { from, to } = festivalDays('summerFair', 1);
+  const result = tasteOffResult(s, 'summerFair', 1);
+  if (s.day < from || (result && result.winner !== 'player')) return null;
+  const won = !!result;
+  return { id: 'beat-summer-fair', text: `Win the Summer Fair Taste-Off on Day ${to}`, progress: won ? 1 : (s.day - from) / (to - from + 1), done: won, story: true, urgent: true };
 }
 
 function actGoal(s: GameState, a: number, act: number): Candidate {

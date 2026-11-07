@@ -360,7 +360,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       }
       kid.position.y = (kid.userData.baseY ?? 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
       idlePose(kid, time, 0.8);
-      const dt = Math.min(0.1, Math.max(0, time - lastTime));
+      const dt = Math.min(0.25, Math.max(0, time - lastTime));
       animateReveal(dt);
       animateKnock(dt);
       lastTime = time;

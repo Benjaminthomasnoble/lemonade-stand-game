@@ -76,6 +76,23 @@ export const ATTENTION = { threat: 1, border: 0.5, customers: 10, grudge: 0.1, s
  * (hatchets become clubs, clubs become fists), and costs them `cost` of the usual raid wages. Brock phones first.
  */
 export const BLENDER_RUSH = { cost: 0.5, taunt: 'Bro. Tonight we blend your stand. Smoothie or chunky, your call.' };
+/**
+ * Strike schemes, the ones that aren't raids (spec: they come more often with each Threat lemon; it gives no
+ * numbers, so all placeholders). From Day `from` (after the first week, while rival trade calibrates), each dawn a
+ * rival with no scheme running starts one on `chance[Threat - 1]` of dawns, if its Strike bucket can fund it. A price
+ * war cuts its prices by `cut` for `days` days at its stands that share passers-by with yours, and Strike pays the
+ * margin it gives up. Cold Brew's poster crew costs `posters.cost` and takes `posters.stars` off your Reputation
+ * unless the plot's night watch catches it. An auction snipe tops your sealed bid by `snipe.over`, the extra out of
+ * Strike. A finished scheme stays on the books `keep` days.
+ */
+export const SCHEMES = {
+  from: 8,
+  chance: [0.02, 0.035, 0.05, 0.065, 0.08],
+  priceWar: { cut: 0.25, days: 3 },
+  posters: { cost: 150, stars: 0.1, taunt: "It's not graffiti. It's a review." },
+  snipe: { over: 0.05 },
+  keep: 7,
+};
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

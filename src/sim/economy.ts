@@ -16,6 +16,7 @@ import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './cal
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
+import { schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -35,6 +36,7 @@ export * from './alerts.ts';
 export * from './recipes.ts';
 export * from './calendar.ts';
 export * from './rivalAi.ts';
+export * from './schemes.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -182,6 +184,7 @@ export interface GameState {
   alertSeq?: number;
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
   world?: WorldState; // Lottie's recipe book, the calendar's Taste-Offs, boosts and sponsorships
+  schemes?: Scheme[]; // rivals' Strike schemes running or just done (schemes.ts)
 }
 
 export type SimEvent =
@@ -729,6 +732,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.seed = rng.seed;
   updateLandValues(s);
   rivalsAtDawn(s);
+  schemesAtDawn(s);
   s.weather = s.forecast;
   s.phase = 'prep';
   s.today = emptyStats(s);

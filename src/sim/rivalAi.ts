@@ -93,6 +93,21 @@ export function canSpend(s: GameState, id: RivalId, bucket: Bucket, amount: numb
   return amount >= 0 && budgetOf(s, id)[bucket] >= amount && s.rivals[id].cash >= amount;
 }
 
+/**
+ * Strike takes on a cost that already came off the rival's cash and so off its takings (a price war's lost margin):
+ * Grow and Guard get back their share of it. False, and nothing moves, when Strike can't cover it.
+ */
+export function chargeStrike(s: GameState, id: RivalId, amount: number): boolean {
+  if (amount <= 0) return true;
+  const b = budgetOf(s, id), f = FACTIONS[id];
+  const back = round2(amount * (f.grow + f.guard));
+  if (b.strike < back) return false;
+  b.strike = round2(b.strike - back);
+  b.grow = round2(b.grow + amount * f.grow);
+  b.guard = round2(b.guard + amount * f.guard);
+  return true;
+}
+
 /** Pay from one bucket (it never counts against tomorrow's takings). */
 export function spend(s: GameState, id: RivalId, bucket: Bucket, amount: number): void {
   const r = s.rivals[id];
@@ -115,6 +130,7 @@ export function migrateRivals(s: GameState): void {
     r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, wages: 0, scale: 1, last: 0 };
     r.trade.wages ??= 0;
   }
+  s.schemes ??= [];
 }
 
 // ---------- trade: about 1% of cash a day ----------
@@ -222,6 +238,15 @@ export function settleTrade(s: GameState, id: RivalId): number {
   r.cash = round2(r.cash + kept - trade.margin); // the stands already banked the plain margin as they poured
   t.last = round2(kept - trade.upkeep - wages);
   return t.last;
+}
+
+/** The share of a stand's margin its rival keeps as trade: its trade scale, over 1 only on an opening stand at its opening level. */
+export function keptShare(s: GameState, id: RivalId, plotId: string): number {
+  const t = s.rivals[id].trade;
+  if (!t) return 1;
+  if (t.scale <= 1) return t.scale;
+  const o = t.opening?.[plotId], st = s.plots[plotId]?.stand;
+  return o && st && st.level <= o.level ? t.scale : 1;
 }
 
 // ---------- Grudge toward every faction ----------

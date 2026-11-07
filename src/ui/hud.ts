@@ -27,6 +27,7 @@ import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
+import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
 import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
@@ -409,6 +410,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- left feed: little tickets for whatever needs you this morning ----------
   function feed(s: GameState) {
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
+    t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
@@ -714,7 +716,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">✕</button></div>
-      ${dibs}${ps.facility?.wrecked || st?.wrecked ? `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>` : ''}
+      ${dibs}${schemeNote(s, id)}${ps.facility?.wrecked || st?.wrecked ? `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>` : ''}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
 

@@ -145,7 +145,7 @@ try {
     const field = Object.keys(st.plots).find((id) => id.startsWith('groves') && st.plots[id].owner === 'hollis' && !st.plots[id].stand);
     const dock = Object.keys(st.plots).find((id) => id.startsWith('harbor') && st.plots[id].owner === 'fizzco' && !st.plots[id].stand);
     for (const id of [field, dock]) st.plots[id].owner = 'player';
-    delete st.plots[field].facility; st.plots[field].invested = 0; // Hollis's Fields start with Lemon Groves: clear one for the Pad
+    // Hollis's Fields start with Lemon Groves: the plot card's Pad replaces the Grove.
     g.act({ type: 'refresh' });
     return { field, dock };
   });

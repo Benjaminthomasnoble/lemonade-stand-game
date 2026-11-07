@@ -11,7 +11,7 @@ import {
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
-  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced,
+  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK, truceCost,
@@ -803,10 +803,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
     else if (ps.owner === 'player' && isWrecked(ps)) actions = rebuildButton(s, id, 'cl-b go'); // overnight, or tonight's booking (src/ui/damage.ts)
     else if (ps.owner === 'player' && !st) {
-      const lvl = ps.facility?.level ?? 0;
-      const kinds = ps.facility ? [ps.facility.kind] : facilitiesFor(p.type);
-      const fac = kinds.filter((kind) => lvl < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
-        .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl]} ${whole(FACILITIES[kind].costs[lvl])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(FACILITIES[kind].blurb[lvl])}"`, 'go')).join('');
+      const lvl = (kind: FacilityKind) => (ps.facility?.kind === kind ? ps.facility.level : 0);
+      // A Lemon Grove of yours (Hollis's Fields come with them) can make way for the helipad line.
+      const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(p.type).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(p.type);
+      const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
+        .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }

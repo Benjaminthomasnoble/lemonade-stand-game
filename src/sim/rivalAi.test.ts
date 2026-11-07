@@ -8,6 +8,7 @@ import {
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, tauntsAtDawn, eliteStewards,
   BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
+  buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -871,6 +872,40 @@ describe('rival start holdings', () => {
     const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field').slice(0, 3);
     for (const p of fields) s.plots[p.id].owner = 'player';
     expect(groveTraffic(s)).toBeCloseTo(MAX_GROVES * GROVE_TRAFFIC, 5);
+  });
+
+  it('a Field bought out from Hollis, Grove and all, still takes the helipad line: the Pad replaces the Grove', () => {
+    const s = newGame(28);
+    atRank(s, 7);
+    s.cash = 5_000_000;
+    const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field');
+    for (const [i, p] of fields.entries()) {
+      if (i === fields.length - 1) { // won over at the County Fair, Tilly sells the last Field at 1.5x
+        s.world!.tillyWon = true;
+        expect(tillyFieldRate(s, p.id)).toBe(TILLY_FIELD_BUYOUT);
+      }
+      const paid = plotBuyoutPrice(s, p.id);
+      expect(plotBuyout(s, p.id)).toBe(true);
+      expect(s.plots[p.id].facility).toEqual({ kind: 'grove', level: 1 }); // the Grove comes with the Field
+      s.plots[p.id].defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; // and a fence of yours stays on the books
+      s.plots[p.id].invested += PERIMETERS[0].cost;
+      expect(canBuildFacility(s, p.id, 'helipad')).toEqual({ ok: true });
+      expect(canBuildFacility(s, p.id, 'pier').ok).toBe(false);
+      const cash = s.cash;
+      expect(buildFacility(s, p.id, 'helipad')).toBe(true);
+      expect(s.plots[p.id].facility).toEqual({ kind: 'helipad', level: 1 });
+      expect(s.plots[p.id].invested).toBe(PERIMETERS[0].cost + FACILITIES.helipad.costs[0]); // the Grove's $25,000 leaves the books
+      expect(s.cash).toBe(cash - FACILITIES.helipad.costs[0]);
+      expect(paid).toBeGreaterThan(0);
+    }
+    expect(groveTraffic(s)).toBe(0);
+    // A Wrecked Grove is rebuilt first, and a Grove that isn't yours can't be swapped.
+    const lawn = PLOTS.find((p) => p.district === 'groves' && p.type === 'field')!;
+    s.plots[lawn.id].facility = { kind: 'grove', level: 1, wrecked: true };
+    expect(canBuildFacility(s, lawn.id, 'helipad')).toEqual({ ok: false, why: 'Rebuild it first' });
+    s.plots[lawn.id].facility = { kind: 'grove', level: 1 };
+    s.plots[lawn.id].owner = 'hollis';
+    expect(canBuildFacility(s, lawn.id, 'helipad')).toEqual({ ok: false, why: 'Buy the plot first' });
   });
 });
 

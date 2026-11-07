@@ -11,7 +11,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
 import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
-import { restoreHp } from './damage.ts';
+import { buildingInvested, restoreHp } from './damage.ts';
 import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf } from './recipes.ts';
 import { rivalStars } from './demand.ts';
 import { perkActive } from './land.ts'; // land: the Full Control perks
@@ -184,6 +184,15 @@ export function groveTraffic(s: GameState): number {
   return Math.min(MAX_GROVES, facilityPlots(s, 'grove').length) * GROVE_TRAFFIC * (hasTrophy(s, 'hollis') ? 2 : 1); // up to 2 count, even taken from Hollis
 }
 
+/**
+ * A Lemon Grove of yours makes way for the helipad line: a Field holds one building, and Hollis's Fields come with
+ * Groves (so a Field bought out from Tilly can still take a Pad). A Wrecked Grove is rebuilt first (canBuildFacility).
+ */
+export function replacesGrove(s: GameState, plotId: string, kind: FacilityKind): boolean {
+  const ps = s.plots[plotId];
+  return kind === 'helipad' && ps?.owner === 'player' && ps.facility?.kind === 'grove';
+}
+
 export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKind): Blocker {
   const p = PLOT_BY_ID[plotId];
   const ps = s.plots[plotId];
@@ -191,9 +200,9 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
   if (!f.on.includes(p.type)) return { ok: false, why: `Needs a ${f.on.join(' or ')} plot` };
   if (ps.stand) return { ok: false, why: 'A stand is here' };
-  if (ps.facility && ps.facility.kind !== kind) return { ok: false, why: 'Something else is built here' };
+  if (ps.facility && ps.facility.kind !== kind && !replacesGrove(s, plotId, kind)) return { ok: false, why: 'Something else is built here' };
   if (ps.facility?.wrecked) return { ok: false, why: 'Rebuild it first' };
-  const lvl = ps.facility?.level ?? 0;
+  const lvl = ps.facility?.kind === kind ? ps.facility.level : 0;
   if (lvl >= f.names.length) return { ok: false, why: 'Top level' };
   if (kind === 'grove' && !lvl && PLOTS.filter((q) => s.plots[q.id].owner === 'player' && s.plots[q.id].facility?.kind === 'grove').length >= MAX_GROVES) return { ok: false, why: `Up to ${MAX_GROVES} Lemon Groves` };
   if (s.rank < f.ranks[lvl]) return { ok: false, why: `Needs Rank ${f.ranks[lvl]}, ${RANKS[f.ranks[lvl] - 1].title}` };
@@ -206,13 +215,15 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
 export function buildFacility(s: GameState, plotId: string, kind: FacilityKind): boolean {
   if (!canBuildFacility(s, plotId, kind).ok) return false;
   const ps = s.plots[plotId];
-  const lvl = ps.facility?.level ?? 0;
+  const swap = replacesGrove(s, plotId, kind);
+  const lvl = ps.facility?.kind === kind ? ps.facility.level : 0;
   const cost = FACILITIES[kind].costs[lvl];
   book(s, 'invested', -cost);
+  if (swap) ps.invested = Math.max(0, ps.invested - buildingInvested(ps)); // the Grove leaves the books; its fence stays
   ps.invested += cost;
   restoreHp(s, plotId); // the new tier comes up at full HP; a repair queued for the old one is paid back (damage.ts)
   ps.facility = { kind, level: lvl + 1 };
-  s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
+  s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${swap ? ' The Lemon Grove makes way.' : ''}${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
   if (kind === 'pier') firstDeal(s);
   return true;
 }

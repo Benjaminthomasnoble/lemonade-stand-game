@@ -391,8 +391,8 @@ describe('Delivery Raids', () => {
     s.rank = 7;
     s.reputation = 4.5;
     s.cash = 3_000_000;
-    const field = PLOTS.find((p) => p.type === 'field')!.id; // cleared of Hollis's Lemon Grove
-    s.plots[field] = { ...s.plots[field], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    const field = PLOTS.find((p) => p.type === 'field')!.id; // one of Hollis's: the Pad replaces its Lemon Grove
+    s.plots[field] = { ...s.plots[field], owner: 'player', garrison: 0 };
     buildFacility(s, field, 'helipad');
     buildFacility(s, field, 'helipad'); // world: the Helipad tier loads 5,000 a day, so the order goes in one trip
     s.bottles = 6000;
@@ -533,9 +533,10 @@ describe('VIP first arrivals', () => {
     s.reputation = 4.5;
     s.cash = 3_000_000;
     s.rivals.blenders.respectUntil = s.rivals.coldbrew.respectUntil = s.rivals.fizzco.respectUntil = s.rivals.hollis.respectUntil = s.rivals.sourwood.respectUntil = 99;
-    const field = PLOTS.find((p) => p.type === 'field')!.id; // cleared of Hollis's Lemon Grove
+    const field = PLOTS.find((p) => p.type === 'field')!.id; // one of Hollis's: the Pad replaces its Lemon Grove
     const dock = PLOTS.find((p) => p.type === 'dock' && !s.plots[p.id].facility)!.id;
-    for (const id of [field, dock]) s.plots[id] = { ...s.plots[id], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    s.plots[field] = { ...s.plots[field], owner: 'player', garrison: 0 };
+    s.plots[dock] = { ...s.plots[dock], owner: 'player', stand: null, facility: undefined, invested: 0 };
     buildFacility(s, field, 'helipad');
     buildFacility(s, dock, 'pier');
     s.bottles = 100_000;

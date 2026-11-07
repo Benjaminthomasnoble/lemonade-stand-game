@@ -3,7 +3,7 @@ import {
   CLOSE, HQS, LOTTIES_CORNER, NIGHT_END, newGame, nightStep, onYou, planNight, PLOTS, RAID_PARTY, RAIDS_PER_WEEK, raidCount, raidsCounted,
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
   customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
-  feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed,
+  feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed, BORDERS, FACTIONS, likeliestTarget, PLOT_BY_ID, spreadRaids,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 
@@ -126,6 +126,25 @@ describe('raids on several plots', () => {
     }
   });
 
+  it("every part goes for your weakest valuable stands near the raider's turf (the rivals' one rule), its pin first", () => {
+    const s = evening(5, 'classic', 3, 1); // Threat 5: a raid hits 2–3 plots
+    const rival: RivalId = 'hollis';
+    const turf = new Set<string>([FACTIONS[rival].home, ...PLOTS.filter((p) => s.plots[p.id].owner === rival).map((p) => p.district)]);
+    const near = (id: string) => turf.has(PLOT_BY_ID[id].district) || BORDERS[PLOT_BY_ID[id].district].some((d) => turf.has(d));
+    const free = PLOTS.filter((p) => p.type === 'street' && !s.plots[p.id].owner);
+    const far = free.filter((p) => !near(p.id)).slice(0, 3), close = free.filter((p) => near(p.id)).slice(0, 3);
+    expect([far.length, close.length]).toEqual([3, 3]);
+    for (const p of far) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(4), invested: 1e5 }; // worth far more
+    for (const p of close) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(1) };
+    const pin = likeliestTarget(s, rival)!;
+    s.raids = [{ id: 'r1', attacker: rival, target: pin.id, objective: 'smash', party: raidPartyFor(s, rival), detected: false, eta: '01:00', leave: 23 * 60, at: 25 * 60, spread: 3 }];
+    spreadRaids(s);
+    const parts = s.raids.filter((r) => (r.group ?? r.id) === 'r1');
+    expect(parts).toHaveLength(3);
+    expect(parts[0].target).toBe(pin.id); // the Corkboard's pin
+    for (const r of parts) expect(near(r.target)).toBe(true);
+  });
+
   it("a night's raids pick distinct plots while you have one left; with one stand they all come to it", () => {
     for (const raids of nights(evening(5, 'cutthroat', 17), 200)) {
       if (raids.length <= 4) expect(new Set(raids.map((r) => r.target)).size).toBe(raids.length);
@@ -167,6 +186,16 @@ describe('who rides with a raid', () => {
     const s = evening(3);
     const r: Raid = { id: 'x', attacker: 'hollis', target: LOTTIES_CORNER, objective: 'smash', party: [], detected: false, eta: '23:00', leave: 21 * 60, at: 23 * 60 };
     expect(spotChance(s, { ...r, lookouts: 2 })).toBeCloseTo(spotChance(s, r) - 0.2);
+  });
+
+  it("lookouts never hide a raid on their own; Cold Brew's Night Shift on top leaves a stand with no alarm blind", () => {
+    const s = evening(3);
+    s.phase = 'night';
+    s.minute = 23 * 60;
+    const r: Raid = { id: 'x', attacker: 'hollis', target: LOTTIES_CORNER, objective: 'smash', party: [], detected: false, eta: '23:00', leave: 22 * 60, at: 23 * 60 };
+    expect(spotChance(s, r)).toBeCloseTo(0.25); // no alarm, no Floodlights: 50% less the night's 25%
+    expect(spotChance(s, { ...r, lookouts: 3 })).toBeCloseTo(0.05);
+    expect(spotChance(s, { ...r, attacker: 'coldbrew', lookouts: 1 })).toBeLessThanOrEqual(0); // never seen coming
   });
 
   it('at Threat 5 a boss leads the raid, at the head of its first part, the crew in full kit', () => {

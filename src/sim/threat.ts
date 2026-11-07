@@ -10,7 +10,7 @@ import {
 import type { BattleInput, BattleResult, Fighter, Objective } from './combat.ts';
 import type { GameState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
-import { PLOT_BY_ID, type Plot } from './map.ts';
+import { BORDERS, PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { guardFighter, hasBuilding, raidParty, threatLevel, TUTORIAL_RAID_DAY, type Guard, type Raid } from './crew.ts';
 import { canSpend, grudge, raidCost, rivalTarget, spend, targetScore } from './rivalAi.ts';
@@ -52,12 +52,16 @@ export const tutorialNight = (s: GameState) => s.day >= TUTORIAL_RAID_DAY || own
 
 // ---------- raids on you ----------
 
-/** The weakest valuable plot of yours for this rival (value over defense), one nobody's going for yet tonight while
- * there is one. */
+/** The weakest valuable plot of yours for this rival (value over defense) near its turf, one nobody's going for yet
+ * tonight while there is one. "Near its turf" is the rule its Corkboard pin follows (rivalAi likeliestTarget): a
+ * district where it holds land or its home, or one bordering those; with nothing of yours near, anywhere. So a raid's
+ * first plot is the raider's pin, and its other parts and the night's other raids go for the next ones. */
 function weakest(s: GameState, rival: RivalId, mine: Plot[], taken: Set<string>): Plot {
   const free = mine.filter((p) => !taken.has(p.id));
   const pool = free.length ? free : mine;
-  return [...pool].sort((a, b) => targetScore(s, rival, b.id) - targetScore(s, rival, a.id) || a.id.localeCompare(b.id))[0];
+  const turf = new Set<string>([FACTIONS[rival].home, ...PLOTS.filter((p) => s.plots[p.id].owner === rival).map((p) => p.district)]);
+  const near = pool.filter((p) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d)));
+  return [...(near.length ? near : pool)].sort((a, b) => targetScore(s, rival, b.id) - targetScore(s, rival, a.id) || a.id.localeCompare(b.id))[0];
 }
 
 /** The scripted first raid on you: two Smoothie Bros with bare fists, announced, for a Shakedown, straight at Dex.

@@ -15,7 +15,7 @@ import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
-import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
+import { bottleValue, groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
@@ -938,7 +938,7 @@ export function assetValue(s: GameState, owner: FactionId = 'player'): number {
     if (ps.owner !== owner) continue;
     total += ps.landValue + BUILDING_VALUE_SHARE * ps.invested + (owner === 'player' && ps.stand ? inventoryValue(ps.stand) : 0);
   }
-  return round2(total);
+  return round2(total + (owner === 'player' ? bottleValue(s) : 0)); // world: bottles on hand are stock at cost (vip.ts)
 }
 
 /** Net Worth = cash + land + 75% of building investment + inventory at cost − loans. */

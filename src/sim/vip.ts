@@ -63,6 +63,12 @@ export const bottleCost = (s: GameState, recipe: RecipeId = 'classic') => recipe
 /** The recipe an order is bottled in: the client's pick (orders from before recipes: Classic). */
 export const orderRecipe = (o: Order): RecipeId => o.recipe ?? 'classic';
 
+/** Bottles on hand at cost, for the Success Score's stock (spec: "stock at cost"): each recipe at what a bottle of it
+ * costs to fill today. */
+export function bottleValue(s: GameState): number {
+  return (Object.keys(RECIPES) as RecipeId[]).reduce((a, r) => a + bottlesOf(s, r) * bottleCost(s, r), 0);
+}
+
 /** Bottles of one recipe on hand. s.bottles counts them all and s.bottleStock holds each recipe but Classic, which is the
  * rest: older saves, whose bottles were all Classic, need no migration. */
 export function bottlesOf(s: GameState, recipe: RecipeId): number {

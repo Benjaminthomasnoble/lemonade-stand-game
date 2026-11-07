@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder, DELIVERY_WINDOW,
-  FAILED_ORDER_STARS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand,
-  nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands,
-  PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP,
-  VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
+  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder,
+  DELIVERY_WINDOW, FAILED_ORDER_STARS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
+  netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
+  pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore,
+  tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -568,6 +568,16 @@ describe('VIP clients', () => {
       expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance);
     }
     expect(fest).toBe(FESTIVALS.harborFest.to - FESTIVALS.harborFest.from + 1);
+  });
+
+  it('bottles on hand count in the Success Score at cost', () => {
+    const { s } = vipGame(37);
+    const worth = netWorth(s);
+    s.bottles = 1500;
+    s.bottleStock = { pink: 500 };
+    expect(bottleValue(s)).toBeCloseTo(1000 * bottleCost(s, 'classic') + 500 * bottleCost(s, 'pink'), 6);
+    expect(netWorth(s)).toBeCloseTo(worth + bottleValue(s), 1);
+    expect(successScore(s)).toBe(Math.floor(netWorth(s)));
   });
 
   it('an order with no bottles fails and costs a star', () => {

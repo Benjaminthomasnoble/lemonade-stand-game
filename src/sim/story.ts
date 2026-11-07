@@ -18,6 +18,7 @@ import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLev
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
+import { beatsAtDawn, shipDocks } from './beats.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -28,6 +29,12 @@ export interface StoryState {
   epilogue?: number; // the day the Epilogue began (Endless Summer after the Domination win)
   /** Act 2's payback: the Blenders stands you shook down and smashed (plot ids), kept past the battle log's last 6. */
   payback?: { shakedown?: string; smash?: string };
+  /** Act 3's handshake (src/sim/beats.ts): Preston's Truce offer while it stands, whether he has made it, and the tribute you paid him (it's on Juni's invoice). */
+  offer?: { from: RivalId; until: number };
+  asked?: boolean;
+  tribute?: number;
+  /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the ship's pickup day once you took the contract, and its docking. */
+  vip?: { heli?: string; ship?: string; sail?: number; docked?: boolean };
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -122,6 +129,8 @@ function inferAct(s: GameState): number {
 export function migrateStory(s: GameState): void {
   if (!s.story || !(s.story.act >= 1 && s.story.act <= ACTS.length)) s.story = { act: inferAct(s), since: s.day }; // older saves: from which climaxes are behind them
   if (hasStory(s) && s.endlessSince !== undefined && s.story.epilogue === undefined) s.story.epilogue = s.endlessSince;
+  // A save from before the scripted first chopper and ship: a tier that has made offers already had its first.
+  s.story.vip ??= { ...(s.lastOffer?.heli !== undefined ? { heli: '' } : {}), ...(s.lastOffer?.ship !== undefined ? { ship: '' } : {}) };
   migrateScenes(s);
   migratePhone(s);
   migrateGoals(s);
@@ -271,6 +280,7 @@ export function storyAtDawn(s: GameState): void {
   skipFindsACorner(s);
   act2Beats(s);
   notePayback(s); // last night's raids
+  beatsAtDawn(s); // Acts 3 and 4: Preston's handshake, the night flight, the first chopper and ship (src/sim/beats.ts)
   goalsAtDawn(s);
   scenesAtDawn(s);
   phoneCheck(s, true);
@@ -280,6 +290,7 @@ export function storyAtDawn(s: GameState): void {
 export function storyMinute(s: GameState): void {
   if (s.minute % 10 !== 0) return;
   checkGoals(s);
+  shipDocks(s);
   phoneCheck(s);
 }
 
@@ -298,6 +309,7 @@ export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);
   if (s.brandTier >= 1) playScene(s, 'benny'); // once a run, campaign only
   notePayback(s); // a daytime raid just fought
+  shipDocks(s); // a ship contract just taken
   checkGoals(s);
   phoneCheck(s);
 }

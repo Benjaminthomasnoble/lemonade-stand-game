@@ -2,14 +2,15 @@
 // rings when a boss's mood shifts, meaning their Grudge or Attention toward you
 // just jumped, so every call is also a warning; story beats call too. At most
 // one call a game day: the most important waits for a lull, the rest wait a day
-// or drop. Eliminated bosses stop calling; in the campaign Brock only calls
+// or drop. Eliminated bosses stop calling (but Juni, out of the campaign, tips
+// you off about FizzCo); in the campaign Brock only calls
 // after the Act 1 climax, apart from his scripted first call. Sandbox and
 // Endless keep the taunts. The sim picks who calls and when, and the line when
 // the spec scripts one; otherwise the boss's own pool by mood fills it in
 // (src/world/barks.ts).
 import { FACTIONS, PHONE_ATTENTION_JUMP, PHONE_GRUDGE_JUMP, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
-import { PLOTS } from './map.ts';
+import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { threatLevel, TUTORIAL_RAID_DAY, type Raid } from './crew.ts';
 import { onYou } from './night.ts';
 import { gameOver, isEndless } from './modes.ts';
@@ -20,7 +21,7 @@ export type BossMood = 'warn' | 'sore' | 'smashed' | 'gloat';
  * A call waiting to ring: from day `from` (default the day it was placed) to day `until`. A call about a raid on you
  * (`raid`) rings only once that raid's warning is out, and is dropped once the raid has hit.
  */
-export interface Call { who: RivalId; text: string; mood: BossMood; day: number; from?: number; until: number; priority: number; raid?: string }
+export interface Call { who: RivalId; text: string; mood: BossMood; day: number; from?: number; until: number; priority: number; raid?: string; tip?: boolean }
 export interface PhoneState {
   lastDay?: number; // the game day the last call rang
   queue: Call[]; // most important first
@@ -49,6 +50,10 @@ export const LINES = {
   veraThreat: "Charming little stand, dear. I'll ask the Mayor whether it's legal.",
   veraSteward: 'I sent your grandmother a reminder, dear.',
   juniAct3: "We don't smash. We curate decline.",
+  juniSabotage: "Your stock didn't spoil. It made an artistic choice.",
+  juniPad: 'FizzCo will hit the pad. Bring a crew to the pickup.',
+  prestonTruce: "Let's do lunch at Dot's. Seven days of peace, for a modest consideration.",
+  prestonLater: "No? I'll pencil you in for later.",
   prestonAct4: "Let's circle back to you being out of business.",
   veraAct5: "Lemonade is a family business, dear. And you're not family.",
 } as const;
@@ -74,9 +79,9 @@ const brockLocked = (s: GameState) => hasStory(s) && !isEndless(s) && storyAct(s
  * `from`: the first day it may ring (a call about today's raid waits for dawn). `until`: the last day the call still
  * makes sense (a raid warning only means tonight). Returns false if it won't ring.
  */
-export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood?: BossMood; priority?: number; from?: number; until?: number; scripted?: boolean; raid?: string } = {}): boolean {
+export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood?: BossMood; priority?: number; from?: number; until?: number; scripted?: boolean; raid?: string; tip?: boolean } = {}): boolean {
   migratePhone(s);
-  if (!s.rivals[who]?.alive) return false;
+  if (!s.rivals[who] || (!s.rivals[who].alive && !opts.tip)) return false; // a tip comes from a boss who's out of the game
   if (who === 'blenders' && !opts.scripted && brockLocked(s)) return false;
   const ph = s.phone!;
   // The same call twice: keep the more important one (a boss in a mood who then raids you calls about the raid). Two
@@ -89,7 +94,7 @@ export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood
   const from = Math.max(s.day, opts.from ?? s.day);
   ph.queue.push({
     who, text, mood: opts.mood ?? 'warn', day: s.day, ...(from > s.day ? { from } : {}), until: Math.max(from, opts.until ?? from + 1),
-    priority: opts.priority ?? CALL_PRIORITY.mood, ...(opts.raid ? { raid: opts.raid } : {}),
+    priority: opts.priority ?? CALL_PRIORITY.mood, ...(opts.raid ? { raid: opts.raid } : {}), ...(opts.tip ? { tip: true } : {}),
   });
   ph.queue.sort((a, b) => b.priority - a.priority);
   ph.queue.length = Math.min(ph.queue.length, 3);
@@ -126,7 +131,7 @@ export function takeCall(s: GameState): Call | null {
   if (!ph || ph.lastDay === s.day || gameOver(s) || (s.outcome?.result === 'won' && !isEndless(s))) return null;
   raidCalls(s);
   const raid = (c: Call) => (c.raid ? s.raids.find((r) => r.id === c.raid) : undefined);
-  ph.queue = ph.queue.filter((c) => c.until >= s.day && s.rivals[c.who].alive && (!c.raid || raid(c)));
+  ph.queue = ph.queue.filter((c) => c.until >= s.day && (s.rivals[c.who].alive || c.tip) && (!c.raid || raid(c)));
   const i = ph.queue.findIndex((c) => (c.from ?? c.day) <= s.day && (!c.raid || raid(c)!.warned));
   if (i < 0 || ph.queue.slice(0, i).some((c) => c.raid && !raid(c)!.warned)) return null;
   const [call] = ph.queue.splice(i, 1);
@@ -189,7 +194,9 @@ export function phoneCheck(s: GameState, dawn = false): void {
   }
   // A boss who hit you last night calls at dawn: gloating, or sore that you held.
   const hit = dawn && s.battles.find((b) => b.day === s.day - 1 && b.defender === 'player' && b.attacker !== 'player');
-  if (hit) phoneCall(s, hit.attacker as RivalId, '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
+  // Seam: Juni after a Sabotage of hers (crew's Sabotage objective; until it lands no raid carries it).
+  const artistic = hit && hit.attacker === 'coldbrew' && (hit.objective as string) === 'sabotage';
+  if (hit) phoneCall(s, hit.attacker as RivalId, artistic ? LINES.juniSabotage : '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 /**
@@ -198,15 +205,30 @@ export function phoneCheck(s: GameState, dawn = false): void {
  */
 export function phoneAtClose(s: GameState): void {
   phoneCheck(s);
+  juniTips(s);
   for (const r of s.raids) if (onYou(s, r)) raidCall(s, r);
 }
 
-/** A new act opens with its boss on the line (spec: Brock's first call, Juni in Act 3, and so on). */
+/**
+ * Juni's tip calls (campaign): once Cold Brew is out she's FizzCo's informant, and while FizzCo stands she phones at
+ * closing ahead of a FizzCo raid on you tonight, before its warning is out. A tip takes the day's one call; it gives
+ * nothing but the warning itself. Her warning about the first chopper's pickup is in src/sim/beats.ts.
+ */
+export function juniTips(s: GameState): void {
+  if (!juniInforms(s)) return;
+  const r = s.raids.find((x) => x.attacker === 'fizzco' && !x.delivery && onYou(s, x));
+  if (r) phoneCall(s, 'coldbrew', `FizzCo's crew hits ${plotName(r.target)} tonight. You didn't hear it from me.`, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
+}
+/** Juni informs on FizzCo: the campaign, Cold Brew out of the game, FizzCo still in it. */
+export const juniInforms = (s: GameState) => hasStory(s) && !s.rivals.coldbrew.alive && s.rivals.fizzco.alive;
+const plotName = (id: string) => (id === LOTTIES_CORNER ? 'the Corner' : PLOT_BY_ID[id]?.name ?? 'your stand');
+
+/** A new act opens with its boss on the line (spec: Brock's first call, Preston in Act 4, Vera in Act 5). */
 export function phoneAtAct(s: GameState, act: number): void {
   migratePhone(s);
   const ph = s.phone!;
   if (act === 2 && !ph.brock) { ph.brock = true; phoneCall(s, 'blenders', LINES.brockFirst, { priority: CALL_PRIORITY.story, scripted: true }); }
-  if (act === 3) phoneCall(s, 'coldbrew', LINES.juniAct3, { priority: CALL_PRIORITY.story });
+  // Act 3: Juni's first call follows the night flight that catches her baristas (src/sim/beats.ts).
   if (act === 4) phoneCall(s, 'fizzco', LINES.prestonAct4, { priority: CALL_PRIORITY.story });
   if (act === 5) phoneCall(s, 'sourwood', LINES.veraAct5, { priority: CALL_PRIORITY.story });
 }

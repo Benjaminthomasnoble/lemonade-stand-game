@@ -127,6 +127,18 @@ export const SCENES: Record<string, SceneDef> = {
     ],
     recap: "Mayor Fontaine delivered one of Vera's fines.",
   },
+  // Act 3's night flight (src/sim/beats.ts): the morning after Cold Brew's first raid on you, Captain Squawk tells
+  // what he saw at 3 a.m. (captions: the world's Gull Flight isn't staged for it), then Juni calls.
+  nightFlight: {
+    seconds: 14,
+    lines: [
+      { who: 'Captain Squawk', text: 'SQUAWK! Three a.m.! Beanies at your stand!', at: 0.5 },
+      { who: 'Captain Squawk', text: 'Tiny paper cups! Tiny mustaches! Baristas!', at: 4.6 },
+      { who: 'Lottie', text: 'Cold Brew. I should have smelled the oat milk.', at: 8.8 },
+    ],
+    recap: 'Captain Squawk caught Cold Brew baristas in beanies at your stand at 3 a.m.',
+    call: { who: 'coldbrew', line: 'juniAct3' },
+  },
 };
 
 const DEX = 'Dex Moody';
@@ -146,7 +158,8 @@ export function migrateScenes(s: GameState): void {
   dropStale(s);
 }
 
-const queued = (s: GameState, id: string) => !!s.scenes && (s.scenes.seen.includes(id) || s.scenes.playing?.id === id || s.scenes.queue.some((q) => q.id === id));
+/** Has this scene played, or is it playing or waiting to? (Each plays once a run.) */
+export const queued = (s: GameState, id: string) => !!s.scenes && (s.scenes.seen.includes(id) || s.scenes.playing?.id === id || s.scenes.queue.some((q) => q.id === id));
 const stale = (s: GameState, q: { id: string; data?: SceneData }) => {
   const def = sceneDef(q.id, q.data);
   return !def || (def.until !== undefined && s.day > def.until);

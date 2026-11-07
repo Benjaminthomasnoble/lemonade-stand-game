@@ -51,6 +51,7 @@ import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
 import { takeCall } from './sim/phone.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
+import { answerOffer } from './sim/beats.ts';
 import { createGullFlight } from './world/gullflight.ts';
 import { setReducedMotion } from './world/clay/kit.ts';
 
@@ -648,6 +649,7 @@ async function main() {
       case 'entry': setTasteOffEntry(state, a); break;
       case 'sponsor': sponsorFestival(state, a.festival); break;
       case 'skipScene': finishScene(true); break;
+      case 'storyOffer': answerOffer(state, a.accept); break;
       case 'sceneReply': {
         replyScene(state, a.text);
         const kid = bay.views[LOTTIES_CORNER]?.stand?.kid;

@@ -41,7 +41,7 @@ import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
-import { goalCard, sceneTicket, withScene } from './story.ts';
+import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
@@ -123,6 +123,7 @@ export type Action =
   | { type: 'sceneReply'; text: string }
   | { type: 'forgive'; plot: string } // Captain Squawk's card: let it go
   | { type: 'kidRaid'; plot: string } // Kids' Lemonade Day: raid a kid stand (0.5 star, a front page, Lottie's respect)
+  | { type: 'storyOffer'; accept: boolean } // Act 3: Preston's Truce offer at Dot's
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -237,7 +238,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(topEl, modal && hud.setup ? '' : topbar(s));
       const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
       set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
-      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie())));
+      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s)));
       tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
@@ -386,6 +387,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'entry': case 'sponsor': case 'forgive': case 'kidRaid': onAction(worldAction(d)); break;
       case 'skipScene': onAction({ type: 'skipScene' }); break;
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
+      case 'storyOffer': onAction({ type: 'storyOffer', accept: d.accept === '1' }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;

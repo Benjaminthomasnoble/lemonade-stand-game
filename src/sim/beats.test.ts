@@ -7,8 +7,13 @@ import {
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   type GameState, type Guard,
 } from './economy.ts';
+import { answerOffer, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, shipDocks, storyOffer } from './beats.ts';
+import { exitScene, INVOICE } from './exits.ts';
 import { goalsNow } from './goals.ts';
+import { juniTips, LINES, takeCall } from './phone.ts';
+import { eliminate, hqPlot, inTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
+import { acceptOrder, ORDER_TIERS, type Order } from './vip.ts';
 import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, taught } from './story.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
@@ -408,5 +413,221 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
     s.rivals.blenders.outsoldDays = 7; // outsold 2x for 7 days running
     expect(isWeakened(s, 'blenders')).toBe(true);
     expect(medium(s).text).not.toBe('Get the Blenders Weakened');
+  });
+});
+
+describe('boss exit scenes', () => {
+  const exitOf = (s: GameState, id: string) => s.scenes!.queue.find((q) => q.id === `exit-${id}`);
+  it('play in every mode once a boss is out, opening on the route, one a day, and leave a recap when skipped', () => {
+    for (const mode of ['campaign', 'sandbox', 'endless'] as const) {
+      const s = newGame(90, { mode });
+      s.scenes!.queue = []; // the campaign's Day 1 opening
+      eliminate(s, 'fizzco', 'buyout');
+      eliminate(s, 'coldbrew', 'bankrupt');
+      expect(exitOf(s, 'fizzco')!.data!.lines![0].text).toBe('Fine. Sold. After hard haggling, I want that noted.');
+      expect(exitOf(s, 'fizzco')!.data!.lines!.some((l) => l.text === "Let's circle back!")).toBe(true);
+      expect(sceneReady(s)).toBe(true);
+      const first = beginScene(s)!;
+      expect(first.id).toBe('exit-fizzco');
+      expect(first.seconds).toBeLessThan(60);
+      endScene(s, true);
+      expect(s.news).toContain(first.recap);
+      expect(sceneReady(s)).toBe(false); // one scene a day: Juni's waits for tomorrow
+      nextDawn(s);
+      expect(beginScene(s)?.id).toBe('exit-coldbrew');
+      eliminate(s, 'fizzco', 'hq'); // once a run
+      expect(exitOf(s, 'fizzco')).toBeUndefined();
+    }
+    const juni = newGame(91, { mode: 'sandbox' });
+    eliminate(juni, 'coldbrew', 'buyout');
+    expect(exitOf(juni, 'coldbrew')!.data!.lines!.map((l) => l.text)).toEqual(expect.arrayContaining(['In small bills, for authenticity.', 'I sold out to a soda company. Never again.']));
+  });
+
+  it('Act 2 climax: the Blend Shack falls, Brock leaves for his surf school, the Frozen page comes home, then Act 3', () => {
+    const s = newGame(92);
+    s.day = 14;
+    nextDawn(s);
+    s.scenes!.queue = [];
+    eliminate(s, 'blenders', 'hq');
+    const lines = exitOf(s, 'blenders')!.data!.lines!;
+    expect(lines[0].text).toBe('You stormed the Shack, bro. The SHACK.');
+    expect(lines.some((l) => l.text === "I'm opening a surf school. The ocean never raided anybody, bro.")).toBe(true);
+    expect(lines.some((l) => l.who === 'Lottie' && /Frozen Lemonade/.test(l.text))).toBe(true);
+    expect(s.world!.pages).toContain('frozen');
+    expect(s.plots[hqPlot('blenders').id].owner).toBe('player');
+    expect(s.news.some((n) => n.includes('Blender Bar'))).toBe(true);
+    expect(s.news.some((n) => n.startsWith('FIRE SALE'))).toBe(true);
+    expect(s.story!.act).toBe(2);
+    nextDawn(s);
+    expect(s.story!.act).toBe(3);
+    expect(s.news.some((n) => n.startsWith('ACT 3:'))).toBe(true);
+  });
+
+  it("Act 3 climax: Juni slides over FizzCo's invoice, with any Truce tribute you paid Preston on it", () => {
+    const s = newGame(93);
+    s.story!.tribute = 1200;
+    let sc = exitScene(s, 'coldbrew', 'hq');
+    expect(sc.lines.map((l) => l.text)).toEqual(expect.arrayContaining([INVOICE, 'Line two: your $1,200 Truce. You paid for it too.']));
+    expect(sc.recap).toMatch(/\$1,200 Truce tribute to Preston/);
+    delete s.story!.tribute;
+    sc = exitScene(s, 'coldbrew', 'buyout');
+    expect(sc.lines[0].text).toBe('In small bills, for authenticity.');
+    expect(sc.lines.some((l) => l.text.startsWith('Line two'))).toBe(false);
+    expect(sc.lines.some((l) => l.text === INVOICE)).toBe(true);
+    s.rivals.fizzco.alive = false; // FizzCo gone first: Juni's plain exit
+    expect(exitScene(s, 'coldbrew', 'hq').lines.some((l) => l.text === INVOICE)).toBe(false);
+    expect(exitScene(newGame(93, { mode: 'sandbox' }), 'coldbrew', 'hq').lines.some((l) => l.text === INVOICE)).toBe(false);
+  });
+});
+
+describe('Act 3: the handshake and the night flight', () => {
+  /** A campaign in Act 3, `days` days in, at Rank 4 with cash for a tribute. */
+  const act3 = (seed: number, days = 0) => {
+    const s = newGame(seed);
+    s.scenes!.queue = [];
+    s.story!.act = 3;
+    s.story!.since = s.day - days;
+    s.rank = 4;
+    s.cash = 50000;
+    s.battles = [];
+    return s;
+  };
+  const queuedCall = (s: GameState, text: string) => s.phone!.queue.some((c) => c.text === text);
+
+  it("Preston phones from Dot's a few days in; shaking on it buys a 7-day Truce, and the tribute is kept for the invoice", () => {
+    const s = act3(100, HANDSHAKE_DAY - 2);
+    nextDawn(s);
+    expect(s.story!.offer).toBeUndefined(); // not yet
+    nextDawn(s);
+    expect(s.story!.offer).toMatchObject({ from: 'fizzco' });
+    expect(queuedCall(s, LINES.prestonTruce)).toBe(true);
+    const offer = storyOffer(s)!;
+    expect(offer.cost).toBe(truceCost(s));
+    expect(offer.why).toBeUndefined();
+    expect(answerOffer(s, true)).toBe(true);
+    expect(inTruce(s, 'fizzco')).toBe(true);
+    expect(s.story!.tribute).toBe(offer.cost);
+    expect(s.news).toContain('Lottie: "That\'s a Sit-down, kid. Call one yourself from any boss\'s HQ card."');
+    expect(storyOffer(s)).toBeNull();
+    expect(exitScene(s, 'coldbrew', 'hq').lines.some((l) => l.text.includes(`your $${offer.cost.toLocaleString('en-US')} Truce`))).toBe(true);
+  });
+
+  it('a No, an offer left standing, Rank 3 or another mode: no Truce, and he asks once a run', () => {
+    const no = act3(101, HANDSHAKE_DAY);
+    nextDawn(no);
+    expect(answerOffer(no, false)).toBe(true);
+    expect(inTruce(no, 'fizzco')).toBe(false);
+    expect(no.story!.tribute).toBeUndefined();
+    expect(no.news).toContain('Preston: "No? I\'ll pencil you in for later."');
+    const left = act3(102, HANDSHAKE_DAY);
+    nextDawn(left);
+    left.phase = 'open';
+    expect(storyOffer(left)).toBeNull(); // Sit-downs happen at Morning Prep
+    for (let d = 0; d < OFFER_DAYS; d++) nextDawn(left);
+    expect(left.story!.offer).toBeUndefined();
+    expect(left.story!.asked).toBe(true);
+    const low = act3(103, HANDSHAKE_DAY);
+    low.rank = 3;
+    nextDawn(low);
+    expect(low.story!.offer).toBeUndefined();
+    const sandbox = newGame(104, { mode: 'sandbox' });
+    sandbox.rank = 4;
+    nextDawn(sandbox);
+    expect(sandbox.story?.offer).toBeUndefined();
+  });
+
+  it("the morning after Cold Brew's first raid on you, Squawk's night flight plays and then Juni calls", () => {
+    const s = act3(105, 1);
+    s.battles.unshift({ ...tutorialRaid(s), attacker: 'coldbrew' });
+    nextDawn(s);
+    expect(sceneReady(s)).toBe(true);
+    const sc = beginScene(s)!;
+    expect(sc.id).toBe('nightFlight');
+    expect(sc.lines[0]).toMatchObject({ who: 'Captain Squawk', text: 'SQUAWK! Three a.m.! Beanies at your stand!' });
+    endScene(s, false);
+    expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniAct3)).toBe(true);
+    const quiet = act3(106, JUNI_CALLS_BY - 1); // no raid of hers a week in: she calls anyway
+    nextDawn(quiet);
+    expect(queuedCall(quiet, LINES.juniAct3)).toBe(true);
+    expect(quiet.scenes!.queue.some((q) => q.id === 'nightFlight')).toBe(false);
+  });
+});
+
+describe("Juni's tips, the first chopper and the first ship", () => {
+  /** A campaign at Rank 6 with Cold Brew out of the game (Act 4). */
+  const act4 = (seed: number) => {
+    const s = newGame(seed);
+    s.scenes!.queue = [];
+    s.story!.act = 4;
+    s.story!.since = s.day;
+    s.rank = 6;
+    s.rivals.coldbrew.alive = false;
+    s.phone!.queue = [];
+    return s;
+  };
+  const offer = (s: GameState, tier: 'heli' | 'ship'): Order => {
+    const o: Order = { id: `o${s.nextId++}`, tier, client: tier === 'heli' ? "the Governor's Gala" : 'an overseas export deal', qty: tier === 'heli' ? 2500 : 15000, pay: 0, due: s.day + 5, expires: s.day + 2, plot: LOTTIES_CORNER, accepted: false };
+    o.pay = o.qty * ORDER_TIERS[tier].pay;
+    s.offers.push(o);
+    return o;
+  };
+
+  it('Juni phones ahead of a FizzCo raid on you tonight, from out of the game, and stops once FizzCo falls', () => {
+    const s = act4(110);
+    s.raids.push({ id: 'r9', attacker: 'fizzco', target: LOTTIES_CORNER, objective: 'smash', detected: false, eta: '23:30' });
+    juniTips(s);
+    const tip = s.phone!.queue.find((c) => c.who === 'coldbrew')!;
+    expect(tip.text).toBe("FizzCo's crew hits the Corner tonight. You didn't hear it from me.");
+    s.phase = 'report';
+    expect(takeCall(s)?.text).toBe(tip.text); // the day's one call, before the raid's warning is out
+    const done = act4(111);
+    done.rivals.fizzco.alive = false;
+    done.raids.push({ id: 'r9', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', detected: false, eta: '23:30' });
+    juniTips(done);
+    expect(done.phone!.queue.some((c) => c.who === 'coldbrew')).toBe(false);
+  });
+
+  it("the first chopper is a movie star's 4,000 bottles of Pink, and Juni warns that FizzCo will hit the pad", () => {
+    const s = act4(112);
+    expect(threatLevel(s)).toBeGreaterThanOrEqual(3);
+    const o = offer(s, 'heli');
+    nextDawn(s);
+    expect(o).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, pay: CHOPPER_BOTTLES * ORDER_TIERS.heli.pay });
+    expect(o.pay).toBe(120000);
+    expect(s.news).toContain('VIP call! A movie star wants 4,000 bottles of Pink for a pool party: $120,000.');
+    expect(s.news.some((n) => n.startsWith('Lottie: "A chopper, kid!'))).toBe(true);
+    expect(scriptedRaider(s, o)).toBe('fizzco');
+    const next = offer(s, 'heli'); // only the first is scripted
+    nextDawn(s);
+    expect(next.client).toBe("the Governor's Gala");
+    expect(scriptedRaider(s, next)).toBeNull();
+    expect(acceptOrder(s, o.id)).toBe(true);
+    o.due = s.day + 1;
+    nextDawn(s);
+    expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniPad)).toBe(true);
+  });
+
+  it('the first ship is the Regatta flagship, and at its first docking Lottie blames the wind', () => {
+    const s = act4(113);
+    s.rank = 7;
+    const o = offer(s, 'ship');
+    nextDawn(s);
+    expect(o.client).toBe(REGATTA);
+    expect(acceptOrder(s, o.id)).toBe(true);
+    storyAfterAct(s);
+    o.due = s.day;
+    shipDocks(s);
+    const wind = () => (s.alerts ?? []).filter((a) => a.text === 'Lottie: "That horn? Just the wind, kid. Just the wind."').length;
+    expect(wind()).toBe(0); // not before the pickup
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(wind()).toBe(1);
+    shipDocks(s);
+    expect(wind()).toBe(1);
+    const old = newGame(114); // an older save that had VIP offers already keeps its own
+    delete old.story!.vip;
+    old.lastOffer = { heli: 3 };
+    migrateStory(old);
+    expect(old.story!.vip).toEqual({ heli: '' });
   });
 });

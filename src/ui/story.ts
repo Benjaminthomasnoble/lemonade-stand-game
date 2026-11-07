@@ -4,6 +4,8 @@
 // Grandkid's quick replies and Skip). Lessons gate the other panels' buttons:
 // see taught() in src/sim/story.ts.
 import type { GameState, Goal } from '../sim/economy.ts';
+import { storyOffer } from '../sim/beats.ts';
+import { FACTIONS } from '../sim/balance.ts';
 import { goalsNow } from '../sim/goals.ts';
 import { playingScene, sceneLine } from '../sim/scenes.ts';
 import { glyph, INK, S, svg } from './clay.ts';
@@ -38,6 +40,15 @@ export function sceneTicket(s: GameState, t: number, doodle: string): string {
   const said = line ? `${esc(line.who)}: “${esc(line.text)}”` : '…';
   return `<div class="cl-ticket" data-testid="scene">${doodle}<b>${said}</b>
     <span class="cl-acts">${replies}<button class="cl-b ghost tiny" data-action="skipScene" data-testid="skip-scene">Skip</button></span></div>`;
+}
+
+/** A boss's offer to answer this Morning Prep (Act 3: Preston's Truce at Dot's): the tribute, Shake on it or No thanks. */
+export function offerTicket(s: GameState): string {
+  const o = storyOffer(s);
+  if (!o) return '';
+  const tip = `No raids either way for 7 days. Break it: -1 star, and no Truces for 14 days.`;
+  return `<div class="cl-ticket" data-testid="story-offer" title="${esc(tip)}"><b>${esc(FACTIONS[o.from].boss.split(' ')[0])}: Truce at Dot's, ${whole(o.cost)}?</b>
+    <span class="cl-acts"><button class="cl-b tiny" data-action="storyOffer" data-accept="1"${o.why ? ` disabled title="${esc(o.why)}"` : ''}>Shake on it</button><button class="cl-b ghost tiny" data-action="storyOffer" data-accept="0">No thanks</button></span></div>`;
 }
 
 /** Put the scene's ticket first in the left feed (it shows in any phase while the scene plays). */

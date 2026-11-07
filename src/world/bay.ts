@@ -389,6 +389,7 @@ export function createBay(scene: THREE.Scene): Bay {
   /** A stand's HP share as the damage step it shows: torn at 75%, sign down at 50%, slumped at 25%. */
   const hpStep = (ps: GameState['plots'][string]) => { const h = hpShare(ps); return h > 0.75 ? 1 : h > 0.5 ? 0.75 : h > 0.25 ? 0.5 : 0.25; };
   let synced = false;
+  let stagings = 0;
   const held = new Set<string>(); // plots staged as they were before the fight on screen
   const movers = new Map<PlotView, THREE.Object3D[]>();
   let moverF = -1;
@@ -580,7 +581,7 @@ export function createBay(scene: THREE.Scene): Bay {
       const v = views[id];
       if (!v) return;
       held.add(id);
-      v.key = 'staged';
+      v.key = `staged:${++stagings}`; // unique, so no cached Bay View clay is reused
       v.root.updateMatrixWorld(true);
       rebuild(v, { ...s, plots: { ...s.plots, [id]: before } });
     },

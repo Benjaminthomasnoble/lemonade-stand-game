@@ -32,8 +32,9 @@ const look = (o: { sun: string; sunI: number; sunDir: [number, number, number]; 
 
 export const LOOKS: Record<Script, Look> = {
   // Morning Prep lives here, so it must be the friendliest frame: warm peach window light from
-  // the bay side, a cream fill, and long shadows lifted with lilac (never grey); streetlights clicking off.
-  dawn: look({ sun: '#ffcfa6', sunI: 2.9, sunDir: [48, 36, 30], sky: '#ffeadc', ground: '#c09a86', hemiI: 0.92, fog: '#f7e0cf', exposure: 1.04, glow: 0.5, windows: 0.35, pools: 0.2, vig: 0.32, vigTint: '#d49a7c', env: 1.1, night: 0, shade: ['#a58ff0', 1.25], shadowI: 0.9, sat: 1.14 }),
+  // the bay side, a cream fill, and long shadows lifted with lilac (never grey); the streetlights still burn (they
+  // click off as the day opens, see lookAt) but the neon and string lights are off.
+  dawn: look({ sun: '#ffcfa6', sunI: 2.9, sunDir: [48, 36, 30], sky: '#ffeadc', ground: '#c09a86', hemiI: 0.92, fog: '#f7e0cf', exposure: 1.04, glow: 0, windows: 0.35, pools: 0.2, vig: 0.32, vigTint: '#d49a7c', env: 1.1, night: 0, shade: ['#a58ff0', 1.25], shadowI: 0.9, sat: 1.14 }),
   // the mockup's daylight: warm white sun high over the table, a cream fill, short crisp lilac shadows
   noon: look({ sun: '#ffeed6', sunI: 2.75, sunDir: [-15, 34, 23], sky: '#fff2de', ground: '#b98a62', hemiI: 0.8, fog: '#efdcbc', exposure: 1.0, glow: 0, windows: 0, pools: 0, vig: 0.34, vigTint: '#c98a6a', env: 1.25, night: 0, shade: ['#9a86ec', 1.1], shadowI: 0.92, sat: 1.12 }),
   // coral and amber, low from the west (behind the Groves); windows glow
@@ -43,9 +44,20 @@ export const LOOKS: Record<Script, Look> = {
 };
 
 const KEYS: [number, Script][] = [[7.5, 'dawn'], [8.5, 'noon'], [16.5, 'noon'], [17.5, 'golden'], [19.5, 'golden'], [20.25, 'night']];
+/**
+ * The lamps (the clay glow channel: clay-snake neon, string lights, bulbs and lamplit windows; and the streetlight
+ * pools and halos) are switches, not a blend: off from the open at 08:00, when the streetlights click off, until
+ * 19:30, when the neon and string lights come on (spec "Light, weather and seasons"). Windows follow the scripts.
+ */
+export const LAMPS = { off: 8, on: 19.5 };
 
 /** The look for a game hour: scripts blend over one hour (dawn holds through Morning Prep, night after closing). */
 export function lookAt(hour: number, out: Look = cloneLook(LOOKS.dawn)): Look {
+  scriptAt(hour, out);
+  if (hour >= LAMPS.off && hour < LAMPS.on) { out.glow = 0; out.pools = 0; }
+  return out;
+}
+function scriptAt(hour: number, out: Look): Look {
   if (hour <= KEYS[0][0]) return copyLook(out, LOOKS.dawn);
   for (let i = 1; i < KEYS.length; i++) {
     const [h1, s1] = KEYS[i];

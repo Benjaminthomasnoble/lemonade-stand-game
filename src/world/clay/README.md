@@ -137,17 +137,24 @@ with these pieces.
 - `world.night()` runs from 0 by day to 1 at night. `kit().glow`,
   `kit().window` and `kit().pool` already follow it.
 - Lighting scripts (`LOOKS`, `lookAt(hour)`, `hourOf(phase, minute)`): dawn,
-  noon, golden hour and night, each blended over one game hour. Morning Prep
-  holds dawn and the report is night, so dawn is tuned as the friendliest
-  frame. Day light is warm (cream sky fill, warm sun) like the mockup; each
-  script also sets `shade` (the lilac or indigo fill that shadowed clay gets,
-  through `CLAY_SHADE` in core.ts, so shadows never go grey), `shadowI` (how
-  dark the sun's shadow goes) and `sat` (post saturation, a little above 1).
+  noon, golden hour and night, each blended over one game hour. The lamps
+  (the glow channel: neon, string lights, bulbs; and the streetlight pools
+  and halos) are switches (`LAMPS`): the streetlights still burn through
+  Morning Prep and click off at the 08:00 open, and the lamps come on at
+  19:30. Lamp pools, halos and the desk-lamp pool cost no draw while off.
+  Morning Prep holds dawn and the report is night, so dawn is tuned as the
+  friendliest frame. Day light is warm (cream sky fill, warm sun) like the
+  mockup; each script also sets `shade` (the lilac or indigo fill that
+  shadowed clay gets, through `CLAY_SHADE` in core.ts, so shadows never go
+  grey), `shadowI` (how dark the sun's shadow goes) and `sat` (post
+  saturation, a little above 1).
   One shadow-casting light (the sun, or Lottie's desk lamp at night)
   re-renders its shadows only on twos, and its shadow box snaps to whole
   texels so edges don't crawl while the camera pans.
 - The diorama: `TABLE_Y`, `PLINTH`, `DESK_LAMP` and `resinMaterial(time)` for
-  water. The table, cloth and props are static and never pickable.
+  water (`RESIN`: Resin teal at the coast deepening to blue a short way out;
+  it reflects less of the kitchen at Bay View). The table, cloth and props
+  are static and never pickable.
 - `createPost(renderer, scene, camera, samples)` returns `tilt(amount,
   vignette, focus)`, `tint(color)` and `saturation(s)`. An amount of 0 skips
   the blur.

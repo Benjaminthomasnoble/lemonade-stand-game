@@ -216,6 +216,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   specks.name = 'people-specks';
   specks.castShadow = !phone;
   specks.frustumCulled = false;
+  specks.setColorAt(0, new THREE.Color(P.terra)); // the colour attribute exists from the start, so the warm-up compiles this variant
   specks.count = 0;
   scene.add(specks);
   const hiddenPeople: THREE.Object3D[] = [];
@@ -313,7 +314,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   let lastHalf = 0;
   let detail: Detail = 0;
   let detailCap: Detail | null = null;
-  let piloted = false;
+  let piloted = false, warmed = false;
   const lookPt = new THREE.Vector3(), lookDir = new THREE.Vector3();
   const lightDir = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0), snapR = new THREE.Vector3(), snapU = new THREE.Vector3(), snapP = new THREE.Vector3();
@@ -421,11 +422,16 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       K.window.emissiveIntensity = L.windows;
       K.pool.opacity = L.pools;
       K.halo.opacity = (halos.material as THREE.PointsMaterial).opacity = Math.min(1, L.pools * 1.1);
-      for (const m of K.reflective) m.envMapIntensity = m === K.window ? 1.3 * L.env : m === dio.resin ? 1.25 * L.env : m.envMapIntensity;
+      // Lamps that are off cost no draw (the lamp pools and halos are additive: at opacity 0 they'd draw nothing).
+      K.pool.visible = K.halo.visible = halos.visible = L.pools > 0.004;
+      // Zoomed out, the kitchen's reflection would wash the whole sea pale: the resin reflects less at Bay View.
+      const zoomK = THREE.MathUtils.clamp((Math.log(dist) - Math.log(20)) / (Math.log(380) - Math.log(20)), 0, 1);
+      for (const m of K.reflective) m.envMapIntensity = m === K.window ? 1.3 * L.env : m === dio.resin ? 1.25 * L.env * (1 - 0.5 * zoomK) : m.envMapIntensity;
       scene.background = L.night > 0.5 ? bgNight : bgDay;
       // The kitchen light goes out: the oilcloth dims except where the desk lamp pools.
       dio.cloth.color.setScalar(1 - 0.6 * L.night);
       dio.lampPool.opacity = 0.75 * L.night;
+      dio.lampPoolMesh.visible = L.night > 0.01;
       const fog = scene.fog as THREE.Fog;
       fog.color.copy(L.fog);
       fog.near = Math.max(70, dist * 1.9);
@@ -473,7 +479,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       }
 
       // Tilt-shift: strongest in Street View, thinnest at Bay View; Gull Flight drops the blur for a wide, windy chase.
-      const z = THREE.MathUtils.clamp((Math.log(dist) - Math.log(20)) / (Math.log(380) - Math.log(20)), 0, 1);
+      const z = zoomK;
       const pr = renderer.getPixelRatio();
       post.tilt(phone || piloted ? 0 : (2.6 - 1.9 * z) * pr, L.vig * (1 - 0.25 * z), 0.5);
 
@@ -484,6 +490,14 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       scene.userData.weather = weather;
     },
     render() {
+      if (!warmed) {
+        // First frame: compile every clay program the scene can reach (hidden parts too: night glow, weather, brawl
+        // beams, fx pools, specks), so none compiles mid-day for the first time and stalls a frame.
+        // (Without parallel compiling the cost lands here, on the first frame, rather than mid-day.)
+        warmed = true;
+        if (renderer.extensions.has('KHR_parallel_shader_compile')) renderer.compileAsync(scene, camera).catch(() => { /* a lost context: they compile when first drawn */ });
+        else renderer.compile(scene, camera);
+      }
       renderer.info.reset();
       specks.count = 0;
       if (detail >= 2) toSpecks(scene.userData.distance as number);

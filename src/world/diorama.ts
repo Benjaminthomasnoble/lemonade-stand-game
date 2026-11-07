@@ -32,26 +32,35 @@ export interface Diorama {
   cloth: THREE.MeshStandardMaterial;
   /** The desk lamp's warm pool on the oilcloth (additive; opacity follows the night). */
   lampPool: THREE.MeshBasicMaterial;
+  /** ...and its mesh, hidden by day so it costs no draw. */
+  lampPoolMesh: THREE.Mesh;
 }
 
-/** Glossy resin water: shallow turquoise at the coast, deep teal offshore, a foam line and moving ripples. */
+/** The resin's colours (spec "Glossy resin": "the bay deepens from shallow teal to deep blue"): Resin teal at the coast, a deep blue offshore. */
+export const RESIN = { shallow: '#3BB4C1', deep: '#1B4F9A' };
+/** Glossy resin water: Resin teal at the coast deepening to blue offshore, a foam line and moving ripples. */
 export function resinMaterial(time: { value: number }): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.06, metalness: 0, envMapIntensity: 1.25 });
+  // Uniform colours go into the shader in linear space, like every clay colour (raw vec3s would read pale mint).
+  const shallow = new THREE.Color(RESIN.shallow), deep = new THREE.Color(RESIN.deep);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = time;
     sh.uniforms.uSea = { value: new THREE.Vector2(SEA_X, SEA_Z) };
+    sh.uniforms.uShallow = { value: shallow };
+    sh.uniforms.uDeep = { value: deep };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRW; varying vec3 vRN;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz; vRN = normalize( mat3( modelMatrix ) * objectNormal );');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uSea; varying vec3 vRW; varying vec3 vRN;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uSea; uniform vec3 uShallow; uniform vec3 uDeep; varying vec3 vRW; varying vec3 vRN;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         // distance out from the L-shaped coast (the bay wraps the south and east)
         float dx = vRW.x - uSea.x, dz = vRW.z - uSea.y;
         float d = max( dx, dz );
         float along = dx > dz ? vRW.z : vRW.x;
-        float depth = smoothstep( 3.0, 34.0, d );
-        vec3 shallow = vec3( 0.32, 0.78, 0.76 ), deep = vec3( 0.06, 0.36, 0.48 );
-        diffuseColor.rgb = mix( shallow, deep, depth );
-        if ( vRN.y < 0.5 ) diffuseColor.rgb = mix( vec3( 0.12, 0.55, 0.6 ), vec3( 0.05, 0.3, 0.4 ), smoothstep( -0.6, -2.6, vRW.y ) );
+        // teal over the shelf by the beach, deep blue a short way out (the sea is only 35-45 across)
+        float depth = smoothstep( 2.0, 16.0, d );
+        diffuseColor.rgb = mix( uShallow, uDeep, depth );
+        // the poured edge at the plinth's side: teal at the surface, darker blue down in the resin
+        if ( vRN.y < 0.5 ) diffuseColor.rgb = mix( uShallow * 0.8, uDeep * 0.7, smoothstep( -0.6, -2.6, vRW.y ) );
         float wave = 0.35 * sin( along * 0.42 + 2.0 ) + 0.12 * sin( along * 1.13 + 4.0 ) + 0.12 * sin( uTime * 0.8 + along * 0.6 );
         float fo = 1.0 - smoothstep( 0.0, 0.8, abs( d - ( 1.6 + wave ) ) );
         float fo2 = 1.0 - smoothstep( 0.0, 0.5, abs( d - ( 4.2 + wave * 1.4 + 0.3 * sin( uTime * 0.5 + along * 0.2 ) ) ) );
@@ -64,7 +73,7 @@ export function resinMaterial(time: { value: number }): THREE.MeshStandardMateri
           normal = normalize( mat3( viewMatrix ) * normalize( vec3( -dx, 1.0, -dz ) ) );
         }`);
   };
-  m.customProgramCacheKey = () => 'resin-bay1';
+  m.customProgramCacheKey = () => 'resin-bay2';
   return m;
 }
 
@@ -204,8 +213,9 @@ export function buildDiorama(): Diorama {
   const poolM = new THREE.Mesh(new THREE.PlaneGeometry(520, 520).rotateX(-Math.PI / 2), lampPool);
   poolM.position.set(DESK_LAMP.x + 60, TABLE_Y + 0.2, DESK_LAMP.z + 60);
   poolM.renderOrder = 1;
+  poolM.visible = false;
   group.add(poolM);
-  return { group, resin, bulbs: [DESK_LAMP.clone()], farCasters: [plinth, things, lemon], cloth: clothMat, lampPool };
+  return { group, resin, bulbs: [DESK_LAMP.clone()], farCasters: [plinth, things, lemon], cloth: clothMat, lampPool, lampPoolMesh: poolM };
 }
 
 function snake(pts: V3[], r: number, seg: number, rs: number) {

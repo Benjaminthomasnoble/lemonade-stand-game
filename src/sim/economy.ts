@@ -18,7 +18,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
+import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -495,6 +495,7 @@ export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, 
   m += perkTraffic(s, owner, plotId); // Town Favorite, Orchard Fresh
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
   m -= ceaseAndDesistCut(s, owner, st); // FizzCo's Cease-and-Desist: your tier bonus and campaigns count for nothing in its district
+  m += adBlitzBoost(s, owner, st); // FizzCo's ad blitz: its mascot works one district
   return m;
 }
 

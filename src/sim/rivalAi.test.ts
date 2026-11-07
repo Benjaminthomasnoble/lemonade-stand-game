@@ -7,6 +7,7 @@ import {
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
+  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -857,5 +858,62 @@ describe('rival start holdings', () => {
     const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field').slice(0, 3);
     for (const p of fields) s.plots[p.id].owner = 'player';
     expect(groveTraffic(s)).toBeCloseTo(MAX_GROVES * GROVE_TRAFFIC, 5);
+  });
+});
+
+describe('rival brand tiers', () => {
+  it('Grow buys the next tier at your price once your Rank opens it, and its stands draw more; the Bugle reports it', () => {
+    const s = newGame(70);
+    s.rank = 4;
+    const r = s.rivals.fizzco;
+    expect(r.brandTier).toBe(2);
+    r.cash = 1e6;
+    budgetOf(s, 'fizzco').grow = BRAND_TIERS[2].cost; // FizzCo pays as soon as Grow covers the price
+    const st = ownedPlots(s, 'fizzco').map((p) => s.plots[p.id].stand).find((x) => !!x)!;
+    const before = marketingMultiplier(s, 'fizzco', st);
+    growBrand(s, 'fizzco');
+    expect(r.brandTier).toBe(3);
+    expect(budgetOf(s, 'fizzco').grow).toBe(0);
+    expect(r.cash).toBe(1e6 - BRAND_TIERS[2].cost);
+    expect(marketingMultiplier(s, 'fizzco', st)).toBeCloseTo(before + BRAND_TIERS[2].traffic - BRAND_TIERS[1].traffic, 5);
+    expect(s.news.at(-1)).toBe(`Bugle: ${FACTIONS.fizzco.name} put up Radio Jingle`);
+    budgetOf(s, 'fizzco').grow = 1e6;
+    growBrand(s, 'fizzco');
+    expect(r.brandTier).toBe(3); // Billboards & TV Spot waits for your Rank 7
+    s.rank = 8;
+    growBrand(s, 'fizzco');
+    growBrand(s, 'fizzco');
+    expect(r.brandTier).toBe(5);
+  });
+
+  it('the others keep twice the price in Grow and stop at their cap: the Blenders never pass Flyers', () => {
+    const s = newGame(71);
+    s.rank = 10;
+    for (const id of RIVALS) s.rivals[id].cash = 1e7;
+    const b = budgetOf(s, 'sourwood');
+    b.grow = BRAND_TIERS[1].cost * 2 - 1;
+    growBrand(s, 'sourwood');
+    expect(s.rivals.sourwood.brandTier).toBe(1);
+    b.grow = BRAND_TIERS[1].cost * 2;
+    growBrand(s, 'sourwood');
+    expect(s.rivals.sourwood.brandTier).toBe(2);
+    expect(b.grow).toBe(BRAND_TIERS[1].cost);
+    for (const id of RIVALS) {
+      budgetOf(s, id).grow = 5e6;
+      for (let i = 0; i < 6; i++) growBrand(s, id);
+      expect(s.rivals[id].brandTier).toBe(RIVAL_BRAND.cap[id]);
+    }
+    expect(s.rivals.blenders.brandTier).toBe(2);
+    expect(Math.max(...RIVALS.map((id) => RIVAL_BRAND.cap[id]))).toBe(RIVAL_BRAND.cap.fizzco); // FizzCo spends the most
+  });
+
+  it('come with the dawn\'s Grow spending', () => {
+    const s = newGame(72);
+    s.rank = 4;
+    s.day = 20;
+    s.rivals.fizzco.cash = 1e7;
+    budgetOf(s, 'fizzco').grow = 1e6;
+    rivalDawn(s, 'fizzco', { seed: 9 });
+    expect(s.rivals.fizzco.brandTier).toBe(3);
   });
 });

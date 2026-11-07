@@ -5,7 +5,7 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND,
+  BOARDWALK_SEASON, BRAND_TIERS, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND,
   SEASON_WEATHER, SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
@@ -13,8 +13,8 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS,
-  RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE,
+  RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
@@ -405,6 +405,20 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 
+/**
+ * Grow buys the rival's next brand tier (RIVAL_BRAND): your price, opened by your Rank, up to the faction's cap, and
+ * only while Grow holds the faction's `save` times the price. The Bugle reports it.
+ */
+export function growBrand(s: GameState, id: RivalId): void {
+  const r = s.rivals[id];
+  const next = BRAND_TIERS[r.brandTier];
+  if (!next || next.tier > RIVAL_BRAND.cap[id] || next.rank > s.rank) return;
+  if (!canSpend(s, id, 'grow', next.cost * RIVAL_BRAND.save[id])) return;
+  spend(s, id, 'grow', next.cost);
+  r.brandTier = next.tier;
+  s.news.push(`Bugle: ${FACTIONS[id].name} put up ${next.name}`);
+}
+
 /** One rival's dawn (rivalsAtDawn): grudges from the night, yesterday's trade, wages, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned and on schemes. */
 export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   const r = s.rivals[id];
@@ -416,6 +430,7 @@ export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   bankTakings(s, id);
   growUpgrades(s, id);
   growLand(s, id, rng);
+  growBrand(s, id);
   r.held = ownedPlots(s, id).map((p) => p.id);
   r.attention = attentionOf(s, id);
 }

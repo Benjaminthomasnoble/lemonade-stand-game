@@ -5,6 +5,7 @@ import {
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
+  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID,
   type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -655,5 +656,90 @@ describe('Old Money', () => {
     expect(ticket).toContain(`Sale frozen: ${PLOT_BY_ID[plot].name.replace(/'/g, '\'')}`);
     expect(ticket).toContain(`data-action="goto" data-plot="${plot}"`);
     expect(schemeNote(s, plot)).toBe('<span class="cl-note bad">Sale frozen</span>');
+  });
+});
+
+describe('FizzCo\'s ad blitz', () => {
+  /** Rank 3, with a stand of Lottie's next to one of FizzCo's. */
+  function blitzable(seed: number) {
+    const s = newGame(seed);
+    s.day = 10;
+    s.rank = 3;
+    return { s, ...nextTo(s, 'fizzco') };
+  }
+
+  it('its mascot works the district where it meets you for 3 days: +25% at its stands there, a day\'s walk paid each dawn from Strike', () => {
+    const { s, theirs, mine } = blitzable(80);
+    const d = PLOT_BY_ID[theirs].district;
+    const st = s.plots[theirs].stand!;
+    const before = marketingMultiplier(s, 'fizzco', st);
+    const yours = marketingMultiplier(s, 'player', s.plots[mine].stand!);
+    const strike = budgetOf(s, 'fizzco').strike;
+    const job = startScheme(s, 'fizzco', 'blitz')!;
+    expect(job).toMatchObject({ kind: 'blitz', by: 'fizzco', day: 10, until: 12, district: d, cost: AD_BLITZ.perDay });
+    expect(job.plots).toContain(theirs);
+    expect(budgetOf(s, 'fizzco').strike).toBeCloseTo(strike - AD_BLITZ.perDay, 2);
+    expect(adBlitzIn(s, d)).toBe(true);
+    expect(marketingMultiplier(s, 'fizzco', st)).toBeCloseTo(before + AD_BLITZ.traffic, 5);
+    expect(marketingMultiplier(s, 'player', s.plots[mine].stand!)).toBeCloseTo(yours, 5); // only FizzCo's stands
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (p.district !== d && ps.owner === 'fizzco' && ps.stand) expect(adBlitzBoost(s, 'fizzco', ps.stand)).toBe(0);
+    }
+    expect(s.news.at(-1)).toBe(`Bugle: FizzCo's mascot blitzes ${DISTRICT_BY_ID[d].name}: +25% at its stands`);
+    hush(s);
+    for (const day of [11, 12]) {
+      s.day = day;
+      const left = budgetOf(s, 'fizzco').strike;
+      schemesAtDawn(s);
+      expect(budgetOf(s, 'fizzco').strike).toBeCloseTo(left - AD_BLITZ.perDay, 2);
+      expect(adBlitzIn(s, d)).toBe(true);
+    }
+    expect(job.cost).toBe(AD_BLITZ.perDay * AD_BLITZ.days);
+    s.day = 13;
+    schemesAtDawn(s);
+    expect(job.done).toBe(true);
+    expect(adBlitzIn(s, d)).toBe(false);
+    expect(adBlitzBoost(s, 'fizzco', st)).toBe(0);
+  });
+
+  it('goes home early when Strike runs dry or FizzCo falls; none before Rank 3, away from your stands, short of Strike, or by anyone else', () => {
+    const a = blitzable(81);
+    const job = startScheme(a.s, 'fizzco', 'blitz')!;
+    hush(a.s);
+    budgetOf(a.s, 'fizzco').strike = AD_BLITZ.perDay - 1;
+    a.s.day = 11;
+    schemesAtDawn(a.s);
+    expect(job).toMatchObject({ done: true, until: 10 });
+    expect(a.s.news).toContain('Bugle: FizzCo\'s mascot goes home early');
+    const b = blitzable(82);
+    const fallen = startScheme(b.s, 'fizzco', 'blitz')!;
+    b.s.rivals.fizzco.alive = false;
+    expect(adBlitzIn(b.s, fallen.district!)).toBe(false);
+    expect(schemeTickets(b.s).some((t) => t.includes('data-testid="blitz"'))).toBe(false);
+    const early = blitzable(83).s;
+    early.rank = 2;
+    expect(startScheme(early, 'fizzco', 'blitz')).toBeNull();
+    const lone = newGame(84); // only Lottie's Corner, nowhere near FizzCo
+    lone.day = 10;
+    lone.rank = 3;
+    expect(startScheme(lone, 'fizzco', 'blitz')).toBeNull();
+    const poor = blitzable(85).s;
+    budgetOf(poor, 'fizzco').strike = AD_BLITZ.perDay * AD_BLITZ.days - 1;
+    expect(startScheme(poor, 'fizzco', 'blitz')).toBeNull();
+    const other = blitzable(86).s;
+    nextTo(other, 'blenders');
+    expect(startScheme(other, 'blenders', 'blitz')).toBeNull();
+  });
+
+  it('on the HUD: a red ticket naming the district, days left and Go There; FizzCo\'s stand card notes it', () => {
+    const { s, theirs } = blitzable(87);
+    startScheme(s, 'fizzco', 'blitz');
+    const ticket = schemeTickets(s).find((t) => t.includes('data-testid="blitz"'))!;
+    expect(ticket).toContain('cl-ticket red');
+    expect(ticket).toContain(`Ad blitz: ${DISTRICT_BY_ID[PLOT_BY_ID[theirs].district].name.replace(/&/g, '&amp;')}`);
+    expect(ticket).toContain('<i class="on"></i><i class="on"></i><i class="on"></i>');
+    expect(ticket).toContain('data-action="goto"');
+    expect(schemeNote(s, theirs)).toBe('<span class="cl-note bad">Ad blitz +25%</span>');
   });
 });

@@ -122,15 +122,32 @@ export const CEASE = { act: 4, cost: 2000, days: 3, taunt: "I'm not threatening 
  */
 export const TAKEOVER = { act: 4, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
 /**
- * Old Money, Sourwood's signature move: from Act `act` (The Big Squeeze, where the spec teaches it), Mayor Fontaine fines you `fine` of your average
- * daily sales over the last week (at least `minFine`, never more than your cash) for `fineCost` of Vera's Strike, or
- * freezes a land sale for `freezeDays` days for `freezeCost`. Vera's raids on you send elite Stewards: one henchman
- * level higher, every weapon one tier toward hatchets (placeholders: the spec gives no numbers).
+ * Old Money, Sourwood's signature move: from Act `act` (The Big Squeeze, where the spec teaches it), Mayor Fontaine
+ * fines you `fine` of your average daily sales over the last week (at least `minFine`, never more than your cash) for
+ * `fineCost` of Vera's Strike, or freezes a land sale for `freezeDays` days for `freezeCost`. Vera's raids on you send
+ * elite Stewards: one henchman level higher, every weapon one tier toward hatchets (placeholders: the spec gives no
+ * numbers).
  */
 export const OLD_MONEY = {
   act: 5, fine: 0.5, minFine: 25, fineCost: 500, freezeDays: 3, freezeCost: 1500,
   mayor: 'I represent all of Citrine Bay. Some of it more than others.',
 };
+/**
+ * Rivals market by your rules (spec: "Rivals market by the same rules, and FizzCo spends the most"). At dawn a rival
+ * buys its next brand tier at your price out of Grow, once your Rank has opened that tier, up to its faction's `cap`,
+ * and only while Grow holds `save` times the price, so land and upgrades still get theirs: FizzCo pays as soon as
+ * Grow covers it. The Bugle reports each one (placeholders: the spec gives no pace).
+ */
+export const RIVAL_BRAND = {
+  cap: { fizzco: 5, sourwood: 4, hollis: 3, coldbrew: 3, blenders: 2 } as Record<RivalId, number>,
+  save: { fizzco: 1, sourwood: 2, hollis: 2, coldbrew: 2, blenders: 2 } as Record<RivalId, number>,
+};
+/**
+ * FizzCo's ad blitz (Hostile Takeover): from Rank `rank`, when your own Sunny opens, FizzCo's mascot walks the
+ * district where most of its stands share passers-by with yours: +`traffic` at its stands there for `days` days, at
+ * `perDay` a day of Strike (Sunny's numbers; the length is a placeholder).
+ */
+export const AD_BLITZ = { rank: 3, traffic: 0.25, days: 3, perDay: 300 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

@@ -4,10 +4,10 @@
 // may start one, paid from its Strike bucket: a price war at its stands that
 // share customers with yours, the Cold Brew Collective's smear posters on one
 // of your stands, a snipe at an auction you bid on, FizzCo's Hostile Takeover
-// (a Cease-and-Desist on your marketing in one district, or an offer to buy one
-// of your plots), or Sourwood's Old Money (Mayor Fontaine's fine, or a land
-// sale frozen at Town Hall). The Bugle reports each one. Pure and seeded, like
-// the rest of the sim.
+// (an ad blitz by FizzCo's mascot, a Cease-and-Desist on your marketing in one
+// district, or an offer to buy one of your plots), or Sourwood's Old Money
+// (Mayor Fontaine's fine, or a land sale frozen at Town Hall). The Bugle
+// reports each one. Pure and seeded, like the rest of the sim.
 import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -15,19 +15,19 @@ import type { GameState, Stand } from './economy.ts';
 import { canBuyPlot, ownedPlots, rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
-import { CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
+import { AD_BLITZ, CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 import { actOf } from './modes.ts';
 
-export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease' | 'buyout' | 'fine' | 'freeze';
+export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze';
 export interface Scheme {
   kind: SchemeKind;
   by: RivalId;
   day: number; // the dawn it started
   until: number; // it runs through this day
-  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot; a freeze: the plot
-  district?: DistrictId; // a Cease-and-Desist: the district it blocks
+  plots: string[]; // a price war or ad blitz: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot; a freeze: the plot
+  district?: DistrictId; // a Cease-and-Desist: the district it blocks; an ad blitz: the district the mascot works
   price?: number; // a buyout offer: what they'd pay you; a fine: what you paid
   caught?: boolean; // posters: your night watch caught the crew
   cost?: number; // what Strike has paid for it so far
@@ -40,12 +40,12 @@ const short = (id: RivalId) => FACTIONS[id].name;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /**
- * The schemes each rival reaches for, most likely first (spec: Cold Brew's posters, FizzCo's auction outbids and
- * Cease-and-Desist letters; a price war is anyone's). Each dawn's order is a seeded draw weighted this way.
+ * The schemes each rival reaches for, most likely first (spec: Cold Brew's posters, FizzCo's auction outbids, ad
+ * blitzes and Cease-and-Desist letters; a price war is anyone's). Each dawn's order is a seeded draw weighted this way.
  */
 const PREFERS: Record<RivalId, SchemeKind[]> = {
   coldbrew: ['posters', 'priceWar', 'snipe'],
-  fizzco: ['snipe', 'cease', 'buyout', 'priceWar'],
+  fizzco: ['snipe', 'blitz', 'cease', 'buyout', 'priceWar'],
   sourwood: ['priceWar', 'freeze', 'fine', 'snipe'],
   hollis: ['priceWar', 'snipe'],
   blenders: ['priceWar', 'snipe'],
@@ -189,6 +189,55 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
     s.news.push(campus ? `Bugle: Every campus wall sneers "${SCHEMES.posters.slogan}"` : `Bugle: Smear posters plaster ${where}`);
   }
   return job;
+}
+
+// ---------- FizzCo's ad blitz ----------
+
+/** Is FizzCo's mascot working this district today? A blitz is running there, and FizzCo is still in business. */
+export function adBlitzIn(s: GameState, district: DistrictId): boolean {
+  return !!s.schemes?.length && s.rivals.fizzco.alive && runningSchemes(s).some((x) => x.kind === 'blitz' && x.district === district);
+}
+
+/** marketingMultiplier's ad blitz term: +AD_BLITZ.traffic at FizzCo's stands in the district its mascot works. */
+export function adBlitzBoost(s: GameState, owner: FactionId, st?: Stand): number {
+  if (owner !== 'fizzco' || !st || !s.schemes?.some((x) => x.kind === 'blitz' && !x.done)) return 0;
+  const plot = plotOfStand(s, st);
+  return plot && adBlitzIn(s, PLOT_BY_ID[plot].district) ? AD_BLITZ.traffic : 0;
+}
+
+/** Where a blitz pulls hardest: the district where most of FizzCo's stands share passers-by with yours (its Downtown on a tie). */
+function blitzTarget(s: GameState): DistrictId | null {
+  const count = new Map<DistrictId, number>();
+  for (const p of warFront(s, 'fizzco')) { const d = PLOT_BY_ID[p].district; count.set(d, (count.get(d) ?? 0) + 1); }
+  const home = (d: DistrictId) => (d === FACTIONS.fizzco.home ? 1 : 0);
+  return [...count].sort((a, b) => b[1] - a[1] || home(b[0]) - home(a[0]))[0]?.[0] ?? null;
+}
+
+/** FizzCo's ad blitz (Hostile Takeover): from Rank 3, its mascot works one district for 3 days, a day's walk paid each dawn from Strike. */
+function startBlitz(s: GameState, id: RivalId): Scheme | null {
+  if (id !== 'fizzco' || s.rank < AD_BLITZ.rank) return null;
+  const district = blitzTarget(s);
+  if (!district || !canSpend(s, id, 'strike', AD_BLITZ.perDay * AD_BLITZ.days)) return null;
+  spend(s, id, 'strike', AD_BLITZ.perDay);
+  const plots = PLOTS.filter((p) => p.district === district && s.plots[p.id].owner === id && !!s.plots[p.id].stand && p.type !== 'hq').map((p) => p.id);
+  const job: Scheme = { kind: 'blitz', by: id, day: s.day, until: s.day + AD_BLITZ.days - 1, plots, district, cost: AD_BLITZ.perDay };
+  s.schemes!.push(job);
+  // world: the radio show can open with FizzCo's jingle while adBlitzIn holds (spec: the radio tips you off).
+  s.news.push(`Bugle: FizzCo's mascot blitzes ${DISTRICT_BY_ID[district].name}: +${Math.round(AD_BLITZ.traffic * 100)}% at its stands`);
+  return job;
+}
+
+/** Dawn: Strike pays for another day's walk; the blitz ends when its days are up or Strike can't pay. */
+function runBlitz(s: GameState, job: Scheme): void {
+  if (s.day > job.until) { job.done = true; return; }
+  if (!canSpend(s, job.by, 'strike', AD_BLITZ.perDay)) {
+    job.done = true;
+    job.until = s.day - 1;
+    s.news.push(`Bugle: FizzCo's mascot goes home early`);
+    return;
+  }
+  spend(s, job.by, 'strike', AD_BLITZ.perDay);
+  job.cost = round2((job.cost ?? 0) + AD_BLITZ.perDay);
 }
 
 // ---------- Cease-and-Desist ----------
@@ -444,6 +493,7 @@ export function schemesAtDawn(s: GameState): void {
     if (x.done) continue;
     if (!s.rivals[x.by]?.alive) { x.done = true; continue; }
     if (x.kind === 'priceWar') runPriceWar(s, x);
+    else if (x.kind === 'blitz') runBlitz(s, x);
     else if (s.day > x.until || (x.kind === 'buyout' && s.plots[x.plots[0]].owner !== 'player')) x.done = true; // ran its days, the lot closed, or the plot left you
   }
   s.schemes = s.schemes.filter((x) => !x.done || x.until >= s.day - SCHEMES.keep);
@@ -464,7 +514,7 @@ export function startScheme(s: GameState, id: RivalId, kind: SchemeKind, rng?: R
   s.schemes ??= [];
   const r = rng ?? { seed: s.seed };
   const started = kind === 'priceWar' ? startPriceWar(s, id) : kind === 'posters' ? startPosters(s, id, r) : kind === 'snipe' ? startSnipe(s, id)
-    : kind === 'buyout' ? startBuyout(s, id) : kind === 'fine' ? startFine(s, id) : kind === 'freeze' ? (id === 'sourwood' ? freezeLand(s) : null)
+    : kind === 'blitz' ? startBlitz(s, id) : kind === 'buyout' ? startBuyout(s, id) : kind === 'fine' ? startFine(s, id) : kind === 'freeze' ? (id === 'sourwood' ? freezeLand(s) : null)
     : id === 'fizzco' ? ceaseAndDesist(s) : null;
   if (!rng) s.seed = r.seed; // called on its own: write the draws back
   return started;

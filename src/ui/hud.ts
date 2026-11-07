@@ -47,7 +47,9 @@ import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
 import { createRaidPlanner } from './raidPlanner.ts';
-import { auctionControls, landNotes, listingControls, priceTip } from './registry.ts';
+import {
+  auctionControls, landNotes, landTickets, listingControls, priceTip, registryButton, registryScreen, sellPlotButton, TOWN_HALL, type RegistryTab,
+} from './registry.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -220,6 +222,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   let tab: 'today' | 'grow' | 'crew' | WorldTab = 'today';
   let books = false, moreOpts = false, standMath = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
+  let registryTab: RegistryTab = 'buy'; // the Land Registry's tab (the Registry itself is the 'registry' menu)
   const last = new Map<HTMLElement, string>();
   const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html) { el.innerHTML = html; last.set(el, html); } };
   const redraw = () => onAction({ type: 'refresh' });
@@ -243,7 +246,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
-        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(kit, s) || defenseSheet(kit, s, s.selected), options: hud.options }) : '');
+        : outcomeScreen(s) || (hud.menu === 'registry' ? registryScreen(s, registryTab) // the Land Registry (src/ui/registry.ts)
+          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(kit, s) || defenseSheet(kit, s, s.selected), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -400,6 +404,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'storyOffer': onAction({ type: 'storyOffer', accept: d.accept === '1' }); break;
       case 'bid': onAction({ type: 'bid', plot: d.plot!, amount: Number(d.amount) }); break;
       case 'unbid': case 'listPlot': case 'unlistPlot': onAction({ type: d.action, plot: d.plot! }); break;
+      case 'registry': // a tab, or the Registry from Town Hall's card, a morning ticket or In the Red (src/ui/registry.ts)
+        if (d.tab) registryTab = d.tab as RegistryTab;
+        if (hud.menu === 'registry') redraw(); else onAction({ type: 'menu', id: 'registry' });
+        break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -501,7 +509,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const left = redDaysLeft(s);
       const jar = difficulty(s).cookieJar === 'always' || cookieJarReady(s) ? 'Cookie Jar can cover you' : 'Cookie Jar is empty';
       const need = Math.ceil(-s.cash / 50) * 50;
-      t.push(`<div class="cl-ticket red" data-testid="in-the-red" title="${jar}">${ART.piggy()}<b>In the Red! ${left} day${left === 1 ? '' : 's'}</b>${need > 0 && canBorrow(s, need).ok ? btn('borrow', `Borrow ${whole(need)}`, { ok: true }, `data-amount="${need}" data-testid="borrow"`) : ''}</div>`);
+      const fixes = (need > 0 && canBorrow(s, need).ok ? btn('borrow', `Borrow ${whole(need)}`, { ok: true }, `data-amount="${need}" data-testid="borrow"`) : '') + sellPlotButton(s);
+      t.push(`<div class="cl-ticket red" data-testid="in-the-red" title="${jar}">${ART.piggy()}<b>In the Red! ${left} day${left === 1 ? '' : 's'}</b>${fixes ? `<span class="cl-acts">${fixes}</span>` : ''}</div>`);
     }
     t.push(...stormTicket(s), ...rebuildTickets(s), ...damageTickets(s)); // a Storm forecast, smashed and Damaged buildings (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
@@ -520,6 +529,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${matchButton(s, o)}${btn('decline', A.glyph('close'), { ok: true }, `data-id="${o.id}" title="No thanks" aria-label="No thanks"`, 'ghost')}</span></div>`);
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
+    t.push(...landTickets(s));
     const servings = servingsAvailable(st);
     if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
@@ -748,6 +758,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     if (ps.owner === 'player') actions += listingControls(s, id);
+    if (id === TOWN_HALL) actions += registryButton(s);
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good" title="Only you can buy it ${ps.dibs.until > s.day ? `through day ${ps.dibs.until}` : 'today'}">${ps.dibs.price !== undefined ? `${ps.dibs.table ? 'Side lot' : 'Fire Sale'} ${whole(plotPrice(s, id))}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>

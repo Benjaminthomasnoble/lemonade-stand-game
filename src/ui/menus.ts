@@ -17,9 +17,9 @@ import {
 } from '../sim/economy.ts';
 import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
-import { taught } from '../sim/story.ts';
 import { corkboardBody } from './corkboard.ts';
 import { matchButton, orderNote, orderWhen, recipeOf } from './orders.ts';
+import { registryOpen } from './registry.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -51,7 +51,7 @@ export function menuUnlocked(s: GameState, id: MenuId): boolean {
     case 'planner': return s.rank >= RAID_RANK && !peaceful(s) && s.guards.length > 0;
     case 'corkboard': return s.day >= 2 || s.battles.length > 0;
     case 'orders': return s.offers.length + s.orders.length > 0 || s.rank >= ORDER_TIERS.local.rank;
-    case 'registry': return forSale(s).length > 0 && taught(s, 'land'); // Week 2's land lesson (src/sim/story.ts)
+    case 'registry': return registryOpen(s); // Week 2's land lesson (src/ui/registry.ts draws it; story.ts taught)
     default: return true; // the paper, the stand, the rank badge and Lottie's goals are there from Day 1
   }
 }

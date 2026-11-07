@@ -496,7 +496,7 @@ export function createBay(scene: THREE.Scene): Bay {
       if (synced && ps.owner === 'player' && v.hqOwner !== undefined && v.hqOwner !== 'player') lemon.capture(v.root.position.x, p.z, 10);
       v.hqOwner = ps.owner;
     }
-    else if (ps.facility?.kind === 'clubhouse') building = civicBuilding('Clubhouse'); // combat: a stand-in till the art threads model one
+    else if (ps.facility?.kind === 'clubhouse') building = facilityModel('clubhouse', ps.facility.level, ps.owner);
     else if (ps.facility?.kind === 'billboard') building = facilityModel('billboard', ps.facility.level, ps.owner);
     else if (ps.facility) {
       const east = ps.facility.kind === 'pier' ? eastReach(v) : null;

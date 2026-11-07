@@ -468,11 +468,12 @@ export function forSaleLabel(): THREE.Group {
 
 // ---------------------------------------------------------------- the player's VIP facilities
 /** VIP facilities, in their owner's colours (lemon yellow and Lottie's name only for the player). `reach` sizes a pier to the water. */
-export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 'billboard', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 'billboard' | 'clubhouse', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
   const M = new Model();
   const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
   const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
   if (kind === 'billboard') return billboard(M, owner, own.main, ACC);
+  if (kind === 'clubhouse') return clubhouse(M, owner, own.main, ACC, level);
   M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? own.main : '#F3E9D6';
   M.farFlat = kind === 'grove' || kind === 'pier';
   if (kind === 'bottling') M.farTop = own.main;
@@ -761,6 +762,64 @@ function billboard(M: Model, owner: string | null, main: Col, acc: Col) {
     M.add(rbox(0.1, 0.1, 1.2, 0.03), '#5B5568', { p: [x, y0 + H + 0.45, z + 0.45] });
     M.add(cone(0.28, 0.45, 10, true), '#5B5568', { p: [x, y0 + H + 0.35, z + 1.05], r: [-2.2, 0, 0] });
     M.add(sph(0.16, 8, 6), '#FFE2A8', { p: [x, y0 + H + 0.2, z + 1.15], fx: GLOSS + 1 });
+  }
+  return M.done('facility');
+}
+
+/**
+ * The Clubhouse, the crew's hangout (spec "Specialists, squads and the Clubhouse"), in the owner's colours.
+ * L1: a clubhouse with bunk windows, the owner's medallion on the gable and the bell out front (Ring the Bell).
+ * L2 adds a fenced Training Yard with a hanging sandbag and a tyre drill. L3 adds an Infirmary wing:
+ * an ice-pack crate and a sticking-plaster sign (no medical cross).
+ */
+function clubhouse(M: Model, owner: string | null, main: Col, acc: Col, level: number) {
+  M.farColor = main;
+  const trim = acc === '#FFFFFF' ? P.terra : acc;
+  const hx = level >= 2 ? -2.3 : -0.8, w = 6.2, d = 4.6, h = 3.2, fz = -4.6;
+  // the clubhouse: owner-coloured walls, a cream gable roof, a door and two bunk windows
+  block(M, w, h, d, main, hx, 0, fz, 41, 0.3);
+  gable(M, w + 0.8, d + 0.7, 1.9, '#FFF1D6', hx, h - 0.05, fz);
+  M.add(rbox(w + 0.9, 0.22, 0.3, 0.06), trim, { p: [hx, h + 0.05, fz + d / 2 + 0.3] });
+  door(M, hx + 1.2, fz + d / 2 + 0.02, trim, 1.1, 2);
+  for (const dx of [-1.7, -0.3]) window_(M, hx + dx, 1.8, fz + d / 2 + 0.02, 0.9, 0.8);
+  // a bunk peeking through each window
+  for (const dx of [-1.7, -0.3]) M.add(rbox(0.8, 0.12, 0.6, 0.04), '#FFF6DF', { p: [hx + dx, 1.55, fz + d / 2 - 0.3] });
+  medallion(M, (owner ?? 'player') as RivalId | 'player', hx, h + 1.1, fz + d / 2 + 0.25, 0.75);
+  // the bell out front on a popsicle-stick frame
+  const bx = level >= 2 ? -4.6 : 3.4, bz = 0.6;
+  for (const s of [-0.55, 0.55]) stick(M, bx + s, 0, 2.5, bz, 0.16);
+  M.add(rbox(1.5, 0.18, 0.18, 0.05), P.stick, { p: [bx, 2.45, bz], fx: PAPER });
+  M.add(lathe([[0, 0], [0.42, 0], [0.38, 0.12], [0.3, 0.55], [0.12, 0.75], [0, 0.78]], 14), '#C9803A', { p: [bx, 1.55, bz], fx: GLOSS }); // a copper bell, so it never melts into a lemon-yellow plot
+  M.add(sph(0.1, 8, 6), '#5B5568', { p: [bx, 1.55, bz] });
+  M.add(cyl(0.02, 0.02, 1.2, 4), '#FFF1D6', { p: [bx + 0.2, 0.95, bz] });
+  if (level >= 2) {
+    // the Training Yard: a picket fence round a sandbag frame and a tyre drill
+    const yx = 2.9, yz = -1.6, yw = 4.6, yd = 3.8;
+    for (let k = 0; k <= 10; k++) { const t = k / 10; stick(M, yx - yw / 2 + t * yw, 0, 0.8, yz + yd / 2, 0.08, '#FFFDF6'); }
+    for (const s of [-1, 1]) for (let k = 0; k <= 7; k++) stick(M, yx + s * yw / 2, 0, 0.8, yz - yd / 2 + (k / 7) * yd, 0.08, '#FFFDF6');
+    M.add(box(yw, 0.06, 0.05), '#FFFDF6', { p: [yx, 0.55, yz + yd / 2] });
+    M.add(rbox(yw - 0.2, 0.04, yd - 0.2, 0.02), '#D9C3A0', { p: [yx, 0.03, yz] });
+    for (const s of [-0.5, 0.5]) stick(M, yx - 1.2 + s, 0, 2.4, yz - 0.6, 0.14);
+    M.add(rbox(1.3, 0.14, 0.14, 0.04), P.stick, { p: [yx - 1.2, 2.35, yz - 0.6], fx: PAPER });
+    M.add(lumpy(cap(0.32, 0.7, 4, 10), 0.03, 3, 2), '#C9A77A', { p: [yx - 1.2, 1.35, yz - 0.6] });
+    M.add(cyl(0.34, 0.34, 0.14, 12), trim, { p: [yx - 1.2, 1.35, yz - 0.6] });
+    M.add(cyl(0.02, 0.02, 0.5, 4), '#5B5568', { p: [yx - 1.2, 2.05, yz - 0.6] });
+    for (let k = 0; k < 4; k++) M.add(tor(0.38, 0.14, 6, 14), '#3B3A48', { p: [yx + 0.4 + (k % 2) * 0.9, 0.14, yz - 0.9 + Math.floor(k / 2) * 1.1], r: [Math.PI / 2, 0, 0] });
+  }
+  if (level >= 3) {
+    // the Infirmary wing behind the yard: blush walls, a sticking-plaster sign, an ice-pack crate
+    const ix = 2.9, iz = -5.9;
+    block(M, 4.2, 2.5, 2.6, '#F7D6DC', ix, 0, iz, 43, 0.25);
+    M.add(rbox(4.6, 0.25, 3, 0.08), main, { p: [ix, 2.6, iz] });
+    window_(M, ix - 0.9, 1.5, iz + 1.32, 0.8, 0.7);
+    door(M, ix + 0.9, iz + 1.32, '#FFFDF6', 0.9, 1.8);
+    // a giant sticking plaster: a tan strip with a pad and dotted holes, stuck on at an angle
+    M.add(rbox(2.8, 0.8, 0.06, 0.2), '#E9B98F', { p: [ix, 3.55, iz + 1.4], r: [0, 0, 0.18], fx: PAPER });
+    M.add(rbox(0.9, 0.56, 0.07, 0.1), '#FFF6DF', { p: [ix, 3.55, iz + 1.42], r: [0, 0, 0.18], fx: PAPER });
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) M.add(sph(0.04, 5, 4), '#B9805A', { p: [ix + s * (0.8 + (k % 2) * 0.22) * Math.cos(0.18), 3.55 + s * 0.8 * Math.sin(0.18) + (k - 1) * 0.15, iz + 1.44] });
+    // the ice-pack crate
+    M.add(rbox(1.1, 0.6, 0.8, 0.06), P.stick, { p: [ix - 2.6, 0.3, iz + 1.9], fx: PAPER });
+    for (let k = 0; k < 3; k++) M.add(lumpy(rbox(0.42, 0.18, 0.55, 0.08), 0.02, 3, k), '#9FDCF2', { p: [ix - 2.9 + k * 0.32, 0.68, iz + 1.9], r: [0, 0, (k - 1) * 0.25], fx: GLOSS });
   }
   return M.done('facility');
 }

@@ -11,6 +11,7 @@
 // day is logged here too, for the Ledger's chart.
 import type { DayStats, GameState, Stand } from './economy.ts';
 import { costPerCup } from './economy.ts';
+import { STAND_LEVELS } from './balance.ts';
 
 export type LedgerRow =
   | 'sales' | 'orders' | 'prizes' | 'loot' | 'cookieJar'
@@ -21,6 +22,7 @@ export type LedgerRow =
 export const OFF_PROFIT: readonly LedgerRow[] = ['invested', 'stock', 'loan'];
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const fine = (n: number) => Math.round(n * 1e6) / 1e6;
 
 /**
  * A cash movement (amount: + in, − out) on today's row: the cash moves and the Ledger records it. `n` counts what
@@ -39,12 +41,18 @@ export function book(s: GameState, row: LedgerRow, amount: number, n = 0): void 
   else if (row === 'upkeep') t.upkeep = round2(t.upkeep - amount);
 }
 
-/** Stock used up today, at its value (a cup's lemons, sugar and ice; melted ice, spoiled lemons, free samples). */
-export function useStock(s: GameState, value: number, waste = false): void {
+/**
+ * Stock used up today, at its value (a cup's lemons, sugar and ice; melted ice, spoiled lemons, free samples). It's a
+ * cost on Supplies, or on `row` (a Free Sample Day's lemonade is Marketing).
+ */
+export function useStock(s: GameState, value: number, waste = false, row: LedgerRow = 'supplies'): void {
   if (value <= 0) return;
   const t = s.today;
-  t.stockUsed = round2((t.stockUsed ?? 0) + value);
-  if (waste) t.waste = round2((t.waste ?? 0) + value);
+  // Kept to the millionth, rounded where a row is read: a cup's stock is a fraction of a cent (Pink's $0.1365), and
+  // rounding each one to the cent would add up to dollars of cost that never was over a busy day.
+  t.stockUsed = fine((t.stockUsed ?? 0) + value);
+  if (waste) t.waste = fine((t.waste ?? 0) + value);
+  if (row !== 'supplies') (t.stockOn ??= {})[row] = fine((t.stockOn[row] ?? 0) + value);
 }
 
 /** One cup sold at a stand of yours: the price in, the cup's cash costs out, and its stock at the day's prices. */
@@ -60,20 +68,26 @@ export function stockValue(st: Stand): number {
   return inv.lemons.reduce((a, b) => a + b.qty * b.unitCost, 0) + inv.sugar * inv.sugarCost + inv.ice * inv.iceCost;
 }
 
-/** A day's row: its cash for a booked row; Supplies also takes the stock used, Stock gives it back. */
+/** A day's row: its cash for a booked row; Supplies (or the row it was used on) also takes the stock used, Stock gives it back. */
 export function rowAmount(t: DayStats, row: LedgerRow): number {
   const b = t.books?.[row] ?? 0;
-  if (row === 'supplies') return round2(b - (t.stockUsed ?? 0));
+  const elsewhere = Object.values(t.stockOn ?? {}).reduce((a, v) => a + (v ?? 0), 0);
+  if (row === 'supplies') return round2(b - (t.stockUsed ?? 0) + elsewhere);
   if (row === 'stock') return round2(b + (t.stockUsed ?? 0));
-  return b;
+  const on = t.stockOn?.[row];
+  return on ? round2(b - on) : b;
 }
 
-/** The day's profit: every row but Invested, Stock and Loans. Days from before the Ledger use their old totals. */
+/** A day's profit-and-loss rows, each as the Ledger shows it (to the cent): every row but Invested, Stock and Loans. */
+function pnlAmounts(t: DayStats): number[] {
+  const rows = new Set<LedgerRow>([...ORDER, ...(Object.keys(t.books ?? {}) as LedgerRow[])]);
+  return [...rows].filter((row) => !OFF_PROFIT.includes(row)).map((row) => rowAmount(t, row));
+}
+
+/** The day's profit: its profit-and-loss rows added up, as shown. Days from before the Ledger use their old totals. */
 export function dayProfit(t: DayStats): number {
   if (!t.books) return round2(t.revenue - t.supplies - t.cupCosts - t.upkeep);
-  let p = 0;
-  for (const row of Object.keys(t.books) as LedgerRow[]) if (!OFF_PROFIT.includes(row)) p += t.books[row] ?? 0;
-  return round2(p - (t.stockUsed ?? 0));
+  return round2(pnlAmounts(t).reduce((a, v) => a + v, 0));
 }
 
 /** The day's change in cash, dawn to dawn (all of its rows). */
@@ -81,9 +95,18 @@ export function dayCash(t: DayStats): number {
   return round2(Object.values(t.books ?? {}).reduce((a, v) => a + (v ?? 0), 0));
 }
 
+/** The day's profit split in two: what came in (its rows above zero: sales, orders, prizes, loot won) and what went
+ * out (its rows below zero), so income − costs = profit. */
+export function dayIncomeCosts(t: DayStats): { income: number; costs: number } {
+  if (!t.books) return { income: round2(t.revenue), costs: round2(t.supplies + t.cupCosts + t.upkeep) };
+  const rows = pnlAmounts(t);
+  return { income: round2(rows.filter((a) => a > 0).reduce((a, v) => a + v, 0)), costs: round2(-rows.filter((a) => a < 0).reduce((a, v) => a + v, 0)) };
+}
+
 export interface LedgerLine { row: LedgerRow; label: string; amount: number; title?: string }
 
 const money = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dollars = (n: number) => (Number.isInteger(n) ? '$' + n.toLocaleString('en-US') : money(n)); // "at $15", "at $0.26"
 const plural = (n: number, one: string, many = one + 's') => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
 const LABEL: Record<LedgerRow, string> = {
@@ -107,12 +130,18 @@ export function ledgerLines(t: DayStats): { pnl: LedgerLine[]; below: LedgerLine
     const n = t.counts?.[row] ?? 0;
     let label = LABEL[row], title: string | undefined;
     if (row === 'sales' && cups) label = `Sales: ${plural(cups, 'cup')} at ${money(amount / cups)}`;
-    if (row === 'supplies' && cups) {
-      const waste = t.waste ?? 0;
-      label = `Supplies: ${plural(cups, 'cup')} at ${money((-amount - waste) / cups)}`;
-      if (waste > 0) title = `Plus ${money(waste)} of stock that melted or spoiled`;
+    if (row === 'supplies') { // every cup poured: those sold at your stands and those poured for Local Orders (n)
+      const poured = cups + n, waste = t.waste ?? 0;
+      if (poured) label = `Supplies: ${plural(poured, 'cup')} at ${money((-amount - waste) / poured)}`;
+      const notes = [n ? `${plural(n, 'cup')} of them poured for orders` : '', waste > 0 ? `Plus ${money(waste)} of stock that melted or spoiled` : ''];
+      if (n || waste > 0) title = notes.filter(Boolean).join('. ');
     }
-    if (row === 'upkeep' && n) label = `Upkeep: ${plural(n, 'stand')}`;
+    if (row === 'upkeep' && n) { // "5 Wooden Stands at $15"; mixed levels give each in the title
+      const kinds = (t.upkeepLevels ?? []).flatMap((k, i) => (k ? [`${plural(k, STAND_LEVELS[i].name.replace(/^The /, ''))} at ${dollars(STAND_LEVELS[i].upkeep)}`] : []));
+      if (kinds.length === 1) label = `Upkeep: ${kinds[0]}`;
+      else { label = `Upkeep: ${plural(n, 'stand')}`; if (kinds.length) title = kinds.join(', '); }
+    }
+    if (row === 'marketing' && n) title = `With ${plural(n, 'free sample')}: their cups and lemonade`;
     if (row === 'wages' && n) label = `Wages: ${plural(n, 'guard')}`;
     if (row === 'stock') title = 'Supplies bought less supplies used: what stays on hand counts in Net Worth';
     if (row === 'other') title = 'The Lavender page auction';

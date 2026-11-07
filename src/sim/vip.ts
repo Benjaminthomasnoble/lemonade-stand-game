@@ -613,7 +613,7 @@ function pour(s: GameState, o: Order): Pickup | null {
   const pay = payFor(o, o.loaded) - payFor(o, before);
   s.today.revenue = round2(s.today.revenue + pay);
   book(s, 'orders', pay);
-  book(s, 'supplies', -cost); // the cups, the card's extra and machine ice, paid as they pour
+  book(s, 'supplies', -cost, cups); // the cups, the card's extra and machine ice, paid as they pour (counted on the Supplies line)
   useStock(s, round2(cups * costPerCup(s, st) - cost)); // their lemons, sugar and ice, at the day's cost per cup
   s.lifetimeCups += cups;
   const done = o.loaded >= o.qty;

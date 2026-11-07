@@ -13,7 +13,7 @@
 import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  dayProfit, peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
+  dayIncomeCosts, dayProfit, peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
   type FestivalId, type GameState, type Goal, type RivalId,
 } from '../sim/economy.ts';
 import { MENU_IDS, type MenuId, type Options } from '../settings.ts';
@@ -89,7 +89,6 @@ function index(s: GameState, o: Options): string {
 
 type Day = GameState['history'][number];
 const profitOf = (d: Day) => dayProfit(d); // the Ledger's rows (ledger.ts)
-const costsOf = (d: Day) => d.revenue - profitOf(d);
 
 /** Daily profit as bars around zero and the Success Score as a line, the last 30 days. */
 function charts(s: GameState): string {
@@ -110,7 +109,8 @@ function charts(s: GameState): string {
 
 function ledger(s: GameState): string {
   const days = s.history.slice(-7).reverse();
-  const table = `<table class="cl-books"><tr><td><b>Day</b></td><td><b>Cups · Sales · Costs · Profit</b></td></tr>${days.map((d) => `<tr><td>Day ${d.day}</td><td>${d.customers} · ${whole(d.revenue)} · ${whole(costsOf(d))} · <b class="${profitOf(d) >= 0 ? 'good' : 'bad'}">${signed(profitOf(d))}</b></td></tr>`).join('')}</table>`;
+  const cell = (d: Day) => { const { income, costs } = dayIncomeCosts(d); return `${d.customers} · ${whole(income)} · ${whole(costs)}`; }; // its rows above and below zero (ledger.ts)
+  const table = `<table class="cl-books"><tr><td><b>Day</b></td><td title="Income: sales, orders, prizes and loot won. Costs: every row below zero"><b>Cups · Income · Costs · Profit</b></td></tr>${days.map((d) => `<tr><td>Day ${d.day}</td><td>${cell(d)} · <b class="${profitOf(d) >= 0 ? 'good' : 'bad'}">${signed(profitOf(d))}</b></td></tr>`).join('')}</table>`;
   return sheet('ledger', 'Ledger', `${charts(s)}${table}`);
 }
 

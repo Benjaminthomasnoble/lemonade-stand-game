@@ -7,7 +7,7 @@ import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
-  selectedStand, cupsInStock, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
+  selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
@@ -713,7 +713,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <tr><td>Success Score</td><td>${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})</td></tr></table>`;
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="report">
       <div class="cl-end-day">${tape(`Day ${t.day}`)}</div>
-      <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Sales ${money(t.revenue)}, costs ${money(t.revenue - profit)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
+      <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Income ${money(dayIncomeCosts(t).income)}, costs ${money(dayIncomeCosts(t).costs)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
       <div class="cl-end-row"><span title="Cups sold">${ART.cup()}<b>${t.customers}</b></span>${away ? `<span class="bad" title="Turned away: ${w.soldOut} sold out, ${w.line} line too long">${ART.empty()}<b>${away}</b></span>` : ''}</div>
       <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? '▲' : repDelta < -0.004 ? '▼' : ''}</span>
         ${taught(s, 'rank') ? `<span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span>` : ''}</div>

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { newGame, openStands, simulateRestOfDay, sleepUntilDawn, type GameState } from '../sim/economy.ts';
+import { book, dayIncomeCosts, newGame, openStands, simulateRestOfDay, sleepUntilDawn, type GameState } from '../sim/economy.ts';
 import { booksRows, scoreLine } from './ledger.ts';
+import { menuScreen } from './menus.ts';
+import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 
 function day3(): GameState {
   const s = newGame(31);
@@ -17,12 +19,25 @@ describe('the Ledger on screen', () => {
     const html = booksRows(t);
     expect(html).toContain(`<td>Sales: ${t.customers} cups at $`);
     expect(html).toContain('<td>Supplies: ');
-    expect(html).toContain('<td>Upkeep: 1 stand</td><td class="bad">-$5.00</td>');
+    expect(html).toContain('<td>Upkeep: 1 Folding Table at $5</td><td class="bad">-$5.00</td>');
     expect(html).toContain('data-testid="row-wages"'); // shown at $0 too
     expect(html).toContain('data-testid="row-profit"');
     expect(html).toContain('data-testid="row-stock"'); // Auto-Restock bought more than the day used
     expect(html).toContain('data-testid="row-cash"');
     expect(html).not.toContain('row-tribute'); // a row at $0 that isn't always shown stays hidden
+  });
+
+  it("the Ledger menu's days give income, costs and profit off the rows: a night's loot is income, not a cost below zero", () => {
+    const s = day3();
+    book(s, 'loot', 900);
+    const t = s.today;
+    const { income, costs } = dayIncomeCosts(t);
+    const html = menuScreen(s, 'ledger', { head: ['', ''], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } });
+    expect(html).toContain('<b>Cups · Income · Costs · Profit</b>');
+    const whole = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
+    expect(html).toContain(`<td>Day ${t.day}</td><td>${t.customers} · ${whole(income)} · ${whole(costs)} · `);
+    expect(costs).toBeGreaterThan(0);
+    expect(income).toBeGreaterThan(900);
   });
 
   it('charts the Success Score from Day 1, with a dot where each rank came and the peak', () => {

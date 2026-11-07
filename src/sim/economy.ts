@@ -193,9 +193,11 @@ export interface DayStats {
   land: number; // land, buildings and defenses bought today (the Ledger's Invested)
   /** Every cash movement of the day, by Ledger row (ledger.ts): + in, − out. Missing on days from older saves. */
   books?: Partial<Record<LedgerRow, number>>;
-  counts?: Partial<Record<LedgerRow, number>>; // what a row was for: stands charged upkeep, guards paid
+  counts?: Partial<Record<LedgerRow, number>>; // what a row was for: stands charged upkeep, guards paid, cups poured for orders, free samples
   stockUsed?: number; // stock poured, given away, melted or spoiled, at its value
   waste?: number; // the part that melted or spoiled
+  stockOn?: Partial<Record<LedgerRow, number>>; // the part that's a cost on another row than Supplies (a Free Sample Day's lemonade: Marketing)
+  upkeepLevels?: number[]; // the stands charged upkeep, by level (index 0 is L1)
   cashAtDawn?: number; // cash when the day's books opened: the next day's, less this, is the day's rows
   repTarget?: number; // where Reputation drifted toward that night (demand.ts)
   iceMelted: number;
@@ -789,6 +791,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
 function closeDay(s: GameState): void {
   const t = s.today;
   let satSum = 0, satN = 0, revenue = 0, cupCosts = 0, upkeep = 0, stands = 0;
+  const levels = STAND_LEVELS.map(() => 0);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     const st = ps.stand;
@@ -796,6 +799,7 @@ function closeDay(s: GameState): void {
       if (st) {
         upkeep += standLevel(st).upkeep;
         stands++;
+        levels[st.level - 1]++;
         if (!iceMachineOn(s, p.id)) { // world: an ice machine keeps its ice (a Power Outage's leftovers melt)
           t.iceMelted += st.inventory.ice;
           useStock(s, st.inventory.ice * st.inventory.iceCost, true);
@@ -818,6 +822,7 @@ function closeDay(s: GameState): void {
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
   book(s, 'upkeep', -round2(upkeep), stands); // stand upkeep only: wages, tribute and interest left cash when paid
+  if (stands) t.upkeepLevels = levels; // the Ledger's "5 Wooden Stands at $15"
   reputationAtClose(s, t); // the nightly drift toward the stands' levels, less the buyers who left empty-handed: yours and each rival's (demand.ts)
   t.reputationAfter = s.reputation;
   worldAtClose(s); // world: judge today's Taste-Off
@@ -1121,8 +1126,8 @@ export function startCampaign(s: GameState, id: CampaignId, plotId: string): voi
     useLemons(st, n.lemons * pitchers);
     st.inventory.sugar = Math.max(0, st.inventory.sugar - n.sugar * pitchers);
     st.inventory.ice = Math.max(0, st.inventory.ice - n.icePerCup * cost.samples);
-    book(s, 'marketing', -CUP_COST * cost.samples); // the samples' cups; their lemonade comes out of stock
-    useStock(s, (costPerCup(s, st) - CUP_COST - RECIPES[st.recipe].extraPerCup) * cost.samples);
+    book(s, 'marketing', -CUP_COST * cost.samples, cost.samples); // the samples' cups; their lemonade comes out of stock
+    useStock(s, (costPerCup(s, st) - CUP_COST - RECIPES[st.recipe].extraPerCup) * cost.samples, false, 'marketing'); // a cost of the campaign, not of Supplies
   }
   if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 1e4) / 1e4, 1, 5); // Reputation keeps four decimals
   st.campaigns[id] = c.days;

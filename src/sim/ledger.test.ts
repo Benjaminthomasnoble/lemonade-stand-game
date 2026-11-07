@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as balance from './balance.ts';
 import {
-  book, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
-  LOTTIES_CORNER, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, rowAmount, runCampaign,
-  simulateRestOfDay, sleepUntilDawn, successScore, upgradeStand, welcomeDex,
+  book, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayIncomeCosts, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
+  LOTTIES_CORNER, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, RECIPES, rowAmount, runCampaign,
+  setStockTarget, simulateRestOfDay, sleepUntilDawn, successScore, upgradeStand, welcomeDex,
   type GameState, type RivalId,
 } from './economy.ts';
 
@@ -51,7 +51,80 @@ describe('the Ledger', () => {
     expect(dayProfit(t)).toBeCloseTo(-20, 6);
     const { pnl } = ledgerLines(t);
     expect(pnl.find((l) => l.row === 'wages')!.label).toBe('Wages: 1 guard');
-    expect(pnl.find((l) => l.row === 'upkeep')!.label).toBe('Upkeep: 1 stand');
+    expect(pnl.find((l) => l.row === 'upkeep')!.label).toBe('Upkeep: 1 Folding Table at $5');
+  });
+
+  it("Upkeep gives each level's count and daily price: 5 Wooden Stands at $15, or a mix in its title", () => {
+    const s = newGame(24);
+    playTo(s, 3);
+    s.cash = 5000;
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 2;
+    const ids = ['maple-1n', 'maple-2n', 'maple-3n', 'maple-4n'];
+    for (const id of ids) { s.plots[id].owner = 'player'; s.plots[id].stand = newStand(2); }
+    openStands(s);
+    simulateRestOfDay(s);
+    const up = () => ledgerLines(s.today).pnl.find((l) => l.row === 'upkeep')!;
+    expect(up()).toMatchObject({ label: 'Upkeep: 5 Wooden Stands at $15', amount: -75 }); // Appendix B's Day 12
+    sleepUntilDawn(s);
+    s.plots[ids[0]].stand!.level = 1;
+    openStands(s);
+    simulateRestOfDay(s);
+    expect(up()).toMatchObject({ label: 'Upkeep: 5 stands', amount: -65, title: '1 Folding Table at $5, 4 Wooden Stands at $15' });
+  });
+
+  it("Supplies count every cup poured, a Local Order's too, at the day's cost per cup; a Free Sample Day's cups are Marketing", () => {
+    const s = newGame(25);
+    playTo(s, 3);
+    s.cash = 5000;
+    s.rank = 3;
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 3;
+    setStockTarget(s, LOTTIES_CORNER, 1800);
+    s.orders.push({ id: 'lo', tier: 'local', client: 'Little League Opening Day', qty: 600, pay: 900, due: s.day, expires: s.day, plot: LOTTIES_CORNER, accepted: true });
+    openStands(s);
+    simulateRestOfDay(s);
+    const t = s.today;
+    const per = costPerCup(s, st);
+    expect(t.counts!.supplies).toBe(600); // the order's cups
+    const supplies = ledgerLines(t).pnl.find((l) => l.row === 'supplies')!;
+    expect(supplies.label).toBe(`Supplies: ${(t.customers + 600).toLocaleString('en-US')} cups at $${per.toFixed(2)}`);
+    expect(supplies.title).toContain('600 cups of them poured for orders');
+    expect(-supplies.amount - (t.waste ?? 0)).toBeCloseTo((t.customers + 600) * per, 1);
+    // A Free Sample Day: its 100 cups and their lemonade are the campaign's cost, and Supplies stays at the cost per cup.
+    sleepUntilDawn(s);
+    s.cash = 5000;
+    expect(runCampaign(s, 'freeSamples', LOTTIES_CORNER)).toBe(true);
+    const day = s.today;
+    const cpc = costPerCup(s, st);
+    expect(rowAmount(day, 'marketing')).toBeCloseTo(-100 * (cpc - RECIPES[st.recipe].extraPerCup), 2);
+    expect(rowAmount(day, 'supplies')).toBe(0); // nothing poured for sale yet
+    openStands(s);
+    simulateRestOfDay(s);
+    const line = ledgerLines(day).pnl.find((l) => l.row === 'supplies')!;
+    expect(line.label).toBe(`Supplies: ${day.customers} cups at $${cpc.toFixed(2)}`);
+    expect(ledgerLines(day).pnl.find((l) => l.row === 'marketing')!.title).toBe('With 100 free samples: their cups and lemonade');
+    expect(dayProfit(day)).toBeCloseTo(ledgerLines(day).pnl.reduce((a, l) => a + l.amount, 0), 6); // the rows still add up
+  });
+
+  it('income less costs is profit: rewards and loot count as income, never as negative costs', () => {
+    const s = newGame(26);
+    openStands(s);
+    simulateRestOfDay(s);
+    const t = s.today;
+    const before = dayIncomeCosts(t);
+    book(s, 'prizes', 10); // a goal's reward
+    book(s, 'loot', 900); // and the night's Shakedown
+    const { income, costs } = dayIncomeCosts(t);
+    const pnl = ledgerLines(t).pnl;
+    expect(costs).toBeCloseTo(-pnl.filter((l) => l.amount < 0).reduce((a, l) => a + l.amount, 0), 6);
+    expect(costs).toBeGreaterThan(0);
+    expect(costs).toBe(before.costs); // the old Costs (sales less profit) would have dropped $910 here
+    expect(income).toBeCloseTo(before.income + 910, 6);
+    expect(income).toBeCloseTo(pnl.filter((l) => l.amount > 0).reduce((a, l) => a + l.amount, 0), 6);
+    expect(income - costs).toBeCloseTo(dayProfit(t), 6);
+    book(s, 'loot', -1200); // raided back harder
+    expect(dayIncomeCosts(t).costs).toBeCloseTo(costs + 300, 6); // the loot row below zero is a cost now
   });
 
   it('every cash movement lands on one row: each day\'s rows add up to its change in cash, dawn to dawn', () => {

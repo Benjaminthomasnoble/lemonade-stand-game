@@ -11,8 +11,8 @@ import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTar
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
-import { actBegan, dayProfit, dexGooseLine, LEAN_LINES, leanLine, marisolLine, RECORD_GAIN, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
-import { LESSON_DAY, PERIMETERS } from './balance.ts';
+import { actBegan, dayProfit, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
@@ -22,6 +22,8 @@ import { bugleHeadline, frontPage } from './media.ts';
 import { defaultSettings, endingFor } from './modes.ts';
 import type { BattleInput, BattleResult } from './combat.ts';
 import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
+import { CAMEO_NEWS, cameosAtClose, cameosAtDawn, cameoStories, JUNI_NOBODY, juniGrudgeTip, juniQuietTip, juniRaidTip, PRESTON_CALLS, TILLY_JUDGES } from './cameos.ts';
+import type { Raid } from './crew.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 /** The year-1 Summer Fair's last day: its Taste-Off closes Act 1. */
@@ -788,5 +790,85 @@ describe("the tone guide's lines on triggers that exist", () => {
     phoneCheck(s, true);
     expect(s.phone!.queue.some((c) => c.who === 'hollis' && c.text === LINES.tillyRaided)).toBe(true);
     expect(LINES.brockFence).toBe('Your fence is cute, bro. My guys are gonna do pull-ups on it.'); // tested with his warnings above
+  });
+});
+
+describe('Endless: beaten bosses cameo', () => {
+  const BEATEN: RivalId[] = ['blenders', 'coldbrew', 'hollis', 'fizzco'];
+  const calls = (s: GameState, who: RivalId) => (s.phone?.queue ?? []).filter((c) => c.who === who && c.tip).map((c) => c.text);
+
+  it('the beaten bosses take turns, each in a way that fits their exit', () => {
+    const s = newGame(71, { mode: 'endless' });
+    for (const r of BEATEN) eliminate(s, r, 'buyout');
+    s.raids = [];
+    s.rivals.sourwood.grudge = 10;
+    const d0 = s.day;
+    const closeOn = (day: number) => { s.day = day; cameosAtClose(s); };
+    closeOn(d0); // noted as they fall: nobody cameos the day of their own exit
+    closeOn(d0 + CAMEO_DAYS - 1);
+    expect(s.story!.cameoDay).toBeUndefined();
+    closeOn(d0 + CAMEO_DAYS); // Brock's surf school makes tomorrow's Bugle
+    expect(cameoStories(s)).toEqual([]);
+    s.day++;
+    expect(cameoStories(s)).toEqual([["SURF'S UP!", "Brock Bodine's surf school opens for the season", `Brock Bodine's surf school opens for the season: "The ocean never raided anybody, bro."`, 3.4]]);
+    closeOn(d0 + CAMEO_DAYS + 1);
+    expect(s.story!.cameoDay).toBe(d0 + CAMEO_DAYS); // one every CAMEO_DAYS days
+    closeOn(d0 + 2 * CAMEO_DAYS); // Juni phones in as an informant (Vera's quiet), tomorrow, from out of the game
+    expect(calls(s, 'coldbrew')).toEqual([juniQuietTip('sourwood')]);
+    expect(s.phone!.queue.find((c) => c.who === 'coldbrew')!.from).toBe(s.day + 1);
+    closeOn(d0 + 3 * CAMEO_DAYS); // Tilly the judge
+    expect(s.story!.cameoNews).toEqual({ day: s.day + 1, who: 'hollis', n: 0 });
+    closeOn(d0 + 4 * CAMEO_DAYS); // Preston, from the tow truck
+    expect(calls(s, 'fizzco')).toEqual([PRESTON_CALLS[0]]);
+    closeOn(d0 + 5 * CAMEO_DAYS); // round again, with Brock's next line
+    s.day++;
+    expect(cameoStories(s)[0][0]).toBe(CAMEO_NEWS.blenders![1][0]);
+    s.day--;
+    // Juni's next turn: tonight's raid on you rings tonight, before its warning is out.
+    s.phone!.queue = [];
+    s.raids = [{ id: 'v1', attacker: 'sourwood', target: LOTTIES_CORNER, objective: 'smash', party: [], detected: false, eta: '23:30' } as Raid];
+    closeOn(d0 + 6 * CAMEO_DAYS);
+    expect(calls(s, 'coldbrew')).toEqual([juniRaidTip('sourwood', LOTTIES_CORNER)]);
+    expect(juniRaidTip('sourwood', LOTTIES_CORNER)).toBe("Vera's crew hits the Corner tonight. You didn't hear it from me.");
+    expect(s.phone!.queue[0]).toMatchObject({ until: s.day, priority: CALL_PRIORITY.story });
+    expect(takeCall(s)?.text).toBe(juniRaidTip('sourwood', LOTTIES_CORNER)); // she's out of the game, and still rings
+    // With a grudge past the phone's 30 she names it; with nobody left, she says so.
+    expect(juniGrudgeTip('sourwood')).toBe('Psst. Vera has it in for you. Lock up. Consider me decaf.');
+    expect(JUNI_NOBODY).toMatch(/^Nobody left/);
+  });
+
+  it("Tilly rings the County Fair's judging morning; none of it outside Endless", () => {
+    const s = newGame(72, { mode: 'endless' });
+    const fair = () => { s.world!.tasteOff = { fair: 'countyFair', day: s.day, district: 'groves', judges: [], vs: ['local'], entry: {} }; };
+    fair();
+    cameosAtDawn(s);
+    expect(calls(s, 'hollis')).toEqual([]); // she's still in the game: she enters, not judges
+    eliminate(s, 'hollis', 'buyout');
+    fair();
+    cameosAtDawn(s);
+    expect(calls(s, 'hollis')).toEqual([TILLY_JUDGES]);
+    // Sandbox and a story run before Keep squeezing: no cameos; the Epilogue has them.
+    for (const mode of ['sandbox', 'campaign'] as const) {
+      const t = newGame(73, { mode });
+      for (const r of BEATEN) eliminate(t, r, 'buyout');
+      t.raids = [];
+      for (let d = 0; d <= 3 * CAMEO_DAYS; d++) { cameosAtClose(t); t.day++; }
+      expect(t.story!.cameos).toBeUndefined();
+      if (mode === 'campaign') {
+        t.endlessSince = t.day;
+        for (let d = 0; d <= CAMEO_DAYS; d++) { cameosAtClose(t); t.day++; }
+        expect(t.story!.cameoNews).toMatchObject({ who: 'blenders', n: 0 });
+      }
+    }
+  });
+
+  it("a cameo at closing makes the next morning's Bugle", () => {
+    const s = newGame(74, { mode: 'endless' });
+    eliminate(s, 'blenders', 'buyout');
+    s.story!.cameos = { blenders: { day: s.day - CAMEO_DAYS, n: 0 } };
+    playDay(s);
+    const page = frontPage(s);
+    // It leads a quiet morning; here the news of Brock's fall leads, and it prints as a brief.
+    expect(page.headline[0] === "SURF'S UP!" || page.briefs.includes(`Brock Bodine's surf school opens for the season: "The ocean never raided anybody, bro."`)).toBe(true);
   });
 });

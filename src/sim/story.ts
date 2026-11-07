@@ -8,7 +8,7 @@
 // the lessons (Act 1's one system a day) and the story's hooks into the day:
 // dawn, every few minutes, closing. Pure, like the rest of the sim.
 import {
-  ACT_BY_RANK, ACTS, BELOVED_STARS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
+  ACT_BY_RANK, ACTS, BELOVED_STARS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, RECORD_GAIN, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
 } from './balance.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
@@ -22,6 +22,7 @@ import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
 import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 import { endingFor } from './modes.ts';
 import { crewName } from './grandkid.ts';
+import { cameosAtClose, cameosAtDawn } from './cameos.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -43,6 +44,11 @@ export interface StoryState {
   /** The tone guide's lines on triggers that exist: the day Dex last shouted at Honkers the goose, and the best day's profit so far (Marisol's record days). */
   honked?: number;
   bestDay?: number;
+  /** Endless: each beaten boss's last cameo (or the day they were first seen out) and how many they've made, the last
+   * cameo's day, and the Bugle's cameo for the morning after it (src/sim/cameos.ts). */
+  cameos?: Partial<Record<RivalId, { day: number; n: number }>>;
+  cameoDay?: number;
+  cameoNews?: { day: number; who: RivalId; n: number };
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -322,6 +328,7 @@ export function storyAtDawn(s: GameState): void {
   beatsAtDawn(s); // Acts 3 and 4: Preston's handshake, the night flight, the first chopper and ship (src/sim/beats.ts)
   goalsAtDawn(s);
   scenesAtDawn(s);
+  cameosAtDawn(s); // Endless: Tilly rings the County Fair's judging morning
   phoneCheck(s, true);
 }
 
@@ -338,6 +345,7 @@ export function storyAtClose(s: GameState): void {
   checkGoals(s);
   dexOnDuty(s);
   recordDay(s);
+  cameosAtClose(s); // Endless: a beaten boss's cameo
   phoneAtClose(s);
 }
 
@@ -358,8 +366,6 @@ export function dexHoldsTheLine(s: GameState, b: BattleReport): void {
 
 /** A day's profit, as the Ledger counts it: sales less supplies, cups, upkeep and tax. */
 export const dayProfit = (t: DayStats) => t.revenue - (t.supplies + t.cupCosts + t.upkeep + t.tax);
-/** A record day beats the best day so far by this share at least. Placeholder: spec gap (the tone guide names no floor). */
-export const RECORD_GAIN = 0.1;
 export const marisolLine = (pct: number) => `Profit's up ${pct} percent. Please don't celebrate by buying another goose.`;
 
 /**

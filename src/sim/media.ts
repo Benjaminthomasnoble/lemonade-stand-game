@@ -16,6 +16,7 @@ import { daysLeft, eventDef, liveEvents, type WorldEvent } from './events.ts';
 import { forecastAhead } from './weather.ts'; // demand: the 2-day look-ahead off the weather queue
 import { storyHeadline } from './story.ts';
 import { pactNews } from './squeeze.ts';
+import { cameoStories } from './cameos.ts';
 import { crewName, grandkid } from './grandkid.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -168,6 +169,7 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   if (storyFairs(s) && s.day === festivalDays('summerFair', 1).to - 2 && s.rivals.blenders.alive) {
     add('TASTE-OFF IN 2 DAYS', "Bodine 'not worried, bro'", 'Taste-Off in 2 days: Bodine not worried, bro.', 1.5);
   }
+  for (const c of cameoStories(s)) add(...c); // Endless: a beaten boss's cameo (story lane, src/sim/cameos.ts)
   return out;
 }
 

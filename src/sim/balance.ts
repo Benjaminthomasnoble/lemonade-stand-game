@@ -730,6 +730,10 @@ export const GOAL_REWARD = { short: { share: 0.1, min: 5 }, medium: { share: 0.2
 export const SALES_GOAL_SHARE = 0.9; // placeholder: spec gap (the walkthrough's 1,200 cups across 5 stands on Day 12)
 /** Lessons (spec "One system a day"): the day each system's buttons appear. Switched off, buttons follow rank alone. */
 export const LESSON_DAY = { recipes: 2, forecast: 2, market: AUTO_RESTOCK_DAY, upgrade: 5, rank: 5, threat: 3, defense: 3, crew: 4, marketing: 6, land: 7 } as const;
+/** Marisol's record day (src/sim/story.ts): a day's profit beats the best day so far by this share at least. */
+export const RECORD_GAIN = 0.1; // placeholder: spec gap (the tone guide names no floor)
+/** Endless: a beaten boss cameos this often, the beaten bosses taking turns (src/sim/cameos.ts). */
+export const CAMEO_DAYS = 5; // placeholder: spec gap ("Beaten bosses cameo")
 /** A boss phones when their Grudge toward you jumps this much at once (a raid on them adds 8 or 20). */
 export const PHONE_GRUDGE_JUMP = 8; // placeholder: spec gap ("a mood shift")
 /** ...or their Attention on you, beyond Threat, rises this much from one dawn to the next (one more district of yours on their border). */

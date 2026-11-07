@@ -148,6 +148,23 @@ export const SCHEMES = {
  */
 export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It made an artistic choice." };
 /**
+ * Act 3's mystery (spec: "stock spoils overnight with no raid detected. Dex blames the geese; it is never the geese.
+ * Teaches Lookouts and Floodlights."): in the campaign's Act `act`, until Cold Brew's Night Shift is unmasked, its crew
+ * slips in on the act's first night and then on `chance` of nights, and every lemon at one of your stands goes bad.
+ * It is a scheme, not a raid, so no warning comes and nobody fights; each night after the first costs Cold Brew's
+ * Strike `cost`. Your night watch catches the crew on a Cold Brew night raid's odds (detection less the Night Shift's
+ * stealth: at a bare stand in the dark, never; Floodlights, alarms and an Eagle Eye on watch give it a chance), and
+ * from then on the saboteurs are Cold Brew. Squawk's night flight unmasks them too. `goal` goes on Lottie's card from
+ * the first spoiled night. Placeholders: the spec gives no numbers.
+ */
+export const MYSTERY = {
+  act: 3, chance: 0.35, cost: 150,
+  goal: 'Catch the night crew spoiling your stock',
+  lottie: "Who spoils a whole stand's lemons in one night? Let's catch them at it.",
+  dex: 'Geese. Gotta be the geese.', // it is never the geese
+  dexCaught: 'Huh. Not the geese.',
+};
+/**
  * Dig In, Hollis's signature move: cheap, tough fences with hay bales stacked behind them. Hollis pays `cost` of a
  * fence's price (repairs too), and the bales give it `hp` times the fence's HP. Hollis also fences every Field it
  * holds, up to `fieldTier` (placeholders: the spec gives no numbers). Tilly phones after your raids (src/sim/phone.ts).

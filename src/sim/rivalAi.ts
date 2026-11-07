@@ -23,7 +23,7 @@ import {
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
 import { raidCall } from './phone.ts';
-import { landFrozen } from './schemes.ts';
+import { landFrozen, provideMysteryGoal } from './schemes.ts';
 import { actOf } from './modes.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
@@ -139,6 +139,7 @@ export function migrateRivals(s: GameState): void {
   }
   s.schemes ??= [];
   if (s.negotiator && !s.guards.some((g) => g.id === s.negotiator)) delete s.negotiator; // they left the crew
+  provideMysteryGoal(); // Act 3's mystery on Lottie's card (src/sim/schemes.ts)
 }
 
 // ---------- trade: about 1% of cash a day ----------

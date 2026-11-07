@@ -20,7 +20,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { historicHedges, landFrozen, priceWarCut, schemesAtDawn, type Scheme } from './schemes.ts';
+import { historicHedges, landFrozen, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -184,6 +184,7 @@ export interface RivalState {
   rush?: number; // the Blenders: the night of their last Blender Rush on you (Brock phones first)
   haggle?: { day: number; out?: boolean }; // Juni and Preston: their buyout counter-offer stands this day; out: they walked out
   hedges?: number; // Vera: the day Town Hall froze your first Hilltop deal (Act 5's Historic hedges)
+  mystery?: { from: number; caught?: number }; // Cold Brew, Act 3's mystery: the dawn its Night Shift first spoiled your stock, and the dawn your watch caught it
 }
 
 export interface DayStats {
@@ -369,6 +370,7 @@ function seedRivals(s: GameState, rng: Rng): void {
   }
   for (const id of RIVAL_IDS) s.rivals[id].peakPlots = ownedPlots(s, id).length;
   for (const id of RIVAL_IDS) openBooks(s, id);
+  provideMysteryGoal(); // Act 3's mystery on Lottie's card (src/sim/schemes.ts)
 }
 
 function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {

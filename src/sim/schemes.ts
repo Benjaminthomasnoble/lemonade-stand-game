@@ -10,31 +10,37 @@
 // outsold next door answers with a price war. In Peaceful, schemes replace the
 // raids (spec: "rivals scheme instead"): they come three times as often, and
 // every rival can run an ad blitz. The Bugle reports each one, and a blitzing
-// rival's jingle opens the morning show. Pure and seeded, like the rest of the sim.
+// rival's jingle opens the morning show. In the campaign's Act 3, Cold Brew's
+// Night Shift spoils your stock overnight with no raid seen (the act's mystery),
+// until your night watch catches it or Squawk's night flight unmasks it. Pure
+// and seeded, like the rest of the sim.
 import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { GameState, Stand } from './economy.ts';
+import type { GameState, Goal, Stand } from './economy.ts';
 import { canBuyPlot, ownedPlots, rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend } from './rivalAi.ts';
-import { AD_BLITZ, CEASE, HEDGES, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
+import { AD_BLITZ, CEASE, HEDGES, inTruce, MYSTERY, NIGHT_SHIFT, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { actOf, peaceful } from './modes.ts';
-import { playScene } from './scenes.ts';
+import { playScene, queued } from './scenes.ts';
+import { hasStory } from './story.ts';
+import { GOAL_PROVIDERS } from './goals.ts';
 
-export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze';
+export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze' | 'spoil';
 export interface Scheme {
   kind: SchemeKind;
   by: RivalId;
   day: number; // the dawn it started
   until: number; // it runs through this day
-  plots: string[]; // a price war or ad blitz: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot; a freeze: the plot
+  plots: string[]; // a price war or ad blitz: the rival's stands in it; posters or a spoiled night: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot; a freeze: the plot
   district?: DistrictId; // a Cease-and-Desist: the district it blocks; an ad blitz: the district the mascot works
   price?: number; // a buyout offer: what they'd pay you; a fine: what you paid
-  caught?: boolean; // posters: your night watch caught the crew
+  caught?: boolean; // posters or a spoiled night: your night watch caught the crew
+  spoiled?: number; // a spoiled night (Act 3's mystery): the lemons that went bad
   cost?: number; // what Strike has paid for it so far
   done?: boolean; // over: it ran its days, Strike ran dry, or the snipe went off
 }
@@ -164,6 +170,12 @@ function runPriceWar(s: GameState, war: Scheme): void {
 
 // ---------- smear posters ----------
 
+/** How far a plot is from the nearest plot rival `id` holds (whole map units), for crews that go for what's close. */
+function turfDistance(s: GameState, id: RivalId): (p: (typeof PLOTS)[number]) => number {
+  const theirs = PLOTS.filter((p) => s.plots[p.id].owner === id);
+  return (p) => Math.round(theirs.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.z - q.z)), Infinity));
+}
+
 /** Act 3, Grounds for Revenge: Cold Brew's crew works the Campus & Arts walls (spec: "every campus wall sneers"). */
 const campusWalls = (s: GameState, id: RivalId) => id === 'coldbrew' && actOf(s) === SCHEMES.posters.act;
 
@@ -172,8 +184,7 @@ const campusWalls = (s: GameState, id: RivalId) => id === 'coldbrew' && actOf(s)
  * your busiest stand in Campus & Arts, if you have one there.
  */
 function posterTarget(s: GameState, id: RivalId): string | null {
-  const theirs = PLOTS.filter((p) => s.plots[p.id].owner === id);
-  const away = (p: (typeof PLOTS)[number]) => Math.round(theirs.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.z - q.z)), Infinity));
+  const away = turfDistance(s, id);
   const busy = (p: (typeof PLOTS)[number]) => s.plots[p.id].stand!.day.passersby;
   const mine = PLOTS.filter((p) => { const ps = s.plots[p.id]; return ps.owner === 'player' && !!ps.stand && !ps.stand.wrecked; });
   const campus = campusWalls(s, id) ? mine.filter((p) => p.district === FACTIONS[id].home).sort((a, b) => busy(b) - busy(a)) : [];
@@ -212,6 +223,89 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
     s.news.push(campus ? `Bugle: Every campus wall sneers "${SCHEMES.posters.slogan}"` : `Bugle: Smear posters plaster ${where}`);
   }
   return job;
+}
+
+// ---------- Act 3's mystery: the Night Shift spoils your stock ----------
+
+/** Has Cold Brew's Night Shift been unmasked: your night watch caught it at your stock, or Squawk's night flight saw the beanies (story). */
+export function nightShiftUnmasked(s: GameState): boolean {
+  return s.rivals.coldbrew.mystery?.caught !== undefined || queued(s, 'nightFlight');
+}
+
+/** Is Act 3's mystery running: the campaign's Act 3, with Cold Brew in business and its Night Shift not yet unmasked. */
+export function mysteryOn(s: GameState): boolean {
+  return hasStory(s) && actOf(s) === MYSTERY.act && s.rivals.coldbrew.alive && !nightShiftUnmasked(s);
+}
+
+const lemonsAt = (st: Stand) => st.inventory.lemons.reduce((a, b) => a + b.qty, 0);
+
+/** The Night Shift goes for your stocked stand nearest Cold Brew's turf (the one with the most lemons, on a tie). */
+function spoilTarget(s: GameState): string | null {
+  const away = turfDistance(s, 'coldbrew');
+  const stock = (p: (typeof PLOTS)[number]) => lemonsAt(s.plots[p.id].stand!);
+  const mine = PLOTS.filter((p) => { const ps = s.plots[p.id]; return ps.owner === 'player' && !!ps.stand && !ps.stand.wrecked && lemonsAt(ps.stand) > 0; });
+  mine.sort((a, b) => away(a) - away(b) || stock(b) - stock(a));
+  return mine[0]?.id ?? null;
+}
+
+/**
+ * Dawn in Act 3 (campaign): Cold Brew's crew may have spent the night at one of your stands. The act's first night it
+ * always comes (the beat costs Cold Brew nothing); after that on `MYSTERY.chance` of nights, if its Strike can pay. Your
+ * night watch there catches it on a Cold Brew night raid's odds, and the mystery is solved: Juni's crew, not the geese.
+ * Otherwise every lemon at the stand has gone bad, nobody saw a thing, and Dex blames the geese.
+ */
+function mysteryAtDawn(s: GameState, rng: Rng): Scheme | null {
+  if (!mysteryOn(s) || inTruce(s, 'coldbrew')) return null;
+  const r = s.rivals.coldbrew;
+  const first = !r.mystery;
+  if (!first && nextRandom(rng) >= MYSTERY.chance) return null;
+  const target = spoilTarget(s);
+  const cost = first ? 0 : MYSTERY.cost;
+  if (!target || !canSpend(s, 'coldbrew', 'strike', cost)) return null;
+  spend(s, 'coldbrew', 'strike', cost);
+  const caught = nextRandom(rng) < detectionChance(s, target, true) - NIGHT_SHIFT.stealth;
+  const st = s.plots[target].stand!;
+  const spoiled = caught ? 0 : lemonsAt(st);
+  const job: Scheme = { kind: 'spoil', by: 'coldbrew', day: s.day, until: s.day, plots: [target], caught, spoiled, cost, done: true };
+  s.schemes!.push(job);
+  r.mystery ??= { from: s.day };
+  const where = PLOT_BY_ID[target].name;
+  const dex = s.guards.some((g) => g.name === 'Dex Moody');
+  if (first && !caught) s.news.push(`Lottie: "${MYSTERY.lottie}"`); // the goal goes on her card
+  if (caught) {
+    r.mystery.caught = s.day;
+    s.news.push(`Bugle: Lottie's night watch catches Cold Brew's Night Shift spoiling the stock at ${where}`);
+    if (dex) s.news.push(`Dex: "${MYSTERY.dexCaught}"`);
+    phoneCall(s, 'coldbrew', '', { mood: 'sore' }); // Juni, sore that you saw her crew
+  } else {
+    st.inventory = { ...st.inventory, lemons: [] };
+    s.news.push(`Bugle: ${spoiled} lemons go bad overnight at ${where}, and nobody saw a thing`);
+    if (dex) s.news.push(`Dex: "${MYSTERY.dex}"`);
+  }
+  return job;
+}
+
+/**
+ * The mystery's goal on Lottie's card (the medium slot, through goals.ts's GOAL_PROVIDERS): from the first spoiled
+ * night, catch the night crew at your stock. Floodlights at a stand of yours are halfway there; it's done (and paid)
+ * when your night watch catches the crew. Gone if Squawk's night flight unmasks Cold Brew first, or the act moves on.
+ */
+export function mysteryGoal(s: GameState): Goal | null {
+  const m = s.rivals.coldbrew?.mystery;
+  if (!m || !hasStory(s) || actOf(s) !== MYSTERY.act) return null;
+  if (m.caught !== undefined) return { text: MYSTERY.goal, progress: 1, done: true };
+  if (!mysteryOn(s)) return null;
+  const lit = PLOTS.some((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].defense.gadgets.includes('floodlights'));
+  return { text: MYSTERY.goal, progress: lit ? 0.5 : 0, done: false };
+}
+/** The provider's id: Lottie's card names its goal `${id}:${text}`. */
+export const MYSTERY_GOAL = 'mystery';
+/**
+ * Puts the mystery's goal on Lottie's card, once. A new game (seedRivals) and a load (migrateRivals) run it; never at
+ * import, as goals.ts may still be loading then.
+ */
+export function provideMysteryGoal(): void {
+  if (!GOAL_PROVIDERS.some((p) => p.id === MYSTERY_GOAL)) GOAL_PROVIDERS.push({ id: MYSTERY_GOAL, slot: 'medium', goal: mysteryGoal });
 }
 
 // ---------- the ad blitz ----------
@@ -543,6 +637,7 @@ export function schemesAtDawn(s: GameState): void {
   if (s.day < SCHEMES.from) return;
   const chance = SCHEMES.chance[threatLevel(s) - 1] * (peaceful(s) ? SCHEMES.peaceful : 1); // Peaceful: schemes instead of raids
   const rng = { seed: s.seed };
+  mysteryAtDawn(s, rng); // Act 3: the Night Shift's spoiled stock
   for (const id of RIVALS) {
     const r = s.rivals[id];
     if (!r.alive || inTruce(s, id) || runningFor(s, id)) continue;

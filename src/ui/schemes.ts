@@ -5,8 +5,10 @@
 // your ads in a district, FizzCo's buyout offer stands
 // (Sell or No) or Town Hall holds a land sale frozen, and on the morning a
 // smear-poster crew hits (with Free Sample Day, the spec's answer, one tap
-// away), plus a note on the plot card. Plain functional controls on the HUD's
-// ticket styles; clicks go through the HUD's one listener (data-action).
+// away) or Act 3's night crew has spoiled a stand's lemons (Restock, one tap
+// away; or caught, it's Cold Brew), plus a note on the plot card. Plain
+// functional controls on the HUD's ticket styles; clicks go through the HUD's
+// one listener (data-action).
 import {
   AD_BLITZ, adBlitzIn, canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, OLD_MONEY, offerOn, PLOT_BY_ID, postersAt, runningSchemes,
   SCHEMES, TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
@@ -16,7 +18,7 @@ import * as A from './clay.ts';
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
 const art = (key: string, f: () => string) => { let v = memo.get(key); if (v === undefined) { v = f(); memo.set(key, v); } return v; };
-const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG), bag: () => art('bag', A.moneyBagSVG), ice: () => art('ice', A.iceSVG), board: () => art('board', A.boardSVG) };
+const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG), bag: () => art('bag', A.moneyBagSVG), ice: () => art('ice', A.iceSVG), board: () => art('board', A.boardSVG), goose: () => art('goose', A.gooseSVG) };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const btn = (action: string, label: string, extra = '', cls = 'tiny', why?: string) =>
   `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
@@ -48,6 +50,22 @@ function posters(s: GameState, job: Scheme): string {
   const tip = `Cold Brew's poster crew hit ${place(where)} last night: −${SCHEMES.posters.stars} star. Free samples there win it back; floodlights catch night crews.`;
   return `<div class="cl-ticket red" data-testid="posters" title="${esc(tip)}">${ICON.sour()}<b>Smear posters! −${SCHEMES.posters.stars}${A.glyph('star')}</b>
     <span class="cl-acts">${samples}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
+}
+
+/**
+ * Act 3's mystery, the morning after: a stand's lemons went bad overnight and nobody saw a thing (Dex blames the
+ * geese), with Restock and Go There; or your night watch caught the crew, and it's Cold Brew.
+ */
+function spoil(job: Scheme): string {
+  const where = job.plots[0];
+  if (job.caught) {
+    const tip = `Your night watch caught Cold Brew's Night Shift at ${place(where)} before it spoiled a thing. It was never the geese.`;
+    return `<div class="cl-ticket good" data-testid="spoil" title="${esc(tip)}">${ICON.shield()}<b>Caught! Cold Brew's night crew</b></div>`;
+  }
+  const tip = `Every lemon at ${place(where)} went bad overnight, and nobody saw a thing. Dex blames the geese. `
+    + 'Floodlights there give your night watch a chance to catch a night crew.';
+  return `<div class="cl-ticket red" data-testid="spoil" title="${esc(tip)}">${ICON.goose()}<b>Stock spoiled! −${job.spoiled} lemons</b>
+    <span class="cl-acts">${btn('restockNow', 'Restock', `data-plot="${where}"`, 'tiny go')}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }
 
 /** An ad blitz (FizzCo's mascot; in Peaceful, any rival's): who, the district it works, days left, and Go There. */
@@ -93,7 +111,7 @@ function freeze(s: GameState, job: Scheme): string {
     <span class="cl-acts">${pips(left, OLD_MONEY.freezeDays)}${btn('goto', 'Go there', `data-plot="${plot}"`)}</span></div>`;
 }
 
-/** The feed's scheme tickets: each price war, Cease-and-Desist, buyout offer and land freeze running now, and this morning's posters. */
+/** The feed's scheme tickets: each price war, Cease-and-Desist, buyout offer and land freeze running now, and this morning's posters or spoiled stock. */
 export function schemeTickets(s: GameState): string[] {
   const out: string[] = [];
   for (const x of runningSchemes(s)) {
@@ -103,7 +121,11 @@ export function schemeTickets(s: GameState): string[] {
     else if (x.kind === 'freeze') out.push(freeze(s, x));
     else if (x.kind === 'blitz' && s.rivals[x.by].alive) out.push(blitz(s, x));
   }
-  for (const x of s.schemes ?? []) if (x.kind === 'posters' && x.day === s.day) out.push(posters(s, x));
+  for (const x of s.schemes ?? []) {
+    if (x.day !== s.day) continue; // the morning's news
+    if (x.kind === 'posters') out.push(posters(s, x));
+    else if (x.kind === 'spoil') out.push(spoil(x));
+  }
   return out;
 }
 

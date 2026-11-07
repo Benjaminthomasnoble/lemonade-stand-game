@@ -7,10 +7,13 @@ import {
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
   AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
   blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
+  detectionChance, MYSTERY, MYSTERY_GOAL, mysteryGoal, mysteryOn, NIGHT_SHIFT, nightShiftUnmasked, welcomeDex,
   type DayStats, type GameState, type RivalId, type Scheme,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
 import { phoneCheck } from './phone.ts';
+import { checkGoals, GOAL_PROVIDERS, goalsNow } from './goals.ts';
+import { playScene } from './scenes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -207,7 +210,7 @@ describe('smear posters', () => {
           hush(s);
           s.rivals.coldbrew.truceUntil = 0;
           schemesAtDawn(s);
-          out.push(...s.schemes!.filter((x) => x.by === 'coldbrew' && x.day === 10).map((x) => x.kind));
+          out.push(...s.schemes!.filter((x) => x.by === 'coldbrew' && x.day === 10 && x.kind !== 'spoil').map((x) => x.kind)); // Act 3's mystery runs on its own
         }
         return out;
       };
@@ -934,4 +937,186 @@ describe('Peaceful: rivals scheme instead', () => {
     expect([...seen].some((k) => k.startsWith('blitz:') && k !== 'blitz:fizzco')).toBe(true);
     expect(by.size).toBeGreaterThanOrEqual(3);
   }, 120_000); // thirty full days of business
+});
+
+describe("Act 3's mystery: the Night Shift spoils your stock", () => {
+  const stock = (s: GameState, plot = LOTTIES_CORNER) => {
+    s.plots[plot].stand!.inventory.lemons = [{ qty: 60, day: s.day - 1, unitCost: 0.2 }, { qty: 40, day: s.day, unitCost: 0.2 }];
+  };
+  const lemons = (s: GameState, plot = LOTTIES_CORNER) => s.plots[plot].stand!.inventory.lemons.reduce((a, b) => a + b.qty, 0);
+  const spoils = (s: GameState) => (s.schemes ?? []).filter((x) => x.kind === 'spoil');
+  const corner = PLOT_BY_ID[LOTTIES_CORNER].name;
+
+  /** Day 45 of the campaign, in Act 3: Dex on the crew, 100 lemons at Lottie's Corner, and no Strike for any other scheme. */
+  function act3(seed: number) {
+    const s = newGame(seed);
+    s.day = 45;
+    atRank(s, 5); // Act 3
+    welcomeDex(s);
+    for (const id of RIVALS) budgetOf(s, id).strike = 0;
+    stock(s);
+    return s;
+  }
+  /** The next dawn's schemes, with the Night Shift's nightly chance pinned. */
+  function dawn(s: GameState, chance: number) {
+    const was = MYSTERY.chance;
+    MYSTERY.chance = chance;
+    try { s.day++; schemesAtDawn(s); } finally { MYSTERY.chance = was; }
+  }
+  /** A run where the Corner's night watch (Floodlights and two alarms) catches the crew on the act's first night. */
+  function caughtRun() {
+    for (let seed = 1; seed <= 100; seed++) {
+      const s = act3(seed);
+      s.plots[LOTTIES_CORNER].defense.gadgets.push('floodlights', 'alarm', 'goose');
+      schemesAtDawn(s);
+      if (spoils(s)[0].caught) return s;
+    }
+    throw new Error('never caught');
+  }
+
+  it('opens Act 3 with a night of spoiled stock and no raid: every lemon at your stand, no culprit named, and Dex blames the geese', () => {
+    const s = act3(1);
+    const before = s.news.length;
+    schemesAtDawn(s); // the act's first night: it always comes, and costs Cold Brew nothing
+    expect(spoils(s)).toEqual([{ kind: 'spoil', by: 'coldbrew', day: 45, until: 45, plots: [LOTTIES_CORNER], caught: false, spoiled: 100, cost: 0, done: true }]);
+    expect(lemons(s)).toBe(0);
+    expect(s.raids).toEqual([]); // not a raid: no warning and no fight
+    const told = s.news.slice(before);
+    expect(told).toEqual([
+      `Lottie: "${MYSTERY.lottie}"`,
+      `Bugle: 100 lemons go bad overnight at ${corner}, and nobody saw a thing`,
+      `Dex: "${MYSTERY.dex}"`,
+    ]);
+    expect(told.some((n) => n.includes('Cold Brew'))).toBe(false); // nobody knows who
+    expect(s.rivals.coldbrew.mystery).toEqual({ from: 45 });
+    const ticket = schemeTickets(s).find((x) => x.includes('data-testid="spoil"'))!;
+    expect(ticket).toContain('Stock spoiled! −100 lemons');
+    expect(ticket).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    expect(ticket).toContain('Dex blames the geese');
+    expect(ticket).not.toContain('Cold Brew');
+    s.day = 46;
+    expect(schemeTickets(s).some((x) => x.includes('data-testid="spoil"'))).toBe(false); // that morning's news only
+
+    const two = act3(2); // the crew goes for a stocked stand: an empty one is never the target
+    two.plots[LOTTIES_CORNER].stand!.inventory.lemons = [];
+    two.plots['campus-0s'] = { ...two.plots['campus-0s'], owner: 'player', stand: newStand(1, 1) };
+    stock(two, 'campus-0s');
+    schemesAtDawn(two);
+    expect(spoils(two)[0]).toMatchObject({ plots: ['campus-0s'], spoiled: 100 });
+  });
+
+  it("after the first night it comes on a chance, out of Cold Brew's Strike; never in a Truce, another act, the Sandbox or with Cold Brew gone", () => {
+    const s = act3(3);
+    schemesAtDawn(s);
+    stock(s);
+    dawn(s, 0);
+    expect(spoils(s)).toHaveLength(1); // not tonight
+    dawn(s, 1);
+    expect(spoils(s)).toHaveLength(1); // its Strike is empty
+    budgetOf(s, 'coldbrew').strike = MYSTERY.cost;
+    dawn(s, 1);
+    expect(spoils(s).at(-1)).toMatchObject({ day: 48, cost: MYSTERY.cost, spoiled: 100 });
+    expect(budgetOf(s, 'coldbrew').strike).toBe(0);
+    expect(s.news.filter((n) => n === `Lottie: "${MYSTERY.lottie}"`)).toHaveLength(1); // the goal is announced once
+    expect(s.rivals.coldbrew.mystery).toEqual({ from: 45 });
+
+    const nights = (change: (s: GameState) => void) => {
+      const t = act3(4);
+      change(t);
+      budgetOf(t, 'coldbrew').strike = 1000;
+      schemesAtDawn(t);
+      return spoils(t).length;
+    };
+    expect(nights(() => {})).toBe(1);
+    expect(nights((t) => { t.rivals.coldbrew.truceUntil = 45; })).toBe(0);
+    expect(nights((t) => atRank(t, 4))).toBe(0); // Act 2
+    expect(nights((t) => atRank(t, 7))).toBe(0); // Act 4
+    expect(nights((t) => { t.rivals.coldbrew.alive = false; })).toBe(0);
+    expect(nights((t) => { t.plots[LOTTIES_CORNER].stand!.inventory.lemons = []; })).toBe(0); // nothing to spoil
+    const sandbox = newGame(4, { mode: 'sandbox' });
+    sandbox.day = 45;
+    sandbox.rank = 5;
+    stock(sandbox);
+    schemesAtDawn(sandbox);
+    expect(spoils(sandbox)).toEqual([]);
+  });
+
+  it("your night watch catches the crew on a Cold Brew night raid's odds: never at a bare stand, often under Floodlights and alarms", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = act3(seed);
+      schemesAtDawn(s);
+      expect(spoils(s)[0].caught).toBe(false); // in the dark the Night Shift's stealth beats a bare stand
+    }
+    let caught = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const s = act3(seed);
+      s.plots[LOTTIES_CORNER].defense.gadgets.push('floodlights', 'alarm', 'goose');
+      expect(detectionChance(s, LOTTIES_CORNER, true) - NIGHT_SHIFT.stealth).toBeCloseTo(0.55);
+      schemesAtDawn(s);
+      if (spoils(s)[0].caught) caught++;
+    }
+    expect(caught).toBeGreaterThan(10);
+    expect(caught).toBeLessThan(35);
+  });
+
+  it('caught, the saboteurs are Cold Brew: the stock is saved, Juni phones sore, and the spoiling stops', () => {
+    const s = caughtRun();
+    expect(lemons(s)).toBe(100);
+    expect(s.rivals.coldbrew.mystery).toEqual({ from: 45, caught: 45 });
+    expect(s.news).toContain(`Bugle: Lottie's night watch catches Cold Brew's Night Shift spoiling the stock at ${corner}`);
+    expect(s.news).toContain(`Dex: "${MYSTERY.dexCaught}"`);
+    expect(s.news).not.toContain(`Lottie: "${MYSTERY.lottie}"`); // nothing spoiled, nothing to wonder about
+    expect(s.phone!.queue).toContainEqual(expect.objectContaining({ who: 'coldbrew', mood: 'sore' }));
+    expect(schemeTickets(s).find((x) => x.includes('data-testid="spoil"'))).toContain("Caught! Cold Brew's night crew");
+    expect(nightShiftUnmasked(s)).toBe(true);
+    expect(mysteryOn(s)).toBe(false);
+    stock(s);
+    budgetOf(s, 'coldbrew').strike = 10_000;
+    for (let i = 0; i < 5; i++) dawn(s, 1);
+    expect(spoils(s)).toHaveLength(1);
+    expect(lemons(s)).toBe(100);
+  });
+
+  it("Squawk's night flight unmasks the Night Shift too: the spoiling stops, and the goal leaves the card unpaid", () => {
+    const s = act3(5);
+    schemesAtDawn(s);
+    expect(mysteryGoal(s)).toEqual({ text: MYSTERY.goal, progress: 0, done: false });
+    playScene(s, 'nightFlight'); // story's Act 3 beat (src/sim/beats.ts)
+    expect(nightShiftUnmasked(s)).toBe(true);
+    expect(mysteryGoal(s)).toBeNull();
+    stock(s);
+    budgetOf(s, 'coldbrew').strike = 10_000;
+    for (let i = 0; i < 5; i++) dawn(s, 1);
+    expect(spoils(s)).toHaveLength(1);
+    expect(lemons(s)).toBe(100);
+  });
+
+  it("puts its goal on Lottie's card: Floodlights are halfway, and catching the crew pays it", () => {
+    const s = act3(6);
+    schemesAtDawn(s);
+    checkGoals(s);
+    expect(goalsNow(s)[1]).toMatchObject({ slot: 'medium', text: MYSTERY.goal, progress: 0, done: false, story: true });
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('floodlights');
+    expect(goalsNow(s)[1].progress).toBe(0.5);
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('alarm', 'goose', 'watchtower');
+    budgetOf(s, 'coldbrew').strike = 100_000;
+    for (let i = 0; i < 40 && s.rivals.coldbrew.mystery!.caught === undefined; i++) { stock(s); dawn(s, 1); }
+    expect(s.rivals.coldbrew.mystery!.caught).toBeGreaterThan(45);
+    const cash = s.cash;
+    checkGoals(s);
+    expect(s.news.some((n) => n.startsWith(`✓ ${MYSTERY.goal} +$`))).toBe(true);
+    expect(s.cash).toBeGreaterThan(cash);
+    expect(s.goals!.done).toContain(`${MYSTERY_GOAL}:${MYSTERY.goal}`);
+    atRank(s, 7); // Act 4: off the card for good
+    expect(mysteryGoal(s)).toBeNull();
+  });
+
+  it('rides the save: the record loads, and the goal provider is there once', () => {
+    const s = act3(7);
+    schemesAtDawn(s);
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.rivals.coldbrew.mystery).toEqual({ from: 45 });
+    expect(GOAL_PROVIDERS.filter((p) => p.id === MYSTERY_GOAL)).toHaveLength(1);
+    expect(mysteryGoal(loaded)).toEqual({ text: MYSTERY.goal, progress: 0, done: false });
+  });
 });

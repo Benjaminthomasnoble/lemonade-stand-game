@@ -123,7 +123,8 @@ export interface Fx {
 }
 
 export function createFx(scene: THREE.Scene): Fx {
-  const few = reducedMotion() ? 0.5 : 1;
+  // read on each burst, so flipping Less motion in Options takes effect without a reload
+  const few = () => (reducedMotion() ? 0.5 : 1);
   const puffG = (() => { const B = new Baker(); B.add(lumpy(sph(0.4, 12, 9), 0.07, 3, 2), '#ffffff'); return B.build(); })();
   const chipG = (() => { const B = new Baker(); B.add(box(0.16, 0.05, 0.1), '#ffffff', { fx: PAPER }); return B.build(); })();
   const pelletG = (() => { const B = new Baker(); B.add(lumpy(sph(0.07, 8, 6), 0.01, 8, 1), '#ffffff'); return B.build(); })();
@@ -171,7 +172,7 @@ export function createFx(scene: THREE.Scene): Fx {
 
   const rnd = Math.random;
   const burst = (pool: Pool, at: THREE.Vector3, n: number, o: { speed: number; up: number; life: number; size: number; grav: number; drag?: number; spin?: number; flat?: boolean }) => {
-    for (let i = 0; i < Math.round(n * few); i++) {
+    for (let i = 0; i < Math.round(n * few()); i++) {
       const a = rnd() * Math.PI * 2, sp = o.speed * (0.5 + rnd() * 0.7);
       pool.spawn({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * sp, vy: o.up * (0.6 + rnd() * 0.6), vz: Math.sin(a) * sp, spin: (rnd() - 0.5) * (o.spin ?? 8), age: 0, life: o.life * (0.8 + rnd() * 0.4), size: o.size * (0.7 + rnd() * 0.6), grav: o.grav, drag: o.drag ?? 1.5, flat: !!o.flat });
     }
@@ -179,7 +180,7 @@ export function createFx(scene: THREE.Scene): Fx {
 
   return {
     dust(at, n = 6, spread = 0.6) {
-      for (let i = 0; i < Math.round(n * few); i++) {
+      for (let i = 0; i < Math.round(n * few()); i++) {
         const a = rnd() * Math.PI * 2, r = spread * rnd();
         dust.spawn({ x: at.x + Math.cos(a) * r, y: at.y + rnd() * 0.3, z: at.z + Math.sin(a) * r, vx: Math.cos(a) * 1.2, vy: 0.6 + rnd() * 0.6, vz: Math.sin(a) * 1.2, spin: (rnd() - 0.5) * 2, age: 0, life: 0.7 + rnd() * 0.5, size: 0.6 + rnd() * 0.6, grav: 0, drag: 3, flat: false });
       }
@@ -191,7 +192,7 @@ export function createFx(scene: THREE.Scene): Fx {
     ring(at, radius = 2.2, street) {
       // a ring of tufts on the grass just outside the radius (never on the pad itself, nor out over the street)
       blades.visible = true;
-      const n = Math.round(28 * few), off = rnd() * 6;
+      const n = Math.round(28 * few()), off = rnd() * 6;
       for (let i = 0; i < n; i++) {
         const yaw = off + (i / n) * Math.PI * 2 + (rnd() - 0.5) * 0.2;
         if (street && Math.sin(yaw) * street.x + Math.cos(yaw) * street.z > 0.35) continue;

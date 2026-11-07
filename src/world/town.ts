@@ -7,10 +7,10 @@
 //   block   (detail 2)  Bay View: one clay block per building, one ball per tree
 // Moving parts are small separate meshes animated on twos.
 import * as THREE from 'three';
-import { Baker, sph, cap, cyl, box, rbox as coreRbox, cone, tor, lumpy, hash, GLOSS, PAPER } from './clay/core.ts';
+import { Baker, sph, cap, cyl, box, rbox as coreRbox, cone, tor, snake, lumpy, hash, GLOSS, PAPER } from './clay/core.ts';
 import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
-import { DISTRICTS, PLOT_SPACING, STREET_HALF, type District } from '../sim/economy.ts';
+import { DISTRICTS, PLOT_SPACING, SEASONS, STREET_HALF, type District, type Season } from '../sim/economy.ts';
 import { SEA_X, SEA_Z } from '../sim/map.ts';
 
 type Col = string | number;
@@ -25,12 +25,13 @@ const BACK = 21;
 
 export interface Town {
   /** Animate eye music on twos and switch detail levels. */
-  update(time: number, detail: number, night: number): void;
+  update(time: number, detail: number, night: number, season?: Season): void;
 }
 
 /** A set of bakers for one chunk of town. */
 class Chunk {
   full = new Baker(); props = new Baker(); win = new Baker(); block = new Baker();
+  movers: Mover[] = [];
 }
 type Bk = Baker;
 const add = (b: Bk, g: THREE.BufferGeometry, c: Col, o: Opt = {}) => b.add(g, c, o);
@@ -48,9 +49,31 @@ function gable(b: Bk, w: number, d: number, rise: number, c: Col, x: number, y: 
   g.translate(0, 0, -d / 2);
   add(b, g, c, { p: [x, y, z], r: [0, ry, 0] });
 }
+/** The season the town is being built for (createTown rebuilds its chunks when it turns). */
+let SEASON: Season = 'summer';
+const FALL: Col[] = ['#F08A5D', '#F2B04A', '#E8704F', '#E9A23B'];
 function tree(C: Chunk, x: number, z: number, seed: number, greens: Col[], scale = 1, fruit = false) {
   const h = (1.5 + hash(seed, 3) * 0.7) * scale;
   add(C.full, cyl(0.14 * scale, 0.24 * scale, h, 6), P.walnut, { p: [x, h / 2, z] });
+  if (SEASON === 'winter') {
+    // bare pipe-cleaner branches
+    for (let k = 0; k < 4; k++) {
+      const a = k * 1.6 + seed, l = (0.9 + hash(seed, k) * 0.5) * scale;
+      add(C.full, cyl(0.05 * scale, 0.08 * scale, l, 4), '#7A5A44', { p: [x + Math.cos(a) * l * 0.3, h + l * 0.35, z + Math.sin(a) * l * 0.3], r: [Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7] });
+    }
+    add(C.block, cyl(0.2 * scale, 0.3 * scale, h + 1.4 * scale, 5), '#7A5A44', { p: [x, (h + 1.4 * scale) / 2, z] });
+    return;
+  }
+  if (SEASON === 'fall') {
+    greens = FALL;
+    // a pile of clay-flake leaves at the foot
+    if (seed % 2) add(C.full, lumpy(sph(0.7 * scale, 7, 4), 0.12, 3, seed), FALL[seed % 4], { p: [x + 0.7 * scale, 0, z + 0.5 * scale], s: [1.3, 0.35, 1] });
+  }
+  if (SEASON === 'spring') {
+    // clay-bead blossoms (lemon groves flower white)
+    for (let k = 0; k < 5; k++) { const a = k * 1.3 + seed; add(C.full, sph(0.17 * scale, 5, 3), fruit ? '#FFFDF6' : ['#F7A8C4', '#FFFDF6'][k % 2], { p: [x + Math.cos(a) * 1.15 * scale, h + (0.7 + (k % 3) * 0.35) * scale, z + Math.sin(a) * 1.15 * scale] }); }
+    fruit = false;
+  }
   const n = 2 + (seed % 2);
   for (let k = 0; k <= n; k++) {
     const a = (k / n) * Math.PI * 2 + seed, rr = k === 0 ? 0 : 0.6 * scale;
@@ -70,6 +93,23 @@ function stick(b: Bk, x: number, y0: number, y1: number, z: number, w = 0.12, c:
   add(b, rbox(w, y1 - y0, w * 0.6, w * 0.25), c, { p: [x, (y0 + y1) / 2, z], fx: PAPER });
 }
 
+/** The back of a backdrop building (the camera sees it from across the bay): windows, a back door, side windows. */
+function backDress(C: Chunk, x: number, z: number, f: number, w: number, h: number, d: number, floors: number) {
+  const zb = z - f * (d / 2);
+  for (let fl = 0; fl < Math.max(1, floors); fl++) for (const dx of [-w * 0.28, w * 0.28]) if (1.4 + fl * 1.6 < h - 0.5) win(C, x + dx, 1.4 + fl * 1.6, zb, 1, 0.9, -f);
+  add(C.full, rbox(0.9, 1.7, 0.16, 0.06), P.walnut, { p: [x, 0.85, zb - f * 0.02] });
+  if (h > 2.6) for (const s of [-1, 1]) add(C.win, box(0.08, 0.9, 1), '#ffffff', { p: [x + s * (w / 2 + 0.01), Math.min(h * 0.5, 2.4), z] });
+}
+/** A clay gull standing on a roof. */
+function gull(C: Chunk, x: number, y: number, z: number, seed: number) {
+  const ry = hash(seed, 9) * Math.PI * 2, cx = Math.cos(ry), sz = Math.sin(ry);
+  add(C.full, sph(0.24, 7, 5), '#FFFFFF', { p: [x, y + 0.3, z], s: [1.4, 0.9, 0.9], r: [0, ry, 0] });
+  add(C.full, sph(0.15, 6, 4), '#FFFFFF', { p: [x + cx * 0.3, y + 0.5, z - sz * 0.3] });
+  add(C.full, cone(0.05, 0.18, 4), '#FF9F1C', { p: [x + cx * 0.46, y + 0.5, z - sz * 0.46], r: [0, ry, -Math.PI / 2] });
+  add(C.full, sph(0.2, 6, 3), '#AEB4BE', { p: [x - cx * 0.05, y + 0.36, z + sz * 0.05], s: [1.5, 0.4, 1.2], r: [0, ry, 0] });
+  for (const s of [-1, 1]) add(C.full, cyl(0.025, 0.025, 0.2, 4), '#FF9F1C', { p: [x - sz * s * 0.08, y + 0.1, z - cx * s * 0.08] });
+}
+
 // ---------------------------------------------------------------- backdrop buildings, one per style
 type Style = (C: Chunk, x: number, z: number, f: number, seed: number) => void;
 
@@ -82,7 +122,7 @@ const cottage: Style = (C, x, z, f, seed) => {
   gable(C.full, w + 0.8, d + 0.6, h * 0.45 + 0.6, roof, x, h - 0.1, z);
   // scalloped card trim along the front eave
   for (let k = 0, xx = x - w / 2; xx < x + w / 2; xx += 0.46, k++)
-    add(C.props, new THREE.CylinderGeometry(0.23, 0.23, 0.03, 8, 1, false, Math.PI / 2, Math.PI), k % 2 ? P.cream : roof, { p: [xx, h - 0.14, z + f * (d / 2 + 0.42)], r: [Math.PI / 2, 0, 0], fx: PAPER });
+    add(C.full, new THREE.CylinderGeometry(0.23, 0.23, 0.03, 6, 1, false, Math.PI / 2, Math.PI), k % 2 ? P.cream : roof, { p: [xx, h - 0.14, z + f * (d / 2 + 0.42)], r: [Math.PI / 2, 0, 0], fx: PAPER });
   lumpBlock(C.full, 0.6, 1.3, 0.6, P.terra, x + w * 0.28, h + 0.2, z - f * 0.6, seed + 1, 0.12);
   add(C.full, rbox(1, 1.8, 0.2, 0.08), P.walnut, { p: [x + 1, 0.9, z + f * d / 2] });
   win(C, x - w * 0.25, h * 0.5, z + f * (d / 2), 1.1, 1, f);
@@ -93,16 +133,24 @@ const cottage: Style = (C, x, z, f, seed) => {
   const fz = z + f * (d / 2 + 1.8);
   for (let k = 0, xx = x - w / 2 - 0.4; xx < x + w / 2 + 0.4; xx += 0.5, k++) {
     if (Math.abs(xx - x - 1) < 0.8) continue;
-    add(C.props, box(0.07, 0.7, 0.07), P.stick, { p: [xx, 0.35, fz], fx: PAPER });
+    add(C.full, box(0.07, 0.7, 0.07), P.stick, { p: [xx, 0.35, fz], fx: PAPER });
     add(C.props, sph(0.06, 5, 4), '#C9452F', { p: [xx, 0.74, fz], s: [1, 1.5, 1] });
   }
-  add(C.props, box(w + 0.8, 0.05, 0.04), P.stick, { p: [x, 0.45, fz], fx: PAPER });
+  add(C.full, box(w + 0.8, 0.05, 0.04), P.stick, { p: [x, 0.45, fz], fx: PAPER });
   // mailbox
   stick(C.props, x + 2.4, 0, 1, fz + f * 0.4, 0.08);
   add(C.props, rbox(0.4, 0.4, 0.65, 0.17), P.teal, { p: [x + 2.4, 1.1, fz + f * 0.4] });
   if (seed % 3 === 0) { // a kiddie pool
     add(C.props, tor(0.8, 0.22, 6, 16), '#7EA6D8', { p: [x - 2.2, 0.2, z + f * (d / 2 + 1)], r: [Math.PI / 2, 0, 0] });
     add(C.props, cyl(0.8, 0.8, 0.05, 14), P.teal, { p: [x - 2.2, 0.2, z + f * (d / 2 + 1)], fx: GLOSS });
+  }
+  backDress(C, x, z, f, w, h, d, 1);
+  // laundry lines across the back yard to the next house
+  if (seed % 2 === 0) {
+    const lz = z - f * (d / 2 + 1.8);
+    for (const dx of [3.2, 8.8]) stick(C.full, x + dx, 0, 2.3, lz, 0.1);
+    add(C.full, box(5.6, 0.03, 0.03), '#FFFDF6', { p: [x + 6, 2.15, lz] });
+    for (let k = 0; k < 5; k++) add(C.full, rbox(0.7, 0.8 + hash(seed, k) * 0.3, 0.04, 0.02), ['#F4B9C2', '#9ED3D6', '#FBE3A0', '#FFFFFF', '#B9A7EA'][(k + seed) % 5], { p: [x + 3.9 + k * 1.05, 1.7, lz], r: [0, 0, (hash(k, seed) - 0.5) * 0.15], fx: PAPER });
   }
   lumpBlock(C.block, w, h + 1.5, d, wall, x, 0, z, seed, 0.6);
   blockLit(C, x, z, f, w, h + 1.5, d);
@@ -115,11 +163,12 @@ const brickFront: Style = (C, x, z, f, seed) => {
   lumpBlock(C.full, w, h, d, wall, x, 0, z, seed);
   add(C.full, rbox(w + 0.4, 0.4, d + 0.3, 0.1), P.cream, { p: [x, h, z] });
   // tool-pressed brick lines
-  for (let y = 0.6; y < h - 0.4; y += 0.7) add(C.props, box(w - 0.4, 0.05, 0.03), '#B8735A', { p: [x, y, z + f * (d / 2 + 0.01)] });
+  for (let y = 0.6; y < h - 0.4; y += 0.7) add(C.full, box(w - 0.4, 0.05, 0.03), '#B8735A', { p: [x, y, z + f * (d / 2 + 0.01)] });
   for (let fl = 0; fl < Math.floor(h / 1.6); fl++) for (const dx of [-2.8, 0, 2.8]) if (fl || dx) win(C, x + dx, 1.4 + fl * 1.6, z + f * (d / 2), 1.2, 0.9, f);
   add(C.full, rbox(1.3, 2, 0.2, 0.08), '#3B6E8F', { p: [x, 1, z + f * d / 2] });
   // striped card awning
-  for (let i = 0; i < 8; i++) add(C.props, box(1.1, 0.04, 1), i % 2 ? P.cream : [P.terra, P.green, '#7EA6D8'][seed % 3], { p: [x - 3.85 + i * 1.1, 2.3, z + f * (d / 2 + 0.45)], r: [f * 0.45, 0, 0], fx: PAPER });
+  for (let i = 0; i < 8; i++) add(C.full, box(1.1, 0.04, 1), i % 2 ? P.cream : [P.terra, P.green, '#7EA6D8'][seed % 3], { p: [x - 3.85 + i * 1.1, 2.3, z + f * (d / 2 + 0.45)], r: [f * 0.45, 0, 0], fx: PAPER });
+  backDress(C, x, z, f, w, h, d, Math.floor(h / 1.6));
   lumpBlock(C.block, w, h, d, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, w, h, d);
 };
@@ -133,11 +182,12 @@ const sawtooth: Style = (C, x, z, f, seed) => {
   // a mural on card
   const mural = ['#FF4FA3', P.lemon, P.teal, P.terra, '#7CC47F', '#B9A7EA'];
   add(C.full, rbox(5, 2.4, 0.06, 0.03), '#FFFDF6', { p: [x - 1.2, 2, z + f * (d / 2 + 0.04)], fx: PAPER });
-  for (let k = 0; k < 6; k++) add(C.props, sph(0.5 + hash(seed, k) * 0.4, 8, 5), mural[(k + seed) % 6], { p: [x - 3.2 + k * 0.8, 1.4 + hash(k, seed) * 1.3, z + f * (d / 2 + 0.07)], s: [1, 0.8, 0.06], fx: PAPER });
+  for (let k = 0; k < 6; k++) add(C.full, sph(0.5 + hash(seed, k) * 0.4, 7, 4), mural[(k + seed + SEASONS.indexOf(SEASON) * 2) % 6], { p: [x - 3.2 + k * 0.8, 1.4 + hash(k, seed) * 1.3, z + f * (d / 2 + 0.07)], s: [1, 0.8, 0.06], fx: PAPER });
   win(C, x + 2.8, 2, z + f * (d / 2), 1.6, 1.4, f);
   // a skate rail out front
   add(C.props, cap(0.05, 3, 2, 5), P.chrome, { p: [x, 0.6, z + f * (d / 2 + 2)], r: [0, 0, Math.PI / 2], fx: GLOSS });
   for (const dx of [-1.4, 1.4]) add(C.props, cyl(0.05, 0.05, 0.6, 5), P.chrome, { p: [x + dx, 0.3, z + f * (d / 2 + 2)], fx: GLOSS });
+  backDress(C, x, z, f, w, h, d, 1);
   lumpBlock(C.block, w, h + 1, d, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, w, h + 1, d);
 };
@@ -150,8 +200,18 @@ const tower: Style = (C, x, z, f, seed) => {
   // printed-card glass: window bands on the front and sides
   for (let y = 1.6; y < h - 0.6; y += 1.6) {
     add(C.full, rbox(w + 0.08, 0.2, d + 0.08, 0.05), '#6C7A90', { p: [x, y - 0.15, z] });
-    for (let k = 0; k < 4; k++) add(C.win, rbox(1.2, 1.05, 0.06, 0.04), '#ffffff', { p: [x - 2.4 + k * 1.6, y + 0.6, z + f * (d / 2 + 0.01)] });
+    for (let k = 0; k < 4; k++) for (const s of [1, -1]) add(C.win, box(1.2, 1.05, 0.06), '#ffffff', { p: [x - 2.4 + k * 1.6, y + 0.6, z + s * f * (d / 2 + 0.01)] });
+    for (let k = 0; k < 3; k++) for (const s of [1, -1]) add(C.win, box(0.06, 1.05, 1.2), '#ffffff', { p: [x + s * (w / 2 + 0.01), y + 0.6, z - 1.6 + k * 1.6] });
   }
+  if (f > 0) {
+    // clay-snake neon across the front (glows from golden hour) and a revolving door
+    const zz: [number, number, number][] = [];
+    for (let k = 0; k <= 10; k++) zz.push([x - 2.8 + k * 0.56, 3.6 + (k % 2 ? 0.3 : -0.3), z + f * (d / 2 + 0.12)]);
+    add(C.full, snake(zz, 0.08, 30, 5), ['#FF4FA3', '#2EC4F1', '#F6D33C', '#7CF07C'][seed % 4], { fx: 1 });
+    add(C.full, cyl(1.1, 1.1, 0.25, 12), P.chrome, { p: [x - 1.5, 2.35, z + f * (d / 2 + 0.6)], fx: GLOSS });
+    add(C.full, cyl(1.1, 1.1, 0.1, 12), '#5B5568', { p: [x - 1.5, 0.05, z + f * (d / 2 + 0.6)] });
+    C.movers.push({ kind: 'door', x: x - 1.5, y: 0.1, z: z + f * (d / 2 + 0.6), ph: seed });
+  } else backDress(C, x, z, f, w, h, d, 0);
   add(C.full, rbox(w - 1.6, 0.8, d - 1.6, 0.1), P.chrome, { p: [x, h + 0.4, z], fx: GLOSS });
   // a food cart on the plaza out front
   if (seed % 2) {
@@ -177,6 +237,8 @@ const warehouse: Style = (C, x, z, f, seed) => {
   win(C, x + 2.8, 2.6, z + f * (d / 2), 1.6, 0.8, f);
   // crate stacks
   for (let k = 0; k < 5; k++) add(C.props, rbox(0.9, 0.8, 0.9, 0.06), [P.stick, '#C9A27A'][k % 2], { p: [x + 2.2 + (k % 3) * 0.95, 0.4 + Math.floor(k / 3) * 0.8, z + f * (d / 2 + 1.4)], fx: PAPER });
+  backDress(C, x, z, f, w, h, d, 1);
+  for (let k = 0; k < 1 + (seed % 3); k++) gull(C, x - 3 + k * 2.6, h + 1.15, z + (hash(seed, k) - 0.5) * 2, seed + k);
   lumpBlock(C.block, w, h + 1, d, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, w, h + 1, d);
 };
@@ -194,6 +256,7 @@ const barn: Style = (C, x, z, f, seed) => {
   add(C.full, sph(1.15, 12, 6), '#C2453A', { p: [x + w / 2 + 1.4, 5.5, z], s: [1, 0.6, 1] });
   // hay bales
   for (let k = 0; k < 3; k++) add(C.props, lumpy(cyl(0.6, 0.6, 1, 10), 0.04, 2, k + seed), '#E8C36A', { p: [x - 2.6 + k * 1.3, 0.62, z + f * (d / 2 + 1.6)], r: [0, 0, Math.PI / 2] });
+  backDress(C, x, z, f, w, h, d, 0);
   lumpBlock(C.block, w + 2, h + 1.5, d, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, w + 2, h + 1.5, d);
 };
@@ -212,6 +275,10 @@ const mansion: Style = (C, x, z, f, seed) => {
     ball(C.props, 0.55, '#3F7F45', x + s * 5, 1.0, z + f * (d / 2 + 1), seed + s, 8);
     ball(C.props, 0.35, '#3F7F45', x + s * 5, 1.7, z + f * (d / 2 + 1), seed + s + 3, 7);
   }
+  // an opening gate in the hedge gap
+  for (const s of [-1, 1]) add(C.full, rbox(0.3, 1.6, 0.3, 0.08), P.cream, { p: [x + s * 0.85, 0.8, z + f * (d / 2 + 2.6)] });
+  for (const s of [-1, 1]) C.movers.push({ kind: 'gate', x: x + s * 0.75, y: 0, z: z + f * (d / 2 + 2.6), ph: seed, ry: s > 0 ? Math.PI : 0, dir: s * f });
+  backDress(C, x, z, f, w, h, d, 1);
   lumpBlock(C.block, w, h + 1.5, d, wall, x, 0, z, seed, 0.6);
   blockLit(C, x, z, f, w, h + 1.5, d);
 };
@@ -226,6 +293,7 @@ const beachHut: Style = (C, x, z, f, seed) => {
   for (let k = 0; k < 6; k++) add(C.props, box(0.6, 2.6, 0.03), k % 2 ? '#FFFDF6' : wall, { p: [x - 2.1 + k * 0.6, 1.7, z - f * 0.4 + f * 1.72], fx: PAPER });
   // surfboards leaning on the wall
   for (let k = 0; k < 2; k++) add(C.props, lumpy(cap(0.32, 2.2, 3, 8), 0.02, 2, k), [P.terra, P.lemon, P.teal][(k + seed) % 3], { p: [x + 2 + k * 0.6, 1.5, z + f * 1.5], r: [f * 0.2, 0, 0.1], s: [1, 1, 0.25] });
+  if (seed % 2) gull(C, x - 0.6, 4.35, z - f * 0.4, seed);
   lumpBlock(C.block, 5, 3.4, 4, wall, x, 0, z, seed, 0.5);
   blockLit(C, x, z, f, 5, 3.4, 4);
 };
@@ -365,7 +433,9 @@ function crane(x: number, z: number, parts: THREE.Object3D[], C: Chunk, seed: nu
   lumpBlock(C.block, 2, 9, 2, '#E8704F', x, 0, z, seed, 0.3);
 }
 /** Small movers that come in numbers (sprinklers, buoys) draw as one instanced mesh per kind. */
-type Mover = { kind: 'sprinkler' | 'buoy'; x: number; y: number; z: number; ph: number };
+type Mover = { kind: MoverKind; x: number; y: number; z: number; ph: number; ry?: number; dir?: number };
+type MoverKind = (typeof MOVER_KINDS)[number];
+const MOVER_KINDS = ['sprinkler', 'buoy', 'boat', 'gate', 'door', 'kite'] as const;
 function sprinkler(x: number, z: number, movers: Mover[], C: Chunk) {
   add(C.props, cyl(0.12, 0.16, 0.3, 8), P.chrome, { p: [x, 0.15, z], fx: GLOSS });
   movers.push({ kind: 'sprinkler', x, y: 0.3, z, ph: x * 0.3 });
@@ -376,7 +446,27 @@ function buoy(x: number, z: number, movers: Mover[], seed: number) {
 function moverGeometry(kind: Mover['kind']) {
   const b = new Baker();
   if (kind === 'sprinkler') for (let k = 0; k < 7; k++) { const t = k / 6; b.add(sph(0.07, 6, 4), '#BFEFF4', { p: [t * 1.6, Math.sin(t * Math.PI) * 0.9, 0], fx: GLOSS }); }
-  else {
+  else if (kind === 'boat') {
+    // a soap-bar boat with a paper sail on a stick mast
+    b.add(lumpy(rbox(2.2, 0.6, 1.1, 0.28), 0.03, 2, 3), '#F7C6D9', { p: [0, 0.2, 0], fx: GLOSS });
+    b.add(cyl(0.05, 0.05, 2, 5), P.stick, { p: [0, 1.4, 0], fx: PAPER });
+    b.add(cone(0.7, 1.6, 3), '#FFFDF6', { p: [0.38, 1.5, 0], s: [1, 1, 0.08], fx: PAPER });
+    b.add(cone(0.12, 0.3, 3), P.terra, { p: [0.12, 2.5, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.2], fx: PAPER });
+  } else if (kind === 'gate') {
+    // one leaf of a white picket gate, hinged at the origin and opening along +x
+    for (let k = 0; k < 4; k++) b.add(box(0.12, 1.2, 0.06), '#FFFFFF', { p: [0.1 + k * 0.18, 0.75, 0], fx: PAPER });
+    for (const y of [0.45, 1.05]) b.add(box(0.7, 0.1, 0.07), '#FFFFFF', { p: [0.37, y, 0], fx: PAPER });
+  } else if (kind === 'door') {
+    // a revolving door: four glass wings round a chrome post
+    b.add(cyl(0.08, 0.08, 2.2, 6), P.chrome, { p: [0, 1.1, 0], fx: GLOSS });
+    for (let k = 0; k < 4; k++) b.add(box(0.95, 2, 0.05), '#BFE3F0', { p: [Math.cos(k * Math.PI / 2) * 0.5, 1.1, Math.sin(k * Math.PI / 2) * 0.5], r: [0, -k * Math.PI / 2, 0], fx: GLOSS });
+  } else if (kind === 'kite') {
+    // a paper kite on a thread, with a bow tail
+    b.add(cone(0.8, 1.6, 4), '#FF4FA3', { s: [1, 1, 0.08], fx: PAPER });
+    b.add(cone(0.8, 0.6, 4), P.lemon, { p: [0, -1.1, 0], r: [Math.PI, 0, 0], s: [1, 1, 0.08], fx: PAPER });
+    for (let k = 0; k < 4; k++) b.add(sph(0.1, 5, 3), [P.teal, P.lemon][k % 2], { p: [Math.sin(k) * 0.2, -1.8 - k * 0.45, 0], s: [1.6, 0.7, 0.5], fx: PAPER });
+    b.add(cyl(0.012, 0.012, 9, 3), '#FFFDF6', { p: [0, -4.8, 2], r: [-0.45, 0, 0] });
+  } else {
     b.add(lathe2(), P.terra, { s: [0.35, 1.4, 0.35] });
     b.add(cyl(0.12, 0.12, 0.9, 6), '#FFFDF6', { p: [0, 0.9, 0] });
     b.add(sph(0.16, 6, 4), '#FFE2A8', { p: [0, 1.4, 0], fx: GLOSS + 1 });
@@ -401,73 +491,102 @@ export function townFootprints(): [number, number, number][] {
 
 export function createTown(scene: THREE.Scene): Town {
   const K = kit();
-  const parts: THREE.Object3D[] = [];
-  const movers: Mover[] = [];
-  const chunks: Record<'full' | 'props' | 'win' | 'block', THREE.Mesh | null>[] = [];
+  let parts: THREE.Object3D[] = [];
+  let meshes: THREE.Mesh[] = [];
+  let chunks: Record<'full' | 'props' | 'win' | 'block', THREE.Mesh | null>[] = [];
+  let flocks: { kind: MoverKind; list: Mover[]; im: THREE.InstancedMesh }[] = [];
+  let built: Season | null = null;
 
-  for (const d of DISTRICTS) {
-    const C = new Chunk();
-    const z = d.origin[1];
-    const greens = GREENS[d.id];
-    // backdrop buildings behind every plot row (not into the sea)
-    const style = STYLE[d.id];
-    for (let col = 0; col < d.cols; col++) {
-      const x = d.origin[0] + col * PLOT_SPACING + PLOT_SPACING / 2;
-      for (const side of [0, 1] as const) {
-        const f = side === 0 ? 1 : -1; // fronts face the street
-        const sp = d.special.find((p) => p.col === col && p.side === side);
-        if (sp?.name === 'The Pier') { pierWheel(x, C, parts); continue; }
-        const bz = z - f * BACK;
-        if (bz > SEA_Z - 6 || x > SEA_X - 6) continue;
-        const sd = Math.abs((col * 2 + side + 1) * 7 + d.origin[0]);
-        if (sp?.type === 'landmark') landmark(sp.name, x, bz, f, C, parts, greens);
-        else if (d.id === 'groves' && col % 3 === 2) windmill(x, bz, parts, C, f);
-        else if (d.id === 'harbor' && side === 0 && col % 2 === 1) crane(x, bz + 2, parts, C, col);
-        else style(C, x, bz, f, sd);
-        if (col < d.cols - 1 && d.id !== 'downtown' && d.id !== 'boardwalk') tree(C, x + PLOT_SPACING / 2, bz + f * 2.5, sd + 3, greens, 0.9 + hash(sd) * 0.3, d.id === 'groves');
+  /** Bake the whole town for a season (again when the season turns). */
+  function build(season: Season) {
+    for (const m of meshes) { m.removeFromParent(); m.geometry.dispose(); if ((m as THREE.InstancedMesh).isInstancedMesh) (m as THREE.InstancedMesh).dispose(); }
+    for (const p of parts) p.removeFromParent();
+    meshes = []; chunks = []; parts = []; flocks = [];
+    SEASON = season;
+    const movers: Mover[] = [];
+    for (const d of DISTRICTS) {
+      const C = new Chunk();
+      const z = d.origin[1];
+      const greens = GREENS[d.id];
+      // backdrop buildings behind every plot row (not into the sea)
+      const style = STYLE[d.id];
+      for (let col = 0; col < d.cols; col++) {
+        const x = d.origin[0] + col * PLOT_SPACING + PLOT_SPACING / 2;
+        for (const side of [0, 1] as const) {
+          const f = side === 0 ? 1 : -1; // fronts face the street
+          const sp = d.special.find((p) => p.col === col && p.side === side);
+          if (sp?.name === 'The Pier') { pierWheel(x, C, parts); continue; }
+          const bz = z - f * BACK;
+          if (bz > SEA_Z - 6 || x > SEA_X - 6) continue;
+          const sd = Math.abs((col * 2 + side + 1) * 7 + d.origin[0]);
+          if (sp?.type === 'landmark') landmark(sp.name, x, bz, f, C, parts, greens);
+          else if (d.id === 'groves' && col % 3 === 2) windmill(x, bz, parts, C, f);
+          else if (d.id === 'harbor' && side === 0 && col % 2 === 1) crane(x, bz + 2, parts, C, col);
+          else style(C, x, bz, f, sd);
+          if (col < d.cols - 1 && d.id !== 'downtown' && d.id !== 'boardwalk') tree(C, x + PLOT_SPACING / 2, bz + f * 2.5, sd + 3, greens, 0.9 + hash(sd) * 0.3, d.id === 'groves');
+        }
       }
+      // district props and eye music along the street
+      for (let col = 0; col <= d.cols; col++) {
+        const gx = d.origin[0] + col * PLOT_SPACING;
+        const s = col % 2 ? 1 : -1;
+        if (gx > SEA_X - 6) continue;
+        if (d.id === 'maple' && col % 2 === 0 && col < d.cols && season !== 'winter') sprinkler(gx + 6, z - s * (SIDEWALK_OFFSET + 6.5), movers, C);
+        if (d.id === 'oldtown' && col % 3 === 1) bench(C, gx + 2, z - s * (SIDEWALK_OFFSET + 0.2), s);
+        if (d.id === 'hilltop' && col < d.cols) for (const t of [-1, 1]) { add(C.props, cyl(0.1, 0.12, 0.5, 6), P.walnut, { p: [gx + 1.5, 0.25, z + t * (SIDEWALK_OFFSET + 1.6)] }); ball(C.props, 0.5, '#3F7F45', gx + 1.5, 0.9, z + t * (SIDEWALK_OFFSET + 1.6), col + t, 7); }
+        if ((d.id === 'campus' || d.id === 'maple' || d.id === 'downtown') && col % 3 === 1) hydrant(C, gx - 1.4, z + s * (SIDEWALK_OFFSET + 0.3));
+        // summer bunting and winter string lights across the busy streets
+        if ((d.id === 'oldtown' || d.id === 'boardwalk' || d.id === 'maple') && col % 2 === 1 && col < d.cols && (season === 'summer' || season === 'winter')) streetLine(C, gx, z, season, col);
+        // spring kites over the open ground
+        if (season === 'spring' && (d.id === 'maple' || d.id === 'boardwalk' || d.id === 'campus') && col % 3 === 1 && col < d.cols)
+          movers.push({ kind: 'kite', x: gx + 6, y: 11 + (col % 2) * 2, z: d.id === 'boardwalk' ? SEA_Z - 6 : z - 16, ph: col + d.origin[0] });
+      }
+      if (d.id === 'boardwalk') beach(C, d);
+      if (d.id === 'harbor') {
+        for (let k = 0; k < 6; k++) buoy(d.origin[0] + 6 + k * 13, SEA_Z + 7 + (k % 2) * 5, movers, k);
+        for (let k = 0; k < 4; k++) movers.push({ kind: 'boat', x: d.origin[0] + 12 + k * 19, y: -0.3, z: SEA_Z + 10 + (k % 2) * 6, ph: k * 1.7, ry: k * 0.9 });
+      }
+      if (d.id === 'groves') parts.push(tractor(d));
+      if (d.id === 'hilltop') { parts.push(golfCart(d)); parts.push(yacht(d)); }
+      movers.push(...C.movers);
+      const mk = (b: Baker, mat: THREE.Material, cast: boolean, name: string) => {
+        if (!b.size) return null;
+        const m = new THREE.Mesh(b.build(), mat);
+        m.castShadow = cast;
+        m.receiveShadow = true;
+        m.name = `town-${name}:${d.id}`;
+        scene.add(m);
+        meshes.push(m);
+        return m;
+      };
+      const block = mk(C.block, K.world, true, 'block');
+      if (block) block.visible = false;
+      chunks.push({ full: mk(C.full, K.world, true, 'full'), props: mk(C.props, K.world, true, 'props'), win: mk(C.win, K.window, false, 'win'), block });
     }
-    // district props and eye music along the street
-    for (let col = 0; col <= d.cols; col++) {
-      const gx = d.origin[0] + col * PLOT_SPACING;
-      const s = col % 2 ? 1 : -1;
-      if (gx > SEA_X - 6) continue;
-      if (d.id === 'maple' && col % 2 === 0 && col < d.cols) sprinkler(gx + 6, z - s * (SIDEWALK_OFFSET + 6.5), movers, C);
-      if (d.id === 'oldtown' && col % 3 === 1) bench(C, gx + 2, z - s * (SIDEWALK_OFFSET + 0.2), s);
-      if (d.id === 'hilltop' && col < d.cols) for (const t of [-1, 1]) { add(C.props, cyl(0.1, 0.12, 0.5, 6), P.walnut, { p: [gx + 1.5, 0.25, z + t * (SIDEWALK_OFFSET + 1.6)] }); ball(C.props, 0.5, '#3F7F45', gx + 1.5, 0.9, z + t * (SIDEWALK_OFFSET + 1.6), col + t, 7); }
-      if ((d.id === 'campus' || d.id === 'maple' || d.id === 'downtown') && col % 3 === 1) hydrant(C, gx - 1.4, z + s * (SIDEWALK_OFFSET + 0.3));
+    for (const p of parts) { scene.add(p); p.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); }); }
+    for (const kind of MOVER_KINDS) {
+      const list = movers.filter((m) => m.kind === kind);
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(moverGeometry(kind), K.world, list.length);
+      im.name = `town-${kind}`;
+      im.castShadow = kind === 'boat' || kind === 'kite';
+      im.receiveShadow = true;
+      scene.add(im);
+      meshes.push(im);
+      flocks.push({ kind, list, im });
     }
-    if (d.id === 'boardwalk') beach(C, d);
-    if (d.id === 'harbor') for (let k = 0; k < 6; k++) buoy(d.origin[0] + 6 + k * 13, SEA_Z + 7 + (k % 2) * 5, movers, k);
-    const mk = (b: Baker, mat: THREE.Material, cast: boolean, name: string) => {
-      if (!b.size) return null;
-      const m = new THREE.Mesh(b.build(), mat);
-      m.castShadow = cast;
-      m.receiveShadow = true;
-      m.name = `town-${name}:${d.id}`;
-      scene.add(m);
-      return m;
-    };
-    const block = mk(C.block, K.world, true, 'block');
-    if (block) block.visible = false;
-    chunks.push({ full: mk(C.full, K.world, true, 'full'), props: mk(C.props, K.world, true, 'props'), win: mk(C.win, K.window, false, 'win'), block });
+    shownDetail = -1;
+    lastF = -1;
+    built = season;
   }
-  for (const p of parts) scene.add(p);
-  const flocks = (['sprinkler', 'buoy'] as const).map((kind) => {
-    const list = movers.filter((m) => m.kind === kind);
-    const im = new THREE.InstancedMesh(moverGeometry(kind), K.world, Math.max(1, list.length));
-    im.name = `town-${kind}`;
-    im.count = list.length;
-    im.receiveShadow = true;
-    scene.add(im);
-    return { kind, list, im };
-  });
+
   const mm = new THREE.Matrix4(), mq = new THREE.Quaternion(), me = new THREE.Euler(), mv = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   let lastF = -1;
-
   let shownDetail = -1;
+  build('summer');
   return {
-    update(time, detail, night) {
+    update(time, detail, night, season = 'summer') {
+      if (season !== built) build(season);
       if (detail !== shownDetail) {
         shownDetail = detail;
         for (const m of chunks) {
@@ -484,7 +603,7 @@ export function createTown(scene: THREE.Scene): Town {
       if (f12 === lastF) return; // pose on twos
       lastF = f12;
       // eye music poses on twos
-      const t = Math.floor(time * 12) / 12;
+      const t = f12 / 12;
       for (const p of parts) {
         const [kind, what] = p.name.split(':');
         const ph = (p.userData.phase as number) ?? 0;
@@ -492,14 +611,33 @@ export function createTown(scene: THREE.Scene): Town {
           if (what === 'wheel') p.rotation.z = -t * 0.12;
           else if (what === 'windmill') p.rotation.z = -t * 0.9;
         } else if (kind === 'sway') p.rotation.y = Math.sin(t * 0.25 + ph) * 0.6;
+        else if (kind === 'bob') {
+          // the band bounces to the beat; the yacht rides the swell
+          const y0 = p.userData.y0 as number;
+          if (what === 'band') p.children.forEach((c, i) => { c.position.y = Math.abs(Math.sin(t * 4 + i * 1.3)) * 0.25; c.rotation.z = Math.sin(t * 2 + i) * 0.12; });
+          else { p.position.y = y0 + Math.sin(t * 1.3) * 0.15; p.rotation.z = Math.sin(t * 0.9) * 0.05; }
+        } else if (kind === 'drive') {
+          // to and fro along its lane, turning round at each end
+          const { x0, x1, speed } = p.userData as { x0: number; x1: number; speed: number };
+          const span = x1 - x0, u = (t * speed) % (2 * span), fwd = u < span;
+          p.position.x = fwd ? x0 + u : x1 - (u - span);
+          p.rotation.y = fwd ? 0 : Math.PI;
+          p.position.y = (f12 % 2) * 0.04; // a bumpy ride on button wheels
+        }
       }
       for (const f of flocks) {
         if (f.kind === 'sprinkler') f.im.visible = night < 0.5; // sprinklers run by day
         f.list.forEach((m, i) => {
-          if (f.kind === 'sprinkler') me.set(0, Math.sin(t * 1.4 + m.ph) * 1.2, 0);
-          else { me.set(0, 0, Math.sin(t * 1.1 + m.ph) * 0.12); }
+          let y = m.y, ry = m.ry ?? 0, rz = 0;
+          if (f.kind === 'sprinkler') ry = Math.sin(t * 1.4 + m.ph) * 1.2;
+          else if (f.kind === 'buoy') { rz = Math.sin(t * 1.1 + m.ph) * 0.12; y += Math.sin(t * 1.6 + m.ph) * 0.12; }
+          else if (f.kind === 'boat') { rz = Math.sin(t * 1.2 + m.ph) * 0.08; y += Math.sin(t * 1.5 + m.ph) * 0.1; ry += Math.sin(t * 0.2 + m.ph) * 0.3; }
+          else if (f.kind === 'gate') ry += (m.dir ?? 1) * (0.5 + 0.5 * Math.sin(t * 0.35 + m.ph)) * 1.4;
+          else if (f.kind === 'door') ry = t * 1.1 + m.ph;
+          else if (f.kind === 'kite') { rz = Math.sin(t * 0.8 + m.ph) * 0.25; y += Math.sin(t * 0.6 + m.ph) * 0.6; }
+          me.set(0, ry, rz);
           mq.setFromEuler(me);
-          mv.set(m.x, m.y + (f.kind === 'buoy' ? Math.sin(t * 1.6 + m.ph) * 0.12 : 0), m.z);
+          mv.set(m.x, y, m.z);
           f.im.setMatrixAt(i, mm.compose(mv, mq, one));
         });
         f.im.instanceMatrix.needsUpdate = true;
@@ -507,6 +645,99 @@ export function createTown(scene: THREE.Scene): Town {
       }
     },
   };
+}
+
+/** Summer paper bunting or winter string lights strung across the street on two poles. */
+function streetLine(C: Chunk, x: number, z: number, season: Season, seed: number) {
+  const zs = SIDEWALK_OFFSET + 0.4, top = 5.2;
+  for (const s of [-1, 1]) stick(C.full, x, 0, top + 0.2, z + s * zs, 0.12, '#FFFDF6');
+  const n = 14;
+  for (let k = 0; k <= n; k++) {
+    const u = k / n, zz = z - zs + u * zs * 2, y = top - Math.sin(u * Math.PI) * 0.9;
+    if (k < n) add(C.full, box(0.03, 0.03, (zs * 2) / n + 0.05), '#FFFDF6', { p: [x, y - Math.cos(u * Math.PI) * 0.1, zz + zs / n], r: [-Math.cos((u + 0.5 / n) * Math.PI) * 0.36, 0, 0] });
+    if (k === 0 || k === n) continue;
+    if (season === 'summer') add(C.full, cone(0.32, 0.7, 3), [P.terra, P.lemon, P.teal, P.blush][(k + seed) % 4], { p: [x, y - 0.42, zz], r: [Math.PI, 0, 0], s: [1, 1, 0.12], fx: PAPER });
+    else add(C.full, sph(0.13, 6, 4), ['#FFE2A8', '#FF8FB1', '#9FE3FF', '#B8F28C'][(k + seed) % 4], { p: [x, y - 0.18, zz], s: [1, 1.3, 1], fx: GLOSS + 1 });
+  }
+}
+/** The Groves' tractor on button wheels, driving the farm lane behind the plots. */
+function tractor(d: District) {
+  const b = new Baker();
+  b.add(rbox(1.8, 0.9, 1.2, 0.25), '#C2453A', { p: [0.2, 1.0, 0] });
+  b.add(rbox(0.9, 1.1, 1.1, 0.2), '#C2453A', { p: [-0.6, 1.9, 0] });
+  b.add(rbox(1.0, 0.1, 1.3, 0.04), '#FFFDF6', { p: [-0.6, 2.5, 0] });
+  b.add(cyl(0.08, 0.08, 0.7, 6), '#5B5568', { p: [0.8, 1.8, 0.3] });
+  for (const s of [-1, 1]) {
+    // button wheels: big at the back, small at the front, with two holes each
+    b.add(cyl(0.75, 0.75, 0.35, 16), '#F6D33C', { p: [-0.6, 0.75, s * 0.75], r: [Math.PI / 2, 0, 0] });
+    b.add(cyl(0.4, 0.4, 0.3, 12), '#F6D33C', { p: [0.9, 0.4, s * 0.7], r: [Math.PI / 2, 0, 0] });
+    for (const dx of [-0.18, 0.18]) b.add(cyl(0.08, 0.08, 0.37, 6), '#8B5E3C', { p: [-0.6 + dx, 0.75, s * 0.75], r: [Math.PI / 2, 0, 0] });
+  }
+  return driver(b, 'drive:tractor', d.origin[0] + 4, d.origin[0] + d.cols * PLOT_SPACING - 4, d.origin[1] - 17, 1.6);
+}
+/** Hilltop's golf cart, puttering along the lane behind the north-side estates. */
+function golfCart(d: District) {
+  const b = new Baker();
+  b.add(rbox(2.2, 0.6, 1.2, 0.2), '#FFFDF6', { p: [0, 0.6, 0] });
+  b.add(rbox(0.8, 0.6, 1.1, 0.15), '#3F7F45', { p: [-0.3, 1.1, 0] });
+  for (const dx of [-0.9, 0.8]) for (const s of [-1, 1]) b.add(cyl(0.08, 0.08, 1.3, 5), '#FFFDF6', { p: [dx, 1.5, s * 0.5] });
+  b.add(rbox(2.4, 0.12, 1.4, 0.05), '#5B2A6E', { p: [0, 2.15, 0] });
+  for (const dx of [-0.7, 0.7]) for (const s of [-1, 1]) b.add(cyl(0.3, 0.3, 0.2, 10), '#2E2A4F', { p: [dx, 0.3, s * 0.6], r: [Math.PI / 2, 0, 0] });
+  b.add(cyl(0.2, 0.2, 0.8, 8), '#B5651D', { p: [-1.1, 1.0, 0.3], r: [0.2, 0, 0] }); // a golf bag
+  return driver(b, 'drive:cart', d.origin[0] + 4, d.origin[0] + d.cols * PLOT_SPACING - 4, d.origin[1] + 17, 1.2);
+}
+function driver(b: Baker, name: string, x0: number, x1: number, z: number, speed: number) {
+  const m = new THREE.Mesh(b.build(), kit().world);
+  m.name = name;
+  m.position.set(x0, 0, z);
+  m.castShadow = true;
+  Object.assign(m.userData, { x0, x1, speed });
+  return m;
+}
+/** A soap yacht moored off the Yacht Marina. */
+function yacht(d: District) {
+  const b = new Baker();
+  b.add(lumpy(rbox(5.5, 1.1, 2, 0.5), 0.03, 2, 7), '#FFFDF6', { p: [0, 0.4, 0], fx: GLOSS });
+  b.add(cone(1, 1.6, 8), '#FFFDF6', { p: [3.2, 0.4, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 1], fx: GLOSS });
+  b.add(rbox(2.4, 0.9, 1.5, 0.3), '#9ED3D6', { p: [-0.5, 1.4, 0], fx: GLOSS });
+  b.add(rbox(2.6, 0.12, 1.7, 0.05), '#5B2A6E', { p: [-0.5, 1.9, 0] });
+  b.add(box(5.6, 0.12, 2.05), '#5B2A6E', { p: [0, 0.75, 0] });
+  b.add(cyl(0.05, 0.05, 2.2, 5), P.chrome, { p: [-2.4, 2, 0], fx: GLOSS });
+  b.add(cone(0.35, 0.8, 3), '#C9A227', { p: [-2.1, 2.8, 0], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.15], fx: PAPER });
+  const marina = d.special.find((p) => p.name === 'Yacht Marina');
+  const m = new THREE.Mesh(b.build(), kit().world);
+  m.name = 'bob:yacht';
+  m.position.set(SEA_X + 7, -0.1, d.origin[1] + (marina?.side === 1 ? 10 : -10));
+  m.rotation.y = Math.PI / 2;
+  m.userData.y0 = -0.1;
+  m.castShadow = true;
+  return m;
+}
+/** Old Town's band on the bandstand: a tuba, a drum and a trumpet, each a small clay player. */
+function band(x: number, y: number, z: number, k: number) {
+  const g = new THREE.Group();
+  g.name = 'bob:band';
+  g.position.set(x, y, z);
+  g.scale.setScalar(k);
+  const cols = ['#C8325A', '#2E6FB0', '#3F7F45'];
+  for (let i = 0; i < 3; i++) {
+    const b = new Baker();
+    b.add(cap(0.32, 0.6, 3, 8), cols[i], { p: [0, 0.65, 0] });
+    b.add(sph(0.28, 10, 7), '#F2C29B', { p: [0, 1.45, 0] });
+    b.add(cyl(0.3, 0.32, 0.18, 10), '#FFFFFF', { p: [0, 1.75, 0] });
+    if (i === 0) b.add(tor(0.32, 0.1, 6, 14), P.gold, { p: [0, 0.8, 0.3], fx: GLOSS });
+    else if (i === 1) b.add(cyl(0.35, 0.35, 0.4, 12), '#FFFDF6', { p: [0, 0.6, 0.35], r: [Math.PI / 2, 0, 0] });
+    else b.add(cone(0.12, 0.6, 8, true), P.gold, { p: [0, 1.4, 0.45], r: [Math.PI / 2, 0, 0], fx: GLOSS });
+    const m = new THREE.Mesh(b.build(), kit().world);
+    const a = (i - 1) * 1.1;
+    const holder = new THREE.Group();
+    holder.position.set(Math.sin(a) * 1.6, 0, Math.cos(a) * 1.6 - 0.6);
+    holder.rotation.y = a;
+    m.castShadow = true;
+    holder.add(m);
+    g.add(holder);
+  }
+  return g;
 }
 
 /** Landmarks grow 1.5x so players navigate by them, and Bay View keeps their real silhouette. */
@@ -524,8 +755,8 @@ function landmark(name: string, x: number, z: number, f: number, C: Chunk, parts
     add(T.full, rbox(3, 0.6, 3, 0.2), '#F3DDA6', { p: [0, 0.2, f * 3] });
     add(T.full, cone(1.2, 2.2, 4), P.terra, { p: [3, 1.1, f * 2] });
   } else lighthouse(0, 0, T);
-  void parts;
   const k = LANDMARK_SCALE[name] ?? 1.5;
+  if (name === 'The Bandstand') { const g = band(x, 0.8 * k, z, k); g.rotation.y = f > 0 ? 0 : Math.PI; parts.push(g); }
   const m = new THREE.Matrix4().makeScale(k, k, k).setPosition(x, 0, z);
   const full = T.full.build();
   C.full.raw(full, m);
@@ -559,12 +790,13 @@ function beach(C: Chunk, d: District) {
       add(C.full, rbox(2, 1.2, 2, 0.15), '#FFFDF6', { p: [x, 3.2, zb] });
       add(C.full, rbox(2.4, 0.15, 2.4, 0.05), P.terra, { p: [x, 3.95, zb] });
       add(C.props, box(0.04, 1.5, 0.9), P.terra, { p: [x + 1.05, 2.2, zb], r: [0, 0, 0.3], fx: PAPER });
-    } else {
-      add(C.props, cyl(0.04, 0.04, 2.2, 5), P.cream, { p: [x, 1.0, zb], r: [0, 0, 0.12] });
-      for (let s = 0; s < 8; s++) add(C.props, new THREE.ConeGeometry(1.1, 0.5, 3, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? [P.terra, P.teal, P.lemon][k % 3] : P.cream, { p: [x - 0.13, 2.25, zb], fx: PAPER });
+    } else if (SEASON === 'summer') {
+      // umbrellas are a summer thing (the beach empties out in winter)
+      add(C.full, cyl(0.04, 0.04, 2.2, 5), P.cream, { p: [x, 1.0, zb], r: [0, 0, 0.12] });
+      for (let s = 0; s < 8; s++) add(C.full, new THREE.ConeGeometry(1.1, 0.5, 3, 1, true, (s / 8) * Math.PI * 2, Math.PI / 4), s % 2 ? [P.terra, P.teal, P.lemon][k % 3] : P.cream, { p: [x - 0.13, 2.25, zb], fx: PAPER });
       add(C.props, rbox(1, 0.04, 1.8, 0.02), [P.teal, P.blush, P.lemon][(k + 1) % 3], { p: [x + 1.2, 0.07, zb + 0.4], r: [0, 0.3, 0], fx: PAPER });
     }
-    if (k % 2) {
+    if (k % 2 && SEASON !== 'winter') {
       const sx = x + 3.5;
       add(C.props, cyl(0.45, 0.55, 0.45, 9), P.sand, { p: [sx, 0.22, zb + 1] });
       for (const [a, b] of [[-0.4, -0.3], [0.4, -0.3], [0, 0.4]]) add(C.props, cyl(0.2, 0.25, 0.6, 7), P.sand, { p: [sx + a, 0.5, zb + 1 + b] });

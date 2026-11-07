@@ -17,7 +17,7 @@ import { createStand, type Stand as StandModel } from './stand.ts';
 import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
-import { lemonsExpiringTomorrow, stock } from '../sim/economy.ts';
+import { lemonsExpiringTomorrow, seasonOf, stock } from '../sim/economy.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
 import { makeCrew, type Side } from './clay/cast.ts';
@@ -526,7 +526,7 @@ export function createBay(scene: THREE.Scene): Bay {
         for (const m of Object.values(farPatterns.meshes)) m.visible = level >= 2;
         farOutlines.visible = level >= 2;
       }
-      townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
+      townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day));
       const mf = Math.floor(time * 12);
       if (mf !== moverF && level < 2) {
         moverF = mf;

@@ -277,6 +277,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     door(M, 0, fz - 0.4, '#5B6470', 1.8, 1.9);
     M.add(lathe([[0, 0], [0.9, 0], [0.95, 1.6], [0.5, 2.6], [0.35, 3.4], [0.38, 3.6], [0, 3.6]], 16), tint('#C8102E'), { p: [0, H, fz - 3.5], fx: GLOSS });
     M.add(cyl(0.4, 0.4, 0.2, 12), own.accent, { p: [0, H + 3.7, fz - 3.5], fx: GLOSS });
+    medallion(M, owner, 0, 4.6, fz - 0.2, 1.5, 4.6);
     const g = M.done('hq');
     label(g, 'FIZZCO', 3, 0, 1.9, fz - 0.4, 0, '#FFFFFF', '#C8102E');
     return g;
@@ -293,6 +294,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     door(M, 0, fz - 0.4, own.main, 1.4, 2.6);
     for (const x of [-4.4, -2.5, 2.5, 4.4]) { window_(M, x, 1.8, fz - 0.42, 0.8, 1.2); window_(M, x, 3.9, fz - 0.42, 0.8, 1); }
     for (const x of [-4.8, 4.8]) { M.add(cyl(0.12, 0.15, 0.7, 6), P.walnut, { p: [x, 0.35, fz + 1.8] }); ball(M, 0.7, '#3F7F45', x, 1.2, fz + 1.8, x > 0 ? 3 : 4, 10); ball(M, 0.45, '#3F7F45', x, 2.1, fz + 1.8, 5, 8); }
+    medallion(M, owner, 0, 6.9, fz - 0.6, 1.2, 5.4);
     const g = M.done('hq');
     label(g, 'SOURWOOD MANOR', 4, 0, 4.9, fz - 0.4, 0, '#C9A227', '#5B2A6E');
     return g;
@@ -320,6 +322,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     M.add(lathe([[0, 0], [0.7, 0], [0.75, 1.6], [0.45, 1.85], [0, 1.85]], 16), '#E8B060', { p: [3.8, 0, fz + 1.4], fx: GLOSS });
     M.add(cyl(0.48, 0.48, 0.2, 14), own.accent, { p: [3.8, 1.95, fz + 1.4] });
     for (let k = 0; k < 3; k++) M.add(lumpy(rbox(1.3, 0.8, 0.8, 0.2), 0.04, 2, k), '#E8C36A', { p: [-3.8 + (k % 2) * 1.2, 0.4 + Math.floor(k / 2) * 0.8, fz + 1.5] });
+    medallion(M, owner, 0, 8.6, fz - 0.3, 1.1, 7.0);
     const g = M.done('hq');
     label(g, 'HOLLIS', 2.4, 0, 3.75, fz - 0.1, -0.03, '#FFFFFF', '#D64545');
     return g;
@@ -343,6 +346,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     M.add(new THREE.CylinderGeometry(1.4, 1.4, 2.6, 12, 1, true, Math.PI, Math.PI / 2), '#8B6B52', { p: [3.6, 1.4, fz + 1.5], r: [0, 0, Math.PI / 2], fx: PAPER });
     M.add(lathe([[0, 0], [0.55, 0], [0.75, 1.9], [0, 1.9]], 14), '#E8DCC4', { p: [-4, 5, fz - 4.5], fx: GLOSS });
     M.add(cyl(0.05, 0.05, 1.2, 6), '#FF4FA3', { p: [-3.8, 7.3, fz - 4.5], r: [0, 0, -0.3] });
+    medallion(M, owner, 0.6, 7.2, fz - 0.6, 1.2, 5.0);
     const g = M.done('hq');
     label(g, 'GRINDHOUSE', 3.4, 1.8, 3.4, fz - 0.38, 0.04, '#FF4FA3', '#E8DCC4');
     return g;
@@ -362,6 +366,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   // blender on the roof
   M.add(lathe([[0, 0], [0.6, 0], [0.7, 1.4], [0, 1.4]], 12), '#FFE0B0', { p: [-2.5, 4.6, fz - 4.5], fx: GLOSS });
   M.add(rbox(1.5, 0.6, 1.5, 0.15), '#00A6A6', { p: [-2.5, 4.4, fz - 4.5] });
+  medallion(M, owner, 1.6, 5.9, fz - 1.8, 1.0, 4.5);
   const g = M.done('hq');
   label(g, 'BLEND SHACK', 3.2, 0, 4.4, fz - 0.95, 0, '#00A6A6', '#FFF1D6');
   return g;
@@ -468,6 +473,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
       M.add(lathe([[0, 0], [0.13, 0], [0.13, 0.32], [0.06, 0.45], [0.06, 0.52], [0, 0.52]], 10), '#F6E27A', { p: [x, 0.75, 0.4], fx: GLOSS });
       M.add(cyl(0.065, 0.065, 0.06, 8), P.terra, { p: [x, 1.3, 0.4] });
     }
+    medallion(M, (owner ?? 'player') as RivalId | 'player', -0.6, h + 1.4, -1.3, 0.9, h);
     const g = M.done('facility');
     if (owner === 'player') label(g, "LOTTIE'S BOTTLING", 4, -0.6, h - 0.7, -1.18, -0.02);
     return g;
@@ -624,5 +630,69 @@ export function animatePart(o: THREE.Object3D, t: number, minute: number) {
     case 'spin:windmill': o.rotation.z = -t * 0.9; break;
     case 'sway:windsock': o.rotation.y = Math.sin(t * 0.7) * 0.5; o.rotation.z = Math.sin(t * 2.3) * 0.08; break;
     case 'sway:crane': o.rotation.y = Math.sin(t * 0.25) * 0.6; break;
+  }
+}
+
+// ---------------------------------------------------------------- pressed-clay medallions (spec "Logo and crate labels")
+/**
+ * A faction's logo as a pressed-clay medallion facing +z: the emblem on a sunburst, bordered
+ * in the owner's pattern colours, on a stick post down to `postTo` (the roof or wall it stands on).
+ */
+export function medallion(M: Model, owner: RivalId | 'player' | null, x: number, y: number, z: number, R = 1.1, postTo = y - R) {
+  const t = owner ? TILE_PATTERN[owner] : { main: '#A9A3B5', accent: '#D8D3DE' };
+  const face = (o: Opt) => ({ ...o, r: [Math.PI / 2, 0, 0] as [number, number, number] });
+  if (postTo < y - R) stick(M, x, postTo, y - R * 0.6, z - 0.12, 0.16);
+  // sunburst: card rays alternating cream and the owner's accent, behind a cream disc
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    M.add(cone(R * 0.24, R * 0.55, 3), k % 2 ? '#FFFDF6' : t.accent, { p: [x + Math.cos(a) * R * 1.02, y + Math.sin(a) * R * 1.02, z - 0.06], r: [0, 0, a - Math.PI / 2], s: [1, 1, 0.25], fx: PAPER });
+  }
+  M.add(cyl(R, R, 0.16, 20), '#FFF6DF', face({ p: [x, y, z] }));
+  // the border, beaded in the owner's main colour with accent studs
+  M.add(tor(R, R * 0.11, 6, 24), t.main, { p: [x, y, z + 0.08] });
+  for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2 + 0.2; M.add(sph(R * 0.08, 6, 4), t.accent, { p: [x + Math.cos(a) * R, y + Math.sin(a) * R, z + 0.16], fx: GLOSS }); }
+  const zf = z + 0.14, u = R / 1.1; // emblem scale
+  const eye = (ex: number, ey: number, shut = false) => M.add(shut ? box(0.18 * u, 0.05 * u, 0.04) : sph(0.07 * u, 6, 4), INK, { p: [x + ex * u, y + ey * u, zf + 0.22 * u], ...(shut ? { r: [0, 0, 0.25] as [number, number, number] } : {}) });
+  if (owner === 'player') {
+    // Lottie's smiling lemon in a sun hat
+    M.add(sph(0.55 * u, 12, 8), '#F6D33C', { p: [x, y - 0.1 * u, zf], s: [1.25, 1, 0.55] });
+    M.add(cyl(0.75 * u, 0.75 * u, 0.05, 16), '#F3DDA6', { p: [x, y + 0.38 * u, zf], r: [0.35, 0, 0], fx: PAPER });
+    M.add(sph(0.36 * u, 10, 6), '#F3DDA6', { p: [x, y + 0.42 * u, zf - 0.05], s: [1, 0.6, 0.8], fx: PAPER });
+    M.add(tor(0.36 * u, 0.05 * u, 4, 14), P.terra, { p: [x, y + 0.42 * u, zf - 0.05], r: [Math.PI / 2, 0, 0] });
+    eye(-0.18, -0.05); eye(0.18, -0.05);
+    M.add(tor(0.13 * u, 0.03 * u, 4, 10, Math.PI), INK, { p: [x, y - 0.2 * u, zf + 0.26 * u], r: [0, 0, Math.PI] });
+  } else if (owner === 'fizzco') {
+    // a winking soda bottle
+    M.add(lathe([[0, 0], [0.26, 0], [0.28, 0.5], [0.12, 0.85], [0.1, 1.05], [0, 1.05]], 12), '#C8102E', { p: [x, y - 0.6 * u, zf], s: [u, u, u * 0.6], fx: GLOSS });
+    M.add(cyl(0.29 * u, 0.29 * u, 0.25 * u, 12), '#FFFDF6', { p: [x, y - 0.25 * u, zf] });
+    eye(-0.1, -0.24); eye(0.1, -0.24, true);
+  } else if (owner === 'sourwood') {
+    // a lemon in pearls and a monocle
+    M.add(sph(0.5 * u, 12, 8), '#F6D33C', { p: [x, y + 0.05 * u, zf], s: [1.3, 1, 0.55] });
+    for (let k = 0; k < 9; k++) { const a = Math.PI * 1.15 + (k / 8) * Math.PI * 0.7; M.add(sph(0.06 * u, 6, 4), '#FFFDF6', { p: [x + Math.cos(a) * 0.55 * u, y - 0.08 * u + Math.sin(a) * 0.4 * u, zf + 0.22 * u], fx: GLOSS }); }
+    eye(-0.18, 0.1); M.add(tor(0.13 * u, 0.03 * u, 4, 14), '#C9A227', { p: [x + 0.18 * u, y + 0.1 * u, zf + 0.25 * u], fx: GLOSS }); eye(0.18, 0.1);
+  } else if (owner === 'hollis') {
+    // a tea jar crossed with a ladle
+    M.add(box(0.08 * u, 1.3 * u, 0.06), P.walnut, { p: [x, y, zf + 0.05], r: [0, 0, 0.7] });
+    M.add(sph(0.16 * u, 8, 5), P.walnut, { p: [x + 0.45 * u, y - 0.5 * u, zf + 0.05], s: [1, 1, 0.5] });
+    M.add(lathe([[0, 0], [0.32, 0], [0.34, 0.55], [0.22, 0.68], [0, 0.68]], 12), '#E8B060', { p: [x - 0.05 * u, y - 0.42 * u, zf + 0.08], s: [u, u, u * 0.6], fx: GLOSS });
+    M.add(cyl(0.24 * u, 0.24 * u, 0.1 * u, 12), '#D64545', { p: [x - 0.05 * u, y + 0.3 * u, zf + 0.08] });
+  } else if (owner === 'coldbrew') {
+    // a sleepy coffee bean
+    M.add(sph(0.5 * u, 12, 8), '#6B4226', { p: [x, y, zf], s: [0.8, 1.15, 0.5], r: [0, 0, 0.4] });
+    M.add(box(0.06 * u, 0.9 * u, 0.06), '#3B2A20', { p: [x + 0.06 * u, y, zf + 0.25 * u], r: [0, 0, 0.55] });
+    eye(-0.2, 0.12, true); eye(0.22, 0.02, true);
+    M.add(sph(0.06 * u, 6, 4), '#FF4FA3', { p: [x + 0.5 * u, y + 0.45 * u, zf + 0.1] }); // a "z"
+  } else if (owner === 'blenders') {
+    // a flexing smoothie cup on a wave
+    const wave: [number, number, number][] = [];
+    for (let k = 0; k <= 10; k++) wave.push([x - 0.7 * u + k * 0.14 * u, y - 0.55 * u + Math.sin(k * 1.1) * 0.08 * u, zf + 0.05]);
+    M.add(snake(wave, 0.07 * u, 20, 5), '#00A6A6');
+    M.add(lathe([[0, 0], [0.22, 0], [0.32, 0.8], [0, 0.8]], 12), '#FF9F1C', { p: [x, y - 0.45 * u, zf], s: [u, u, u * 0.6] });
+    M.add(cyl(0.02 * u, 0.02 * u, 0.5 * u, 4), '#00A6A6', { p: [x + 0.1 * u, y + 0.5 * u, zf], r: [0, 0, -0.3] });
+    for (const s of [-1, 1]) M.add(cap(0.07 * u, 0.3 * u, 3, 6), '#FF9F1C', { p: [x + s * 0.4 * u, y + 0.05 * u, zf + 0.05], r: [0, 0, s * -0.9] }), M.add(sph(0.11 * u, 6, 4), '#FF9F1C', { p: [x + s * 0.48 * u, y + 0.28 * u, zf + 0.05] });
+    eye(-0.09, -0.05); eye(0.09, -0.05);
+  } else {
+    M.add(sph(0.4 * u, 10, 6), '#B9B4C4', { p: [x, y, zf], s: [1, 1, 0.5] });
   }
 }

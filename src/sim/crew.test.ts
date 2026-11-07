@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, buyGadget, buyPerimeter, canHire, equip, hireGuard, LOTTIES_CORNER, newGame, openStand, planRaid, raidOdds,
-  raidTargets, rebuildCost, rebuildStand, simulateRestOfDay, sleepUntilDawn, threatLevel, welcomeDex, type GameState,
+  raidTargets, rebuildCost, rebuildStand, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport,
+  type GameState,
 } from './economy.ts';
 
 function playDay(s: GameState) {
@@ -68,13 +69,16 @@ describe('crew and raids', () => {
     const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!;
     const ids = s.guards.map((g) => g.id);
     expect(raidOdds(s, target.id, ids, 'smash', false)).toBeGreaterThan(0.8);
-    const report = planRaid(s, target.id, ids, 'smash', 'now');
-    expect(typeof report).toBe('object');
-    if (typeof report === 'object' && report.outcome === 'smashed') {
+    expect(planRaid(s, target.id, ids, 'smash', 'now')).toBe(true); // the squad travels (nights): it fights on arrival
+    openStand(s);
+    let report: BattleReport | undefined;
+    while (!report && s.phase === 'open') for (const e of tickMinute(s)) if (e.type === 'fight') report = e.report;
+    expect(report).toBeDefined();
+    if (report?.outcome === 'smashed') {
       expect(s.plots[target.id].stand!.wrecked).toBe(true);
-      openStand(s);
+      const sold = s.plots[target.id].stand!.day.customers;
       simulateRestOfDay(s);
-      expect(s.plots[target.id].stand!.day.customers).toBe(0);
+      expect(s.plots[target.id].stand!.day.customers).toBe(sold);
     }
   });
 

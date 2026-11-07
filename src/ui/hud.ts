@@ -32,6 +32,7 @@ import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
 import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
+import { tripLines, tripNote } from './trips.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -669,10 +670,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   function tonight(s: GameState) {
     // Rival raids warn as they set out, on cards in the alert feed (src/ui/alerts.ts); the Ledger lists your own.
-    const mine = s.raids.filter((r) => r.attacker === 'player');
-    if (!mine.length) return '';
-    const out = mine.map((r) => `<div class="cl-raidwarn mine" title="Your crew raids ${esc(PLOT_BY_ID[r.target].name)} tonight (${r.objective})">${ART.raid()}<b>Raid tonight: ${r.guards!.length}</b></div>`).join('');
-    return `<div class="cl-tonight">${out}</div>`;
+    const out = tripLines(s);
+    return out.length ? `<div class="cl-tonight">${out.join('')}</div>` : '';
   }
 
   function fightLine(b: GameState['battles'][number]) {
@@ -775,6 +774,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-acts">${obj('smash', ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', ART.moneyBag(), 'Shakedown', "Grab about a day's takings")}</div>
       ${squadPicker(s)}
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
+      ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       <div class="cl-acts">${btn('raid', `${ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight" title="${Math.round(night * 100)}% to win"`, 'go')}
       ${s.phase === 'report' || s.phase === 'night' ? '' : btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;

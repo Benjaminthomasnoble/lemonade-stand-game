@@ -16,7 +16,7 @@ import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, isVip } from './sim/economy.ts';
+import { bySea, clockText, isVip } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { AUTO_CONTINUE_SECONDS, autoPauses, loadOptions, saveOptions, TEXT_SIZES, type Options, type PauseKind } from './settings.ts';
@@ -435,7 +435,10 @@ async function main() {
       case 'raid': {
         const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
         if (typeof r === 'object') { hud.inspected = null; playBattle(r); }
-        else if (r) hud.toast(`Raid planned for tonight on ${PLOT_BY_ID[a.plot].name}.`);
+        else if (r) { // the squad travels: it fights when it gets there
+          const out = state.raids.find((x) => x.attacker === 'player' && x.target === a.plot && x.back === undefined);
+          hud.toast(out ? `Squad out ${clockText(out.leave!)}, there ~${clockText(out.at!)}.` : `Raid planned on ${PLOT_BY_ID[a.plot].name}.`);
+        }
         break;
       }
       case 'truce': makeTruce(state, a.rival); break;

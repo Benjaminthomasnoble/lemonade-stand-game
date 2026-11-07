@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, raidPartyFor, startNight, type GameState, type Raid } from '../sim/economy.ts';
+import {
+  alert, clockText, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, planRaid, raidPartyFor, raidTargets, squadTrip, startNight,
+  type GameState, type Guard, type Raid,
+} from '../sim/economy.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
+import { span, tripLines, tripNote } from './trips.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
 
@@ -98,5 +102,56 @@ describe('the Options screen', () => {
     expect(html).toContain('data-value="150"');
     const off = optionsScreen({ ...DEFAULT_OPTIONS, autoPause: false, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     expect(off).not.toContain('data-key="pause.vip"'); // the master switch off: the rest have nothing to do
+  });
+});
+
+describe('VIP cards', () => {
+  it("a first arrival's card offers Watch up front; a regular's small card offers it too", () => {
+    const s = newGame(3);
+    const scene = { kind: 'ship', big: false, client: 'Gulfstream Grocers' } as const;
+    alert(s, { kind: 'vip', text: 'First ship in: Gulfstream Grocers!', plot: LOTTIES_CORNER, order: 'o1', scene });
+    alert(s, { kind: 'pickup', text: 'Ship in: Gulfstream Grocers', plot: LOTTIES_CORNER, order: 'o2', scene }, false);
+    const [regular, first] = alertCards(s);
+    expect(first).toContain('data-testid="vip-watch"');
+    expect(first).toContain('cl-b tiny go" data-action="watch"');
+    expect(regular).toContain('data-action="watch"');
+    expect(regular).not.toContain('tiny go" data-action="watch"');
+    expect(regular).toContain('data-action="goto"');
+  });
+});
+
+describe('your raids on the Planner and the Evening', () => {
+  const crew = (n: number, post: string | null): Guard[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `g${i}`, name: `Test ${i}`, trait: 'Loyal', level: 5, xp: 0, weapon: 'hatchets', gear: 'pro', post, outUntil: 0, fee: 0 }) as Guard);
+
+  it('the Planner shows the walk each way and the posts left empty till about when', () => {
+    const s = newGame(4);
+    s.rank = 6;
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.guards = [...crew(2, LOTTIES_CORNER), ...crew(3, null).slice(2)];
+    const target = raidTargets(s)[0].id;
+    const t = squadTrip(s, target, 'tonight');
+    const note = tripNote(s, target, ['g0', 'g1', 'g2']);
+    expect(note).toContain(`${span(t.travel)} each way`);
+    expect(note).toContain(`2 posts empty till ~${clockText(t.back)}`); // g2 has no post to leave
+    expect(tripNote(s, target, ['g2'])).not.toContain('raid-posts');
+    expect(span(90)).toBe('1h 30m');
+    expect(span(120)).toBe('2h');
+  });
+
+  it("the Evening lists each raid out with its arrival, and a squad walking home with when it's in", () => {
+    const s = newGame(4);
+    s.rank = 6;
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.guards = crew(2, LOTTIES_CORNER);
+    const target = raidTargets(s)[0].id;
+    planRaid(s, target, ['g0'], 'smash', 'tonight');
+    const [out] = tripLines(s);
+    expect(out).toContain(clockText(s.raids[0].at!));
+    s.raids.push({ id: 'home', attacker: 'player', target, objective: 'smash', guards: ['g1'], detected: true, eta: '19:00', leave: 17 * 60, at: 19 * 60, launched: true, back: 21 * 60 });
+    expect(tripLines(s)).toHaveLength(2);
+    expect(tripLines(s)[1]).toContain(`Home ~${clockText(21 * 60)}`);
   });
 });

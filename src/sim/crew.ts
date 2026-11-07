@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
+  CLUBHOUSE, COMBAT, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
   RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
@@ -17,7 +17,7 @@ import { FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, peaceful } from './modes.ts';
-import { etaMinute, hhmm, raidStart, travelMinutes } from './night.ts';
+import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 
 export interface Guard {
@@ -49,6 +49,7 @@ export interface Raid {
   warnAt?: number; // the warning lands (a detected raid as it sets out, else the minimum notice before it hits)
   launched?: boolean; // has set out (detection rolled)
   warned?: boolean; // the warning has landed
+  back?: number; // your raid: fought, and the squad walks home by this minute (their posts sit empty till then)
   order?: string; // a Delivery Raid: the VIP order it's after
 }
 
@@ -411,14 +412,7 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   if (!canRaid(s, plotId, guardIds).ok) return false;
   const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective, guards: guardIds, detected: false, eta: '' };
   breakTruce(s, s.plots[plotId].owner as RivalId);
-  if (when === 'tonight') {
-    raid.eta = '01:00';
-    s.raids.push(raid);
-    return true;
-  }
-  // A daytime raid: customers see it.
-  s.reputation = Math.max(1, Math.round((s.reputation - (objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid)) * 100) / 100);
-  return fightRaid(s, raid, false);
+  return sendRaid(s, raid, when); // nights: the squad travels; a raid fought in business hours costs Reputation then
 }
 
 // ---------- rival raids and the night ----------
@@ -482,7 +476,7 @@ export function resolveNight(s: GameState): void {
   const ord = (r: Raid) => r.at ?? etaMinute(r.eta);
   const left = s.raids.map((r, i) => ({ r, i })).sort((a, b) => ord(a.r) - ord(b.r) || a.i - b.i).map(({ r }) => r);
   for (const r of left) {
-    if (!s.raids.includes(r)) continue;
+    if (!s.raids.includes(r) || onTheRoad(r)) continue; // nights: your squad carries on into the morning
     s.raids = s.raids.filter((x) => x !== r);
     fightRaid(s, r, true);
   }

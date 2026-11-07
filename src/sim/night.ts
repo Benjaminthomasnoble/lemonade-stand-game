@@ -5,21 +5,24 @@
 // 1–3 game hours by distance. A detected raid warns as it sets out, with its
 // full ETA; an undetected one warns at the difficulty's minimum notice (30, 15
 // or 5 game minutes). Raids are fought one by one at their arrival minute, in
-// ETA order. Daytime raids (Delivery Raids on a VIP pickup) run on the same
-// timeline during business hours. Pure and seeded, like the rest of the sim.
+// ETA order. Daytime raids (Delivery Raids on a VIP pickup, your raids sent
+// now) run on the same timeline during business hours. Your squads travel
+// both ways: their posts sit empty from departure until they're home.
+// Pure and seeded, like the rest of the sim.
 import {
-  CLOSE, DAWN, DELIVERY_WINDOW, DIFFICULTY, FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, MINUTES_PER_DAY, NIGHT_END,
-  NIGHT_REAL_SECONDS_PER_MINUTE, PLAYER_RAID_AT, QUIET_NIGHT_SPEED, RAID_TRAVEL, REAL_SECONDS_PER_MINUTE, type RivalId,
+  CLOSE, DAWN, DAYTIME_RAID_REP, DELIVERY_WINDOW, FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, GRAPEVINE_EARLY, MINUTES_PER_DAY,
+  NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, OPEN, PLAYER_RAID_LEAVE, QUIET_NIGHT_SPEED, RAID_FIGHT_GUESS, RAID_TRAVEL,
+  REAL_SECONDS_PER_MINUTE, type RivalId,
 } from './balance.ts';
-import { PLOT_BY_ID, PLOTS } from './map.ts';
+import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { servingsAvailable } from './economy.ts';
-import { detectionChance, fightRaid, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { detectionChance, fightRaid, guardReady, hasBuilding, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, type Order, type Pickup } from './vip.ts';
-import { hqPlot } from './rivals.ts';
-import { peaceful } from './modes.ts';
+import { hasTrophy, hqPlot } from './rivals.ts';
+import { difficulty, peaceful } from './modes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -28,7 +31,7 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** "01:30" as a minute of the night: past midnight counts on from 1,440. */
 export function etaMinute(eta: string): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec(eta);
-  if (!m) return PLAYER_RAID_AT;
+  if (!m) return PLAYER_RAID_LEAVE;
   const t = Number(m[1]) * 60 + Number(m[2]);
   return t < DAWN ? t + MINUTES_PER_DAY : t;
 }
@@ -42,7 +45,7 @@ export function clockText(minute: number): string {
 }
 
 /** The difficulty's minimum warning for an undetected raid, in game minutes. */
-export const raidNotice = (s: GameState) => DIFFICULTY[s.settings.difficulty].notice;
+export const raidNotice = (s: GameState) => difficulty(s).notice;
 
 /** Real seconds per game minute right now; Infinity while the clock stands still.
  * Business hours run at about 18 real seconds a game hour and the night at 8, both divided by the speed. A brawl
@@ -86,28 +89,95 @@ export function raidStart(s: GameState, rival: RivalId, target: string): string 
   return best;
 }
 
+/** Where your squad sets out from and walks home to: your Clubhouse nearest the target, else Lottie's Corner. */
+export function squadHome(s: GameState, target: string): string {
+  const t = PLOT_BY_ID[target];
+  let best = LOTTIES_CORNER, d = Infinity;
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (ps.owner !== 'player' || (ps.facility?.kind as string) !== 'clubhouse') continue; // combat's Clubhouse on a plot
+    const dd = Math.hypot(p.x - t.x, p.z - t.z);
+    if (dd < d) { d = dd; best = p.id; }
+  }
+  return best;
+}
+
+/** Your raid's trip: when it sets out, when it hits, and about when the squad is home (the fight's length is a guess
+ * until it's fought). Tonight's raids leave at 01:00 (straight away later in the night); one sent now leaves now,
+ * or as the stands open when it's sent at Morning Prep. */
+export function squadTrip(s: GameState, target: string, when: 'now' | 'tonight'): { leave: number; at: number; back: number; travel: number } {
+  const leave = when === 'tonight' ? Math.max(PLAYER_RAID_LEAVE, s.phase === 'night' ? s.minute : 0) : Math.max(s.minute, OPEN);
+  const travel = travelMinutes(s, squadHome(s, target), target);
+  return { leave, at: leave + travel, back: leave + travel + RAID_FIGHT_GUESS + travel, travel };
+}
+
+/** planRaid hands its raid here: it goes on the clock and travels; nothing is fought until it arrives. */
+export function sendRaid(s: GameState, raid: Raid, when: 'now' | 'tonight'): true {
+  const t = squadTrip(s, raid.target, when);
+  raid.leave = t.leave;
+  raid.at = t.at;
+  raid.eta = hhmm(t.at);
+  s.raids.push(raid);
+  return true;
+}
+
+/** One of your raids has set out (or fought, and the squad is walking home): its guards are away from their posts. */
+const setOut = (s: GameState, r: Raid) => r.attacker === 'player' && (r.back !== undefined || (r.leave ?? 0) <= s.minute);
+/** Guards out on one of your raids right now (travelling, fighting or walking home): their posts sit empty. */
+export const awayGuards = (s: GameState) => new Set(s.raids.filter((r) => setOut(s, r)).flatMap((r) => r.guards ?? []));
+
+/** The posts a squad would leave empty, for the Raid Planner: each guard who stands one. */
+export const emptyPosts = (s: GameState, guardIds: string[]) =>
+  s.guards.filter((g) => guardIds.includes(g.id) && g.post && s.plots[g.post]?.owner === 'player');
+
 // ---------- the timeline ----------
 
 /** A rival raid on one of your plots: these are always warned. */
 export const onYou = (s: GameState, r: Raid) => r.attacker !== 'player' && s.plots[r.target]?.owner === 'player';
 
-/** Raids planned with only an eta (your 'tonight' raids, old saves) get their minutes. */
+/** Raids planned with only an eta (old saves) get their minutes. */
 function fillTimes(s: GameState, r: Raid): void {
   if (r.at !== undefined && r.leave !== undefined) return;
   r.at ??= etaMinute(r.eta);
   r.leave ??= r.attacker === 'player' ? r.at : Math.max(Math.min(r.at, CLOSE), r.at - travelMinutes(s, raidStart(s, r.attacker as RivalId, r.target), r.target));
 }
 
-/** The raid sets out: detection is rolled now, against the target's alarms, lookouts and lights. */
+/** Juni's Grapevine (the Cold Brew trophy): word of a raid on you, Delivery Raids included, comes an hour sooner. */
+const early = (s: GameState, r: Raid) => (onYou(s, r) && hasTrophy(s, 'coldbrew') ? GRAPEVINE_EARLY : 0);
+
+/** When a raid on you is warned: a detected one as it sets out, with its full ETA; an undetected one at the minimum
+ * notice before it hits. The Grapevine moves either an hour earlier. */
+const warnMinute = (s: GameState, r: Raid) => (r.detected ? r.leave! : Math.max(r.leave!, r.at! - raidNotice(s))) - early(s, r);
+
+/** The raid sets out (a raid on you is rolled an hour early with the Grapevine): detection is rolled against the
+ * target's alarms, lookouts and lights. Your own squad musters: anyone KO'd, gone or still out on another raid stays
+ * behind, and with nobody fit to go the raid is called off (no fight, no Grudge). */
 function launch(s: GameState, r: Raid): void {
   r.launched = true;
+  if (r.attacker === 'player') { muster(s, r); return; }
   if (!onYou(s, r)) return;
   if (!r.detected) {
     const rng = { seed: s.seed };
     r.detected = nextRandom(rng) < detectionChance(s, r.target, s.phase === 'night');
     s.seed = rng.seed;
   }
-  r.warnAt = r.detected ? r.leave! : Math.max(r.leave!, r.at! - raidNotice(s));
+  r.warnAt = Math.max(s.minute, warnMinute(s, r));
+}
+
+function muster(s: GameState, r: Raid): void {
+  const busy = new Set(s.raids.filter((x) => x !== r && x.attacker === 'player' && x.launched).flatMap((x) => x.guards ?? []));
+  r.guards = (r.guards ?? []).filter((id) => { const g = s.guards.find((x) => x.id === id); return !!g && guardReady(s, g) && !busy.has(id); });
+  if (r.guards.length) return;
+  s.raids = s.raids.filter((x) => x !== r);
+  s.news.push(`Raid on ${PLOT_BY_ID[r.target].name} called off: nobody fit to go.`);
+}
+
+/** After the fight your squad walks home the same way, carrying anyone KO'd; their posts fill again as they arrive.
+ * Customers see a raid fought in business hours: it costs Reputation (night raids cost nothing). */
+function homeward(s: GameState, r: Raid, report: BattleReport, daytime: boolean): void {
+  if (daytime) s.reputation = Math.max(1, Math.round((s.reputation - (r.objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid)) * 100) / 100);
+  r.back = s.minute + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target), r.target);
+  s.raids.push(r);
 }
 
 function warn(s: GameState, r: Raid): SimEvent {
@@ -123,27 +193,43 @@ function warn(s: GameState, r: Raid): SimEvent {
 /** The raid arrives and the fight is fought (instantly, then replayed, until combat's live fights merge: startFight). */
 function arrive(s: GameState, r: Raid): BattleReport {
   const rest = s.raids.filter((x) => x !== r);
-  // Guards on one of your raids are away only once it has set out (they defend their posts until then).
-  s.raids = rest.filter((x) => x.attacker !== 'player' || (x.leave ?? 0) <= s.minute);
-  const report = fightRaid(s, r, s.phase === 'night');
-  s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && (x.leave ?? 0) > s.minute));
+  // Guards on one of your raids are away once it has set out, until they're home (they defend their posts till then).
+  s.raids = rest.filter((x) => x.attacker !== 'player' || setOut(s, x));
+  const daytime = s.phase === 'open';
+  const report = fightRaid(s, r, !daytime);
+  s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && !setOut(s, x)));
+  if (r.attacker === 'player') homeward(s, r, report, daytime);
   if (r.delivery && r.order) settle(s, r.order, report);
   return report;
 }
 
-/** Everything due by now on the raid clock: launches, warnings and arrivals (in ETA order). */
+/** Your squad gets there and the stand is gone (smashed by someone else, sold, or its owner went under): they walk
+ * home again, no fight and no Grudge. */
+function nothingThere(s: GameState, r: Raid): boolean {
+  const ps = s.plots[r.target];
+  if (ps.owner && ps.owner !== 'player' && hasBuilding(ps)) return false;
+  r.back = s.minute + Math.max(0, s.minute - r.leave!);
+  s.news.push(`Your squad found nothing to raid at ${PLOT_BY_ID[r.target].name} and turned back.`);
+  return true;
+}
+
+/** Everything due by now on the raid clock: squads home, launches, warnings and arrivals (in ETA order). */
 function raidClock(s: GameState): SimEvent[] {
   const ev: SimEvent[] = [];
   const now = s.minute;
-  for (const r of s.raids) {
+  s.raids = s.raids.filter((r) => r.back === undefined || r.back > now); // home: their posts fill again
+  const out = s.raids.filter((r) => r.back === undefined); // the rest are walking home
+  for (const r of out) {
     fillTimes(s, r);
-    if (!r.launched && r.leave! <= now) launch(s, r);
+    if (!r.launched && r.leave! - early(s, r) <= now) launch(s, r);
     if (r.launched && !r.warned && onYou(s, r) && (r.warnAt ?? r.leave!) <= now) ev.push(warn(s, r));
   }
-  const due = s.raids.map((r, i) => ({ r, i })).filter(({ r }) => r.at! <= now).sort((a, b) => a.r.at! - b.r.at! || a.i - b.i);
+  const due = out.map((r, i) => ({ r, i })).filter(({ r }) => r.at! <= now).sort((a, b) => a.r.at! - b.r.at! || a.i - b.i);
   for (const { r } of due) {
-    if (!s.raids.includes(r)) continue; // called off (a truce, or the rival went under)
+    if (!s.raids.includes(r)) continue; // called off (a truce, the rival went under, or nobody fit to go)
     if (!r.launched) launch(s, r);
+    if (!s.raids.includes(r)) continue;
+    if (r.attacker === 'player' && nothingThere(s, r)) continue;
     if (!r.warned && onYou(s, r)) ev.push(warn(s, r)); // every raid on you is warned, even a late one
     ev.push({ type: 'fight', raid: r, report: arrive(s, r) });
   }
@@ -219,10 +305,27 @@ export function runNight(s: GameState, stopAtAlerts = false, out?: SimEvent[]): 
   return true;
 }
 
-/** Dawn: last night's cards have had their moment (the morning feed lists the fights). */
+/** One of your squads still on the road at dawn: walking home, or sent so late it gets there after 07:00. Dawn
+ * doesn't fight it (crew's resolveNight); it carries on into the morning. */
+export const onTheRoad = (r: Raid) => r.attacker === 'player' && (r.back !== undefined || (r.at ?? 0) > NIGHT_END);
+
+/** Dawn: last night's cards have had their moment (the morning feed lists the fights). A squad still on the road
+ * carries on this morning (the clock starts a new day): it gets home, or gets there and fights in daylight. */
 export function nightsAtDawn(s: GameState): void {
   s.alerts = (s.alerts ?? []).filter((a) => a.day >= s.day);
+  for (const r of s.raids) {
+    if (!onTheRoad(r)) continue;
+    if (r.back !== undefined) r.back -= MINUTES_PER_DAY;
+    r.leave = (r.leave ?? 0) - MINUTES_PER_DAY;
+    r.at = (r.at ?? 0) - MINUTES_PER_DAY;
+  }
+  s.raids = s.raids.filter((r) => r.back === undefined || r.back > DAWN);
 }
+
+/** Your raids still travelling to their target (not yet fought): the ones Tonight lists. */
+export const raidsOut = (s: GameState) => s.raids.filter((r) => r.attacker === 'player' && r.back === undefined);
+/** Your squads walking home from a fight, and when each gets in. */
+export const squadsHomeward = (s: GameState) => s.raids.filter((r) => r.attacker === 'player' && r.back !== undefined);
 
 // ---------- Delivery Raids ----------
 
@@ -283,6 +386,6 @@ export function migrateNights(s: GameState): void {
     if (r.at !== undefined) continue;
     fillTimes(s, r);
     r.launched = true;
-    if (onYou(s, r)) r.warnAt = r.detected ? r.leave : Math.max(r.leave!, r.at! - raidNotice(s));
+    if (onYou(s, r)) r.warnAt = warnMinute(s, r);
   }
 }

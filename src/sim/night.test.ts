@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alert, buildFacility, clientOf, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
+  alert, buildFacility, clientOf, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
   etaMinute, FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, isMajor, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame,
   NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS,
   QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
-  type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
+  awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
+  type BattleReport, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
@@ -97,16 +98,19 @@ describe('the night on the clock', () => {
     expect(s.raids).toEqual([]);
   });
 
-  it('your raid tonight sets out at 01:00', () => {
+  it('your raid tonight sets out at 01:00 and fights when it gets there', () => {
     const s = evening(8);
     s.rank = 6;
     s.guards = crew(3, null);
     const target = raidTargets(s)[0];
     expect(planRaid(s, target.id, ['g0', 'g1'], 'smash', 'tonight')).toBe(true);
+    const r = s.raids[0];
+    const trip = travelMinutes(s, LOTTIES_CORNER, target.id);
+    expect([r.leave, r.at, r.eta]).toEqual([25 * 60, 25 * 60 + trip, hhmm(25 * 60 + trip)]);
     let at = 0;
     startNight(s);
     while (s.phase === 'night') for (const e of tickMinute(s)) if (e.type === 'fight' && e.raid.attacker === 'player') at = s.minute;
-    expect(clockText(at)).toBe('1:00am');
+    expect(at).toBe(25 * 60 + trip);
     expect(s.battles[0]).toMatchObject({ attacker: 'player', target: target.id });
   });
 
@@ -398,6 +402,177 @@ describe('VIP first arrivals', () => {
     const ev = simulateRestOfDay(s);
     expect(ev.some((e) => e.type === 'pickup' && e.order.id === 'd-2' && e.ok)).toBe(true);
     expect(vipCards(ev)).toEqual([]);
+  });
+});
+
+describe('your raids travel', () => {
+  /** Rank 6, the Evening of Day 8: three level-5 guards posted at Lottie's Corner, and a rival stand to hit. */
+  function crewed(seed: number) {
+    const s = evening(seed);
+    s.day = 8;
+    s.rank = 6;
+    s.guards = crew(3, LOTTIES_CORNER);
+    const target = raidTargets(s)[0].id;
+    return { s, target, trip: travelMinutes(s, LOTTIES_CORNER, target) };
+  }
+  /** Run the clock through the night (from the Evening): each fight's minute and report, by raid. */
+  function night(s: GameState, each?: () => void) {
+    const fights: Record<string, { minute: number; report: BattleReport }> = {};
+    startNight(s);
+    while (s.phase === 'night') { for (const e of tickMinute(s)) if (e.type === 'fight') fights[e.raid.id] = { minute: s.minute, report: e.report }; each?.(); }
+    return fights;
+  }
+  const ids = (b: BattleReport) => b.defenders.map((f) => f.id).sort();
+
+  it('about 1.5 game hours from Maple Row to the Boardwalk, and 1–3 hours each way anywhere', () => {
+    const s = newGame(1);
+    const pier = PLOTS.find((p) => p.district === 'boardwalk' && p.type === 'landmark')!;
+    const t = Math.min(...PLOTS.filter((p) => p.district === 'maple').map((p) => travelMinutes(s, p.id, pier.id)));
+    expect(t).toBeGreaterThanOrEqual(85);
+    expect(t).toBeLessThanOrEqual(100);
+    const { s: c, target, trip } = crewed(2);
+    expect(squadTrip(c, target, 'tonight')).toEqual({ leave: 25 * 60, at: 25 * 60 + trip, back: 25 * 60 + 2 * trip + RAID_FIGHT_GUESS, travel: trip });
+    expect(squadHome(c, target)).toBe(LOTTIES_CORNER); // no Clubhouse on a plot yet
+  });
+
+  it("tonight's squad leaves its posts at 01:00; a raid on them meanwhile finds them empty until the squad is home", () => {
+    const { s, target, trip } = crewed(4);
+    expect(planRaid(s, target, ['g0', 'g1'], 'shakedown', 'tonight')).toBe(true);
+    const mine = s.raids[0];
+    const before = raidOn(s, 23 * 60, 24 * 60 + 30); // 00:30, before they set out
+    const during = raidOn(s, 25 * 60 + trip - 30, 25 * 60 + trip + 30); // while they're out
+    const awayAt: Record<number, string[]> = {};
+    const fights = night(s, () => { if ([24 * 60 + 59, 25 * 60].includes(s.minute)) awayAt[s.minute] = [...awayGuards(s)].sort(); });
+    expect(awayAt).toEqual({ [24 * 60 + 59]: [], [25 * 60]: ['g0', 'g1'] });
+    expect(fights[mine.id].minute).toBe(25 * 60 + trip);
+    expect(ids(fights[before.id].report)).toEqual(['g0', 'g1', 'g2']);
+    expect(ids(fights[during.id].report)).toEqual(['g2']);
+    expect(mine.back).toBe(25 * 60 + trip + Math.ceil(fights[mine.id].report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + trip);
+    expect(s.raids.includes(mine) ? mine.back! > DAWN : true).toBe(true); // home by dawn, or in this morning (below)
+  });
+
+  it('a raid sent now leaves as the stands open, fights on arrival, and costs Reputation only then', () => {
+    const { s, target, trip } = crewed(5);
+    s.phase = 'prep';
+    s.minute = DAWN;
+    const rep = s.reputation;
+    expect(planRaid(s, target, ['g0', 'g1'], 'smash', 'now')).toBe(true);
+    const r = s.raids[0];
+    expect([r.leave, r.at]).toEqual([OPEN, OPEN + trip]);
+    expect(awayGuards(s).size).toBe(0); // they hold their posts at Morning Prep
+    openStand(s);
+    expect(s.reputation).toBe(rep);
+    let fought = 0;
+    while (!fought) for (const e of tickMinute(s)) if (e.type === 'fight') fought = s.minute;
+    expect(fought).toBe(OPEN + trip);
+    expect(s.reputation).toBeCloseTo(rep - DAYTIME_RAID_REP.smash, 5);
+    expect([...awayGuards(s)].sort()).toEqual(['g0', 'g1']); // walking home
+    while (s.raids.includes(r)) tickMinute(s);
+    expect(s.minute).toBe(r.back);
+    expect(awayGuards(s).size).toBe(0);
+  });
+
+  it('with nobody fit to go at departure the raid is called off: no fight, no Grudge', () => {
+    const { s, target } = crewed(6);
+    const rival = s.plots[target].owner as RivalId;
+    planRaid(s, target, ['g0', 'g1'], 'smash', 'tonight');
+    const grudge = s.rivals[rival].grudge;
+    s.guards[0].outUntil = s.guards[1].outUntil = s.day + 2; // knocked out before 01:00
+    const fights = night(s);
+    expect(Object.keys(fights)).toEqual([]);
+    expect(s.rivals[rival].grudge).toBe(grudge);
+    expect(s.battles.some((b) => b.attacker === 'player')).toBe(false);
+    expect(s.news.some((n) => n.includes('called off'))).toBe(true);
+  });
+
+  it('a squad member out of action stays home; the rest go', () => {
+    const { s, target } = crewed(7);
+    planRaid(s, target, ['g0', 'g1'], 'smash', 'tonight');
+    const r = s.raids[0];
+    s.guards[0].outUntil = s.day + 2;
+    night(s);
+    expect(r.guards).toEqual(['g1']);
+    expect(s.battles.find((b) => b.attacker === 'player')!.attackers.map((f) => f.id)).toEqual(['g1']);
+  });
+
+  it('nothing left to hit when they get there: the squad turns back without a fight', () => {
+    const { s, target, trip } = crewed(9);
+    planRaid(s, target, ['g0'], 'smash', 'tonight');
+    const r = s.raids[0];
+    s.plots[target].stand = null;
+    delete s.plots[target].facility;
+    let back = 0;
+    const fights = night(s, () => { if (!back && r.back) back = r.back; });
+    expect(fights[r.id]).toBeUndefined();
+    expect(back).toBe(25 * 60 + 2 * trip);
+  });
+
+  it('sent so late in the night that it gets there after 07:00, it fights in the morning, in daylight', () => {
+    const { s, target, trip } = crewed(11);
+    startNight(s);
+    while (s.minute < NIGHT_END - 30) nightStep(s);
+    expect(planRaid(s, target, ['g0'], 'smash', 'tonight')).toBe(true);
+    const r = s.raids.find((x) => x.attacker === 'player')!;
+    expect([r.leave, r.at]).toEqual([NIGHT_END - 30, NIGHT_END - 30 + trip]);
+    sleepUntilDawn(s);
+    expect(s.battles.some((b) => b.attacker === 'player')).toBe(false); // dawn doesn't fight it
+    expect(r.at).toBe(NIGHT_END - 30 + trip - MINUTES_PER_DAY);
+    expect(awayGuards(s).has('g0')).toBe(true);
+    openStand(s);
+    let fought = 0;
+    while (!fought) for (const e of tickMinute(s)) if (e.type === 'fight') fought = s.minute;
+    expect(fought).toBe(Math.max(OPEN + 1, r.at!));
+  });
+
+  it('a squad still walking home at dawn gets in that morning', () => {
+    const { s, target } = crewed(10);
+    s.raids.push({ id: 'late', attacker: 'player', target, objective: 'smash', guards: ['g0'], detected: true, eta: hhmm(NIGHT_END - 30), leave: NIGHT_END - 90, at: NIGHT_END - 30, launched: true, back: NIGHT_END + 50 });
+    sleepUntilDawn(s);
+    expect(s.raids.find((r) => r.id === 'late')?.back).toBe(DAWN + 50);
+    expect([...awayGuards(s)]).toEqual(['g0']);
+    expect(s.battles.some((b) => b.attacker === 'player')).toBe(false); // dawn never fights a squad that's walking home
+    openStand(s);
+    tickMinute(s);
+    expect(s.raids.some((r) => r.id === 'late')).toBe(false);
+    expect(awayGuards(s).size).toBe(0);
+  });
+});
+
+describe("Juni's Grapevine", () => {
+  it('with the Grindhouse taken, a raid on you is warned 1 game hour earlier, detected or not', () => {
+    const s = evening(12);
+    s.plots[hqPlot('coldbrew').id].owner = 'player';
+    const seen = raidOn(s, 23 * 60, 24 * 60);
+    startNight(s);
+    while (!seen.warned) nightStep(s);
+    expect(s.minute).toBe(22 * 60); // an hour before they set out
+    expect(seen.at! - s.minute).toBe(120);
+    // Missed as they set out: the minimum notice, an hour sooner (23:45 less an hour).
+    const o = evening(13);
+    o.plots[hqPlot('coldbrew').id].owner = 'player';
+    o.raids.push({ id: 'old', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: raidPartyFor(o, 'blenders'), detected: false, eta: '00:00', leave: 23 * 60 });
+    migrateNights(o);
+    expect(o.raids[0].warnAt).toBe(24 * 60 - raidNotice(o) - 60);
+  });
+
+  it('only for raids on you, and never before the clock', () => {
+    const s = evening(14);
+    s.plots[hqPlot('coldbrew').id].owner = 'player';
+    s.rank = 6;
+    s.guards = crew(1, null);
+    const rival = raidOn(s, 23 * 60, 24 * 60, { attacker: 'hollis', target: raidTargets(s).find((p) => s.plots[p.id].owner === 'blenders')!.id });
+    planRaid(s, raidTargets(s)[0].id, ['g0'], 'smash', 'tonight');
+    const mine = s.raids.find((r) => r.attacker === 'player')!;
+    const late = raidOn(s, CLOSE + 10, CLOSE + 70);
+    startNight(s);
+    nightStep(s);
+    expect(late.warned).toBe(true); // straight away: it can't be heard of before the night began
+    while (s.minute < 23 * 60 - 1) nightStep(s);
+    expect(rival.launched).toBeFalsy();
+    while (s.minute < 25 * 60 - 1) nightStep(s);
+    expect(mine.launched).toBeFalsy();
+    nightStep(s);
+    expect(mine.launched).toBe(true);
   });
 });
 

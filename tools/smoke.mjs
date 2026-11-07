@@ -104,7 +104,15 @@ try {
   const squadButtons = await page.$$('[data-action="squad"]');
   for (let i = 0; i < squadButtons.length; i++) await page.click(`[data-action="squad"] >> nth=${i}`);
   await page.click('[data-testid="raid-now"]');
-  await page.waitForTimeout(4500);
+  // The squad travels 1-3 game hours: open the stands, run the clock to a minute out, and the fight plays on arrival.
+  await page.evaluate(() => {
+    const g = window.__game;
+    if (g.state.phase === 'prep') g.act({ type: 'open' });
+    const r = g.state.raids.find((x) => x.attacker === 'player');
+    g.act({ type: 'speed', value: 1 });
+    if (r) g.fastForward(r.at - g.state.minute - 1);
+  });
+  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 15000 }).catch(() => {});
   if (!(await page.evaluate(() => window.__game.battle()))) fail('battle replay not playing');
   await page.screenshot({ path: 'test-results/9-raid.png' });
   // Play on until a rival raid is planned at closing time. Sleep till dawn stops at its warning in the night; sleep on through it.

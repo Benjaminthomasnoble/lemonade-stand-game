@@ -319,10 +319,14 @@ export const RAID_TRAVEL = { min: 60, max: 180, span: 350 }; // placeholder: spe
 export const RAID_LEAVE = { first: 20 * 60 + 15, steps: 23 }; // placeholder: spec gap (departure window)
 /** Rivals raiding each other arrive at 02:00. */
 export const RIVAL_RAID_AT = 26 * 60;
-/** Your 'tonight' raids hit at 01:00 until raid travel times land (crew's Raid Planner). */
-export const PLAYER_RAID_AT = 25 * 60;
+/** Your 'tonight' raids set out at 01:00 (the spec's Day 24 walkthrough) and travel to the target by distance. */
+export const PLAYER_RAID_LEAVE = 25 * 60; // placeholder: spec gap (only the walkthrough names a departure time)
+/** The Raid Planner's guess at a fight's length, for when the squad gets home (the walkthrough's lasts 18 minutes). */
+export const RAID_FIGHT_GUESS = 20; // placeholder: spec gap
 /** A Delivery Raid hits within the pickup's 2-hour loading window. */
 export const DELIVERY_WINDOW = 120;
+/** Juni's Grapevine (the Grindhouse trophy): raid warnings arrive 1 game hour earlier. */
+export const GRAPEVINE_EARLY = 60;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',

@@ -619,7 +619,6 @@ describe('guard posts', () => {
     s.rank = 4;
     s.cash = 50000;
     welcomeDex(s);
-    s.clubhouse = 3;
     for (let i = 1; i < n; i++) {
       s.guards.push({ id: `p${i}`, name: `Post ${i}`, trait: 'Tough Cookie', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 });
     }
@@ -651,6 +650,7 @@ describe('guard posts', () => {
     refreshRecruits(s, true);
     const hire = s.recruits[0].id;
     postGuard(s, b.id, LOTTIES_CORNER);
+    expect(buildClubhouse(s, streetLot(s))).toBe(true); // beds for the hire
     expect(hireGuard(s, hire)).toBe(true);
     expect(s.guards.find((g) => g.id === hire)!.post).toBeNull();
     expect(s.news.at(-1)).toContain('waits at the Clubhouse');

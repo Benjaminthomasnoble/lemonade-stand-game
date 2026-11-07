@@ -241,6 +241,10 @@ describe('the ten menus', () => {
     expect(html.match(/data-testid="bugle-today"/g)).toHaveLength(1);
     expect(html).toContain(`Today: Surf Contest, ${DISTRICT_BY_ID.boardwalk.name}, 3 days`);
     expect(html).toContain('data-testid="menu-done"');
+    const metric = menuScreen(s, 'bugle', { ...parts(), options: { ...parts().options, celsius: true } });
+    expect(metric).toContain(bugleSheet(s, true)); // the °C option reaches the paper's forecast
+    expect(metric).toMatch(/\d°C/);
+    expect(html).not.toMatch(/\d°C/);
   });
 
   it('Options lists every key, remappable, with the screens, captions and °C switches', () => {

@@ -35,6 +35,8 @@ export interface StoryState {
   tribute?: number;
   /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the day Juni last tipped you off about the pad, the last day the ship's contract was in your Order Book, and its docking. */
   vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean };
+  /** Dex Moody has joined (every mode): once a run, so nothing brings a fresh Dex back. */
+  dexJoined?: boolean;
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -131,6 +133,7 @@ export function migrateStory(s: GameState): void {
   if (hasStory(s) && s.endlessSince !== undefined && s.story.epilogue === undefined) s.story.epilogue = s.endlessSince;
   // A save from before the scripted first chopper and ship: a tier that has made offers already had its first.
   s.story.vip ??= { ...(s.lastOffer?.heli !== undefined ? { heli: '' } : {}), ...(s.lastOffer?.ship !== undefined ? { ship: '' } : {}) };
+  if (s.guards.some((g) => g.name === 'Dex Moody')) s.story.dexJoined = true;
   migrateScenes(s);
   migratePhone(s);
   migrateGoals(s);

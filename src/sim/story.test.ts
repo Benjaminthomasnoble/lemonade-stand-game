@@ -533,4 +533,27 @@ describe('lessons and Dex', () => {
     storyAtDawn(s); // safe to run again
     expect(goalsNow(s)).toHaveLength(3);
   });
+
+  it('an unpaid Dex stays (Loyal never quits) and joins once a run; an unpaid hire quits instead', () => {
+    const s = newGame(35);
+    s.day = 3;
+    nextDawn(s); // Day 4: Dex joins
+    const dex = s.guards.find((g) => g.name === 'Dex Moody')!;
+    Object.assign(dex, { level: 3, xp: 9, weapon: 'clubs', gear: 'vest', post: LOTTIES_CORNER });
+    const was = structuredClone(dex);
+    s.cash = 0; // below his wage
+    nextDawn(s); // Day 7
+    expect(s.guards).toEqual([was]);
+    expect(s.news.some((n) => n.includes('quits'))).toBe(false);
+    expect(s.alerts!.some((a) => a.text.startsWith('Dex Moody joins') && a.day === s.day)).toBe(false); // no fresh Dex
+    expect(s.story!.dexJoined).toBe(true);
+    const hire = { ...was, id: 'g99', name: 'Rosa', trait: 'Hothead' as const, post: null };
+    s.guards.push(hire);
+    s.cash = 0;
+    nextDawn(s);
+    expect(s.guards.map((g) => g.id)).toEqual([was.id]); // the hire walks, Dex stays
+    expect(s.news).toContain(`${hire.name} quits: "No pay, no play."`);
+    const old = migrateSave(JSON.parse(JSON.stringify({ ...s, story: { act: 1, since: 1 } })))!; // a save from before the flag
+    expect(old.story!.dexJoined).toBe(true);
+  });
 });

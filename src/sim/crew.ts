@@ -1156,9 +1156,9 @@ export function offerSideLot(s: GameState): void {
   s.news.push('Lottie: "Two tables, twice the trouble. You\'ll love it."');
 }
 
-/** Dex Moody, the first guard, joins free on Day 6 (when raids can start), whatever your rank. */
+/** Dex Moody, the first guard, joins free on Day 6 (when raids can start), whatever your rank: once a run. */
 export function welcomeDex(s: GameState): void {
-  if (s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
+  if (s.story?.dexJoined || s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
   const rng = { seed: 77 };
   const dex = makeGuard(s, rng);
   dex.name = 'Dex Moody';
@@ -1166,6 +1166,7 @@ export function welcomeDex(s: GameState): void {
   // With the lessons on, stationing him is Day 4's lesson ("Station Dex for the night"); story.ts posts him at closing if nobody did.
   dex.post = !dexLesson(s) && s.plots[s.selected]?.owner === 'player' ? s.selected : null;
   s.guards.push(dex);
+  if (s.story) s.story.dexJoined = true;
   // A card in the feed (Go There: where he stands, or the Corner to station him). In the campaign his arrival is a
   // scene (src/sim/scenes.ts) that says the rest of his lines.
   alert(s, { kind: 'note', text: hasStory(s) ? 'Dex Moody joins the crew, free.' : 'Dex Moody joins free: "I work for lemonade."', plot: dex.post ?? LOTTIES_CORNER });

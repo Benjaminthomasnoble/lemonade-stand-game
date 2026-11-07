@@ -12,7 +12,7 @@ import {
 } from './crew.ts';
 import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
-import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
+import { canGullScout, canScout, gullScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { reserveMinutes } from './reinforce.ts';
 import { BORDERS, PLOT_BY_ID } from './map.ts';
 import { rowAmount } from './ledger.ts';
@@ -330,6 +330,24 @@ describe('the Lookout', () => {
     playDay(s);
     expect(isScouted(s, target)).toBe(false);
     expect(s.scouting?.[target]).toBeUndefined();
+  });
+
+  it('Gull Flight: Squawk circles any rival plot at any hour, and the snapshot is good for 3 days', () => {
+    const s = newGame(64);
+    const target = raidTargets(s)[0].id;
+    s.plots[target].defense.gadgets = ['goose'];
+    expect(canGullScout(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Circle a rival plot' });
+    s.phase = 'night';
+    s.minute = 25 * 60;
+    expect(gullScout(s, target)).toBe(true);
+    expect(scoutedSnapshot(s, target)).toMatchObject({ by: 'gull', day: s.day, until: s.day + 2, gadgets: ['goose'] });
+    expect(s.news.at(-1)).toMatch(/^Captain Squawk circles .*: .*1 gadget/);
+    const news = s.news.length;
+    expect(gullScout(s, target)).toBe(false); // scouted today already: no second line
+    expect(s.news).toHaveLength(news);
+    s.day += 3;
+    expect(isScouted(s, target)).toBe(false);
+    expect(gullScout(s, target)).toBe(true);
   });
 
   it('scouts by day only, and is back on post for the night', () => {

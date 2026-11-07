@@ -1,8 +1,8 @@
 // Scouting (spec: Raids, the Raid Planner and Gull Flight). A Lookout spends
 // the day watching a rival plot, and what they saw stays good for 3 days: the
-// fence, the gadgets and the henchmen on its posts. Gull Flight (Squawk over a
-// plot) will write the same snapshot with by: 'gull'. Pure and seeded like the
-// rest of the sim.
+// fence, the gadgets and the henchmen on its posts. Gull Flight (Squawk
+// circling a plot) writes the same snapshot with by: 'gull', and the Rivals
+// Corkboard pins each fresh one. Pure and seeded like the rest of the sim.
 import { SCOUT_DAYS, type GadgetId } from './balance.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { guardReady, postsFor, type Guard } from './crew.ts';
@@ -49,13 +49,31 @@ export function scoutWithLookout(s: GameState, guardId: string, plotId: string):
   const g = s.guards.find((x) => x.id === guardId)!;
   g.scoutDay = s.day;
   recordScouting(s, plotId, 'lookout');
-  const sc = s.scouting![plotId];
-  const what = [sc.tier ? 'a fence' : 'no fence', `${sc.gadgets.length} gadget${sc.gadgets.length === 1 ? '' : 's'}`, `${sc.garrison} henchm${sc.garrison === 1 ? 'an' : 'en'}`];
-  s.news.push(`${g.name} scouts ${PLOT_BY_ID[plotId].name}: ${what.join(', ')}.`);
+  s.news.push(`${g.name} scouts ${PLOT_BY_ID[plotId].name}: ${scoutSummary(s.scouting![plotId])}.`);
   return true;
 }
 
-/** Write a fresh snapshot of a plot's defenses (Lookouts now, Gull Flight later). */
+/** "a fence, 2 gadgets, 3 henchmen": what a scout saw, for the news. */
+export const scoutSummary = (sc: Scouted) =>
+  [sc.tier ? 'a fence' : 'no fence', `${sc.gadgets.length} gadget${sc.gadgets.length === 1 ? '' : 's'}`, `${sc.garrison} henchm${sc.garrison === 1 ? 'an' : 'en'}`].join(', ');
+
+/** Gull Flight: Captain Squawk can circle any rival plot at any hour (the clock keeps running while he flies). */
+export function canGullScout(s: GameState, plotId: string): Blocker {
+  const ps = s.plots[plotId];
+  if (!ps?.owner || ps.owner === 'player') return { ok: false, why: 'Circle a rival plot' };
+  return { ok: true };
+}
+
+/** Squawk circled a rival plot (the world's Gull Flight, tracked by the HUD): its defenses show for 3 days, and its
+ * snapshot goes up on the Rivals Corkboard. A plot scouted today already keeps that snapshot. */
+export function gullScout(s: GameState, plotId: string): boolean {
+  if (!canGullScout(s, plotId).ok || s.scouting?.[plotId]?.day === s.day) return false;
+  recordScouting(s, plotId, 'gull');
+  s.news.push(`Captain Squawk circles ${PLOT_BY_ID[plotId].name}: ${scoutSummary(s.scouting![plotId])}.`);
+  return true;
+}
+
+/** Write a fresh snapshot of a plot's defenses (a Lookout's day of watching, or Squawk's circle). */
 export function recordScouting(s: GameState, plotId: string, by: Scouted['by']): void {
   const ps = s.plots[plotId];
   (s.scouting ??= {})[plotId] = { day: s.day, until: s.day + SCOUT_DAYS - 1, by, tier: ps.defense.tier, gadgets: [...ps.defense.gadgets], garrison: Math.min(ps.garrison ?? 0, postsFor(s, plotId)) };

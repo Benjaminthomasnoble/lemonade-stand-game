@@ -28,7 +28,8 @@ import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
-import { scoutWithLookout } from './sim/scouting.ts';
+import { gullScout, scoutWithLookout } from './sim/scouting.ts';
+import { aimGull, trackGull } from './ui/gull.ts';
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
   saveUnreadable, slotList,
@@ -660,6 +661,9 @@ async function main() {
       case 'equip': equip(state, a.id, a.item); break;
       case 'promote': promote(state, a.id, a.specialty); break;
       case 'scout': scoutWithLookout(state, a.id, a.plot); break;
+      case 'gullTo': flyOver(a.plot); break; // crew: Gull Flight from the Raid Planner
+      case 'gullLand': if (flight.active()) { flight.stop(); gullBtn.classList.remove('on'); } break;
+      case 'gullScout': gullScout(state, a.plot); break;
       case 'clubhouse': buildClubhouse(state, a.plot); break;
       case 'club': waitAt(state, a.id, a.plot); break;
       case 'defend': fillPosts(state, a.plot); break;
@@ -836,6 +840,18 @@ async function main() {
   gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
   gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else flight.start(); gullBtn.classList.toggle('on', flight.active()); });
   document.getElementById('ui')!.appendChild(gullBtn);
+  /** The Raid Planner's Fly over (crew): Squawk takes off on a circle round the plot, heading north on its east side,
+   * so holding a left turn (A, or a drag left) keeps him on it; a full circle scouts it (src/ui/gull.ts). */
+  const flyOver = (id: string) => {
+    const p = PLOT_BY_ID[id];
+    if (flight.active()) flight.stop();
+    hud.inspected = null;
+    ambient.squawk.position.set(p.x + 9, 12, p.z);
+    ambient.squawk.rotation.set(0, Math.PI, 0);
+    flight.start();
+    gullBtn.classList.add('on');
+    aimGull(id);
+  };
   // Keys (every one remappable in Options): Space pauses and resumes, 1-3 set speed, W A S D pan, Q and E turn the
   // view a quarter at a time, G flies the gull, and a letter opens each menu. They work anywhere: mid-fight, at night
   // and in menus. Esc puts away whatever is on top.
@@ -984,6 +1000,8 @@ async function main() {
     ambient.update(state, dt, timer.getElapsed(), focus, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');
+    const circled = trackGull(state, flight.active(), ambient.squawk.position.x, ambient.squawk.position.z, dt); // crew: a full circle scouts a rival plot
+    if (circled) act({ type: 'gullScout', plot: circled });
     scenes.update(state, frozen ? 0 : dt, bay.views);
     const sc = playingScene(state);
     if (sc) {

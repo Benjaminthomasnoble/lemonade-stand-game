@@ -61,6 +61,7 @@ import { createRaidPlanner } from './raidPlanner.ts';
 import {
   auctionControls, landNotes, landTickets, listingControls, priceTip, registryButton, registryScreen, sellPlotButton, TOWN_HALL, type RegistryTab,
 } from './registry.ts';
+import { gullTicket } from './gull.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -105,6 +106,9 @@ export type Action =
   | { type: 'captive'; id: string; choice: CaptiveChoice } // the Nabbed: ransom, let go, recruit, or pay for yours (src/ui/captives.ts)
   | { type: 'raid'; plot: string; guards: string[]; objective: RaidObjective; when: 'now' | 'tonight' }
   | { type: 'scout'; id: string; plot: string }
+  | { type: 'gullTo'; plot: string } // crew: the Raid Planner's Fly over (Captain Squawk takes off beside a rival plot)
+  | { type: 'gullLand' } // crew: the Gull Flight ticket's Land
+  | { type: 'gullScout'; plot: string } // crew: Squawk circled a rival plot (main.ts's tracker, src/ui/gull.ts)
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
   | { type: 'mute' }
@@ -298,7 +302,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(topEl, modal && hud.setup ? '' : topbar(s));
       const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
       set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
-      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s)).replace(/<div class="cl-ticket/g, '<div tabindex="0" class="cl-ticket')); // a tap or Tab opens a tucked card
+      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s) + gullTicket(kit, s)).replace(/<div class="cl-ticket/g, '<div tabindex="0" class="cl-ticket')); // a tap or Tab opens a tucked card; crew: Gull Flight's ticket (src/ui/gull.ts)
       tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
@@ -432,7 +436,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'autodefend': onAction({ type: 'autodefend' }); break;
       case 'priority': onAction({ type: 'priority', plot: d.plot! }); break;
       case 'captive': onAction({ type: 'captive', id: d.id!, choice: d.choice as CaptiveChoice }); break;
-      case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': planner.click(d); break;
+      case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': case 'gullTo': planner.click(d); break;
       case 'planTarget': planTarget = d.plot ?? null; redraw(); break; // the Raid Planner menu's target (src/ui/menus.ts)
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
@@ -451,7 +455,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'autoPrice': case 'mute': case 'priceCeiling':
-      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze':
+      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze': case 'gullLand':
         onAction({ type: d.action }); break;
       case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
       case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;

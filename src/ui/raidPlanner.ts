@@ -2,7 +2,7 @@
 // odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
 // panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canRaid, canSabotage, GADGETS, inTruce, PERIMETERS, raidIsNightAt, raidOdds, RAID_RANK, raidRepCost, rebuildChance, SABOTAGE_RANK, squadTrip,
+  availableRaiders, canRaid, canSabotage, inTruce, raidIsNightAt, raidOdds, RAID_RANK, raidRepCost, rebuildChance, SABOTAGE_RANK, squadTrip,
   WEAPONS, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, scoutedSnapshot } from '../sim/scouting.ts';
@@ -11,6 +11,7 @@ import { guardFace } from './crew.ts';
 import { tripNote } from './trips.ts';
 import { shakedownLoot } from '../sim/loot.ts';
 import { citationRisk, raidBan } from '../sim/citations.ts';
+import { flyOver, snapshotTip } from './gull.ts';
 import { glyph } from './clay.ts';
 
 export interface Planner {
@@ -44,17 +45,16 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
   function intel(s: GameState, id: string) {
     const sc = scoutedSnapshot(s, id);
     if (sc) {
-      const left = sc.until - s.day + 1;
-      const tip = `Scouted: ${sc.tier ? PERIMETERS[sc.tier - 1].name : 'no fence'}, ${sc.gadgets.map((g) => GADGETS[g].name).join(', ') || 'no gadgets'}, ${sc.garrison} henchmen. Good for ${left} more day${left === 1 ? '' : 's'}.`;
-      return `<div class="cl-slots" title="${k.esc(tip)}">${sc.tier ? `<span class="cl-slot full">${k.ART.fence(sc.tier)}</span>` : ''}${sc.gadgets.map((g) => `<span class="cl-slot full">${k.GADGET_ART[g]()}</span>`).join('')}<span class="cl-slot full">${k.ART.head(2)}</span>${k.tape(`×${sc.garrison}`)}</div>`;
+      return `<div class="cl-slots" title="${k.esc(snapshotTip(s, sc))}">${sc.tier ? `<span class="cl-slot full">${k.ART.fence(sc.tier)}</span>` : ''}${sc.gadgets.map((g) => `<span class="cl-slot full">${k.GADGET_ART[g]()}</span>`).join('')}<span class="cl-slot full">${k.ART.head(2)}</span>${k.tape(`×${sc.garrison}`)}</div>`;
     }
+    const fly = flyOver(k, s, id); // Gull Flight: Captain Squawk circles it, any hour
     const lookouts = s.guards.filter((g) => g.specialty === 'lookout');
-    if (!lookouts.length) return '';
+    if (!lookouts.length) return `<div class="cl-acts">${fly}</div>`;
     const free = freeLookout(s, id);
     const b = free ? canScout(s, free.id, id) : canScout(s, lookouts[0].id, id);
     const who = (free ?? lookouts[0]).name.split(' ')[0];
     // A disabled button carries its reason as the title, so the tip only goes on a live one.
-    return k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}"${b.ok ? ` title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"` : ''}`, 'ghost');
+    return `<div class="cl-acts">${k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}"${b.ok ? ` title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"` : ''}`, 'ghost')}${fly}</div>`;
   }
 
   function panel(s: GameState, id: string) {
@@ -105,6 +105,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       case 'objective': objective = d.value as RaidObjective; redraw(); return true;
       case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); return true;
       case 'scout': squad.delete(d.id!); onAction({ type: 'scout', id: d.id!, plot: d.plot! }); return true;
+      case 'gullTo': onAction({ type: 'gullTo', plot: d.plot! }); return true;
     }
     return false;
   }

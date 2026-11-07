@@ -13,6 +13,7 @@ import {
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { pactPhoto, pactStrings } from './pactboard.ts';
+import { scoutedPins } from './gull.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -69,7 +70,7 @@ function pin(s: GameState, id: RivalId): string {
   return `<div class="cl-card" data-big data-testid="cork-${id}" title="${esc(`${HQS[id].boss}, ${FACTIONS[id].name}`)}">
     <span class="cl-pic">${A.faceSVG(HQS[id].boss)}</span>
     <span class="cl-txt"><b>${esc(BOSS[id])} · ${esc(GANG[id])}</b><i>Score ${short$(successScore(s, id))} · ${esc(WANTS[id])}</i>
-      ${tags ? `<span class="cl-row wrap">${tags}</span>` : ''}${strings(s, id)}</span>
+      ${tags ? `<span class="cl-row wrap">${tags}</span>` : ''}${strings(s, id)}${scoutedPins(s, id) /* crew: scouted snapshots (src/ui/gull.ts) */}</span>
     <span class="cl-acts">${acts}</span></div>`;
 }
 

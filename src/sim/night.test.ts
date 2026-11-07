@@ -3,7 +3,7 @@ import {
   alert, buildFacility, clientOf, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
   etaMinute, FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, isMajor, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame,
   NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS,
-  QUIET_NIGHT_SPEED, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
+  QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
@@ -169,6 +169,28 @@ describe('the night on the clock', () => {
     expect(secondsPerMinute(n, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the warning ends the quiet
     while (r.at! - n.minute > raidNotice(n)) nightStep(n);
     expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the last minutes of notice
+  });
+
+  it('a quiet night lasts until an alert comes in, and is quiet again once the raid is fought or the card put away', () => {
+    const s = evening(14);
+    s.minute = 15 * 60;
+    alert(s, { kind: 'soldout', text: 'Sold out at the Corner!', plot: LOTTIES_CORNER }); // this afternoon's card
+    s.minute = CLOSE;
+    expect(quietNight(s)).toBe(false); // the Evening: the clock isn't running
+    startNight(s);
+    expect(quietNight(s)).toBe(true);
+    const r = raidOn(s, CLOSE + 30, CLOSE + 90);
+    while (!r.warned) nightStep(s);
+    expect(quietNight(s)).toBe(false);
+    expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE);
+    while (s.raids.includes(r)) nightStep(s);
+    expect(quietNight(s)).toBe(true); // fought: the 3× comes back
+    expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / QUIET_NIGHT_SPEED);
+    expect(secondsPerMinute(s, 1, { quiet: false })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the setting off
+    const note = alert(s, { kind: 'note', text: 'Something stirs on Maple Row' });
+    expect(quietNight(s)).toBe(false); // any alert ends the quiet
+    dismissAlert(s, note.id);
+    expect(quietNight(s)).toBe(true);
   });
 
   it('raid warnings pause by default, except on Cutthroat', () => {

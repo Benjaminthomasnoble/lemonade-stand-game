@@ -57,8 +57,10 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
 
 /** A raid on you is warned and inside its last minutes of notice: the clock runs at fight speed. */
 export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r) && (r.at ?? 0) - s.minute <= raidNotice(s));
-/** No warning is out: a quiet night can run at 3×. */
-export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => r.warned && onYou(s, r));
+/** Nothing has come in tonight: no warning is out and no card from the night is still on the feed, so a quiet night
+ * runs at 3×. Once the raid is fought (its card goes) the night is quiet again. */
+export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => r.warned && onYou(s, r))
+  && !(s.alerts ?? []).some((a) => a.day === s.day && a.minute > CLOSE);
 /** Game minutes until a raid hits. */
 export const minutesLeft = (s: GameState, r: Raid) => Math.max(0, (r.at ?? s.minute) - s.minute);
 

@@ -5,7 +5,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
@@ -79,8 +79,18 @@ async function main() {
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
   let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
   let eveningWait = 0; // the Evening's moment, off the Ledger
+  let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
   const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
   const resume = () => { if (!speed) speed = resumeTo || 1; };
+  /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
+  const quiet = () => options.quietNights && !quietOff;
+  const setSpeed = (v: number) => {
+    if (v <= 0) { pause(); return; }
+    if (quiet() && quietNight(state)) quietOff = true;
+    speed = v;
+  };
+  /** The speed the clock actually runs at, for the knobs: a quiet night shows its 3×. */
+  const shownSpeed = () => (speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : speed);
 
   const audio = createAudio();
   const wake = () => audio.start();
@@ -326,7 +336,7 @@ async function main() {
       case 'price': setPrice(st, st.price + a.delta); break;
       case 'restock': st.autoRestock = !st.autoRestock; break;
       case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
-      case 'speed': if (a.value > 0) speed = a.value; else pause(); break;
+      case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
       case 'skip': { resume(); const ev = simulateRestOfDay(state, true); crowd.clear(); drawEvents(ev, false); break; }
       case 'night': hud.ledger = false; if (startNight(state)) { acc = 0; eveningWait = 0; resume(); } break;
@@ -426,7 +436,7 @@ async function main() {
     if (state.phase !== 'open' && !choosing) saveGame(state);
     if (a.type === 'sleep' || state.outcome) recordScore(state);
     hud.canReload = state.outcome?.result === 'lost' && !!loadDawn(state.runId);
-    hud.render(state, speed);
+    hud.render(state, shownSpeed());
   };
   /** Flip an option (src/settings.ts). The raid-warning switch belongs to the run. */
   const setOption = (key: string, value?: string) => {
@@ -496,7 +506,7 @@ async function main() {
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.repeat) return;
     if (e.code === 'Space') { if (speed) pause(); else resume(); e.preventDefault(); }
-    if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) speed = Number(e.code.slice(5));
+    if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) setSpeed(Number(e.code.slice(5)));
   });
 
   // Debug/test handle for Playwright and agents (same idea as Owl World's).
@@ -530,10 +540,10 @@ async function main() {
       if (from !== 'open' && from !== 'night') return;
       for (let i = 0; i < minutes && state.phase === from; i++) tickMinute(state);
       if (state.phase !== from) { flushNews(); saveGame(state); if (state.phase === 'prep') atDawn(); }
-      hud.render(state, speed);
+      hud.render(state, shownSpeed());
     },
     /** The clock as it runs now: real seconds per game minute (Infinity: stopped), and the speed knob. */
-    clock: () => ({ phase: state.phase, minute: state.minute, speed, spm: secondsPerMinute(state, speed, { fighting: liveFight, quiet: options.quietNights }) }),
+    clock: () => ({ phase: state.phase, minute: state.minute, speed, shown: shownSpeed(), spm: secondsPerMinute(state, speed, { fighting: liveFight, quiet: quiet() }) }),
   };
 
   morningLine();
@@ -544,10 +554,11 @@ async function main() {
     const dt = Math.min(realDt, 0.1);
     const paper = !!hud.setup || hud.optionsOpen; // full-screen paper pauses
     const frozen = speed === 0 || paper; // paused: the clock, the brawl and the scenes hold still
+    if (state.phase !== 'night' && state.phase !== 'report') quietOff = false; // each night starts quiet again
     if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
       const from = state.phase;
-      const rate = () => secondsPerMinute(state, speed, { fighting: liveFight, quiet: options.quietNights });
+      const rate = () => secondsPerMinute(state, speed, { fighting: liveFight, quiet: quiet() });
       acc += dt;
       let guard = 0;
       while (acc >= rate() && guard++ < 240) {
@@ -596,7 +607,7 @@ async function main() {
       try { bugle.offer({ url: canvas.toDataURL('image/jpeg', 0.7), ...snapReq, day: state.day }); } catch { /* tainted or lost canvas: no photo today */ }
       snapReq = null;
     }
-    hud.render(state, speed);
+    hud.render(state, shownSpeed());
   });
   document.body.dataset.ready = '1';
 }

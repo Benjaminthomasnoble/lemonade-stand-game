@@ -3,8 +3,8 @@
 // while open. Mounted inside the plot card for your own stands (hud.ts); exact numbers sit in the math table and
 // in title tooltips, the panel itself stays a few words a line.
 import {
-  BASE_STOP_CHANCE, costPerCup, demandChain, FACTIONS, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft,
-  cupsInStock, iceMachineOn, stock, storageFor, SUPPLIES, WEATHER,
+  BASE_STOP_CHANCE, costPerCup, curbAppeal, demandChain, FACTIONS, lunchRushDay, marketingMultiplier, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID,
+  pourRate, priceCeiling, RECIPES, seasonOf, serviceLeft, cupsInStock, iceMachineOn, stock, storageFor, SUPPLIES, WEATHER,
   type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -48,20 +48,25 @@ const n0 = (n: number) => (Number.isFinite(n) ? Math.round(n).toLocaleString('en
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const tape = (inner: string) => `<span class="cl-tape">${inner}</span>`;
 
-// The chain only moves when the stand, the weather or the town does, so it isn't redone every frame.
+// The chain only moves when the stand, the weather or the town does, so it isn't redone every frame. The key holds
+// the numbers the chain is built from, not a list of what moves them: a Lemon Grove, a sponsorship or a Billboard
+// moves a marketing number, a repair the pour, so the panel answers the moment one is bought.
 const memo = new WeakMap<GameState, { key: string; chain: DemandChain | null }>();
+const k4 = (x: number) => x.toFixed(4);
 function chainFor(s: GameState, plotId: string): DemandChain | null {
   const st = s.plots[plotId]?.stand;
   if (!st) return null;
   const w = s.phase === 'prep' ? s.forecast : s.weather;
   const owned = Object.values(s.plots).reduce((a, p) => a + (p.owner === 'player' ? 1 : 0), 0);
-  // The stands within 2 plots share its customers, so any change next door (a new stand, a smash, a price) counts too.
+  // The stands within 2 plots share its customers, so any change next door counts too: a new stand, a smash, a price,
+  // and the walkers and curb appeal each brings to the split.
   const block = nearbyPlots(PLOT_BY_ID[plotId]).map((q) => {
     const ps = s.plots[q.id], x = ps.stand;
-    return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}` : '-';
+    return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}:${k4(marketingMultiplier(s, ps.owner!, x, q.id))}:${k4(curbAppeal(s, q.id))}` : '-';
   }).join(',');
   const surging = (s.world?.events?.on ?? []).map((e) => `${e.id}${e.live ? 1 : 0}`).join(); // a surge starts mid-day too
-  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, block, surging].join('|');
+  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, pourRate(s, plotId), priceCeiling(s, plotId, st),
+    k4(lunchRushDay(s, plotId)), block, surging].join('|');
   const m = memo.get(s);
   if (m && m.key === key) return m.chain;
   const chain = demandChain(s, plotId);
@@ -94,8 +99,11 @@ function mathTable(s: GameState, plotId: string, c: DemandChain): string {
     ...c.surges.map((x): [string, string, string?] => [x.label, times(x.mult), x.mult > 1 ? 'good' : 'bad']),
     ...(c.lunch !== 1 ? [['Lunch rush', times(c.lunch)] as [string, string]] : []),
     ['Walk by', n0(c.passersby), 'good'],
+    // Walk by × kept − to your stands next door + from next door = at this stand; × stop = want a cup.
     ...(c.kept < 1 ? [['Kept from rivals', pct(c.kept)] as [string, string]] : []),
+    ...(c.toOwn > 0 ? [['To your stand next door', `−${n0(c.toOwn)}`] as [string, string]] : []),
     ...(c.inflow > 0 ? [['From next door', `+${n0(c.inflow)}`] as [string, string]] : []),
+    ...(c.visitors !== c.passersby ? [['At this stand', n0(c.visitors), 'good'] as [string, string, string]] : []),
     ['Base stop', pct(BASE_STOP_CHANCE)],
     [`${WEATHER[w.kind].label} thirst`, times(c.thirst)],
     ['Curb appeal', times(c.curb)],
@@ -160,8 +168,9 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   const I = icon();
   const open = s.phase === 'open';
   const ads = c.terms.filter((t) => !t.blocked).map((t) => `${t.label} +${pct(t.traffic)}`).join(', ');
-  const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing${ads ? ` (${ads})` : ''} × ${num(c.season)} season × ${num(c.weather)} weather${c.surge !== 1 ? ` × ${num(c.surge)} events` : ''}${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''}`;
-  const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars`;
+  const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing${ads ? ` (${ads})` : ''} × ${num(c.season)} season × ${num(c.weather)} weather${c.surge !== 1 ? ` × ${num(c.surge)} events` : ''}${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''} = ${n0(c.passersby)}`
+    + (c.visitors !== c.passersby ? `. At this stand: ${n0(c.passersby)}${c.kept < 1 ? ` × ${pct(c.kept)} kept from rivals` : ''}${c.toOwn > 0 ? ` − ${n0(c.toOwn)} to your stand next door` : ''}${c.inflow > 0 ? ` + ${n0(c.inflow)} from next door` : ''} = ${n0(c.visitors)}` : '');
+  const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars = ${pct(c.stopChance)}. Want a cup: ${n0(c.visitors)} × ${pct(c.stopChance)} = ${n0(c.demand)}`;
   const caps: [string, number, boolean][] = open
     ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', cupsInStock(s, plotId), cupsInStock(s, plotId) <= 0]]
     : [['want', c.demand, c.binding === 'demand'], ['pour', c.service, c.binding === 'service'], ['stock', c.stock, c.binding === 'stock']];
@@ -175,7 +184,7 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   return `<div class="cl-planner" data-testid="stand-panel">
     <b title="${open ? 'Live: so far today, with what the day should bring' : `Forecast for ${WEATHER[s.forecast.kind].label.toLowerCase()} weather`}">${open ? 'Today so far' : 'Today\'s odds'}</b>
     <span class="cl-bars">
-      <span title="${esc(step1)}">${I.crowd}${open ? `${n0(d.passersby)} of ~${n0(c.passersby)} walked by` : `${n0(c.passersby)} walk by`}</span>
+      <span title="${esc(step1)}">${I.crowd}${open ? `${n0(d.passersby)} of ~${n0(c.passersby)} walked by` : `${n0(c.passersby)} walk by`}${c.visitors !== c.passersby ? ` · ${n0(c.visitors)} here` : ''}</span>
       <span title="${esc(step2)}">${I.cup}${pct(c.stopChance)} stop${over ? ` · over the ${usd(c.ceiling)} top` : ''}</span>
       <span title="${esc(step3)}">${I.crate}${open ? `${n0(d.customers)} sold · line ${peopleAhead(st)}` : `${n0(c.cups)} cups`}</span>
     </span>

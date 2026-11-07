@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { demandChain, eventsOf, LOTTIES_CORNER, newGame, openStands, priceCeiling, tickMinute, type GameState } from '../sim/economy.ts';
+import {
+  buildFacility, demandChain, eventsOf, LOTTIES_CORNER, LOTTIES_SIDE_LOT, newGame, newStand, openStands, priceCeiling, tickMinute, type GameState,
+} from '../sim/economy.ts';
 import { standPanel, walkerInfo, walkerLine } from './stand.ts';
 
 // The reaction icons draw on a canvas; Node has none, so they come out blank here.
@@ -107,6 +109,51 @@ describe('the stand panel', () => {
     expect(live).toContain(`${st.day.passersby} of ~`);
     expect(live).toContain(`${st.day.customers} sold · line `);
     expect(live).toContain('pour left');
+  });
+
+  it('adds up with two of your stands side by side: walk by, kept, to next door, from next door, at this stand, stop, want', () => {
+    const s = corner();
+    const side = (s.plots[LOTTIES_SIDE_LOT] = { ...s.plots[LOTTIES_SIDE_LOT], owner: 'player', stand: newStand(1) });
+    side.stand!.recipe = 'pink';
+    side.stand!.price = priceCeiling(s, LOTTIES_SIDE_LOT);
+    side.stand!.inventory = { ...s.plots[LOTTIES_CORNER].stand!.inventory, lemons: [{ qty: 400, day: 3, unitCost: 0.1 }] };
+    /** The math table's rows, label to value. */
+    const rows = (html: string) => new Map([...html.matchAll(/<tr><td>([^<]*)<\/td><td[^>]*>([^<]*)<\/td><\/tr>/g)].map((m) => [m[1], m[2]]));
+    const n = (v: string | undefined) => Number((v ?? '0').replace(/[^0-9.]/g, ''));
+    for (const plot of [LOTTIES_CORNER, LOTTIES_SIDE_LOT]) {
+      const html = standPanel(s, plot, true);
+      const r = rows(html);
+      const c = demandChain(s, plot)!;
+      expect(c.toOwn).toBeGreaterThan(0); // part of its walkers go to the stand next door
+      expect(r.get('To your stand next door')).toBe(`−${c.toOwn}`);
+      expect(r.get('From next door')).toBe(`+${c.inflow}`);
+      const here = n(r.get('At this stand'));
+      expect(here).toBe(c.visitors);
+      const kept = r.has('Kept from rivals') ? n(r.get('Kept from rivals')) / 100 : 1;
+      expect(Math.abs(n(r.get('Walk by')) * kept - n(r.get('To your stand next door')) + n(r.get('From next door')) - here)).toBeLessThanOrEqual(1);
+      expect(Math.abs(here * (n(r.get('Stop')) / 100) - n(r.get('Want a cup')))).toBeLessThanOrEqual(here * 0.005 + 1); // Stop shows a whole percent
+      expect(html).toContain(`${c.visitors} here`);
+    }
+    // With a rival on the other side of the side lot, the kept share joins the sum.
+    s.plots['maple-0s'] = { ...s.plots['maple-0s'], owner: 'fizzco', stand: newStand(2, 2) };
+    const r = rows(standPanel(s, LOTTIES_SIDE_LOT, true));
+    const c = demandChain(s, LOTTIES_SIDE_LOT)!;
+    expect(c.kept).toBeLessThan(1);
+    expect(Math.abs(n(r.get('Walk by')) * c.kept - n(r.get('To your stand next door')) + n(r.get('From next door')) - n(r.get('At this stand')))).toBeLessThanOrEqual(1);
+  });
+
+  it('answers a Lemon Grove bought at Morning Prep at once', () => {
+    const s = corner();
+    s.rank = 5;
+    s.cash = 100000;
+    const field = 'groves-1n';
+    s.plots[field] = { ...s.plots[field], owner: 'player', stand: null, facility: undefined }; // an empty Field of yours
+    const before = standPanel(s, LOTTIES_CORNER, true);
+    expect(before).toContain('<td>Marketing</td><td>×1</td>');
+    expect(buildFacility(s, field, 'grove')).toBe(true);
+    const after = standPanel(s, LOTTIES_CORNER, true);
+    expect(after).toContain('<td>Marketing</td><td>×1.05</td>');
+    expect(after).toContain('<td>· Lemon Groves</td><td>+5%</td>');
   });
 
   it('carries the mid-day nudges for the stand you manage, while it sells', () => {

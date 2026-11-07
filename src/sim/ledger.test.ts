@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as balance from './balance.ts';
 import {
-  borrow, buySupply, closeAuctions, costPerCup, dayCash, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
+  book, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
   LOTTIES_CORNER, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, rowAmount, runCampaign,
   simulateRestOfDay, sleepUntilDawn, successScore, upgradeStand, welcomeDex,
   type GameState, type RivalId,
@@ -84,6 +84,24 @@ describe('the Ledger', () => {
     }
     const all = new Set(s.history.flatMap((h) => Object.keys(h.books ?? {})));
     for (const row of ['sales', 'supplies', 'stock', 'upkeep', 'wages', 'invested', 'marketing', 'loan']) expect(all.has(row)).toBe(true);
+  });
+
+  it("a save reloaded after the close keeps booking the evening and the night onto that day's row in the history", () => {
+    const s = newGame(7);
+    const dawn = s.cash;
+    openStands(s);
+    simulateRestOfDay(s);
+    expect(s.today).toBe(s.history.at(-1)); // one record from the close to dawn
+    const m = migrateSave(JSON.parse(JSON.stringify(s)))!; // the save at the report phase, loaded
+    expect(m.today).toBe(m.history.at(-1));
+    book(m, 'repairs', -50); // an evening repair
+    book(m, 'loot', 300); // and the night's Shakedown
+    sleepUntilDawn(m);
+    const day1 = m.history.find((h) => h.day === 1)!;
+    expect(rowAmount(day1, 'repairs')).toBe(-50);
+    expect(rowAmount(day1, 'loot')).toBe(300);
+    expect(dayCash(day1)).toBeCloseTo(m.today.cashAtDawn! - dawn, 2); // its rows still add up to the day's cash, dawn to dawn
+    expect(migrateSave(JSON.parse(JSON.stringify(m)))!.today).not.toBe(day1); // Morning Prep: a new day of its own
   });
 
   it('Supplies are what the day used: cups sold at the day\'s cost per cup, plus stock that melted; deep stocking costs nothing', () => {

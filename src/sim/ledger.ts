@@ -138,8 +138,14 @@ export function logScore(s: GameState, score: number): void {
   log[s.day - 1] = Math.round(score);
 }
 
-/** An older save: the closing scores its history still knows (each day's close is the next day's opening). */
+/**
+ * Every load (idempotent). From the close to dawn, today is also history's last day: one record the evening's and the
+ * night's movements keep booking onto. A save holds two copies of it, so a load ties them back together. An older
+ * save also gets the closing scores its history still knows (each day's close is the next day's opening).
+ */
 export function migrateLedger(s: GameState): void {
+  const last = s.history?.[s.history.length - 1];
+  if (last && s.today && last !== s.today && last.day === s.today.day) s.history[s.history.length - 1] = s.today;
   if (s.scores) return;
   const log: (number | null)[] = [];
   const days = [...s.history];

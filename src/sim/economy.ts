@@ -32,6 +32,7 @@ export * from './vip.ts';
 export * from './rivals.ts';
 export * from './modes.ts';
 export * from './night.ts';
+export * from './damage.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
 export * from './calendar.ts';

@@ -14,6 +14,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
+import { buildingInvested, dollarsUp } from './damage.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, peaceful } from './modes.ts';
 import { etaMinute, hhmm, raidStart, travelMinutes } from './night.ts';
@@ -174,9 +175,10 @@ export function rebuildChance(s: GameState, plotId: string): number {
   return Math.max(0, FACTIONS[ps.owner as RivalId].rebuild - 0.3 * Math.max(0, next - 1));
 }
 
-/** Rebuild a Wrecked building for 15% of what was invested; repair a Busted one (Laid Back) for 10%. */
+/** Rebuild a Wrecked building for 15% of what was invested in it; repair a Busted one (Laid Back) for 10%. The base is
+ * the building itself (damage.ts buildingInvested): the plot's fences and gadgets don't count. */
 export function rebuildCost(ps: PlotState): number {
-  return Math.ceil(ps.invested * (ps.busted ? BUSTED_REPAIR_SHARE : REBUILD_SHARE));
+  return dollarsUp(buildingInvested(ps) * (ps.busted ? BUSTED_REPAIR_SHARE : REBUILD_SHARE));
 }
 
 export function rebuildStand(s: GameState, plotId: string): boolean {

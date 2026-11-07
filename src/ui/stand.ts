@@ -7,6 +7,7 @@ import {
   servingsAvailable, stock, storageFor, SUPPLIES, WEATHER,
   type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
+import { taught } from '../sim/story.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
 import { recipeRow } from './recipes.ts';
 import * as A from './clay.ts';
@@ -135,7 +136,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
       <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${usd(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
   };
   return `<div class="cl-tray" data-testid="nudges">
-    <div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${cubes}</div></div>
+    ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${cubes}</div></div>` : ''}
     <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
       <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > c.ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${usd(c.ceiling)}: past it, buyers walk off. Costs you ${usd(cost)} a cup. Tap to price at the top"><b>${usd(st.price)}</b><i>top ${usd(c.ceiling)}</i></div>
       <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div></div>

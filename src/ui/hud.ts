@@ -23,7 +23,7 @@ import {
   tasteOffToday, type FestivalId,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
-import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
+import { DEFAULT_OPTIONS, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
 import { damageCard, damageHere, damageTickets } from './damage.ts';
@@ -34,6 +34,9 @@ import { recipeRow } from './recipes.ts';
 import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
 import { tripLines, tripNote } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
+import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
+import { keysPanel } from './keys.ts';
+import { attachTips } from './tips.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -95,6 +98,10 @@ export type Action =
   | { type: 'option'; key: string; value?: string } // flip an option
   | { type: 'entry'; recipe?: RecipeId; sweetness?: Sweetness; delta?: number } // Taste-Off entry
   | { type: 'sponsor'; festival: FestivalId }
+  | { type: 'menu'; id: MenuView | null } // open (or put away) a menu; null puts away whatever is up
+  | { type: 'remap'; key: KeyAction } // Options: the next key pressed does this
+  | { type: 'resetKeys' }
+  | { type: 'turn'; dir: 1 | -1 } // the corner's quarter-turn buttons (Q and E)
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -173,6 +180,10 @@ export interface Hud {
   ledger: boolean;
   /** A brawl or a VIP show is on screen: pause stays at hand (it holds them too). */
   playing: boolean;
+  /** The menu that's up (src/ui/menus.ts): full-screen paper, Lottie's goals note, or the list of menus. */
+  menu: MenuView | null;
+  /** Options: the action waiting for its new key. */
+  remap: KeyAction | null;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -180,9 +191,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   root.innerHTML = `<div class="cl-lens" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="v"></i></div>
     <div id="top"></div><div id="dawn"></div><div id="feed"></div><div id="phase"></div><div id="plotcard"></div><div id="corner"></div><div id="pops"></div>`;
   const q = (id: string) => root.querySelector('#' + id) as HTMLElement;
+  attachTips(root); // touch: long-press explains what hover explains
   const topEl = q('top'), dawnEl = q('dawn'), feedEl = q('feed'), phaseEl = q('phase'), plotEl = q('plotcard'), cornerEl = q('corner'), pops = q('pops');
   let tab: 'today' | 'grow' | 'crew' | WorldTab = 'today';
-  let goalsOpen = false, books = false, moreOpts = false;
+  let books = false, moreOpts = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
   const squad = new Set<string>();
   let objective: Objective = 'smash';
@@ -203,9 +215,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     optionsOpen: false,
     ledger: true,
     playing: false,
+    menu: null,
+    remap: null,
     render(s, speed) {
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
-      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots)) : outcomeScreen(s);
+      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
+        : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
+        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: headline(s), goals: goalsOf(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -308,7 +324,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'close-plot': onAction({ type: 'inspect', plot: null }); break;
       case 'view': onAction({ type: 'view', target: d.target as 'home' | 'bay' }); break;
       case 'tab': tab = (tab === d.tab && d.tab !== 'today' ? 'today' : d.tab) as typeof tab; redraw(); break;
-      case 'goals': goalsOpen = !goalsOpen; redraw(); break;
+      case 'goals': onAction({ type: 'menu', id: 'goals' }); break;
+      case 'menu': onAction({ type: 'menu', id: (d.menu || null) as MenuView | null }); break;
+      case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
+      case 'remap': onAction({ type: 'remap', key: d.key as KeyAction }); break;
+      case 'resetKeys': onAction({ type: 'resetKeys' }); break;
+      case 'turn': onAction({ type: 'turn', dir: d.dir === '-1' ? -1 : 1 }); break;
       case 'books': books = !books; redraw(); break;
       case 'more': moreOpts = !moreOpts; redraw(); break;
       case 'perimeter': case 'repairFence': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
@@ -374,18 +395,21 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const pct = (v: number) => (hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 1);
     const now = pct(ss), peak = Math.max(now, pct(s.peakScore));
     const threat = threatLevel(s);
-    const goals = [...lottieGoals(s), ...(bigGoal(s) ? [bigGoal(s)!] : [])];
+    const goals = goalsOf(s);
     const goal = goals.find((g) => !g.done) ?? goals[0];
+    const goalsOpen = hud.menu === 'goals';
+    // A meter opens its menu (once that menu's system is open).
+    const opens = (id: Parameters<typeof menuUnlocked>[1]) => (menuUnlocked(s, id) ? ` data-action="menu" data-menu="${id}" role="button"` : '');
     const mode = `${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${DIFFICULTY[s.settings.difficulty].label}${s.settings.ironman ? ' · Ironman' : ''}`;
     const rankTip = `${r.title}: Success Score ${whole(ss)}${next ? `, ${whole(hi - ss)} to ${next.title}` : ''}${peak > now ? ' (striped: invested in buildings, it fills back in)' : ''}`;
     return `<div class="cl-left">
-        <div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${s.redDays ? `In the Red: ${redDaysLeft(s)} days to get above $0` : 'Cash'}" data-testid="cash">${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>
-        <div class="cl-chip cl-rank" title="${esc(rankTip)}">${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>
-        ${threat >= 2 ? `<div class="cl-chip cl-threat" title="Threat ${threat}: how hard rivals come for you" data-testid="threat">${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
-        ${s.bottles ? `<div class="cl-chip" title="${s.bottles.toLocaleString('en-US')} bottles ready for big orders">${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
+        <div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${s.redDays ? `In the Red: ${redDaysLeft(s)} days to get above $0` : 'Cash'}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>
+        <div class="cl-chip cl-rank" title="${esc(rankTip)}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>
+        ${threat >= 2 ? `<div class="cl-chip cl-threat" title="Threat ${threat}: how hard rivals come for you" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
+        ${s.bottles ? `<div class="cl-chip" title="${s.bottles.toLocaleString('en-US')} bottles ready for big orders"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
       <div class="cl-right">
-        <div class="cl-chip cl-day" title="${esc(mode)} · ${seasonOf(s.day)} day ${seasonDay(s.day)}">${ART.egg()}${tape(s.phase === 'prep' ? `Day ${s.day}` : clock(s.minute))}</div>
+        <div class="cl-chip cl-day" title="${esc(mode)} · ${seasonOf(s.day)} day ${seasonDay(s.day)}"${opens('bugle')}>${ART.egg()}${tape(s.phase === 'prep' ? `Day ${s.day}` : clock(s.minute))}</div>
         <div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${w.temp}°F${s.phase === 'prep' ? ' (forecast, right about 4 days in 5)' : ''}">${ART.sky(w.kind)}${tape(`${w.temp}°`)}</div>
         <button class="cl-sticky${goalsOpen ? ' open' : ''}" data-action="goals" title="Lottie's goals">
           <span class="cl-doodle">${ART.lottie()}</span><span class="cl-goal">${esc(goal.text)}</span>${meter(goal.progress, 'cl-pencil')}
@@ -394,6 +418,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       </div>
 `;
   }
+
+  /** Lottie's goals, then the run's big goal. */
+  const goalsOf = (s: GameState) => { const big = bigGoal(s); return [...lottieGoals(s), ...(big ? [big] : [])]; };
 
   /** The run's big goal under Lottie's: Domination, a score target, or the Peak to beat. */
   function bigGoal(s: GameState) {
@@ -412,7 +439,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- bottom right: views, sound, options, new game and (while the clock runs) speed ----------
   function corner(s: GameState, speed: number) {
     const k = (action: string, inner: string, title: string, extra = '', on = false) => `<button class="cl-knob-s${on ? ' on' : ''}" data-action="${action}" ${extra} title="${title}" aria-label="${title}">${inner}</button>`;
-    const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('options', '⚙', 'Options', 'data-testid="options-open"') + k('setup', '✚', 'New game');
+    const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"')
+      + k('turn', '⟲', 'Turn the view left (Q)', 'data-dir="-1"') + k('turn', '⟳', 'Turn the view right (E)', 'data-dir="1"')
+      + k('menu', '☰', 'Menus', 'data-menu="index" data-testid="menus"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('options', '⚙', 'Options', 'data-testid="options-open"') + k('setup', '✚', 'New game');
     // Pause anywhere the clock (or a show) runs: business hours, the night, the Evening's moment on the map, Morning
     // Prep when it starts the day by itself, and any brawl or VIP scene on screen.
     const counting = !s.outcome && (s.phase === 'prep' ? hud.options.autoContinue : s.phase === 'report' && (!hud.ledger || hud.options.autoContinue));

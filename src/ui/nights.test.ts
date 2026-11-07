@@ -10,6 +10,10 @@ import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import type { SlotInfo } from '../save.ts';
+import { isFullMenu, menuScreen, menuUnlocked } from './menus.ts';
+import { keyName, keysPanel } from './keys.ts';
+import { defaultKeys } from '../settings.ts';
+import { openStands, simulateRestOfDay, sleepUntilDawn } from '../sim/economy.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -118,6 +122,74 @@ describe('the Options screen', () => {
     expect(html).toContain('data-value="150"');
     const off = optionsScreen({ ...DEFAULT_OPTIONS, autoPause: false, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     expect(off).not.toContain('data-key="pause.vip"'); // the master switch off: the rest have nothing to do
+  });
+});
+
+describe('the ten menus', () => {
+  const parts = () => ({ head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => 'CREW', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } });
+  const played = (days: number) => {
+    const s = newGame(5);
+    for (let d = 0; d < days; d++) { s.cash = Math.max(s.cash, 80); openStands(s); simulateRestOfDay(s); sleepUntilDawn(s); }
+    return s;
+  };
+
+  it('nothing shows before its system unlocks; the corner lists the open ones with their keys', () => {
+    const s = newGame(5);
+    expect(menuUnlocked(s, 'ledger')).toBe(false); // no books before the first day
+    expect(menuUnlocked(s, 'crew')).toBe(false);
+    expect(menuUnlocked(s, 'planner')).toBe(false);
+    expect(menuUnlocked(s, 'rank') && menuUnlocked(s, 'goals') && menuUnlocked(s, 'stand') && menuUnlocked(s, 'bugle')).toBe(true);
+    const list = menuScreen(s, 'index', parts());
+    expect(list).toContain('data-menu="rank"');
+    expect(list).not.toContain('data-menu="ledger"');
+    expect(list).toContain('Rank and Perks <b>R</b>');
+    const later = played(2);
+    expect(menuUnlocked(later, 'ledger')).toBe(true);
+    expect(isFullMenu('ledger') && !isFullMenu('goals') && !isFullMenu('stand') && isFullMenu('index')).toBe(true);
+  });
+
+  it('the Ledger charts profit and the Success Score day by day, over the daily books', () => {
+    const s = played(3);
+    const html = menuScreen(s, 'ledger', parts());
+    expect(html.match(/<svg /g)).toHaveLength(2);
+    expect(html.match(/<rect /g)).toHaveLength(3); // a profit bar a day
+    expect(html.match(/<circle /g)).toHaveLength(3); // a score dot a day
+    for (const d of s.history) expect(html).toContain(`<td>Day ${d.day}</td>`);
+  });
+
+  it('the Order Book names client, recipe, size, deadline and pay, and flags a possible Delivery Raid', () => {
+    const s = newGame(5);
+    s.rank = 6;
+    s.offers.push({ id: 'o1', tier: 'heli', client: 'Gulfstream Grocers', qty: 3000, pay: 90000, due: 9, expires: 4, accepted: false });
+    const html = menuScreen(s, 'orders', parts());
+    expect(html).toContain('Gulfstream Grocers: $90,000');
+    expect(html).toContain('3,000 bottles of Classic Lemonade · day 9');
+    expect(html).toContain('Delivery Raid possible'); // Rank 6 is Threat 3
+    expect(html).toContain('data-action="accept" data-id="o1"');
+  });
+
+  it('Rank and Perks shows the ladder and how far the next rank is; lists open plot cards on the map', () => {
+    const s = newGame(5);
+    const html = menuScreen(s, 'rank', parts());
+    expect(html).toContain('<b>R1 Sidewalk Squeezer</b>');
+    expect(html).toMatch(/R2 Corner Hustler<\/td><td>\$1,500 \(\$[\d,]+ to go\)/);
+    expect(menuScreen(s, 'corkboard', parts()).match(/data-action="inspect"/g)!.length).toBeGreaterThan(3);
+    expect(menuScreen(s, 'registry', parts())).toContain('data-action="inspect"');
+    expect(menuScreen(s, 'crew', parts())).toContain('CREW');
+  });
+
+  it('Options lists every key, remappable, with the screens, captions and °C switches', () => {
+    const o = { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause }, keys: defaultKeys() };
+    const keys = keysPanel(o, 'turnLeft');
+    expect(keys.match(/data-action="remap"/g)).toHaveLength(Object.keys(defaultKeys()).length);
+    expect(keys).toContain('Pan up <b>W</b>');
+    expect(keys).toContain('Turn left <b>…</b>'); // waiting for its key
+    expect(keys).not.toContain('resetKeys');
+    o.keys.ledger = 'KeyX';
+    expect(keysPanel(o, null)).toContain('data-action="resetKeys"');
+    expect(keyName('Digit2')).toBe('2');
+    const html = optionsScreen(o, newGame(1), '', keys);
+    for (const key of ['pause.screens', 'captions', 'celsius']) expect(html).toContain(`data-key="${key}"`);
   });
 });
 

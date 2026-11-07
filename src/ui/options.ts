@@ -9,14 +9,15 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const toggle = (key: string, on: boolean, label: string, tip: string) =>
   `<button class="cl-toggle${on ? ' on' : ''}" data-action="option" data-key="${key}" data-testid="opt-${key}" aria-pressed="${on}" title="${esc(tip)}"><i></i>${label}</button>`;
 
-/** `saves`: the Saves panel (src/ui/saves.ts), at the foot of the screen. */
-export function optionsScreen(o: Options, s: GameState, saves = ''): string {
+/** `saves`: the Saves panel (src/ui/saves.ts) and `keys` the key list (src/ui/keys.ts), at the foot of the screen. */
+export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): string {
   // Each major alert has its own switch (perk picks join once rank-up perks land; lessons once onboarding does).
   const each = o.autoPause ? `<div class="cl-row wrap">
       ${toggle('raidPause', raidPauses(s.settings), 'Raids on you', 'Raid warnings pause the game (this run). Off: the clock slows to fight speed for the countdown.')}
       ${toggle('pause.delivery', o.pause.delivery, 'Delivery Raids', 'A raid on a VIP pickup pauses the game')}
       ${toggle('pause.vip', o.pause.vip, 'VIP first visits', "Each client's first chopper or ship stops the clock for the show")}
       ${toggle('pause.red', o.pause.red, 'In the Red', 'Morning Prep waits for you while you are In the Red')}
+      ${toggle('pause.screens', o.pause.screens, 'Full-screen menus', 'Menus, Options and New Game pause the clock. Space or a speed still runs it.')}
     </div>` : '';
   const sizes = TEXT_SIZES.map((t) => `<button class="cl-b tiny ${o.textSize === t ? 'go' : 'ghost'}" data-action="option" data-key="textSize" data-value="${t}" title="Text size ${t}%">${t}%</button>`).join('');
   return `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="options">
@@ -28,6 +29,9 @@ export function optionsScreen(o: Options, s: GameState, saves = ''): string {
       ${toggle('autoContinue', o.autoContinue, 'Start each day by itself', 'Morning Prep opens the stands after a moment. Big alerts still stop it.')}
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD animations')}
+      ${toggle('captions', o.captions, 'Captions', "Lottie's lines and phone calls, written out")}
+      ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
+      ${keys}
       ${saves}
     </div>
     <div class="cl-setup-foot"><span></span><button class="cl-link" data-action="options" data-testid="options-done">Done</button></div>

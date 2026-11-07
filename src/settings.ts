@@ -6,8 +6,23 @@ import { raidPauses, type AlertKind, type GameState } from './sim/economy.ts';
 
 const KEY = 'lemonade-stand-wars/options/v1';
 
-/** The major alerts with a switch of their own here (raid warnings: see Settings.raidPause). */
-export type PauseKind = 'delivery' | 'vip' | 'red' | 'perk';
+/** The major alerts with a switch of their own here (raid warnings: see Settings.raidPause), and full-screen paper. */
+export type PauseKind = 'delivery' | 'vip' | 'red' | 'perk' | 'screens';
+
+/** The ten paper menus (src/ui/menus.ts). */
+export type MenuId = 'bugle' | 'ledger' | 'stand' | 'crew' | 'planner' | 'corkboard' | 'orders' | 'registry' | 'rank' | 'goals';
+export const MENU_IDS: MenuId[] = ['bugle', 'ledger', 'stand', 'crew', 'planner', 'corkboard', 'orders', 'registry', 'rank', 'goals'];
+
+/** Every key and what it does by default (KeyboardEvent.code). Each one can be remapped in Options. The spec names
+ * W A S D, Q and E, Space and 1-3; the menu letters are ours. */
+export const KEYS = {
+  pause: 'Space', speed1: 'Digit1', speed2: 'Digit2', speed3: 'Digit3',
+  panUp: 'KeyW', panLeft: 'KeyA', panDown: 'KeyS', panRight: 'KeyD', turnLeft: 'KeyQ', turnRight: 'KeyE', gull: 'KeyG',
+  bugle: 'KeyB', ledger: 'KeyL', stand: 'KeyT', crew: 'KeyC', planner: 'KeyP', corkboard: 'KeyK', orders: 'KeyO',
+  registry: 'KeyM', rank: 'KeyR', goals: 'KeyJ',
+} as const;
+export type KeyAction = keyof typeof KEYS;
+export const defaultKeys = (): Record<KeyAction, string> => ({ ...KEYS });
 
 export interface Options {
   autoPause: boolean; // master switch: major alerts auto-pause
@@ -16,15 +31,21 @@ export interface Options {
   autoContinue: boolean; // Morning Prep opens the stands by itself
   textSize: 100 | 125 | 150; // percent
   reducedMotion: boolean;
+  captions: boolean; // a caption line for voices and phone calls
+  celsius: boolean; // temperatures in °C (°F by default)
+  keys: Record<KeyAction, string>; // remapped keys
 }
 
 export const DEFAULT_OPTIONS: Options = {
   autoPause: true,
-  pause: { delivery: true, vip: true, red: true, perk: true },
+  pause: { delivery: true, vip: true, red: true, perk: true, screens: true },
   quietNights: true,
   autoContinue: false,
   textSize: 100,
   reducedMotion: false,
+  captions: true,
+  celsius: false,
+  keys: defaultKeys(),
 };
 export const TEXT_SIZES: Options['textSize'][] = [100, 125, 150];
 /** Auto-continue: Morning Prep waits this long (real seconds) before the stands open by themselves. */
@@ -42,15 +63,35 @@ export function loadOptions(): Options {
   } catch { /* blocked or corrupt storage: defaults */ }
   const d = DEFAULT_OPTIONS;
   const p = (raw.pause ?? {}) as Partial<Options['pause']>;
+  const k = (raw.keys && typeof raw.keys === 'object' ? raw.keys : {}) as Partial<Options['keys']>;
+  const keys = defaultKeys();
+  for (const a of Object.keys(keys) as KeyAction[]) if (typeof k[a] === 'string' && k[a]) keys[a] = k[a]!;
   return {
     autoPause: bool(raw.autoPause, d.autoPause),
-    pause: { delivery: bool(p.delivery, d.pause.delivery), vip: bool(p.vip, d.pause.vip), red: bool(p.red, d.pause.red), perk: bool(p.perk, d.pause.perk) },
+    pause: {
+      delivery: bool(p.delivery, d.pause.delivery), vip: bool(p.vip, d.pause.vip), red: bool(p.red, d.pause.red), perk: bool(p.perk, d.pause.perk),
+      screens: bool(p.screens, d.pause.screens),
+    },
     quietNights: bool(raw.quietNights, d.quietNights),
     autoContinue: bool(raw.autoContinue, d.autoContinue),
     textSize: TEXT_SIZES.includes(raw.textSize as Options['textSize']) ? raw.textSize! : d.textSize,
     reducedMotion: bool(raw.reducedMotion, d.reducedMotion),
+    captions: bool(raw.captions, d.captions),
+    celsius: bool(raw.celsius, d.celsius),
+    keys,
   };
 }
+
+/** Bind a key to an action. A key already doing something else swaps over, so no action is ever left without one. */
+export function bindKey(o: Options, action: KeyAction, code: string): void {
+  const other = (Object.keys(o.keys) as KeyAction[]).find((a) => a !== action && o.keys[a] === code);
+  if (other) o.keys[other] = o.keys[action];
+  o.keys[action] = code;
+}
+/** The action a key does now, if any. */
+export const actionFor = (o: Options, code: string): KeyAction | undefined => (Object.keys(o.keys) as KeyAction[]).find((a) => o.keys[a] === code);
+/** A temperature as the player reads it: °F, or °C = (°F − 32) × 5/9, rounded. */
+export const tempText = (o: Pick<Options, 'celsius'>, f: number) => (o.celsius ? `${Math.round(((f - 32) * 5) / 9)}°C` : `${f}°F`);
 
 export function saveOptions(o: Options): void {
   try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { /* storage full or blocked */ }

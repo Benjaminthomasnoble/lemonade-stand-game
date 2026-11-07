@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { autoPauses, DEFAULT_OPTIONS, loadOptions, saveOptions, type Options } from './settings.ts';
+import { actionFor, autoPauses, bindKey, DEFAULT_OPTIONS, defaultKeys, KEYS, loadOptions, saveOptions, tempText, type Options } from './settings.ts';
 import { newGame } from './sim/economy.ts';
 
 const memoryStorage = () => {
@@ -44,5 +44,30 @@ describe('options', () => {
     expect(autoPauses(o, classic, 'soldout')).toBe(false); // small calls never pause
     o.autoPause = false;
     expect(autoPauses(o, classic, 'raid')).toBe(false);
+  });
+});
+
+describe('keys and units', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('every key is remappable and saved; a key taken by another action swaps over', () => {
+    memoryStorage();
+    const o = loadOptions();
+    expect(o.keys).toEqual(defaultKeys());
+    expect(actionFor(o, 'KeyW')).toBe('panUp');
+    bindKey(o, 'ledger', 'KeyW'); // W was pan up: pan up takes L
+    expect(o.keys.ledger).toBe('KeyW');
+    expect(o.keys.panUp).toBe(KEYS.ledger);
+    saveOptions(o);
+    expect(loadOptions().keys).toMatchObject({ ledger: 'KeyW', panUp: 'KeyL' });
+    expect(new Set(Object.values(loadOptions().keys)).size).toBe(Object.keys(KEYS).length); // no key does two things
+  });
+
+  it('temperatures read in °F, or °C rounded when switched', () => {
+    expect(tempText({ celsius: false }, 86)).toBe('86°F');
+    expect(tempText({ celsius: true }, 86)).toBe('30°C');
+    expect(tempText({ celsius: true }, 33)).toBe('1°C');
+    expect(DEFAULT_OPTIONS.celsius).toBe(false);
+    expect(DEFAULT_OPTIONS.pause.screens).toBe(true);
   });
 });

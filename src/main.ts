@@ -22,7 +22,11 @@ import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveSlot,
   saveUnreadable, slotList,
 } from './save.ts';
-import { AUTO_CONTINUE_SECONDS, autoPauses, loadOptions, saveOptions, TEXT_SIZES, type Options, type PauseKind } from './settings.ts';
+import {
+  actionFor, AUTO_CONTINUE_SECONDS, autoPauses, bindKey, defaultKeys, loadOptions, MENU_IDS, saveOptions, TEXT_SIZES, type KeyAction, type MenuId,
+  type Options, type PauseKind,
+} from './settings.ts';
+import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
@@ -90,6 +94,9 @@ async function main() {
   let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
   let eveningWait = 0; // the Evening's moment, off the Ledger
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
+  const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined); // as the HUD's outcome screen
+  let screenUp = false; // full-screen paper was up last frame
+  let screenPaused = false; // ...and it paused the clock, so putting it away brings the speed back
   const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
   const resume = () => { vipPaused = ''; if (!speed) speed = resumeTo || 1; };
   /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
@@ -400,7 +407,18 @@ async function main() {
         }
         break;
       }
-      case 'options': hud.optionsOpen = !hud.optionsOpen; break;
+      case 'options': hud.optionsOpen = !hud.optionsOpen; hud.menu = null; hud.remap = null; break;
+      case 'menu': { // a menu from its meter, its key or the corner's list (none before its system unlocks)
+        if (hud.setup || outcomeUp()) break;
+        const id = a.id;
+        if (id === 'stand') { hud.menu = null; hud.inspected = state.selected; focusPlot(state.selected); break; } // the stand's own card
+        hud.menu = !id || hud.menu === id || (id !== 'index' && !menuUnlocked(state, id)) ? null : id;
+        if (hud.menu) hud.optionsOpen = false;
+        break;
+      }
+      case 'remap': hud.remap = hud.remap === a.key ? null : a.key; break;
+      case 'resetKeys': options.keys = defaultKeys(); saveOptions(options); hud.remap = null; break;
+      case 'turn': world.turnStep(a.dir); break;
       case 'option': setOption(a.key, a.value); break;
       case 'mute': hud.muted = audio.toggle(); break;
       case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); break;
@@ -442,7 +460,11 @@ async function main() {
       case 'brand': buyBrand(state); break;
       case 'campaign': runCampaign(state, a.id); break;
       case 'select': state.selected = a.plot; hud.inspected = a.plot; focusPlot(a.plot); break;
-      case 'inspect': hud.inspected = a.plot; break;
+      case 'inspect': // a tap on the map, or a pick from a menu's list (which flies there)
+        if (a.plot && hud.menu && hud.menu !== 'goals') focusPlot(a.plot);
+        hud.inspected = a.plot;
+        if (hud.menu !== 'goals') hud.menu = null;
+        break;
       case 'buyPlot': buyPlot(state, a.plot); break;
       case 'build': buildStand(state, a.plot); break;
       case 'view': if (a.target === 'home') focusPlot(state.selected); else world.focus(BAY_VIEW.x, BAY_VIEW.z, BAY_VIEW.distance); break;
@@ -498,7 +520,7 @@ async function main() {
     if (key === 'raidPause') { state.settings.raidPause = !raidPauses(state.settings); return; }
     if (key === 'textSize') { const v = Number(value); if ((TEXT_SIZES as number[]).includes(v)) options.textSize = v as Options['textSize']; }
     else if (key.startsWith('pause.')) { const k = key.slice(6) as PauseKind; if (k in options.pause) options.pause[k] = !options.pause[k]; }
-    else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion') options[key] = !options[key];
+    else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion' || key === 'captions' || key === 'celsius') options[key] = !options[key];
     saveOptions(options);
     hud.options = options;
     prepWait = 0;
@@ -557,19 +579,45 @@ async function main() {
   gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
   gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else flight.start(); gullBtn.classList.toggle('on', flight.active()); });
   document.getElementById('ui')!.appendChild(gullBtn);
-  window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyG' || hud.setup || (e.target as HTMLElement)?.tagName === 'INPUT') return;
-    if (flight.active()) flight.stop(); else flight.start();
-    gullBtn.classList.toggle('on', flight.active());
-  });
-
-  // Keyboard: space pauses and resumes, 1-3 set speed, anywhere (mid-fight, at night and in menus).
+  // Keys (every one remappable in Options): Space pauses and resumes, 1-3 set speed, W A S D pan, Q and E turn the
+  // view a quarter at a time, G flies the gull, and a letter opens each menu. They work anywhere: mid-fight, at night
+  // and in menus. Esc puts away whatever is on top.
+  const panning = new Set<KeyAction>();
+  const putAway = () => {
+    if (hud.remap) hud.remap = null;
+    else if (hud.menu) hud.menu = null;
+    else if (hud.optionsOpen) hud.optionsOpen = false;
+    else if (hud.setup?.cancel) hud.setup = null;
+    else if (hud.inspected) hud.inspected = null;
+    else return;
+    act({ type: 'refresh' });
+  };
   window.addEventListener('keydown', (e) => {
     const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.repeat) return;
-    if (e.code === 'Space') { if (speed) pause(); else resume(); e.preventDefault(); }
-    if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) setSpeed(Number(e.code.slice(5)));
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (hud.remap) { // Options is waiting for a key: this one (Esc keeps the old)
+      e.preventDefault();
+      if (e.code !== 'Escape') { bindKey(options, hud.remap, e.code); saveOptions(options); }
+      hud.remap = null;
+      act({ type: 'refresh' });
+      return;
+    }
+    if (e.code === 'Escape') { putAway(); return; }
+    const k = actionFor(options, e.code);
+    if (!k) return;
+    if (k === 'panUp' || k === 'panDown' || k === 'panLeft' || k === 'panRight') { panning.add(k); return; }
+    if (e.repeat) return;
+    if (k === 'pause') { if (speed) pause(); else resume(); e.preventDefault(); }
+    else if (k === 'speed1' || k === 'speed2' || k === 'speed3') setSpeed(Number(k.slice(5)));
+    else if (k === 'turnLeft' || k === 'turnRight') world.turnStep(k === 'turnLeft' ? -1 : 1);
+    else if (k === 'gull') {
+      if (hud.setup) return;
+      if (flight.active()) flight.stop(); else flight.start();
+      gullBtn.classList.toggle('on', flight.active());
+    } else if ((MENU_IDS as string[]).includes(k)) act({ type: 'menu', id: k as MenuId });
   });
+  window.addEventListener('keyup', (e) => { const k = actionFor(options, e.code); if (k) panning.delete(k); });
+  window.addEventListener('blur', () => panning.clear());
 
   // Debug/test handle for Playwright and agents (same idea as Owl World's).
   (window as unknown as { __game: unknown }).__game = {
@@ -614,10 +662,20 @@ async function main() {
     timer.update();
     const realDt = timer.getDelta();
     const dt = Math.min(realDt, 0.1);
-    // Full-screen paper pauses: New Game, Options, a won or lost run, and the Bugle's front page at dawn.
-    const outcomeUp = !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined); // as the HUD's outcome screen
-    const paper = !!hud.setup || hud.optionsOpen || outcomeUp || !!uiRoot.querySelector('.frontpage');
-    const frozen = speed === 0 || paper; // paused: the clock, the brawl and the scenes hold still
+    // Full-screen paper (New Game, Options, a menu, the Bugle's front page) pauses the clock while it runs, with its
+    // own switch in Options, and putting it away brings the speed back. Space and 1-3 still work behind it. A won or
+    // lost run and the first visit's New Game hold everything.
+    const paper = !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || !!uiRoot.querySelector('.frontpage');
+    if (paper !== screenUp) {
+      screenUp = paper;
+      if (paper && speed && (state.phase === 'open' || state.phase === 'night') && options.autoPause && options.pause.screens) { pause(); screenPaused = true; }
+      else if (!paper && screenPaused) { screenPaused = false; if (!speed) resume(); }
+    }
+    const frozen = speed === 0 || outcomeUp() || (!!hud.setup && !hud.setup.cancel); // the clock, the brawl and the scenes hold still
+    if (panning.size && !flight.active()) {
+      const has = (k: KeyAction) => (panning.has(k) ? 1 : 0);
+      world.panBy((has('panRight') - has('panLeft')) * Math.min(realDt, 0.1), (has('panUp') - has('panDown')) * Math.min(realDt, 0.1));
+    }
     if (state.phase !== 'night' && state.phase !== 'report') quietOff = false; // each night starts quiet again
     if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
@@ -637,12 +695,12 @@ async function main() {
       if (midDay(state) && hour !== savedHour) { savedHour = hour; saveGame(state); }
     } else acc = 0;
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it.
-    if (state.phase === 'prep' && options.autoContinue && !frozen && !state.outcome && !(state.redDays && autoPauses(options, state, 'red'))) {
+    if (state.phase === 'prep' && options.autoContinue && !frozen && !paper && !state.outcome && !(state.redDays && autoPauses(options, state, 'red'))) {
       prepWait += realDt;
       if (prepWait >= AUTO_CONTINUE_SECONDS) act({ type: 'open' });
     } else if (state.phase !== 'prep') prepWait = 0;
     // The Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
-    if (state.phase === 'report' && !frozen && !state.outcome && (!hud.ledger || options.autoContinue)) {
+    if (state.phase === 'report' && !frozen && !paper && !state.outcome && (!hud.ledger || options.autoContinue)) {
       eveningWait += dt * Math.max(speed, 1);
       if (eveningWait >= EVENING_REAL_SECONDS) act({ type: 'night' });
     } else if (state.phase !== 'report') eveningWait = 0;

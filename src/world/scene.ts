@@ -38,6 +38,11 @@ export interface World {
   setClock(phase: Phase, minute: number): void;
   /** Glide the camera to look at a point from a distance. */
   focus(x: number, z: number, distance: number): void;
+  /** Slide the view along the ground (keys W A S D): `right` and `ahead` in screen terms, scaled by how far out the
+   * camera is, per second held (pass the frame time). */
+  panBy(right: number, ahead: number): void;
+  /** Swing the camera a quarter-turn around what it looks at, eased (keys Q and E, and the corner's turn buttons). */
+  turnStep(dir: 1 | -1): void;
   update(dt: number): void;
   /** Draw a frame (scene, tilt-shift, vignette). */
   render(): void;
@@ -224,6 +229,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   window.addEventListener('resize', onResize);
 
   let glide: { from: THREE.Vector3; to: THREE.Vector3; camFrom: THREE.Vector3; camTo: THREE.Vector3; t: number } | null = null;
+  let turn: { by: number; done: number; t: number } | null = null; // an eased quarter-turn (Q and E)
+  const TURN_AXIS = new THREE.Vector3(0, 1, 0);
   let weather: WeatherKind = 'warm';
   let hour = 7;
   let clocked = false;
@@ -255,8 +262,31 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       const to = new THREE.Vector3(x, 0.8, z);
       glide = { from: controls.target.clone(), to, camFrom: camera.position.clone(), camTo: to.clone().addScaledVector(dir, distance), t: 0 };
     },
+    panBy(right, ahead) {
+      glide = null;
+      const fwd = controls.target.clone().sub(camera.position).setY(0);
+      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+      fwd.normalize();
+      const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+      const k = camera.position.distanceTo(controls.target) * 0.9; // about a screen's width a second at any zoom
+      const move = side.multiplyScalar(right * k).addScaledVector(fwd, ahead * k);
+      controls.target.add(move);
+      camera.position.add(move);
+    },
+    turnStep(dir) {
+      // A turn under way finishes from where it is; the new quarter adds on.
+      turn = { by: (turn ? turn.by - turn.done : 0) + (dir * Math.PI) / 2, done: 0, t: 0 };
+    },
     update(dt) {
       time += dt;
+      if (turn) {
+        turn.t = Math.min(1, turn.t + dt * 2.4);
+        const k = turn.t * turn.t * (3 - 2 * turn.t);
+        const step = turn.by * k - turn.done;
+        turn.done += step;
+        camera.position.sub(controls.target).applyAxisAngle(TURN_AXIS, step).add(controls.target);
+        if (turn.t >= 1) turn = null;
+      }
       if (glide) {
         glide.t = Math.min(1, glide.t + dt * 1.6);
         const k = glide.t * glide.t * (3 - 2 * glide.t);

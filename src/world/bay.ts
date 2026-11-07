@@ -21,9 +21,9 @@ import { lemonsExpiringTomorrow, seasonOf, stock } from '../sim/economy.ts';
 import { hpShare } from '../sim/damage.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
-import { makeCrew, makeDex, type Side } from './clay/cast.ts';
+import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
-import { CROWD_DETAIL, type Figure } from './clay/figure.ts';
+import { crowdDetail, type Figure } from './clay/figure.ts';
 import { reducedMotion } from './clay/fx.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
@@ -372,7 +372,7 @@ export function createBay(scene: THREE.Scene): Bay {
   const sentries = createFigureBatch(K.fig, { instances: 256, vertices: 80_000, indices: 240_000 });
   sentries.mesh.name = 'sentry-batch';
   scene.add(sentries.mesh);
-  interface Posted { fig: Figure; i: number; dex: boolean; goose: boolean; crossed: boolean; x: number }
+  interface Posted { fig: Figure; i: number; dex: boolean; goose: boolean; crossed: boolean; x: number; boss?: BossId }
   const watches = new Map<PlotView, Posted[]>();
   const calm = reducedMotion() ? 0.25 : 1;
   /** How long a pier from this plot must be to reach past the shore (12 if the water isn't behind it). */
@@ -450,7 +450,7 @@ export function createBay(scene: THREE.Scene): Bay {
         const gd = posted[i];
         const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, onGuard: true, seed: i + 1 } : { weapon: 'clubs' as const, seed: i + 1 };
         const dex = gd?.name === 'Dex Moody';
-        const fig = dex ? makeDex(look, K.fig, { scale: 0.95, detail: CROWD_DETAIL }) : makeCrew((ps.owner ?? 'player') as Side, look, K.fig, { scale: 0.95, detail: CROWD_DETAIL });
+        const fig = dex ? makeDex(look, K.fig, { scale: 0.95, detail: crowdDetail() }) : makeCrew((ps.owner ?? 'player') as Side, look, K.fig, { scale: 0.95, detail: crowdDetail() });
         const g = fig.root;
         const x = (i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7);
         g.position.set(x, 0.12, 1.5);
@@ -467,6 +467,20 @@ export function createBay(scene: THREE.Scene): Bay {
       for (let i = 0; i < guards; i++) FB.add(cap(0.42, 0.9, 2, 6), ownerColor(ps.owner), { p: [(i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.95, 1.5] });
       watch.userData.far = FB.build();
       watch.userData.ownFar = true;
+    }
+    // Each boss holds court in front of their HQ (spec mood scene: "Brock flexes from the Pier").
+    if (p.type === 'hq' && ps.owner && ps.owner !== 'player' && s.rivals[ps.owner as RivalId]?.alive) {
+      const id = BOSS_OF[ps.owner as keyof typeof BOSS_OF];
+      const fig = makeBoss(id, K.fig, { detail: crowdDetail() });
+      const court = new THREE.Group();
+      court.name = 'boss';
+      fig.root.position.set(0, 0.12, 2.4);
+      court.add(fig.root);
+      v.root.add(court);
+      const list = watches.get(v) ?? [];
+      list.push({ fig, i: 7, dex: false, goose: false, crossed: false, x: 0, boss: id });
+      sentries.track(fig.root);
+      watches.set(v, list);
     }
     // Moving parts (clock hands, windmill sails, windsocks, cranes) pose on twos in update().
     const parts: THREE.Object3D[] = [];
@@ -572,8 +586,13 @@ export function createBay(scene: THREE.Scene): Bay {
             const u = Math.min(1, (out ? c : c - 4.5) / 0.6);
             const k = g.goose && u < 1 ? Math.sin(u * Math.PI) : 0;
             const side = g.goose ? (out ? u : 1 - u) * 0.35 * calm : 0;
-            root.position.x = g.x + (g.x < 0 ? -side : side);
+            root.position.x = g.x + side; // away from Honkers by the gate (plot-local x -3.3), never into the next guard
             g.fig.pose({ lift: k * 0.22 * calm, headYaw: k > 0 ? 0 : yaw, headTilt: -k * 0.1 }, mf);
+          } else if (g.boss) {
+            // the boss's signature idle: Brock's double-bicep flex, Vera's cane tap on the beat, the rest look down their street
+            const tap = mf % 12 < 3;
+            g.fig.pose({ sq: Math.sin(t * 2.2) > 0.7 ? 0.03 * calm : 0, headYaw: Math.sin(t * 0.35) * 0.35 * calm, aR: g.boss === 'vera' ? [tap ? 0.3 : 0.12, -0.1] : undefined }, mf);
+            if (g.boss === 'brock') g.fig.flex(true);
           } else {
             const b = Math.abs(Math.sin(t * 3));
             g.fig.pose({ lift: b * 0.03 * calm, sq: (1 - b) * 0.04 * calm, headYaw: Math.sin(t * 0.45) * 0.3 * calm, aR: g.crossed ? undefined : [-0.35, -0.12] }, mf);

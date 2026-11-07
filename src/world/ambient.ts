@@ -12,7 +12,7 @@ import { MOTION } from './people.ts';
 import { gull, dog } from './clay/creatures.ts';
 import { clayFrom, kit } from './clay/kit.ts';
 import { makeCrew } from './clay/cast.ts';
-import { CROWD_DETAIL, GAIT_OF, gait, type Figure } from './clay/figure.ts';
+import { crowdDetail, GAIT_OF, gait, type Figure } from './clay/figure.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
 const mat = (color: number, roughness = 0.8) => clayFrom(color, roughness);
@@ -53,7 +53,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
 
   // ---- Smoothie Bros jogging in formation on the Boardwalk ----
   const broFigs = [1, 2, 3].map((seed) => {
-    const fig = makeCrew('blenders', { weapon: 'fists', seed }, kit().fig, { detail: CROWD_DETAIL }); // V-shaped bros on tiny legs
+    const fig = makeCrew('blenders', { weapon: 'fists', seed }, kit().fig, { detail: crowdDetail() }); // V-shaped bros on tiny legs
     fig.root.visible = false;
     scene.add(fig.root);
     batch.track(fig.root);
@@ -117,7 +117,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         for (const h of hench) {
           if (h.obj || !want.length) continue;
           const w = want.shift()!;
-          h.fig = makeCrew(w.rival, { weapon: 'clubs', seed: w.slot + 1 }, kit().fig, { detail: CROWD_DETAIL });
+          h.fig = makeCrew(w.rival, { weapon: 'clubs', seed: w.slot + 1 }, kit().fig, { detail: crowdDetail() });
           h.obj = h.fig.root;
           h.rival = w.rival; h.plot = w.plot; h.slot = w.slot; h.glare = 3 + Math.random() * 8;
           const v = views[w.plot];

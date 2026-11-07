@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Baker, GLOSS, PAPER, box, cap as cap0, cyl as cyl0, lathe as lathe0, lumpy, shade, snake as snake0, sph as sph0, tor as tor0, type V3 } from './core.ts';
-import { CREWS, CROWD_DETAIL, Figure, SPECS, type BodyKind, type FigureOptions, type FigureSpec, type Hat } from './figure.ts';
+import { CREWS, Figure, SPECS, type BodyKind, type FigureOptions, type FigureSpec, type Hat } from './figure.ts';
 import { P, SKINS } from './palette.ts';
 
 export type Side = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
@@ -20,7 +20,8 @@ const cap = (r: number, l: number, cs = 4, rs = 10) => cap0(r, l, k(cs, 1), k(rs
 const cyl = (rt: number, rb: number, h: number, s = 16, open = false) => cyl0(rt, rb, h, k(s, 4), open);
 const tor = (r: number, t: number, rs = 8, ts = 20, arc = Math.PI * 2) => tor0(r, t, k(rs, 3), k(ts, 5), arc);
 const lathe = (pts: [number, number][], seg = 22) => lathe0(pts, k(seg, 5));
-const snake = (pts: V3[], r: number, seg = 24, rs = 7) => snake0(pts, r, k(seg, 3), k(rs, 3));
+const snake = (pts: V3[], r: number, seg = 24, rs = 7) => snake0(pts, r, k(seg, 3), k(rs, 3), PD < 1 ? 2 : 6);
+const rbx = (w: number, h: number, d: number, seg = 2, r = 0.02) => new RoundedBoxGeometry(w, h, d, PD < 1 ? 1 : seg, r);
 // Every prop is baked once into vertex-coloured clay and shared. Props held in a
 // mitten hang from the hand (the grip at the origin, the business end along -y),
 // so they swing with the arm; props worn on the body sit in the rig's space.
@@ -30,7 +31,7 @@ const hatchet = (handle: string, head: string, grip: string, stripes = false): B
   if (stripes) for (let i = 0; i < 4; i++) B.add(tor(0.029, 0.009, 4, 10), grip, { p: [0, -0.04 - i * 0.09, 0], r: [Math.PI / 2, 0, 0] });
   else B.add(cyl(0.032, 0.032, 0.14, 8), grip, { p: [0, -0.02, 0] });
   // a chunky rounded wedge: clearly a toy, never sharp-looking
-  B.add(lumpy(new RoundedBoxGeometry(0.2, 0.13, 0.05, 2, 0.03), 0.004, 10, 2), head, { p: [0.07, -0.42, 0], fx: GLOSS });
+  B.add(lumpy(rbx(0.2, 0.13, 0.05, 2, 0.03), 0.004, 10, 2), head, { p: [0.07, -0.42, 0], fx: GLOSS });
   B.add(cyl(0.035, 0.035, 0.07, 8), head, { p: [0, -0.42, 0], r: [Math.PI / 2, 0, 0], fx: GLOSS });
 };
 const club = (body: string, tape: string): Build => (B) => {
@@ -48,7 +49,7 @@ export const PROP: Record<string, Build> = {
   },
   baton(B) { B.add(cyl(0.03, 0.03, 0.42, 8), P.plum, { fx: GLOSS, p: [0, -0.2, 0] }); B.add(cyl(0.034, 0.034, 0.1, 8), '#1d1d26', { p: [0, -0.02, 0] }); },
   heldboard(B) { // Cold Brew swing their skateboards
-    B.add(new RoundedBoxGeometry(0.2, 0.62, 0.04, 2, 0.02), P.plum, { p: [0, -0.3, 0.03] });
+    B.add(rbx(0.2, 0.62, 0.04, 2, 0.02), P.plum, { p: [0, -0.3, 0.03] });
     B.add(box(0.17, 0.4, 0.01), P.neon, { p: [0, -0.3, 0.055], fx: 0.3 });
     for (const y of [-0.1, -0.5]) for (const x of [-0.07, 0.07]) B.add(cyl(0.03, 0.03, 0.035, 10), P.oat, { p: [x, y, 0], r: [0, 0, Math.PI / 2] });
   },
@@ -69,7 +70,7 @@ export const PROP: Record<string, Build> = {
     B.add(new THREE.SphereGeometry(0.17, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), P.chrome, { p: [0, -0.84, 0.0], fx: GLOSS });
   },
   carphone(B) { // Preston's brick car phone
-    B.add(new RoundedBoxGeometry(0.1, 0.26, 0.07, 2, 0.02), '#2b2b38', { p: [0, -0.06, 0.03], fx: GLOSS });
+    B.add(rbx(0.1, 0.26, 0.07, 2, 0.02), '#2b2b38', { p: [0, -0.06, 0.03], fx: GLOSS });
     B.add(cyl(0.01, 0.01, 0.16, 5), '#1d1d26', { p: [0.03, 0.14, 0.03] });
     for (let i = 0; i < 6; i++) B.add(box(0.018, 0.012, 0.006), P.lemon, { p: [(i % 3 - 1) * 0.026, -0.1 - Math.floor(i / 3) * 0.03, 0.068] });
   },
@@ -87,7 +88,7 @@ export const PROP: Record<string, Build> = {
   },
   // ----- the named cast -----
   ledger(B) { // Marisol hugs her ledger
-    B.add(new RoundedBoxGeometry(0.34, 0.42, 0.06, 2, 0.02), P.green, { fx: PAPER });
+    B.add(rbx(0.34, 0.42, 0.06, 2, 0.02), P.green, { fx: PAPER });
     B.add(box(0.31, 0.39, 0.05), P.cream, { p: [0.015, 0, 0.012], fx: PAPER });
     B.add(box(0.06, 0.42, 0.065), shade(P.green, -0.15), { p: [-0.15, 0, 0], fx: PAPER });
   },
@@ -97,7 +98,7 @@ export const PROP: Record<string, Build> = {
     B.add(tor(0.155, 0.018, 5, 18), '#ffffff', { p: [0, 0.02, 0.42] });
   },
   ticketbook(B) { // Sheriff Budd's ticket book
-    B.add(new RoundedBoxGeometry(0.16, 0.22, 0.04, 1, 0.01), P.terra, { p: [0, -0.06, 0.04], fx: PAPER });
+    B.add(rbx(0.16, 0.22, 0.04, 1, 0.01), P.terra, { p: [0, -0.06, 0.04], fx: PAPER });
     B.add(box(0.14, 0.2, 0.01), '#ffffff', { p: [0, -0.06, 0.062], fx: PAPER });
   },
   glassLemon(B) {
@@ -108,7 +109,7 @@ export const PROP: Record<string, Build> = {
   fan(B) { for (let i = 0; i < 7; i++) B.add(box(0.05, 0.28, 0.012).translate(0, -0.16, 0), i % 2 ? P.terra : P.cream, { fx: PAPER, r: [0, 0, (i - 3) * 0.22] }); B.add(sph(0.03, 6, 4), P.walnut, {}); },
   knitting(B) { // Lottie's needles and a growing lemon-yellow scarf
     for (const s of [-1, 1]) B.add(cyl(0.008, 0.008, 0.34, 5), P.gold, { p: [s * 0.04, -0.05, 0.12], r: [Math.PI / 2 - 0.4, 0, s * 0.5], fx: GLOSS });
-    B.add(lumpy(new RoundedBoxGeometry(0.16, 0.22, 0.05, 2, 0.02), 0.01, 18, 4), P.lemon, { p: [0, -0.16, 0.12] });
+    B.add(lumpy(rbx(0.16, 0.22, 0.05, 2, 0.02), 0.01, 18, 4), P.lemon, { p: [0, -0.16, 0.12] });
     B.add(sph(0.06, 10, 8), P.terra, { p: [0.1, -0.2, 0.18] });
   },
   // ----- customers -----
@@ -118,7 +119,7 @@ export const PROP: Record<string, Build> = {
     B.add(new THREE.ConeGeometry(0.03, 0.04, 6), P.terra, { p: [0, 0.83, 0], r: [Math.PI, 0, 0] });
   },
   lunchpail(B) { // workers
-    B.add(new RoundedBoxGeometry(0.22, 0.14, 0.12, 2, 0.03), P.teal, { p: [0, -0.11, 0], fx: GLOSS });
+    B.add(rbx(0.22, 0.14, 0.12, 2, 0.03), P.teal, { p: [0, -0.11, 0], fx: GLOSS });
     B.add(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 12, 1, false, 0, Math.PI), P.teal, { p: [0, -0.04, 0], r: [0, 0, Math.PI / 2], fx: GLOSS });
     B.add(tor(0.05, 0.008, 4, 10, Math.PI), P.plum, { p: [0, 0, 0] });
   },
@@ -141,7 +142,8 @@ export function propGeometry(name: string, crowd = false): THREE.BufferGeometry 
 export function prop(name: string, mat: THREE.Material, crowd = false): THREE.Mesh {
   const m = new THREE.Mesh(propGeometry(name, crowd), mat); m.castShadow = true; m.name = name; return m;
 }
-const crowdOf = (fig: Figure) => fig.detail <= CROWD_DETAIL + 1e-6;
+// crowd-detail figures (0.5 and below) carry the low-segment props
+const crowdOf = (fig: Figure) => fig.detail <= 0.5 + 1e-6;
 /** Put a prop in a mitten (right by default). Crowd-detail figures get the low-segment prop. */
 export function holdProp(fig: Figure, name: string, left = false): THREE.Mesh {
   const m = prop(name, fig.mat, crowdOf(fig)); (left ? fig.handL : fig.hand).add(m); return m;
@@ -154,7 +156,7 @@ function stroller(): Build {
       B.add(cyl(0.07, 0.07, 0.03, 12), P.plum, { p: [x, 0.07, z], r: [0, 0, Math.PI / 2] });
       B.add(sph(0.025, 6, 4), P.chrome, { p: [x * 1.12, 0.07, z], fx: GLOSS });
     }
-    B.add(lumpy(new RoundedBoxGeometry(0.42, 0.28, 0.5, 3, 0.1), 0.008, 6, 2), P.blush, { p: [0, 0.34, 0.24] });
+    B.add(lumpy(rbx(0.42, 0.28, 0.5, 3, 0.1), 0.008, 6, 2), P.blush, { p: [0, 0.34, 0.24] });
     B.add(new THREE.SphereGeometry(0.28, 14, 8, 0, Math.PI, 0, Math.PI / 2), P.teal, { p: [0, 0.46, 0.38], r: [0, Math.PI / 2, 0], s: [1, 1, 0.75] });
     B.add(sph(0.09, 10, 8), SKINS[1], { p: [0, 0.54, 0.16] }); // the baby
     B.add(cap(0.018, 0.5, 2, 5), P.chrome, { p: [0, 0.68, -0.08], r: [0, 0, Math.PI / 2], fx: GLOSS });
@@ -168,7 +170,7 @@ function tinyDog(): Build { // high rollers walk a tiny dog
     B.add(sph(0.022, 6, 4), P.plum, { p: [0, 0.27, 0.23], fx: GLOSS });
     for (const s of [-1, 1]) B.add(sph(0.045, 8, 6), '#ffffff', { p: [s * 0.06, 0.32, 0.12], s: [0.6, 1.2, 0.6] });
     for (const x of [-0.07, 0.07]) for (const z of [-0.07, 0.07]) B.add(cap(0.022, 0.08, 2, 5), '#ffffff', { p: [x, 0.06, z] });
-    B.add(tor(0.06, 0.012, 4, 10), P.neon, { p: [0, 0.22, 0.12], r: [Math.PI / 2 - 0.4, 0, 0], fx: GLOSS });
+    B.add(tor(0.06, 0.012, 4, 10), P.terra, { p: [0, 0.22, 0.12], r: [Math.PI / 2 - 0.4, 0, 0], fx: GLOSS });
     B.add(lumpy(sph(0.05, 8, 6), 0.005, 12, 6), '#ffffff', { p: [0, 0.27, -0.16] });
   };
 }
@@ -254,7 +256,7 @@ export function signaturePose(fig: Figure, id: TownsfolkId) {
   if (id === 'budd') { fig.arms[0].rotation.set(-0.9, 0, 0.2); fig.arms[1].rotation.set(-0.7, 0, -0.1); }
 }
 PROP.skateboardRide = (B) => {
-  B.add(new RoundedBoxGeometry(0.34, 0.05, 1.0, 2, 0.02), P.plum, { p: [0, 0.11, 0] });
+  B.add(rbx(0.34, 0.05, 1.0, 2, 0.02), P.plum, { p: [0, 0.11, 0] });
   B.add(box(0.3, 0.012, 0.6), P.neon, { p: [0, 0.14, 0], fx: 0.3 });
   for (const z of [-0.33, 0.33]) for (const x of [-0.13, 0.13]) B.add(cyl(0.045, 0.045, 0.05, 12), P.oat, { p: [x, 0.045, z], r: [0, 0, Math.PI / 2] });
 };
@@ -413,7 +415,7 @@ export function makeCustomer(seg: SegmentLook, i: number, mat: THREE.Material, o
     const m = new THREE.Mesh(worn('tinydog', tinyDog(), crowdOf(fig)), mat); m.castShadow = true;
     m.position.set(-0.55, 0, 0.25); fig.root.add(m); p = m;
     // the leash, from the left mitten down to the collar
-    const leash = new THREE.Mesh(worn('leash', (B) => B.add(snake([[0, 0, 0], [-0.12, -0.35, 0.12], [-0.25, -0.5, 0.3]], 0.008, 8, 3), P.neon, {}), crowdOf(fig)), mat);
+    const leash = new THREE.Mesh(worn('leash', (B) => B.add(snake([[0, 0, 0], [-0.12, -0.35, 0.12], [-0.25, -0.5, 0.3]], 0.008, 8, 3), P.terra, {}), crowdOf(fig)), mat);
     fig.handL.add(leash);
   }
   return { fig, prop: p };

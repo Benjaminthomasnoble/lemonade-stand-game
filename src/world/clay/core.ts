@@ -268,11 +268,11 @@ export const cone = (r: number, h: number, s = 12, open = false) => new THREE.Co
 export const tor = (r: number, t: number, rs = 8, ts = 20, arc = Math.PI * 2) => new THREE.TorusGeometry(r, t, rs, ts, arc);
 export function lathe(pts: [number, number][], seg = 22) { return new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(Math.max(0, x), y)), seg); }
 /** a clay snake along points (tube with rounded ends) */
-export function snake(pts: V3[], r: number, seg = 24, rs = 7): THREE.BufferGeometry {
+export function snake(pts: V3[], r: number, seg = 24, rs = 7, capH = 6): THREE.BufferGeometry {
   const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])));
   const g = new THREE.TubeGeometry(curve, seg, r, rs, false);
   const parts: THREE.BufferGeometry[] = [g];
-  for (const t of [0, 1]) { const e = sph(r, rs + 1, 6); const q = curve.getPoint(t); e.translate(q.x, q.y, q.z); parts.push(e); }
+  for (const t of [0, 1]) { const e = sph(r, rs + 1, capH); const q = curve.getPoint(t); e.translate(q.x, q.y, q.z); parts.push(e); }
   for (const y of parts) for (const k of Object.keys(y.attributes)) if (k !== 'position' && k !== 'normal') y.deleteAttribute(k);
   return mergeGeometries(parts, false);
 }

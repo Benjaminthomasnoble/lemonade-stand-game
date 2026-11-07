@@ -5,7 +5,7 @@
 // works the counter and Grandma Lottie sits in her lawn chair by the phone.
 import * as THREE from 'three';
 import { idlePose, MOTION } from './people.ts';
-import { Figure, SPECS } from './clay/figure.ts';
+import { Figure, SPECS, heroDetail } from './clay/figure.ts';
 import { holdProp } from './clay/cast.ts';
 import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
 import { kit } from './clay/kit.ts';
@@ -225,7 +225,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   // The grandkid: lemon cap, white apron, freckled and gap-toothed (clay/figure.ts SPECS.kid).
   // A touch taller than the clay kid body, so the grandkid's face clears every counter.
   const KID_SCALE = 1.12;
-  const kidFig = new Figure(SPECS.kid, kit().fig, { scale: KID_SCALE });
+  const kidFig = new Figure(SPECS.kid, kit().fig, { scale: KID_SCALE, detail: heroDetail() });
   const kid = kidFig.root;
   kid.position.set(0, 0, -0.45);
   group.add(kid);
@@ -236,7 +236,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
   if (opts.lottie !== false) group.add(chair);
-  const lottieFig = new Figure(SPECS.lottie, kit().fig, { scale: 0.9 });
+  const lottieFig = new Figure(SPECS.lottie, kit().fig, { scale: 0.9, detail: heroDetail() });
   const lottie = lottieFig.root;
   lottie.position.set(-2.0, 0.05, -0.15);
   lottie.rotation.y = 0.5;

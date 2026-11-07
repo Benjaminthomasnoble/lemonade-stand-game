@@ -69,13 +69,22 @@ export const FACES: Record<Face, Partial<FigureSpec>> = {
 type Spec = FigureSpec & { glassesToo?: boolean } & Required<Pick<FigureSpec, 'kind' | 'skin' | 'shirt' | 'pants' | 'shoes' | 'hairColor' | 'eyes' | 'brows' | 'mouth' | 'nose' | 'seed' | 'R' | 'skin2'>>;
 
 // Level of detail: segment counts scale by DETAIL while a figure is being built
-// (1 is the mockup). At crowd detail (CROWD_DETAIL and below) the segment floors drop
+// (1 is the mockup). At phone crowd detail (LOW_DETAIL and below) the segment floors drop
 // too and the smallest bits (ears, freckles, the second glint) are left off, so a
 // crowd person costs about 900 triangles, as the spec budgets.
 let DETAIL = 1;
-/** The detail the street crowd, posted guards and loiterers are built at. */
-export const CROWD_DETAIL = 0.3;
-const low = () => DETAIL <= CROWD_DETAIL + 1e-6;
+/** Phone crowd detail: segment floors drop and the smallest bits go, about 900 triangles a person. */
+export const LOW_DETAIL = 0.3;
+let crowd = 0.5;
+/** The world picks the crowd's detail by quality: phones build low, laptops keep smooth silhouettes. */
+export function setCrowdDetail(phone: boolean) { crowd = phone ? LOW_DETAIL : 0.5; }
+/** The detail the street crowd, posted guards, loiterers and big brawls are built at. */
+export const crowdDetail = () => crowd;
+/** Lottie, the grandkid and scene actors: full on laptops, lighter on phones. */
+export const heroDetail = () => (crowd <= LOW_DETAIL ? 0.6 : 1);
+const low = () => DETAIL <= LOW_DETAIL + 1e-6;
+/** Rounded boxes keep their corner segments in step with the detail. */
+const rbox = (w: number, h: number, d: number, seg: number, r: number) => new RoundedBoxGeometry(w, h, d, low() ? 1 : Math.max(1, Math.round(seg * Math.min(1, DETAIL * 1.6))), r);
 const n = (k: number, min = 3) => Math.max(low() ? Math.min(min, 3) : min, Math.round(k * DETAIL));
 /** Reduced motion stops the boil (spec "Stop motion"). */
 const BOIL = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1;
@@ -84,7 +93,7 @@ const cap = (r: number, l: number, cs = 4, rs = 10) => cap0(r, l, n(cs, 2), n(rs
 const cyl = (rt: number, rb: number, h: number, s = 16, open = false) => cyl0(rt, rb, h, n(s, 5), open);
 const tor = (r: number, t: number, rs = 8, ts = 20, arc = Math.PI * 2) => tor0(r, t, n(rs, 4), n(ts, 6), arc);
 const lathe = (pts: [number, number][], seg = 22) => lathe0(pts, n(seg, 6));
-const snake = (pts: V3[], r: number, seg = 24, rs = 7) => snake0(pts, r, n(seg, 4), n(rs, 4));
+const snake = (pts: V3[], r: number, seg = 24, rs = 7) => snake0(pts, r, n(seg, 4), n(rs, 4), low() ? 2 : 6);
 
 const _n = new THREE.Vector3();
 interface Frame { p: THREE.Vector3; q: THREE.Quaternion }
@@ -154,7 +163,7 @@ function eyes(B: Baker, R: number, sp: Spec, closed: false | 'down') {
   if (sp.eyes === 'glasses' || sp.glassesToo) { const f = onHead(R, 0, ey + 0.02, R * 0.04); B.add(cap(er * 0.18, er * 1.3, 2, 6), P.gold, { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 0.7], r: [0, 0, Math.PI / 2] }) }); }
   if (sp.eyes === 'shades') {
     const f = onHead(R, 0, ey + 0.02, 0);
-    const g = new RoundedBoxGeometry(R * 1.55, er * 2.3, er * 1.4, 2, er * 0.5);
+    const g = rbox(R * 1.55, er * 2.3, er * 1.4, 2, er * 0.5);
     B.add(bend(g, () => 0), P.plum, { fx: GLOSS, m: inFrame(f, { p: [0, 0, -er * 0.2] }) });
     B.add(cap(er * 0.25, R * 0.5, 2, 6), '#ffffff', { fx: GLOSS + 1, m: inFrame(f, { p: [-R * 0.42, er * 0.45, er * 0.55], r: [0, 0, 1.2] }) });
   }
@@ -177,7 +186,7 @@ function nose(B: Baker, R: number, sp: Spec) {
   switch (sp.nose) {
     case 'long': B.add(new THREE.ConeGeometry(R * 0.11, R * 0.52, n(10, 4)), sk, { m: inFrame(f, { p: [0, R * 0.04, R * 0.2], r: [Math.PI / 2 - 0.45, 0, 0] }) }); break;
     case 'potato': B.add(lumpy(sph(R * 0.2, 12, 9), R * 0.03, 12, 3), sk, { m: inFrame(f, { p: [0, -R * 0.04, R * 0.08], s: [1.1, 0.95, 0.9] }) }); break;
-    case 'square': B.add(new RoundedBoxGeometry(R * 0.2, R * 0.24, R * 0.2, 2, R * 0.06), sk, { m: inFrame(f, { p: [0, 0, R * 0.06] }) }); break;
+    case 'square': B.add(rbox(R * 0.2, R * 0.24, R * 0.2, 2, R * 0.06), sk, { m: inFrame(f, { p: [0, 0, R * 0.06] }) }); break;
     case 'zinc': B.add(sph(R * 0.14, 12, 9), '#ffffff', { m: inFrame(f, { p: [0, 0, R * 0.05], s: [1, 0.9, 1] }) }); break;
     default: B.add(sph(R * (sp.noseR ?? 0.13), 12, 9), sk, { m: inFrame(f, { p: [0, 0, R * 0.04], s: [1.05, 0.9, 1] }) });
   }
@@ -189,9 +198,9 @@ function mouth(B: Baker, R: number, sp: Spec) {
     case 'grin': case 'gap': {
       const g = new THREE.CylinderGeometry(w * 1.2, w * 1.2, R * 0.1, n(16, 5), 1, false, -Math.PI / 2, Math.PI);
       B.add(g, '#5a1f2c', { m: inFrame(f, { p: [0, w * 0.35, 0], r: [Math.PI / 2, 0, 0], s: [1, 1, 0.8] }) });
-      if (sp.mouth === 'gap') { for (const x of [-0.45, 0.45]) B.add(new RoundedBoxGeometry(w * 0.7, w * 0.42, R * 0.05, 1, w * 0.1), '#ffffff', { m: inFrame(f, { p: [x * w, w * 0.15, R * 0.045] }) }); }
-      else B.add(new RoundedBoxGeometry(w * 1.9, w * 0.4, R * 0.05, 1, w * 0.12), '#ffffff', { m: inFrame(f, { p: [0, w * 0.15, R * 0.045] }) });
-      B.add(sph(w * 0.5, 8, 6), '#e0607a', { m: inFrame(f, { p: [0, -w * 0.55, R * 0.02], s: [1.2, 0.6, 0.6] }) });
+      if (sp.mouth === 'gap') { for (const x of [-0.45, 0.45]) B.add(rbox(w * 0.7, w * 0.42, R * 0.05, 1, w * 0.1), '#ffffff', { m: inFrame(f, { p: [x * w, w * 0.15, R * 0.045] }) }); }
+      else B.add(rbox(w * 1.9, w * 0.4, R * 0.05, 1, w * 0.12), '#ffffff', { m: inFrame(f, { p: [0, w * 0.15, R * 0.045] }) });
+      if (!low()) B.add(sph(w * 0.5, 8, 6), '#e0607a', { m: inFrame(f, { p: [0, -w * 0.55, R * 0.02], s: [1.2, 0.6, 0.6] }) });
       break;
     }
     case 'o': B.add(tor(w * 0.45, w * 0.18, 6, 12), mc, { m: inFrame(f, { p: [0, 0, 0] }) }); B.add(sph(w * 0.4, 8, 6), '#4a1822', { m: inFrame(f, { s: [1, 1, 0.3] }) }); break;
@@ -254,7 +263,7 @@ function headwear(B: Baker, R: number, sp: Spec) {
       break;
     }
     case 'flattop': {
-      B.add(new RoundedBoxGeometry(R * 1.62, R * 0.42, R * 1.5, 2, R * 0.12), hc, { p: [0, R * 0.98, -R * 0.06] });
+      B.add(rbox(R * 1.62, R * 0.42, R * 1.5, 2, R * 0.12), hc, { p: [0, R * 0.98, -R * 0.06] });
       break;
     }
     case 'beanie': {
@@ -314,7 +323,7 @@ function headwear(B: Baker, R: number, sp: Spec) {
       // Tilly's picnic-table hat: a wide gingham tabletop on a straw crown, with a lemon on top
       for (const s2 of [-1, 1]) back(s2 * 1.3, -0.3, 0.22, hc);
       B.add(cyl(R * 0.62, R * 0.72, R * 0.34, 20), P.straw, { p: [0, R * 0.8, 0], fx: PAPER });
-      B.add(new RoundedBoxGeometry(R * 2.5, R * 0.1, R * 2.1, 1, R * 0.04), P.stick, { p: [0, R * 1.0, 0], r: [0.04, 0.1, -0.03], fx: PAPER });
+      B.add(rbox(R * 2.5, R * 0.1, R * 2.1, 1, R * 0.04), P.stick, { p: [0, R * 1.0, 0], r: [0.04, 0.1, -0.03], fx: PAPER });
       for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2 === 0) B.add(box(R * 0.46, R * 0.02, R * 0.46), P.ging, { p: [(i - 2) * R * 0.48, R * 1.06, (j - 1.5) * R * 0.48], r: [0.04, 0.1, -0.03] });
       B.add(lumpy(sph(R * 0.2, 10, 8), R * 0.02, 10, 3), P.lemon, { p: [R * 0.3, R * 1.22, R * 0.1], s: [1.3, 1, 1] });
       break;
@@ -361,7 +370,7 @@ function headwear(B: Baker, R: number, sp: Spec) {
 function buildHead(sp: Spec, closed: false | 'down') {
   const R = sp.R, B = new Baker();
   if (sp.headShape === 'block') {
-    B.add(lumpy(new RoundedBoxGeometry(R * 1.7, R * 1.7, R * 1.65, 4, R * 0.42), R * 0.03, 3 / R, sp.seed), sp.skin, { s: [1, 0.95, 1] });
+    B.add(lumpy(rbox(R * 1.7, R * 1.7, R * 1.65, 4, R * 0.42), R * 0.03, 3 / R, sp.seed), sp.skin, { s: [1, 0.95, 1] });
   } else {
     B.add(lumpy(sph(R, 26, 18), R * 0.025, 2.4 / R, sp.seed), sp.skin, { s: [1, sp.headSquash ?? 0.95, 1] });
   }
@@ -458,26 +467,26 @@ function gear(B: Baker, sp: Spec, K: Kind) {
   if (sp.lanyard) {
     const y0 = K.sh + 0.02, r0 = radiusAt(sp, K, y0 - 0.02) * 0.7;
     B.add(snake([[-r0, y0, 0.02], [-0.04, chest - 0.08, rc + 0.01], [0.04, chest - 0.08, rc + 0.01], [r0, y0, 0.02]], 0.01, 10, 4), sp.lanyard, {});
-    B.add(new RoundedBoxGeometry(0.08, 0.1, 0.012, 1, 0.01), '#ffffff', { p: [0, chest - 0.14, rc + 0.02], fx: PAPER });
+    B.add(rbox(0.08, 0.1, 0.012, 1, 0.01), '#ffffff', { p: [0, chest - 0.14, rc + 0.02], fx: PAPER });
     B.add(box(0.05, 0.02, 0.004), sp.lanyard, { p: [0, chest - 0.115, rc + 0.028] });
   }
   if (sp.camera) {
     const y0 = K.sh + 0.02, r0 = radiusAt(sp, K, y0 - 0.02) * 0.75;
     B.add(snake([[-r0, y0, 0.02], [0, chest - 0.1, rc + 0.02], [r0, y0, 0.02]], 0.01, 10, 4), P.plum, {});
-    B.add(new RoundedBoxGeometry(0.17, 0.11, 0.07, 2, 0.02), P.plum, { p: [0, chest - 0.13, rc + 0.04] });
+    B.add(rbox(0.17, 0.11, 0.07, 2, 0.02), P.plum, { p: [0, chest - 0.13, rc + 0.04] });
     B.add(cyl(0.035, 0.04, 0.05, 12), P.chrome, { fx: GLOSS, p: [0, chest - 0.13, rc + 0.09], r: [Math.PI / 2, 0, 0] });
     B.add(sph(0.012, 5, 4), P.terra, { p: [0.06, chest - 0.08, rc + 0.06] });
   }
   if (sp.backpack) {
     const y = (chest + waist) / 2, r = radiusAt(sp, K, y);
-    B.add(lumpy(new RoundedBoxGeometry(r * 1.3, (chest - waist) * 1.3, 0.16, 2, 0.05), 0.006, 8, 3), sp.backpack, { p: [beanX(sp, y), y + 0.02, -r - 0.06] });
-    B.add(new RoundedBoxGeometry(r * 0.9, 0.1, 0.06, 1, 0.02), shade(sp.backpack, -0.1), { p: [beanX(sp, y), y - 0.06, -r - 0.15] });
+    B.add(lumpy(rbox(r * 1.3, (chest - waist) * 1.3, 0.16, 2, 0.05), 0.006, 8, 3), sp.backpack, { p: [beanX(sp, y), y + 0.02, -r - 0.06] });
+    B.add(rbox(r * 0.9, 0.1, 0.06, 1, 0.02), shade(sp.backpack, -0.1), { p: [beanX(sp, y), y - 0.06, -r - 0.15] });
     for (const s2 of [-1, 1]) B.add(snake([[s2 * r * 0.4, chest + 0.06, -r * 0.5], [s2 * r * 0.55, chest + 0.06, r * 0.4], [s2 * r * 0.5, waist + 0.05, r * 0.85]], 0.016, 8, 4), shade(sp.backpack, -0.1), {});
   }
   if (sp.toolbelt) {
     // Wreckers: a tool belt with a clay hammer and a pouch
     B.add(tor(rw * 1.0, 0.025, 5, 22), P.walnut, { p: [beanX(sp, waist), waist, 0], r: [Math.PI / 2, 0, 0] });
-    B.add(new RoundedBoxGeometry(0.1, 0.1, 0.05, 1, 0.02), P.walnut, { p: [rw * 0.7, waist - 0.06, rw * 0.72] });
+    B.add(rbox(0.1, 0.1, 0.05, 1, 0.02), P.walnut, { p: [rw * 0.7, waist - 0.06, rw * 0.72] });
     B.add(cyl(0.012, 0.012, 0.16, 5), P.stick, { p: [-rw * 0.75, waist - 0.07, rw * 0.7], fx: PAPER });
     B.add(box(0.07, 0.03, 0.03), P.chrome, { p: [-rw * 0.75, waist + 0.01, rw * 0.7], fx: GLOSS });
   }
@@ -494,8 +503,8 @@ function gear(B: Baker, sp: Spec, K: Kind) {
 function buildBody(sp: Spec, K: Kind) {
   const B = new Baker();
   if (K.block) {
-    B.add(lumpy(new RoundedBoxGeometry(0.72, 0.62, 0.46, 3, 0.13), 0.012, 4, sp.seed), sp.shirt, { p: [0, 0.53, 0], s: [sp.girth ?? 1, 1, 1] });
-    B.add(new RoundedBoxGeometry(0.5, 0.2, 0.36, 2, 0.07), sp.pants, { p: [0, 0.23, 0] });
+    B.add(lumpy(rbox(0.72, 0.62, 0.46, 3, 0.13), 0.012, 4, sp.seed), sp.shirt, { p: [0, 0.53, 0], s: [sp.girth ?? 1, 1, 1] });
+    B.add(rbox(0.5, 0.2, 0.36, 2, 0.07), sp.pants, { p: [0, 0.23, 0] });
     // lapels, tie, chrome bubble buttons
     for (const s of [-1, 1]) B.add(box(0.14, 0.32, 0.04), shade(sp.shirt, -0.08), { p: [s * 0.11, 0.66, 0.235], r: [0, 0, s * 0.35] });
     B.add(box(0.09, 0.36, 0.04), '#ffffff', { p: [0, 0.68, 0.225] });
@@ -516,7 +525,7 @@ function buildBody(sp: Spec, K: Kind) {
     const kid = sp.kind === 'kid', y0 = kid ? 0.2 : K.leg + 0.12;
     const r = kid ? 0.235 : sp.kind === 'pear' ? 0.31 : radiusAt(sp, K, y0 + 0.08) + 0.012;
     B.add(new THREE.CylinderGeometry(r * 1.03, r * 1.1, kid ? 0.26 : 0.34, n(18, 5), 1, true, -0.95, 1.9), sp.apron, { p: [beanX(sp, y0), y0, 0], fx: PAPER });
-    B.add(new RoundedBoxGeometry(r * 0.95, kid ? 0.16 : 0.2, 0.04, 2, 0.02), sp.apron, { p: [0, y0 + (kid ? 0.2 : 0.26), r * 0.86], r: [-0.25, 0, 0] });
+    B.add(rbox(r * 0.95, kid ? 0.16 : 0.2, 0.04, 2, 0.02), sp.apron, { p: [0, y0 + (kid ? 0.2 : 0.26), r * 0.86], r: [-0.25, 0, 0] });
     for (const s2 of [-1, 1]) B.add(box(0.03, 0.2, 0.02), sp.apron, { p: [s2 * r * 0.42, y0 + (kid ? 0.3 : 0.38), r * 0.7], r: [-0.5, 0, s2 * 0.2] });
     if (sp.apronMark === 'lemon') {
       B.add(lumpy(sph(0.05, 8, 6), 0.004, 20, 1), P.lemon, { p: [0, y0 - 0.02, r * 1.08], s: [1.3, 1, 0.5] });
@@ -528,7 +537,7 @@ function buildBody(sp: Spec, K: Kind) {
     }
   }
   const gx = sp.girth ?? 1, rAt = (y: number) => radiusAt(sp, K, y);
-  if (sp.overalls) { const rf = rAt(0.56); for (const s of [-1, 1]) B.add(box(0.06, 0.36, 0.04), sp.pants, { p: [s * 0.16 * gx, 0.66, rf * 0.7], r: [0.45, 0, s * 0.15] }); B.add(new RoundedBoxGeometry(0.34 * gx, 0.22, 0.06, 2, 0.03), sp.pants, { p: [0, 0.56, rf * 0.9], r: [0.25, 0, 0] }); for (const s of [-1, 1]) B.add(sph(0.025, 6, 4), P.gold, { fx: GLOSS, p: [s * 0.13 * gx, 0.63, rf * 0.88] }); }
+  if (sp.overalls) { const rf = rAt(0.56); for (const s of [-1, 1]) B.add(box(0.06, 0.36, 0.04), sp.pants, { p: [s * 0.16 * gx, 0.66, rf * 0.7], r: [0.45, 0, s * 0.15] }); B.add(rbox(0.34 * gx, 0.22, 0.06, 2, 0.03), sp.pants, { p: [0, 0.56, rf * 0.9], r: [0.25, 0, 0] }); for (const s of [-1, 1]) B.add(sph(0.025, 6, 4), P.gold, { fx: GLOSS, p: [s * 0.13 * gx, 0.63, rf * 0.88] }); }
   if (sp.gingham) {
     // a pressed gingham check band round the chest: two rows of alternating squares, sized to the body
     for (let row = 0; row < 2; row++) { const yy = 0.62 + row * 0.07, r = rAt(yy) + 0.006, cnt = Math.max(6, Math.round(r * 30)); for (let i = 0; i < cnt; i++) { const a = -1.5 + (i / (cnt - 1)) * 3.0; B.add(box(0.06, 0.06, 0.02), (i + row) % 2 ? P.ging : '#ffffff', { p: [Math.sin(a) * r, yy, Math.cos(a) * r], r: [0, a, 0] }); } }
@@ -554,7 +563,7 @@ function buildBody(sp: Spec, K: Kind) {
       for (let i = 0; i < Math.min(4, sp.chevrons ?? 0); i++) {
         const t = 0.2 + i * 0.17, r = ar * 1.08, c = new THREE.Vector3(sx + up.x * t, K.sh + up.y * t, up.z * t);
         const mm = new THREE.Matrix4().compose(c, q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s * Math.PI / 2)), new THREE.Vector3(1, 1, 1));
-        B.add(snake([[-r, ar * 0.35, 0], [0, 0, r], [r, ar * 0.35, 0]], ar * 0.2, 8, 4), sp.chevronColor || P.lemon, { m: mm, fx: 0.3 });
+        void r; chevron(B, sp, ar, mm);
       }
     }
     B.add(cap(ar * 1.05, 0.36, 4, 8), sleeve, { p: [beanX(sp, yc), yc + 0.02, zc], r: [0.05, 0, Math.PI / 2 + 0.12] });
@@ -566,6 +575,13 @@ function buildBody(sp: Spec, K: Kind) {
     }
   }
   return B.build();
+}
+
+/** A level chevron round a sleeve (frame m: sleeve axis along y, front at +z). Phones get two flat clay strips. */
+function chevron(B: Baker, sp: Spec, ar: number, m: THREE.Matrix4) {
+  const r = ar * 1.08, c = sp.chevronColor || P.lemon;
+  if (!low()) { B.add(snake([[-r, ar * 0.35, 0], [0, 0, r], [r, ar * 0.35, 0]], ar * 0.2, 8, 4), c, { m, fx: 0.3 }); return; }
+  for (const s of [-1, 1]) B.add(box(r * 1.2, ar * 0.32, ar * 0.25), c, { m: m.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(s * r * 0.45, ar * 0.17, r * 0.72), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s * 0.75, s * 0.35)), new THREE.Vector3(1, 1, 1))), fx: 0.3 });
 }
 
 function buildArm(sp: Spec, K: Kind, flex: boolean) {
@@ -584,10 +600,7 @@ function buildArm(sp: Spec, K: Kind, flex: boolean) {
     if (sp.cuff) B.add(tor(ar * 1.0, ar * 0.25, 6, 12), sp.cuff, { p: [0, -al - ar * 0.05, 0], r: [Math.PI / 2, 0, 0] });
     if (sp.tape) for (let i = 0; i < 3; i++) B.add(tor(ar * 1.12, ar * 0.16, 5, 12), sp.tape, { fx: PAPER, p: [0, -al - ar * (0.25 + i * 0.32), 0], r: [Math.PI / 2 + (i - 1) * 0.25, 0, 0] });
     // sleeve chevrons: one per level above Rookie, up to four for a Legend
-    for (let i = 0; i < Math.min(4, sp.chevrons ?? 0); i++) {
-      const y = -al * 0.18 - i * ar * 0.62, r = ar * 1.06;
-      B.add(snake([[-r, y + ar * 0.3, 0.0], [0, y, r], [r, y + ar * 0.3, 0]], ar * 0.14, 8, 4), sp.chevronColor || P.lemon, { fx: 0.3 });
-    }
+    for (let i = 0; i < Math.min(4, sp.chevrons ?? 0); i++) chevron(B, sp, ar, new THREE.Matrix4().makeTranslation(0, -al * 0.18 - i * ar * 0.62, 0));
   }
   return B.build();
 }
@@ -607,7 +620,7 @@ export const PROPS: Record<PropName, (B: Baker) => void> = {
   glass(B) { B.add(cyl(0.06, 0.05, 0.16, 12), P.lemon, { fx: GLOSS, p: [0, 0.08, 0] }); B.add(sph(0.035, 6, 5), P.green, { p: [0.04, 0.17, 0] }); B.add(cyl(0.008, 0.008, 0.18, 4), P.terra, { p: [-0.02, 0.18, 0], r: [0, 0, 0.3] }); },
   cup(B) { B.add(cyl(0.075, 0.055, 0.17, 12), '#ffffff', { fx: PAPER, p: [0, 0.08, 0] }); B.add(cyl(0.076, 0.07, 0.05, 12, true), P.lemon, { fx: PAPER, p: [0, 0.1, 0] }); B.add(cyl(0.01, 0.01, 0.16, 4), P.terra, { p: [0.02, 0.2, 0], r: [0, 0, -0.3] }); B.add(sph(0.03, 6, 5), P.lemon, { p: [-0.05, 0.17, 0] }); },
   coffee(B) { B.add(cyl(0.07, 0.055, 0.2, 12), P.cream, { fx: GLOSS, p: [0, 0.1, 0] }); B.add(cyl(0.065, 0.06, 0.12, 12), P.esp, { fx: GLOSS, p: [0, 0.08, 0] }); B.add(cyl(0.075, 0.075, 0.03, 12), P.neon, { p: [0, 0.2, 0] }); B.add(cyl(0.01, 0.01, 0.16, 4), P.neon, { p: [0.02, 0.28, 0] }); },
-  skateboard(B) { B.add(new RoundedBoxGeometry(0.34, 0.05, 1.0, 2, 0.02), P.plum, { p: [0, 0.11, 0] }); B.add(box(0.3, 0.012, 0.6), P.neon, { p: [0, 0.14, 0], fx: 0.3 }); for (const z of [-0.33, 0.33]) for (const x of [-0.13, 0.13]) B.add(cyl(0.045, 0.045, 0.05, 12), P.oat, { p: [x, 0.045, z], r: [0, 0, Math.PI / 2] }); },
+  skateboard(B) { B.add(rbox(0.34, 0.05, 1.0, 2, 0.02), P.plum, { p: [0, 0.11, 0] }); B.add(box(0.3, 0.012, 0.6), P.neon, { p: [0, 0.14, 0], fx: 0.3 }); for (const z of [-0.33, 0.33]) for (const x of [-0.13, 0.13]) B.add(cyl(0.045, 0.045, 0.05, 12), P.oat, { p: [x, 0.045, z], r: [0, 0, Math.PI / 2] }); },
   surfboard(B) { const g = lumpy(sph(0.28, 18, 12), 0.005, 4, 2); B.add(g, P.lagoon, { s: [0.8, 3.3, 0.16], p: [0, 0.92, 0] }); B.add(box(0.05, 1.6, 0.06), P.mango, { p: [0, 0.92, 0.04] }); B.add(new THREE.ConeGeometry(0.06, 0.18, n(6, 4)), P.mango, { p: [0, 0.3, -0.06], r: [Math.PI / 2 + 0.3, 0, 0] }); },
   baton(B) { B.add(cyl(0.03, 0.03, 0.4, 8), P.plum, { fx: GLOSS, p: [0, -0.2, 0] }); },
   whistle(B) { B.add(sph(0.04, 8, 6), P.chrome, { fx: GLOSS }); },

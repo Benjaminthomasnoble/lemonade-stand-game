@@ -14,6 +14,7 @@ import { buildDiorama, DESK_LAMP, PLINTH } from './diorama.ts';
 import { cloneLook, hourOf, lookAt, LOOKS, mixLook, weatherOn } from './lighting.ts';
 import { createWeather } from './weather.ts';
 
+import { setCrowdDetail } from './clay/figure.ts';
 const stillClay = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
@@ -117,6 +118,7 @@ function pickQuality(): Quality {
 export async function createWorld(container: HTMLElement): Promise<World> {
   const quality = pickQuality();
   const phone = quality === 'phone';
+  setCrowdDetail(phone); // crowds build low on phones, smooth on laptops
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, phone ? 1.5 : 2));
   renderer.setSize(container.clientWidth, container.clientHeight);

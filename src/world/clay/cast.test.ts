@@ -3,13 +3,16 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
-import { CREWS, CROWD_DETAIL, Figure, SPECS, type Face } from './figure.ts';
+import { CREWS, LOW_DETAIL, Figure, SPECS, type Face } from './figure.ts';
 import { P } from './palette.ts';
 import { createFigureBatch, freezeFigures, PROXY_LAYER } from './figureBatch.ts';
 
 const mat = new THREE.MeshStandardMaterial();
 const SIDES: Side[] = ['player', 'sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders'];
 const SEGS: SegmentLook[] = ['kids', 'families', 'seniors', 'students', 'office', 'tourists', 'workers', 'highRollers'];
+const PHONE_POOL: SegmentLook[] = ['families', 'office', 'kids', 'tourists', 'seniors', 'students', 'workers', 'highRollers'];
+/** Triangles a figure draws: every visible mesh under it, held and worn props included. */
+const drawn = (o: THREE.Object3D) => { let n = 0; o.traverse((m) => { const g = (m as THREE.Mesh).geometry; if ((m as THREE.Mesh).isMesh && m.visible) n += (g.index ? g.index.count : g.attributes.position.count) / 3; }); return n; };
 const rigOk = (f: Figure) => {
   const u = f.root.userData;
   expect(u.limbs).toHaveLength(4);
@@ -52,16 +55,30 @@ describe('clay cast', () => {
     expect(crewSpec('player', { onGuard: true }).crossed).toBe(true);
   });
 
-  it('builds every customer segment within the crowd budget (about 900 triangles a person)', () => {
-    let sum = 0;
+  it('builds every customer segment within the crowd budget (about 900 triangles a person, props counted)', () => {
     for (const seg of SEGS) for (let i = 0; i < 5; i++) {
-      const { fig } = makeCustomer(seg, i, mat, { detail: CROWD_DETAIL });
+      const { fig } = makeCustomer(seg, i, mat, { detail: LOW_DETAIL });
       rigOk(fig);
-      expect(fig.triangles(), seg).toBeLessThan(1600);
-      sum += fig.triangles();
+      expect(drawn(fig.root), seg).toBeLessThan(1400);
     }
-    expect(sum / 40).toBeLessThan(1100);
     expect(makeCustomer('kids', 0, mat).fig.sp.kind).toBe('kid');
+  });
+
+  it('keeps the busiest phone street inside the spec budget', () => {
+    // Spec: about 130 draws and 355,000 triangles on a phone. The empty phone-landscape Street View
+    // measures about 238k, which leaves about 117k for people: 60 walkers (the phone cap), a
+    // 12-a-side brawl in the priciest looks and a full watch of six Legend guards.
+    let walkers = 0;
+    for (let i = 0; i < 60; i++) walkers += drawn(makeCustomer(PHONE_POOL[i % 8], Math.floor(i / 8) % 5, mat, { detail: LOW_DETAIL }).fig.root);
+    expect(walkers).toBeLessThan(60_000); // the spec's "60 cost about 54,000"
+    let fight = 0;
+    for (let i = 0; i < 12; i++) {
+      fight += drawn(makeCrew('player', { weapon: 'hatchets', gear: 'pro', level: 4, seed: i + 1 }, mat, { detail: LOW_DETAIL }).root);
+      fight += drawn(makeCrew('coldbrew', { weapon: 'hatchets', gear: 'pro', seed: i + 1 }, mat, { detail: LOW_DETAIL }).root);
+    }
+    let watch = 0;
+    for (let i = 0; i < 6; i++) watch += drawn(makeCrew('player', { onGuard: true, weapon: 'clubs', gear: 'pro', level: 4, seed: i + 1 }, mat, { detail: LOW_DETAIL }).root);
+    expect(walkers + fight + watch).toBeLessThan(117_000);
   });
 
   it('keeps customers out of lemon and the owners\' colours', () => {

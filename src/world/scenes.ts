@@ -8,7 +8,7 @@ import { LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
 import { kit } from './clay/kit.ts';
 import { makeTownsfolk } from './clay/cast.ts';
-import { GAIT_OF, gait, type Figure } from './clay/figure.ts';
+import { GAIT_OF, gait, heroDetail, type Figure } from './clay/figure.ts';
 
 export type SceneId = 'steward' | 'dex';
 
@@ -53,7 +53,7 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
     const walkTo = (b: THREE.Vector3, dur: number): Beat['run'] => () => { if (current) current.walk = { a: current.ctx.actor.position.clone(), b, t0: current.t, dur }; };
     if (id === 'steward') {
       // A Sourwood Steward: stilt-thin, high white collar, white gloves, bowler and cane.
-      fig = makeTownsfolk('steward', kit().fig);
+      fig = makeTownsfolk('steward', kit().fig, { detail: heroDetail() });
       beats = [
         { at: 0, run: walkTo(counter, 4) },
         { at: 4.2, run: (c) => hooks.say(c.actor, 'A reminder. From Mrs. Sourwood.', 'Steward', '#5B2A6E') },
@@ -65,7 +65,7 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
         { at: 13, run: () => hooks.ring?.() },
       ];
     } else {
-      fig = makeTownsfolk('dex', kit().fig); // lanky Dex, 3 heads tall, arms crossed
+      fig = makeTownsfolk('dex', kit().fig, { detail: heroDetail() }); // lanky Dex, 3 heads tall, arms crossed
       base = 1;
       beats = [
         { at: 0, run: walkTo(lottieSpot, 4) },

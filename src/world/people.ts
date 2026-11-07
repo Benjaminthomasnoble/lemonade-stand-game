@@ -8,7 +8,7 @@
 // A buyer leaves with a cup, sips a few steps later and pulls a face.
 import * as THREE from 'three';
 import { kit } from './clay/kit.ts';
-import { CROWD_DETAIL, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
+import { crowdDetail, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
 import { holdProp, makeCustomer, segmentSpec, type SegmentLook } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
@@ -143,7 +143,7 @@ export function createCrowd(
   let weather: StreetWeather = 'warm';
   for (let i = 0; i < pool; i++) {
     const segment = SEGMENTS[i % SEGMENTS.length];
-    const { fig, prop } = makeCustomer(segment, Math.floor(i / SEGMENTS.length) % VARIANTS, K.fig, { detail: CROWD_DETAIL });
+    const { fig, prop } = makeCustomer(segment, Math.floor(i / SEGMENTS.length) % VARIANTS, K.fig, { detail: crowdDetail() });
     const obj = fig.root;
     obj.visible = false;
     obj.name = 'walker';

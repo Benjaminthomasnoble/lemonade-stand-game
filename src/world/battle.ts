@@ -27,7 +27,7 @@ import { Baker, sph, cap, cone, tor, box, lumpy, canvasTex, PAPER } from './clay
 import { bakeGroup } from './clay/bake.ts';
 import { P } from './clay/palette.ts';
 import { kit } from './clay/kit.ts';
-import { Figure, GAIT_OF, gait, hatGeometry } from './clay/figure.ts';
+import { Figure, GAIT_OF, LOW_DETAIL, crowdDetail, gait, hatGeometry } from './clay/figure.ts';
 import { BOSS_OF, makeBoss, makeCrew, CREW_LOOK } from './clay/cast.ts';
 import { FENCE } from './clay/defenses.ts';
 import { createFigureBatch, type FigureBatch } from './clay/figureBatch.ts';
@@ -800,13 +800,13 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         // the crew's own look, tier weapon and kit: Padded Vest, Pro Gear, level chevrons on your crew, Lanky Dex
         // The HQ Boss Room's boss fights as themselves: Vera taps her cane, Brock flexes.
         const boss = owner !== 'player' && f.id.includes('-boss-') ? BOSS_OF[owner as keyof typeof BOSS_OF] : undefined;
-        const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? 0.5 : 1 }) : makeCrew(owner, {
+        const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? crowdDetail() : 1 }) : makeCrew(owner, {
           weapon: f.weapon,
           gear: f.gear ?? (f.armor > 0 ? 'pro' : 'none'),
           level: owner === 'player' ? Math.max(0, (f.level ?? 1) - 1) : 0,
-          dex: owner === 'player' && f.name.startsWith('Dex'),
+          dex: owner === 'player' && f.name === 'Dex Moody',
           seed: i + 1,
-        }, kit().fig, { detail: lowDetail ? 0.5 : 1 });
+        }, kit().fig, { detail: lowDetail ? crowdDetail() : 1 });
         const obj = fig.root;
         obj.userData.boss = boss;
         const spread = (i - (n - 1) / 2) * Math.min(1.1, 9 / Math.max(1, n));
@@ -824,7 +824,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         units.push({ f, owner, fig, obj, target, home, speed, swing: 0, state: 'march', st: 0, spin: 0, flop: 0, frozen: 0, stars: -1, phase: owner === 'fizzco' ? 0 : Math.random() * 6, inCloud: false, zig: Math.random() * 3, foe: null });
       };
       // phones and big fights use the crowd-detail figures (about a third of the triangles)
-      lowDetail = phone || Math.min(r.attackers.length, perSide) + Math.min(r.defenders.length, perSide) > 10;
+      lowDetail = phone || crowdDetail() <= LOW_DETAIL || Math.min(r.attackers.length, perSide) + Math.min(r.defenders.length, perSide) > 10;
       batch = createFigureBatch(kit().fig, { instances: 512, vertices: 120_000, indices: 360_000 });
       scene.add(batch.mesh);
       const atts = r.attackers.slice(0, perSide), defs = r.defenders.slice(0, perSide);

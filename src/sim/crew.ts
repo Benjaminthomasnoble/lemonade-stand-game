@@ -200,7 +200,8 @@ export function rebuildStand(s: GameState, plotId: string): boolean {
 
 // ---------- guards ----------
 
-const FIRST = ['Dex', 'Moxie', 'Tank', 'Lulu', 'Big Sal', 'Pip', 'Rocco', 'Juno', 'Biscuit', 'Marge', 'Ziggy', 'Hank', 'Tess', 'Boomer', 'Nell', 'Gus', 'Kiki', 'Otis', 'Pearl', 'Duke'];
+// (no 'Dex': only the story's Dex Moody is drawn as lanky Dex)
+const FIRST = ['Dash', 'Moxie', 'Tank', 'Lulu', 'Big Sal', 'Pip', 'Rocco', 'Juno', 'Biscuit', 'Marge', 'Ziggy', 'Hank', 'Tess', 'Boomer', 'Nell', 'Gus', 'Kiki', 'Otis', 'Pearl', 'Duke'];
 const LAST = ['Moody', 'Malone', 'Pickles', 'Brickman', 'Quill', 'Sorrel', 'Kettle', 'Bramble', 'Gristle', 'Lark', 'Hobbs', 'Puddle'];
 
 function makeGuard(s: GameState, rng: Rng, level = 1): Guard {

@@ -5,7 +5,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, autoRestock, dismissAlert, isMajor, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
@@ -78,6 +78,7 @@ async function main() {
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
   let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
+  let eveningWait = 0; // the Evening's moment, off the Ledger
   const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
   const resume = () => { if (!speed) speed = resumeTo || 1; };
 
@@ -327,7 +328,9 @@ async function main() {
       case 'speed': if (a.value > 0) speed = a.value; else pause(); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
       case 'skip': { resume(); const ev = simulateRestOfDay(state, true); crowd.clear(); drawEvents(ev, false); break; }
-      case 'night': if (startNight(state)) { acc = 0; resume(); } break;
+      case 'night': hud.ledger = false; if (startNight(state)) { acc = 0; eveningWait = 0; resume(); } break;
+      case 'evening': hud.ledger = false; eveningWait = 0; break;
+      case 'ledger': hud.ledger = true; break;
       case 'sleep': {
         resume(); // a skip means go; the next big alert pauses again
         stopFights();
@@ -559,6 +562,11 @@ async function main() {
       prepWait += realDt;
       if (prepWait >= AUTO_CONTINUE_SECONDS) act({ type: 'open' });
     } else if (state.phase !== 'prep') prepWait = 0;
+    // The Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
+    if (state.phase === 'report' && !frozen && !state.outcome && (!hud.ledger || options.autoContinue)) {
+      eveningWait += dt * Math.max(speed, 1);
+      if (eveningWait >= EVENING_REAL_SECONDS) act({ type: 'night' });
+    } else if (state.phase !== 'report') eveningWait = 0;
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     world.setClock(state.phase, state.minute);

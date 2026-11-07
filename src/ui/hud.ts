@@ -25,6 +25,7 @@ import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
+import { eveningBar, guardsHere, repairCards } from './evening.ts';
 import { optionsScreen } from './options.ts';
 
 export type Action =
@@ -74,6 +75,8 @@ export type Action =
   | { type: 'borrow'; amount: number }
   | { type: 'repay' }
   | { type: 'night' } // the Evening ends: the night runs on the clock
+  | { type: 'evening' } // fold the Ledger: the Evening goes on, on the live map
+  | { type: 'ledger' } // unfold the Ledger again
   | { type: 'goto'; plot: string } // an alert card's Go There
   | { type: 'dismiss'; id: string } // put an alert card away
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
@@ -150,6 +153,8 @@ export interface Hud {
   /** The player's options (src/settings.ts), and whether the Options screen is open. */
   options: Options;
   optionsOpen: boolean;
+  /** The Evening's Ledger card is up (full-screen paper: the Evening holds while it is). */
+  ledger: boolean;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -160,6 +165,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const topEl = q('top'), dawnEl = q('dawn'), feedEl = q('feed'), phaseEl = q('phase'), plotEl = q('plotcard'), cornerEl = q('corner'), pops = q('pops');
   let tab: 'today' | 'grow' | 'crew' = 'today';
   let goalsOpen = false, books = false, moreOpts = false;
+  let ledgerDay = -1; // each Evening opens on its Ledger
   const squad = new Set<string>();
   let objective: Objective = 'smash';
   const oddsMemo = new Map<string, number>();
@@ -175,7 +181,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     canReload: false,
     options: { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } },
     optionsOpen: false,
+    ledger: true,
     render(s, speed) {
+      if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s) : outcomeScreen(s);
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
@@ -184,8 +192,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(dawnEl, !modal && s.phase === 'prep' ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(headline(s)[0], 'cl-big')}${tape(headline(s)[1], 'cl-sub')}</div>` : '');
       set(feedEl, modal ? '' : feed(s));
       set(cornerEl, corner(s, speed));
-      set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? dayEnd(s) : ''));
-      set(plotEl, hud.inspected && s.phase !== 'report' && !modal ? plotCard(s, hud.inspected) : '');
+      set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
+      set(plotEl, hud.inspected && !(s.phase === 'report' && hud.ledger) && !modal ? plotCard(s, hud.inspected) : '');
     },
     popup(x, y, text, kind) {
       const el = document.createElement('div');
@@ -300,6 +308,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;
+      case 'evening': case 'ledger': onAction({ type: d.action }); break;
       case 'goto': case 'restockNow': onAction({ type: d.action, plot: d.plot! }); break;
       case 'dismiss': onAction({ type: 'dismiss', id: d.id! }); break;
       case 'options': onAction({ type: 'options' }); break;
@@ -389,7 +398,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- left feed: little tickets for whatever needs you this morning ----------
   function feed(s: GameState) {
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
-    if (s.phase !== 'prep') { // after the morning: today's (and tonight's) fights, each with a replay
+    if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
+      if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
         const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
         t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
@@ -629,6 +639,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${books ? bookTable : ''}
       <button class="cl-sleep" data-action="night" data-testid="night" title="The night runs on the clock">${ART.moon()}<span>Night</span></button>
       <span class="cl-acts"><button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Sleep till dawn</button>
+      <button class="cl-link" data-action="evening" data-testid="evening-map" title="Station guards, approve repairs and send tonight's raids">To the map</button>
       <button class="cl-link" data-action="books">${books ? 'Close the books' : 'See the books'}</button></span>
     </div></div>`;
   }
@@ -684,6 +695,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const pb = canPlotBuyout(s, id);
       actions = (hasBuilding(ps) ? raidPlanner(s, id) : '') + (s.rank >= SITDOWN_RANK && !locked(pb) ? btn('plotBuyout', `Buy it ${whole(plotBuyoutPrice(s, id))}`, pb, `data-plot="${id}" data-testid="plot-buyout"`) : '');
     }
+    if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(s, g)); // station guards from the map
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">✕</button></div>

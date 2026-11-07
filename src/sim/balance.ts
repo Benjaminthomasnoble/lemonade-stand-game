@@ -22,6 +22,8 @@ export const NIGHT_END = MINUTES_PER_DAY + DAWN;
 export const NIGHT_REAL_SECONDS_PER_MINUTE = 8 / 60;
 /** Quiet nights: from closing until an alert, the night runs at 3× by itself (a setting, on by default). */
 export const QUIET_NIGHT_SPEED = 3;
+/** The Evening is a moment: off the Ledger, on the live map, the night starts by itself after this many real seconds at 1×. */
+export const EVENING_REAL_SECONDS = 6; // placeholder: spec gap ("a moment")
 export const SEASON_DAYS = 14;
 /** Real seconds per game minute at 1×: business hours take ~3.5 real minutes. */
 export const REAL_SECONDS_PER_MINUTE = 210 / BUSINESS_MINUTES;

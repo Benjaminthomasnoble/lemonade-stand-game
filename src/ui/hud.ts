@@ -78,6 +78,7 @@ export type Action =
   | { type: 'clubhouse'; plot?: string } // the next beds: a new Clubhouse, or a level on this one
   | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
   | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
+  | { type: 'bell'; raid: string } // Ring the Bell: the Clubhouse reserve in range sets out (warning card, fight bar)
   | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
@@ -351,6 +352,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'clubhouse': onAction({ type: 'clubhouse', plot: d.plot }); break;
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;
+      case 'bell': onAction({ type: 'bell', raid: d.raid! }); break;
       case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); redraw(); break;
       case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); break; }
       case 'objective': objective = d.value as Objective; redraw(); break;

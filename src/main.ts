@@ -16,6 +16,7 @@ import {
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { waitAt } from './sim/clubhouse.ts';
+import { ringTheBell } from './sim/reinforce.ts';
 import { atOnce, fightCommand, fightStatus, finishFight, liveReport, startAssault, stepFight, watchFights } from './sim/fight.ts';
 import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
@@ -592,6 +593,7 @@ async function main() {
       }
       case 'replay': if (state.battles[a.index] && !state.fight) playBattle(state.battles[a.index]); break;
       case 'fight': if (a.cmd === 'rally' || a.cmd === 'fallBack') fightCommand(state, a.cmd); break;
+      case 'bell': ringTheBell(state, a.raid); break;
       case 'facility': if (a.kind === 'clubhouse') buildClubhouse(state, a.plot); else buildFacility(state, a.plot, a.kind); break;
       case 'accept': acceptOrder(state, a.id); break;
       case 'decline': declineOrder(state, a.id); break;

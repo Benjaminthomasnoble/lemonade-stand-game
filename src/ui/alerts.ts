@@ -8,6 +8,7 @@ import {
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
+import { bellEta, canRingBell } from '../sim/reinforce.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
@@ -39,10 +40,13 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
   const after = r.delivery ? 'the cargo' : r.objective === 'smash' ? 'a smash' : 'the till';
   const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
-  // The one action: Ring the Bell once combat's reserves merge (canRingBell / ringTheBell); until then, a fence.
+  // The one action: Ring the Bell while a reserve is in range (then when help gets there), else a fence.
   const next = PERIMETERS[ps.defense.tier];
   const pb = canBuyPerimeter(s, r.target);
-  const fix = next && pb.ok ? btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, `data-plot="${r.target}"`, 'tiny go')
+  const help = bellEta(s, r.id);
+  const fix = canRingBell(s, r.id) ? btn('bell', 'Ring the Bell', `data-raid="${r.id}" data-testid="ring-bell"`, 'tiny go')
+    : help !== null ? `<span class="cl-note">${help ? `Help in ${help} min` : 'Help is here'}</span>`
+    : next && pb.ok ? btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, `data-plot="${r.target}"`, 'tiny go')
     : fenceRepairCost(ps) && s.cash >= fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, `data-plot="${r.target}"`) : '';
   return `<div class="cl-ticket red" data-testid="raid-warning" data-raid="${r.id}" title="${esc(tip)}">${ICON.foot()}
     <b>${SHORT[r.attacker as RivalId] ?? 'Raiders'} → ${esc(place(r.target))}</b>

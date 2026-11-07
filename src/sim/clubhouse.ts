@@ -33,9 +33,10 @@ export function clubOf(s: GameState, g: Guard): string | null {
   return (all.find((p) => p.id === g.club) ?? all[0])?.id ?? null;
 }
 
-/** Guards away fighting: on a raid of yours, planned or live. */
+/** Guards away fighting: on a raid of yours (planned or live), or on their way to one of your plots (Ring the Bell). */
 export function awayOnRaid(s: GameState): Set<string> {
-  return new Set([...s.raids, ...(s.fight ? [s.fight.raid] : [])].flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
+  const raids = [...s.raids, ...(s.fight ? [s.fight.raid] : [])];
+  return new Set(raids.flatMap((r) => [...(r.attacker === 'player' ? r.guards ?? [] : []), ...(r.bell ?? []).map((b) => b.id)]));
 }
 
 /** The reserve at a Clubhouse: guards off post waiting there, fit to fight and not away on a raid. */

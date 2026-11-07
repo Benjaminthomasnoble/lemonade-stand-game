@@ -16,6 +16,7 @@ import { ownedPlots } from './economy.ts';
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
+import { withBell } from './reinforce.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
@@ -56,6 +57,7 @@ export interface Raid {
   warned?: boolean; // the warning has landed
   back?: number; // your raid: fought, and the squad walks home by this minute (their posts sit empty till then)
   order?: string; // a Delivery Raid: the VIP order it's after
+  bell?: { id: string; at: number }[]; // Ring the Bell (reinforce.ts): the reserve on its way, and the minute each gets there
 }
 
 export interface BattleReport {
@@ -498,7 +500,7 @@ export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): B
     ? s.guards.filter((g) => raid.guards!.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', night))
     : raid.party!;
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night);
-  return battleInput(s, raid, attackers, night, away, rng);
+  return withBell(s, raid, battleInput(s, raid, attackers, night, away, rng), night); // Ring the Bell: the reserve on its way
 }
 
 /** Fight a raid and live with the result. `fought`: a live fight (fight.ts) already fought it. */

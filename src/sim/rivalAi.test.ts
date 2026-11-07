@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
-  costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
+  costPerCup, CUP_COST, dailyService, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
-  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
+  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, stockCapCups, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, tauntsAtDawn, eliteStewards,
@@ -628,19 +628,18 @@ describe('rival trade', () => {
     expect(costPerCup(s, st)).toBeCloseTo((5 * 0.3 + 10 * 0.05) / 10 + 3 * 0.02 + CUP_COST, 5);
   });
 
-  it('a rival stand sells out once a full day\'s stock is gone', () => {
+  it('a rival stand sells one full stock a day at most, and with a day and a half of stock its pour gives out first', () => {
     const s = newGame(21);
     openStand(s);
     simulateRestOfDay(s);
-    let soldOut = 0;
     for (const p of PLOTS) {
       const ps = s.plots[p.id];
       if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
-      expect(ps.stand.day.customers).toBeLessThanOrEqual(stockCups(ps.stand));
-      if (ps.stand.day.walkedPast.soldOut) { soldOut++; expect(ps.stand.day.customers).toBe(stockCups(ps.stand)); }
+      expect(ps.stand.day.customers).toBeLessThanOrEqual(Math.min(stockCups(ps.stand), dailyService(s, p.id)));
+      expect(ps.stand.day.walkedPast.soldOut).toBe(0);
     }
-    expect(soldOut).toBeGreaterThan(0);
-    expect(stockCups(newStand(1))).toBe(120); // 60 lemons, 5 a pitcher, 10 cups a pitcher
+    expect(STAND_LEVELS.map((l) => stockCups(newStand(l.level)))).toEqual(STAND_LEVELS.map((l) => stockCapCups(l.level)));
+    expect(stockCups(newStand(1))).toBe(300); // the spec's 300 cups: 160 lemons at 5 a pitcher and 300 scoops at 10, 10 cups a pitcher
   });
 
   it('rivals pay their henchmen your wages out of their cash at dawn, and the ones they can\'t pay walk off', () => {
@@ -745,10 +744,11 @@ describe('rival cash growth', () => {
       expect(t.margin).toBeCloseTo(Object.entries(t.opening!).reduce((a, [plotId, o]) => a + openingYear(plotId, o), 0), 1);
       const want = RIVAL_TRADE.share * t.base + (t.upkeep + (t.wages ?? 0)) / t.days;
       expect(t.scale * t.margin).toBeCloseTo(want, -1);
-      // Summer is the best season, so its days beat the yearly 1%, but not by miles.
+      // Summer is the best season, so its days beat the yearly 1%, but not by miles: the Boardwalk's summer boom
+      // (the Blenders) runs near 5% now that a day and a half of stock no longer caps it.
       const mean = income[id].reduce((a, b) => a + b, 0) / income[id].length;
       expect(mean).toBeGreaterThan(0.002);
-      expect(mean).toBeLessThan(0.04);
+      expect(mean).toBeLessThan(0.06);
     }
     expect(RIVALS.filter((id) => s.rivals[id].trade!.scale < 1).length).toBeGreaterThanOrEqual(2); // the small gangs carry overheads
     expect(s.rivals.sourwood.trade!.scale).toBeGreaterThan(1); // old money fronts more than its stands pour
@@ -759,9 +759,11 @@ describe('rival cash growth', () => {
     openStand(s);
     simulateRestOfDay(s);
     const w = WEATHER[s.weather.kind];
-    const sold = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && (s.plots[p.id].stand?.day.walkedPast.soldOut ?? 0) > 0);
+    // A day and a half of stock outlasts the pour, so a sell-out is set by hand: 40 buyers turned away at each stand.
+    const sold = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && (s.plots[p.id].stand?.day.customers ?? 0) > 0);
+    for (const p of sold) s.plots[p.id].stand!.day.walkedPast.soldOut += 40;
     expect(sold.length).toBeGreaterThan(0);
-    const day = Object.fromEntries(sold.map((p) => [p.id, { ...s.plots[p.id].stand!.day }]));
+    const day = Object.fromEntries(sold.map((p) => [p.id, { ...s.plots[p.id].stand!.day, walkedPast: { ...s.plots[p.id].stand!.day.walkedPast } }]));
     sleepUntilDawn(s);
     for (const p of sold) {
       const o = s.rivals.blenders.trade!.opening![p.id];

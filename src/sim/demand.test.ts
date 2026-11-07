@@ -4,7 +4,8 @@ import {
   expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, rivalPrice, rivalShare,
-  buySupply, runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, setRecipe, simulateRestOfDay, STAND_LEVELS, stockCups, tickMinute, touristPays, withinTwo,
+  buySupply, maxPacks, runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, servingsAvailable, setPrice, setRecipe, simulateRestOfDay, STAND_LEVELS, stock, stockCapCups,
+  stockCups, storageFor, tickMinute, touristPays, withinTwo, type RecipeId,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
 
@@ -523,6 +524,57 @@ describe('the stand panel\'s demand chain', () => {
     expect(oldtown.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: true, touristTrap: true, majority: true });
     expect(oldtown.lunch).toBeGreaterThan(1);
     expect(oldtown.curb).toBe(1.1);
+  });
+});
+
+describe('stock in cups', () => {
+  /** A stand of `level` pouring `recipe`, bought full of everything at Morning Prep. */
+  function filled(level: number, recipe: RecipeId = 'classic') {
+    const s = newGame(1);
+    s.cash = 1e7;
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = level;
+    st.recipe = recipe;
+    st.inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 };
+    st.pitcherCups = 0;
+    for (const id of ['lemons', 'sugar', 'ice'] as const) {
+      const n = maxPacks(s, st, id);
+      if (n > 0) expect(buySupply(s, id, n, st)).toBe(true);
+      expect(maxPacks(s, st, id)).toBe(0); // full: no room for another pack
+    }
+    return { s, st };
+  }
+
+  it('holds 300 / 750 / 1,800 / 4,500 / 10,500 cups, a day and a half at full pour', () => {
+    expect(STAND_LEVELS.map((l) => stockCapCups(l.level))).toEqual([300, 750, 1800, 4500, 10500]);
+    for (const l of STAND_LEVELS) {
+      expect(stockCapCups(l.level)).toBe(l.capacityPerHour * 10 * 1.5);
+      const { st } = filled(l.level);
+      expect(servingsAvailable(st)).toBe(stockCapCups(l.level));
+      for (const id of ['lemons', 'sugar', 'ice'] as const) expect(stock(st, id)).toBe(storageFor(st, id));
+    }
+    expect(storageFor(filled(1).st, 'lemons')).toBe(160); // 150 lemons, up to whole packs of 20
+  });
+
+  it('holds the card\'s own mix: Frozen twice the ice, Honey-Ginger none', () => {
+    const frozen = filled(1, 'frozen').st;
+    expect(storageFor(frozen, 'ice')).toBe(1800);
+    expect(servingsAvailable(frozen)).toBe(300);
+    const hot = filled(1, 'honeyGinger');
+    expect(storageFor(hot.st, 'ice')).toBe(0);
+    expect(maxPacks(hot.s, hot.st, 'ice')).toBe(0);
+    expect(servingsAvailable(hot.st)).toBe(300);
+  });
+
+  it('counts the smallest of the cups\' worth of lemons, sugar and ice, and pours no cup without its ice', () => {
+    const s = workedExample(1);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.inventory.ice = 30; // 10 cups' worth at 3 cubes a cup
+    expect(servingsAvailable(st)).toBe(10);
+    playDay(s, 'hot', 88);
+    expect(st.day.customers).toBe(10);
+    expect(st.day.walkedPast.soldOut).toBeGreaterThan(0);
+    expect(st.inventory.ice).toBe(0);
   });
 });
 

@@ -4,7 +4,7 @@
 // in title tooltips, the panel itself stays a few words a line.
 import {
   BASE_STOP_CHANCE, costPerCup, demandChain, FACTIONS, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft,
-  servingsAvailable, standLevel, stock, SUPPLIES, WEATHER,
+  servingsAvailable, stock, storageFor, SUPPLIES, WEATHER,
   type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
@@ -130,7 +130,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
   const gauge = (id: SupplyId) => {
     const sp = SUPPLIES[id];
     const max = maxPacks(s, st, id);
-    return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${standLevel(st).storage[id]}">
+    return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${storageFor(st, id)}">
       <span class="cl-fill"${short(id) ? ' data-low' : ''}><span class="l b">${layer(id, 'back')}</span><span class="l f">${layer(id, 'fill')}</span><span class="l t">${layer(id, 'top')}</span></span>
       <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${usd(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
   };

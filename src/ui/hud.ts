@@ -7,7 +7,7 @@ import {
   averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
-  selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
+  selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
@@ -540,7 +540,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     t.push(...landTickets(s));
     const servings = servingsAvailable(st);
-    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
+    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons, sugar and ice!</b></div>`);
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
   }
 
@@ -574,7 +574,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   function dock(s: GameState) {
     const st = selectedStand(s);
-    const sl = standLevel(st);
     const plotId = s.selected;
     const cups = expectedCups(s, plotId);
     const servings = servingsAvailable(st);
@@ -597,7 +596,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const sp = SUPPLIES[id];
       const max = maxPacks(s, st, id);
       const note = id === 'ice' ? (iceMachineOn(s, plotId) ? 'the ice machine makes it' : 'melts tonight') : id === 'lemons' ? (expiring ? `${expiring} spoil tomorrow` : 'keep 3 days') : 'keeps';
-      return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${sl.storage[id]} (${note})">
+      return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${storageFor(st, id)} (${note})">
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
     };
@@ -620,7 +619,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const clubs = clubKit(kit); // the Clubhouse panels (src/ui/clubhouse.ts) draw with it
   const planner = createRaidPlanner(kit, redraw, onAction);
   function levelStats(l: StandLevel, top: number) {
-    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
+    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;
   }
   function growPanel(s: GameState) {
     const st = selectedStand(s);
@@ -629,7 +628,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const topAt = (l: StandLevel) => ceilingFor(l.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected));
     const next = STAND_LEVELS[cur.level];
     const top = STAND_LEVELS[STAND_LEVELS.length - 1];
-    const bars = (l: StandLevel) => `<span class="cl-bars"><span>${ART.cup()}${meter(l.capacityPerHour / top.capacityPerHour)}</span><span>${ART.head(1)}${meter(l.draw / top.draw)}</span><span>${ART.crate()}${meter(l.storage.lemons / top.storage.lemons)}</span></span>`;
+    const bars = (l: StandLevel) => `<span class="cl-bars"><span>${ART.cup()}${meter(l.capacityPerHour / top.capacityPerHour)}</span><span>${ART.head(1)}${meter(l.draw / top.draw)}</span><span>${ART.crate()}${meter(l.stock / top.stock)}</span></span>`;
     const up = canUpgradeStand(s);
     const out: string[] = [];
     if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur, topAt(cur))}\nNext: ${levelStats(next, topAt(next))}`, 'data-big'));

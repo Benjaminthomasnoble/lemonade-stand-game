@@ -414,10 +414,21 @@ function inventoryValue(st: Stand): number {
   return inv.lemons.reduce((a, b) => a + b.qty * b.unitCost, 0) + inv.sugar * inv.sugarCost + inv.ice * inv.iceCost;
 }
 
+/**
+ * The most of a supply a stand holds: its level's cups of stock (300 / 750 / 1,800 / 4,500 / 10,500) in its own
+ * card's mix, up to whole packs. A Frozen stand holds twice the ice, a Honey-Ginger one none.
+ */
+export function storageFor(st: Stand, id: SupplyId): number {
+  const n = pitcherNeeds(st);
+  const perCup = id === 'lemons' ? n.lemons / CUPS_PER_PITCHER : id === 'sugar' ? n.sugar / CUPS_PER_PITCHER : n.icePerCup;
+  const pack = SUPPLIES[id].pack;
+  return Math.max(0, Math.ceil((standLevel(st).stock * perCup) / pack - 1e-9)) * pack;
+}
+
 /** Packs of a supply the player could buy for a stand right now (cash and storage). */
 export function maxPacks(s: GameState, st: Stand, id: SupplyId): number {
   const sp = SUPPLIES[id];
-  const room = Math.floor((standLevel(st).storage[id] - stock(st, id)) / sp.pack);
+  const room = Math.floor((storageFor(st, id) - stock(st, id)) / sp.pack);
   const afford = Math.floor((s.cash + 1e-9) / (sp.pack * s.market[id]));
   return Math.max(0, Math.min(room, afford));
 }
@@ -472,11 +483,21 @@ export function costPerCup(s: GameState, st: Stand): number {
     + n.icePerCup * s.market.ice + RECIPES[st.recipe].extraPerCup + CUP_COST;
 }
 
-/** Cups a stand could still pour with current stock (ignores ice). */
-export function servingsAvailable(st: Stand): number {
+/**
+ * Cups in stock: the smallest of the cups' worth of lemons, sugar and ice on hand (a cup needs all three). With an
+ * ice machine making the ice (`machine`, world: L4+), only the lemons and sugar count; cupsInStock asks the stand.
+ */
+export function servingsAvailable(st: Stand, machine = false): number {
   const n = pitcherNeeds(st);
   const pitchers = Math.min(Math.floor(stock(st, 'lemons') / n.lemons), n.sugar > 0 ? Math.floor(st.inventory.sugar / n.sugar) : Infinity);
-  return st.pitcherCups + pitchers * CUPS_PER_PITCHER;
+  const cups = st.pitcherCups + pitchers * CUPS_PER_PITCHER;
+  return n.icePerCup > 0 && !machine ? Math.min(cups, Math.floor(st.inventory.ice / n.icePerCup)) : cups;
+}
+
+/** Cups in stock at a plot's stand, its ice machine counted (world: an L4+ stand of yours makes its own ice). */
+export function cupsInStock(s: GameState, plotId: string): number {
+  const st = s.plots[plotId]?.stand;
+  return st ? servingsAvailable(st, iceMachineOn(s, plotId)) : 0;
 }
 
 // ---------- demand ----------
@@ -670,6 +691,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   if (!joinsLine(st, seg) || serviceLeft(s, plotId) <= 0) return { buys: false, reason: 'line' };
   if (!isPlayer && st.day.customers >= stockCups(st)) return { buys: false, reason: 'soldOut' }; // a rival sells one full stock a day
   if (isPlayer) {
+    if (st.inventory.ice < RECIPES[st.recipe].icePerCup && !iceMachineOn(s, plotId)) return { buys: false, reason: 'soldOut' }; // a cup needs its ice: no warm lemonade
     if (st.pitcherCups === 0) {
       const n = pitcherNeeds(st);
       if (stock(st, 'lemons') >= n.lemons && st.inventory.sugar >= n.sugar) {
@@ -683,19 +705,17 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   }
   st.queue = (st.queue ?? 0) + 1;
   const paid = round2(st.price * touristPays(s, plotId, seg)); // Tourist Trap: tourists pay +20%
-  let warm = false;
   let cupCost = CUP_COST;
   if (isPlayer) {
     const ice = RECIPES[st.recipe].icePerCup;
     cupCost += machineIce(s, plotId, st, ice); // world: an L4+ stand's ice machine makes what the cooler lacks
-    warm = st.inventory.ice < ice;
-    st.inventory.ice = Math.max(0, st.inventory.ice - ice);
+    st.inventory.ice -= ice;
     cupCost += RECIPES[st.recipe].extraPerCup;
   } else {
     cupCost = costPerCup(s, st); // rivals buy as they pour, at today's Market prices (the cup included)
   }
   // world: the card and the Sweetness dial win customers through appeal, never Reputation (spec: Reputation).
-  const sat = clamp(0.55 + 0.4 * (a.fairPrice - st.price) / a.fairPrice - (warm ? 0.35 : 0), 0, 1);
+  const sat = clamp(0.55 + 0.4 * (a.fairPrice - st.price) / a.fairPrice, 0, 1);
   const d = st.day;
   d.satisfaction = (d.satisfaction * d.customers + sat) / (d.customers + 1);
   d.customers++;

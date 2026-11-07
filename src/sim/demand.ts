@@ -269,6 +269,11 @@ export function dailyService(s: GameState, plotId: string): number {
   return pourRate(s, plotId) * SELLING_HOURS;
 }
 
+/** The cups of stock a level holds, one and a half days at full pour: 300 / 750 / 1,800 / 4,500 / 10,500 (spec: Stands). */
+export function stockCapCups(level: number): number {
+  return STAND_LEVELS[level - 1].stock;
+}
+
 /** People ahead of a newcomer in the stand's line. */
 export const peopleAhead = (st: Stand) => Math.ceil((st.queue ?? 0) - 1e-9);
 

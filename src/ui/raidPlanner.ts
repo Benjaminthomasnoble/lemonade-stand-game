@@ -2,7 +2,7 @@
 // odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
 // panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canRaid, GADGETS, inTruce, PERIMETERS, raidOdds, RAID_RANK, rebuildChance, WEAPONS,
+  availableRaiders, canRaid, GADGETS, inTruce, PERIMETERS, raidIsNightAt, raidOdds, RAID_RANK, raidRepCost, rebuildChance, squadTrip, WEAPONS,
   type GameState, type Objective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, scoutedSnapshot } from '../sim/scouting.ts';
@@ -67,7 +67,9 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       if (v === undefined) { v = raidOdds(s, id, ids, objective, night); if (oddsMemo.size > 200) oddsMemo.clear(); oddsMemo.set(key, v); }
       return v;
     };
-    const night = odds(true), day = odds(false);
+    const nightNow = raidIsNightAt(squadTrip(s, id, 'now').at); // the fight's minute decides, after the walk there
+    const night = odds(true), now = odds(nightNow);
+    const stars = raidRepCost(s, ids, objective, nightNow);
     const can = canRaid(s, id, ids);
     const obj = (v: Objective, art: string, label: string, tip: string) => `<button class="cl-b ${objective === v ? 'go' : 'ghost'}" data-action="objective" data-value="${v}" title="${tip}">${art}${label}</button>`;
     return `<div class="cl-planner" data-testid="raid-planner">
@@ -78,7 +80,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight" title="${Math.round(night * 100)}% to win"`, 'go')}
-      ${s.phase === 'report' || s.phase === 'night' ? '' : k.btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
+      ${s.phase === 'report' || s.phase === 'night' ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}★</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(now * 100)}% to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}"`)}</div></div>`;
   }
 
   function click(d: DOMStringMap) {

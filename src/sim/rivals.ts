@@ -2,7 +2,7 @@
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
-import { creditGuards, henchmanFor, NO_DEFENSE, raidSquad, squadFighters, threatLevel, type BattleReport } from './crew.ts';
+import { creditGuards, henchmanFor, NO_DEFENSE, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -399,7 +399,7 @@ function boss(id: RivalId, n: number): Fighter {
 /** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */
 export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[] {
   breakTruce(s, id);
-  return squadFighters(raidSquad(s, guardIds), 'att', false); // crew: a Captain leads the whole squad
+  return squadFighters(raidSquad(s, guardIds), 'att', raidIsNight(s)); // crew: a Captain leads the squad; Morning Prep is night
 }
 
 /** One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). */

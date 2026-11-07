@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CAPTAIN, CLUBHOUSE, COMBAT, DETECTION_BASE, DETECTION_CAP, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, OPEN, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
@@ -375,7 +375,7 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   let nerve = GUARD_BASE.nerve;
   let speed = COMBAT.speed;
   if (g.trait === 'Tough Cookie') hp *= 1.2;
-  if (g.trait === 'Gentle Giant') { hp *= 1.4; hit *= 0.7; }
+  if (g.trait === 'Gentle Giant') { hp *= 1.5; hit *= 0.7; }
   if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 20; }
   chop *= 1 + (g.trait === 'Lumberjack' ? 0.5 : 0) + (g.specialty === 'wrecker' ? WRECKER_CHOP : 0); // Lumberjack and Wrecker: +50% each
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
@@ -474,6 +474,19 @@ export function detectionChance(s: GameState, plotId: string, night: boolean): n
 
 // ---------- player raids ----------
 
+/** Daytime is 08:00–20:00, when customers see a raid; Morning Prep (07:00) and the Evening count as night. */
+export const raidIsNightAt = (minute: number) => minute < OPEN || minute >= CLOSE;
+/** Is it night on the clock now? A raid's fight minute decides whether it is a night raid. */
+export const raidIsNight = (s: GameState) => raidIsNightAt(s.minute);
+
+/** Stars a raid fought now costs: 0.1 by day (0.2 for a Smash), nothing at night, nothing when Gentle Giants go alone. */
+export function raidRepCost(s: GameState, guardIds: string[], objective: Objective, night = raidIsNight(s)): number {
+  if (night) return 0;
+  const squad = s.guards.filter((g) => guardIds.includes(g.id));
+  if (squad.length && squad.every((g) => g.trait === 'Gentle Giant')) return 0;
+  return objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid;
+}
+
 export function raidTargets(s: GameState): Plot[] {
   return PLOTS.filter((p) => {
     const ps = s.plots[p.id];
@@ -513,7 +526,7 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   if (!canRaid(s, plotId, guardIds).ok) return false;
   const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective, guards: guardIds, detected: false, eta: '' };
   breakTruce(s, s.plots[plotId].owner as RivalId);
-  return sendRaid(s, raid, when); // nights: the squad travels; a raid fought in business hours costs Reputation then
+  return sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
 }
 
 // ---------- rival raids and the night ----------

@@ -10,7 +10,7 @@
 // both ways: their posts sit empty from departure until they're home.
 // Pure and seeded, like the rest of the sim.
 import {
-  CLOSE, DAWN, DAYTIME_RAID_REP, DELIVERY_WINDOW, FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, GRAPEVINE_EARLY, MINUTES_PER_DAY,
+  CLOSE, DAWN, DELIVERY_WINDOW, FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, GRAPEVINE_EARLY, MINUTES_PER_DAY,
   NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, OPEN, PLAYER_RAID_LEAVE, QUIET_NIGHT_SPEED, RAID_FIGHT_GUESS, RAID_TRAVEL,
   REAL_SECONDS_PER_MINUTE, type RivalId,
 } from './balance.ts';
@@ -18,7 +18,7 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { servingsAvailable } from './economy.ts';
-import { detectionChance, guardReady, hasBuilding, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
@@ -177,7 +177,8 @@ function muster(s: GameState, r: Raid): void {
 /** After the fight your squad walks home the same way, carrying anyone KO'd; their posts fill again as they arrive.
  * Customers see a raid fought in business hours: it costs Reputation (night raids cost nothing). */
 function homeward(s: GameState, r: Raid, report: BattleReport, daytime: boolean, started = s.minute): void {
-  if (daytime) s.reputation = Math.max(1, Math.round((s.reputation - (r.objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid)) * 100) / 100);
+  const stars = raidRepCost(s, r.guards ?? [], r.objective, !daytime); // crew's rule: Gentle Giants alone cost nothing
+  if (stars) s.reputation = Math.max(1, Math.round((s.reputation - stars) * 100) / 100);
   r.back = started + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target), r.target);
   s.raids.push(r);
 }

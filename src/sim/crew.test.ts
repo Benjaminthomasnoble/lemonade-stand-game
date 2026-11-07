@@ -5,7 +5,8 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
   PLOTS,
 } from './economy.ts';
-import { availableRaiders, guardFighter, squadFighters, type Guard } from './crew.ts';
+import { availableRaiders, guardFighter, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, type Guard } from './crew.ts';
+import { CLOSE } from './balance.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
@@ -328,5 +329,48 @@ describe('Wreckers and Captains', () => {
     if (typeof report !== 'object') throw new Error('raid did not run');
     const bea = report.attackers.find((f) => f.id === 'gb')!;
     expect(bea.nerve).toBe(guardFighter(guard({ trait: 'Sprinter' }), 'att', true).nerve + 20);
+  });
+});
+
+describe('day and night raids', () => {
+  const crew = (seed: number) => {
+    const s = newGame(seed);
+    s.rank = 4;
+    s.reputation = 4;
+    welcomeDex(s);
+    s.guards.push({ ...s.guards[0], id: 'gb', name: 'Bea B', trait: 'Gentle Giant', post: null });
+    return s;
+  };
+
+  it('the minute the fight happens decides: 08:00-20:00 is day; Morning Prep and the Evening are night', () => {
+    expect([7 * 60, 8 * 60, 19 * 60 + 59, 20 * 60, 25 * 60].map(raidIsNightAt)).toEqual([true, false, false, true, true]);
+    const s = crew(81);
+    expect(s.phase).toBe('prep');
+    expect(raidIsNight(s)).toBe(true);
+    expect(raidRepCost(s, ['gb', s.guards[0].id], 'smash')).toBe(0); // a fight at Morning Prep (an HQ assault) costs nothing
+  });
+
+  it('by day customers see it as it lands: 0.1 star, 0.2 for a Smash; none when Gentle Giants go alone', () => {
+    const s = crew(82);
+    openStand(s);
+    s.minute = 12 * 60;
+    expect(raidIsNight(s)).toBe(false);
+    const [a, b] = raidTargets(s).map((p) => p.id);
+    expect(raidRepCost(s, [s.guards[0].id], 'shakedown')).toBe(0.1);
+    expect(raidRepCost(s, [s.guards[0].id, 'gb'], 'smash')).toBe(0.2);
+    expect(raidRepCost(s, ['gb'], 'smash')).toBe(0);
+    planRaid(s, a, ['gb'], 'smash', 'now');
+    planRaid(s, b, [s.guards[0].id], 'smash', 'now');
+    expect(s.reputation).toBe(4); // nothing until they get there
+    let fights = 0;
+    while (fights < 2 && s.minute < CLOSE) for (const e of tickMinute(s)) if (e.type === 'fight') fights++;
+    expect(fights).toBe(2);
+    expect(s.reputation).toBeCloseTo(3.8, 5); // the Giant's raid cost nothing, the other a Smash's 0.2
+  });
+
+  it('Gentle Giants have +50% HP and 30% less Hit', () => {
+    const f = guardFighter({ id: 'gg', name: 'Gentle G', trait: 'Gentle Giant', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 }, 'att', false);
+    expect(f.hp).toBeCloseTo(150);
+    expect(f.hit).toBeCloseTo(18 * 0.7);
   });
 });

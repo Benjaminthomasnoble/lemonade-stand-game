@@ -35,6 +35,7 @@ describe("Lottie's tour", () => {
     const s = newGame(1);
     const mem = fresh();
     for (const id of ['intro-hello', 'intro-bay', 'intro-rivals', 'intro-goal']) mem.seen.add(id);
+    s.plots[s.selected].stand!.inventory.lemons = []; // Lottie stocks Days 1-2 (src/sim/story.ts): make room to buy
     expect(buySupply(s, 'lemons', 1)).toBe(true);
     const lemonsFull: CoachEnv = { has: (sel) => !sel.includes(':disabled') && !sel.includes('[data-fill="lemons"][data-low]'), speed: 1 };
     const { step, done } = pickStep(s, lemonsFull, mem);

@@ -136,7 +136,9 @@ with these pieces.
   arrival); the next focus without them goes back to the look from before.
 - `world.pilot(true)` hands the camera to something else (Gull Flight): the
   clock, twos, light and boil run on, detail and fog come from the camera's
-  height, the shadow box follows what it looks at, and the tilt-shift drops.
+  height (never closer than mid zoom: the chase looks out to the horizon, so
+  a phone flies over Bay View blocks), the shadow box follows what it looks
+  at, and the tilt-shift drops.
 - At detail 2, every top-level object with `userData.limbs` draws as one
   instanced clay speck, so figures cost nothing at Bay View. bay.ts swaps
   each district's plots for one merged block and hides grass and flowers.

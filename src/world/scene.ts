@@ -69,6 +69,7 @@ export interface World {
    * Something else steers the camera (Gull Flight): update() leaves the camera's pose alone (no glide, turn or
    * OrbitControls), drops the tilt-shift for a wide, windy chase, and takes the detail, fog and shadow box from where
    * the camera is (its height above the bay, the ground it looks at). The clock, the twos and the light run on.
+   * The chase looks out to the horizon, so it flies at mid-zoom detail at the lowest (Bay View blocks on a phone).
    */
   pilot(on: boolean): void;
   update(dt: number): void;
@@ -408,11 +409,14 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       let t = controls.target, dist: number;
       if (piloted) {
         // Gull Flight: the ground the camera looks at (or a point ahead of it, looking over the horizon) stands in for
-        // the target, and twice its height above the bay stands in for the zoom.
+        // the target, and twice its height above the bay stands in for the zoom. The chase looks out to the horizon,
+        // so it never flies closer than mid zoom: mid-zoom models on a laptop, Bay View blocks on a phone (mid-zoom
+        // models out to the horizon cost a late-game phone up to 220 draws and 530k triangles flying low, and pulling
+        // the fog in doesn't save enough).
         camera.getWorldDirection(lookDir);
         const ahead = lookDir.y < -0.05 ? Math.min(80, camera.position.y / -lookDir.y) : 80;
         t = lookPt.copy(camera.position).addScaledVector(lookDir, ahead).setY(0);
-        dist = Math.max(8, camera.position.y * 2);
+        dist = Math.max(DETAIL_AT.mid, camera.position.y * 2);
       } else {
         if (turn) {
           turn.t = Math.min(1, turn.t + dt * 2.4);

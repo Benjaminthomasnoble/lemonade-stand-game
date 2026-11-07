@@ -5,7 +5,7 @@ import {
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
-  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -288,6 +288,28 @@ describe('what a Faction Buyout buys', () => {
       buyPlot(s, lot);
       expect(s.plots[lot].stand).toBeNull();
     }
+  });
+});
+
+describe('a rival out of the game', () => {
+  it('gone bust, its HQ still becomes your Trophy, perk and all, like a capture or a buyout', () => {
+    for (const how of ['hq', 'buyout', 'bankrupt'] as const) {
+      const s = rich(7);
+      const hq = hqPlot('sourwood').id;
+      expect(hasTrophy(s, 'sourwood')).toBe(false);
+      eliminate(s, 'sourwood', how);
+      expect(s.plots[hq]).toMatchObject({ owner: 'player', garrison: 0 });
+      expect(hasTrophy(s, 'sourwood')).toBe(true);
+      expect(s.plots[hq].dibs).toBeUndefined(); // an HQ never goes to the Fire Sale
+      expect(s.news.some((n) => n.includes(`becomes Lottie's ${TROPHIES.sourwood.name}`))).toBe(true);
+    }
+    const s = rich(8); // the real route: a week in the red, counted at dawn
+    s.rivals.hollis.cash = -1;
+    s.rivals.hollis.brokeDays = BANKRUPT_DAYS - 1;
+    rivalsBankrupt(s);
+    expect(s.rivals.hollis.alive).toBe(false);
+    expect(hasTrophy(s, 'hollis')).toBe(true);
+    expect(s.news).toContain(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red. Their HQ, ${hqPlot('hollis').name}, becomes Lottie's ${TROPHIES.hollis.name}: ${TROPHIES.hollis.perk.toLowerCase()}.`);
   });
 });
 

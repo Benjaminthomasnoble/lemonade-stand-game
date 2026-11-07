@@ -479,9 +479,10 @@ export function handOverKept(s: GameState, plotId: string, buyer: FactionId): vo
 }
 
 /**
- * The rival is out: its HQ captured, its business bought, or bankrupt. Every plot it held goes to a Fire Sale. A
- * Faction Buyout hands over the business it paid for: the rival's cash comes to you, and its buildings stay with their
- * plots for whoever buys them (you first, on First Dibs).
+ * The rival is out: its HQ captured, its business bought, or bankrupt. On every route its HQ becomes your Trophy (a
+ * bankrupt rival's too: nobody else can buy an HQ), its recipe page comes home, and every other plot it held goes to a
+ * Fire Sale. A Faction Buyout hands over the business it paid for: the rival's cash comes to you, and its buildings stay
+ * with their plots for whoever buys them (you first, on First Dibs).
  */
 export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'bankrupt'): void {
   const r = s.rivals[id];
@@ -495,11 +496,9 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   }
   s.raids = s.raids.filter((x) => x.attacker !== id);
   const hq = hqPlot(id);
-  if (how !== 'bankrupt') {
-    s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
-    s.news.push(`${FACTIONS[id].name} are finished! Their HQ, ${hq.name}, becomes Lottie's ${TROPHIES[id].name}: ${TROPHIES[id].perk.toLowerCase()}.`);
-  }
-  if (how === 'bankrupt') s.news.push(`${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.`);
+  const trophy = `Their HQ, ${hq.name}, becomes Lottie's ${TROPHIES[id].name}: ${TROPHIES[id].perk.toLowerCase()}.`;
+  if (s.plots[hq.id].owner === id) s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
+  s.news.push(how === 'bankrupt' ? `${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red. ${trophy}` : `${FACTIONS[id].name} are finished! ${trophy}`);
   recoverPage(s, id); // world: their recipe page comes home, on every route
   retireJingle(s, id, how); // world: 101.5 retires their jingle with a second of silence
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)

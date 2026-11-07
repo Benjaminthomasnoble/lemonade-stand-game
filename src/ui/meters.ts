@@ -1,7 +1,9 @@
 // What each top-bar meter says on hover or long-press (spec: "Every meter
 // explains itself on hover or long-press; Threat, for example, names the rank
 // that set it"; the Success Score gives its breakdown, today's change and the
-// Peak). Plain text with line breaks, for title attributes.
+// Peak). Reputation isn't on the top bar: it's the stars on your stand's sign,
+// and your stand's card explains them. Plain text with line breaks, for title
+// attributes.
 import {
   BUILDING_VALUE_SHARE, assetValue, difficulty, PLOTS, RANKS, redDaysLeft, seasonDay, seasonOf, successScore, syndicateFormed,
   syndicateMembers, threatLevel, type GameState,
@@ -55,5 +57,8 @@ export function repTip(s: GameState): string {
   const d = s.reputation - s.today.reputationBefore;
   return `Reputation ${s.reputation.toFixed(2)} of 5 stars\nMore stars, more walkers stop${Math.abs(d) > 0.004 ? `\nToday ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(2)}` : ''}`;
 }
+
+/** The stars on your stand's sign, explained on its card (spec: Reputation moves off the top bar to the stand's sign). */
+export const standRepTip = (s: GameState, plotId: string) => (s.plots[plotId].owner === 'player' && s.plots[plotId].stand ? repTip(s) : '');
 
 export const dayTip = (s: GameState, mode: string) => `Day ${s.day}: ${seasonOf(s.day)} day ${seasonDay(s.day)}\n${mode}`;

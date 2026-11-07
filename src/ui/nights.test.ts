@@ -15,7 +15,7 @@ import { isFullMenu, menuScreen, menuUnlocked, plannerTargets } from './menus.ts
 import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
 import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
-import { scoreParts, scoreTip, threatTip } from './meters.ts';
+import { repTip, scoreParts, scoreTip, standRepTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
 import { callBigSqueeze, newStand, PLOT_BY_ID, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
@@ -312,6 +312,16 @@ describe('the ten menus', () => {
 });
 
 describe('the top bar explains itself', () => {
+  it("Reputation isn't a top-bar meter: your stand's card explains the stars on its sign", () => {
+    const s = newGame(3);
+    expect(standRepTip(s, LOTTIES_CORNER)).toBe(repTip(s));
+    expect(repTip(s)).toContain(`Reputation ${s.reputation.toFixed(2)} of 5 stars`);
+    const rival = raidTargets(s).find((p) => s.plots[p.id].stand)!.id;
+    expect(standRepTip(s, rival)).toBe(''); // a rival's stand: not your stars
+    s.plots[LOTTIES_CORNER].stand = null;
+    expect(standRepTip(s, LOTTIES_CORNER)).toBe(''); // no stand, no sign
+  });
+
   it('the Success Score breaks down into cash, land, 75% of buildings, stock and loans, with today and the Peak', () => {
     const s = newGame(5);
     const p = scoreParts(s);

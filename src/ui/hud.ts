@@ -36,7 +36,7 @@ import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts'
 import { keysPanel } from './keys.ts';
 import { squeezePanel } from './squeeze.ts';
 import { attachTips } from './tips.ts';
-import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
+import { cashTip, dayTip, scoreTip, standRepTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
@@ -487,7 +487,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<div class="cl-left">
         ${cash}
         ${taught(s, 'rank') ? `<div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>` : ''}
-        <div class="cl-chip" title="${esc(repTip(s))}" data-testid="reputation">${ART.star(true)}${tape(s.reputation.toFixed(1))}</div>
         ${threat >= 2 && !peaceful(s) && taught(s, 'threat') ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
         ${s.bottles ? `<div class="cl-chip" title="Bottles ready for big orders: ${esc(bottleStock(s))}"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
@@ -759,7 +758,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${fitGarrison(s, id)} henchmen${henchmenOut(ps, s.day) ? ` (${henchmenOut(ps, s.day)} seeing stars)` : ''}` : ''}` : '',
-      st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
+      st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : '', standRepTip(s, id)].filter(Boolean).join('\n');
     let actions = '';
     if (!ps.owner && ps.auction && (p.district === 'maple' || taught(s, 'land'))) actions = auctionControls(s, id); // bids follow Week 2's land lesson, like Buy
     else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }

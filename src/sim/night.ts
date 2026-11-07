@@ -135,6 +135,20 @@ const setOut = (s: GameState, r: Raid) => r.attacker === 'player' && (r.back !==
 /** Guards out on one of your raids right now (travelling, fighting or walking home): their posts sit empty. */
 export const awayGuards = (s: GameState) => new Set(s.raids.filter((r) => setOut(s, r)).flatMap((r) => r.guards ?? []));
 
+/** Guards who will be away on one of your raids at `minute`, later tonight say: set out by then and not home yet (a
+ * squad not yet fought is home a fight's guess and the walk back after it gets there), and the squad in the fight
+ * playing live now. A raid warning counts who will really meet the raiders when they land. */
+export function awayAt(s: GameState, minute: number): Set<string> {
+  const away = new Set<string>();
+  for (const r of s.raids) {
+    if (r.attacker !== 'player' || (r.leave ?? 0) > minute) continue;
+    const home = r.back ?? (r.at ?? r.leave ?? 0) + RAID_FIGHT_GUESS + travelMinutes(s, squadHome(s, r.target), r.target);
+    if (home > minute) for (const id of r.guards ?? []) away.add(id);
+  }
+  if (s.fight?.raid.attacker === 'player') for (const id of s.fight.raid.guards ?? []) away.add(id);
+  return away;
+}
+
 /** The posts a squad would leave empty, for the Raid Planner: each guard who stands one. */
 export const emptyPosts = (s: GameState, guardIds: string[]) =>
   s.guards.filter((g) => guardIds.includes(g.id) && g.post && s.plots[g.post]?.owner === 'player');

@@ -4,9 +4,10 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
+  awayAt, canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
+import { scoutingToday } from '../sim/scouting.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
 import { bellEta, canRingBell } from '../sim/reinforce.ts';
@@ -37,8 +38,11 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const seen = towerSees(s, r.target) && r.party?.length;
   // The makeup a Watchtower sees: what they're after, then each raider's weapon (six shown, the rest counted).
   const them = seen ? `${r.objective === 'smash' ? ICON.boom() : ICON.bag()}${r.party!.slice(0, 6).map((f) => ICON.weapon(f.weapon)).join('')}${r.party!.length > 6 ? `<i>+${r.party!.length - 6}</i>` : ''}` : '';
-  const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length
-    + (r.tutorial && !s.guards.some((g) => g.name === DEX && g.post === r.target && guardReady(s, g)) ? 1 : 0); // Dex always meets the first raid
+  // Your side: the guards who'll be on the plot when they land, as the fight fields them (a squad out on one of your
+  // raids by then leaves its posts empty; a Lookout out scouting isn't there either), and Dex on the first raid.
+  const away = awayAt(s, r.at ?? s.minute);
+  const there = s.guards.filter((g) => g.post === r.target && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
+  const guards = there.length + (r.tutorial && !there.some((g) => g.name === DEX) ? 1 : 0); // Dex always meets the first raid
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
   const after = r.delivery ? 'the cargo' : r.sabotage ? 'the stock' : r.objective === 'smash' ? 'a smash' : 'the till'; // crew: Sabotage spoils the stock
   // What a tower sees besides the weapons: the boss at the head (Threat 5, the Syndicate) and any lookouts.

@@ -109,6 +109,27 @@ describe('the raid warning card', () => {
     expect(alertCards(warned({ attacker: 'fizzco' }).s)[0]).toContain('<b>FizzCo → ');
   });
 
+  it("counts only the guards who'll be there: a squad out on your raid by then leaves its posts empty", () => {
+    const { s } = warned(); // it's 9:00 pm, and the Blenders hit the Corner at 10:00
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    s.guards = Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, name: `Test ${i}`, trait: 'Loyal', level: 5, xp: 0, weapon: 'hatchets', gear: 'pro', post: LOTTIES_CORNER, outUntil: 0, fee: 0 }) as Guard);
+    const mark = 'M32 6l20 8v14c0 13-8 23-20 28-12-5-20-15-20-28V14z'; // the shield's outline (clay.ts shieldSVG)
+    const shields = () => { const c = alertCards(s).find((x) => x.includes('raid-warning'))!; return c.slice(c.indexOf('<i>vs</i>')).split(mark).length - 1; };
+    expect(shields()).toBe(3);
+    const target = raidTargets(s)[0].id;
+    const raid: Raid = { id: 'p1', attacker: 'player', target, objective: 'smash', party: [], detected: true, eta: hhmm(21 * 60 + 40), leave: 20 * 60 + 40, at: 21 * 60 + 40, guards: ['g0', 'g1'] };
+    s.raids.push(raid); // g0 and g1 are on the road: not home by 10:00
+    expect(shields()).toBe(1);
+    raid.leave = 21 * 60 + 30; raid.at = 22 * 60 + 30; // they set out at 9:30, before the raid lands
+    expect(shields()).toBe(1);
+    raid.leave = 22 * 60 + 30; raid.at = 23 * 60 + 30; // they leave after it lands: still at their posts
+    expect(shields()).toBe(3);
+    raid.leave = 19 * 60; raid.at = 19 * 60 + 30; raid.back = 21 * 60 + 50; // fought, home at 9:50
+    expect(shields()).toBe(3);
+    raid.back = 22 * 60 + 10; // home at 10:10: too late
+    expect(shields()).toBe(1);
+  });
+
   it('on the tutorial raid Dex is among the shields, wherever he is posted', () => {
     const { s } = warned({ tutorial: true });
     s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');

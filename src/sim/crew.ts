@@ -21,7 +21,7 @@ import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
-import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
+import { canSpend, rivalGuardSpend, signatureRaids, spend } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
@@ -636,8 +636,8 @@ export function crewAtDawn(s: GameState): void {
       if (smasher === 'player') { s.news.push(`${PLOT_BY_ID[p.id].name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
       // A rival with First Dibs buys straight away if they can.
       const r = s.rivals[smasher as RivalId];
-      if (r?.alive && r.cash > ps.landValue) {
-        r.cash -= ps.landValue;
+      if (r?.alive && canSpend(s, smasher as RivalId, 'grow', ps.landValue)) {
+        spend(s, smasher as RivalId, 'grow', ps.landValue);
         s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
         if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${PLOT_BY_ID[p.id].name} after Lottie couldn't rebuild.`);
       } else {
@@ -649,10 +649,10 @@ export function crewAtDawn(s: GameState): void {
       if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(); // Busted stands wait for their repair
       continue;
     }
-    const r = s.rivals[ps.owner as RivalId];
+    const owner = ps.owner as RivalId;
     const cost = rebuildCost(ps);
-    if (r.cash > cost + 500 && nextRandom(rng) < rebuildChance(s, p.id)) {
-      r.cash -= cost;
+    if (canSpend(s, owner, 'grow', cost) && nextRandom(rng) < rebuildChance(s, p.id)) {
+      spend(s, owner, 'grow', cost); // a rival rebuild is Grow money
       if (ps.stand) ps.stand.wrecked = false;
       if (ps.facility) ps.facility.wrecked = false;
       delete ps.wreckedDay;

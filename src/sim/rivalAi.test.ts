@@ -5,7 +5,7 @@ import {
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
-  WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids,
+  WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -88,6 +88,22 @@ describe('rival dawn budget', () => {
     expect(levels(s, id).filter((l, i) => l === before[i] + 1).length).toBe(owed.length);
   });
 
+  it('the small gangs stay small: a Level 3 waits while Grow saves its $3,500', () => {
+    const s = newGame(13);
+    const id: RivalId = 'coldbrew';
+    const stands = ownedPlots(s, id).filter((p) => s.plots[p.id].stand).length;
+    s.day = 31;
+    budgetOf(s, id).grow = STAND_LEVELS[2].cost - 1;
+    growUpgrades(s, id);
+    expect(s.rivals[id].upgradesDue!.length).toBe(stands);
+    expect(budgetOf(s, id).grow).toBe(STAND_LEVELS[2].cost - 1);
+    s.day = 32;
+    budgetOf(s, id).grow = STAND_LEVELS[2].cost;
+    growUpgrades(s, id);
+    expect(levels(s, id).filter((l) => l === 3).length).toBe(1);
+    expect(s.rivals[id].upgradesDue!.length).toBe(stands - 1);
+  });
+
   it('buys land only with Grow money', () => {
     const s = newGame(6);
     s.day = 10;
@@ -101,6 +117,54 @@ describe('rival dawn budget', () => {
     growLand(s, id, { seed: seedUnder(0.25) });
     expect(ownedPlots(s, id).length).toBe(plots + 1);
     expect(1e6 - budgetOf(s, id).grow).toBeCloseTo(cash - s.rivals[id].cash, 2);
+  });
+
+  it('Grow pays to rebuild a smashed stand: an empty Grow lets it go For Sale', () => {
+    const smashed = (grow: number) => {
+      const s = newGame(11);
+      s.day = 12;
+      const plot = ownedPlots(s, 'sourwood').find((p) => p.type !== 'hq' && s.plots[p.id].stand)!;
+      const ps = s.plots[plot.id];
+      ps.stand!.wrecked = true; ps.wreckedDay = s.day; ps.smashedBy = 'player';
+      for (const id of RIVALS) budgetOf(s, id).guard = 0;
+      budgetOf(s, 'sourwood').grow = grow;
+      s.seed = seedUnder(FACTIONS.sourwood.rebuild);
+      return { s, plot: plot.id, cost: rebuildCost(ps), cash: s.rivals.sourwood.cash };
+    };
+    const broke = smashed(0);
+    crewAtDawn(broke.s);
+    expect(broke.s.plots[broke.plot].owner).toBeNull();
+    expect(broke.s.plots[broke.plot].dibs?.who).toBe('player');
+    expect(broke.s.rivals.sourwood.cash).toBe(broke.cash);
+    const flush = smashed(10_000);
+    crewAtDawn(flush.s);
+    expect(flush.s.plots[flush.plot].owner).toBe('sourwood');
+    expect(flush.s.plots[flush.plot].stand!.wrecked).toBe(false);
+    expect(budgetOf(flush.s, 'sourwood').grow).toBeCloseTo(10_000 - flush.cost, 2);
+    expect(flush.s.rivals.sourwood.cash).toBeCloseTo(flush.cash - flush.cost, 2);
+    expect(bankTakings(flush.s, 'sourwood')).toBe(0); // a rebuild is Grow spending, not tomorrow's loss
+  });
+
+  it('a rival\'s First Dibs buy comes out of Grow', () => {
+    const lapsed = (grow: number) => {
+      const s = newGame(12);
+      s.day = 12;
+      const ps = s.plots[LOTTIES_CORNER];
+      ps.stand!.wrecked = true; ps.wreckedDay = s.day - PLAYER_REBUILD_DAYS - 1; ps.smashedBy = 'fizzco';
+      for (const id of RIVALS) budgetOf(s, id).guard = 0;
+      budgetOf(s, 'fizzco').grow = grow;
+      return { s, land: ps.landValue, cash: s.rivals.fizzco.cash };
+    };
+    const broke = lapsed(0);
+    crewAtDawn(broke.s);
+    expect(broke.s.plots[LOTTIES_CORNER].owner).toBeNull();
+    expect(broke.s.plots[LOTTIES_CORNER].dibs).toBeUndefined();
+    expect(broke.s.rivals.fizzco.cash).toBe(broke.cash);
+    const flush = lapsed(1e5);
+    crewAtDawn(flush.s);
+    expect(flush.s.plots[LOTTIES_CORNER].owner).toBe('fizzco');
+    expect(budgetOf(flush.s, 'fizzco').grow).toBeCloseTo(1e5 - flush.land, 2);
+    expect(flush.s.rivals.fizzco.cash).toBeCloseTo(flush.cash - flush.land, 2);
   });
 
   it('Guard pays for fences and henchmen, and an empty Guard buys nothing', () => {

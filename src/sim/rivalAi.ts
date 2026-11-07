@@ -347,7 +347,11 @@ export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
 
 // ---------- Grow: stand upgrades and land ----------
 
-/** Every 30 days each stand is owed a level (up to the faction's cap). Grow pays the build cost, cheapest first; an upgrade it can't afford waits. */
+/**
+ * Every 30 days each stand is owed a level (up to the faction's cap). Grow pays the build cost, cheapest first; an upgrade it
+ * can't afford waits. The small gangs stay small: on about $50 a day of Grow, Cold Brew and the Blenders save for a Level 3
+ * ($3,500, your price) for about 70 days, so their stands rise slower than every 30 days and never reach Level 4.
+ */
 export function growUpgrades(s: GameState, id: RivalId): void {
   const r = s.rivals[id];
   const f = FACTIONS[id];

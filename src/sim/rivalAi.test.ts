@@ -6,7 +6,8 @@ import {
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
-  type BattleReport, type GameState, type RivalId,
+  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn,
+  type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -433,6 +434,104 @@ describe('Blender Rush', () => {
     expect(s.raids[0].party!.length).toBe(RAID_PARTY[tier - 1].size[1]);
     expect(s.raids[0].party!.every((f) => f.weapon === 'fists')).toBe(true);
     expect(s.news.some((n) => n.startsWith('Brock:'))).toBe(false); // he only phones you
+  });
+});
+
+describe('Night Shift', () => {
+  /** A raid by `attacker` setting out for Lottie's Corner at 21:00 on Day 1: has the watch spotted it by its warning? */
+  function spotted(seed: number, attacker: RivalId, gadgets: GadgetId[] = []): boolean {
+    const s = newGame(seed);
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.plots[LOTTIES_CORNER].defense.gadgets = gadgets;
+    const r: Raid = { id: 'ns', attacker, target: LOTTIES_CORNER, objective: 'shakedown', party: raidPartyFor(s, attacker), detected: false, eta: hhmm(23 * 60), leave: 21 * 60, at: 23 * 60 };
+    s.raids = [r];
+    sleepUntilDawn(s, true); // stops at the warning
+    return r.detected;
+  }
+
+  it('Cold Brew\'s night raids take 25 more off your detection, and Floodlights only win back the night', () => {
+    const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+    const count = (attacker: RivalId, gadgets: GadgetId[] = []) => seeds.filter((seed) => spotted(seed, attacker, gadgets)).length;
+    expect(count('coldbrew')).toBe(0); // 50% to spot a raid, less 25 at night, less 25 for the Night Shift
+    expect(count('blenders')).toBeGreaterThan(3); // 25%
+    expect(count('coldbrew', ['floodlights'])).toBeGreaterThan(3); // 25%: the lights cancel the night, not the Night Shift
+    const s = newGame(1);
+    const raid = { attacker: 'coldbrew' } as Raid;
+    expect(nightShiftStealth(s, raid)).toBe(0); // by day
+    s.phase = 'night';
+    expect(nightShiftStealth(s, raid)).toBe(NIGHT_SHIFT.stealth);
+    expect(nightShiftStealth(s, { attacker: 'blenders' } as Raid)).toBe(0);
+  });
+
+  it('Juni phones the morning after a Cold Brew Sabotage spoils your stock, not after a plain raid', () => {
+    const s = newGame(2);
+    s.day = 30;
+    const fight = { day: 29, attacker: 'coldbrew', defender: 'player', target: LOTTIES_CORNER, outcome: 'robbed' } as BattleReport;
+    s.battles.push(fight);
+    tauntsAtDawn(s);
+    expect(s.news.filter((n) => n.startsWith('Juni:'))).toEqual([]);
+    s.battles.push({ ...fight, sabotage: true } as BattleReport);
+    tauntsAtDawn(s);
+    expect(s.news.at(-1)).toBe(`Juni: "${NIGHT_SHIFT.taunt}"`);
+  });
+});
+
+describe('Dig In', () => {
+  /** Hollis with its fences torn down and Guard money to rebuild them; nobody else spends. */
+  function bare(seed: number) {
+    const s = newGame(seed);
+    for (const id of RIVALS) budgetOf(s, id).guard = 0;
+    for (const p of ownedPlots(s, 'hollis')) s.plots[p.id].defense = NO_DEFENSE();
+    s.rivals.hollis.cash = 1e6;
+    budgetOf(s, 'hollis').guard = 100_000;
+    return s;
+  }
+
+  it('Hollis fences for 60% of your price, with hay bales that add half the fence\'s HP, and fences every Field it holds', () => {
+    const s = bare(21);
+    const invested = Object.fromEntries(ownedPlots(s, 'hollis').map((p) => [p.id, s.plots[p.id].invested]));
+    rivalGuardSpend(s, 'hollis', { seed: 1 });
+    rivalGuardSpend(s, 'hollis', { seed: 1 }); // a fence goes up one tier a dawn
+    let paid = 0;
+    for (const p of ownedPlots(s, 'hollis')) {
+      const ps = s.plots[p.id];
+      for (let t = 1; t <= ps.defense.tier; t++) paid += fencePrice('hollis', t);
+      expect(ps.invested - invested[p.id]).toBe(Array.from({ length: ps.defense.tier }, (_, i) => fencePrice('hollis', i + 1)).reduce((a, b) => a + b, 0));
+      if (!ps.defense.tier) continue;
+      expect(ps.defense.fenceHp).toBe(Math.round(PERIMETERS[ps.defense.tier - 1].hp * DIG_IN.hp));
+      expect(hayBales(s, p.id)).toBe(true);
+    }
+    expect(100_000 - budgetOf(s, 'hollis').guard).toBeCloseTo(paid, 2);
+    const fields = ownedPlots(s, 'hollis').filter((p) => p.type === 'field');
+    expect(fields.length).toBeGreaterThan(0);
+    for (const p of fields) expect(s.plots[p.id].defense.tier).toBe(DIG_IN.fieldTier);
+    expect(fencePrice('hollis', 2)).toBe(Math.ceil(PERIMETERS[1].cost * DIG_IN.cost));
+    expect(fencePrice('fizzco', 2)).toBe(PERIMETERS[1].cost);
+    expect(hayBales(s, LOTTIES_CORNER)).toBe(false);
+  });
+
+  it('a chopped Hollis fence is patched back up to its bales, at Dig In\'s price', () => {
+    const s = bare(22);
+    rivalGuardSpend(s, 'hollis', { seed: 1 });
+    rivalGuardSpend(s, 'hollis', { seed: 1 });
+    const p = ownedPlots(s, 'hollis').find((q) => q.type === 'field')!; // fenced as high as a Field goes
+    const ps = s.plots[p.id];
+    const full = fenceFull(ps);
+    ps.defense.fenceHp = full / 2;
+    const guard = budgetOf(s, 'hollis').guard;
+    rivalGuardSpend(s, 'hollis', { seed: 1 });
+    expect(ps.defense.fenceHp).toBe(full);
+    expect(guard - budgetOf(s, 'hollis').guard).toBeGreaterThanOrEqual(Math.ceil(fencePrice('hollis', ps.defense.tier) * REPAIR_SHARE * 0.5));
+  });
+
+  it('Tilly phones the morning after you raid her', () => {
+    const s = newGame(23);
+    s.day = 20;
+    const target = ownedPlots(s, 'hollis').find((p) => p.type !== 'hq')!.id;
+    s.battles.push({ day: 19, attacker: 'player', defender: 'hollis', target, outcome: 'repelled' } as BattleReport);
+    tauntsAtDawn(s);
+    expect(s.news.at(-1)).toBe(`Tilly: "${DIG_IN.taunt}"`);
   });
 });
 

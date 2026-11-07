@@ -11,7 +11,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 import { rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
-import { budgetOf, canSpend, chargeStrike, keptShare, spend } from './rivalAi.ts';
+import { budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
 import { inTruce, SCHEMES } from './rivals.ts';
 import { phoneCall } from './phone.ts';
 
@@ -181,6 +181,7 @@ export function snipeBid(s: GameState, id: RivalId, lot: string, bid: number, yo
 
 /** Dawn, after the rivals bank their takings: running schemes settle, then each rival with none running may start one. */
 export function schemesAtDawn(s: GameState): void {
+  tauntsAtDawn(s);
   s.schemes ??= [];
   for (const x of s.schemes) {
     if (x.done) continue;

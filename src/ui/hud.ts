@@ -20,7 +20,7 @@ import {
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
-  tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn,
+  tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
@@ -759,7 +759,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const share = c.total ? `You own ${c.mine} of ${c.total} plots here${c.share >= MAJORITY ? ' (Majority)' : c.mine ? `, ${Math.ceil(c.total * MAJORITY) - c.mine} more for a Majority` : ''}` : '';
     const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel, share,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
-      ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${ps.garrison ? `, ${ps.garrison} henchmen` : ''}` : '',
+      ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${ps.garrison} henchmen` : ''}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
     let actions = '';
     if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"`, 'go'); }

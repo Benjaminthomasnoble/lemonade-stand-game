@@ -94,6 +94,18 @@ export const SCHEMES = {
   snipe: { over: 0.05 },
   keep: 7,
 };
+/**
+ * Night Shift, Cold Brew's signature move: stealthy night raids, spoiled stock and smear posters. Their night raids
+ * take `stealth` more off your detection, like a Sneaky raider, and Floodlights don't cancel it (placeholder: the
+ * spec gives no number). After a Cold Brew Sabotage on you (crew's raid objective) Juni phones with `taunt`.
+ */
+export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It made an artistic choice." };
+/**
+ * Dig In, Hollis's signature move: cheap, tough fences with hay bales stacked behind them. Hollis pays `cost` of a
+ * fence's price (repairs too), and the bales give it `hp` times the fence's HP. Hollis also fences every Field it
+ * holds, up to `fieldTier`. Tilly answers your raids with `taunt` (placeholders: the spec gives no numbers).
+ */
+export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2, taunt: "Bring all the hatchets you want. I've got hay bales till Tuesday." };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

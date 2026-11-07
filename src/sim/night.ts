@@ -24,6 +24,7 @@ import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
+import { nightShiftStealth } from './rivalAi.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -159,7 +160,7 @@ function launch(s: GameState, r: Raid): void {
   if (!onYou(s, r)) return;
   if (!r.detected) {
     const rng = { seed: s.seed };
-    r.detected = nextRandom(rng) < detectionChance(s, r.target, s.phase === 'night');
+    r.detected = nextRandom(rng) < detectionChance(s, r.target, s.phase === 'night') - nightShiftStealth(s, r); // Cold Brew's Night Shift
     s.seed = rng.seed;
   }
   r.warnAt = Math.max(s.minute, warnMinute(s, r));

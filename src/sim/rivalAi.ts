@@ -5,15 +5,16 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND, SEASON_WEATHER, SEASONS,
-  STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND, SEASON_WEATHER,
+  SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE,
+  RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
@@ -462,10 +463,33 @@ export function stockCups(st: Stand): number {
 
 // ---------- Guard: defenses and crew ----------
 
+// ---------- Dig In: Hollis's cheap, tough fences ----------
+
+/** What a rival pays for a fence of `tier`: your price, or Dig In's share of it for Hollis. */
+export const fencePrice = (id: RivalId, tier: number) => Math.ceil(PERIMETERS[tier - 1].cost * (id === 'hollis' ? DIG_IN.cost : 1));
+/** A plot's fence at full HP: the tier's HP, and half again on Hollis land, where hay bales are stacked behind it. */
+export function fenceFull(ps: PlotState): number {
+  const per = PERIMETERS[ps.defense.tier - 1];
+  return per ? Math.round(per.hp * (ps.owner === 'hollis' ? DIG_IN.hp : 1)) : 0;
+}
+/** Hay bales behind the fence (Dig In): a Hollis fence still standing. The art thread stacks bales where this is true. */
+export function hayBales(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  return ps?.owner === 'hollis' && ps.defense.tier > 0 && ps.defense.fenceHp > 0;
+}
+/** Patching a chopped rival fence back to full: your repair price, at Dig In's share and up to the bales for Hollis. */
+function patchCost(id: RivalId, ps: PlotState): number {
+  if (id !== 'hollis') return fenceRepairCost(ps);
+  const full = fenceFull(ps);
+  if (!full || ps.defense.fenceHp >= full) return 0;
+  return Math.ceil(fencePrice(id, ps.defense.tier) * REPAIR_SHARE * (1 - ps.defense.fenceHp / full));
+}
+
 /**
  * Guard spending at dawn (crewAtDawn), all from the Guard bucket: first patch chopped fences (the same repair price
  * as yours), then fences and henchmen on the three best stands. A henchman is hired only while Guard's share of what
- * the rival's trade nets each day covers his wage, which then comes out of its cash every dawn.
+ * the rival's trade nets each day covers his wage, which then comes out of its cash every dawn. Hollis digs in: its
+ * fences cost less and carry hay bales, and it fences every Field it holds too (it holds the Field land).
  */
 export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   void rng;
@@ -480,24 +504,51 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   const plots = ownedPlots(s, id).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
   for (const p of plots) {
     const ps = s.plots[p.id];
-    const cost = fenceRepairCost(ps);
+    const cost = patchCost(id, ps);
     if (cost > 0 && canSpend(s, id, 'guard', cost)) {
       spend(s, id, 'guard', cost);
-      ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
+      ps.defense.fenceHp = fenceFull(ps);
     }
   }
+  /** The next fence up, if it's within `cap` and Guard can pay: true when bought. */
+  const fence = (ps: PlotState, cap: number) => {
+    const next = PERIMETERS[ps.defense.tier];
+    const price = next ? fencePrice(id, next.tier) : 0;
+    if (!next || next.tier > cap || !canSpend(s, id, 'guard', price)) return false;
+    spend(s, id, 'guard', price);
+    ps.invested += price; // a fence counts in Net Worth at 75%, like yours
+    ps.defense = { ...ps.defense, tier: next.tier };
+    ps.defense.fenceHp = fenceFull(ps);
+    return true;
+  };
   for (const p of plots.filter((q) => s.plots[q.id].stand).slice(0, 3)) {
     const ps = s.plots[p.id];
-    const next = PERIMETERS[ps.defense.tier];
-    if (next && next.tier <= Math.ceil(ps.stand!.level / 1.5) + 1 && canSpend(s, id, 'guard', next.cost)) {
-      spend(s, id, 'guard', next.cost);
-      ps.invested += next.cost; // a fence counts in Net Worth at 75%, like yours
-      ps.defense = { ...ps.defense, tier: next.tier, fenceHp: next.hp };
-    } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE) && affords(henchWage(ps))) {
+    if (fence(ps, Math.ceil(ps.stand!.level / 1.5) + 1)) continue;
+    if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE) && affords(henchWage(ps))) {
       spend(s, id, 'guard', RIVAL_HIRE_FEE);
       ps.garrison = (ps.garrison ?? 0) + 1;
     }
   }
+  if (id === 'hollis') for (const p of plots.filter((q) => q.type === 'field')) fence(s.plots[p.id], DIG_IN.fieldTier);
+}
+
+// ---------- Night Shift: Cold Brew's quiet nights ----------
+
+/** What Night Shift takes off your detection roll as a raid on you sets out at night (night.ts): Cold Brew's raids only. */
+export function nightShiftStealth(s: GameState, r: Raid): number {
+  return r.attacker === 'coldbrew' && s.phase === 'night' ? NIGHT_SHIFT.stealth : 0;
+}
+
+/**
+ * Dawn: the bosses' lines on yesterday's fights (news lines in their voice, until story's phone calls land). Juni,
+ * after a Cold Brew Sabotage spoiled your stock (crew's raid objective; this picks it up once it merges); Tilly, after
+ * you raid her.
+ */
+export function tauntsAtDawn(s: GameState): void {
+  const last = s.battles.filter((b) => b.day === s.day - 1 && !b.hq);
+  const spoiled = last.some((b) => b.attacker === 'coldbrew' && b.defender === 'player' && b.outcome === 'robbed' && (b as { sabotage?: boolean }).sabotage);
+  if (spoiled && s.rivals.coldbrew.alive) s.news.push(`Juni: "${NIGHT_SHIFT.taunt}"`);
+  if (s.rivals.hollis.alive && last.some((b) => b.attacker === 'player' && b.defender === 'hollis')) s.news.push(`Tilly: "${DIG_IN.taunt}"`);
 }
 
 // ---------- Attention: who comes for you ----------

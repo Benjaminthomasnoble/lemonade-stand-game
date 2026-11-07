@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, drainQueue, eliminate,
-  expectedCups, expectedDemand,
+  expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
-  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, tickMinute, touristPays, withinTwo,
+  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, stockCups, tickMinute, touristPays, withinTwo,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
 
@@ -495,6 +495,8 @@ describe('the stand panel\'s demand chain', () => {
     const low = demandChain(s, LOTTIES_CORNER)!;
     expect(low.stock).toBe(50);
     expect([low.cups, low.binding]).toEqual([50, 'stock']);
+    rivalStand(s, 'oldtown-0n', 'fizzco');
+    expect(demandChain(s, 'oldtown-0n')!.stock).toBe(stockCups(s.plots['oldtown-0n'].stand!)); // one full stock a day
   });
 
   it('takes the season from the card: Honey-Ginger keeps its crowd in Winter', () => {
@@ -512,7 +514,7 @@ describe('the stand panel\'s demand chain', () => {
     for (const d of ['oldtown', 'groves', 'downtown', 'boardwalk'] as DistrictId[]) fullControl(s, d);
     const corner = demandChain(s, LOTTIES_CORNER)!;
     expect(corner.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: false, touristTrap: true, majority: false });
-    expect(corner.marketing).toBeCloseTo(1.2, 9);
+    expect(corner.marketing).toBeCloseTo(1.2 + groveTraffic(s), 9); // and the Lemon Groves on Hollis's Fields, now yours
     const oldtown = demandChain(s, 'oldtown-2n')!;
     expect(oldtown.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: true, touristTrap: true, majority: true });
     expect(oldtown.lunch).toBeGreaterThan(1);

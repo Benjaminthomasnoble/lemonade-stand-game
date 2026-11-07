@@ -17,6 +17,7 @@ import type { Appeal, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, servingsAvailable } from './economy.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
 import { crowdAt } from './calendar.ts';
+import { stockCups } from './rivalAi.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -372,7 +373,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
   const passersby = expectedPassersby(s, plotId, w);
   const lunch = lunchRushDay(s, plotId);
   const service = dailyService(s, plotId);
-  const stock = owner === 'player' ? servingsAvailable(st) : Infinity;
+  const stock = owner === 'player' ? servingsAvailable(st) : stockCups(st); // a rival sells one full stock a day (rivalAi.ts)
   const demand = Math.round(f.demand);
   const cups = Math.min(demand, service, stock);
   const binding: Binding = cups === demand ? 'demand' : cups === service ? 'service' : 'stock';

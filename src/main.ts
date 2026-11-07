@@ -996,6 +996,7 @@ async function main() {
     world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
+    document.body.classList.toggle('bay-view', dist > 90); // the HUD tucks its feed into icons so the whole plinth shows
     for (const l of labels) {
       const show = dist > 90;
       l.el.style.display = show ? '' : 'none';

@@ -29,7 +29,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       ${toggle('quietNights', o.quietNights, 'Quiet nights at 3×', 'From closing until an alert, the night runs at 3× by itself')}
       ${toggle('autoContinue', o.autoContinue, 'Start each day by itself', 'Morning Prep opens the stands after a moment. Big alerts still stop it.')}
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
-      ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD animations')}
+      ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD; no clay boil, shakes or lightning flashes')}
       ${toggle('captions', o.captions, 'Captions', 'Voices, the radio and phone calls, written out')}
       ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
       ${toggle('lessons', lessonsOn(s), 'Lessons', 'Lottie teaches one system a day (this run). Off: buttons follow rank alone.')}

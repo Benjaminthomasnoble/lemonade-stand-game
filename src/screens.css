@@ -390,3 +390,11 @@
 .clay .cl-ticket.mini:hover, .clay .cl-ticket.mini:focus-within { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
   background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab); }
 .clay .cl-ticket.mini:hover > :not(svg), .clay .cl-ticket.mini:focus-within > :not(svg) { display: revert; }
+/* Bay View: every card but a raid warning tucks into an icon blob, so the whole plinth shows. */
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) { flex: 0 0 auto; display: block; padding: calc(var(--u) * .4); clip-path: none; background: none; }
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"])::before { display: none; }
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) > svg { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); display: block; }
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) > :not(svg) { display: none; }
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]):hover { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
+  background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab); }
+body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]):hover > :not(svg) { display: revert; }

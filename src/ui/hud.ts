@@ -6,7 +6,7 @@
 import {
   AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
-  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, seasonDay, seasonOf,
+  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   availableRaiders, canBuildClubhouse, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid, CLUBHOUSE, clubhouseBeds,
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
@@ -23,7 +23,7 @@ import {
   tasteOffToday, type FestivalId,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
-import { DEFAULT_OPTIONS, type KeyAction, type Options } from '../settings.ts';
+import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
 import { damageCard, damageHere, damageTickets } from './damage.ts';
@@ -37,6 +37,7 @@ import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
 import { keysPanel } from './keys.ts';
 import { attachTips } from './tips.ts';
+import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -325,6 +326,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'view': onAction({ type: 'view', target: d.target as 'home' | 'bay' }); break;
       case 'tab': tab = (tab === d.tab && d.tab !== 'today' ? 'today' : d.tab) as typeof tab; redraw(); break;
       case 'goals': onAction({ type: 'menu', id: 'goals' }); break;
+      case 'fold': unfolded = !unfolded; redraw(); break;
       case 'menu': onAction({ type: 'menu', id: (d.menu || null) as MenuView | null }); break;
       case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
       case 'remap': onAction({ type: 'remap', key: d.key as KeyAction }); break;
@@ -386,7 +388,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${b.ok ? '' : `disabled title="${esc(b.why)}"`}>${label}</button>`;
   }
 
-  // ---------- top: cash jar, rank rosette, egg timer, weather card, goal sticky ----------
+  // ---------- top: Cash, the Success Score with its Rank badge, Reputation, Threat; then the day, time, season and
+  // weather, and Lottie's sticky. Each meter explains itself (hover, or long-press on touch) and opens its menu. On a
+  // phone the bar folds to Cash and the clock until tapped (speed sits in the corner).
+  let unfolded = false;
   function topbar(s: GameState) {
     const w = s.phase === 'prep' ? s.forecast : s.weather;
     const ss = successScore(s);
@@ -398,23 +403,32 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const goals = goalsOf(s);
     const goal = goals.find((g) => !g.done) ?? goals[0];
     const goalsOpen = hud.menu === 'goals';
-    // A meter opens its menu (once that menu's system is open).
-    const opens = (id: Parameters<typeof menuUnlocked>[1]) => (menuUnlocked(s, id) ? ` data-action="menu" data-menu="${id}" role="button"` : '');
+    const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
+    const folded = phone && !unfolded;
+    // A meter opens its menu (once that menu's system is open); on a folded phone bar, any tap unfolds it.
+    const opens = (id: Parameters<typeof menuUnlocked>[1]) => (folded ? ' data-action="fold" role="button"' : menuUnlocked(s, id) ? ` data-action="menu" data-menu="${id}" role="button"` : '');
     const mode = `${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${DIFFICULTY[s.settings.difficulty].label}${s.settings.ironman ? ' · Ironman' : ''}`;
-    const rankTip = `${r.title}: Success Score ${whole(ss)}${next ? `, ${whole(hi - ss)} to ${next.title}` : ''}${peak > now ? ' (striped: invested in buildings, it fills back in)' : ''}`;
+    const time = s.phase === 'open' || s.phase === 'night' ? clock(s.minute) : '';
+    const cash = `<div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${esc(cashTip(s))}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>`;
+    const day = `<div class="cl-chip cl-day" title="${esc(dayTip(s, mode))}"${opens('bugle')}>${ART.egg()}${tape(time && phone ? time : time ? `Day ${s.day} · ${time}` : `Day ${s.day}`)}</div>`;
+    const fold = (open: boolean) => `<button class="cl-knob-s" data-action="fold" data-testid="topbar-fold" title="${open ? 'Fold the top bar' : 'The whole top bar'}" aria-label="${open ? 'Fold the top bar' : 'Show the whole top bar'}" aria-expanded="${open}">${open ? '▴' : '⋯'}</button>`;
+    if (folded) return `<div class="cl-left">${cash}</div><div class="cl-right">${day}${fold(false)}</div>`;
+    const temp = tempText(hud.options, w.temp);
     return `<div class="cl-left">
-        <div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${s.redDays ? `In the Red: ${redDaysLeft(s)} days to get above $0` : 'Cash'}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>
-        <div class="cl-chip cl-rank" title="${esc(rankTip)}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>
-        ${threat >= 2 ? `<div class="cl-chip cl-threat" title="Threat ${threat}: how hard rivals come for you" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
+        ${cash}
+        <div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>
+        <div class="cl-chip" title="${esc(repTip(s))}" data-testid="reputation">${ART.star(true)}${tape(s.reputation.toFixed(1))}</div>
+        ${threat >= 2 && !peaceful(s) ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
         ${s.bottles ? `<div class="cl-chip" title="${s.bottles.toLocaleString('en-US')} bottles ready for big orders"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
       <div class="cl-right">
-        <div class="cl-chip cl-day" title="${esc(mode)} · ${seasonOf(s.day)} day ${seasonDay(s.day)}"${opens('bugle')}>${ART.egg()}${tape(s.phase === 'prep' ? `Day ${s.day}` : clock(s.minute))}</div>
-        <div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${w.temp}°F${s.phase === 'prep' ? ' (forecast, right about 4 days in 5)' : ''}">${ART.sky(w.kind)}${tape(`${w.temp}°`)}</div>
+        ${day}
+        <div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${temp}${s.phase === 'prep' ? '\nForecast: right about 4 days in 5' : ''}">${ART.sky(w.kind)}${tape(temp.slice(0, -1))}</div>
         <button class="cl-sticky${goalsOpen ? ' open' : ''}" data-action="goals" title="Lottie's goals">
           <span class="cl-doodle">${ART.lottie()}</span><span class="cl-goal">${esc(goal.text)}</span>${meter(goal.progress, 'cl-pencil')}
           ${goalsOpen ? `<span class="cl-goals">${goals.map((g) => `<span class="${g.done ? 'done' : ''}">${g.done ? '✓' : '•'} ${esc(g.text)}</span>`).join('')}</span>` : ''}
         </button>
+        ${phone ? fold(true) : ''}
       </div>
 `;
   }

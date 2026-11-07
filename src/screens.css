@@ -346,6 +346,7 @@
   .clay .cl-corner { bottom: auto; top: calc(var(--u) * 22); flex-direction: column; }
   .clay .cl-modes { grid-template-columns: 1fr; }
   .clay .cl-mode { flex-direction: row; } .clay .cl-mode .cl-art { width: calc(var(--u) * 6); height: calc(var(--u) * 6); }
+  .clay .cl-card-big { width: calc(100% - 32px); } /* nights lane: on a phone every screen is a full-width sheet */
 }
 @media (prefers-reduced-motion: reduce) { .clay *, .clay *::before, .clay *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 .clay .cl-open { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; }

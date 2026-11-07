@@ -13,7 +13,8 @@ import type { SlotInfo } from '../save.ts';
 import { isFullMenu, menuScreen, menuUnlocked } from './menus.ts';
 import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
-import { openStands, simulateRestOfDay, sleepUntilDawn } from '../sim/economy.ts';
+import { openStands, simulateRestOfDay, sleepUntilDawn, successScore } from '../sim/economy.ts';
+import { scoreParts, scoreTip, threatTip } from './meters.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -190,6 +191,25 @@ describe('the ten menus', () => {
     expect(keyName('Digit2')).toBe('2');
     const html = optionsScreen(o, newGame(1), '', keys);
     for (const key of ['pause.screens', 'captions', 'celsius']) expect(html).toContain(`data-key="${key}"`);
+  });
+});
+
+describe('the top bar explains itself', () => {
+  it('the Success Score breaks down into cash, land, 75% of buildings, stock and loans, with today and the Peak', () => {
+    const s = newGame(5);
+    const p = scoreParts(s);
+    expect(Math.abs(p.cash + p.land + p.buildings + p.stock - p.loans - successScore(s))).toBeLessThan(1);
+    const tip = scoreTip(s);
+    for (const line of ['Cash $', '+ land $', '+ 75% of buildings $', '+ stock at cost $', 'Today +$0', 'Peak $']) expect(tip).toContain(line);
+  });
+
+  it("Threat names the rank that set it, and Laid Back's nudge", () => {
+    const s = newGame(5);
+    s.rank = 4;
+    expect(threatTip(s)).toMatch(/^Threat 2: set by Rank 3, Block Boss\n/);
+    const easy = newGame(5, { difficulty: 'laidback' });
+    easy.rank = 5;
+    expect(threatTip(easy)).toMatch(/^Threat 2: set by Rank 5, District Big Shot; Laid Back −1\n/);
   });
 });
 

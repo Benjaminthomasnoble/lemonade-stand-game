@@ -26,6 +26,7 @@ export const PAGE_HOLDERS: Partial<Record<RecipeId, PageHolder>> = {
 export interface WorldState {
   pages: RecipeId[]; // pages in Lottie's book: the cards you can pour
   holders: Partial<Record<RecipeId, PageHolder>>; // who holds each page still missing
+  homed?: Partial<Record<RecipeId, number>>; // the morning whose Bugle leads with each page that came home
   fairs: TasteOffResult[]; // every Taste-Off so far, oldest first
   tasteOff?: TasteOff; // today's, set up at dawn and judged at closing
   boosts: Boost[]; // Taste-Off wins: +20% traffic in a district for 7 days
@@ -88,9 +89,21 @@ export function grantPage(s: GameState, id: RecipeId, quiet = false): boolean {
   if (w.pages.includes(id)) return false;
   w.pages.push(id);
   delete w.holders[id];
-  if (!quiet) s.news.push(PAGE_HOME[id]); // seam: story's playScene(s, 'page', { id }) after merge
+  if (quiet) return true;
+  (w.homed ??= {})[id] = s.day + 1; // tomorrow's paper (pagesAtDawn moves overnight ones to this morning's)
+  s.news.push(PAGE_HOME[id]); // seam: story's playScene(s, 'page', { id }) after merge
   return true;
 }
+
+/** Dawn: a page that came home overnight or at dawn (a rival gone bust) leads this morning's Bugle, not tomorrow's. */
+export function pagesAtDawn(s: GameState): void {
+  const homed = s.world?.homed;
+  if (!homed) return;
+  for (const id of RECIPE_IDS) if (homed[id] === s.day + 1) homed[id] = s.day;
+}
+
+/** The pages this morning's Bugle leads with. */
+export const pagesInTheBugle = (s: GameState): RecipeId[] => RECIPE_IDS.filter((id) => s.world?.homed?.[id] === s.day);
 
 /** Called from eliminate() on every route (HQ captured, Faction Buyout, 7 days bankrupt): their pages come home. */
 export function recoverPage(s: GameState, rival: RivalId): void {

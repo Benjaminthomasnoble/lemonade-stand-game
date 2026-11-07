@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   appealFor, boothCeiling, calendarTraffic, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
   expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
-  marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pickRecipe,
-  PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry, simulateRestOfDay,
-  sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday, tickMinute,
-  tillyWaits, upcomingFestivals, worldOf, yearOf,
+  marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
+  pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
+  simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
+  tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
+import { calendarHeadline, calendarTickets, worldSheet } from '../ui/calendar.ts';
+import { bookSheet, pageHeadline, recipeRow } from '../ui/recipes.ts';
 
 const SEGS = Object.keys(SEGMENTS) as SegmentId[];
 
@@ -229,6 +231,26 @@ describe("Lottie's recipe book", () => {
     expect(pageHolder(s, 'lavender')).toBe('harpTeacher');
   });
 
+  it('the next Bugle leads with a page that comes home; one from a rival gone bust at dawn makes that morning\'s', () => {
+    const s = game();
+    eliminate(s, 'coldbrew', 'buyout'); // at Morning Prep, after the paper
+    expect(pagesInTheBugle(s)).toEqual([]);
+    expect(pageHeadline(s)).toBeNull();
+    dawn(s, 2);
+    expect(pagesInTheBugle(s)).toEqual(['honeyGinger']);
+    expect(pageHeadline(s)).toEqual(['PAGE COMES HOME!', 'Honey-Ginger Hot Lemonade back in the book']);
+    dawn(s, 3);
+    expect(pageHeadline(s)).toBeNull();
+    s.rivals.fizzco.cash = -1;
+    s.rivals.fizzco.brokeDays = 6;
+    dawn(s, 4); // the seventh dawn in the red: FizzCo goes bust before the paper prints
+    expect(s.rivals.fizzco.alive).toBe(false);
+    expect(pagesInTheBugle(s)).toEqual(['sparkling']);
+    eliminate(s, 'blenders', 'hq'); // two pages at once
+    dawn(s, 5);
+    expect(pageHeadline(s)).toEqual(['PAGES COME HOME!', 'Strawberry and Frozen back in the book']);
+  });
+
   it('an outbid Lavender moves to the winner\'s HQ and comes home when it falls', () => {
     const s = game();
     movePage(s, 'lavender', 'fizzco');
@@ -248,6 +270,7 @@ describe("Lottie's recipe book", () => {
     expect(back).not.toBeNull();
     expect(ownedRecipes(back)).toEqual(['classic', 'pink', 'mint', 'honeyGinger']);
     expect(back.news).toEqual([]);
+    expect(back.world!.homed).toBeUndefined(); // quietly: no headline for an old save
     const once = JSON.stringify(back);
     migrateWorld(back);
     expect(JSON.stringify(back)).toBe(once);
@@ -492,5 +515,60 @@ describe('Tilly and the County Fair', () => {
     sandbox.rank = 7;
     expect(tillyWaits(sandbox, 'hollis', 'assault')).toBeNull();
     expect(hqPlot('hollis').district).toBe('groves');
+  });
+});
+
+describe('what the player sees', () => {
+  it('the Morning Prep pitchers: only the cards in the book, starred where they shine at this stand', () => {
+    const s = game();
+    const pitchers = () => [...recipeRow(s).matchAll(/<button class="cl-pitch"[^>]*data-id="(\w+)"[^>]*>(.*?)<\/button>/gs)];
+    expect(pitchers().map((m) => m[1])).toEqual(['classic', 'pink', 'mint']);
+    // Lottie's Corner is on Maple Row: Pink shines there, Classic and Mint don't.
+    expect(pitchers().filter((m) => m[2].includes('cl-shine')).map((m) => m[1])).toEqual(['pink']);
+    expect(recipeRow(s)).toMatch(/Pink Lemonade:[^"]*Shines: Maple Row[^"]*Here today it shines in this district/);
+    grantPage(s, 'strawberry', true);
+    expect(pitchers().map((m) => m[1])).toEqual(['classic', 'pink', 'mint', 'strawberry']);
+  });
+
+  it("Lottie's book: ten pages, the missing ones naming who holds them", () => {
+    const s = game();
+    const book = bookSheet(s);
+    expect(book).toContain("Lottie's book 3/10");
+    expect(book.match(/data-page="missing"/g)).toHaveLength(7);
+    expect(book).toContain('Brock stakes it at the Summer Fair');
+    expect(book).toContain("Taped inside Juni's register");
+    expect(bookSheet(game(2, { mode: 'sandbox' }))).toContain('Win any Taste-Off for it'); // Strawberry and Lavender come from fair wins there
+  });
+
+  it("the Bugle's calendar: the week ahead with each event's days and district, today's with its length", () => {
+    const s = game();
+    const week = calendarTickets(s).join('');
+    expect(week).toContain('This week');
+    expect(week).toContain('Days 4-6: Surf Contest, The Boardwalk');
+    expect(week).toContain('Days 8-14: Summer Fair, Old Town');
+    expect(week).toContain("Day 8: Founders' Day, Downtown");
+    dawn(s, 5);
+    const today = calendarTickets(s).join('');
+    expect(today).toContain('data-testid="festival"');
+    expect(today).toContain('The Boardwalk, day 2 of 3');
+    expect(today).not.toContain('data-testid="sponsor"'); // Event Sponsorship stays hidden until Rank 5
+    dawn(s, 4);
+    expect(calendarHeadline(s)).toEqual(['SURF CONTEST!', 'The Boardwalk, 3 days']);
+  });
+
+  it("the Summer Fair's front pages: the countdown, the day itself, and Brock's defeat", () => {
+    const s = game(4);
+    dawn(s, 12);
+    expect(calendarHeadline(s)).toEqual(['TASTE-OFF IN 2 DAYS', 'Bodine not worried, bro']);
+    dawn(s, 14);
+    expect(calendarHeadline(s)).toEqual(['TASTE-OFF TODAY!', 'Summer Fair, Old Town']);
+    const sheet = worldSheet(s, 'fair');
+    for (const line of ['Brock stakes his Strawberry page', 'For the kids', 'Not too sweet', 'Worth a little extra', `$${TASTE_OFF.prize} prize`]) expect(sheet).toContain(line);
+    ace(s);
+    close(s);
+    sleepUntilDawn(s);
+    expect(calendarHeadline(s)).toEqual(['FOLDING TABLE STUNS', 'Smoothie Empire at Summer Fair']);
+    dawn(s, 16);
+    expect(calendarHeadline(s)).toBeNull(); // nothing on the calendar: the weather leads again
   });
 });

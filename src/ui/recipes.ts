@@ -3,8 +3,8 @@
 // today, and the Book sheet with every page and who holds the rest. Also the few
 // clay-markup helpers the world lane's panels share (the same markup as hud.ts).
 import {
-  DISTRICT_BY_ID, hqPlot, ownedRecipes, PAGE_HOLDERS, pageHolder, PLOT_BY_ID, RECIPE_IDS, RECIPES, recipeCost, selectedStand, shineReason,
-  storyFairs, tasteOffResult, type Blocker, type GameState, type PageHolder, type RecipeId, type ShineReason,
+  DISTRICT_BY_ID, fairWinPage, hqPlot, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle, PLOT_BY_ID, RECIPE_IDS, RECIPES, recipeCost, selectedStand,
+  shineReason, tasteOffResult, type Blocker, type GameState, type PageHolder, type RecipeId, type ShineReason,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -65,11 +65,8 @@ const HOW_HOME: Partial<Record<RecipeId, string>> = {
   honeyGinger: 'Comes home when the Cold Brew Collective is out', halfAndHalf: 'Comes home when Hollis is beaten or bought out',
   lavender: 'The Hilltop estate auction, at Rank 8', sparkling: 'Comes home when FizzCo Tower falls or sells', secretReserve: "Waits in Sourwood Manor's Boss Room",
 };
-/** Sandbox and Endless: Strawberry, and any page whose holder isn't on the map, come from a fair win. */
-const fairPage = (s: GameState, id: RecipeId, h: PageHolder) => !storyFairs(s) && (id === 'strawberry' || h === 'harpTeacher' || !(h in s.rivals));
-
 function holderLine(s: GameState, id: RecipeId, h: PageHolder): string {
-  if (fairPage(s, id, h)) return 'Win any Taste-Off for it';
+  if (fairWinPage(s, id)) return 'Win any Taste-Off for it';
   if (id === 'strawberry') return !tasteOffResult(s, 'summerFair', 1) && s.day <= 14 ? 'Brock stakes it at the Summer Fair' : 'Waits at the Blend Shack';
   if (h !== PAGE_HOLDERS[id] && h !== 'harpTeacher') return `At ${hqPlot(h).name}`;
   return HELD_BY[id] ?? '';
@@ -81,9 +78,18 @@ export function bookSheet(s: GameState): string {
   const pages = RECIPE_IDS.map((id) => {
     const r = RECIPES[id];
     const h = pageHolder(s, id);
-    if (h) return card(blankArt(), esc(r.label), esc(holderLine(s, id, h)), '', fairPage(s, id, h) ? 'Any Taste-Off win brings it home' : HOW_HOME[id] ?? '', 'data-page="missing"');
+    if (h) return card(blankArt(), esc(r.label), esc(holderLine(s, id, h)), '', fairWinPage(s, id) ? 'Any Taste-Off win brings it home' : HOW_HOME[id] ?? '', 'data-page="missing"');
     const pour = st.recipe === id ? tape('Pouring') : btn('recipe', 'Pour', { ok: true }, `data-id="${id}"`);
     return card(pitcherArt(id), esc(r.label), esc(shineText(id) || r.blurb), pour, `${r.blurb}. ${cents(recipeCost(s, id))} a cup, +${Math.round(r.priceBonus * 100)}% price`);
   });
   return `<span class="cl-label">Lottie's book ${ownedRecipes(s).length}/${RECIPE_IDS.length}</span><div class="cl-cards" data-testid="recipe-book">${pages.join('')}</div>`;
+}
+
+/** The Bugle the morning after a page comes home (two at once when the Blenders fall: Strawberry and Frozen). */
+export function pageHeadline(s: GameState): [string, string] | null {
+  const ids = pagesInTheBugle(s);
+  if (!ids.length) return null;
+  if (ids.length === 1) return ['PAGE COMES HOME!', `${RECIPES[ids[0]].label} back in the book`];
+  const short = ids.map((id) => RECIPES[id].label.replace(/ (Hot )?Lemonade$/, ''));
+  return ['PAGES COME HOME!', `${short.slice(0, -1).join(', ')} and ${short[short.length - 1]} back in the book`];
 }

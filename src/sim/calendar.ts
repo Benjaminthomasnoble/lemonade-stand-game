@@ -11,7 +11,7 @@ import {
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
-import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, RECIPE_IDS, worldOf } from './recipes.ts';
+import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
 import { isEndless } from './modes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -263,11 +263,16 @@ function rivalScore(rng: { seed: number }, c: Contestant, judges: Judge[]): numb
 /** Seam: demand's rival Reputation (addRivalStars) after merge. Rivals sit at a fixed 3 stars until then. */
 const addRivalStars = (_s: GameState, _id: RivalId, _delta: number): void => {};
 
-/** Sandbox and Endless: a fair win brings Strawberry home, else one page whose holder isn't on the map (one per win). */
+/** Sandbox and Endless: a missing page a fair win brings home: Strawberry, or one whose holder isn't on the map (the harp teacher's Lavender). */
+export function fairWinPage(s: GameState, id: RecipeId): boolean {
+  const h = pageHolder(s, id);
+  return !!h && !storyFairs(s) && (id === 'strawberry' || h === 'harpTeacher' || !(h in s.rivals));
+}
+
+/** One page per fair win, Strawberry first. */
 function fairPage(s: GameState): void {
-  if (grantPage(s, 'strawberry')) return;
-  const orphan = RECIPE_IDS.find((id) => { const h = pageHolder(s, id); return h && (h === 'harpTeacher' || !(h in s.rivals)); });
-  if (orphan) grantPage(s, orphan);
+  const id = RECIPE_IDS.find((x) => fairWinPage(s, x));
+  if (id) grantPage(s, id);
 }
 
 /** At closing on a fair's last day: the judges taste, the winner takes the star, the traffic and the prize. */
@@ -333,12 +338,13 @@ export function tillyWaits(s: GameState, id: RivalId, what: 'buyout' | 'assault'
 
 // ---------- the two hooks ----------
 
-/** Dawn: boosts and sponsorships run out; on a fair's last day the Taste-Off is set up. */
+/** Dawn: boosts and sponsorships run out; pages home overnight make this Bugle; on a fair's last day the Taste-Off is set up. */
 export function worldAtDawn(s: GameState): void {
   const w = worldOf(s);
   w.boosts = w.boosts.filter((b) => b.to >= s.day);
   w.sponsored = w.sponsored.filter((x) => x.to >= s.day);
   if (w.tasteOff && w.tasteOff.day < s.day) delete w.tasteOff;
+  pagesAtDawn(s);
   setupTasteOff(s);
 }
 

@@ -4,12 +4,12 @@
 // day's-end card, and the Bugle's calendar headlines.
 import {
   boothCeiling, canSponsor, CONTESTANT_NAME, DISTRICT_BY_ID, entryOf, festivalDays, FESTIVALS, festivalsOn, isSponsored, ownedRecipes,
-  RECIPES, seasonDay, SEGMENTS, sponsorCost, storyFairs, tasteOffResult, tasteOffToday, upcomingFestivals,
-  type FestivalId, type GameState, type Judge, type RecipeId, type SegmentId, type Sweetness,
+  RECIPES, seasonDay, SEGMENTS, sponsorCost, storyFairs, TASTE_OFF, tasteOffResult, tasteOffToday, upcomingFestivals,
+  type FestivalId, type GameState, type Judge, type RecipeId, type SegmentId, type Stake, type Sweetness,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
 import * as A from './clay.ts';
-import { bookSheet, btn, card, cents, esc, locked, once, pitcherArt, tape, whole } from './recipes.ts';
+import { bookSheet, btn, card, cents, esc, locked, once, pageHeadline, pitcherArt, tape, whole } from './recipes.ts';
 
 export type WorldTab = 'book' | 'fair';
 const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
@@ -51,13 +51,23 @@ function fairSheet(s: GameState): string {
   const price = `<button class="cl-knob cl-minus" data-action="entry" data-delta="-0.05" aria-label="Lower price"></button>
     <div class="cl-chalk${e.price > top + 1e-9 ? ' loss' : ''}" title="The booth's top price is ${cents(top)}"><b data-testid="entry-price">${cents(e.price)}</b></div>
     <button class="cl-knob cl-plus" data-action="entry" data-delta="0.05" aria-label="Raise price"></button>`;
-  return `<span class="cl-label">${esc(FESTIVALS[t.fair].name)} Taste-Off</span><div class="cl-cards">${judges}</div>
+  const prize = `The winner gets +${TASTE_OFF.stars} star, +${Math.round(TASTE_OFF.traffic * 100)}% traffic in ${DISTRICT_BY_ID[t.district].name} for ${TASTE_OFF.days} days and a ${whole(TASTE_OFF.prize)} prize`;
+  const stake = t.stake ? `<span class="cl-note" data-testid="taste-off-stake">${STAKE[t.stake]}</span>` : '';
+  return `<span class="cl-label" title="${esc(prize)}">${esc(FESTIVALS[t.fair].name)} Taste-Off</span>${stake}<div class="cl-cards">${judges}</div>
     <div class="cl-tray" data-testid="taste-off-entry"><div class="cl-sec cl-recipe"><div class="cl-row wrap">${pitchers}</div><div class="cl-row cl-cubes">${cubes}</div></div>
       <div class="cl-sec cl-price"><div class="cl-row">${price}</div></div></div>
-    <span class="cl-note">vs ${esc(t.vs.map((c) => CONTESTANT_NAME[c]).join(', '))} · judged at closing</span>`;
+    <span class="cl-note" title="${esc(prize)}">vs ${esc(t.vs.map((c) => CONTESTANT_NAME[c]).join(', '))} · judged at closing</span>`;
 }
 
-/** Morning tickets: the Taste-Off, today's festivals (with Sponsor), and the next one on the calendar. */
+const STAKE: Record<Stake, string> = { strawberry: 'Brock stakes his Strawberry page', tilly: 'Win, and Tilly sells Fields at 1.5x' };
+
+/** One line of the week's calendar: the days, the name and the district. */
+function calendarLine(x: { id: FestivalId; from: number; to: number }): string {
+  const f = FESTIVALS[x.id];
+  return `${x.from === x.to ? `Day ${x.from}` : `Days ${x.from}-${x.to}`}: ${f.name}, ${DISTRICT_BY_ID[f.district].name}`;
+}
+
+/** Morning tickets: the Taste-Off, today's festivals (district, day of how many, Sponsor), and the week's calendar. */
 export function calendarTickets(s: GameState): string[] {
   const out: string[] = [];
   const t = tasteOffToday(s);
@@ -66,14 +76,13 @@ export function calendarTickets(s: GameState): string[] {
     const f = FESTIVALS[id];
     const b = canSponsor(s, id);
     const action = isSponsored(s, id) ? tape('Sponsored') : locked(b) ? '' : btn('sponsor', `Sponsor ${whole(sponsorCost(s, id))}`, b, `data-festival="${id}" data-testid="sponsor"`);
-    const tip = `${f.name}, ${DISTRICT_BY_ID[f.district].name}: day ${seasonDay(s.day) - f.from + 1} of ${f.to - f.from + 1}${f.crowd ? `. ${SEGMENTS[f.crowd].label} fill the street` : ''}`;
-    out.push(`<div class="cl-ticket" data-testid="festival" title="${esc(tip)}">${crowdArt()}<b>${esc(f.name)}</b>${action}</div>`);
+    const length = f.to - f.from + 1;
+    const when = length === 1 ? 'today only' : `day ${seasonDay(s.day) - f.from + 1} of ${length}`;
+    const tip = `${f.name}, ${DISTRICT_BY_ID[f.district].name}, ${when}${f.crowd ? `. ${SEGMENTS[f.crowd].label} fill the street` : ''}`;
+    out.push(`<div class="cl-ticket" data-testid="festival" title="${esc(tip)}">${crowdArt()}<b>${esc(f.name)}</b><span class="cl-note">${esc(`${DISTRICT_BY_ID[f.district].name}, ${when}`)}</span>${action}</div>`);
   }
-  const next = upcomingFestivals(s)[0];
-  if (next) {
-    const f = FESTIVALS[next.id];
-    out.push(`<div class="cl-ticket" title="${esc(`${f.name} in ${DISTRICT_BY_ID[f.district].name}, ${next.from === next.to ? `day ${next.from}` : `days ${next.from}-${next.to}`}`)}">${eggArt()}<b>Soon: ${esc(f.name)}, day ${next.from}</b></div>`);
-  }
+  const week = upcomingFestivals(s);
+  if (week.length) out.push(`<div class="cl-ticket" data-testid="calendar" title="The week's calendar">${eggArt()}<b>This week</b>${week.map((x) => `<span class="cl-note">${esc(calendarLine(x))}</span>`).join('')}</div>`);
   return out;
 }
 
@@ -86,11 +95,13 @@ export function tasteOffLine(s: GameState, day: number): string {
   return `<div class="cl-lottie" data-testid="taste-off-result" title="${esc(tip)}"><span class="cl-doodle">${rosetteArt()}</span><span>${line}</span></div>`;
 }
 
-/** The Bugle's calendar headlines (big tape, small tape), ahead of the weather ones. */
+/** The Bugle's world headlines (big tape, small tape), ahead of the weather ones: the fairs, pages coming home, festivals. */
 export function calendarHeadline(s: GameState): [string, string] | null {
   const campaign = storyFairs(s);
   const act1 = tasteOffResult(s, 'summerFair', 1);
-  if (campaign && act1?.stake === 'strawberry' && act1.winner === 'player' && s.day === act1.day + 1) return ['FOLDING TABLE STUNS', 'Smoothie empire at the Summer Fair'];
+  if (campaign && act1?.stake === 'strawberry' && act1.winner === 'player' && s.day === act1.day + 1) return ['FOLDING TABLE STUNS', 'Smoothie Empire at Summer Fair'];
+  const page = pageHeadline(s);
+  if (page) return page;
   if (campaign && s.day === festivalDays('summerFair', 1).to - 2 && s.rivals.blenders.alive) return ['TASTE-OFF IN 2 DAYS', 'Bodine not worried, bro'];
   const t = tasteOffToday(s);
   if (t) return ['TASTE-OFF TODAY!', `${FESTIVALS[t.fair].name}, ${DISTRICT_BY_ID[t.district].name}`];

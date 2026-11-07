@@ -33,6 +33,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       ${toggle('captions', o.captions, 'Captions', "Lottie's lines and phone calls, written out")}
       ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
       ${toggle('lessons', lessonsOn(s), 'Lessons', 'Lottie teaches one system a day (this run). Off: buttons follow rank alone.')}
+      <div class="cl-row wrap"><button class="cl-b tiny ghost" data-action="option" data-key="tour" data-testid="opt-tour" title="Lottie shows you around again, pointing at each thing">Replay Lottie's tour</button></div>
       ${keys}
       ${saves}
     </div>

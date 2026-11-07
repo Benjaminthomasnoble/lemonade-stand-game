@@ -1,5 +1,7 @@
 import './style.css';
 import './screens.css';
+import './coach.css';
+import { createCoach } from './ui/coach.ts';
 import * as THREE from 'three';
 import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
@@ -564,6 +566,7 @@ async function main() {
   const setOption = (key: string, value?: string) => {
     if (key === 'raidPause') { state.settings.raidPause = !raidPauses(state.settings); return; }
     if (key === 'lessons') { state.settings.lessons = !lessonsOn(state); return; } // this run's lessons (src/sim/story.ts)
+    if (key === 'tour') { hud.optionsOpen = false; coach.replay(); return; } // Lottie's tour from the top (src/ui/coach.ts)
     if (key === 'textSize') { const v = Number(value); if ((TEXT_SIZES as number[]).includes(v)) options.textSize = v as Options['textSize']; }
     else if (key.startsWith('pause.')) { const k = key.slice(6) as PauseKind; if (k in options.pause) options.pause[k] = !options.pause[k]; }
     else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion' || key === 'captions' || key === 'celsius') options[key] = !options[key];
@@ -585,6 +588,29 @@ async function main() {
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (boss, line) => { audio.ring(); setTimeout(() => { audio.babble(line, 0.9, 'flat'); twins?.caption(HQS[boss].boss, line); }, 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
+  // Lottie's tour: the first time you play she shows you the bay and points at each thing to tap (src/ui/coach.ts).
+  // A pinned seed (tests, shared links) leaves it off unless the URL asks for it with coach=1.
+  const projected = new THREE.Vector3();
+  const coach = createCoach(uiRoot, {
+    say: (line, mood) => {
+      audio.babble(line, 0.8, mood);
+      const stand = bay.views[LOTTIES_CORNER]?.stand;
+      if (stand?.lottie) stand.react(mood === 'grumpy' ? 'fist' : 'cheer');
+    },
+    camera: (where, plot) => {
+      if (where === 'bay') world.focus(BAY_VIEW.x, BAY_VIEW.z, BAY_VIEW.distance);
+      else if (where === 'plot' && plot) focusPlot(plot, 26);
+      else focusPlot(LOTTIES_CORNER, 16);
+    },
+    plotAt: (id) => {
+      const p = PLOT_BY_ID[id];
+      if (!p) return null;
+      projected.set(p.x, 1.2, (p.z + p.streetZ) / 2).project(world.camera);
+      if (projected.z > 1 || Math.abs(projected.x) > 1 || Math.abs(projected.y) > 1) return null;
+      const el = world.renderer.domElement;
+      return [(projected.x * 0.5 + 0.5) * el.clientWidth, (-projected.y * 0.5 + 0.5) * el.clientHeight];
+    },
+  }, !seedParam || params.get('coach') === '1');
   hud.muted = audio.muted();
   // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
   if (!saved && !seedParam) { hud.setup = { settings: defaultSettings(), cancel: false }; hud.leaderboard = loadLeaderboard(); }
@@ -696,6 +722,7 @@ async function main() {
     vipWhere: () => vip.where(),
     vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '') => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client); },
     dex: () => welcomeDex(state),
+    coach: () => ({ step: coach.current(), seen: [...coach.memory().seen], off: coach.memory().off }),
     focus: (id: string) => focusPlot(id, 18),
     /** Tick the clock (business hours or the night) up to `minutes`, stopping where the phase changes. */
     fastForward(minutes: number) {
@@ -798,6 +825,7 @@ async function main() {
       snapReq = null;
     }
     hud.render(state, shownSpeed());
+    coach.update(state, shownSpeed(), busy() || !!playingScene(state) || outcomeUp());
   });
   document.body.dataset.ready = '1';
 }

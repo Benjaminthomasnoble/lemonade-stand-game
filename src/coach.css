@@ -1,0 +1,41 @@
+/* Lottie's tour (src/ui/coach.ts): a clay finger, a chalk ring and Lottie's speech bubble. */
+#ui .coach { position: absolute; inset: 0; pointer-events: none; z-index: 30; display: none; font-family: 'Fredoka', system-ui, sans-serif; color: #2E2A4F; }
+#ui .coach.on { display: block; }
+#ui .coach.on.away { display: none; }
+#ui .coach-ring, #ui .coach-hand { position: absolute; pointer-events: none; }
+#ui .coach-ring { border-radius: calc(var(--u, 8px) * 2.2); border: calc(var(--u, 8px) * .45) dashed #F7C948; box-shadow: 0 0 0 calc(var(--u, 8px) * .3) #2E2A4F, 0 0 0 9999px rgba(46, 42, 79, .0); animation: coach-ring 1.1s ease-in-out infinite; }
+#ui .coach-hand { width: calc(var(--u, 8px) * 7.5); height: calc(var(--u, 8px) * 7.5); filter: drop-shadow(0 calc(var(--u, 8px) * .4) calc(var(--u, 8px) * .3) rgba(46, 42, 79, .35)); }
+#ui .coach-hand[data-dir="down"] { transform: rotate(90deg); }
+#ui .coach-hand[data-dir="up"] { transform: rotate(-90deg); }
+#ui .coach-hand svg { width: 100%; height: 100%; animation: coach-poke .7s cubic-bezier(.4, 0, .4, 1) infinite alternate; }
+
+#ui .coach-card { position: absolute; display: flex; align-items: flex-end; gap: calc(var(--u, 8px) * .6); width: max-content; max-width: min(calc(var(--u, 8px) * 44), calc(100vw - 16px)); pointer-events: none; }
+#ui .coach-card.coach-in { animation: coach-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+#ui .coach-face { flex: none; width: calc(var(--u, 8px) * 8); height: calc(var(--u, 8px) * 8); animation: coach-bob 1.4s ease-in-out infinite; filter: drop-shadow(0 calc(var(--u, 8px) * .3) calc(var(--u, 8px) * .25) rgba(46, 42, 79, .3)); }
+#ui .coach-face svg { width: 100%; height: 100%; }
+#ui .coach-bubble { position: relative; display: flex; flex-direction: column; gap: calc(var(--u, 8px) * .7); padding: calc(var(--u, 8px) * 1.1) calc(var(--u, 8px) * 1.6); background: linear-gradient(170deg, #fffdf6, #fff3d6); border: calc(var(--u, 8px) * .3) solid #2E2A4F; border-radius: calc(var(--u, 8px) * 2.4) calc(var(--u, 8px) * 2.6) calc(var(--u, 8px) * 2.4) calc(var(--u, 8px) * .6); box-shadow: 0 calc(var(--u, 8px) * .45) 0 rgba(46, 42, 79, .25); margin-bottom: calc(var(--u, 8px) * 1.4); }
+#ui .coach-bubble::before { content: ''; position: absolute; left: calc(var(--u, 8px) * -1.6); bottom: calc(var(--u, 8px) * .6); width: calc(var(--u, 8px) * 2); height: calc(var(--u, 8px) * 1.6); background: #fff3d6; border: calc(var(--u, 8px) * .3) solid #2E2A4F; border-right: 0; border-top: 0; transform: skewY(-30deg); border-radius: 0 0 0 calc(var(--u, 8px) * .8); }
+#ui .coach-line { font: 400 calc(var(--u, 8px) * 2.5)/1.15 'Gochi Hand', 'Comic Sans MS', cursive; color: #2E2A4F; }
+#ui .coach-acts { display: flex; align-items: center; gap: calc(var(--u, 8px) * 1.2); }
+#ui .coach-acts button { pointer-events: auto; cursor: pointer; appearance: none; font-family: 'Fredoka', system-ui, sans-serif; color: #2E2A4F; }
+#ui .coach-next { display: inline-flex; align-items: center; gap: calc(var(--u, 8px) * .4); padding: calc(var(--u, 8px) * .4) calc(var(--u, 8px) * .7) calc(var(--u, 8px) * .4) calc(var(--u, 8px) * 1.3); font-weight: 600; font-size: calc(var(--u, 8px) * 1.7); border: calc(var(--u, 8px) * .26) solid #2E2A4F; border-radius: 999px; background: radial-gradient(circle at 34% 26%, #fff 0 4%, #ffe28a 14%, #F7C948 50%, #d7a52a 100%); box-shadow: 0 calc(var(--u, 8px) * .35) 0 #8a5e14; }
+#ui .coach-next:active { transform: translateY(2px); box-shadow: 0 calc(var(--u, 8px) * .15) 0 #8a5e14; }
+#ui .coach-next svg { width: calc(var(--u, 8px) * 2.4); height: calc(var(--u, 8px) * 2.4); }
+#ui .coach-skip { padding: 0; border: 0; background: none; font-size: calc(var(--u, 8px) * 1.35); opacity: .65; text-decoration: underline wavy rgba(46, 42, 79, .5); text-underline-offset: 3px; }
+#ui .coach-skip:hover { opacity: 1; }
+
+/* The opening tour: a bigger Lottie in the middle; the morning's HUD steps back until it's over. */
+#ui .coach.intro { background: radial-gradient(ellipse at 50% 55%, rgba(46, 42, 79, 0) 30%, rgba(46, 42, 79, .35) 100%); }
+#ui .coach.intro .coach-face { width: calc(var(--u, 8px) * 13); height: calc(var(--u, 8px) * 13); }
+#ui .coach.intro .coach-line { font-size: calc(var(--u, 8px) * 3.2); }
+#ui .coach.intro .coach-card { max-width: min(calc(var(--u, 8px) * 60), calc(100vw - 16px)); }
+body.coach-intro #ui .cl-prep, body.coach-intro #ui .cl-feed, body.coach-intro #ui .cl-sticky, body.coach-intro #ui .gullbtn { opacity: 0; pointer-events: none !important; transition: opacity .3s; }
+body.coach-intro #ui .cl-prep *, body.coach-intro #ui .cl-feed * { pointer-events: none !important; }
+
+@keyframes coach-ring { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .75; } }
+@keyframes coach-poke { from { transform: translateX(-14%); } to { transform: translateX(4%); } }
+@keyframes coach-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6%) rotate(2deg); } }
+@keyframes coach-pop { from { transform: scale(.6) rotate(-4deg); opacity: 0; } to { transform: none; opacity: 1; } }
+#ui[data-calm] .coach-ring, #ui[data-calm] .coach-hand svg, #ui[data-calm] .coach-face, #ui[data-calm] .coach-card.coach-in { animation: none; }
+@media (prefers-reduced-motion: reduce) { #ui .coach-ring, #ui .coach-hand svg, #ui .coach-face, #ui .coach-card.coach-in { animation: none; } }
+@media (max-width: 640px) { #ui .coach-line { font-size: 18px; } #ui .coach.intro .coach-line { font-size: 22px; } }

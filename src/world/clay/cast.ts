@@ -226,12 +226,19 @@ export function makeTownsfolk(id: TownsfolkId, mat: THREE.Material, opts: Figure
   if (p) {
     const m = holdProp(fig, p.prop, p.left);
     if (p.hug) { m.position.set(0.05, 0.05, 0.1); m.rotation.set(0.2, -0.4, 0); }
+    if (p.prop === 'megaphone') m.rotation.x = Math.PI / 2; // the bell points along the arm
   }
   if (id === 'budd') holdProp(fig, 'glassLemon');
   return fig;
 }
 /** Pose a hugging arm (Marisol and her ledger): call after pose(). */
 export function hugPose(fig: Figure) { fig.arms[1].rotation.set(-1.2, 0, 0.9); fig.arms[0].rotation.set(-1.0, 0, -0.6); }
+/** Each named townsperson's signature stance, laid over any pose (call after pose()). */
+export function signaturePose(fig: Figure, id: TownsfolkId) {
+  if (id === 'marisol') hugPose(fig);
+  if (id === 'benny') fig.arms[1].rotation.set(-1.75, 0, -0.15); // the megaphone never comes down
+  if (id === 'budd') { fig.arms[0].rotation.set(-0.9, 0, 0.2); fig.arms[1].rotation.set(-0.7, 0, -0.1); }
+}
 PROP.skateboardRide = (B) => {
   B.add(new RoundedBoxGeometry(0.34, 0.05, 1.0, 2, 0.02), P.plum, { p: [0, 0.11, 0] });
   B.add(box(0.3, 0.012, 0.6), P.neon, { p: [0, 0.14, 0], fx: 0.3 });

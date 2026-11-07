@@ -399,11 +399,14 @@ function gear(B: Baker, sp: Spec, K: Kind) {
   const chest = K.sh - (K.block ? 0.12 : 0.1), waist = K.leg + (K.sh - K.leg) * 0.3;
   const rc = radiusAt(sp, K, chest), rw = radiusAt(sp, K, waist);
   if (sp.padded) {
-    // Padded Vest: a puffy ring 15% rounder than the body, quilted in two tubes
-    for (const [k, yy] of [[0, 0.3], [1, 0.62]] as const) {
-      const y = K.leg + (K.sh - K.leg) * yy, r = radiusAt(sp, K, y);
-      B.add(tor(r * 1.0, r * 0.15 + 0.02, 6, 22), k ? shade(sp.padded, 0.06) : sp.padded, { p: [beanX(sp, y), y, 0], r: [Math.PI / 2, 0, 0], s: [1.15, 1.15, 1] });
-    }
+    // Padded Vest: a puffy quilted shell 15% rounder than the body, waist to chest
+    const y0 = K.leg + (K.sh - K.leg) * 0.12, y1 = K.sh - 0.02, pts: [number, number][] = [];
+    for (let i = 0; i <= 6; i++) { const y = y0 + ((y1 - y0) * i) / 6; pts.push([radiusAt(sp, K, y) * 1.15 + 0.015 * Math.sin((i / 6) * Math.PI), y]); }
+    pts.unshift([pts[0][0] * 0.9, y0 - 0.02]); pts.push([pts[pts.length - 1][0] * 0.7, y1 + 0.03]);
+    let g = lumpy(lathe(pts, 22), 0.008, 6, 9);
+    if (sp.kind === 'bean') g = bend(g, (y) => Math.sin(y * 3.6) * 0.07 - y * 0.06);
+    B.add(g, sp.padded);
+    for (const k of [0.35, 0.68]) { const y = y0 + (y1 - y0) * k; B.add(tor(radiusAt(sp, K, y) * 1.16 + 0.012, 0.012, 4, 22), shade(sp.padded, -0.15), { p: [beanX(sp, y), y, 0], r: [Math.PI / 2, 0, 0] }); }
   }
   if (sp.pads) for (const s2 of [-1, 1]) B.add(new THREE.SphereGeometry(K.arm[0] * 2.1, n(12, 5), n(6, 3), 0, Math.PI * 2, 0, Math.PI * 0.5), sp.pads, { fx: GLOSS, p: [s2 * K.shx * (sp.girth ?? 1) + beanX(sp, K.sh), K.sh - 0.02, 0], s: [1.1, 0.8, 1.1] });
   if (sp.bib) {

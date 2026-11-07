@@ -155,6 +155,8 @@ export interface Hud {
   optionsOpen: boolean;
   /** The Evening's Ledger card is up (full-screen paper: the Evening holds while it is). */
   ledger: boolean;
+  /** A brawl or a VIP show is on screen: pause stays at hand (it holds them too). */
+  playing: boolean;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -182,6 +184,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     options: { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } },
     optionsOpen: false,
     ledger: true,
+    playing: false,
     render(s, speed) {
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s) : outcomeScreen(s);
@@ -387,8 +390,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function corner(s: GameState, speed: number) {
     const k = (action: string, inner: string, title: string, extra = '', on = false) => `<button class="cl-knob-s${on ? ' on' : ''}" data-action="${action}" ${extra} title="${title}" aria-label="${title}">${inner}</button>`;
     const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('options', '⚙', 'Options', 'data-testid="options-open"') + k('setup', '✚', 'New game');
-    // The clock runs in business hours and at night (and Morning Prep counts down when it starts the day by itself).
-    const running = s.phase === 'open' || s.phase === 'night' || (s.phase === 'prep' && hud.options.autoContinue && !s.outcome);
+    // Pause anywhere the clock (or a show) runs: business hours, the night, the Evening's moment on the map, Morning
+    // Prep when it starts the day by itself, and any brawl or VIP scene on screen.
+    const counting = !s.outcome && (s.phase === 'prep' ? hud.options.autoContinue : s.phase === 'report' && (!hud.ledger || hud.options.autoContinue));
+    const running = s.phase === 'open' || s.phase === 'night' || counting || hud.playing;
     if (!running) return `<div class="cl-corner">${views}</div>`;
     const sb = (v: number, label: string) => k('speed', label, `Speed ${v ? v + '×' : 'pause'} (keys: space, 1, 2, 3)`, `data-value="${v}"`, speed === v);
     const skip = s.phase === 'open' ? k('skip', '⏭', 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', '⏭', 'Sleep till dawn (stops at big alerts)', 'data-testid="next"') : '';

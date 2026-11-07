@@ -448,7 +448,8 @@ async function main() {
     hud.options = options;
     prepWait = 0;
   };
-  const hud = createHud(document.getElementById('ui')!, act);
+  const uiRoot = document.getElementById('ui')!;
+  const hud = createHud(uiRoot, act);
   hud.options = options;
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
@@ -552,7 +553,9 @@ async function main() {
     timer.update();
     const realDt = timer.getDelta();
     const dt = Math.min(realDt, 0.1);
-    const paper = !!hud.setup || hud.optionsOpen; // full-screen paper pauses
+    // Full-screen paper pauses: New Game, Options, a won or lost run, and the Bugle's front page at dawn.
+    const outcomeUp = !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined); // as the HUD's outcome screen
+    const paper = !!hud.setup || hud.optionsOpen || outcomeUp || !!uiRoot.querySelector('.frontpage');
     const frozen = speed === 0 || paper; // paused: the clock, the brawl and the scenes hold still
     if (state.phase !== 'night' && state.phase !== 'report') quietOff = false; // each night starts quiet again
     if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
@@ -603,6 +606,7 @@ async function main() {
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }
     world.render();
+    hud.playing = battle.active() || vip.active(); // a brawl or a VIP show on screen: the pause knob stays at hand
     if (snapReq) {
       try { bugle.offer({ url: canvas.toDataURL('image/jpeg', 0.7), ...snapReq, day: state.day }); } catch { /* tainted or lost canvas: no photo today */ }
       snapReq = null;

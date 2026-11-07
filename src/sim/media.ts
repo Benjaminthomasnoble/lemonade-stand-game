@@ -269,6 +269,8 @@ function news(s: GameState): Pick<FrontPage, 'headline' | 'briefs'> {
 
 /** The two tapes the dawn banner and the front page lead with. */
 export const bugleHeadline = (s: GameState): [string, string] => news(s).headline;
+/** This morning's headline and briefs, as Cal Clementine reads them on 101.5 (radio.ts). */
+export const bugleNews = (s: GameState) => news(s);
 
 /** The weather as the paper prints it: "Scorcher, 97°". */
 export const weatherText = (w: Weather) => `${WEATHER[w.kind].label}, ${w.temp}°`;

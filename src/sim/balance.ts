@@ -258,6 +258,8 @@ export const ICE_MACHINE_LEVEL = 4;
  * Raiding one costs 0.5 star (spec), a front page and Lottie's respect.
  * placeholder: spec gap (the odds, the window, the weekday, one stand per district, the price) */
 export const KIDS_DAY = { chance: 0.75, window: [3, 12] as [number, number], perDistrict: 1, price: 0.5, stars: 0.5 };
+/** 101.5 The Squeeze plays from the radio on every L3+ stand during business hours (spec). */
+export const RADIO_STAND_LEVEL = 3;
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★

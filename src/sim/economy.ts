@@ -54,6 +54,7 @@ export * from './demand.ts';
 export * from './events.ts';
 export * from './media.ts';
 export * from './happenings.ts';
+export * from './radio.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;

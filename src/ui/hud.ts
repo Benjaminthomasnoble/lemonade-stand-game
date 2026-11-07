@@ -43,6 +43,7 @@ import { standPanel } from './stand.ts';
 import { storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
+import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -228,6 +229,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
       set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
       set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie())));
+      tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
       set(plotEl, hud.inspected && !(s.phase === 'report' && hud.ledger) && !modal ? plotCard(s, hud.inspected) : '');
@@ -331,6 +333,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'remap': onAction({ type: 'remap', key: d.key as KeyAction }); break;
       case 'resetKeys': onAction({ type: 'resetKeys' }); break;
       case 'turn': onAction({ type: 'turn', dir: d.dir === '-1' ? -1 : 1 }); break;
+      case 'radio': toggleSoundtrack(); redraw(); break; // world: 101.5 all day, or mornings only
       case 'books': books = !books; redraw(); break;
       case 'standMath': standMath = !standMath; redraw(); break;
       case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
@@ -456,6 +459,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
+    const radio = radioTicket(s); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {

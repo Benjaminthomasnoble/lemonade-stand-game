@@ -1,0 +1,177 @@
+// 101.5 The Squeeze (spec: Music and sound, "101.5 The Squeeze"; Narrative, "How the story is told": about 1 DJ line per
+// game hour). DJ Cal Clementine reads the Bugle's headline and briefs in the Morning Prep show, gives the weather, calls
+// every fight like a ball game (rival-vs-rival too) and breaks in when a mid-day event hits. He takes every faction's ad
+// money, never takes sides, and signs off "Stay sweet, Citrine Bay." With the Radio Jingle (M3), Benny Buzz's spot ending
+// "Get Lottie's!" airs in every Morning Prep show and again at 12:00, followed by Cal's 2-day forecast. In Act 1, Brock
+// swears revenge live on air the evening Lottie's takes his Strawberry page. It plays in Morning Prep, from the radio on
+// your L3+ stands while they're open, and all day as the optional soundtrack. Text-first: the HUD prints the lines (the
+// voices and the three-note chime are the audio thread's). Pure: the show is read off the state; nothing is saved and
+// nothing draws from the seed.
+import { BRAND_TIERS, CLOSE, FACTIONS, OPEN, RADIO_STAND_LEVEL, type RivalId, type WeatherKind } from './balance.ts';
+import { PLOT_BY_ID, type FactionId } from './map.ts';
+import type { GameState, Weather } from './economy.ts';
+import { playerStands } from './economy.ts';
+import { storyFairs, tasteOffResult } from './calendar.ts';
+import { bugleNews, lookAhead, marketLines, marketText, type FightNote } from './media.ts';
+import { kidsDay } from './happenings.ts';
+
+export type RadioKind = 'id' | 'news' | 'weather' | 'jingle' | 'forecast' | 'ad' | 'gossip' | 'fight' | 'break' | 'live' | 'signoff';
+/** A line on air: the minute it airs (the Morning Prep show goes out just before opening), what it is, and the words. */
+export interface RadioLine { minute: number; kind: RadioKind; text: string }
+
+/** The station IDs, each on a three-note chime (spec). */
+export const STATION_IDS = ['All killer, no pulp.', "You're squeezed in with Cal Clementine.", 'Fresh-pressed hits, every morning.'];
+/** Cal's sign-off (spec). */
+export const SIGN_OFF = 'Stay sweet, Citrine Bay.';
+/** Benny Buzz's 10-second spot on the theme's first two bars, ending "Get Lottie's!" (spec). placeholder: spec gap (the words before it) */
+export const JINGLE = 'Benny Buzz\'s spot: "Sunshine in a cup, on a corner near you. Get Lottie\'s!"';
+
+const RIVALS = Object.keys(FACTIONS) as RivalId[];
+const TEAM: Record<RivalId, string> = { sourwood: 'the Sourwoods', hollis: 'Hollis Sweet Tea', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'the Blenders' };
+const team = (f: FactionId) => (f === 'player' ? "Lottie's" : TEAM[f as RivalId]);
+const crew = (f: FactionId) => (f === 'player' ? "Lottie's crew" : `the ${FACTIONS[f as RivalId].henchmen}`);
+const place = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const end = (t: string) => (/[.!?]["']?$/.test(t) ? t : `${t}.`);
+/** The Radio Jingle (M3) is on the air. */
+const jingleOn = (s: GameState) => s.brandTier >= BRAND_TIERS[2].tier;
+
+// ---------- how Cal says things ----------
+
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
+  'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+/** A number as Cal says it: "ninety-seven", "a hundred and two". */
+export function sayNumber(n: number): string {
+  n = Math.round(n);
+  if (n < 0) return `minus ${sayNumber(-n)}`;
+  if (n < 20) return ONES[n];
+  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '');
+  if (n < 1000) return `${n < 200 ? 'a' : ONES[Math.floor(n / 100)]} hundred${n % 100 ? ` and ${sayNumber(n % 100)}` : ''}`;
+  return n.toLocaleString('en-US');
+}
+
+const WEATHER_TALK: Record<WeatherKind, (t: string) => string> = {
+  scorcher: (t) => `${cap(t)} on the Boardwalk, and the Smoothie Bros are jogging in formation. Lock up your sugar, Maple Row.`,
+  hot: (t) => `${cap(t)} and climbing. Keep those coolers full, Citrine Bay.`,
+  warm: (t) => `${cap(t)} and sunny. Lemonade weather, sweet tea weather, soda weather: Cal plays no favorites.`,
+  cloudy: (t) => `Gray skies and ${t} degrees. Bring a sweater and a thermos, folks.`,
+  rainy: (t) => `Rain on the bay, ${t} degrees. Keep your sugar dry out there.`,
+  storm: (t) => `Storm rolling in off the harbor, ${t} degrees. Tie down those folding tables, Maple Row.`,
+};
+/** Cal's weather (the spec's Scorcher at 97°: "Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation."). */
+export const weatherTalk = (w: Weather) => WEATHER_TALK[w.kind](sayNumber(w.temp));
+
+/** A fight called like a ball game, whoever's in it: Cal never takes sides. */
+export function callFight(f: FightNote): string {
+  const at = place(f.target);
+  switch (f.outcome) {
+    case 'smashed': return `${cap(crew(f.attacker))} come over the fence at ${at}... and down goes the stand! What a night for ${team(f.attacker)}!`;
+    case 'robbed': return `${cap(crew(f.attacker))} hit the till at ${at} and run off with ${money(f.loot)}! What a grab by ${team(f.attacker)}!`;
+    case 'damaged': return `${cap(crew(f.attacker))} rattle ${at} and leave empty-handed! Close one for ${team(f.defender)}!`;
+    default: return `${cap(crew(f.attacker))} charge ${at}... and bounce right off! What a stand by ${team(f.defender)}!`;
+  }
+}
+
+/** Cal's 2-day forecast after the Jingle (seam: demand's forecastDays(s, 2) once it merges; the Bugle's lookAhead for now). */
+function twoDay(s: GameState): string {
+  const [a, b] = lookAhead(s, 2);
+  const low = (t: string) => (/^Heat Wave/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1));
+  return a && b ? `Cal's two-day: tomorrow, ${low(a.text)}; the day after, ${low(b.text)}.` : '';
+}
+
+/** "He takes every faction's ad money": the hour's sponsor, round the rivals still in business (and Lottie's, with the Jingle). */
+function sponsor(s: GameState, n: number): string {
+  const payers = [...RIVALS.filter((r) => s.rivals[r]?.alive).map((r) => FACTIONS[r].name), ...(jingleOn(s) ? ["Lottie's Lemonade"] : [])];
+  if (!payers.length) return STATION_IDS[n % STATION_IDS.length];
+  return `This hour of hits comes to you from ${payers[(s.day + n) % payers.length]}. Cal takes everybody's money, folks.`;
+}
+
+// ---------- the show ----------
+
+/** The Morning Prep show: a station ID, the Bugle's headline and briefs, the weather, the Jingle and Cal's 2-day forecast
+ * (M3), and the sign-off. */
+export function morningShow(s: GameState): RadioLine[] {
+  const paper = bugleNews(s);
+  const line = (kind: RadioKind, text: string): RadioLine => ({ minute: OPEN - 1, kind, text });
+  return [
+    line('id', STATION_IDS[s.day % STATION_IDS.length]),
+    line('news', `Front page of the Bugle: ${end(paper.headline[0])} ${end(paper.headline[1])}`),
+    ...paper.briefs.map((b) => line('news', `Also in the paper: ${end(b)}`)),
+    line('weather', weatherTalk(s.forecast)),
+    ...(jingleOn(s) ? [line('jingle', JINGLE), line('forecast', twoDay(s))] : []),
+    line('signoff', SIGN_OFF),
+  ].filter((l) => l.text);
+}
+
+/** Last night's fights on the scoreboard, a rival-vs-rival one first (the Bugle leads with yours). */
+function boxScore(s: GameState): FightNote | undefined {
+  const last = (s.world?.fights ?? []).filter((f) => f.day === s.day - 1);
+  return last.find((f) => f.attacker !== 'player' && f.defender !== 'player') ?? last[0];
+}
+
+/** Kids' Lemonade Day on the air. */
+function kidsTalk(s: GameState): string | null {
+  const e = kidsDay(s);
+  if (!e) return null;
+  return e.raided?.length ? "Cal hears Lottie's crew took a seven-year-old's pitcher today. Shame, shame, shame."
+    : `Kids' Lemonade Day, folks: the kid stands have taken ${e.took ?? 0} of Lottie's customers so far. Adorable. Leave them be.`;
+}
+
+/** The hour's line, 08:00 to 19:00 (h = 0..11): station IDs, the weather, the paper's gossip, the sponsors, last night's box
+ * score, the Market, the Jingle and the forecast at lunch, and last call. */
+function hourLines(s: GameState, h: number, briefs: () => string[]): RadioLine[] {
+  const minute = OPEN + h * 60;
+  const say = (kind: RadioKind, text: string, at = minute): RadioLine => ({ minute: at, kind, text });
+  const id = (k: number) => say('id', STATION_IDS[(s.day + k) % STATION_IDS.length]);
+  const gossip = (i: number, k: number) => (briefs()[i] ? say('gossip', `Word around the bay: ${end(briefs()[i])}`) : id(k));
+  switch (h) {
+    case 0: return [say('id', `${STATION_IDS[s.day % STATION_IDS.length]} The stands are open, Citrine Bay.`)];
+    case 1: case 6: return [say('weather', weatherTalk(s.weather))];
+    case 2: return [gossip(0, 1)];
+    case 3: case 8: return [say('ad', sponsor(s, h))];
+    case 4: return jingleOn(s) ? [say('jingle', JINGLE), say('forecast', twoDay(s), minute + 10)] : [id(2)];
+    case 5: { const f = boxScore(s); return [f ? say('fight', `Last night on the scoreboard: ${callFight(f)}`) : gossip(1, 0)]; }
+    case 7: { const k = kidsTalk(s); return [k ? say('gossip', k) : gossip(2, 1)]; }
+    case 9: return [id(0)];
+    case 10: return [say('news', `At the Market today: ${marketText(marketLines(s))}.`)];
+    default: return [say('id', `One hour to closing. ${STATION_IDS[(s.day + 2) % STATION_IDS.length]}`)];
+  }
+}
+
+/** Act 1: the evening Lottie's takes Brock's Strawberry page at the Summer Fair, he swears revenge live on 101.5. */
+function brockLive(s: GameState): RadioLine | null {
+  const r = tasteOffResult(s, 'summerFair', 1);
+  if (!storyFairs(s) || r?.stake !== 'strawberry' || r.winner !== 'player' || r.day !== s.day) return null;
+  return { minute: CLOSE, kind: 'live', text: 'Live on 101.5, Brock Bodine swears revenge: "This isn\'t over, bro! You hear me, Lottie\'s? This is NOT over!"' };
+}
+
+/** What's aired since the morning show, in order up to now: the hours, the break-ins and the fights as they came (the night's
+ * too), Brock's call and the sign-off at closing. */
+export function airedToday(s: GameState): RadioLine[] {
+  if (s.phase === 'prep') return [];
+  let paper: string[] | undefined;
+  const briefs = () => (paper ??= bugleNews(s).briefs);
+  const out: RadioLine[] = [];
+  for (let h = 0; h < 12; h++) if (OPEN + h * 60 <= s.minute) out.push(...hourLines(s, h, briefs));
+  for (const b of s.world?.breaks ?? []) if (b.day === s.day) out.push({ minute: b.minute, kind: 'break', text: `Breaking on 101.5: ${b.text}` });
+  for (const f of [...(s.world?.fights ?? [])].reverse()) if (f.day === s.day) out.push({ minute: f.minute, kind: 'fight', text: callFight(f) });
+  const brock = brockLive(s);
+  if (brock) out.push(brock);
+  out.push({ minute: CLOSE + 1, kind: 'signoff', text: `That's the day, folks. ${SIGN_OFF}` });
+  return out.filter((l) => l.minute <= s.minute && l.text).sort((a, b) => a.minute - b.minute);
+}
+
+/** The whole day on 101.5 so far: the Morning Prep show, then everything aired since. */
+export const radioToday = (s: GameState): RadioLine[] => [...morningShow(s), ...airedToday(s)];
+
+/** The line on the air right now, after Morning Prep (Morning Prep plays the morning show). */
+export const onAir = (s: GameState): RadioLine | null => airedToday(s).at(-1) ?? null;
+
+/** Is 101.5 playing for you? Always in Morning Prep; while your stands are open, from the radio on any L3+ stand of yours; and
+ * all day and night as the optional soundtrack. */
+export function radioOn(s: GameState, soundtrack: boolean): boolean {
+  if (s.phase === 'prep' || soundtrack) return true;
+  return s.phase === 'open' && playerStands(s).some((p) => { const st = s.plots[p.id].stand; return !!st && !st.wrecked && st.level >= RADIO_STAND_LEVEL; });
+}

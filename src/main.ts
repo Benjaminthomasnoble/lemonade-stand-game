@@ -18,7 +18,10 @@ import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, isVip } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
-import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
+import {
+  clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveSlot,
+  saveUnreadable, slotList,
+} from './save.ts';
 import { AUTO_CONTINUE_SECONDS, autoPauses, loadOptions, saveOptions, TEXT_SIZES, type Options, type PauseKind } from './settings.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
@@ -141,6 +144,15 @@ async function main() {
     if (battle.active() && liveFight) fightQueue.push(b); else playBattle(b, true);
   };
   const stopFights = () => { battle.stop(); fightQueue.length = 0; liveFight = false; };
+  /** Swap in a loaded run (a dawn, a slot): whatever was on screen goes, and a mid-day save waits paused. */
+  const restore = (s: GameState, line: string) => {
+    state = s;
+    state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`;
+    hud.inspected = null; vipResume = 0; vipPaused = ''; acc = 0; savedHour = -1;
+    crowd.clear(); stopFights(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
+    if (midDay(state)) pause(); else resume();
+    hud.toast(line);
+  };
   /** 07:00: the dawn autosave, Lottie reads the sky, the Bugle lands. */
   const atDawn = () => {
     saveDawn(state);
@@ -403,8 +415,17 @@ async function main() {
       }
       case 'keepSqueezing': keepSqueezing(state); break;
       case 'reloadDawn': {
-        const d = loadDawn(state.runId);
-        if (d) { state = d; hud.inspected = null; vipResume = 0; vipPaused = ''; crowd.clear(); stopFights(); bubbles.clear(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
+        const d = loadDawn(state.runId, a.slot);
+        if (d) restore(d, a.slot === undefined ? 'Back to the last dawn. Let\'s try that again.' : `Back to the dawn of day ${d.day}.`);
+        break;
+      }
+      case 'saveSlot': if (saveSlot(state, a.slot)) hud.toast(`Saved in slot ${a.slot + 1}.`); break;
+      case 'loadSlot': {
+        const s = a.dawn ? loadDawnSlot(a.slot) : loadSlot(a.slot);
+        if (!s) { hud.toast("Couldn't read that save."); break; }
+        if (state.day > 1 && state.runId !== s.runId) recordScore(state); // the run being left keeps its row
+        hud.optionsOpen = false;
+        restore(s, `Loaded day ${s.day}${midDay(s) ? ': paused' : ''}.`);
         break;
       }
       case 'borrow': borrow(state, a.amount); break;
@@ -467,7 +488,9 @@ async function main() {
     const choosing = hud.setup && !hud.setup.cancel; // first visit: nothing worth saving until they press Start
     if (state.phase !== 'open' && !choosing) saveGame(state);
     if (a.type === 'sleep' || state.outcome) recordScore(state);
-    hud.canReload = state.outcome?.result === 'lost' && !!loadDawn(state.runId);
+    hud.dawns = state.outcome?.result === 'lost' && !state.settings.ironman ? dawnsOf(state.runId) : [];
+    hud.canReload = hud.dawns.length > 0;
+    if (hud.optionsOpen) hud.slots = slotList();
     hud.render(state, shownSpeed());
   };
   /** Flip an option (src/settings.ts). The raid-warning switch belongs to the run. */
@@ -483,10 +506,12 @@ async function main() {
   const uiRoot = document.getElementById('ui')!;
   const hud = createHud(uiRoot, act);
   hud.options = options;
+  onSaveTrouble(() => hud.toast("Couldn't save: this browser's storage is full."));
   // Closing the tab or switching away saves where you are (never before a first run has started).
   const saveNow = () => { if (!hud.setup || hud.setup.cancel) saveGame(state); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
   window.addEventListener('pagehide', saveNow);
+  if (saveUnreadable()) hud.toast("Couldn't read your saved game. It's kept aside.");
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);

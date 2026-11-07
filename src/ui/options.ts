@@ -9,7 +9,8 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const toggle = (key: string, on: boolean, label: string, tip: string) =>
   `<button class="cl-toggle${on ? ' on' : ''}" data-action="option" data-key="${key}" data-testid="opt-${key}" aria-pressed="${on}" title="${esc(tip)}"><i></i>${label}</button>`;
 
-export function optionsScreen(o: Options, s: GameState): string {
+/** `saves`: the Saves panel (src/ui/saves.ts), at the foot of the screen. */
+export function optionsScreen(o: Options, s: GameState, saves = ''): string {
   // Each major alert has its own switch (perk picks join once rank-up perks land; lessons once onboarding does).
   const each = o.autoPause ? `<div class="cl-row wrap">
       ${toggle('raidPause', raidPauses(s.settings), 'Raids on you', 'Raid warnings pause the game (this run). Off: the clock slows to fight speed for the countdown.')}
@@ -27,6 +28,7 @@ export function optionsScreen(o: Options, s: GameState): string {
       ${toggle('autoContinue', o.autoContinue, 'Start each day by itself', 'Morning Prep opens the stands after a moment. Big alerts still stop it.')}
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD animations')}
+      ${saves}
     </div>
     <div class="cl-setup-foot"><span></span><button class="cl-link" data-action="options" data-testid="options-done">Done</button></div>
   </div></div>`;

@@ -22,7 +22,7 @@ import {
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   tasteOffToday, type FestivalId,
 } from '../sim/economy.ts';
-import type { ScoreEntry } from '../save.ts';
+import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
@@ -33,6 +33,7 @@ import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
 import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
 import { tripLines, tripNote } from './trips.ts';
+import { dawnPicks, savesPanel } from './saves.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -78,7 +79,9 @@ export type Action =
   | { type: 'start'; settings: Settings }
   | { type: 'cancelSetup' }
   | { type: 'keepSqueezing' }
-  | { type: 'reloadDawn' }
+  | { type: 'reloadDawn'; slot?: number } // a lost run back to a dawn: its newest, or the slot picked
+  | { type: 'saveSlot'; slot: number } // Options: save to a manual slot
+  | { type: 'loadSlot'; slot: number; dawn?: boolean } // Options: load a manual slot or a dawn autosave
   | { type: 'borrow'; amount: number }
   | { type: 'repay' }
   | { type: 'night' } // the Evening ends: the night runs on the clock
@@ -160,6 +163,9 @@ export interface Hud {
   leaderboard: ScoreEntry[];
   /** A lost run can reload its last dawn (never in Ironman). */
   canReload: boolean;
+  /** That run's dawns, newest first (the older ones are offered too), and what every save slot holds. */
+  dawns: { slot: number; info: SlotInfo }[];
+  slots: Slots;
   /** The player's options (src/settings.ts), and whether the Options screen is open. */
   options: Options;
   optionsOpen: boolean;
@@ -191,13 +197,15 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     setup: null,
     leaderboard: [],
     canReload: false,
+    dawns: [],
+    slots: { dawn: [], manual: [] },
     options: { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } },
     optionsOpen: false,
     ledger: true,
     playing: false,
     render(s, speed) {
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
-      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s) : outcomeScreen(s);
+      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots)) : outcomeScreen(s);
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -328,8 +336,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
-      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'reloadDawn': case 'repay':
+      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay':
         onAction({ type: d.action }); break;
+      case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
+      case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;
+      case 'loadSlot': onAction({ type: 'loadSlot', slot: Number(d.slot), dawn: d.dawn === '1' }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
       case 'entry': case 'sponsor': onAction(worldAction(d)); break;
       case 'start': if (hud.setup) onAction({ type: 'start', settings: { ...hud.setup.settings } }); break;
@@ -826,7 +837,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${tape(lost.title, 'cl-big')}
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>"${lost.line}"</span></div>
       ${stats}
-      ${hud.canReload ? `<button class="cl-sleep" data-action="reloadDawn" data-testid="reload-dawn">${ART.egg()}<span>Try that day again</span></button>` : s.settings.ironman ? '<span class="cl-note">Ironman: this run is over.</span>' : ''}
+      ${hud.canReload ? `<button class="cl-sleep" data-action="reloadDawn" data-testid="reload-dawn">${ART.egg()}<span>Try that day again</span></button>${dawnPicks(hud.dawns)}` : s.settings.ironman ? '<span class="cl-note">Ironman: this run is over.</span>' : ''}
       <button class="cl-link" data-action="setup">New game</button>
     </div></div>`;
   }

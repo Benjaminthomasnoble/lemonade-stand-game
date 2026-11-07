@@ -8,6 +8,8 @@ import { alertCards } from './alerts.ts';
 import { span, tripLines, tripNote } from './trips.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
+import { dawnPicks, savesPanel } from './saves.ts';
+import type { SlotInfo } from '../save.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -116,6 +118,40 @@ describe('the Options screen', () => {
     expect(html).toContain('data-value="150"');
     const off = optionsScreen({ ...DEFAULT_OPTIONS, autoPause: false, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     expect(off).not.toContain('data-key="pause.vip"'); // the master switch off: the rest have nothing to do
+  });
+});
+
+describe('the Saves panel', () => {
+  const at = (day: number, seq: number, over: Partial<SlotInfo> = {}): SlotInfo => ({
+    runId: 'r', day, minute: 420, phase: 'prep', rank: 2, score: 1234, mode: 'campaign', difficulty: 'classic', seq, date: '2026-11-07', ...over,
+  });
+
+  it('each manual slot saves and (once full) loads; dawns list newest first; mid-day saves show the time', () => {
+    const html = savesPanel(newGame(1), { dawn: [at(4, 3), at(2, 1), at(3, 2)], manual: [null, at(6, 9, { phase: 'open', minute: 14 * 60 + 30 }), null] });
+    expect(html.match(/data-testid="save-slot"/g)).toHaveLength(3);
+    expect(html.match(/data-action="saveSlot"/g)).toHaveLength(3);
+    expect(html).toContain('data-testid="load-1"');
+    expect(html).not.toContain('data-testid="load-0"');
+    expect(html).toContain(`Day 6, ${clockText(14 * 60 + 30)} · R2 · $1,234`);
+    expect(html).toContain('Campaign, Classic');
+    const order = ['load-dawn-0', 'load-dawn-2', 'load-dawn-1'].map((id) => html.indexOf(id));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(html).toContain('Day 4 · R2'); // a dawn shows no time: it is always 07:00
+  });
+
+  it('Ironman keeps one save: no slots to save to or load', () => {
+    const html = savesPanel(newGame(1, { ironman: true }), { dawn: [at(4, 3), null, null], manual: [at(5, 4), null, null] });
+    expect(html).toContain('Ironman: one save only');
+    expect(html).not.toContain('data-action');
+    expect(optionsScreen({ ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } }, newGame(1), 'SAVES')).toContain('SAVES');
+  });
+
+  it("a lost run offers its older dawns beside 'Try that day again'", () => {
+    const html = dawnPicks([{ slot: 1, info: at(5, 3) }, { slot: 0, info: at(4, 2) }, { slot: 2, info: at(3, 1) }]);
+    expect(html).not.toContain('Day 5'); // the newest is "Try that day again" itself
+    expect(html).toContain('data-slot="0"');
+    expect(html).toContain('>Day 3<');
+    expect(dawnPicks([{ slot: 1, info: at(5, 3) }])).toBe('');
   });
 });
 

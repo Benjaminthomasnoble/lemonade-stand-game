@@ -77,6 +77,10 @@ async function main() {
   let vipResume = 0; // a watched first visit holds the clock (not its scene) until the show is over
   let vipPaused = ''; // the first-arrival card that auto-paused the clock: Watch or dismiss resumes it
   let acc = 0;
+  // A save made during business hours or the night picks up where it left off, paused (Space or a speed goes on).
+  const midDay = (s: GameState) => s.phase === 'open' || s.phase === 'night';
+  if (saved && midDay(saved)) speed = 0;
+  let savedHour = -1; // the game hour last saved mid-day (the clock saves once a game hour, and when the page hides)
   let options: Options = loadOptions();
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
@@ -479,6 +483,10 @@ async function main() {
   const uiRoot = document.getElementById('ui')!;
   const hud = createHud(uiRoot, act);
   hud.options = options;
+  // Closing the tab or switching away saves where you are (never before a first run has started).
+  const saveNow = () => { if (!hud.setup || hud.setup.cancel) saveGame(state); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', saveNow);
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
@@ -599,6 +607,9 @@ async function main() {
       }
       if (state.phase !== from) { flushNews(); saveGame(state); bay.sync(state); }
       else flushNews();
+      // Any day resumes mid-day: the clock saves once a game hour (and whenever the page is hidden, above).
+      const hour = Math.floor(state.minute / 60);
+      if (midDay(state) && hour !== savedHour) { savedHour = hour; saveGame(state); }
     } else acc = 0;
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it.
     if (state.phase === 'prep' && options.autoContinue && !frozen && !state.outcome && !(state.redDays && autoPauses(options, state, 'red'))) {

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFight, runBattle, type BattleInput } from './combat.ts';
 import {
-  atOnce, canFallBack, canRally, fightCommand, fightStatus, finishFight, FIGHT_LEAD_IN, joinFight, liveReport, startAssault, startFight, stepFight,
-  watchFights,
+  atOnce, BOSS_MOVE_SHOWN, canFallBack, canRally, fightCommand, fightStatus, finishFight, FIGHT_BREAK, FIGHT_LEAD_IN, joinFight, liveReport, startAssault,
+  startFight, stepFight, watchFights,
 } from './fight.ts';
 import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './fighters.ts';
 import {
@@ -325,6 +325,37 @@ describe('a live HQ assault', () => {
     const s = rich(6, 'blenders');
     startAssault(s, 'blenders', [s.guards[0].id]);
     expect(startAssault(s, 'blenders', [s.guards[1].id])).toBe(false);
+  });
+
+  it('the squad walks into the Yard with the HP the Gate left them', () => {
+    const s = rich(7, 'blenders');
+    for (const g of s.guards) { g.level = 2; g.weapon = 'clubs'; g.gear = 'none'; }
+    expect(startAssault(s, 'blenders', s.guards.slice(0, 5).map((g) => g.id))).toBe(true);
+    const gate = s.fight!.input;
+    const { ended } = play(s);
+    expect(s.fight?.hq?.stage).toBe('yard');
+    const yard = s.fight!.input.attackers;
+    expect(yard.map((f) => f.id)).toEqual(gate.attackers.filter((f) => !ended.koed.includes(f.id) && !ended.fled.includes(f.id)).map((f) => f.id));
+    let bruised = 0;
+    for (const f of yard) {
+      const was = gate.attackers.find((x) => x.id === f.id)!;
+      const taken = ended.events.reduce((a, e) => a + (e.type === 'swing' && e.b === f.id ? e.dmg : 0), 0) * (1 - was.armor);
+      expect(f.hp).toBeCloseTo(was.hp - taken, 6);
+      if (taken > 0) bruised++;
+    }
+    expect(bruised).toBeGreaterThan(0);
+  });
+
+  it('names the boss\'s move on the fight bar as it goes off', () => {
+    const s = rich(8, 'blenders');
+    expect(startAssault(s, 'blenders', s.guards.slice(0, 12).map((g) => g.id))).toBe(true);
+    play(s); // the Gate
+    play(s); // the Yard
+    expect(s.fight?.hq?.stage).toBe('boss');
+    stepFight(s, FIGHT_LEAD_IN + FIGHT_BREAK + 0.5); // in the door: Brock charges at contact
+    expect(fightStatus(s)!.bossMove).toBe('Blender Rush');
+    stepFight(s, BOSS_MOVE_SHOWN);
+    expect(fightStatus(s)?.bossMove).toBeUndefined();
   });
 });
 

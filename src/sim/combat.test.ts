@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
 import {
-  canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, LOTTIES_CORNER, migrateSave, newGame, PERIMETERS, raidOdds, raidPartyFor, raidTargets,
-  resolveNight, STAND_HP, WEAPONS, type GadgetId, type GameState, type GearId, type Guard, type Raid, type Trait, type WeaponId,
+  BOSS_MOVES, canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER, migrateSave,
+  newGame, ownedPlots, PERIMETERS, raidOdds, raidPartyFor, raidTargets, resolveNight, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId,
+  type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait, type WeaponId,
 } from './economy.ts';
 
 let n = 0;
@@ -473,6 +474,196 @@ describe('the Raid Planner\'s odds', () => {
     expect(canRaid(s, id, ids.slice(2)).ok).toBe(true);
     s.fight = { id: 'f1', raid: { id: 'live', attacker: 'player', target: id, objective: 'shakedown', guards: ids.slice(0, 2), detected: false, eta: '' }, night: false, input: fight({}), seed: 1, t: 0, ticked: 0, commands: [], side: 'att' };
     expect(canRaid(s, id, ids.slice(2))).toEqual({ ok: false, why: 'Already planned' });
+  });
+});
+
+describe('HQ assaults', () => {
+  /** A Weakened rival, and a crew of k guards to storm its HQ. */
+  function hqGame(id: RivalId, k: number, weapon: WeaponId, gear: GearId, level: number, seed = 1): GameState {
+    const s = newGame(seed);
+    s.rank = 10;
+    s.cash = 1e9;
+    s.day = 78; // after the County Fair: Tilly can be stormed
+    for (const p of ownedPlots(s, id).filter((p) => p.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
+    s.guards = Array.from({ length: k }, () => guard({ weapon, gear, level }));
+    return s;
+  }
+  /** What a fighter had left at the end of a stage, from its report: every swing that landed on them, less padding. */
+  const hpAfter = (r: BattleReport, id: string) => {
+    const f = r.attackers.find((x) => x.id === id)!;
+    return f.hp - of(r.events, 'swing').filter((e) => e.b === id).reduce((a, e) => a + e.dmg, 0) * (1 - f.armor);
+  };
+
+  it('the squad carries its real HP from stage to stage; the knocked-out and the runners stay out', () => {
+    let carried = 0, dropped = 0;
+    const runs: [RivalId, number, WeaponId, GearId, number][] = [['blenders', 5, 'clubs', 'none', 2], ['sourwood', 12, 'hatchets', 'pro', 4]];
+    for (const [id, k, weapon, gear, level] of runs) for (const seed of [1, 2, 3]) {
+      const s = hqGame(id, k, weapon, gear, level, seed);
+      const r = stormHQ(s, id, s.guards.map((g) => g.id));
+      if (!r) throw new Error('no assault');
+      for (let i = 0; i + 1 < r.reports.length; i++) {
+        const [was, next] = [r.reports[i], r.reports[i + 1]];
+        const fit = was.attackers.filter((f) => !was.koed.includes(f.id) && !was.fled.includes(f.id));
+        expect(next.attackers.map((f) => f.id)).toEqual(fit.map((f) => f.id));
+        dropped += was.attackers.length - fit.length;
+        for (const f of next.attackers) {
+          expect(f.hp).toBeCloseTo(hpAfter(was, f.id), 6);
+          if (f.hp < was.attackers.find((x) => x.id === f.id)!.hp) carried++;
+        }
+      }
+    }
+    expect(carried).toBeGreaterThan(0); // bruised guards walk into the next room bruised
+    expect(dropped).toBeGreaterThan(0);
+  });
+
+  it('every fight reports what each fighter has left, and the survivors take exactly that on', () => {
+    const club = fighter('def', 'clubs', { ...tough, nerve: 1000 });
+    const [a, b] = many(2, 'att', 'fists', { hp: 2000 });
+    const res = runBattle(fight({ attackers: [a, b], defenders: [club], objective: 'shakedown' }), { seed: 1 });
+    const taken = (id: string) => of(res.events, 'swing').filter((e) => e.b === id).length * WEAPONS.clubs.hit;
+    expect(taken(a.id)).toBeGreaterThan(0);
+    expect(res.hpLeft[a.id]).toBe(2000 - taken(a.id));
+    expect(res.hpLeft[club.id]).toBe(tough.hp - of(res.events, 'swing').filter((e) => e.b === club.id).reduce((x, e) => x + e.dmg, 0));
+    const next = hqSurvivors(fight({ attackers: [a, b] }), { ...res, koed: [b.id] });
+    expect(next).toEqual([{ ...a, hp: res.hpLeft[a.id] }]);
+  });
+
+  it('the Boss Room brings the boss and their move, timed, and nothing happens to the squad before the fight', () => {
+    const want: Record<RivalId, string[]> = { blenders: ['rush'], coldbrew: ['espresso'], hollis: ['bales'], fizzco: ['takeover'], sourwood: ['cane', 'call'] };
+    for (const id of Object.keys(want) as RivalId[]) {
+      const s = hqGame(id, 6, 'clubs', 'vest', 3);
+      const squad = hqSquad(s, id, s.guards.map((g) => g.id));
+      const input = hqStageInput(s, id, 'boss', squad, { seed: 5 });
+      const boss = input.defenders[0];
+      expect(boss.id).toContain('-boss-');
+      expect(input.bossMoves!.map((m) => m.type)).toEqual(want[id]);
+      expect(input.bossMoves!.every((m) => m.by === boss.id && m.t >= 0)).toBe(true);
+      expect(input.attackers).toEqual(squad);
+      expect(input.defenders).toHaveLength(1 + 1 + Math.ceil(HQS[id].tier / 2));
+      expect(input.perimeter).toBe(0);
+    }
+    const s = hqGame('sourwood', 6, 'clubs', 'vest', 3);
+    const vera = hqStageInput(s, 'sourwood', 'boss', hqSquad(s, 'sourwood', s.guards.map((g) => g.id)), { seed: 5 });
+    const call = vera.bossMoves!.find((m) => m.type === 'call')!;
+    expect(call.type === 'call' && call.fighters.length).toBe(BOSS_MOVES.sourwood.stewards);
+    expect(call.t).toBe(BOSS_MOVES.sourwood.at);
+  });
+
+  it('Blender Rush: Brock knocks the 3 guards nearest him flat for 4 seconds', () => {
+    const brock = fighter('def', 'clubs', { ...tough, id: 'brock', nerve: 1000 });
+    const squad = many(5, 'att', 'clubs', tough);
+    const r = runBattle(fight({ attackers: squad, defenders: [brock], objective: 'shakedown', bossMoves: [{ t: 0, by: 'brock', type: 'rush', count: 3, stun: 4 }] }), { seed: 1 });
+    expect(of(r.events, 'boss')).toEqual([{ t: 0, type: 'boss', a: 'brock', move: 'rush' }]);
+    const flat = of(r.events, 'stun').filter((e) => e.by === 'rush').map((e) => e.a);
+    expect(flat).toEqual(squad.slice(0, 3).map((f) => f.id)); // the middle of the line and the two beside it
+    for (const f of squad) {
+      const first = of(r.events, 'swing').find((e) => e.a === f.id)!.t;
+      if (flat.includes(f.id)) expect(first).toBe(4);
+      else expect(first).toBeLessThan(1); // the two on the ends step in and swing
+    }
+  });
+
+  it('Espresso Shot: the crew swings every second instead of every 1.5 for 10 seconds', () => {
+    const juni = fighter('def', 'clubs', { ...tough, id: 'juni', nerve: 1000 });
+    const barista = fighter('def', 'clubs', { ...tough, nerve: 1000 });
+    const r = runBattle(fight({
+      attackers: many(2, 'att', 'fists', tough), defenders: [juni, barista], objective: 'shakedown',
+      bossMoves: [{ t: 3, by: 'juni', type: 'espresso', seconds: 10, boost: 0.5 }],
+    }), { seed: 1 });
+    const times = of(r.events, 'swing').filter((e) => e.a === barista.id && e.t < 20).map((e) => e.t);
+    expect(times).toEqual([0, 1.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14.5, 16, 17.5, 19]);
+    // the raiders keep their pace
+    expect(of(r.events, 'swing').filter((e) => e.a.startsWith('att') && e.t < 6).map((e) => e.t)).toEqual([0, 0, 1.5, 1.5, 3, 3, 4.5, 4.5]);
+  });
+
+  it('Hay Bale Wall: the guard nearest Tilly chops through a bale before swinging at anyone, while she swings over it', () => {
+    const tilly = fighter('def', 'clubs', { ...tough, id: 'tilly', nerve: 1000 });
+    const squad = many(2, 'att', 'hatchets', tough);
+    const walled = squad[0].id;
+    const r = runBattle(fight({ attackers: squad, defenders: [tilly], objective: 'shakedown', bossMoves: [{ t: 0, by: 'tilly', type: 'bales', count: 1, hp: 100 }] }), { seed: 1 });
+    expect(of(r.events, 'bale')).toEqual([{ t: 0, type: 'bale', a: walled, hp: 100 }, { t: 3, type: 'bale', a: walled, hp: 0 }]);
+    expect(of(r.events, 'chop').filter((e) => e.target === 'bale').map((e) => [e.a, e.t, e.dmg])).toEqual([[walled, 0, 40], [walled, 1.5, 40], [walled, 3, 40]]);
+    expect(of(r.events, 'swing').find((e) => e.a === walled)!.t).toBe(4.5);
+    expect(of(r.events, 'swing').find((e) => e.a === squad[1].id)!.t).toBe(0);
+    expect(of(r.events, 'swing').some((e) => e.a === 'tilly' && e.b === walled && e.t < 3)).toBe(true);
+  });
+
+  it('Hostile Takeover: mid-fight, 2 guards switch sides and turn on their old crew, but never a Loyal one', () => {
+    const preston = fighter('def', 'clubs', { ...tough, id: 'preston', nerve: 1000 });
+    const squad = [fighter('att', 'clubs', { ...tough, trait: 'Loyal' }), ...many(4, 'att', 'clubs', tough)];
+    const r = runBattle(fight({ attackers: squad, defenders: [preston], objective: 'shakedown', bossMoves: [{ t: 6, by: 'preston', type: 'takeover', count: 2 }] }), { seed: 1 });
+    const turned = of(r.events, 'turn');
+    expect(turned.map((e) => [e.t, e.side])).toEqual([[6, 'def'], [6, 'def']]);
+    const ids = turned.map((e) => e.a);
+    expect(ids).not.toContain(squad[0].id);
+    const mine = squad.map((f) => f.id).filter((id) => !ids.includes(id));
+    for (const id of ids) {
+      const swings = of(r.events, 'swing').filter((e) => e.a === id);
+      expect(swings.filter((e) => e.t < 6).every((e) => e.b === 'preston')).toBe(true);
+      expect(swings.filter((e) => e.t >= 6).every((e) => mine.includes(e.b))).toBe(true);
+      expect(swings.some((e) => e.t >= 6)).toBe(true);
+    }
+    expect(of(r.events, 'swing').some((e) => mine.includes(e.a) && ids.includes(e.b))).toBe(true);
+  });
+
+  it('Old Money: the cane knocks the nearest guard\'s weapon away, and the Stewards come in mid-fight', () => {
+    const vera = fighter('def', 'clubs', { ...tough, id: 'vera', nerve: 1000 });
+    const stewards = many(2, 'def', 'clubs', { ...tough, nerve: 1000 });
+    const squad = many(3, 'att', 'hatchets', tough);
+    const r = runBattle(fight({
+      attackers: squad, defenders: [vera], objective: 'shakedown',
+      bossMoves: [{ t: 3, by: 'vera', type: 'cane' }, { t: 6, by: 'vera', type: 'call', fighters: stewards }],
+    }), { seed: 1 });
+    expect(of(r.events, 'boss').map((e) => [e.t, e.move])).toEqual([[3, 'cane'], [6, 'call']]);
+    const drop = of(r.events, 'drop');
+    expect(drop.map((e) => e.t)).toEqual([3]);
+    const swings = of(r.events, 'swing').filter((e) => e.a === drop[0].a);
+    expect(swings.filter((e) => e.t < 3).every((e) => e.dmg === WEAPONS.hatchets.hit)).toBe(true);
+    expect(swings.filter((e) => e.t >= 3).every((e) => e.dmg === WEAPONS.fists.hit)).toBe(true);
+    expect(of(r.events, 'at').filter((e) => e.t === 6).map((e) => e.a)).toEqual(stewards.map((f) => f.id));
+    const theirs = of(r.events, 'swing').filter((e) => stewards.some((f) => f.id === e.a));
+    expect(theirs.length).toBeGreaterThan(0);
+    expect(theirs.every((e) => e.t >= 6)).toBe(true);
+  });
+
+  it('a boss knocked out before their move never makes it', () => {
+    const brock = fighter('def', 'clubs', { id: 'brock', hp: 10, nerve: 1000 });
+    const r = runBattle(fight({
+      attackers: many(3, 'att', 'hatchets', tough), defenders: [brock, fighter('def', 'fists', { ...tough, nerve: 1000 })], objective: 'shakedown',
+      bossMoves: [{ t: 3, by: 'brock', type: 'rush', count: 3, stun: 4 }],
+    }), { seed: 1 });
+    expect(of(r.events, 'ko').find((e) => e.a === 'brock')!.t).toBeLessThan(3);
+    expect(of(r.events, 'boss')).toEqual([]);
+    expect(of(r.events, 'stun')).toEqual([]);
+  });
+
+  it('at FizzCo Tower Preston turns 2 guards who aren\'t Loyal, and an all-Loyal squad stays together', () => {
+    const turns = (loyal: boolean) => {
+      let n = 0, wrong = 0;
+      for (const seed of [1, 2, 3, 4, 5]) {
+        const s = hqGame('fizzco', 12, 'hatchets', 'pro', 4, seed);
+        s.guards.forEach((g, i) => { g.trait = loyal || i % 2 ? 'Loyal' : 'Smooth Talker'; });
+        const r = stormHQ(s, 'fizzco', s.guards.map((g) => g.id));
+        const room = r ? r.reports.find((x) => x.hq === 'boss') : undefined;
+        for (const e of room ? of(room.events, 'turn') : []) { n++; if (s.guards.find((g) => g.id === e.a)!.trait === 'Loyal') wrong++; }
+      }
+      return { n, wrong };
+    };
+    const mixed = turns(false);
+    expect(mixed.n).toBeGreaterThan(0);
+    expect(mixed.wrong).toBe(0);
+    expect(turns(true).n).toBe(0);
+  });
+
+  it('a siege has worn the HQ down: the Gate at its HP left, Yard elites benched, Stewards added', () => {
+    const s = hqGame('sourwood', 12, 'hatchets', 'pro', 5);
+    const squad = hqSquad(s, 'sourwood', s.guards.map((g) => g.id));
+    const rng = { seed: 9 };
+    const siege = { gateHp: 1500, benched: 3, stewards: 2 };
+    expect(hqStageInput(s, 'sourwood', 'gate', squad, rng).standHp).toBe(HQS.sourwood.gate);
+    expect(hqStageInput(s, 'sourwood', 'gate', squad, rng, siege).standHp).toBe(1500);
+    expect(hqStageInput(s, 'sourwood', 'yard', squad, rng, siege).defenders).toHaveLength(HQS.sourwood.yard - 3);
+    expect(hqStageInput(s, 'sourwood', 'boss', squad, rng, siege).defenders).toHaveLength(2 + Math.ceil(HQS.sourwood.tier / 2) + 2);
   });
 });
 

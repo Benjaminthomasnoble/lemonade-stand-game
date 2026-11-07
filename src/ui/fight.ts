@@ -30,5 +30,6 @@ export function fightBar(k: FightKit, s: GameState): string {
         ? `<button class="cl-b go" data-action="bell" data-raid="${raid}" data-testid="fight-bell" title="The Clubhouse reserve in range runs over">Ring the Bell</button>` : '')
       + (st.fallBack ? btn('fallBack', 'Fall back', true, 'Everyone retreats with the KO\'d. The fight is lost.', 'ghost') : '')
     : '';
-  return `<div class="cl-daybar" data-testid="fight" title="${st.up.att} vs ${st.up.def} standing">${st.side === 'def' ? k.ART.shield() : k.ART.raid()}${k.tape(`<b>${clock(st.clock)}</b>${st.hq ? ` ${STAGE[st.hq]}` : ''}`)}<span class="cl-acts">${acts}</span></div>`;
+  const move = st.bossMove ? ` <b data-testid="fight-boss-move">${st.bossMove}!</b>` : ''; // the Boss Room's move, as it goes off
+  return `<div class="cl-daybar" data-testid="fight" title="${st.up.att} vs ${st.up.def} standing">${st.side === 'def' ? k.ART.shield() : k.ART.raid()}${k.tape(`<b>${clock(st.clock)}</b>${st.hq ? ` ${STAGE[st.hq]}` : ''}${move}`)}<span class="cl-acts">${acts}</span></div>`;
 }

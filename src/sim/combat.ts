@@ -21,6 +21,7 @@
 // and takes commands at given times (Rally, Fall Back, fighters joining), so a
 // live fight can be paused, steered and re-run from (input, seed, commands).
 // runBattle is the same fight run straight to the end, for odds and tests.
+// An HQ Boss Room adds the boss's move, which goes off mid-fight (bossMoves).
 import {
   COMBAT, FENCE_DEFENDER_BONUS, FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, GUARD_BASE, PERIMETERS, WEAPONS,
   type GadgetId, type GearId, type Trait, type WeaponId,
@@ -61,7 +62,25 @@ export interface BattleInput {
   gooseStuns?: number;
   /** Fighters who reach the plot mid-fight (Ring the Bell's reserves): they join at fight-second t. */
   joins?: { t: number; fighters: Fighter[] }[];
+  /** The HQ Boss Room: the boss's move, made mid-fight. */
+  bossMoves?: BossMove[];
 }
+
+/**
+ * A boss's move in the HQ Boss Room (spec "HQ assault"). It goes off at fight-second t if the boss (`by`) is still
+ * standing, and picks on the raiders nearest them. Blender Rush knocks `count` raiders flat for `stun` s; Espresso
+ * Shot makes the boss's crew `boost` faster (swings and steps) for `seconds`; Hay Bale Wall drops a bale of `hp` HP
+ * in front of `count` raiders, who must chop through it while the crew swings over it; Hostile Takeover turns
+ * `count` raiders who aren't Loyal; Old Money calls in `fighters` (Stewards), and the cane knocks one raider's
+ * weapon out of their hands (fists from there on).
+ */
+export type BossMove =
+  | { t: number; by: string; type: 'rush'; count: number; stun: number }
+  | { t: number; by: string; type: 'espresso'; seconds: number; boost: number }
+  | { t: number; by: string; type: 'bales'; count: number; hp: number }
+  | { t: number; by: string; type: 'takeover'; count: number }
+  | { t: number; by: string; type: 'call'; fighters: Fighter[] }
+  | { t: number; by: string; type: 'cane' };
 
 /** What the player can do to a running fight, stamped with the fight-second it acts on. */
 export type FightCommand =
@@ -73,11 +92,14 @@ export type BattleEvent =
   | { t: number; type: 'at'; a: string; x: number; z: number } // where each fighter is at contact
   | { t: number; type: 'move'; a: string; x: number; z: number; speed: number } // from t, walks toward (x, z)
   | { t: number; type: 'swing'; a: string; b: string; dmg: number }
-  | { t: number; type: 'chop'; a: string; target: 'fence' | 'stand'; dmg: number }
+  | { t: number; type: 'chop'; a: string; target: 'fence' | 'stand' | 'bale'; dmg: number } // 'bale': the hay bale in front of a
   | { t: number; type: 'ko'; a: string; by?: string; weapon?: WeaponId | 'fence' } // who landed the knockout blow ('fence': stakes or wire)
   | { t: number; type: 'flee'; a: string }
-  | { t: number; type: 'stun'; a: string; by: 'goose' | 'slick' }
-  | { t: number; type: 'drop'; a: string } // Butterfingers: the weapon goes flying; fists from here on
+  | { t: number; type: 'stun'; a: string; by: 'goose' | 'slick' | 'rush' } // 'rush': Brock's charge knocks them flat
+  | { t: number; type: 'drop'; a: string } // Butterfingers (or Vera's cane): the weapon goes flying; fists from here on
+  | { t: number; type: 'boss'; a: string; move: BossMove['type'] } // the boss makes their move (its effects follow)
+  | { t: number; type: 'bale'; a: string; hp: number } // a hay bale of hp HP stands in front of raider a (0: chopped through)
+  | { t: number; type: 'turn'; a: string; side: Side } // Hostile Takeover: a now fights for that side
   | { t: number; type: 'breach' }
   | { t: number; type: 'grab' }
   | { t: number; type: 'rally'; side: Side } // Rally: that side's Nerve is up for 10 s
@@ -91,6 +113,7 @@ export interface BattleResult {
   koed: string[]; // fighter ids knocked out
   fled: string[];
   hatchetKos: string[]; // knocked out by a hatchet blow: Out 2 days instead of 1
+  hpLeft: Record<string, number>; // each fighter's HP at the end, by id (0 when knocked out): an HQ squad carries it on
   duration: number; // fight-seconds (game minutes)
   events: BattleEvent[];
   fellBack?: Side; // that side retreated, carrying its KO'd (nobody of theirs left behind)
@@ -142,11 +165,12 @@ interface Live {
   out: boolean;
   ran: boolean;
   dropOn: number; // Butterfingers: the weapon slips on this swing (0: it never does)
+  bale: number; // HP of the hay bale in front of them (Hay Bale Wall): they chop it before anything else
   swings: number;
   goal: string; // what they're walking toward, so each new leg is announced once
 }
 
-type Hit = { to: Live | 'fence' | 'stand'; dmg: number; by: Live | null };
+type Hit = { to: Live | 'fence' | 'stand' | 'bale'; dmg: number; by: Live | null };
 
 /** Shoulder-to-shoulder spots along a line: the middle first, then out to either side. */
 const slotX = (k: number) => (k % 2 ? -1 : 1) * Math.ceil(k / 2) * COMBAT.spacing;
@@ -190,7 +214,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   const speedOf = (f: Fighter) => f.speed ?? C.speed;
   const mk = (f: Fighter, rank: number): Live => ({
     f, side: f.side, rank, hp: f.hp, hit: f.hit, chop: f.chop, weapon: f.weapon, speed: speedOf(f),
-    x: 0, z: 0, arrive: 0, here: f.side === 'def', pace: 0, cd: 0, stun: 0, out: false, ran: false, dropOn: 0, swings: 0, goal: '',
+    x: 0, z: 0, arrive: 0, here: f.side === 'def', pace: 0, cd: 0, stun: 0, out: false, ran: false, dropOn: 0, bale: 0, swings: 0, goal: '',
   });
   const att = input.attackers.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineA; return u; });
   const def = input.defenders.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineD; return u; });
@@ -220,8 +244,12 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     return best;
   };
   const inReach = (u: Live, x: number, z: number) => dist(u, x, z) <= C.reach + EPS;
+  // Espresso Shot: a side swings and steps faster until a given fight-second.
+  const haste: Record<Side, { until: number; mult: number }> = { att: { until: -1, mult: 1 }, def: { until: -1, mult: 1 } };
+  const quick = (u: Live, t: number) => (t < haste[u.side].until - EPS ? haste[u.side].mult : 1);
   /** How fast they cover ground right now: a raider inside Barbed Wire's band goes at 70%. */
-  const paceOf = (u: Live) => (u.side === 'att' && wireSlow && Math.abs(u.z - C.fenceAt) < C.wireBand - EPS ? u.speed * (1 - wireSlow) : u.speed);
+  const paceOf = (u: Live, t: number) =>
+    (u.side === 'att' && wireSlow && Math.abs(u.z - C.fenceAt) < C.wireBand - EPS ? u.speed * (1 - wireSlow) : u.speed) * quick(u, t);
   /**
    * Close in on (x, z) until it's within reach, announcing each new leg (and each change of pace) once; true when
    * within reach. Behind a standing fence a defender can only move along it (z stays put).
@@ -230,7 +258,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     if (inReach(u, x, z)) return true;
     const tz = alongFence ? u.z : z;
     const d = dist(u, x, tz);
-    const pace = paceOf(u);
+    const pace = paceOf(u, t);
     const go = Math.min(pace * STEP, Math.max(0, d - (alongFence ? 0 : C.reach * 0.9)));
     if (u.goal !== goal || Math.abs(u.pace - pace) > EPS) {
       u.goal = goal;
@@ -240,16 +268,18 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     if (d > EPS) { u.x += ((x - u.x) / d) * go; u.z += ((tz - u.z) / d) * go; }
     return inReach(u, x, z);
   };
-  /** Butterfingers: the weapon slips on this swing, and they finish on fists (still scaled by level and traits). */
+  /** The weapon goes flying, and they finish on fists (still scaled by level and traits). */
+  const disarm = (u: Live, t: number) => {
+    u.hit *= WEAPONS.fists.hit / WEAPONS[u.weapon].hit;
+    u.chop *= WEAPONS.fists.chop / WEAPONS[u.weapon].chop;
+    u.weapon = 'fists';
+    events.push({ t, type: 'drop', a: u.f.id });
+  };
+  /** A swing: Butterfingers may let the weapon slip on it. The next comes 1.5 s later (sooner on an Espresso Shot). */
   const swingWith = (u: Live, t: number) => {
     u.swings++;
-    if (u.dropOn && u.swings === u.dropOn && u.weapon !== 'fists') {
-      u.hit *= WEAPONS.fists.hit / WEAPONS[u.weapon].hit;
-      u.chop *= WEAPONS.fists.chop / WEAPONS[u.weapon].chop;
-      u.weapon = 'fists';
-      events.push({ t, type: 'drop', a: u.f.id });
-    }
-    u.cd = GUARD_BASE.swing;
+    if (u.dropOn && u.swings === u.dropOn && u.weapon !== 'fists') disarm(u, t);
+    u.cd = GUARD_BASE.swing / quick(u, t);
   };
 
   const koed: string[] = [], hatchetKos: string[] = [];
@@ -282,6 +312,19 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     queue.splice(i, 0, c);
   };
   for (const j of input.joins ?? []) enqueue({ t: Math.max(0, j.t), type: 'join', fighters: j.fighters });
+  const joinIn = (fighters: Fighter[], t: number) => {
+    for (const f of fighters) {
+      if (fellBack === f.side) continue; // that side has given the fight up: they turn back
+      const team = f.side === 'att' ? att : def;
+      const u = mk(f, team.length);
+      u.x = slotX(team.length);
+      u.z = f.side === 'att' ? lineA : lineD;
+      if (f.side === 'att') u.arrive = t; // raiders still come in through the arrivals (and the gadgets)
+      team.push(u);
+      events.push({ t, type: 'at', a: f.id, x: round3(u.x), z: round3(u.z) });
+      butterfingers(u);
+    }
+  };
   const apply = (c: FightCommand, t: number) => {
     if (c.type === 'rally') {
       rallyUntil[c.side] = t + FIGHT_BUTTONS.rally.seconds;
@@ -291,17 +334,51 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       fellBack = c.side;
       events.push({ t, type: 'fallBack', side: c.side });
       for (const u of c.side === 'att' ? att : def) if (up(u)) goHome(u, t);
-    } else {
-      for (const f of c.fighters) {
-        if (fellBack === f.side) continue; // that side has given the fight up: they turn back
-        const team = f.side === 'att' ? att : def;
-        const u = mk(f, team.length);
-        u.x = slotX(team.length);
-        u.z = f.side === 'att' ? lineA : lineD;
-        if (f.side === 'att') u.arrive = t; // raiders still come in through the arrivals (and the gadgets)
-        team.push(u);
-        events.push({ t, type: 'at', a: f.id, x: round3(u.x), z: round3(u.z) });
-        butterfingers(u);
+    } else joinIn(c.fighters, t);
+  };
+
+  // ---- the boss's move (HQ Boss Room) ----
+  const moves = [...(input.bossMoves ?? [])].sort((a, b) => a.t - b.t);
+  /** Hostile Takeover: they cross over, and fight for the other side from here on. */
+  const turn = (u: Live, t: number) => {
+    const from = u.side === 'att' ? att : def;
+    const to = u.side === 'att' ? def : att;
+    from.splice(from.indexOf(u), 1);
+    u.side = u.side === 'att' ? 'def' : 'att';
+    u.rank = to.length;
+    u.here = true;
+    u.bale = 0;
+    u.goal = '';
+    to.push(u);
+    events.push({ t, type: 'turn', a: u.f.id, side: u.side });
+  };
+  const bossMove = (m: BossMove, t: number) => {
+    const b = [...att, ...def].find((u) => u.f.id === m.by);
+    if (!b || !up(b)) return; // knocked out (or gone) before they could
+    // Who it picks on: the raiders on the field nearest the boss.
+    const foes = (b.side === 'att' ? def : att).filter((u) => up(u) && (u.side === 'def' || u.here));
+    const nearestFirst = foes.sort((p, q) => dist(b, p.x, p.z) - dist(b, q.x, q.z) || p.rank - q.rank);
+    events.push({ t, type: 'boss', a: b.f.id, move: m.type });
+    switch (m.type) {
+      case 'rush':
+        for (const u of nearestFirst.slice(0, m.count)) { u.stun = Math.max(u.stun, m.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'rush' }); }
+        break;
+      case 'espresso':
+        haste[b.side] = { until: t + m.seconds, mult: 1 + m.boost };
+        break;
+      case 'bales':
+        for (const u of nearestFirst.slice(0, m.count)) { u.bale = m.hp; events.push({ t, type: 'bale', a: u.f.id, hp: m.hp }); }
+        break;
+      case 'takeover':
+        for (const u of nearestFirst.filter((u) => u.f.trait !== 'Loyal').slice(0, m.count)) turn(u, t);
+        break;
+      case 'call':
+        joinIn(m.fighters.map((f) => ({ ...f, side: b.side })), t);
+        break;
+      case 'cane': {
+        const u = nearestFirst.find((u) => u.weapon !== 'fists');
+        if (u) disarm(u, t);
+        break;
       }
     }
   };
@@ -327,6 +404,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       if (honks > 0) { honks--; u.stun = Math.max(u.stun, C.goose.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'goose' }); }
       if (slips > 0) { slips--; u.stun = Math.max(u.stun, C.slick.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'slick' }); }
     }
+    while (moves.length && moves[0].t <= t + EPS) bossMove(moves.shift()!, t);
     if (!isUp(att)) return end(t);
     const fenceUp = !breached;
     const defUp = isUp(def);
@@ -350,7 +428,10 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       if (u.stun > EPS) { u.stun = Math.max(0, u.stun - STEP); continue; }
       const ready = u.cd <= EPS;
       if (u.side === 'att') {
-        if (fenceUp) {
+        if (u.bale > EPS) {
+          // Walled in by a hay bale: chop through it first, while the crew swings over it.
+          if (ready) { swingWith(u, t); hits.push({ to: 'bale', dmg: u.chop * attMult, by: u }); }
+        } else if (fenceUp) {
           // Raiders can't reach the guards or the stand until the perimeter is down: chop.
           if (ready) { swingWith(u, t); hits.push({ to: 'fence', dmg: u.chop * attMult, by: u }); }
         } else {
@@ -379,6 +460,11 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       if (h.to === 'fence') {
         fence -= h.dmg;
         events.push({ t, type: 'chop', a: h.by!.f.id, target: 'fence', dmg: round1(h.dmg) });
+      } else if (h.to === 'bale') {
+        const u = h.by!;
+        u.bale -= h.dmg;
+        events.push({ t, type: 'chop', a: u.f.id, target: 'bale', dmg: round1(h.dmg) });
+        if (u.bale <= EPS) { u.bale = 0; events.push({ t, type: 'bale', a: u.f.id, hp: 0 }); }
       } else if (h.to === 'stand') {
         stand = Math.max(0, stand - h.dmg);
         events.push({ t, type: 'chop', a: h.by!.f.id, target: 'stand', dmg: round1(h.dmg) });
@@ -425,6 +511,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
       koed,
       fled: [...att, ...def].filter((u) => u.ran).map((u) => u.f.id),
       hatchetKos,
+      hpLeft: Object.fromEntries([...att, ...def].map((u) => [u.f.id, Math.max(0, u.hp)])),
       duration: over ? duration : n * STEP,
       events,
       ...(fellBack ? { fellBack } : {}),

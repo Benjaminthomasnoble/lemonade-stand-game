@@ -333,11 +333,28 @@ export function targetScore(s: GameState, attacker: RivalId, plotId: string): nu
   return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
 }
 
+/** Is a plot near a faction's turf: in a district where it holds land (or its home), or in one bordering those? */
+const nearTurf = (turf: Set<string>, p: Plot) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d));
+/** Highest targetScore first, ties to the lower plot id: one fixed order, so the Corkboard and the raids agree. */
+const byScore = (s: GameState, attacker: RivalId) => (a: Plot, b: Plot) => targetScore(s, attacker, b.id) - targetScore(s, attacker, a.id) || a.id.localeCompare(b.id);
+
+/**
+ * The likeliest target of `attacker`'s next raid on `victim` (spec: "the weakest valuable stand near their turf,
+ * meaning the highest value divided by defense"): the victim's building with the best targetScore in a district where
+ * the attacker holds land or one bordering those, or the victim's best anywhere when nothing of theirs is near.
+ * Deterministic, so the Rivals Corkboard pins exactly what the raid goes for.
+ */
+export function likeliestTarget(s: GameState, attacker: RivalId, victim: FactionId = 'player'): Plot | null {
+  const turf = turfOf(s, attacker);
+  const theirs = PLOTS.filter((p) => s.plots[p.id].owner === victim && targetScore(s, attacker, p.id) > 0);
+  const near = theirs.filter((p) => nearTurf(turf, p));
+  return (near.length ? near : theirs).sort(byScore(s, attacker))[0] ?? null;
+}
+
 /** Rival-versus-rival targets: Grudge picks the faction (the one the attacker is angriest with, if any), then the weakest valuable building of theirs near the attacker's turf. */
 export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
   const turf = turfOf(s, attacker);
-  const near = (p: Plot) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d));
-  const score = (p: Plot) => targetScore(s, attacker, p.id);
+  const near = (p: Plot) => nearTurf(turf, p);
   const anger = (p: Plot) => grudgeToward(s, attacker, s.plots[p.id].owner!);
   const targets = PLOTS.filter((p) => {
     const o = s.plots[p.id].owner;
@@ -345,7 +362,7 @@ export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
   });
   const top = Math.max(0, ...targets.map(anger));
   const pool = top > 0 ? targets.filter((p) => anger(p) === top) : targets;
-  return pool.sort((a, b) => score(b) - score(a) || a.id.localeCompare(b.id))[0] ?? null;
+  return pool.sort(byScore(s, attacker))[0] ?? null;
 }
 
 // ---------- Grow: stand upgrades and land ----------
@@ -696,11 +713,15 @@ export function signatureRaids(s: GameState): Raid[] {
       const size = raid.party.length;
       const raider = pickRaider(s, rng, size);
       if (!raider) continue; // every boss is broke tonight
+      const target = likeliestTarget(s, raider)?.id ?? raid.target; // the weakest valuable stand near their turf: the Corkboard's pin
       if (raider !== attacker) {
         s.seed = rng.seed;
         raid.party = raidPartyFor(s, raider).slice(0, size);
         rng.seed = s.seed;
         raid.attacker = raider;
+      }
+      if (raider !== attacker || target !== raid.target) {
+        raid.target = target;
         if (raid.leave !== undefined) { // the night clock: they set out at the same minute, from their own turf
           raid.at = raid.leave + travelMinutes(s, raidStart(s, raider, raid.target), raid.target);
           raid.eta = hhmm(raid.at);

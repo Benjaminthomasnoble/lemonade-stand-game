@@ -7,7 +7,7 @@ import {
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
-  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND,
+  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -858,6 +858,61 @@ describe('rival start holdings', () => {
     const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field').slice(0, 3);
     for (const p of fields) s.plots[p.id].owner = 'player';
     expect(groveTraffic(s)).toBeCloseTo(MAX_GROVES * GROVE_TRAFFIC, 5);
+  });
+});
+
+describe('likeliest targets near their turf', () => {
+  /** Lottie also holds a stand on a Hilltop street: far richer than her Corner, and far from the Blenders. */
+  function hilltop(seed: number) {
+    const s = newGame(seed);
+    const h = PLOTS.find((p) => p.district === 'hilltop' && p.type === 'street' && !s.plots[p.id].owner)!.id;
+    s.plots[h] = { ...s.plots[h], owner: 'player', stand: newStand(1, 1), invested: STAND_LEVELS[0].cost };
+    return { s, h };
+  }
+
+  it('pin the weakest valuable stand near the raider\'s turf: a richer stand far away is passed over', () => {
+    const { s, h } = hilltop(90);
+    expect(targetScore(s, 'blenders', h)).toBeGreaterThan(targetScore(s, 'blenders', LOTTIES_CORNER));
+    expect(likeliestTarget(s, 'blenders')!.id).toBe(LOTTIES_CORNER); // Maple Row borders the Blenders' Old Town stand
+    expect(likeliestTarget(s, 'sourwood')!.id).toBe(h); // Hilltop is Vera's home
+    s.plots[LOTTIES_CORNER].stand = null; // nothing of yours near the Blenders: your best anywhere
+    s.plots[LOTTIES_CORNER].facility = undefined;
+    expect(likeliestTarget(s, 'blenders')!.id).toBe(h);
+    s.plots[h].stand = null;
+    expect(likeliestTarget(s, 'blenders')).toBeNull(); // nothing left to raid
+  });
+
+  it('value over defense, ties to the lower plot id, the same rule against a rival', () => {
+    const s = newGame(91);
+    const [a, b] = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).slice(0, 2).map((p) => p.id);
+    for (const id of [a, b]) s.plots[id] = { ...s.plots[id], owner: 'player', stand: newStand(1, 1), invested: 50_000, landValue: 1000 };
+    expect(likeliestTarget(s, 'coldbrew')!.id).toBe([a, b].sort()[0]);
+    s.plots[[a, b].sort()[0]].defense.tier = 1; // a fence on it
+    expect(likeliestTarget(s, 'coldbrew')!.id).toBe([a, b].sort()[1]);
+    const pin = likeliestTarget(s, 'blenders', 'hollis')!;
+    expect(s.plots[pin.id].owner).toBe('hollis');
+    expect(pin.type).not.toBe('hq');
+    expect(likeliestTarget(s, 'blenders', 'hollis')).toEqual(pin); // the same pin every time
+  });
+
+  it('a night raid on you goes for the raider\'s pin, setting out on the night clock from its own turf', () => {
+    const raidBy = (rival: RivalId) => {
+      const { s, h } = hilltop(92);
+      s.day = 20;
+      s.rank = 3;
+      pastTutorial(s);
+      for (const id of RIVALS) budgetOf(s, id).strike = 0;
+      s.rivals[rival].cash = 1e7;
+      budgetOf(s, rival).strike = 1e6;
+      const raid = nightsUntilRaid(s)!;
+      expect(raid.attacker).toBe(rival);
+      expect(raid.target).toBe(likeliestTarget(s, rival)!.id);
+      if (raid.leave !== undefined) expect(raid.at).toBe(raid.leave + travelMinutes(s, raidStart(s, rival, raid.target), raid.target));
+      return { raid, h };
+    };
+    expect(raidBy('blenders').raid.target).toBe(LOTTIES_CORNER);
+    const vera = raidBy('sourwood');
+    expect(vera.raid.target).toBe(vera.h);
   });
 });
 

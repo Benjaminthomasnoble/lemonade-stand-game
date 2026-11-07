@@ -52,6 +52,12 @@ export const RAID_WAGE_NIGHTS = 1;
  * 20 when they win and 8 when they fail (fightRaid); breaking a truce adds 25 with every rival.
  */
 export const GRUDGE = { raided: 10, smashed: 10, land: 15, outbid: 10, cool: 1, feud: 50 };
+/**
+ * A boss's Attention on you: Threat (per lemon), shared borders (per district of yours on or beside their turf),
+ * the customers you take (your share of the cups sold on their turf today) and Grudge (per point). The keenest
+ * boss who can pay sends the raid; `jitter` lets near-ties go either way (placeholders: the spec gives no weights).
+ */
+export const ATTENTION = { threat: 1, border: 0.5, customers: 3, grudge: 0.1, jitter: 1 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addGrudge, bankTakings, budgetOf, crewAtDawn, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades, LOTTIES_CORNER, migrateSave, newGame,
-  ownedPlots, planNight, plotBuyout, raidCost, reserveOf, rivalDawn, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
+  addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
+  LOTTIES_CORNER, migrateSave, newGame, newStand, ownedPlots, planNight, plotBuyout, PLOTS, raidCost, reserveOf, rivalDawn, sharedBorders,
+  STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -217,5 +218,41 @@ describe('rival grudges', () => {
     s.news = [];
     addGrudge(s, 'coldbrew', 'fizzco', GRUDGE.feud);
     expect(s.news.some((n) => n.includes('feud'))).toBe(true);
+  });
+});
+
+describe('rival attention', () => {
+  it('rises with Threat, shared borders, the customers you take and Grudge', () => {
+    const s = newGame(17);
+    const base = attentionOf(s, 'blenders');
+    s.rank = 5; // Threat 3
+    expect(attentionOf(s, 'blenders')).toBeCloseTo(base + 2 * ATTENTION.threat, 5);
+    const pier = PLOTS.find((p) => p.district === 'boardwalk' && !s.plots[p.id].owner && p.type === 'street')!;
+    const borders = sharedBorders(s, 'blenders');
+    s.plots[pier.id] = { ...s.plots[pier.id], owner: 'player', stand: newStand(1) };
+    expect(sharedBorders(s, 'blenders')).toBe(borders + 1);
+    const withBorder = attentionOf(s, 'blenders');
+    expect(withBorder).toBeGreaterThan(base + 2 * ATTENTION.threat);
+    s.plots[pier.id].stand!.day.customers = 300;
+    expect(customersTaken(s, 'blenders')).toBe(1); // they sold nothing today
+    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + ATTENTION.customers, 5);
+    s.rivals.blenders.grudge = 40;
+    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + ATTENTION.customers + 40 * ATTENTION.grudge, 5);
+  });
+
+  it('the boss with the most Attention sends the raid, and the next-angriest goes when they are broke', () => {
+    const s = newGame(18);
+    s.day = 20;
+    s.rank = 3;
+    pastTutorial(s);
+    s.rivals.blenders.grudge = 100;
+    s.rivals.coldbrew.grudge = 60;
+    const raiders = new Set<string>();
+    for (let i = 0; i < 6; i++) { const raid = nightsUntilRaid(s); if (raid) raiders.add(raid.attacker); }
+    expect([...raiders]).toEqual(['blenders']);
+    budgetOf(s, 'blenders').strike = 0;
+    raiders.clear();
+    for (let i = 0; i < 6; i++) { const raid = nightsUntilRaid(s); if (raid) raiders.add(raid.attacker); }
+    expect([...raiders]).toEqual(['coldbrew']);
   });
 });

@@ -10,7 +10,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, rivalPrice } from './economy.ts';
 import {
-  GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS,
+  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import { hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
@@ -167,8 +167,7 @@ function coolGrudges(s: GameState, id: RivalId): void {
 
 /** Rival-versus-rival targets: Grudge picks the faction (the one the attacker is angriest with, if any), then the weakest valuable building of theirs near the attacker's turf. */
 export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
-  const turf = new Set<string>(PLOTS.filter((p) => s.plots[p.id].owner === attacker).map((p) => p.district));
-  turf.add(FACTIONS[attacker].home);
+  const turf = turfOf(s, attacker);
   const near = (p: Plot) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d));
   const score = (p: Plot) => {
     const ps = s.plots[p.id];
@@ -246,7 +245,7 @@ export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   growUpgrades(s, id);
   growLand(s, id, rng);
   r.held = ownedPlots(s, id).map((p) => p.id);
-  r.attention = threatLevel(s) + (r.grudge > 30 ? 1 : 0);
+  r.attention = attentionOf(s, id);
 }
 
 // ---------- Guard: defenses and crew ----------
@@ -272,6 +271,43 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   }
 }
 
+// ---------- Attention: who comes for you ----------
+
+/** Districts a rival holds land in, plus its home. */
+function turfOf(s: GameState, id: RivalId): Set<string> {
+  const turf = new Set<string>(PLOTS.filter((p) => s.plots[p.id].owner === id).map((p) => p.district));
+  turf.add(FACTIONS[id].home);
+  return turf;
+}
+
+/** Districts where you hold land on or beside a rival's turf. */
+export function sharedBorders(s: GameState, id: RivalId): number {
+  const turf = turfOf(s, id);
+  const mine = new Set(PLOTS.filter((p) => s.plots[p.id].owner === 'player').map((p) => p.district));
+  return [...mine].filter((d) => turf.has(d) || BORDERS[d].some((e) => turf.has(e))).length;
+}
+
+/** Your share of the cups sold on a rival's turf today (0..1): the customers you take from them. */
+export function customersTaken(s: GameState, id: RivalId): number {
+  const turf = turfOf(s, id);
+  let mine = 0, theirs = 0;
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (!ps.stand || !turf.has(p.district)) continue;
+    if (ps.owner === 'player') mine += ps.stand.day.customers;
+    else if (ps.owner === id) theirs += ps.stand.day.customers;
+  }
+  return mine + theirs > 0 ? mine / (mine + theirs) : 0;
+}
+
+/** A boss's Attention on you (spec: How rivals think): it rises with Threat, shared borders, the customers you take and Grudge. */
+export function attentionOf(s: GameState, id: RivalId): number {
+  if (!s.rivals[id].alive) return 0;
+  const a = ATTENTION.threat * threatLevel(s) + ATTENTION.border * sharedBorders(s, id)
+    + ATTENTION.customers * customersTaken(s, id) + ATTENTION.grudge * s.rivals[id].grudge;
+  return Math.round(a * 10) / 10;
+}
+
 // ---------- Strike: who raids, and what it costs ----------
 
 /** A raid costs the rival a night's wages for each henchman it sends, at the strength it sends them. */
@@ -287,12 +323,12 @@ export function raidWeight(s: GameState, id: RivalId): number {
   return Math.max(0.1, r.attention);
 }
 
-/** The boss who sends tonight's raid on the player: the keenest one whose Strike can pay for it. A broke boss is skipped and the next one goes. */
+/** The boss who sends tonight's raid on the player: the one with the most Attention whose Strike can pay for it. A broke boss is skipped and the next-angriest goes. */
 export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null {
   let best: RivalId | null = null;
   let top = -Infinity;
   for (const id of RIVALS) {
-    const keen = raidWeight(s, id) + nextRandom(rng); // near-ties go either way
+    const keen = raidWeight(s, id) + nextRandom(rng) * ATTENTION.jitter; // near-ties go either way
     if (raidWeight(s, id) <= 0 || !canSpend(s, id, 'strike', raidCost(s, id, size))) continue;
     if (keen > top) { top = keen; best = id; }
   }
@@ -300,8 +336,8 @@ export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null
 }
 
 /**
- * planNight's last line: settle tonight's rival raids. The raid on the player goes to the keenest boss who can
- * pay for it, and every rival raid is paid from its Strike bucket; one nobody can pay for is called off. The
+ * planNight's last line: settle tonight's rival raids. Each boss's Attention is updated from today's trade, and
+ * the raid on the player goes to the keenest boss who can pay for it, and every rival raid is paid from its Strike bucket; one nobody can pay for is called off. The
  * tutorial raid is on the house. A raid on another rival goes where the attacker's Grudge points, and the
  * target's Grudge toward the attacker rises. Returns any extra raids to add (none yet).
  */
@@ -309,6 +345,7 @@ export function signatureRaids(s: GameState): Raid[] {
   const rng = { seed: s.seed };
   const threat = threatLevel(s);
   const tutorial = !s.battles.some((b) => b.defender === 'player');
+  for (const id of RIVALS) s.rivals[id].attention = attentionOf(s, id);
   const kept: Raid[] = [];
   for (const raid of s.raids) {
     const attacker = raid.attacker as RivalId;

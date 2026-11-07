@@ -9,6 +9,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { netWorth, ownedPlots } from './economy.ts';
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
+import { retireJingle } from './radio.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
@@ -341,6 +342,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   }
   if (how === 'bankrupt') s.news.push(`${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.`);
   recoverPage(s, id); // world: their recipe page comes home, on every route
+  retireJingle(s, id); // world: 101.5 retires their jingle with a second of silence
   let sale = 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
-  airedToday, BRAND_TIERS, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
+  airedToday, BANKRUPT_DAYS, BLITZ_PROVIDERS, BRAND_TIERS, eliminate, RIVAL_JINGLES, sleepUntilDawn, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
   PLOT_BY_ID, PLOTS, RADIO_STAND_LEVEL, radioOn, radioToday, sayNumber, SIGN_OFF, simulateRestOfDay, STATION_IDS, tickMinute, toCelsius, weatherTalk,
   type FightNote, type GameState, type RivalId, type TasteOffResult,
 } from './economy.ts';
@@ -16,6 +16,8 @@ function at(s: GameState, minute: number): GameState {
 }
 
 describe('101.5 The Squeeze', () => {
+  afterEach(() => { BLITZ_PROVIDERS.length = 0; });
+
   it('Cal says the numbers and the weather (the spec\'s Scorcher at 97)', () => {
     expect([7, 19, 60, 97, 102, 215].map(sayNumber)).toEqual(['seven', 'nineteen', 'sixty', 'ninety-seven', 'a hundred and two', 'two hundred and fifteen']);
     expect(weatherTalk({ kind: 'scorcher', temp: 97 })).toBe('Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation. Lock up your sugar, Maple Row.');
@@ -156,6 +158,44 @@ describe('101.5 The Squeeze', () => {
     while (s.phase === 'open') tickMinute(s);
     expect(radioOn(s, false)).toBe(false); // the evening: the soundtrack only
     expect(radioOn(s, true)).toBe(true);
+  });
+
+  it("a rival's marketing blitz opens the morning show with its jingle; an eliminated rival's retires with a second of silence", () => {
+    expect(Object.keys(RIVAL_JINGLES).sort()).toEqual([...RIVALS].sort());
+    const s = newGame(39);
+    const show = () => morningShow(s).map((l) => l.text);
+    let on: RivalId[] = [];
+    BLITZ_PROVIDERS.push({ id: 'test', blitzing: () => on });
+    expect(morningShow(s)[0].kind).toBe('id'); // no blitz: the station ID opens
+    on = ['fizzco'];
+    expect(morningShow(s)[0]).toEqual({ minute: OPEN - 1, kind: 'rival', text: 'FizzCo Beverages\' jingle: "Bubbles mean business!"' });
+    expect(morningShow(s)[1].kind).toBe('id');
+    on = ['blenders', 'sourwood'];
+    expect(show().slice(0, 2)).toEqual([
+      'The Sourwood Family\'s jingle: "Some families are simply better."',
+      'The Boardwalk Blenders\' jingle: "Smoothies so big they need a lifeguard!"',
+    ]);
+    // The Blenders go out after today's show (their HQ falls tonight): tomorrow's show opens with a second of silence, once,
+    // and their jingle never plays again.
+    openStand(s);
+    simulateRestOfDay(s);
+    eliminate(s, 'blenders', 'hq');
+    const sleep = () => { s.raids = []; s.cash = Math.max(s.cash, 1000); if (!sleepUntilDawn(s)) throw new Error('no dawn'); };
+    sleep();
+    expect(morningShow(s)[0]).toMatchObject({ kind: 'silence', text: "[One second of silence: The Boardwalk Blenders' jingle is off the air for good.]" });
+    expect(show()[1]).toBe('The Sourwood Family\'s jingle: "Some families are simply better."');
+    expect(show().join(' ')).not.toContain('lifeguard');
+    s.phase = 'report';
+    sleep();
+    expect(morningShow(s).some((l) => l.kind === 'silence')).toBe(false);
+    // Gone bust at dawn, before the show airs: the silence opens that morning's show.
+    on = [];
+    s.rivals.coldbrew.cash = -1e9;
+    s.rivals.coldbrew.brokeDays = BANKRUPT_DAYS - 1;
+    s.phase = 'report';
+    sleep();
+    expect(s.rivals.coldbrew.alive).toBe(false);
+    expect(show()[0]).toBe("[One second of silence: The Cold Brew Collective's jingle is off the air for good.]");
   });
 
   it('the HUD ticket carries the morning show and turns through it in place; All day keeps it on', () => {

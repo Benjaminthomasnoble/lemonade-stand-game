@@ -4,9 +4,11 @@
 // money, never takes sides, and signs off "Stay sweet, Citrine Bay." With the Radio Jingle (M3), Benny Buzz's spot ending
 // "Get Lottie's!" airs in every Morning Prep show and again at 12:00, followed by Cal's 2-day forecast. In Act 1, Brock
 // swears revenge live on air the evening Lottie's takes his Strawberry page. It plays in Morning Prep, from the radio on
-// your L3+ stands while they're open, and all day as the optional soundtrack. Text-first: the HUD prints the lines (the
-// voices and the three-note chime are the audio thread's). Pure: the show is read off the state; nothing is saved and
-// nothing draws from the seed.
+// your L3+ stands while they're open, and all day as the optional soundtrack. During a rival's marketing blitz its jingle
+// opens the morning show, so the radio tips you off; an eliminated rival's jingle retires with one second of on-air
+// silence at the top of the next morning show. Text-first: the HUD prints the lines (the voices, the jingles' leitmotifs,
+// the three-note chime and the second of dead air are the audio thread's). The show is read off the state and nothing
+// draws from the seed; the one thing saved is when each rival's jingle retired (retireJingle, from eliminate()).
 import { BRAND_TIERS, CLOSE, FACTIONS, OPEN, RADIO_STAND_LEVEL, type RivalId, type WeatherKind } from './balance.ts';
 import { PLOT_BY_ID, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
@@ -14,8 +16,11 @@ import { playerStands } from './economy.ts';
 import { storyFairs, tasteOffResult } from './calendar.ts';
 import { bugleNews, lookAhead, marketLines, marketText, type FightNote } from './media.ts';
 import { kidsDay } from './happenings.ts';
+import { worldOf } from './recipes.ts';
 
-export type RadioKind = 'id' | 'news' | 'weather' | 'jingle' | 'forecast' | 'ad' | 'gossip' | 'fight' | 'break' | 'live' | 'signoff';
+/** jingle: Lottie's spot; rival: a rival's jingle (a blitz); silence: the second of dead air for a retired rival's jingle. */
+export type RadioKind = 'id' | 'news' | 'weather' | 'jingle' | 'forecast' | 'ad' | 'gossip' | 'fight' | 'break' | 'live' | 'signoff'
+  | 'rival' | 'silence';
 /** A line on air: the minute it airs (the Morning Prep show goes out just before opening), what it is, and the words. */
 export interface RadioLine { minute: number; kind: RadioKind; text: string }
 
@@ -25,6 +30,14 @@ export const STATION_IDS = ['All killer, no pulp.', "You're squeezed in with Cal
 export const SIGN_OFF = 'Stay sweet, Citrine Bay.';
 /** Benny Buzz's 10-second spot on the theme's first two bars, ending "Get Lottie's!" (spec). placeholder: spec gap (the words before it) */
 export const JINGLE = 'Benny Buzz\'s spot: "Sunshine in a cup, on a corner near you. Get Lottie\'s!"';
+/** Each rival's jingle tag, sung in its leitmotif style (spec). */
+export const RIVAL_JINGLES: Record<RivalId, string> = {
+  sourwood: 'Some families are simply better.',
+  hollis: 'Brewed slow, stirred with a ladle!',
+  fizzco: 'Bubbles mean business!',
+  coldbrew: "You probably haven't heard of us.",
+  blenders: 'Smoothies so big they need a lifeguard!',
+};
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const TEAM: Record<RivalId, string> = { sourwood: 'the Sourwoods', hollis: 'Hollis Sweet Tea', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'the Blenders' };
@@ -36,6 +49,37 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const end = (t: string) => (/[.!?]["']?$/.test(t) ? t : `${t}.`);
 /** The Radio Jingle (M3) is on the air. */
 const jingleOn = (s: GameState) => s.brandTier >= BRAND_TIERS[2].tier;
+const whose = (r: RivalId) => (FACTIONS[r].name.endsWith('s') ? `${FACTIONS[r].name}'` : `${FACTIONS[r].name}'s`);
+
+// ---------- the rivals' jingles ----------
+
+/**
+ * Who is on a marketing blitz today, from each system that runs one. Seam: the rivals lane's ad blitz (FizzCo's Hostile
+ * Takeover, design-spec "Rival schemes") registers here with one push; none is on main yet, so no jingle opens the show.
+ */
+export const BLITZ_PROVIDERS: { id: string; blitzing: (s: GameState) => RivalId[] }[] = [];
+
+/** The rivals on a marketing blitz today, still in business. */
+export function blitzingToday(s: GameState): RivalId[] {
+  const on = new Set(BLITZ_PROVIDERS.flatMap((p) => p.blitzing(s)));
+  return RIVALS.filter((r) => on.has(r) && s.rivals[r]?.alive);
+}
+
+/** eliminate(), on every route: the rival's jingle retires. The next morning show (today's, if it hasn't aired yet) opens
+ * with a second of silence for it. */
+export function retireJingle(s: GameState, rival: RivalId): void {
+  (worldOf(s).jinglesOff ??= {})[rival] = s.phase === 'prep' ? s.day : s.day + 1;
+}
+
+/** The top of the morning show: a second of silence for each jingle retired since the last show, then the jingle of each
+ * rival on a blitz. */
+function openers(s: GameState, line: (kind: RadioKind, text: string) => RadioLine): RadioLine[] {
+  const off = s.world?.jinglesOff ?? {};
+  return [
+    ...RIVALS.filter((r) => off[r] === s.day).map((r) => line('silence', `[One second of silence: ${whose(r)} jingle is off the air for good.]`)),
+    ...blitzingToday(s).map((r) => line('rival', `${whose(r)} jingle: "${RIVAL_JINGLES[r]}"`)),
+  ];
+}
 
 // ---------- how Cal says things ----------
 
@@ -95,12 +139,14 @@ function sponsor(s: GameState, n: number): string {
 
 // ---------- the show ----------
 
-/** The Morning Prep show: a station ID, the Bugle's headline and briefs, the weather, the Jingle and Cal's 2-day forecast
- * (M3), and the sign-off. celsius: the °C option (Cal says the Celsius numbers). */
+/** The Morning Prep show: a retired jingle's second of silence and a blitzing rival's jingle first, then a station ID, the
+ * Bugle's headline and briefs, the weather, the Jingle and Cal's 2-day forecast (M3), and the sign-off. celsius: the °C
+ * option (Cal says the Celsius numbers). */
 export function morningShow(s: GameState, celsius = false): RadioLine[] {
   const paper = bugleNews(s);
   const line = (kind: RadioKind, text: string): RadioLine => ({ minute: OPEN - 1, kind, text });
   return [
+    ...openers(s, line),
     line('id', STATION_IDS[s.day % STATION_IDS.length]),
     line('news', `Front page of the Bugle: ${end(paper.headline[0])} ${end(paper.headline[1])}`),
     ...paper.briefs.map((b) => line('news', `Also in the paper: ${end(inCelsius(b, celsius))}`)),

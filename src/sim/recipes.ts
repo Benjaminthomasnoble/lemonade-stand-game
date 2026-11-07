@@ -41,6 +41,7 @@ export interface WorldState {
   fights?: FightNote[]; // the latest fights, rival-vs-rival included, for the paper and the radio
   newsMark?: [number, string]; // where s.news stood at closing: the morning wire is what came after (media.ts)
   shamed?: number; // the last day you raided a kid stand (Kids' Lemonade Day): Lottie's respect, lost (story reads it)
+  jinglesOff?: Partial<Record<RivalId, number>>; // 101.5: eliminated rivals' retired jingles, the morning show that airs the silence (radio.ts)
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */

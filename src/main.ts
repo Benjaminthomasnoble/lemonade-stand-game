@@ -13,7 +13,7 @@ import {
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk,
-  announceControl, placeBid, withdrawBid,
+  announceControl, listPlot, placeBid, unlistPlot, withdrawBid,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { waitAt } from './sim/clubhouse.ts';
@@ -664,6 +664,8 @@ async function main() {
       case 'kidRaid': if (raidKidStand(state, a.plot)) lottieSays('raidLost', { react: 'fist', text: KIDS_RAID_LINE, ms: 4500 }); break;
       case 'bid': placeBid(state, a.plot, a.amount); break;
       case 'unbid': withdrawBid(state, a.plot); break;
+      case 'listPlot': listPlot(state, a.plot); break;
+      case 'unlistPlot': unlistPlot(state, a.plot); break;
       case 'refresh': break;
     }
     announceControl(state); // any land that changed hands: Majority and Full Control headlines

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bidGuess, bidSteps, canBid, canBuyPlot, closeAuctions, eliminate, FACTIONS, hqPlot, newGame, newStand, NO_DEFENSE, offerSideLot,
-  openAuction, ownedPlots, placeBid, PLOTS, sleepUntilDawn, withdrawBid, type DistrictId, type GameState, type Guard, type RivalId,
+  bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, hqPlot, listPlot, LOTTIES_CORNER, newGame,
+  newStand, NO_DEFENSE, offerSideLot, openAuction, ownedPlots, placeBid, PLOTS, sleepUntilDawn, unlistPlot, withdrawBid,
+  type DistrictId, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -210,5 +211,75 @@ describe('knock it down, buy it up: First Dibs, then the auction', () => {
     for (let i = 0; i < 7; i++) dawn(t);
     expect(t.plots[lot.id].dibs).toBeUndefined();
     expect(t.plots[lot.id].auction).toBeUndefined();
+  });
+});
+
+describe('selling a plot', () => {
+  /** Lottie's L2 stand on an Old Town plot, with a fence and a guard posted. */
+  function stall(seed: number) {
+    const s = newGame(seed);
+    const lot = street(s, 'oldtown');
+    s.plots[lot.id] = { owner: 'player', stand: newStand(2), invested: 550, landValue: 10000, defense: { tier: 1, fenceHp: 200, gadgets: [] } };
+    const guard: Guard = { id: 'gs', name: 'Sale Guard', trait: 'Loyal', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: lot.id, outUntil: 0, fee: 0 };
+    s.guards.push(guard);
+    return { s, id: lot.id, guard };
+  }
+
+  it('lists a plot for sealed bids from land value; the top rival bid pays Lottie and takes the plot, stand and fence', () => {
+    const { s, id, guard } = stall(60);
+    purse(s, { sourwood: 1e6, fizzco: 1e6, hollis: 1e6, coldbrew: 1e6, blenders: 1e6 }); // every rival has a Foothold in Old Town
+    expect(listPlot(s, id)).toBe(true);
+    expect(s.plots[id].auction).toEqual({ kind: 'listing', closes: s.day + 1, min: 10000 });
+    expect(canBid(s, id, 20000).ok).toBe(false); // no bidding on your own plot
+    const cash = s.cash;
+    s.day++;
+    closeAuctions(s);
+    const buyer = s.plots[id].owner as RivalId;
+    expect(buyer).not.toBe('player');
+    expect(buyer).toBeTruthy();
+    const paid = 1e6 - s.rivals[buyer].cash;
+    expect(s.cash - cash).toBe(paid);
+    expect(paid).toBeGreaterThanOrEqual(10000);
+    expect(s.plots[id].stand?.level).toBe(2); // the building goes with the plot
+    expect(s.plots[id].defense.tier).toBe(1);
+    expect(guard.post).toBeNull();
+    expect(s.news.at(-1)).toContain('SOLD!');
+  });
+
+  it('keeps the plot when nobody bids, and can be taken back before dawn', () => {
+    const a = stall(61);
+    purse(a.s, {});
+    listPlot(a.s, a.id);
+    a.s.day++;
+    closeAuctions(a.s);
+    expect(a.s.plots[a.id].owner).toBe('player');
+    expect(a.s.plots[a.id].auction).toBeUndefined();
+    expect(a.s.news.at(-1)).toContain('No takers');
+    listPlot(a.s, a.id);
+    expect(unlistPlot(a.s, a.id)).toBe(true);
+    expect(a.s.plots[a.id].auction).toBeUndefined();
+  });
+
+  it("won't list Lottie's Corner, a Trophy or a smashed building", () => {
+    const { s, id } = stall(62);
+    expect(canListPlot(s, LOTTIES_CORNER)).toEqual({ ok: false, why: "Lottie's Corner stays in the family" });
+    s.plots[hqPlot('blenders').id].owner = 'player';
+    expect(canListPlot(s, hqPlot('blenders').id)).toEqual({ ok: false, why: 'A Trophy is never sold' });
+    s.plots[id].stand!.wrecked = true;
+    expect(canListPlot(s, id)).toEqual({ ok: false, why: 'Rebuild it first' });
+  });
+
+  it('a sale listed on the last day In the Red settles at dawn, before the deadline', () => {
+    const { s, id } = stall(63);
+    purse(s, { fizzco: 1e6, sourwood: 1e6, hollis: 1e6, coldbrew: 1e6, blenders: 1e6 });
+    s.cash = -500;
+    s.redDays = 3; // the third red dawn: one more and the Cookie Jar (or the end) comes
+    s.cookieJar = ['act1'];
+    listPlot(s, id);
+    dawn(s);
+    expect(s.plots[id].owner).not.toBe('player');
+    expect(s.cash).toBeGreaterThan(0);
+    expect(s.redDays).toBe(0);
+    expect(s.outcome).toBeUndefined();
   });
 });

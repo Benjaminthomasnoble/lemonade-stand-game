@@ -3,7 +3,7 @@
 // label and the sealed-bid controls. Plain markup with the shared clay classes;
 // hud.ts mounts it and every button goes through hud's one click listener.
 import {
-  bidCost, bidGuess, bidSteps, canBid, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, familySilver, majorityDiscount,
+  bidCost, bidGuess, bidSteps, canBid, canListPlot, controlTier, LOTTIES_CORNER, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, familySilver, majorityDiscount,
   missingPlots, nextTier, PLOT_BY_ID, TIER_EFFECTS, TIER_NAMES, tierAtLeast, type Blocker, type GameState,
 } from '../sim/economy.ts';
 
@@ -79,4 +79,18 @@ export function auctionControls(s: GameState, plotId: string): string {
     <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
     <span class="cl-acts">${bids}${a.bid !== undefined ? btn('unbid', '✕', { ok: true }, `data-plot="${plotId}" title="Take your bid back"`, 'ghost tiny') : ''}</span>
     ${a.bid !== undefined ? `<span class="cl-note">Your bid: ${whole(a.bid)}</span>` : ''}`;
+}
+
+/** Your plot: put it on the block (sealed bids from land value until dawn), or pull it back off. */
+export function listingControls(s: GameState, plotId: string): string {
+  const ps = s.plots[plotId];
+  if (ps.owner !== 'player' || plotId === LOTTIES_CORNER || PLOT_BY_ID[plotId].type === 'hq') return '';
+  const guess = bidGuess(s, plotId);
+  if (ps.auction?.kind === 'listing') {
+    return `<span class="cl-note good" title="Sealed bids from ${whole(ps.auction.min)}. The top bid's cash is yours at dawn, and the plot goes with what's on it. No bids: it stays yours." data-testid="listed">On the block: sells at dawn</span>
+      <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
+      ${btn('unlistPlot', 'Take it back', { ok: true }, `data-plot="${plotId}"`, 'ghost')}`;
+  }
+  const b = canListPlot(s, plotId);
+  return btn('listPlot', `Sell from ${whole(ps.landValue)}`, b, `data-plot="${plotId}" data-testid="list-plot"${b.ok ? ` title="Sealed bids open at land value and close at dawn. The plot goes with what's built on it, and posted guards head to the Clubhouse."` : ''}`, 'ghost');
 }

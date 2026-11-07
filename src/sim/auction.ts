@@ -5,12 +5,12 @@
 // pays what it bid, and the plot changes hands with whatever stands on it.
 // Pure functions over GameState, seeded like the rest of the sim.
 import { AUCTION, BUILDING_VALUE_SHARE, FACTIONS, type RivalId } from './balance.ts';
-import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
+import { BORDERS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
 import { FIRE_SALE, familySilver, HQS } from './rivals.ts';
-import { NO_DEFENSE } from './crew.ts';
+import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
 
@@ -89,6 +89,35 @@ export function placeBid(s: GameState, plotId: string, amount: number): boolean 
   return true;
 }
 
+// ---------- selling: list a plot of yours ----------
+
+export function canListPlot(s: GameState, plotId: string): Blocker {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player') return { ok: false, why: 'Not your plot' };
+  if (plotId === LOTTIES_CORNER) return { ok: false, why: "Lottie's Corner stays in the family" };
+  if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'A Trophy is never sold' };
+  if (ps.auction) return { ok: false, why: 'Already on the block' };
+  if (isWrecked(ps)) return { ok: false, why: ps.busted ? 'Fix it first' : 'Rebuild it first' };
+  return { ok: true };
+}
+
+/** Put a plot up for a 24-hour sealed-bid auction, bids from its land value. It keeps working until it sells. */
+export function listPlot(s: GameState, plotId: string): boolean {
+  if (!canListPlot(s, plotId).ok) return false;
+  const ps = s.plots[plotId];
+  ps.auction = { kind: 'listing', closes: s.day + 1, min: ps.landValue };
+  s.news.push(`Skip Larkin: "${PLOT_BY_ID[plotId].name} is on the block! Sealed bids open at ${money(ps.landValue)} and close at dawn."`);
+  return true;
+}
+
+export function unlistPlot(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player' || ps.auction?.kind !== 'listing') return false;
+  delete ps.auction;
+  s.news.push(`Skip Larkin: "Pulled ${PLOT_BY_ID[plotId].name} off the block. Your call, boss."`);
+  return true;
+}
+
 export function withdrawBid(s: GameState, plotId: string): boolean {
   const a = s.plots[plotId]?.auction;
   if (a?.bid === undefined) return false;
@@ -159,6 +188,7 @@ function settle(s: GameState, plotId: string, rng: Rng): void {
   const a = ps.auction!;
   const name = PLOT_BY_ID[plotId].name;
   delete ps.auction;
+  if (a.kind === 'listing') { sell(s, plotId, a, rng); return; }
   if (ps.owner) return; // someone took it some other way; nothing to sell
   const bids: Bid[] = [];
   if (a.bid !== undefined) {
@@ -190,4 +220,28 @@ function settle(s: GameState, plotId: string, rng: Rng): void {
     s.news.push(`Skip Larkin: "Outbid on ${name}. ${FACTIONS[id].name} went to ${money(win.amount)}."`);
     if (id === 'fizzco') s.news.push(`${HQS.fizzco.boss}, on the car phone: "Sealed bid, open checkbook. FizzCo always closes, kid."`);
   }
+}
+
+/** A plot Lottie listed: the rivals bid; the top bid's cash comes to her and the plot goes with what's built on it. */
+function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
+  const ps = s.plots[plotId];
+  const p = PLOT_BY_ID[plotId];
+  if (ps.owner !== 'player') return; // lost some other way meanwhile
+  if (isWrecked(ps)) { s.news.push(`Skip Larkin: "Nobody bids on a smashed plot. ${p.name} is still yours."`); return; }
+  const bids: Bid[] = [];
+  for (const id of RIVALS) {
+    if (!s.rivals[id].alive) continue;
+    const amount = rivalBid(s, id, plotId, a, rng);
+    if (amount >= a.min) bids.push({ who: id, amount });
+  }
+  const win = topBid(bids);
+  if (!win) { s.news.push(`Skip Larkin: "No takers for ${p.name} at ${money(a.min)}. It's still yours."`); return; }
+  const id = win.who as RivalId;
+  s.rivals[id].cash -= win.amount;
+  s.cash = round2(s.cash + win.amount); // ledger: land sale
+  for (const g of s.guards) if (g.post === plotId) g.post = null; // posted guards go back to the Clubhouse
+  ps.owner = id;
+  ps.garrison = 0;
+  if (ps.stand) { ps.stand.price = rivalPrice(id, ps.stand.level, p); ps.stand.autoRestock = false; ps.stand.campaigns = {}; }
+  s.news.push(`Skip Larkin: "SOLD! ${FACTIONS[id].name} pay ${money(win.amount)} for ${p.name}."`);
 }

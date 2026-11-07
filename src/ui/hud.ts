@@ -47,7 +47,7 @@ import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
 import { createRaidPlanner } from './raidPlanner.ts';
-import { auctionControls, landNotes, priceTip } from './registry.ts';
+import { auctionControls, landNotes, listingControls, priceTip } from './registry.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -128,6 +128,8 @@ export type Action =
   | { type: 'storyOffer'; accept: boolean } // Act 3: Preston's Truce offer at Dot's
   | { type: 'bid'; plot: string; amount: number }
   | { type: 'unbid'; plot: string }
+  | { type: 'listPlot'; plot: string }
+  | { type: 'unlistPlot'; plot: string }
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -397,7 +399,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'storyOffer': onAction({ type: 'storyOffer', accept: d.accept === '1' }); break;
       case 'bid': onAction({ type: 'bid', plot: d.plot!, amount: Number(d.amount) }); break;
-      case 'unbid': onAction({ type: 'unbid', plot: d.plot! }); break;
+      case 'unbid': case 'listPlot': case 'unlistPlot': onAction({ type: d.action, plot: d.plot! }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -745,6 +747,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
+    if (ps.owner === 'player') actions += listingControls(s, id);
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good" title="Only you can buy it ${ps.dibs.until > s.day ? `through day ${ps.dibs.until}` : 'today'}">${ps.dibs.price !== undefined ? `${ps.dibs.table ? 'Side lot' : 'Fire Sale'} ${whole(plotPrice(s, id))}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>

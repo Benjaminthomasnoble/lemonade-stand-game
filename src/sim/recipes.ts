@@ -12,6 +12,7 @@ import { hasTrophy } from './rivals.ts';
 import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
 import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
+import { provideKidsGoal } from './happenings.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -39,6 +40,7 @@ export interface WorldState {
   paper?: Newsroom; // the Bugle's notes from this dawn (media.ts)
   fights?: FightNote[]; // the latest fights, rival-vs-rival included, for the paper and the radio
   newsMark?: [number, string]; // where s.news stood at closing: the morning wire is what came after (media.ts)
+  shamed?: number; // the last day you raided a kid stand (Kids' Lemonade Day): Lottie's respect, lost (story reads it)
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
@@ -62,6 +64,7 @@ export function migrateWorld(s: GameState): GameState {
     if (h && h !== 'harpTeacher' && s.rivals[h] && !s.rivals[h].alive) grantPage(s, id, true);
   }
   if (!w.tasteOff && s.phase !== 'report') setupTasteOff(s); // loaded on a Taste-Off morning
+  provideKidsGoal(); // Kids' Lemonade Day's goal on Lottie's card (happenings.ts)
   return s;
 }
 

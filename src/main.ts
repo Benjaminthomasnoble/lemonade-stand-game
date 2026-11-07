@@ -17,7 +17,7 @@ import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, clockText, frontPage, isVip } from './sim/economy.ts';
+import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
@@ -545,6 +545,7 @@ async function main() {
         break;
       }
       case 'forgive': forgiveSquawk(state, a.plot); break;
+      case 'kidRaid': if (raidKidStand(state, a.plot)) lottieSays('raidLost', { react: 'fist', text: KIDS_RAID_LINE, ms: 4500 }); break;
       case 'refresh': break;
     }
     storyAfterAct(state); // a goal met by this tap ticks off now

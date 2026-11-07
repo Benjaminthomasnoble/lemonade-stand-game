@@ -5,9 +5,13 @@ import {
   LOTTIES_CORNER, mainSegment, marketLines, newGame, newStand, openStand, plannedWeather, PLOT_BY_ID, PLOTS, RANDOM_EVENTS, registerEvent, scorcherKeep,
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
   forgiveSquawk, iceMachineOn, machineIce, stock,
-  type DistrictId, type EventDef, type GameState, type Season, type WorldEvent,
+  bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
+  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL,
+  type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
 } from './economy.ts';
-import { eventTickets } from '../ui/events.ts';
+import { nextRandom } from './rng.ts';
+import { eventTickets, kidStandCard } from '../ui/events.ts';
+import { goalsNow } from './goals.ts';
 
 /** Jump to a day's Morning Prep through the real dawn (with cash to spare: these tests skip the business days). */
 function dawn(s: GameState, day: number): void {
@@ -37,16 +41,19 @@ function only(...ids: string[]): void {
 }
 const saved: EventDef[] = [];
 const chance = { ...HEAT_WAVE.chance };
+const kidsChance = KIDS_DAY.chance;
 afterEach(() => {
   for (const id of added.splice(0)) delete EVENT_DEFS[id];
   for (const d of saved.splice(0)) EVENT_DEFS[d.id] = d;
   Object.assign(HEAT_WAVE.chance, chance);
+  KIDS_DAY.chance = kidsChance;
 });
 
-/** A quiet Day 7 game: nothing rolls on its own (Heat Waves off too), so a test brings its own event. */
+/** A quiet Day 7 game: nothing rolls on its own (Heat Waves and Kids' Lemonade Day off too), so a test brings its own event. */
 function quietGame(seed: number): GameState {
   only();
   for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
+  KIDS_DAY.chance = 0;
   const s = newGame(seed);
   dawnsTo(s, 7);
   return s;
@@ -519,5 +526,181 @@ describe('Captain Squawk', () => {
     while (t.minute < f.at!) tickMinute(t);
     expect(liveEvent(t, 'captainSquawk')).toBeUndefined(); // called off
     expect(EVENT_DEFS.captainSquawk.kind).toBe('harmful');
+  });
+});
+
+describe("Kids' Lemonade Day", () => {
+  it('is planned in Summer only, on a weekday between season days 3 and 12: at most once a year', () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(weekday)).toEqual([true, true, true, true, true, false, false, true]); // Day 1 is a Monday
+    const s = newGame(70);
+    const plan = EVENT_DEFS.kidsDay.plan!;
+    KIDS_DAY.chance = 1;
+    const year = SEASON_DAYS * SEASONS.length;
+    for (const start of [1, 1 + year, 1 + 2 * year]) {
+      s.day = start;
+      const days = new Set<number>();
+      for (let seed = 1; seed <= 60; seed++) days.add(plan(s, { seed }, 'summer')!);
+      for (const d of days) {
+        expect(weekday(d)).toBe(true);
+        expect(d - start + 1).toBeGreaterThanOrEqual(KIDS_DAY.window[0]);
+        expect(d - start + 1).toBeLessThanOrEqual(KIDS_DAY.window[1]);
+        expect(d).toBeGreaterThanOrEqual(EVENTS.firstDay);
+      }
+      expect(days.size).toBeGreaterThan(3);
+      for (const season of ['fall', 'winter', 'spring'] as Season[]) expect(plan(s, { seed: 5 }, season)).toBeNull();
+    }
+    KIDS_DAY.chance = 0;
+    s.day = 1;
+    expect(plan(s, { seed: 5 }, 'summer')).toBeNull();
+  });
+
+  it('comes once each Summer through the real dawns', () => {
+    only();
+    for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
+    KIDS_DAY.chance = 1;
+    const s = newGame(71);
+    const year = SEASON_DAYS * SEASONS.length;
+    dawnsTo(s, SEASON_DAYS + 1);
+    dawn(s, year);
+    dawnsTo(s, year + SEASON_DAYS + 1);
+    const seen = eventsOf(s).past.filter((p) => p.id === 'kidsDay').map((p) => p.from).sort((a, b) => a - b);
+    expect(seen.length).toBe(2);
+    expect(seen[0]).toBeLessThanOrEqual(SEASON_DAYS);
+    expect(seen[1]).toBeGreaterThan(year);
+    for (const d of seen) expect(weekday(d)).toBe(true);
+  });
+
+  it('puts a kid stand in every district, the one where you sell within 2 plots of your stand', () => {
+    const s = quietGame(72);
+    const e = force(s, 'kidsDay');
+    expect(e.live).toBe(true);
+    expect(EVENT_DEFS.kidsDay.kind).toBe('mixed'); // never holds back a harmful event
+    expect(e.kids!.length).toBe(DISTRICTS.length * KIDS_DAY.perDistrict);
+    expect(new Set(e.kids!.map((k) => PLOT_BY_ID[k].district)).size).toBe(DISTRICTS.length);
+    const next = kidStandsAt(s, LOTTIES_CORNER);
+    expect(next.length).toBe(1);
+    expect(nearbyPlots(PLOT_BY_ID[LOTTIES_CORNER]).map((p) => p.id)).toContain(next[0]);
+    expect(s.news).toContain("KIDS' LEMONADE DAY! Kid stands pop up on sidewalks all over the bay. Lottie: leave them alone until dusk.");
+    expect(bugleHeadline(s)).toEqual(["KIDS' LEMONADE DAY!", 'Kid stands all over the bay']);
+    const card = eventTickets(s).join('');
+    expect(card).toContain('data-event="kidsDay"');
+    expect(card).toContain(`data-action="goto" data-plot="${next[0]}"`);
+    const far = PLOTS.find((p) => p.district === 'hilltop' && !e.kids!.some((k) => nearbyPlots(p).some((q) => q.id === k)));
+    if (far) expect(kidStandsAt(s, far.id)).toEqual([]);
+    dawn(s, s.day + 1);
+    expect(kidsDay(s)).toBeUndefined();
+    expect(kidStandsAt(s, LOTTIES_CORNER)).toEqual([]);
+  });
+
+  it('a kid stand splits the walkers near it like any stand: with the rival stands there, their appeal share, at most 35%', () => {
+    const s = quietGame(73);
+    const p = PLOT_BY_ID[LOTTIES_CORNER];
+    const seg: SegmentId = 'kids';
+    const street = () => streetAt(s, p, (id) => appealFor(s, id, seg));
+    const idle = { seed: 9 };
+    const plain = street();
+    expect(kidStandSale(s, p, idle, 'families', plain)).toBe(plain); // no Kids' Day: the street as it was, nothing drawn
+    expect(idle.seed).toBe(9);
+    force(s, 'kidsDay');
+    s.phase = 'open';
+    const kids = kidStandsAt(s, p.id);
+    const theirs = kids.reduce((t, k) => t + kidAppeal(k, seg), 0);
+    /** The odds a walker goes to the kids, and to rival stands: the non-own side's appeal share, capped, split by appeal. */
+    const odds = (st: Street) => {
+      const others = st.rivalTotal + theirs;
+      const share = Math.min(RIVAL_SHARE_CAP, others / (st.ownTotal + others));
+      return { kids: (share * theirs) / others, rivals: (share * st.rivalTotal) / others };
+    };
+    /** n walkers past Lottie's: how many go to the kids, and to rival stands (chooseOn's first draw). */
+    const walk = (st: Street, n: number) => {
+      const rng = { seed: 123 };
+      let toKids = 0, toRivals = 0;
+      for (let i = 0; i < n; i++) {
+        const w = kidStandSale(s, p, rng, seg, st);
+        if ('type' in w) toKids++;
+        else if (w.rivals.length && nextRandom(rng) < w.share) toRivals++;
+      }
+      return { kids: toKids / n, rivals: toRivals / n, went: toKids };
+    };
+    const here = street();
+    const want = odds(here);
+    expect(want.kids).toBeGreaterThan(0.1);
+    const before = s.today.walkedPast.rival;
+    const got = walk(here, 3000);
+    expect(Math.abs(got.kids - want.kids)).toBeLessThan(0.03);
+    expect(Math.abs(got.rivals - want.rivals)).toBeLessThan(0.03);
+    expect(kidsDay(s)!.took).toBe(got.went); // yours: counted as walked past to a rival
+    expect(s.today.walkedPast.rival - before).toBe(got.went);
+    // In a crowded rival block the kids join the rivals' side: together they still take 35%, split by appeal.
+    const block: Street = { ...here, rivals: [{ id: 'rival', a: { ...here.home.a, appeal: 2 * here.ownTotal } }], rivalTotal: 2 * here.ownTotal, share: RIVAL_SHARE_CAP };
+    const crowd = walk(block, 4000);
+    expect(Math.abs(crowd.kids + crowd.rivals - RIVAL_SHARE_CAP)).toBeLessThan(0.03);
+    expect(Math.abs(crowd.kids - odds(block).kids)).toBeLessThan(0.02);
+    expect(kidAppeal(LOTTIES_CORNER, 'kids')).toBeCloseTo(1.25, 9); // a Folding Table at $0.50, well under Maple Row's L1 ceiling: +25%
+  });
+
+  it("takes walkers through a real day, and the goal on Lottie's card fills to dusk and pays", () => {
+    const s = quietGame(74);
+    const e = force(s, 'kidsDay');
+    const goal = 'Leave the kid stands alone until dusk';
+    expect(kidsDayGoal(s)).toEqual({ text: goal, progress: 0, done: false });
+    expect(goalsNow(s)[1]).toMatchObject({ text: goal, story: true, slot: 'medium' }); // it steps into the medium slot
+    stockUp(s, LOTTIES_CORNER);
+    openStand(s);
+    while (s.minute < (OPEN + CLOSE) / 2) tickMinute(s);
+    expect(kidsDayGoal(s)!.progress).toBeCloseTo(0.5, 2);
+    simulateRestOfDay(s);
+    expect(kidsDayGoal(s)).toEqual({ text: goal, progress: 1, done: true });
+    expect(s.goals!.done).toContain(`${KIDS_GOAL}:${goal}`); // ticked off at closing, and paid
+    expect(s.news.some((n) => n.startsWith(`✓ ${goal} +$`))).toBe(true);
+    expect(e.took).toBeGreaterThan(20);
+    expect(s.plots[LOTTIES_CORNER].stand!.day.walkedPast.rival).toBeGreaterThanOrEqual(e.took!);
+    expect(kidStandCard(s, e.kids![0])).toBe(''); // packed up at dusk
+    expect(canRaidKids(s, e.kids![0])).toEqual({ ok: false, why: 'Raids unlock at Rank 3' });
+    s.rank = RAID_RANK;
+    expect(canRaidKids(s, e.kids![0])).toEqual({ ok: false, why: 'They packed up at dusk' });
+    dawn(s, s.day + 1);
+    expect(kidsDayGoal(s)).toBeNull();
+    expect(goalsNow(s)[1].text).not.toBe(goal);
+    force(s, 'kidsDay'); // next year's: a new goal, shown and paid again
+    expect(s.goals!.done).not.toContain(`${KIDS_GOAL}:${goal}`);
+    expect(goalsNow(s)[1].text).toBe(goal);
+  });
+
+  it("a raid costs 0.5 star, tomorrow's front page and Lottie's respect, and the Raid Planner shows it in red first", () => {
+    const s = quietGame(75);
+    const e = force(s, 'kidsDay');
+    const kid = kidStandsAt(s, LOTTIES_CORNER)[0];
+    expect(canRaidKids(s, kid)).toEqual({ ok: false, why: `Raids unlock at Rank ${RAID_RANK}` });
+    expect(kidStandCard(s, kid)).toContain('data-testid="kid-stand"');
+    expect(kidStandCard(s, kid)).not.toContain('kid-raid'); // hidden while raids are locked
+    s.rank = RAID_RANK;
+    s.guards = [];
+    expect(canRaidKids(s, kid)).toEqual({ ok: false, why: 'No guards free' });
+    welcomeDex(s);
+    expect(canRaidKids(s, kid)).toEqual({ ok: true });
+    const plain = PLOTS.find((q) => !e.kids!.includes(q.id))!.id;
+    expect(canRaidKids(s, plain)).toEqual({ ok: false, why: 'No kid stand here' });
+    const card = kidStandCard(s, kid);
+    expect(card).toContain(`<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}★, front page, Lottie's respect</span>`);
+    expect(card.indexOf('kid-cost')).toBeLessThan(card.indexOf('Kid stand</b>')); // the cost comes first
+    expect(card).toContain(`data-action="kidRaid" data-plot="${kid}"`);
+    const rep = s.reputation;
+    expect(raidKidStand(s, kid)).toBe(true);
+    expect(s.reputation).toBeCloseTo(Math.max(1, rep - KIDS_DAY.stars), 9);
+    expect(e.raided).toEqual([kid]);
+    expect(kidStandsAt(s, LOTTIES_CORNER)).not.toContain(kid); // its walkers come back
+    expect(s.news).toContain(`Lottie: "${KIDS_RAID_LINE}" (−${KIDS_DAY.stars} star)`);
+    expect(KIDS_RAID_LINE).toBe('We do not rob seven-year-olds in this family. Put the pitcher back.');
+    expect(s.world!.shamed).toBe(s.day);
+    expect(kidsDayGoal(s)).toBeNull(); // the goal's gone, from Lottie's card too
+    expect(goalsNow(s).map((g) => g.text)).not.toContain('Leave the kid stands alone until dusk');
+    expect(raidKidStand(s, kid)).toBe(false);
+    expect(kidStandCard(s, kid)).toContain('Kid stand raided');
+    stockUp(s, LOTTIES_CORNER);
+    openStand(s);
+    simulateRestOfDay(s);
+    dawn(s, s.day + 1);
+    expect(bugleHeadline(s)).toEqual(["GRANDKID RAIDS KIDS' STAND", 'Seven-year-old left in tears']);
   });
 });

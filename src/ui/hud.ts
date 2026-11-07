@@ -42,7 +42,7 @@ import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
-import { eventTickets } from './events.ts';
+import { eventTickets, kidStandCard } from './events.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -112,6 +112,7 @@ export type Action =
   | { type: 'skipScene' }
   | { type: 'sceneReply'; text: string }
   | { type: 'forgive'; plot: string } // Captain Squawk's card: let it go
+  | { type: 'kidRaid'; plot: string } // Kids' Lemonade Day: raid a kid stand (0.5 star, a front page, Lottie's respect)
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -365,7 +366,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;
       case 'loadSlot': onAction({ type: 'loadSlot', slot: Number(d.slot), dawn: d.dawn === '1' }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
-      case 'entry': case 'sponsor': case 'forgive': onAction(worldAction(d)); break;
+      case 'entry': case 'sponsor': case 'forgive': case 'kidRaid': onAction(worldAction(d)); break;
       case 'skipScene': onAction({ type: 'skipScene' }); break;
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
@@ -769,6 +770,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(s, g)); // station guards from the map
+    actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">✕</button></div>

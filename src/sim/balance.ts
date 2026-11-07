@@ -253,6 +253,11 @@ export const TOURIST_BUS_SHARE = 0.7;
 export const FOOD_CRITIC = { stars: 0.1, line: 0.05 };
 /** L4 The Lemon Shack and up make their own ice as they pour, at the Market price, so none melts overnight (spec). */
 export const ICE_MACHINE_LEVEL = 4;
+/** Kids' Lemonade Day: planned most Summers (so at most once a year) on a weekday between season days 3 and 12. One kid stand
+ * per district, beside a plot within 2 of one of your stands where you sell; each has a Folding Table's pull and pours at $0.50.
+ * Raiding one costs 0.5 star (spec), a front page and Lottie's respect.
+ * placeholder: spec gap (the odds, the window, the weekday, one stand per district, the price) */
+export const KIDS_DAY = { chance: 0.75, window: [3, 12] as [number, number], perDistrict: 1, price: 0.5, stars: 0.5 };
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★

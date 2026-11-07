@@ -1,18 +1,23 @@
 // The random events themselves (spec: Events and the living world, Random events), on events.ts's scheduler: the
 // Market shocks (Lemon Blight, Sugar Shortage), the traffic surges (Viral Video, Celebrity Sighting, Parade Route,
-// Roadworks), the Tourist Bus, the Food Critic, the Power Outage that stops the L4+ ice machines, and Captain Squawk.
-// Each names its counter-play, and the Bugle (or 101.5, mid-day) announces it with its district and length. Pure and
-// seeded: every placement draws from the scheduler's rng.
+// Roadworks), the Tourist Bus, the Food Critic, the Power Outage that stops the L4+ ice machines, Captain Squawk, and
+// Kids' Lemonade Day. Each names its counter-play, and the Bugle (or 101.5, mid-day) announces it with its district and
+// length. Pure and seeded: every placement draws from the scheduler's rng.
 import { nextRandom } from './rng.ts';
-import { DISTRICT_BY_ID, DISTRICTS, PLOT_BY_ID, PLOTS, type DistrictId } from './map.ts';
+import { DISTRICT_BY_ID, DISTRICTS, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type Plot } from './map.ts';
 import {
-  EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, ICE_MACHINE_LEVEL, RANDOM_EVENTS, SEGMENTS, SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
+  CLOSE, EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, ICE_MACHINE_LEVEL, KIDS_DAY, OPEN, RAID_RANK, RANDOM_EVENTS, RIVAL_SHARE_CAP, SEGMENTS,
+  SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
 } from './balance.ts';
-import type { GameState, Stand } from './economy.ts';
+import type { Blocker, GameState, Goal, SimEvent, Stand } from './economy.ts';
 import { appealFor, playerStands, stock } from './economy.ts';
-import { shineReason } from './recipes.ts';
-import { registerEvent, type Placement, type WorldEvent } from './events.ts';
-import { eventWhere } from './media.ts';
+import { shineReason, worldOf } from './recipes.ts';
+import { liveEvent, planDay, registerEvent, type Placement, type WorldEvent } from './events.ts';
+import { eventWhere, newsroomNow } from './media.ts';
+import { availableRaiders } from './crew.ts';
+import { ceilingFor, segmentPriceFit, type Street } from './demand.ts';
+import { peaceful } from './modes.ts';
+import { GOAL_PROVIDERS } from './goals.ts';
 
 type Rng = { seed: number };
 const pick = <T>(rng: Rng, xs: T[]): T => xs[Math.min(xs.length - 1, Math.floor(nextRandom(rng) * xs.length))];
@@ -270,4 +275,135 @@ registerEvent({
   dawn: track,
   over: squawkOver,
   headline: (_s, e) => `SQUAWK! Captain Squawk flies off with ${e.stolen} lemons from ${short(e.plots![0])}. Restock; forgive him.`,
+});
+
+// ---------- Kids' Lemonade Day: kid stands split the walkers near them; Lottie says leave them alone until dusk ----------
+
+/** Lottie, as you raid a kid stand (spec: Narrative). */
+export const KIDS_RAID_LINE = 'We do not rob seven-year-olds in this family. Put the pitcher back.';
+/** The game has no week, so Day 1 is a Monday: the 6th and 7th day of every week are the weekend. placeholder: spec gap */
+export const weekday = (day: number) => (day - 1) % 7 < 5;
+/** Today's Kids' Lemonade Day, once it's on. */
+export const kidsDay = (s: GameState): WorldEvent | undefined => liveEvent(s, 'kidsDay');
+
+const SIDEWALKS = new Set(['street', 'prime', 'landmark']);
+
+/** One kid stand per district on a sidewalk: beside a plot within 2 of one of your stands where you sell, anywhere else. */
+function kidPlots(s: GameState, rng: Rng): Placement {
+  const kids: string[] = [];
+  const at = working(s);
+  for (const d of DISTRICTS) {
+    const street = PLOTS.filter((p) => p.district === d.id && SIDEWALKS.has(p.type));
+    const mine = at.filter((id) => PLOT_BY_ID[id].district === d.id);
+    for (let i = 0; i < KIDS_DAY.perDistrict; i++) {
+      const near = i === 0 && mine.length ? nearbyPlots(PLOT_BY_ID[pick(rng, mine)]).filter((p) => SIDEWALKS.has(p.type)) : street;
+      const open = near.filter((p) => !kids.includes(p.id));
+      if (open.length) kids.push(pick(rng, open).id);
+    }
+  }
+  return { kids };
+}
+
+/** The kid stands still up within 2 plots of this one (same street, 2 columns either way), where any stand would compete. */
+export function kidStandsAt(s: GameState, plotId: string): string[] {
+  const e = kidsDay(s);
+  return e?.kids?.length ? kidsNear(e, plotId) : [];
+}
+function kidsNear(e: WorldEvent, plotId: string): string[] {
+  const near = nearbyPlots(PLOT_BY_ID[plotId]);
+  return e.kids!.filter((k) => !e.raided?.includes(k) && near.some((q) => q.id === k));
+}
+
+/** A kid stand's pull on a walker, by appealFor's formula: a Folding Table (curb appeal x1.0) pouring Classic at the kids'
+ * $0.50, priced against an L1 Classic ceiling where it stands, with neutral stars (x1.0). */
+export function kidAppeal(plotId: string, seg: SegmentId): number {
+  return segmentPriceFit(plotId, seg, KIDS_DAY.price, ceilingFor(1, PLOT_BY_ID[plotId].district, 'classic'));
+}
+
+/**
+ * passerby's one call, on the street a walker of plot p walks (demand.ts). Kid stands within 2 plots split it like any
+ * stand: they join the neighbours who aren't the home owner's, so with the rival stands there they take their appeal
+ * share, never more than 35%, and the kids get their part of that. It runs for every walker, so without a kid stand near
+ * it only looks down the running events. Returns the kid stand's sale, or the street to walk on: as it was when no kid
+ * stand is near, else with the rivals' share once the walker has passed the kids, so every stand keeps its exact odds.
+ * Gone to the kids counts as gone to a rival.
+ */
+export function kidStandSale(s: GameState, p: Plot, rng: Rng, seg: SegmentId, street: Street): SimEvent | Street {
+  const e = kidsDay(s);
+  if (!e?.kids?.length) return street;
+  const kids = kidsNear(e, p.id);
+  if (!kids.length) return street;
+  let theirs = 0;
+  for (const k of kids) theirs += kidAppeal(k, seg);
+  const others = street.rivalTotal + theirs;
+  const share = Math.min(RIVAL_SHARE_CAP, others / (street.ownTotal + others));
+  const toKids = (share * theirs) / others;
+  if (nextRandom(rng) >= toKids) return { ...street, share: (share - toKids) / (1 - toKids) };
+  const home = s.plots[p.id];
+  home.stand!.day.walkedPast.rival++;
+  if (home.owner === 'player') {
+    s.today.passersby++;
+    s.today.walkedPast.rival++;
+    e.took = (e.took ?? 0) + 1;
+  }
+  return { type: 'passerby', plot: p.id, at: p.id, segment: seg, buys: false, reason: 'rival', price: KIDS_DAY.price, owner: home.owner! };
+}
+
+/** A kid stand's Raid Planner: raids unlocked, a guard free, the stand still up, before dusk. Rivals never raid one. */
+export function canRaidKids(s: GameState, plotId: string): Blocker {
+  if (peaceful(s)) return { ok: false, why: 'Peaceful: no raids in this Sandbox' };
+  if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}` };
+  const e = kidsDay(s);
+  if (!e?.kids?.includes(plotId) || e.raided?.includes(plotId)) return { ok: false, why: 'No kid stand here' };
+  if (s.phase !== 'prep' && s.phase !== 'open') return { ok: false, why: 'They packed up at dusk' };
+  if (!availableRaiders(s).length) return { ok: false, why: 'No guards free' };
+  return { ok: true };
+}
+
+/** Your crew takes a kid's pitcher: the stand shuts for the day and its walkers come back, for 0.5 star, tomorrow's front page
+ * and Lottie's respect. */
+export function raidKidStand(s: GameState, plotId: string): boolean {
+  if (!canRaidKids(s, plotId).ok) return false;
+  (kidsDay(s)!.raided ??= []).push(plotId);
+  s.reputation = Math.max(1, round2(s.reputation - KIDS_DAY.stars));
+  const w = worldOf(s);
+  (w.paper ??= newsroomNow(s)).scandal = s.day; // the Bugle's front page tomorrow
+  w.shamed = s.day;
+  s.news.push(`Lottie: "${KIDS_RAID_LINE}" (−${KIDS_DAY.stars} star)`);
+  return true;
+}
+
+/**
+ * Lottie's goal on Kids' Lemonade Day: leave them alone until dusk. It steps into the medium slot of Lottie's card for the
+ * day (goals.ts's GOAL_PROVIDERS), wears the page icon and pays like any goal when it's ticked off at closing. Gone once
+ * you raid one.
+ */
+export function kidsDayGoal(s: GameState): Goal | null {
+  const e = kidsDay(s);
+  if (!e || e.raided?.length) return null;
+  const done = s.phase === 'report' || s.phase === 'night';
+  const progress = done ? 1 : s.phase === 'open' ? clamp((s.minute - OPEN) / (CLOSE - OPEN), 0, 1) : 0;
+  return { text: 'Leave the kid stands alone until dusk', progress, done };
+}
+/** The provider's id: Lottie's card names its goal `${id}:${text}`. */
+export const KIDS_GOAL = 'kidsDay';
+/**
+ * Puts Kids' Day's goal on Lottie's card, once. The world's migrate runs it for every new game and load, and a Kids' Day
+ * runs it as it starts; never at import, as goals.ts may still be loading then (it imports the economy, which imports us).
+ */
+export function provideKidsGoal(): void {
+  if (!GOAL_PROVIDERS.some((p) => p.id === KIDS_GOAL)) GOAL_PROVIDERS.push({ id: KIDS_GOAL, slot: 'medium', goal: kidsDayGoal });
+}
+
+registerEvent({
+  id: 'kidsDay', name: "Kids' Lemonade Day", kind: 'mixed', scope: 'bay', when: 'dawn', days: 1,
+  counter: 'Leave them alone until dusk', weight: 0,
+  plan: (s, rng, season) => (season === 'summer' && nextRandom(rng) < KIDS_DAY.chance ? planDay(s, rng, KIDS_DAY.window, 1, weekday) : null),
+  place: kidPlots,
+  start: (s) => { // the goal on Lottie's card; last year's is forgotten, so this one shows and pays
+    provideKidsGoal();
+    if (s.goals) s.goals.done = s.goals.done.filter((id) => !id.startsWith(`${KIDS_GOAL}:`));
+  },
+  bugle: () => ["KIDS' LEMONADE DAY!", 'Kid stands all over the bay'],
+  headline: () => "KIDS' LEMONADE DAY! Kid stands pop up on sidewalks all over the bay. Lottie: leave them alone until dusk.",
 });

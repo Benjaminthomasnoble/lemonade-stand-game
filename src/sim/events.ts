@@ -28,7 +28,8 @@ export interface WorldEvent {
   district?: DistrictId; // where: the district, the street's district, or the named stand's
   plots?: string[]; // a street's plots, or the one named stand
   kids?: string[]; // Kids' Lemonade Day: the plots with a kid stand on the sidewalk beside them
-  raided?: string[]; // ... and the kid stands raided
+  raided?: string[]; // ... the kid stands raided
+  took?: number; // ... and the walkers past your stands who went to a kid stand instead
   low?: number; // Captain Squawk: the fewest lemons the stand has held since the theft (restocked once it holds more; -1 after)
   stolen?: number; // ... and how many he took
   verdict?: number; // the Food Critic's star change, once given at closing
@@ -236,12 +237,16 @@ function planSeason(s: GameState, ev: EventsState, rng: Rng): void {
   }
 }
 
-/** A planned day inside this season's window, never before Day 6 and never so soon the look-ahead misses it. */
-export function planDay(s: GameState, rng: Rng, window: [number, number], days: number): number | null {
+/** A planned day inside this season's window, never before Day 6 and never so soon the look-ahead misses it (and, given a
+ * rule, only on a day it allows: Kids' Lemonade Day's weekday). */
+export function planDay(s: GameState, rng: Rng, window: [number, number], days: number, allows?: (day: number) => boolean): number | null {
   const start = seasonStart(s.day);
   const first = Math.max(start + window[0] - 1, s.day + EVENTS.lookAhead, EVENTS.firstDay);
   const last = start + Math.min(window[1], SEASON_DAYS - days + 1) - 1;
-  return first <= last ? randInt(rng, first, last) : null;
+  if (!allows) return first <= last ? randInt(rng, first, last) : null;
+  const ok: number[] = [];
+  for (let d = first; d <= last; d++) if (allows(d)) ok.push(d);
+  return ok.length ? ok[randInt(rng, 0, ok.length - 1)] : null;
 }
 
 // ---------- the Heat Wave: the weather it brings, and the Scorchers it borrows ----------

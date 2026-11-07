@@ -14,7 +14,7 @@ import {
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
-import { iceMachineOn, machineIce } from './happenings.ts';
+import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
@@ -693,7 +693,8 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   const seg = festivalCrowd(s, rng, p.district) ?? segmentAt(rng, p.district, 8 + hourIdx);
   const home = s.plots[p.id];
   home.stand!.day.passersby++;
-  const { id: chosen, a } = chooseOn(streetFor(s, p, seg), rng);
+  const walk = kidStandSale(s, p, rng, seg, streetFor(s, p, seg)); if ('type' in walk) return walk; // world: Kids' Lemonade Day's kid stands take their share of the street
+  const { id: chosen, a } = chooseOn(walk, rng);
   const chosenOwner = s.plots[chosen].owner!;
   const result = serveAt(s, chosen, rng, a, seg);
   if (chosenOwner !== home.owner) home.stand!.day.walkedPast.rival++;

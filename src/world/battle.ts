@@ -183,6 +183,10 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   let view: PlotView | null = null;
   let t = 0, acc = 0, lastF = -1;
   let next = 0;
+  // A live fight plays on its own clock (fight-seconds); a replay plays at PLAY_SPEED, and a live one's aftermath at 1×.
+  let clock: (() => number | null) | null = null;
+  let rate = PLAY_SPEED;
+  let koKnown = false; // the last KO is known once the report is final (a live report's events are still growing)
   let done: (() => void) | null = null;
   let fence: THREE.Object3D | undefined;
   let standObj: THREE.Object3D | undefined;
@@ -784,11 +788,13 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   }
 
   return {
-    play(r, v0, onDone) {
+    play(r, v0, onDone, live) {
       clear();
       report = r;
       view = v0;
-      t = -APPROACH;
+      clock = live ?? null;
+      rate = live ? 1 : PLAY_SPEED;
+      t = clock?.() ?? -APPROACH;
       acc = 0;
       next = 0;
       done = onDone;
@@ -799,7 +805,8 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       lit = watch = 0;
       gadgets = r.gadgets ?? [];
       dark = !!r.night || kit().glow.value > 1;
-      r.events.forEach((ev, i) => { if (ev.type === 'ko') lastKo = i; });
+      koKnown = r.duration < Infinity;
+      if (koKnown) r.events.forEach((ev, i) => { if (ev.type === 'ko') lastKo = i; });
       fence = v0.root.getObjectByName('fence');
       gadgetsObj = v0.root.getObjectByName('gadgets');
       standObj = v0.root.children[0];
@@ -867,7 +874,11 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         punchOff = punch > 0 ? off : 0;
       }
       if (freeze > 0) { freeze -= dt; dt = 0; }
-      t += dt * PLAY_SPEED;
+      const now = clock?.() ?? null;
+      if (clock && now === null) clock = null; // the live fight is over: its aftermath plays out at 1×
+      const was = t;
+      t = now ?? t + dt * rate;
+      if (!koKnown && report.duration < Infinity) { koKnown = true; report.events.forEach((ev, i) => { if (ev.type === 'ko') lastKo = i; }); }
       if (!cued && t > -APPROACH * 0.45) { cued = true; cueGadgets('approach'); }
       const ev = report.events;
       while (next < ev.length && ev[next].t <= t) {
@@ -883,7 +894,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         if (winners[0]) hooks.onWin?.(winners.map((u) => u.obj), side, winners[0].owner);
       }
       if (shake > 0 && standObj) { shake -= dt; standObj.rotation.z = Math.sin(t * 60) * 0.03 * (shake > 0 ? 1 : 0); }
-      acc += dt * PLAY_SPEED;
+      acc += Math.max(0, t - was);
       const f = kit().twos.f;
       if (f !== lastF) { lastF = f; step(Math.min(acc, 0.3), f); acc = 0; batch?.setVisible((scene.userData.detail ?? 0) < 2); batch?.sync(); }
       if (t > report.duration + LINGER) {
@@ -900,7 +911,8 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
 }
 
 export interface BattleView {
-  play(report: BattleReport, view: PlotView, onDone: () => void): void;
+  /** live: a fight playing now, read from its own clock (fight-seconds; null once it's over). */
+  play(report: BattleReport, view: PlotView, onDone: () => void, live?: () => number | null): void;
   update(dt: number): void;
   active(): boolean;
   stop(): void;

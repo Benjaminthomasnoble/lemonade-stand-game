@@ -18,7 +18,8 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { servingsAvailable } from './economy.ts';
-import { detectionChance, fightRaid, guardReady, hasBuilding, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { detectionChance, guardReady, hasBuilding, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
@@ -174,9 +175,9 @@ function muster(s: GameState, r: Raid): void {
 
 /** After the fight your squad walks home the same way, carrying anyone KO'd; their posts fill again as they arrive.
  * Customers see a raid fought in business hours: it costs Reputation (night raids cost nothing). */
-function homeward(s: GameState, r: Raid, report: BattleReport, daytime: boolean): void {
+function homeward(s: GameState, r: Raid, report: BattleReport, daytime: boolean, started = s.minute): void {
   if (daytime) s.reputation = Math.max(1, Math.round((s.reputation - (r.objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid)) * 100) / 100);
-  r.back = s.minute + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target), r.target);
+  r.back = started + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target), r.target);
   s.raids.push(r);
 }
 
@@ -190,17 +191,25 @@ function warn(s: GameState, r: Raid): SimEvent {
   return { type: 'alert', alert: alert(s, { kind: r.delivery ? 'delivery' : 'raid', text, plot: r.target, raid: r.id }) };
 }
 
-/** The raid arrives and the fight is fought (instantly, then replayed, until combat's live fights merge: startFight). */
-function arrive(s: GameState, r: Raid): BattleReport {
+/** The raid arrives and the fight starts: live while the game watches (combat's startFight), else fought at once.
+ * A live fight reports when it ends, and fight.ts calls raidFought then. */
+function arrive(s: GameState, r: Raid): BattleReport | null {
   const rest = s.raids.filter((x) => x !== r);
   // Guards on one of your raids are away once it has set out, until they're home (they defend their posts till then).
   s.raids = rest.filter((x) => x.attacker !== 'player' || setOut(s, x));
   const daytime = s.phase === 'open';
-  const report = fightRaid(s, r, !daytime);
+  const report = startFight(s, r, !daytime);
   s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && !setOut(s, x)));
-  if (r.attacker === 'player') homeward(s, r, report, daytime);
-  if (r.delivery && r.order) settle(s, r.order, report);
+  if (report === true) return null;
+  raidFought(s, r, report, daytime);
   return report;
+}
+
+/** A raid's fight is over (fought at once, or live and just ended: `started` is the minute it began). Your squad
+ * walks home, and a Delivery Raid's pickup loads out, or fails if the raiders overran it. */
+export function raidFought(s: GameState, r: Raid, report: BattleReport, daytime: boolean, started = s.minute): void {
+  if (r.attacker === 'player') homeward(s, r, report, daytime, started);
+  if (r.delivery && r.order) settle(s, r.order, report);
 }
 
 /** Your squad gets there and the stand is gone (smashed by someone else, sold, or its owner went under): they walk
@@ -231,7 +240,8 @@ function raidClock(s: GameState): SimEvent[] {
     if (!s.raids.includes(r)) continue;
     if (r.attacker === 'player' && nothingThere(s, r)) continue;
     if (!r.warned && onYou(s, r)) ev.push(warn(s, r)); // every raid on you is warned, even a late one
-    ev.push({ type: 'fight', raid: r, report: arrive(s, r) });
+    const report = arrive(s, r);
+    if (report) ev.push({ type: 'fight', raid: r, report });
   }
   // A Delivery Raid called off mid-loading (a truce, or the rival went under): the load goes out now.
   for (const id of [...(s.heldPickups ?? [])]) if (!s.raids.some((r) => r.delivery && r.order === id)) settle(s, id, null);

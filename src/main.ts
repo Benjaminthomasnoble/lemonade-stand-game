@@ -16,6 +16,7 @@ import {
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { waitAt } from './sim/clubhouse.ts';
+import { atOnce, fightStatus, finishFight, liveReport, startAssault, stepFight, watchFights } from './sim/fight.ts';
 import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
@@ -85,6 +86,7 @@ async function main() {
   };
   let state: GameState = saved ?? freshRun({}, seedParam ? Number(seedParam) : undefined);
   state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`; // saves from before the leaderboard
+  watchFights(true); // fights you're in play live on screen (the skips still fight at once)
   // The clock (spec: Clock and speed). speed 0 is a pause, from Space, the ❚❚ knob or an auto-pause on a major
   // alert: the clock, the brawl on screen and any VIP scene all hold still. Full-screen paper pauses too.
   let speed = 1;
@@ -99,6 +101,7 @@ async function main() {
   let options: Options = loadOptions();
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
+  let onScreen: GameState['fight'] = undefined; // the live fight the 3D view is playing (its clock runs only then)
   let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
   let eveningWait = 0; // the Evening's moment, off the Ledger
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
@@ -158,7 +161,7 @@ async function main() {
     if (!live) return;
     const i = state.news.indexOf(battleHeadline(b));
     if (i >= 0) state.news.splice(i, 1);
-    if (battle.active() && liveFight) fightQueue.push(b); else playBattle(b, true);
+    if (state.fight || (battle.active() && liveFight)) fightQueue.push(b); else playBattle(b, true);
   };
   const stopFights = () => { battle.stop(); fightQueue.length = 0; liveFight = false; };
   /** Swap in a loaded run (a dawn, a slot): whatever was on screen goes, and a mid-day save waits paused. */
@@ -377,21 +380,70 @@ async function main() {
       audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
     },
   }, { phone: world.quality === 'phone' });
+  /** A fight is over on screen: the headline, the stinger and Lottie (the boss's call rings from the sim's phone queue). */
+  const fanfare = (b: BattleReport) => {
+    hud.toast(battleHeadline(b)); stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
+    snap(battleHeadline(b).toUpperCase(), 5);
+    if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
+    else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
+  };
   /** Play a brawl. live: it's happening now, so the clock runs at fight speed and the next one waits its turn. */
   const playBattle = (b: BattleReport, live = false) => {
     cutScene();
     crowd.clear();
     focusPlot(b.target, 20);
     liveFight = live;
+    onScreen = undefined;
     battle.play(b, bay.views[b.target], () => {
-      liveFight = false;
-      const next = fightQueue.shift();
-      if (next) setTimeout(() => playBattle(next, true), 0);
-      hud.toast(battleHeadline(b)); stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
-      snap(battleHeadline(b).toUpperCase(), 5);
-      if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
-      else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
+      liveFight = !!state.fight;
+      nextOnScreen();
+      fanfare(b);
     });
+  };
+  /** The view is free: a live fight goes on first (its clock waits for it), then the brawls queued behind it. */
+  const nextOnScreen = () => {
+    if (state.fight) { playLive(); return; }
+    const next = fightQueue.shift();
+    if (next) setTimeout(() => playBattle(next, true), 0);
+  };
+  /** The live fight on screen, read from its own clock; each HQ stage follows the last, and the fanfare waits for the end. */
+  const playLive = () => {
+    const f = state.fight, r = liveReport(state);
+    if (!f || !r) return;
+    cutScene(); // the fight takes the screen: a story scene stops
+    crowd.clear();
+    focusPlot(r.target, 20);
+    liveFight = true;
+    onScreen = f;
+    battle.play(r, bay.views[r.target], () => {
+      const stage = !!f.hq && state.fight?.hq?.reports === f.hq.reports; // the next door of the same assault
+      liveFight = !!state.fight;
+      if (!stage) fanfare(r);
+      nextOnScreen();
+    }, () => (state.fight === f ? f.t : null));
+  };
+  /** A live fight runs on its own clock: 1 game minute a fight-second whatever the speed (the pause holds it). */
+  const runFight = (dt: number) => {
+    const from = state.phase;
+    const { minutes, ended } = stepFight(state, dt);
+    for (let i = 0; i < minutes && state.phase === from && (from === 'open' || from === 'night'); i++) drawEvents(tickMinute(state));
+    if (ended) {
+      const i = state.news.indexOf(battleHeadline(ended)); // the fanfare says it when the dust settles
+      if (i >= 0) state.news.splice(i, 1);
+      if (!battle.active()) { liveFight = false; fanfare(ended); }
+    }
+    if (state.phase !== from) { flushNews(); saveGame(state); bay.sync(state); } else flushNews();
+  };
+  /** Finish the live fight now (a skip, or sleep): its result lands without the show. */
+  const settleFight = () => {
+    if (!state.fight) return;
+    const done = finishFight(state);
+    battle.stop();
+    liveFight = false;
+    onScreen = undefined;
+    for (const b of fightQueue.splice(0)) hud.toast(battleHeadline(b)); // the brawls waiting their turn: just the news
+    const last = done[done.length - 1];
+    if (last) fanfare(last);
   };
 
   const focusPlot = (id: string, distance = 22) => {
@@ -412,17 +464,18 @@ async function main() {
       case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
       case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
-      case 'skip': { resume(); const ev = simulateRestOfDay(state, true); crowd.clear(); drawEvents(ev, false); break; }
+      case 'skip': { resume(); settleFight(); const ev = atOnce(() => simulateRestOfDay(state, true)); crowd.clear(); drawEvents(ev, false); break; }
       case 'night': hud.ledger = false; if (startNight(state)) { acc = 0; eveningWait = 0; resume(); } break;
       case 'evening': hud.ledger = false; eveningWait = 0; break;
       case 'ledger': hud.ledger = true; break;
       case 'sleep': {
         cutScene();
         resume(); // a skip means go; the next big alert pauses again
+        settleFight();
         stopFights();
         crowd.clear();
         const ev: SimEvent[] = [];
-        const dawned = sleepUntilDawn(state, true, ev);
+        const dawned = atOnce(() => sleepUntilDawn(state, true, ev));
         drawEvents(ev, false);
         if (dawned) { atDawn(); afterSleep(); }
         break;
@@ -520,8 +573,8 @@ async function main() {
       case 'defend': for (const g of state.guards) if (guardReady(state, g)) postGuard(state, g.id, a.plot); break;
       case 'raid': {
         const r = planRaid(state, a.plot, a.guards, a.objective, a.when);
-        if (typeof r === 'object') { hud.inspected = null; playBattle(r); }
-        else if (r) { // the squad travels: it fights when it gets there
+        if (typeof r === 'object') { hud.inspected = null; onFight(r, true); } // fought at once: shown in its turn
+        else if (r) { // the squad travels: it fights when it gets there (live, on screen)
           const out = state.raids.find((x) => x.attacker === 'player' && x.target === a.plot && x.back === undefined);
           hud.toast(out ? `Squad out ${clockText(out.leave!)}, there ~${clockText(out.at!)}.` : `Raid planned on ${PLOT_BY_ID[a.plot].name}.`);
         }
@@ -531,11 +584,13 @@ async function main() {
       case 'plotBuyout': plotBuyout(state, a.plot); break;
       case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
       case 'assault': {
-        const r = stormHQ(state, a.rival, a.guards);
-        if (r) { hud.inspected = null; playBattle(r.reports[r.reports.length - 1]); }
+        if (state.fight) { // one fight at a time: with one on, the assault is fought at once and shown after
+          const r = stormHQ(state, a.rival, a.guards);
+          if (r) { hud.inspected = null; onFight(r.reports[r.reports.length - 1], true); }
+        } else if (startAssault(state, a.rival, a.guards)) { hud.inspected = null; playLive(); }
         break;
       }
-      case 'replay': if (state.battles[a.index]) playBattle(state.battles[a.index]); break;
+      case 'replay': if (state.battles[a.index] && !state.fight) playBattle(state.battles[a.index]); break;
       case 'facility': if (a.kind === 'clubhouse') buildClubhouse(state, a.plot); else buildFacility(state, a.plot, a.kind); break;
       case 'accept': acceptOrder(state, a.id); break;
       case 'decline': declineOrder(state, a.id); break;
@@ -719,6 +774,10 @@ async function main() {
     ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
     battle: () => battle.active(),
     playBattle: (b: BattleReport) => playBattle(b),
+    /** The live fight: its clock, who's up and the buttons (null: none on). */
+    fight: () => fightStatus(state),
+    /** Fight the live fight (and the rest of an HQ assault) to the end now. */
+    finishFight: () => { settleFight(); hud.render(state, shownSpeed()); },
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
@@ -730,7 +789,7 @@ async function main() {
     fastForward(minutes: number) {
       const from = state.phase;
       if (from !== 'open' && from !== 'night') return;
-      for (let i = 0; i < minutes && state.phase === from; i++) tickMinute(state);
+      atOnce(() => { for (let i = 0; i < minutes && state.phase === from; i++) tickMinute(state); });
       if (state.phase !== from) { flushNews(); saveGame(state); if (state.phase === 'prep') atDawn(); }
       hud.render(state, shownSpeed());
     },
@@ -759,7 +818,10 @@ async function main() {
       world.panBy((has('panRight') - has('panLeft')) * Math.min(realDt, 0.1), (has('panUp') - has('panDown')) * Math.min(realDt, 0.1));
     }
     if (state.phase !== 'night' && state.phase !== 'report') quietOff = false; // each night starts quiet again
-    if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
+    // A live fight takes the screen once it's free (the brawl before settles first); its own clock moves the game's.
+    if (state.fight && onScreen !== state.fight && !battle.active()) playLive();
+    if (state.fight) { if (!frozen && onScreen === state.fight) runFight(dt); acc = 0; }
+    else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
       const from = state.phase;
       const rate = () => secondsPerMinute(state, speed, { fighting: liveFight, quiet: quiet() });

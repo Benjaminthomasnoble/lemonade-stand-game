@@ -15,7 +15,7 @@ import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
-import { allBeds, clubhouses, clubhouseSite } from './clubhouse.ts';
+import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
@@ -81,6 +81,7 @@ export interface BattleReport {
   duration: number;
   koed: string[];
   fled: string[];
+  joins?: BattleInput['joins']; // who reached the fight late (Ring the Bell's reserves), and when
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -389,7 +390,7 @@ export function raidTargets(s: GameState): Plot[] {
 }
 
 export function availableRaiders(s: GameState): Guard[] {
-  const busy = new Set(s.raids.flatMap((r) => r.guards ?? []));
+  const busy = awayOnRaid(s); // planned, out, walking home, or in the fight playing live
   return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id));
 }
 
@@ -492,7 +493,7 @@ export function resolveNight(s: GameState): void {
 
 /** Who fights: the attackers, the detection roll and the defenders on the plot (dice from rng). */
 export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): BattleInput {
-  const away = new Set(s.raids.flatMap((r) => r.guards ?? []));
+  const away = awayOnRaid(s); // out on a raid, or in the fight playing live: not at their posts
   const attackers = raid.attacker === 'player'
     ? s.guards.filter((g) => raid.guards!.includes(g.id) && guardReady(s, g)).map((g) => guardFighter(g, 'att', night))
     : raid.party!;
@@ -549,7 +550,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     delivery: raid.delivery, busted: busted && res.outcome === 'smashed' ? true : undefined,
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
-    events: res.events, duration: res.duration, koed: res.koed, fled: res.fled,
+    events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, ...(input.joins?.length ? { joins: input.joins } : {}),
     gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined,
   };
   if (raid.attacker === 'player' || defender === 'player') {
@@ -562,8 +563,10 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
 }
 
 /** Guards: KOs are out a day (two if a hatchet landed the knockout blow); everyone who fought earns XP. */
-export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; hatchetKos?: string[]; winner: 'att' | 'def' }): void {
-  for (const f of [...input.attackers, ...input.defenders]) {
+export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; hatchetKos?: string[]; winner: 'att' | 'def'; events?: BattleEvent[] }): void {
+  // Late arrivals count once they've reached the fight (their 'at' on the timeline).
+  const late = (input.joins ?? []).flatMap((j) => j.fighters).filter((f) => res.events?.some((e) => e.type === 'at' && e.a === f.id));
+  for (const f of [...input.attackers, ...input.defenders, ...late]) {
     const g = s.guards.find((x) => x.id === f.id);
     if (!g) continue;
     if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + (res.hatchetKos?.includes(g.id) ? 2 : 1);

@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFight, runBattle, type BattleInput } from './combat.ts';
 import {
-  canFallBack, canRally, fightCommand, fightStatus, finishFight, FIGHT_LEAD_IN, joinFight, liveReport, pauseFight, startAssault, startFight, stepFight,
+  atOnce, canFallBack, canRally, fightCommand, fightStatus, finishFight, FIGHT_LEAD_IN, joinFight, liveReport, startAssault, startFight, stepFight,
+  watchFights,
 } from './fight.ts';
 import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './fighters.ts';
 import {
-  equip, FIGHT_BUTTONS, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
+  equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
+  availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
 } from './economy.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
@@ -29,6 +31,9 @@ function play(s: GameState, dt = 1 / 60) {
   while (s.fight === f && frames++ < 1e6) { const r = stepFight(s, dt); minutes += r.minutes; ended = r.ended ?? ended; }
   return { minutes, ended: ended!, frames };
 }
+
+beforeAll(() => watchFights(true)); // as the game does: fights you're in play live
+afterAll(() => watchFights(false));
 
 describe('a live fight', () => {
   it('stepping a tick at a time gives exactly the fight runBattle runs to the end', () => {
@@ -59,18 +64,58 @@ describe('a live fight', () => {
     expect(s.fight).toBeUndefined();
   });
 
-  it('pausing holds the fight and the clock', () => {
+  it('the pause holds the fight and the clock: no time, no step', () => {
     const s = crew(22);
     const target = raidTargets(s)[0];
     startFight(s, raidOn(s, target.id), false);
     stepFight(s, FIGHT_LEAD_IN + 4);
     const before = JSON.stringify(s.fight);
-    pauseFight(s);
-    expect(stepFight(s, 30)).toEqual({ minutes: 0 });
-    expect(JSON.stringify({ ...s.fight, paused: undefined })).toBe(before);
-    expect(fightStatus(s)!.paused).toBe(true);
-    pauseFight(s);
-    expect(fightStatus(s)!.paused).toBe(false);
+    expect(stepFight(s, 0)).toEqual({ minutes: 0 });
+    expect(JSON.stringify(s.fight)).toBe(before);
+    expect(fightStatus(s)!.clock).toBeCloseTo(4);
+  });
+
+  it('nobody watching, a skip, or a fight you are not in: fought at once', () => {
+    const s = crew(27);
+    const [t1, t2] = raidTargets(s);
+    expect(typeof atOnce(() => startFight(s, raidOn(s, t1.id), false))).toBe('object');
+    const theirs: Raid = { id: 'rx', attacker: 'coldbrew', target: t2.id, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '23:00' };
+    expect(typeof startFight(s, theirs, true)).toBe('object');
+    expect(s.fight).toBeUndefined();
+  });
+
+  it('a raid on you arriving on the night clock plays live, then reports', () => {
+    const s = crew(28);
+    const home = ownedPlots(s, 'player')[0].id;
+    s.phase = 'night';
+    s.minute = 23 * 60;
+    s.raids.push({ id: 'rn', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(2, 1, 'fists'), detected: true, eta: '23:01', leave: 22 * 60, at: 23 * 60 + 1, launched: true, warned: true });
+    expect(nightStep(s).some((e) => e.type === 'fight')).toBe(false); // no instant result: it's on screen
+    expect(s.fight?.raid.id).toBe('rn');
+    expect(s.fight?.side).toBe('def');
+    expect(s.raids.some((r) => r.id === 'rn')).toBe(false);
+    const { ended } = play(s);
+    expect(ended.attacker).toBe('blenders');
+    expect(s.battles[0]).toBe(ended);
+  });
+
+  it('your raid sent now walks there, plays live as it arrives, and the squad walks home after', () => {
+    const s = crew(29);
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!.id;
+    expect(planRaid(s, target, s.guards.map((g) => g.id), 'smash', 'now')).toBe(true); // nothing fought yet: they set out
+    expect(s.fight).toBeUndefined();
+    openStand(s);
+    let reported = false;
+    while (!s.fight && s.phase === 'open') reported = tickMinute(s).some((e) => e.type === 'fight') || reported;
+    expect(reported).toBe(false); // no instant result: it's on screen
+    const raid = s.fight!.raid, start = s.minute;
+    expect(start).toBe(raid.at);
+    expect(availableRaiders(s)).toEqual([]); // in the fight: nobody free to send
+    const rep = s.reputation;
+    const { ended } = play(s); // the clock isn't moved here: the walk home is timed from contact all the same
+    expect(raid.back).toBe(start + Math.ceil(ended.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, target), target));
+    expect(awayGuards(s).size).toBeGreaterThan(0); // walking home: their posts sit empty
+    expect(s.reputation).toBe(Math.max(1, Math.round((rep - DAYTIME_RAID_REP.smash) * 100) / 100)); // customers saw it
   });
 
   it('picks up mid-brawl after a reload, the same fight to the last swing', () => {

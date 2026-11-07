@@ -1,17 +1,20 @@
 // Live fights (spec: The fight clock and your buttons). A fight the player
 // watches runs at 1 fight-second = 1 real second = 1 game minute, whatever the
-// speed setting: the game clock moves by the fight's length, and pausing holds
-// the fight and the clock together. Rally and Fall Back act on the running fight.
+// speed setting: the game clock moves by the fight's length, and the game's
+// pause holds the fight and the clock together. Rally, Fall Back and Ring the
+// Bell act on the running fight.
 //
 // The save keeps a live fight as its input, its own dice and the commands
 // pressed (stamped with the fight-second they acted on); the running fight is
 // re-made from those whenever it isn't in memory, so a reload picks it up
-// mid-brawl. Day fights go live: your raids sent now and each HQ assault stage.
-// Night raids and Delivery Raids still resolve at once (fightRaid) until the
-// nights' timeline calls startFight when each raid arrives.
+// mid-brawl. Fights go live only while the game watches (watchFights): your
+// raids and raids on you as they reach the plot on the raid clock (night.ts
+// calls startFight), Delivery Raids and each HQ assault stage. Tests, tools and
+// the skips (Finish the day, Sleep till dawn) fight everything at once.
 import { FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, type RivalId } from './balance.ts';
 import { createFight, type BattleInput, type BattleResult, type Fight, type FightCommand, type FightStatus, type Side } from './combat.ts';
 import { fightRaid, raidInput, type BattleReport, type Raid } from './crew.ts';
+import { raidFought } from './night.ts';
 import type { FactionId } from './map.ts';
 import { canAssault, HQ_STAGES, hqPlot, hqSquad, hqStageInput, hqStageOver, hqSurvivors, type HqStage } from './rivals.ts';
 import { nextRandom } from './rng.ts';
@@ -30,15 +33,27 @@ export interface LiveFight {
   seed: number; // the fight's own dice
   t: number; // fight-seconds since contact (negative while the raiders walk in)
   ticked: number; // game minutes the clock has moved for this fight so far
+  start?: number; // the game minute it began (contact): your squad's walk home is timed from it
   commands: FightCommand[]; // what the player pressed, stamped with the fight-second it acted on
   side: Side | null; // the player's side: the buttons are theirs (null: a fight they only watch)
-  paused?: boolean;
   hq?: { rival: RivalId; stage: HqStage; reports: BattleReport[] }; // one stage of an HQ assault
 }
 
 const EPS = 1e-9;
 const running = new WeakMap<LiveFight, Fight>();
 const views = new WeakMap<LiveFight, BattleReport>();
+
+/** Is someone watching? The game turns this on; until then every fight is fought at once. */
+let watching = false;
+export function watchFights(on: boolean): void {
+  watching = on;
+}
+/** Run f with every fight in it fought at once (the skips: Finish the day, Sleep till dawn). */
+export function atOnce<T>(f: () => T): T {
+  const was = watching;
+  watching = false;
+  try { return f(); } finally { watching = was; }
+}
 
 /** The running fight, re-made from the saved input, dice and commands when it isn't in memory. */
 function fightOf(f: LiveFight): Fight {
@@ -57,18 +72,20 @@ function begin(s: GameState, o: Pick<LiveFight, 'raid' | 'night' | 'input' | 'si
   const rng = { seed: s.seed };
   const seed = Math.floor(nextRandom(rng) * 0x100000000);
   s.seed = rng.seed;
-  const f: LiveFight = { id: `f${s.nextId++}`, ...o, seed, t: -lead, ticked: 0, commands: [] };
+  const f: LiveFight = { id: `f${s.nextId++}`, ...o, seed, t: -lead, ticked: 0, start: s.minute, commands: [] };
   if (!f.hq) delete f.hq;
   s.fight = f;
   return f;
 }
 
 /**
- * A raid starts as a live fight. With a fight already on, this one is fought
- * at once instead (its report comes back), so nothing waits off screen.
+ * A raid starts as a live fight. A fight you're not in, any fight while
+ * nobody watches, and a second one while a fight is on are fought at once
+ * instead (the report comes back), so nothing waits off screen.
  */
 export function startFight(s: GameState, raid: Raid, night = s.phase !== 'open'): BattleReport | true {
-  if (s.fight) return fightRaid(s, raid, night);
+  const mine = raid.attacker === 'player' || s.plots[raid.target].owner === 'player';
+  if (!watching || !mine || s.fight) return fightRaid(s, raid, night);
   const rng = { seed: s.seed };
   const input = raidInput(s, raid, night, rng);
   s.seed = rng.seed;
@@ -105,20 +122,25 @@ function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
       s.seed = rng.seed;
       begin(s, { raid: { ...f.raid, objective: input.objective }, night: false, input, side: 'att', hq: { rival, stage: after, reports } }, FIGHT_LEAD_IN + FIGHT_BREAK);
     }
-  } else report = fightRaid(s, f.raid, f.night, { input: f.input, res });
+  } else {
+    // Who joined mid-fight is part of the fight's record: they get the credit (and the bruises).
+    const joins = f.commands.flatMap((c) => (c.type === 'join' ? [{ t: c.t, fighters: c.fighters }] : []));
+    report = fightRaid(s, f.raid, f.night, { input: joins.length ? { ...f.input, joins: [...(f.input.joins ?? []), ...joins] } : f.input, res });
+    raidFought(s, f.raid, report, !f.night, f.start ?? s.minute - f.ticked); // the raid clock: your squad walks home, a pickup loads out
+  }
   const view = views.get(f);
   if (view) Object.assign(view, report);
   return report;
 }
 
 /**
- * Run the live fight for dt real seconds (= fight-seconds). Returns the game
- * minutes the clock moves (1 per fight-second, none while they walk in or
- * while paused) and, when the fight ends, its report.
+ * Run the live fight for dt real seconds (= fight-seconds); the game's pause
+ * just stops calling this. Returns the game minutes the clock moves (1 per
+ * fight-second, none while they walk in) and, when the fight ends, its report.
  */
 export function stepFight(s: GameState, dt: number): { minutes: number; ended?: BattleReport } {
   const f = s.fight;
-  if (!f || f.paused || !(dt > 0)) return { minutes: 0 };
+  if (!f || !(dt > 0)) return { minutes: 0 };
   const fight = fightOf(f);
   f.t += dt;
   if (f.t >= 0) fight.advance(f.t);
@@ -143,11 +165,6 @@ export function finishFight(s: GameState): BattleReport[] {
     out.push(settle(s, f, fight.result()));
   }
   return out;
-}
-
-/** Pause or resume the live fight (and with it the clock). */
-export function pauseFight(s: GameState, paused = !s.fight?.paused): void {
-  if (s.fight) s.fight.paused = paused;
 }
 
 // ---------- the buttons ----------
@@ -196,7 +213,6 @@ export function joinFight(s: GameState, fighters: BattleInput['defenders'], inSe
 export interface LiveStatus extends FightStatus {
   clock: number; // fight-seconds since contact (0 while they walk in)
   side: Side | null;
-  paused: boolean;
   rally: boolean; // the Rally button is ready
   rallying: boolean; // a Rally is lifting your side's Nerve right now
   fallBack: boolean; // Fall Back is still available
@@ -208,7 +224,7 @@ export function fightStatus(s: GameState): LiveStatus | null {
   if (!f) return null;
   const st = fightOf(f).status();
   return {
-    ...st, clock: Math.max(0, f.t), side: f.side, paused: !!f.paused, rally: canRally(s), fallBack: canFallBack(s),
+    ...st, clock: Math.max(0, f.t), side: f.side, rally: canRally(s), fallBack: canFallBack(s),
     rallying: !!f.side && st.t < st.rallyUntil[f.side] - EPS, ...(f.hq ? { hq: f.hq.stage } : {}),
   };
 }
@@ -231,6 +247,7 @@ export function liveReport(s: GameState): BattleReport | null {
       objective: f.input.objective, outcome: 'repelled', loot: 0, attackers: f.input.attackers, defenders: f.input.defenders,
       perimeter: f.input.perimeter, standLevel: f.hq ? 3 : ps.stand?.level ?? 0, events: fightOf(f).events,
       duration: Infinity, koed: [], fled: [], ...(f.hq ? { hq: f.hq.stage } : {}),
+      gadgets: f.input.gadgets.length ? f.input.gadgets : undefined, night: f.night || undefined, // the replay's gadgets and dark
     };
     views.set(f, r);
   }

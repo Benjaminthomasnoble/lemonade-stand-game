@@ -184,7 +184,7 @@ try {
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
     for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
-    st.raids = []; st.rank = 7; st.cash = 50000000; st.clubhouse = 3; // the Blend Shack opens at Rank 5
+    st.raids = []; st.rank = 7; st.cash = 50000000; // the Blend Shack opens at Rank 5
     const ids = Object.keys(st.plots).filter((id) => st.plots[id].owner === 'blenders');
     const hqId = window.__game.hqOf('blenders');
     const stands = ids.filter((id) => id !== hqId);
@@ -204,6 +204,7 @@ try {
   await page.waitForFunction(() => window.__game.battle(), null, { timeout: 60000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'test-results/15-hq-assault.png' });
+  await page.evaluate(() => window.__game.finishFight()); // the assault plays live, stage by stage: settle the rest now
   const out = await page.evaluate(() => [window.__game.state.rivals.blenders.alive, window.__game.state.battles[0]?.hq].join(','));
   console.log('hq assault (blenders alive, last stage):', out);
   if (!/gate|yard|boss/.test(out)) fail(`no HQ battle recorded: ${out}`);

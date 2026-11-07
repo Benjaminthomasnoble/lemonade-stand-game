@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actOf, appealFor, boothCeiling, calendarTraffic, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
+  actOf, appealFor, boothCeiling, buySupply, calendarTraffic, maxPacks, pitcherNeeds, priceCeiling, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
   expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
@@ -88,9 +88,40 @@ describe('recipe cards', () => {
     expect(RECIPE_IDS.filter(isPremium)).toEqual(['frozen', 'honeyGinger', 'sparkling', 'lavender', 'halfAndHalf', 'secretReserve']);
   });
 
-  it('Honey-Ginger is served hot: no ice to buy, none to run out of', () => {
-    expect(RECIPES.honeyGinger.icePerCup).toBe(0);
-    expect(RECIPES.frozen.icePerCup).toBe(6);
+  it('every card pours the same stock, so switching cards wastes none (the extras are in the cost per cup)', () => {
+    const st = newStand(1);
+    const classic = pitcherNeeds(st);
+    expect(classic).toEqual({ lemons: 5, sugar: 10, icePerCup: 3 });
+    for (const id of RECIPE_IDS) { st.recipe = id; expect(pitcherNeeds(st)).toEqual(classic); }
+  });
+
+  it('the card never moves Reputation: a Classic L1 stand with no walk-aways ends 14 days at 3.0 stars or more', () => {
+    for (const recipe of ['classic', 'pink'] as RecipeId[]) {
+      const s = game(5);
+      // A quiet Maple Row street, so the line never runs past anyone's patience; the Corner's table is packed away.
+      const quiet = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).sort((a, b) => a.baseTraffic - b.baseTraffic)[0].id;
+      s.plots[LOTTIES_CORNER].stand = null;
+      s.plots[quiet] = { ...s.plots[quiet], owner: 'player', stand: { ...newStand(1), recipe } };
+      s.selected = quiet;
+      s.cash = 10_000;
+      let walked = 0, sat = 0;
+      for (let d = 0; d < 14; d++) {
+        const st = s.plots[quiet].stand!;
+        st.price = priceCeiling(s, quiet);
+        openStand(s);
+        while (s.phase === 'open') { // a full cooler, topped up every game hour
+          if (s.minute % 60 === 0) for (const id of ['lemons', 'sugar', 'ice'] as const) buySupply(s, id, maxPacks(s, st, id), st);
+          tickMinute(s);
+        }
+        walked += s.today.walkedPast.line + s.today.walkedPast.soldOut;
+        sat += s.today.satisfaction / 14;
+        s.raids = [];
+        sleepUntilDawn(s);
+      }
+      expect(walked).toBeLessThanOrEqual(2); // one on a Scorcher's peak, at most
+      expect(sat).toBeGreaterThan(0.5); // a full cup at the ceiling: the same for every card
+      expect(s.reputation).toBeGreaterThanOrEqual(3);
+    }
   });
 });
 
@@ -201,6 +232,18 @@ describe('the Blender Bar', () => {
     st.recipe = 'frozen';
     // The ceiling is in cents (demand: rounded down), so 20% lands within a cent: $1.72 to $2.07.
     expect(appealFor(s, LOTTIES_CORNER, 'families').topPrice / before).toBeCloseTo(1.2, 2);
+  });
+
+  it('comes with the Blenders\' fall on every route, a bust included', () => {
+    for (const how of ['hq', 'buyout', 'bankrupt'] as const) {
+      const s = game();
+      const st = s.plots[LOTTIES_CORNER].stand!;
+      st.recipe = 'frozen';
+      const before = appealFor(s, LOTTIES_CORNER, 'families').topPrice;
+      eliminate(s, 'blenders', how);
+      expect(ownedRecipes(s)).toContain('frozen');
+      expect(appealFor(s, LOTTIES_CORNER, 'families').topPrice / before).toBeCloseTo(1.2, 2);
+    }
   });
 });
 

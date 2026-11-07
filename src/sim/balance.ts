@@ -84,16 +84,16 @@ export interface Recipe {
   everywhere?: number; // Lottie's Secret Reserve: this match at every stand instead
   start?: boolean; // one of the 3 pages Lottie kept
 }
-// Every card pours the Classic base (half a lemon, a scoop of sugar, 3 cubes: $0.16) plus its extra, so the
-// totals hit the spec's cost per cup at normal market prices. Frozen is blended with double ice and
-// Honey-Ginger is served hot with none (the build's own split; the spec gives only the totals).
+// Every card pours the same stock, the Classic base (half a lemon, a scoop of sugar, 3 cubes: $0.16), plus its
+// extra, so the totals hit the spec's cost per cup at normal market prices and switching cards wastes no stock
+// (spec: Recipe cards; stock is the cups of lemons, sugar and ice a stand can hold).
 export const RECIPES: Record<RecipeId, Recipe> = {
   classic: { label: 'Classic Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0, priceBonus: 0, blurb: 'Everyone likes it', shines: [], start: true },
   pink: { label: 'Pink Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.03, priceBonus: 0.05, blurb: 'Kids and families love it', shines: ['maple'], start: true },
   mint: { label: 'Mint Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.04, priceBonus: 0.05, blurb: 'Students and joggers love it', shines: ['campus', 'boardwalk'], start: true },
   strawberry: { label: 'Strawberry Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.11, priceBonus: 0.1, blurb: 'Kids and tourists love it', shines: ['maple', 'boardwalk'] },
-  frozen: { label: 'Frozen Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 6, extraPerCup: 0.06, priceBonus: 0.15, blurb: 'Tourists and students love it', shines: ['boardwalk'], season: 'summer', heatWave: true },
-  honeyGinger: { label: 'Honey-Ginger Hot Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 0, extraPerCup: 0.12, priceBonus: 0.1, blurb: 'Seniors love it, even in Winter', shines: ['maple', 'oldtown'], season: 'winter' },
+  frozen: { label: 'Frozen Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.09, priceBonus: 0.15, blurb: 'Tourists and students love it', shines: ['boardwalk'], season: 'summer', heatWave: true },
+  honeyGinger: { label: 'Honey-Ginger Hot Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.09, priceBonus: 0.1, blurb: 'Seniors love it, even in Winter', shines: ['maple', 'oldtown'], season: 'winter' },
   sparkling: { label: 'Sparkling Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.11, priceBonus: 0.15, blurb: 'Office workers love it', shines: ['downtown'] },
   lavender: { label: 'Lavender Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.19, priceBonus: 0.25, blurb: 'High rollers love it', shines: ['hilltop'] },
   halfAndHalf: { label: 'Hollis Half-and-Half', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.04, priceBonus: 0.1, blurb: 'Lemonade and sweet tea. Workers love it', shines: ['groves', 'harbor'], season: 'summer' },

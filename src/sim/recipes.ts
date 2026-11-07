@@ -170,8 +170,10 @@ export function sweetnessFit(seg: SegmentId, v: Sweetness): number {
   return v === want ? 1 + SWEETNESS_SHIFT : 1 - SWEETNESS_SHIFT;
 }
 
-/** The Blend Shack Trophy: Frozen Lemonade's top price rises 20%. */
-export const blenderBar = (s: GameState, id: RecipeId) => (id === 'frozen' && hasTrophy(s, 'blenders') ? BLENDER_BAR_TOP_PRICE : 1);
+/** The Blend Shack Trophy: Frozen Lemonade's top price rises 20% once the Blenders are out, on every route (HQ captured,
+ * Faction Buyout, 7 days bankrupt: canon, Elimination), so a bust whose HQ stands empty still lifts it. */
+export const blenderBar = (s: GameState, id: RecipeId) =>
+  (id === 'frozen' && (hasTrophy(s, 'blenders') || s.rivals.blenders?.alive === false) ? BLENDER_BAR_TOP_PRICE : 1);
 
 const NEUTRAL = Object.freeze({ match: 1, sweet: 1, top: 1 });
 /** appealFor's one call: the card's match, the Sweetness factor for this segment and the top-price perk (rivals: all 1). */

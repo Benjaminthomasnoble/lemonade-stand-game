@@ -13,6 +13,7 @@ import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
 import { actOf, districtControl, isEndless } from './modes.ts';
+import { eventsAtClose, eventsAtDawn } from './events.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -354,7 +355,8 @@ export function tillyWaits(s: GameState, id: RivalId, what: 'buyout' | 'assault'
 
 // ---------- the two hooks ----------
 
-/** Dawn: boosts and sponsorships run out; pages home overnight make this Bugle; on a fair's last day the Taste-Off is set up. */
+/** Dawn: boosts and sponsorships run out; pages home overnight make this Bugle; on a fair's last day the Taste-Off is set
+ * up; then the random events have their morning (events.ts). */
 export function worldAtDawn(s: GameState): void {
   const w = worldOf(s);
   w.boosts = w.boosts.filter((b) => b.to >= s.day);
@@ -362,10 +364,12 @@ export function worldAtDawn(s: GameState): void {
   if (w.tasteOff && w.tasteOff.day < s.day) delete w.tasteOff;
   pagesAtDawn(s);
   setupTasteOff(s);
+  eventsAtDawn(s);
 }
 
-/** Closing: judge today's Taste-Off. */
+/** Closing: judge today's Taste-Off; the events have their evening (the Food Critic's verdict). */
 export function worldAtClose(s: GameState): void {
   const t = tasteOffToday(s);
   if (t) judgeTasteOff(s, t);
+  eventsAtClose(s);
 }

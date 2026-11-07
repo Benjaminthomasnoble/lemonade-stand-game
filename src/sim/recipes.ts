@@ -10,6 +10,7 @@ import type { GameState, Stand } from './economy.ts';
 import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
 import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
+import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -32,6 +33,8 @@ export interface WorldState {
   boosts: Boost[]; // Taste-Off wins: +20% traffic in a district for 7 days
   sponsored: Sponsorship[]; // festivals the player sponsors
   tillyWon?: boolean; // out-brewed Tilly at the County Fair: she sells Fields at 1.5×
+  events?: EventsState; // random events: coming, running and past (events.ts)
+  breaks?: BreakIn[]; // mid-day events as they broke in on 101.5 (today's and yesterday's)
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
@@ -42,6 +45,7 @@ export function migrateWorld(s: GameState): GameState {
   w.fairs ??= [];
   w.boosts ??= [];
   w.sponsored ??= [];
+  w.events ??= { on: [], past: [] };
   for (const id of START_RECIPES) if (!w.pages.includes(id)) w.pages.push(id);
   for (const id of RECIPE_IDS) {
     if (w.pages.includes(id)) delete w.holders[id];
@@ -128,8 +132,8 @@ export function pickRecipe(s: GameState, st: Stand, id: RecipeId): boolean {
 
 export type ShineReason = 'everywhere' | 'district' | 'season' | 'heatWave' | 'crowd';
 
-/** Seam: the Heat Wave event (world lane, random events) switches this on. */
-export const heatWaveOn = (_s: GameState): boolean => false;
+/** A Heat Wave is on today (events.ts): Frozen Lemonade shines everywhere. */
+export const heatWaveOn = (s: GameState): boolean => heatWaveDay(s);
 
 /** Why a card shines at a stand in this district today, or null. */
 export function shineReason(s: GameState, district: DistrictId, id: RecipeId): ShineReason | null {

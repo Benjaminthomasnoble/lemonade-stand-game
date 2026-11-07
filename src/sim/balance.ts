@@ -220,6 +220,19 @@ export const TILLY_FAIR_ACT = 4;
 export const TILLY_WAITS_FOR_FAIR = true;
 export const TILLY_FAIR_YEAR = 2;
 
+// ---------- random events (spec: Events and the living world, Random events) ----------
+/** The scheduler: nothing before Day 6, then about one event every 5–7 days, at dawn or breaking in mid-day (10:00–15:00).
+ * placeholder: spec gap (the spec fixes only "one harmful at a time, none before Day 6") */
+export const EVENTS = { firstDay: 6, firstSpread: 2, gap: [5, 7] as [number, number], midday: [10 * 60, 15 * 60] as [number, number], lookAhead: 2 };
+/** Heat Wave: 3 Scorchers in a row. The chance a season has one and the season days it can start on: mostly Summer, sometimes
+ * early Fall or late Spring, never Winter. Other Scorchers that season are thinned, so the weather table's Scorcher odds still
+ * hold on average. placeholder: spec gap */
+export const HEAT_WAVE = {
+  days: 3,
+  chance: { summer: 0.4, fall: 0.1, winter: 0, spring: 0.06 } as Record<Season, number>,
+  window: { summer: [3, 12], fall: [1, 4], winter: [1, 1], spring: [9, 12] } as Record<Season, [number, number]>,
+};
+
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★
 

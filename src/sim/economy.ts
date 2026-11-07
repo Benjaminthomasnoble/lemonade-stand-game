@@ -13,6 +13,7 @@ import {
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
+import { eventsOnTheClock, eventWeather } from './events.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
@@ -49,6 +50,7 @@ export * from './calendar.ts';
 export * from './rivalAi.ts';
 export * from './schemes.ts';
 export * from './demand.ts';
+export * from './events.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -519,6 +521,7 @@ export function openStands(s: GameState): boolean {
     weather = rollWeather(rng, seasonOf(s.day));
   }
   s.seed = rng.seed;
+  weather = eventWeather(s, weather); // world: a Heat Wave day is a Scorcher whatever the roll
   s.weather = weather;
   s.today.weather = weather;
   s.today.reputationBefore = s.reputation;
@@ -673,6 +676,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   s.minute++;
   events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
   storyMinute(s);
+  eventsOnTheClock(s); // world: mid-day events break in on 101.5
   if (s.minute >= CLOSE) {
     closeDay(s);
     events.push({ type: 'close' });

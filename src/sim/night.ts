@@ -18,21 +18,19 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
-import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { detectionChance, guardReady, hasBuilding, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
-import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
+import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
 import { siegeFought, squeezeAtDawn } from './squeeze.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, syndicateFestRaid, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
-import { nightShiftStealth } from './rivalAi.ts';
+import { deliveryRaider, nightShiftStealth } from './rivalAi.ts';
 import { scriptedRaider } from './beats.ts';
 import { autoDefendOnWarning } from './autodefend.ts';
-
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
 // ---------- clock ----------
 
@@ -424,16 +422,17 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   if (!isVip(o.tier) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
-  const rivals = RIVALS.filter((r) => mayRaidYou(s, r)); // not backing off after a beaten raid, nor in a Truce
-  const pick = rivals[Math.floor(nextRandom(rng) * rivals.length)];
   s.seed = rng.seed;
   // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
-  const rival = scriptedRaider(s, o) ?? (roll < deliveryRaidChance(s, o) ? pick : undefined);
-  if (!rival) return null;
+  // Otherwise the keenest boss whose Strike can pay sends the crew (rivals' deliveryRaider), and nobody able to pay means no raid.
+  const scripted = scriptedRaider(s, o);
+  const crew = scripted ? deliveryRaider(s, scripted) : roll < deliveryRaidChance(s, o) ? deliveryRaider(s) : null;
+  if (!crew) return null;
+  const { rival, party } = crew;
   // They set out as the trip's loading window opens (world's tripMinutes: deliver() runs then) and hit inside its 2 hours.
   const leave = s.minute;
   const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, o.plot), o.plot));
-  s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party: raidPartyFor(s, rival), detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });
+  s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party, detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });
   return held();
 }
 

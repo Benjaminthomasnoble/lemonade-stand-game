@@ -8,7 +8,7 @@ import {
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, tauntsAtDawn, eliteStewards,
   BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
-  buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT,
+  buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT, PICKUP_MINUTE, deliver, threatLevel,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -354,6 +354,71 @@ describe('rival attention', () => {
     raiders.clear();
     for (let i = 0; i < 6; i++) { const raid = nightsUntilRaid(s); if (raid) raiders.add(raid.attacker); }
     expect([...raiders]).toEqual(['coldbrew']);
+  });
+});
+
+describe('Delivery Raids: Attention picks the sender and Strike pays', () => {
+  /** Rank 7, a Pad on one of Hollis's Fields and a 4,000-bottle chopper picking up today; `setup` runs before the day opens. */
+  function pickup(seed: number, setup: (s: GameState) => void = () => {}) {
+    const s = newGame(seed);
+    atRank(s, 7);
+    s.reputation = 4.5;
+    s.cash = 3_000_000;
+    pastTutorial(s);
+    const field = PLOTS.find((p) => p.district === 'groves' && p.type === 'field')!.id;
+    s.plots[field] = { ...s.plots[field], owner: 'player', garrison: 0 };
+    buildFacility(s, field, 'helipad');
+    buildFacility(s, field, 'helipad'); // the Helipad tier loads 5,000 a day, so the order goes in one trip
+    s.bottles = 6000;
+    s.orders.push({ id: 'vip', tier: 'heli', client: 'Test Star', qty: 4000, pay: 15000, due: s.day, expires: s.day, plot: field, accepted: true });
+    setup(s);
+    openStand(s);
+    s.minute = PICKUP_MINUTE.heli; // the chopper lands and the loading starts
+    deliver(s, s.orders.find((o) => o.id === 'vip')!);
+    return { s, raid: s.raids.find((r) => r.delivery) };
+  }
+  const strikes = (s: GameState) => RIVALS.map((id) => budgetOf(s, id).strike);
+
+  it('a crew comes for the pad only when a boss\'s Strike can pay for it', () => {
+    let raided = 0;
+    for (let seed = 1; seed <= 40; seed++) if (pickup(seed).raid) raided++;
+    expect(raided).toBeGreaterThan(0); // some pickups draw a Delivery Raid...
+    for (let seed = 1; seed <= 40; seed++) {
+      const { s, raid } = pickup(seed, (g) => { for (const id of RIVALS) budgetOf(g, id).strike = 0; });
+      expect(raid).toBeUndefined(); // ...but nobody can pay for one now
+      expect(s.orders.some((o) => o.id === 'vip')).toBe(false); // the chopper took its load
+    }
+  });
+
+  it('the boss with by far the most Attention sends it, Strike pays its wages, and a boss backing off sits it out', () => {
+    const sent = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      let before: number[] = [];
+      const { s, raid } = pickup(seed, (g) => { g.rivals.hollis.attention = 40; before = strikes(g); });
+      if (!raid) continue;
+      sent.add(raid.attacker);
+      expect(budgetOf(s, 'hollis').strike).toBeCloseTo(before[RIVALS.indexOf('hollis')] - raidCost(s, 'hollis', raid.party!.length), 2);
+    }
+    expect([...sent]).toEqual(['hollis']); // Tilly rarely raids, but her eyes are on your pad
+    sent.clear();
+    for (let seed = 1; seed <= 60; seed++) {
+      const { raid } = pickup(seed, (g) => { g.rivals.hollis.attention = 40; g.rivals.hollis.respectUntil = g.day + 1; });
+      if (raid) sent.add(raid.attacker);
+    }
+    expect(sent.size).toBeGreaterThan(0);
+    expect(sent.has('hollis')).toBe(false);
+  });
+
+  it('a Blenders crew for the pad is a Blender Rush', () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const { s, raid } = pickup(seed, (g) => { g.rivals.blenders.attention = 40; });
+      if (!raid) continue;
+      expect(raid.attacker).toBe('blenders');
+      expect(raid.party!.length).toBe(RAID_PARTY[threatLevel(s) - 1].size[1]);
+      expect(raid.party!.some((f) => f.weapon === 'hatchets')).toBe(false);
+      return;
+    }
+    throw new Error('no Delivery Raid in 60 seeds');
   });
 });
 

@@ -643,17 +643,46 @@ export function raidWeight(s: GameState, id: RivalId): number {
   return Math.max(0.1, r.attention + ATTENTION.strike * FACTIONS[id].strike);
 }
 
-/** The boss who sends tonight's raid on the player: the one with the most Attention whose Strike can pay for it. A broke boss is skipped and the next-angriest goes. */
-export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null {
+/**
+ * The boss who sends tonight's raid on the player: the one with the most Attention whose Strike can pay for it. A broke
+ * boss is skipped and the next-angriest goes. `may` narrows who can go (a daytime pickup's raid, say).
+ */
+export function pickRaider(s: GameState, rng: Rng, size: number, may: (id: RivalId) => boolean = () => true): RivalId | null {
   const tier = threatLevel(s);
   let best: RivalId | null = null;
   let top = -Infinity;
   for (const id of RIVALS) {
     const keen = raidWeight(s, id) + nextRandom(rng) * ATTENTION.jitter; // near-ties go either way
-    if (raidWeight(s, id) <= 0 || !canSpend(s, id, 'strike', raidCost(s, id, raidSize(id, size, tier), tier))) continue;
+    if (raidWeight(s, id) <= 0 || !may(id) || !canSpend(s, id, 'strike', raidCost(s, id, raidSize(id, size, tier), tier))) continue;
     if (keen > top) { top = keen; best = id; }
   }
   return best;
+}
+
+/** A boss's party as it sets out for you, Strike paying its wages: a Blender Rush from the Blenders, Vera's elite Stewards from Act 5. */
+function sendOut(s: GameState, raider: RivalId, party: Fighter[], threat: number): Fighter[] {
+  let out = raider === 'blenders' ? blenderRush(s, party, threat) : party;
+  const elite = raider === 'sourwood' && actOf(s) >= OLD_MONEY.act; // Old Money: Vera sends her elite Stewards
+  if (elite) out = eliteStewards(out);
+  spend(s, raider, 'strike', raidCost(s, raider, out.length, elite ? Math.min(5, threat + 1) : threat));
+  return out;
+}
+
+/**
+ * Seam for night.ts's Delivery Raids on your pads and piers (spec: "Each boss's Attention decides who sends them"): the
+ * keenest boss whose Strike can pay sends the crew, as for any raid on you, and Strike pays for it now. A boss backing
+ * off or in a Truce sits a pickup out (raidWeight). Null when nobody can (or will) pay: no raid. `sender` is a story
+ * beat's own pick (FizzCo on the first chopper, beats.ts scriptedRaider): it goes, and Strike pays what it can.
+ */
+export function deliveryRaider(s: GameState, sender?: RivalId): { rival: RivalId; party: Fighter[] } | null {
+  const threat = threatLevel(s);
+  const [lo, hi] = RAID_PARTY[threat - 1].size;
+  const rng = { seed: s.seed };
+  const size = lo + Math.floor(nextRandom(rng) * (hi - lo + 1));
+  const rival = sender ?? pickRaider(s, rng, size);
+  s.seed = rng.seed;
+  if (!rival) return null;
+  return { rival, party: sendOut(s, rival, raidPartyFor(s, rival).slice(0, size), threat) };
 }
 
 const FISTWARD: Record<WeaponId, WeaponId> = { hatchets: 'clubs', clubs: 'fists', fists: 'fists' };
@@ -722,14 +751,11 @@ export function signatureRaids(s: GameState): Raid[] {
           raid.eta = hhmm(raid.at);
         }
       }
+      raid.party = sendOut(s, raider, raid.party, threat);
       if (raider === 'blenders') {
-        raid.party = blenderRush(s, raid.party, threat);
         s.rivals.blenders.rush = s.day;
         raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)
       }
-      const elite = raider === 'sourwood' && actOf(s) >= OLD_MONEY.act; // Old Money: Vera sends her elite Stewards
-      if (elite) raid.party = eliteStewards(raid.party);
-      spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, elite ? Math.min(5, threat + 1) : threat));
       kept.push(raid);
     } else {
       const tier = Math.min(3, threat + 1);

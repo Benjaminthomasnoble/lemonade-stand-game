@@ -4,6 +4,7 @@
 // before Day 6, and none starts on a forecast Storm (a Storm is weather, not an event). The Heat Wave is planned
 // ahead each season, so the Radio Jingle's look-ahead sees it coming. Other lanes add theirs with registerEvent
 // (land's Hurricane and Health Inspection). Pure and seeded, like the rest of the sim.
+import { EVENT_DEFS, registerEvent } from './eventTable.ts'; // first: a module can register as it loads
 import { nextRandom } from './rng.ts';
 import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season, type SegmentId, type SupplyId } from './balance.ts';
 import type { DistrictId } from './map.ts';
@@ -74,11 +75,7 @@ export interface EventsState {
   past: { id: string; from: number; to: number; district?: DistrictId }[]; // newest first
 }
 
-export const EVENT_DEFS: Record<string, EventDef> = {};
-/** Add an event to the pool. Land's Hurricane and Health Inspection register theirs the same way. */
-export function registerEvent(def: EventDef): void {
-  EVENT_DEFS[def.id] = def;
-}
+export { EVENT_DEFS, registerEvent }; // the table (eventTable.ts): add an event to the pool
 
 export function eventsOf(s: GameState): EventsState {
   return (worldOf(s).events ??= { on: [], past: [] });

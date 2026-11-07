@@ -12,7 +12,8 @@ import {
 import type { Blocker, GameState, Goal, SimEvent, Stand } from './economy.ts';
 import { appealFor, playerStands, stock } from './economy.ts';
 import { shineReason, worldOf } from './recipes.ts';
-import { liveEvent, planDay, registerEvent, type Placement, type WorldEvent } from './events.ts';
+import { liveEvent, planDay, type Placement, type WorldEvent } from './events.ts';
+import { registerEvent } from './eventTable.ts';
 import { eventWhere, newsroomNow } from './media.ts';
 import { availableRaiders } from './crew.ts';
 import { ceilingFor, segmentPriceFit, type Street } from './demand.ts';

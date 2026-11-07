@@ -5,7 +5,7 @@
 // 2-3 briefs. Headlines go story beat, then rank-up, then last night's raid or the biggest rival move, then today's
 // events, then the weather. Mid-day events break in on 101.5 instead (radio.ts). s.news stays the headline source
 // for other lanes: what it holds at dawn prints as a brief. Pure: the paper is read off the state.
-import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SUPPLIES, WEATHER, type RivalId, type SupplyId, type WeatherKind } from './balance.ts';
+import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SUPPLIES, WEATHER, YEAR_DAYS, type RivalId, type SupplyId, type WeatherKind } from './balance.ts';
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
 import { costPerCup, playerStands, seasonDay, seasonOf } from './economy.ts';
@@ -192,16 +192,19 @@ function wireStory(line: string): Story | null {
   return { big: m[1].replace(/:$/, ''), small: m[2].split(/(?<=[.!?])\s/)[0].replace(/\.$/, ''), brief: line, rank: 3.6 };
 }
 
-/** When the news is thin: the Market's biggest move, the next festival, the biggest rival on the map. */
+/** When the news is thin: the Market (its biggest move, or how it stands), the next festival however far off, and the
+ * biggest rivals on the map. The first two are always there, so a quiet morning still prints 2 briefs. */
 function fillers(s: GameState): string[] {
   const out: string[] = [];
-  const big = marketLines(s).filter((m) => Math.abs(m.change) >= 0.15).sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0];
-  if (big) out.push(`${SUPPLIES[big.id].label} ${big.change > 0 ? 'up' : 'down'} ${Math.round(Math.abs(big.change) * 100)}% at the Market.`);
-  const next = upcomingFestivals(s).find((x) => x.from > s.day + 2);
+  const market = marketLines(s);
+  const big = market.filter((m) => Math.abs(m.change) >= 0.15).sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0];
+  out.push(big ? `${SUPPLIES[big.id].label} ${big.change > 0 ? 'up' : 'down'} ${Math.round(Math.abs(big.change) * 100)}% at the Market.` : `At the Market: ${marketText(market)}.`);
+  const next = upcomingFestivals(s, YEAR_DAYS).find((x) => x.from > s.day + 2); // the countdowns name the next 2 days'
   if (next) out.push(`The ${FESTIVALS[next.id].name} opens Day ${next.from} in ${DISTRICT_BY_ID[FESTIVALS[next.id].district].name}.`);
-  const stands = RIVALS.filter((r) => s.rivals[r].alive).map((r) => ({ r, n: PLOTS.filter((p) => s.plots[p.id].owner === r && s.plots[p.id].stand).length }));
-  const top = stands.sort((a, b) => b.n - a.n)[0];
-  if (top?.n) out.push(`${NAME[top.r]} run ${top.n} stands, the most in the bay.`);
+  const count = (f: FactionId) => PLOTS.filter((p) => s.plots[p.id].owner === f && s.plots[p.id].stand).length;
+  const [top, second] = RIVALS.filter((r) => s.rivals[r].alive).map((r) => ({ r, n: count(r) })).filter((x) => x.n).sort((a, b) => b.n - a.n);
+  if (top) out.push(`${NAME[top.r]} run ${top.n} stand${top.n === 1 ? '' : 's'}, the most ${top.n >= count('player') ? 'in the bay' : 'of any rival'}.`);
+  if (second) out.push(`${NAME[second.r]} are next with ${second.n}.`);
   return out;
 }
 

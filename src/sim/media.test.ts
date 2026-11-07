@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   BRAND_TIERS, bugleHeadline, CLOSE, costPerCup, EVENT_DEFS, eventsOf, fightRaid, frontPage, grantPage, HEAT_WAVE, liveEvent, LOTTIES_CORNER, lookAhead,
-  marketLines, marketText, newGame, openStand, PLOT_BY_ID, PLOTS, playerStands, raidPartyFor, RANKS, registerEvent, sleepUntilDawn, tickMinute, weatherText,
+  marketLines, marketText, newGame, openStand, PLOT_BY_ID, PLOTS, playerStands, raidPartyFor, RANKS, registerEvent, simulateRestOfDay, sleepUntilDawn, tickMinute, weatherText,
   type EventDef, type GameState, type RivalId,
 } from './economy.ts';
 import { bugleSheet } from '../ui/bugle.ts';
@@ -100,7 +100,7 @@ describe('the Morning Bugle', () => {
     expect(frontPage(s).briefs).toContain("Honey-Ginger Hot Lemonade is back in Lottie's book.");
   });
 
-  it('a rival\'s new stands make the paper; a quiet morning still prints 2-3 briefs', () => {
+  it('a rival\'s new stands make the paper', () => {
     const s = newGame(32);
     dawn(s, 3);
     s.phase = 'report';
@@ -114,13 +114,23 @@ describe('the Morning Bugle', () => {
     expect(paper.moves[0].gained).toContain(free.id);
     const n = paper.moves[0].gained.length;
     expect(bugleHeadline(s)).toEqual(n === 1 ? ['FIZZCO EXPAND', `New stand at ${short(free.id)}`] : ['FIZZCO EXPAND!', `${n} new stands`]);
-    for (let d = 5; d <= 40; d++) {
-      dawn(s, d);
-      const n = frontPage(s).briefs.length;
-      expect(n).toBeGreaterThanOrEqual(2);
-      expect(n).toBeLessThanOrEqual(3);
-    }
   });
+
+  it('every morning prints 2-3 briefs, quiet ones too, through real business days', () => {
+    for (const seed of [2, 3]) {
+      const s = newGame(seed);
+      const counts: number[] = [];
+      for (let d = 0; d < 45; d++) {
+        s.cash = Math.max(s.cash, 1000);
+        openStand(s);
+        simulateRestOfDay(s);
+        s.news = []; // the HUD shows the day's news as it comes (main.ts flushNews)
+        if (!sleepUntilDawn(s)) throw new Error(`no dawn after day ${s.day}`);
+        counts.push(frontPage(s).briefs.length);
+      }
+      expect(counts.filter((n) => n < 2 || n > 3)).toEqual([]);
+    }
+  }, 120_000); // 90 whole days: about 30 s alone, much longer while other checks share the machine
 
   it("other lanes' overnight lines print on the wire; one written the paper's way can lead", () => {
     const s = newGame(33);

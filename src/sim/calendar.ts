@@ -5,14 +5,14 @@
 import { nextRandom } from './rng.ts';
 import {
   FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
-  TASTE_OFF_SKILL, TILLY_FAIR_YEAR, TILLY_FIELD_BUYOUT, TILLY_WAITS_FOR_FAIR, YEAR_DAYS,
+  TASTE_OFF_SKILL, TILLY_FAIR_ACT, TILLY_FAIR_YEAR, TILLY_FIELD_BUYOUT, TILLY_WAITS_FOR_FAIR, YEAR_DAYS,
   type FestivalId, type RecipeId, type RivalId, type SegmentId, type Sweetness,
 } from './balance.ts';
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
-import { isEndless } from './modes.ts';
+import { actOf, isEndless } from './modes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -176,8 +176,8 @@ function contestants(s: GameState, fair: FairId, district: DistrictId): { vs: Co
   const year = yearOf(s.day);
   // Act 1: Brock stakes his Strawberry page against one of Lottie's pies.
   if (campaign && fair === 'summerFair' && year === 1 && s.rivals.blenders.alive) return { vs: ['blenders'], stake: 'strawberry' };
-  // Act 4 (and every year after, until she's won over): out-brew Tilly.
-  if (campaign && fair === 'countyFair' && year >= TILLY_FAIR_YEAR && s.rivals.hollis.alive && !s.world?.tillyWon) return { vs: ['hollis'], stake: 'tilly' };
+  // The Act 4 edition (Days 71-77 on target pacing), and each County Fair after it until she's won over: out-brew Tilly.
+  if (campaign && fair === 'countyFair' && actOf(s) >= TILLY_FAIR_ACT && s.rivals.hollis.alive && !s.world?.tillyWon) return { vs: ['hollis'], stake: 'tilly' };
   const vs = RIVALS.filter((id) => s.rivals[id]?.alive && PLOTS.some((p) => p.district === district && s.plots[p.id].owner === id && s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked));
   return { vs: vs.length ? vs : ['local'] };
 }

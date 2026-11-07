@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, boothCeiling, calendarTraffic, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
+  actOf, appealFor, boothCeiling, calendarTraffic, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
   expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
@@ -469,11 +469,14 @@ describe('Tilly and the County Fair', () => {
 
   it('the Act 4 County Fair is a duel with Tilly; win it and her Fields sell at 1.5x', () => {
     const s = tillyGame();
+    s.rank = 4; // Act 2: year 1's County Fair is an open fair, and beating Tilly there wins nothing from her
     dawn(s, 21);
-    expect(tasteOffToday(s)!.stake).toBeUndefined(); // year 1 is an open fair
+    expect(actOf(s)).toBe(2);
+    expect(tasteOffToday(s)!.stake).toBeUndefined();
     ace(s);
     withSkill(0, () => close(s));
     expect(worldOf(s).tillyWon).toBeFalsy();
+    s.rank = 7; // Act 4 (Fields & Fizz)
     dawn(s, 77);
     const t = tasteOffToday(s)!;
     expect([t.vs, t.stake]).toEqual([['hollis'], 'tilly']);
@@ -485,6 +488,24 @@ describe('Tilly and the County Fair', () => {
     expect(worldOf(s).tillyWon).toBe(true);
     expect(plotBuyoutPrice(s, field.id)).toBe(Math.round(fieldBefore * 1.5 / 2.5));
     expect(plotBuyoutPrice(s, street.id)).toBe(streetBefore);
+  });
+
+  it('the duel waits for Act 4, and comes back each County Fair until Tilly is won over', () => {
+    const s = tillyGame();
+    s.rank = 6; // still Act 3 on Day 77: an open fair, Tilly entering like anyone with a stand there
+    dawn(s, 77);
+    expect(actOf(s)).toBe(3);
+    expect(tasteOffToday(s)!.stake).toBeUndefined();
+    close(s);
+    s.rank = 7;
+    dawn(s, 133); // year 3's County Fair, now in Act 4
+    expect(tasteOffToday(s)).toMatchObject({ vs: ['hollis'], stake: 'tilly' });
+    flub(s);
+    withSkill(1, () => close(s));
+    expect(worldOf(s).tillyWon).toBeFalsy();
+    expect(s.news.some((n) => n.includes('next year'))).toBe(true);
+    dawn(s, 189);
+    expect(tasteOffToday(s)!.stake).toBe('tilly');
   });
 
   it('outside the campaign, beating Tilly at any County Fair wins her over', () => {

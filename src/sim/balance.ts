@@ -189,7 +189,9 @@ export const TASTE_OFF_SKILL: Record<RivalId | 'local', number> = { blenders: 0.
 export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5 };
 /** Tilly, out-brewed at the County Fair, sells a Field at 1.5× land value instead of her home-turf 2.5×. */
 export const TILLY_FIELD_BUYOUT = 1.5;
-/** Campaign: Tilly won't sell out or be stormed before the Act 4 County Fair (year 2, Days 71-77) has run its Taste-Off. */
+/** Campaign: Tilly duels at the County Fairs from Act 4 on; its Act 4 edition is year 2's (Days 71-77) on target pacing. */
+export const TILLY_FAIR_ACT = 4;
+/** Campaign: Tilly won't sell out or be stormed before year 2's County Fair (Days 71-77) has run its Taste-Off (design-spec open question 5). */
 export const TILLY_WAITS_FOR_FAIR = true;
 export const TILLY_FAIR_YEAR = 2;
 

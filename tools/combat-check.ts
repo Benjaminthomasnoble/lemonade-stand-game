@@ -78,6 +78,7 @@ function assault(id: RivalId, size: number, level: number, weapon: WeaponId, gea
     const s = newGame(seed);
     s.rank = 10;
     s.cash = 1e9;
+    s.day = 78; // after the Act 4 County Fair: the campaign's Tilly won't be stormed before it (calendar.ts tillyWaits)
     weaken(s, id);
     // A mixed crew: traits cycle with the seed, as hires from the Hiring Hall would.
     s.guards = Array.from({ length: size }, (_, i) => guard(weapon, gear, level, TRAITS[(seed * 7 + i * 3) % TRAITS.length]));

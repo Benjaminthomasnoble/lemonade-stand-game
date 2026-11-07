@@ -3,10 +3,12 @@
 // while open. Mounted inside the plot card for your own stands (hud.ts); exact numbers sit in the math table and
 // in title tooltips, the panel itself stays a few words a line.
 import {
-  BASE_STOP_CHANCE, demandChain, FACTIONS, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft, servingsAvailable, WEATHER,
-  type DemandChain, type GameState, type RivalId, type SegmentId, type WalkReason,
+  BASE_STOP_CHANCE, costPerCup, demandChain, FACTIONS, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft,
+  servingsAvailable, standLevel, stock, SUPPLIES, WEATHER,
+  type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
+import { recipeRow } from './recipes.ts';
 import * as A from './clay.ts';
 
 /** Why people walked past, in the order the panel lists them, with the street's reaction icon for each. */
@@ -19,8 +21,15 @@ export const WHY: [WalkReason, Emote, string][] = [
 ];
 
 // Props are drawn once so the markup stays the same between frames (their gradient ids are unique per draw).
-let icons: { crowd: string; cup: string; crate: string } | null = null;
-const icon = () => (icons ??= { crowd: A.crowdSVG(), cup: A.cupSVG(), crate: A.crateSVG() });
+let icons: { crowd: string; cup: string; crate: string; cube: string } | null = null;
+const icon = () => (icons ??= { crowd: A.crowdSVG(), cup: A.cupSVG(), crate: A.crateSVG(), cube: A.cubeSVG() });
+const SUPPLY_ART: Record<SupplyId, (layer: string) => string> = { lemons: A.bowlSVG, sugar: A.bagSVG, ice: A.traySVG };
+const supplyArt = new Map<string, string>();
+const layer = (id: SupplyId, l: string) => {
+  let m = supplyArt.get(id + l);
+  if (!m) { m = SUPPLY_ART[id](l); supplyArt.set(id + l, m); }
+  return m;
+};
 const emotes = new Map<Emote, string>();
 /** A reaction icon wrapped in an svg, so the clay rows size it like their other props. */
 const emote = (k: Emote) => {
@@ -100,9 +109,44 @@ function mathTable(s: GameState, plotId: string, c: DemandChain): string {
   return `<table class="cl-books">${rows.map(([k, v, cls]) => `<tr><td>${esc(k)}</td><td${cls ? ` class="${cls}"` : ''}>${v}</td></tr>`).join('')}</table>`;
 }
 
+const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
+
+/**
+ * The mid-day nudges (spec: Nudge anything mid-day, and the stand panel answers within seconds): the morning
+ * dock's card pitchers, Sweetness cubes, price tag and supply buttons, for the stand you're managing. Supplies
+ * cost today's Market price, and a button wobbles when the stand will run dry before closing. Upgrades and
+ * land stay Morning Prep only.
+ */
+function nudges(s: GameState, plotId: string, c: DemandChain): string {
+  const st = s.plots[plotId].stand!;
+  const I = icon();
+  const lvl = SWEET.indexOf(st.sweetness);
+  const cubes = SWEET.map((v, i) => `<button class="cl-cube" data-action="sweet" data-value="${v}" aria-pressed="${i <= lvl}" title="Sweetness: ${v}">${I.cube}</button>`).join('');
+  const cost = costPerCup(s, st);
+  const left = Math.max(0, c.cups - st.day.customers); // what the rest of the day should sell
+  const servings = servingsAvailable(st);
+  const short = (id: SupplyId) => !st.autoRestock && left > 0
+    && (id === 'ice' ? st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(left, Math.max(servings, 1)) : servings < left * 0.8);
+  const gauge = (id: SupplyId) => {
+    const sp = SUPPLIES[id];
+    const max = maxPacks(s, st, id);
+    return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${standLevel(st).storage[id]}">
+      <span class="cl-fill"${short(id) ? ' data-low' : ''}><span class="l b">${layer(id, 'back')}</span><span class="l f">${layer(id, 'fill')}</span><span class="l t">${layer(id, 'top')}</span></span>
+      <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${usd(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
+  };
+  return `<div class="cl-tray" data-testid="nudges">
+    <div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${cubes}</div></div>
+    <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
+      <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > c.ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${usd(c.ceiling)}: past it, buyers walk off. Costs you ${usd(cost)} a cup. Tap to price at the top"><b>${usd(st.price)}</b><i>top ${usd(c.ceiling)}</i></div>
+      <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div></div>
+    <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div></div>
+  </div>`;
+}
+
 /**
  * The panel for one of your stands. `math` opens the books table. Live while open: walkers and cups so far,
- * the line right now, and what's left to pour; the chain's numbers are today's expected totals.
+ * the line right now, and what's left to pour; the chain's numbers are today's expected totals. While open,
+ * the stand you're managing also carries the nudges (another stand's card offers Manage first).
  */
 export function standPanel(s: GameState, plotId: string, math: boolean): string {
   const st = s.plots[plotId]?.stand;
@@ -131,6 +175,7 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
     </span>
     <span class="cl-note">${capRow}</span>
     ${why ? `<span class="cl-bars" title="${whyWhen}: why people walked past"><span>${why}</span></span>` : ''}
+    ${open && plotId === s.selected ? nudges(s, plotId, c) : ''}
     <button class="cl-link" data-action="standMath">${math ? 'Hide the math' : 'See the math'}</button>
     ${math ? mathTable(s, plotId, c) : ''}
   </div>`;

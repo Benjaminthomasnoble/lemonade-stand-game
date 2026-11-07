@@ -95,4 +95,21 @@ describe('the stand panel', () => {
     expect(live).toContain(`${st.day.customers} sold · line `);
     expect(live).toContain('pour left');
   });
+
+  it('carries the mid-day nudges for the stand you manage, while it sells', () => {
+    const s = corner();
+    expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-testid="nudges"'); // Morning Prep has the dock
+    openStands(s);
+    s.weather = { kind: 'hot', temp: 88 };
+    for (let i = 0; i < 60; i++) tickMinute(s);
+    const html = standPanel(s, LOTTIES_CORNER, false);
+    expect(html).toContain('data-testid="nudges"');
+    for (const a of ['data-action="price" data-delta="-0.05"', 'data-action="price" data-delta="0.05"', 'data-action="priceCeiling"',
+      'data-action="recipe" data-id="classic"', 'data-action="recipe" data-id="pink" aria-pressed="true"', 'data-action="sweet" data-value="extra"',
+      'data-action="buy" data-id="lemons"', 'data-action="buy" data-id="sugar"', 'data-action="buy" data-id="ice"']) expect(html).toContain(a);
+    expect(html).toContain(`top ${'$'}${priceCeiling(s, LOTTIES_CORNER).toFixed(2)}`);
+    expect(html).not.toContain('data-action="upgrade"'); // upgrades and land stay Morning Prep only
+    s.selected = 'maple-1n'; // another stand's card has Manage first
+    expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-testid="nudges"');
+  });
 });

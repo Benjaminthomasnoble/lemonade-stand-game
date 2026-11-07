@@ -226,7 +226,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   let ledgerDay = -1; // each Evening opens on its Ledger
   let registryTab: RegistryTab = 'buy'; // the Land Registry's tab (the Registry itself is the 'registry' menu)
   const last = new Map<HTMLElement, string>();
-  const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html) { el.innerHTML = html; last.set(el, html); } };
+  // A pressed button keeps its markup until release: a live panel (the stand's, mid-day) redraws as it sells,
+  // and a button swapped out between press and release never gets its click.
+  let pressed: Element | null = null;
+  const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html && !(pressed && el.contains(pressed))) { el.innerHTML = html; last.set(el, html); } };
   const redraw = () => onAction({ type: 'refresh' });
 
   const hud: Hud = {
@@ -326,12 +329,16 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- input: one click listener, plus long-press to fill up ----------
   let held: number | undefined, heldFired = false;
   root.addEventListener('pointerdown', (e) => {
+    pressed = (e.target as HTMLElement).closest('[data-action]');
     const el = (e.target as HTMLElement).closest('[data-fill-packs]') as HTMLElement | null;
     heldFired = false;
     if (!el) return;
     held = window.setTimeout(() => { heldFired = true; onAction({ type: 'buy', id: el.dataset.id as SupplyId, packs: Number(el.dataset.fillPacks) }); }, 450);
   });
   const cancelHold = () => { clearTimeout(held); };
+  const release = () => { setTimeout(() => { pressed = null; }); }; // after the click it lets through
+  addEventListener('pointerup', release, true);
+  addEventListener('pointercancel', release, true);
   root.addEventListener('pointerup', cancelHold);
   root.addEventListener('pointerleave', cancelHold);
   root.addEventListener('contextmenu', (e) => { if ((e.target as HTMLElement).closest('[data-fill-packs]')) e.preventDefault(); });

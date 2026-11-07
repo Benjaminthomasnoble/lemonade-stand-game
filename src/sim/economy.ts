@@ -22,7 +22,7 @@ import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesA
 import { crewAtDawn, isSpoiled, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
-import { DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
 import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
@@ -593,21 +593,27 @@ export function autoRestock(s: GameState, plotId: string): void {
   }
 }
 
-// Appeal only changes between days (price, level, reputation, weather), so
-// cache it for the open day. Cleared whenever the stand opens. Each plot's street
-// (which stands a passerby can pick, demand.ts) is kept too. Both are worked out
-// again when a stand opens, is wrecked or changes hands mid-day (checked once a
-// minute): a table rebuilt on a wrecked plot sells as itself, and a plot that
-// changes hands moves the Majority's curb appeal.
+// Appeal is cached for the open day: worked out once per stand and segment, and each plot's street (which
+// stands a passerby can pick, demand.ts) with it. Cleared whenever the stands open. The whole town is judged
+// afresh when a stand opens, is wrecked or changes hands mid-day, or Reputation or the weather moves (checked
+// once a minute): a table rebuilt on a wrecked plot sells as itself, and a plot that changes hands moves the
+// Majority's curb appeal. A mid-day nudge (price, card, Sweetness, level) re-judges that stand and every street
+// it sells on, within 2 plots, from the next minute (spec: Nudge anything mid-day, and the stand panel answers).
+interface TownPlot {
+  stand: Stand | null; wrecked: boolean; owner: FactionId | null;
+  price: number; recipe: RecipeId | null; sweetness: Sweetness | null; level: number;
+}
 interface DayCache {
   appeal: Map<string, Partial<Record<SegmentId, Appeal>>>;
   streets: Map<string, Partial<Record<SegmentId, Street>>>;
-  town: { stand: Stand | null; wrecked: boolean; owner: FactionId | null }[];
+  town: TownPlot[];
+  reputation: number;
+  weather: WeatherKind | null;
 }
 const dayCache = new WeakMap<GameState, DayCache>();
 function cacheFor(s: GameState): DayCache {
   let c = dayCache.get(s);
-  if (!c) { c = { appeal: new Map(), streets: new Map(), town: [] }; dayCache.set(s, c); }
+  if (!c) { c = { appeal: new Map(), streets: new Map(), town: [], reputation: s.reputation, weather: null }; dayCache.set(s, c); }
   return c;
 }
 function cachedAppeal(s: GameState, plotId: string, seg: SegmentId): Appeal {
@@ -622,18 +628,33 @@ function streetFor(s: GameState, p: Plot, seg: SegmentId): Street {
   if (!row) { row = {}; m.set(p.id, row); }
   return (row[seg] ??= streetAt(s, p, (id) => cachedAppeal(s, id, seg)));
 }
-/** Drop the streets and appeal if any stand opened, was wrecked or changed hands since the last minute. */
+function townPlot(ps: PlotState): TownPlot {
+  const st = ps.stand;
+  return { stand: st, wrecked: st?.wrecked ?? false, owner: ps.owner, price: st?.price ?? 0, recipe: st?.recipe ?? null, sweetness: st?.sweetness ?? null, level: st?.level ?? 0 };
+}
+/** Drop what moved since the last minute: the whole town for a new, wrecked or traded stand, one block for a nudge. */
 function holdStreets(s: GameState): void {
   const c = cacheFor(s);
-  let moved = c.town.length !== PLOTS.length;
+  let moved = c.town.length !== PLOTS.length || c.reputation !== s.reputation || c.weather !== s.weather.kind;
   for (let i = 0; i < PLOTS.length && !moved; i++) {
     const ps = s.plots[PLOTS[i].id], t = c.town[i];
     moved = ps.stand !== t.stand || (ps.stand?.wrecked ?? false) !== t.wrecked || ps.owner !== t.owner;
   }
-  if (!moved) return;
-  c.streets.clear();
-  c.appeal.clear();
-  c.town = PLOTS.map((p) => { const ps = s.plots[p.id]; return { stand: ps.stand, wrecked: ps.stand?.wrecked ?? false, owner: ps.owner }; });
+  if (moved) {
+    c.streets.clear();
+    c.appeal.clear();
+    c.town = PLOTS.map((p) => townPlot(s.plots[p.id]));
+    c.reputation = s.reputation;
+    c.weather = s.weather.kind;
+    return;
+  }
+  for (let i = 0; i < PLOTS.length; i++) {
+    const st = s.plots[PLOTS[i].id].stand, t = c.town[i];
+    if (!st || (st.price === t.price && st.recipe === t.recipe && st.sweetness === t.sweetness && st.level === t.level)) continue;
+    c.appeal.delete(PLOTS[i].id);
+    for (const q of nearbyPlots(PLOTS[i])) c.streets.delete(q.id); // the streets this stand sells on
+    c.town[i] = townPlot(s.plots[PLOTS[i].id]);
+  }
 }
 
 function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: SegmentId): { buys: boolean; reason?: WalkReason; paid?: number } {

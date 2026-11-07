@@ -4,7 +4,7 @@ import {
   expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, rivalPrice, rivalShare,
-  runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, stockCups, tickMinute, touristPays, withinTwo,
+  buySupply, runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, setRecipe, simulateRestOfDay, STAND_LEVELS, stockCups, tickMinute, touristPays, withinTwo,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
 
@@ -523,6 +523,90 @@ describe('the stand panel\'s demand chain', () => {
     expect(oldtown.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: true, touristTrap: true, majority: true });
     expect(oldtown.lunch).toBeGreaterThan(1);
     expect(oldtown.curb).toBe(1.1);
+  });
+});
+
+describe('mid-day nudges', () => {
+  /** maple-5n open on a warm day, with a FizzCo stand next door across the district line. */
+  function openNextToFizz(): GameState {
+    const s = newGame(2);
+    playerStand(s, 'maple-5n');
+    rivalStand(s, 'oldtown-0n', 'fizzco');
+    s.forecast = { kind: 'warm', temp: 80 };
+    openStands(s);
+    s.weather = { kind: 'warm', temp: 80 };
+    return s;
+  }
+  const run = (s: GameState, minutes: number) => {
+    const ev: SimEvent[] = [];
+    for (let i = 0; i < minutes; i++) ev.push(...tickMinute(s));
+    return ev.flatMap((e) => (e.type === 'passerby' ? [e] : []));
+  };
+
+  it('re-judge the price from the next minute: past 40% over the top nobody buys, back at the top they do', () => {
+    const s = openNextToFizz();
+    const st = s.plots['maple-5n'].stand!;
+    run(s, 120);
+    const sold = st.day.customers, pricey = st.day.walkedPast.pricey;
+    expect(sold).toBeGreaterThan(0);
+    setPrice(st, priceCeiling(s, 'maple-5n') * 2);
+    run(s, 120);
+    expect(st.day.customers).toBe(sold);
+    expect(st.day.walkedPast.pricey).toBeGreaterThan(pricey);
+    setPrice(st, priceCeiling(s, 'maple-5n'));
+    run(s, 120);
+    expect(st.day.customers).toBeGreaterThan(sold);
+  });
+
+  it('charge the new price from the next cup', () => {
+    const s = openNextToFizz();
+    const st = s.plots['maple-5n'].stand!;
+    run(s, 60);
+    setPrice(st, 0.9);
+    const sold = st.day.customers, revenue = st.day.revenue;
+    run(s, 180);
+    expect(st.day.customers).toBeGreaterThan(sold);
+    expect(st.day.revenue - revenue).toBeCloseTo((st.day.customers - sold) * 0.9, 6);
+  });
+
+  it('re-judge a card swap: at Pink\'s top a Classic stand loses buyers to price, pouring Pink it loses none', () => {
+    const s = openNextToFizz();
+    const st = s.plots['maple-5n'].stand!;
+    setRecipe(st, 'pink');
+    const pinkTop = priceCeiling(s, 'maple-5n');
+    setRecipe(st, 'classic');
+    expect(pinkTop).toBeGreaterThan(priceCeiling(s, 'maple-5n'));
+    setPrice(st, pinkTop);
+    run(s, 200);
+    const pricey = st.day.walkedPast.pricey;
+    expect(pricey).toBeGreaterThan(0);
+    setRecipe(st, 'pink');
+    run(s, 200);
+    expect(st.day.walkedPast.pricey).toBe(pricey);
+  });
+
+  it('re-judge the streets the stand sells on: next door stops sending walkers to a stand priced out', () => {
+    const s = openNextToFizz();
+    const crossed = (ev: ReturnType<typeof run>) => ev.filter((e) => e.plot === 'oldtown-0n' && e.at === 'maple-5n').length;
+    expect(crossed(run(s, 240))).toBeGreaterThan(0);
+    setPrice(s.plots['maple-5n'].stand!, priceCeiling(s, 'maple-5n') * 2);
+    expect(crossed(run(s, 240))).toBe(0);
+  });
+
+  it('restock a stand that ran dry at today\'s Market price, and it sells again', () => {
+    const s = openNextToFizz();
+    const st = s.plots['maple-5n'].stand!;
+    st.inventory.lemons = [{ qty: 5, day: s.day, unitCost: 0.1 }];
+    st.inventory.sugar = 10;
+    run(s, 240);
+    const sold = st.day.customers;
+    expect(sold).toBe(10); // one pitcher
+    expect(st.day.walkedPast.soldOut).toBeGreaterThan(0);
+    const cash = s.cash;
+    expect(buySupply(s, 'lemons', 1, st) && buySupply(s, 'sugar', 1, st)).toBe(true);
+    expect(s.cash).toBeCloseTo(cash - 20 * s.market.lemons - 50 * s.market.sugar, 2);
+    run(s, 240);
+    expect(st.day.customers).toBeGreaterThan(sold);
   });
 });
 

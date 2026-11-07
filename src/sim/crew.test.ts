@@ -373,10 +373,13 @@ describe('Wreckers and Captains', () => {
     promote(s, dex.id, 'captain');
     s.guards.push(guard({ id: 'gb', name: 'Bea B', trait: 'Sprinter' }));
     const target = raidTargets(s)[0].id;
-    const report = planRaid(s, target, [dex.id, 'gb'], 'shakedown', 'now');
-    if (typeof report !== 'object') throw new Error('raid did not run');
+    expect(planRaid(s, target, [dex.id, 'gb'], 'shakedown', 'now')).toBe(true); // the squad travels (nights): it fights on arrival
+    openStand(s);
+    let report: BattleReport | undefined;
+    while (!report && s.phase === 'open') for (const e of tickMinute(s)) if (e.type === 'fight') report = e.report;
+    if (!report) throw new Error('raid did not run');
     const bea = report.attackers.find((f) => f.id === 'gb')!;
-    expect(bea.nerve).toBe(guardFighter(guard({ trait: 'Sprinter' }), 'att', true).nerve + 20);
+    expect(bea.nerve).toBe(guardFighter(guard({ trait: 'Sprinter' }), 'att', false).nerve + 20);
   });
 });
 

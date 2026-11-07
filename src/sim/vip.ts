@@ -447,8 +447,9 @@ const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
 
 /** A Local Order's cups, an hour before closing on each day until it's due: poured at its stand from the stand's own stock
  * (the pitcher on hand, then whole pitchers from its lemons and sugar, each cup with its ice, an ice machine making what
- * the cooler lacks), the cup and the card's extra paid as they go, and the client paying for each cup. A Warehouse will
- * top the stand up (seam: no Warehouse on main yet). */
+ * the cooler lacks), the cup and the card's extra paid as they go, and the client paying for each cup. The order goes in
+ * the day's books, not the stand's till: a Shakedown takes a day of its walk-in profit (loot.ts). A Warehouse will top
+ * the stand up (seam: no Warehouse on main yet). */
 function pour(s: GameState, o: Order): Pickup | null {
   const plot = localStand(s, o);
   const ps = plot ? s.plots[plot] : undefined;
@@ -470,8 +471,8 @@ function pour(s: GameState, o: Order): Pickup | null {
   const before = o.loaded ?? 0;
   o.loaded = before + cups;
   const pay = payFor(o, o.loaded) - payFor(o, before);
-  st.day.revenue = round2(st.day.revenue + pay);
-  st.day.cupCosts = round2(st.day.cupCosts + cost);
+  s.today.revenue = round2(s.today.revenue + pay);
+  s.today.supplies = round2(s.today.supplies + cost);
   s.cash = round2(s.cash + pay - cost);
   s.lifetimeCups += cups;
   const done = o.loaded >= o.qty;

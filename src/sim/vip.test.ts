@@ -340,7 +340,7 @@ describe('VIP clients', () => {
     st.inventory.sugar = 1000;
     st.inventory.ice = 900; // 300 cups' worth
     const o = order(s, { id: 'l1', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day + 2 });
-    const cash = s.cash;
+    const cash = s.cash, sales = s.today.revenue, supplies = s.today.supplies;
     s.phase = 'open';
     s.minute = PICKUP_MINUTE.local - 1;
     expect(pickupsAt(s)).toEqual([]); // not before 7 pm
@@ -353,8 +353,9 @@ describe('VIP clients', () => {
     expect(st.inventory.sugar).toBe(700);
     expect(st.pitcherCups).toBe(4);
     expect(st.inventory.ice).toBe(0);
-    expect(st.day.revenue).toBe(450);
-    expect(st.day.cupCosts).toBe(round(300 * CUP_COST));
+    expect(s.today.revenue).toBe(round(sales + 450));
+    expect(s.today.supplies).toBe(round(supplies + 300 * CUP_COST));
+    expect(st.day.revenue).toBe(0); // the stand's till keeps its walk-in day: that's what a Shakedown takes
     expect(s.cash).toBe(round(cash + 450 - 300 * CUP_COST));
     expect(s.news.at(-1)).toBe(`Delivered 300 cups for ${o.client}: $450!`);
     expect(orderWhen(s, { ...o, accepted: false, loaded: 0 }, true)).toBe(`day ${o.due} at ${PLOT_BY_ID[home.id].name}`);

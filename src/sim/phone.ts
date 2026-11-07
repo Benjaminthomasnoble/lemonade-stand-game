@@ -10,7 +10,7 @@
 import { FACTIONS, PHONE_GRUDGE_JUMP, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { PLOTS } from './map.ts';
-import { threatLevel, TUTORIAL_RAID_DAY } from './crew.ts';
+import { threatLevel, TUTORIAL_RAID_DAY, type Raid } from './crew.ts';
 import { onYou } from './night.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { hasStory, storyAct } from './story.ts';
@@ -24,7 +24,7 @@ export interface Call { who: RivalId; text: string; mood: BossMood; day: number;
 export interface PhoneState {
   lastDay?: number; // the game day the last call rang
   queue: Call[]; // most important first
-  log: { day: number; who: RivalId; text: string; mood: BossMood; plots?: number /* the boss's plots when they rang */ }[]; // newest first
+  log: { day: number; who: RivalId; text: string; mood: BossMood; plots?: number /* the boss's plots when they rang */; raid?: string }[]; // newest first
   grudge: Partial<Record<RivalId, number>>; // as last seen, to spot a jump
   attention: Partial<Record<RivalId, number>>;
   threat?: number;
@@ -77,8 +77,9 @@ export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood
   if (!s.rivals[who]?.alive) return false;
   if (who === 'blenders' && !opts.scripted && brockLocked(s)) return false;
   const ph = s.phone!;
-  // The same call twice: keep the more important one (a boss in a mood who then raids you calls about the raid).
-  const twin = ph.queue.findIndex((c) => c.who === who && c.text === text);
+  // The same call twice: keep the more important one (a boss in a mood who then raids you calls about the raid). Two
+  // raids are two calls: the first warning rings.
+  const twin = ph.queue.findIndex((c) => c.who === who && c.text === text && (!c.raid || !opts.raid || c.raid === opts.raid));
   if (twin >= 0) {
     if (ph.queue[twin].priority >= (opts.priority ?? CALL_PRIORITY.mood)) return false;
     ph.queue.splice(twin, 1);
@@ -93,17 +94,34 @@ export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood
   return true;
 }
 
-/** The call to ring now, if any: one a game day, the most important first. The UI calls this at a lull. */
+/** What a raiding boss says on the phone: Brock's scripted lines for tonight's raid, else the boss's own pool. */
+const raidLine = (s: GameState, r: Raid) =>
+  r.attacker === 'blenders' && !r.delivery ? (s.plots[r.target].defense.tier ? LINES.brockFence : LINES.brockBlend) : '';
+
+/** Every raid on you whose warning is out gets its boss's call, including raids planned after closing (a Delivery Raid). */
+function raidCalls(s: GameState): void {
+  const ph = s.phone!;
+  for (const r of s.raids) {
+    if (!r.warned || !onYou(s, r) || ph.queue.some((c) => c.raid === r.id) || ph.log.some((l) => l.raid === r.id)) continue;
+    phoneCall(s, r.attacker as RivalId, raidLine(s, r), { mood: 'warn', priority: CALL_PRIORITY.raid, until: s.day, raid: r.id });
+  }
+}
+
+/**
+ * The call to ring now, if any: one a game day, the most important first. The UI calls this at a lull. A lesser call
+ * never takes the day's slot while tonight's raid call waits for its warning.
+ */
 export function takeCall(s: GameState): Call | null {
   const ph = s.phone;
   if (!ph || ph.lastDay === s.day || gameOver(s) || (s.outcome?.result === 'won' && !isEndless(s))) return null;
+  raidCalls(s);
   const raid = (c: Call) => (c.raid ? s.raids.find((r) => r.id === c.raid) : undefined);
   ph.queue = ph.queue.filter((c) => c.until >= s.day && s.rivals[c.who].alive && (!c.raid || raid(c)));
   const i = ph.queue.findIndex((c) => (c.from ?? c.day) <= s.day && (!c.raid || raid(c)!.warned));
-  if (i < 0) return null;
+  if (i < 0 || ph.queue.slice(0, i).some((c) => c.raid && !raid(c)!.warned)) return null;
   const [call] = ph.queue.splice(i, 1);
   ph.lastDay = s.day;
-  ph.log.unshift({ day: s.day, who: call.who, text: call.text, mood: call.mood, plots: plotsOf(s, call.who) });
+  ph.log.unshift({ day: s.day, who: call.who, text: call.text, mood: call.mood, plots: plotsOf(s, call.who), ...(call.raid ? { raid: call.raid } : {}) });
   ph.log.length = Math.min(ph.log.length, 10);
   return call;
 }
@@ -170,12 +188,7 @@ export function phoneCheck(s: GameState, dawn = false): void {
  */
 export function phoneAtClose(s: GameState): void {
   phoneCheck(s);
-  for (const raid of s.raids) {
-    if (!onYou(s, raid) || raid.delivery) continue;
-    const who = raid.attacker as RivalId;
-    const text = who === 'blenders' ? (s.plots[raid.target].defense.tier ? LINES.brockFence : LINES.brockBlend) : '';
-    phoneCall(s, who, text, { mood: 'warn', priority: CALL_PRIORITY.raid, until: s.day, raid: raid.id });
-  }
+  for (const r of s.raids) if (onYou(s, r)) phoneCall(s, r.attacker as RivalId, raidLine(s, r), { mood: 'warn', priority: CALL_PRIORITY.raid, until: s.day, raid: r.id });
 }
 
 /** A new act opens with its boss on the line (spec: Brock's first call, Juni in Act 3, and so on). */

@@ -202,6 +202,28 @@ describe('boss phone taunts', () => {
     expect(s.phone!.queue).toEqual([]);
   });
 
+  it("a lesser call waits while tonight's raid call waits for its warning; a raid planned after closing calls at its warning too", () => {
+    const s = newGame(21, { mode: 'sandbox' });
+    s.raids.push({ id: 'r1', attacker: 'coldbrew', target: LOTTIES_CORNER, objective: 'smash', party: [], detected: true, eta: '23:00' });
+    phoneAtClose(s);
+    phoneCall(s, 'sourwood', LINES.veraThreat); // a mood call, less important than tonight's raid
+    expect(takeCall(s)).toBeNull(); // Vera doesn't take the evening's slot from Juni
+    s.raids[0].warned = true;
+    expect(takeCall(s)).toMatchObject({ who: 'coldbrew', text: '', mood: 'warn' }); // her own pool fills it in
+    expect(s.phone!.log[0].raid).toBe('r1');
+    s.raids.length = 0;
+    s.day++;
+    expect(takeCall(s)).toMatchObject({ who: 'sourwood', text: LINES.veraThreat }); // the rest wait a day
+    // A Delivery Raid sets out at a pickup, long after closing: its warning still brings its boss to the phone, once.
+    s.day++;
+    const pad = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[pad.id].owner = 'player';
+    s.raids.push({ id: 'r2', attacker: 'blenders', target: pad.id, objective: 'shakedown', party: [], detected: false, eta: '12:30', delivery: true, warned: true });
+    expect(takeCall(s)).toMatchObject({ who: 'blenders', text: '', raid: 'r2' }); // not tonight's "blend your stand" line
+    s.day++;
+    expect(takeCall(s)).toBeNull(); // once
+  });
+
   it("a daytime raid of yours gets its call at the next dawn, and the Bugle after the call reports the boss's moves", () => {
     const s = newGame(34, { mode: 'sandbox' });
     s.battles.push({ day: s.day, attacker: 'player', defender: 'blenders', target: 'x', outcome: 'robbed' } as BattleReport);

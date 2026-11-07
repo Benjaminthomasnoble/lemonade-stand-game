@@ -235,7 +235,7 @@ describe('the tutorial raid comes once a run', () => {
     const s = fair(41);
     planNight(s);
     expect(s.raids.filter((r) => onYou(s, r) && r.tutorial)).toHaveLength(1);
-    expect(s.tutorialRaidDone).toBeUndefined();
+    expect(s.tutorialRaidDone).toBe(false); // planned, not fought
     sleepUntilDawn(s);
     expect(s.tutorialRaidDone).toBe(true);
     const theirs = raidTargets(s)[0].id;
@@ -255,6 +255,18 @@ describe('the tutorial raid comes once a run', () => {
     const s = fair(43);
     s.day = TUTORIAL_RAID_DAY - 1; // Day 14, no Kiosk yet: not its night
     expect(nights(s, 60).every((raids) => !raids.length)).toBe(true);
+  });
+
+  it("a fresh run starts the flag at not yet, so a save past Day 15 with the first raid still to come keeps it coming", () => {
+    const s = newGame(7);
+    expect(s.tutorialRaidDone).toBe(false);
+    Object.assign(s, { phase: 'report', minute: CLOSE, raids: [], day: TUTORIAL_RAID_DAY + 1 }); // Day 15's raid never came
+    welcomeDex(s);
+    expect(s.battles).toHaveLength(0);
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.tutorialRaidDone).toBe(false); // this run's own flag, not an older save's guess from the day
+    planNight(back);
+    expect(back.raids.filter((r) => onYou(back, r) && r.tutorial)).toHaveLength(1);
   });
 
   it('the flag survives a save; an older save takes it from its log or its day, and a planned one still bounces', () => {

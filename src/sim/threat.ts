@@ -270,7 +270,8 @@ export const raidsCounted = (raids: Raid[]) => new Set(raids.map((r) => r.group 
 // ---------- the tutorial raid ----------
 
 /** Saves: the tutorial flag for an older save (the battle log or the day says whether the first raid has been), and a
- * tutorial raid it had planned tonight is marked so it still bounces. Safe to run on every load. */
+ * tutorial raid it had planned tonight is marked so it still bounces. A run begun since carries its own flag (false
+ * from newGame), which this leaves be. Safe to run on every load. */
 export function migrateThreat(s: GameState): void {
   if (s.tutorialRaidDone !== undefined) return;
   s.tutorialRaidDone = tutorialDone(s) || s.day > TUTORIAL_RAID_DAY;

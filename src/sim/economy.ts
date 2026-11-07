@@ -737,7 +737,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
 export function tickMinute(s: GameState): SimEvent[] {
   if (s.phase === 'night') { // the night runs on the same clock; at 07:00 dawn opens Morning Prep
     const night = nightStep(s);
-    if (s.minute >= NIGHT_END && sleepUntilDawn(s)) night.push({ type: 'dawn' });
+    if (s.minute >= NIGHT_END && !s.fight && sleepUntilDawn(s)) night.push({ type: 'dawn' }); // combat: a live fight holds dawn at 07:00 till it's over
     return night;
   }
   if (s.phase !== 'open') return [];

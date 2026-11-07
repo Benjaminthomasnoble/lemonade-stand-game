@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFight, runBattle, type BattleInput } from './combat.ts';
 import {
-  atOnce, BOSS_MOVE_SHOWN, canFallBack, canRally, fightCommand, fightStatus, finishFight, FIGHT_BREAK, FIGHT_LEAD_IN, joinFight, liveReport, startAssault,
-  startFight, stepFight, watchFights,
+  atOnce, BOSS_MOVE_SHOWN, canFallBack, canRally, fightCommand, fightFrame, fightStatus, finishFight, FIGHT_BREAK, FIGHT_LEAD_IN, joinFight, liveReport,
+  startAssault, startFight, stepFight, watchFights,
 } from './fight.ts';
 import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './fighters.ts';
 import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
-  buildFacility, PICKUP_MINUTE, PLOTS,
+  buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS,
 } from './economy.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
@@ -74,6 +74,60 @@ describe('a live fight', () => {
     expect(stepFight(s, 0)).toEqual({ minutes: 0 });
     expect(JSON.stringify(s.fight)).toBe(before);
     expect(fightStatus(s)!.clock).toBeCloseTo(4);
+  });
+
+  it('a frame of the game loop: paused, the fight and the clock hold; running, both move a minute a fight-second', () => {
+    const s = crew(22);
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!.id;
+    s.plots[target].defense = { tier: 5, fenceHp: 5000, gadgets: [] }; // a long fight
+    openStand(s);
+    expect(startFight(s, raidOn(s, target), false)).toBe(true);
+    const minute = s.minute, t = s.fight!.t;
+    for (let i = 0; i < 600; i++) expect(fightFrame(s, 1 / 60, true)).toBeNull(); // ten paused seconds
+    expect(s.fight!.t).toBe(t);
+    expect(s.minute).toBe(minute);
+    let ticked = 0;
+    const seen: number[] = [];
+    for (let i = 0; i < 60 * (FIGHT_LEAD_IN + 10); i++) ticked += fightFrame(s, 1 / 60, false, (ev) => seen.push(ev.length))!.minutes;
+    expect(s.fight!.t).toBeCloseTo(10, 6);
+    expect(ticked).toBe(10); // the walk in moves nothing, then a game minute every fight-second
+    expect(s.minute).toBe(minute + 10);
+    expect(seen.length).toBe(10); // each minute's events, for the 3D view
+    expect(fightFrame({ ...s, fight: undefined } as GameState, 1, false)).toBeNull(); // no fight on: nothing to run
+  });
+
+  it('a live fight still going at 07:00 holds dawn: that night\'s report, a day Out for a KO, the squad home in the morning', () => {
+    const s = crew(29);
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!.id;
+    s.plots[target].defense = { tier: 3, fenceHp: 1200, gadgets: [] }; // half a minute of chopping under the stakes
+    s.plots[target].garrison = 2;
+    s.phase = 'night';
+    s.minute = NIGHT_END - 11;
+    const night = s.day;
+    const travel = travelMinutes(s, squadHome(s, target), target);
+    const raid: Raid = { ...raidOn(s, target), eta: '06:50', leave: NIGHT_END - 10 - travel, at: NIGHT_END - 10, launched: true };
+    s.raids.push(raid);
+    let ended, held = 0;
+    for (let frames = 0; s.phase === 'night' && frames < 1e5; frames++) {
+      if (!s.fight) { tickMinute(s); continue; }
+      ended = fightFrame(s, 1 / 30, false)?.ended ?? ended;
+      if (s.fight && s.minute >= NIGHT_END) { held++; expect(s.phase).toBe('night'); expect(s.minute).toBe(NIGHT_END); }
+    }
+    expect(ended).toBeTruthy();
+    expect(ended!.duration).toBeGreaterThan(10); // contact at 06:50, still brawling past 07:00
+    expect(held).toBeGreaterThan(0);
+    expect(s.phase).toBe('prep');
+    expect(s.day).toBe(night + 1);
+    expect(ended!.day).toBe(night);
+    const knocked = ended!.koed.filter((id) => s.guards.some((g) => g.id === id) && !s.captives?.some((c) => c.id === id));
+    expect(knocked.length).toBeGreaterThan(0);
+    for (const id of knocked) expect(s.guards.find((g) => g.id === id)!.outUntil).toBe(night + 2); // Out the one day
+    // The walk home is timed from contact, so the squad gets in this morning, as if it was fought at once.
+    expect(raid.back).toBe(NIGHT_END - 10 + Math.ceil(ended!.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travel - MINUTES_PER_DAY);
+    expect(raid.back).toBeLessThan(OPEN + 3 * 60);
+    openStand(s);
+    for (let m = 0; s.minute < raid.back! && m < MINUTES_PER_DAY; m++) tickMinute(s);
+    expect(awayGuards(s).size).toBe(0);
   });
 
   it('nobody watching, a skip, or a fight you are not in: fought at once', () => {

@@ -20,7 +20,7 @@ import { waitAt } from './sim/clubhouse.ts';
 import { ringTheBell } from './sim/reinforce.ts';
 import { autoDefendOn, cycleDefendPriority, setAutoDefend } from './sim/autodefend.ts';
 import { settleCaptive } from './sim/captives.ts';
-import { atOnce, fightCommand, fightStatus, finishFight, liveReport, startAssault, stepFight, watchFights } from './sim/fight.ts';
+import { atOnce, fightCommand, fightFrame, fightStatus, finishFight, liveReport, startAssault, watchFights } from './sim/fight.ts';
 import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
@@ -491,11 +491,13 @@ async function main() {
       nextOnScreen();
     }, () => (state.fight === f ? f.t : null));
   };
-  /** A live fight runs on its own clock: 1 game minute a fight-second whatever the speed (the pause holds it). */
-  const runFight = (dt: number) => {
+  /** A live fight runs on its own clock: 1 game minute a fight-second whatever the speed; paused, the fight and the
+   * clock both hold still (fight.ts fightFrame). */
+  const runFight = (dt: number, paused: boolean) => {
     const from = state.phase;
-    const { minutes, ended } = stepFight(state, dt);
-    for (let i = 0; i < minutes && state.phase === from && (from === 'open' || from === 'night'); i++) drawEvents(tickMinute(state));
+    const frame = fightFrame(state, dt, paused, (ev) => drawEvents(ev));
+    if (!frame) return;
+    const { ended } = frame;
     if (ended) {
       const i = state.news.indexOf(battleHeadline(ended)); // the fanfare says it when the dust settles
       if (i >= 0) state.news.splice(i, 1);
@@ -922,7 +924,7 @@ async function main() {
     if (state.phase !== 'night' && state.phase !== 'report') quietOff = false; // each night starts quiet again
     // A live fight takes the screen once it's free (the brawl before settles first); its own clock moves the game's.
     if (state.fight && onScreen !== state.fight && !battle.active()) playLive();
-    if (state.fight) { if (!frozen && onScreen === state.fight) runFight(dt); acc = 0; }
+    if (state.fight) { runFight(dt, frozen || onScreen !== state.fight); acc = 0; }
     else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
       // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
       const from = state.phase;

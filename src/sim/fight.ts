@@ -18,7 +18,7 @@ import { raidFought } from './night.ts';
 import type { FactionId } from './map.ts';
 import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, type HqStage } from './rivals.ts';
 import { nextRandom } from './rng.ts';
-import type { GameState } from './economy.ts';
+import { tickMinute, type GameState, type SimEvent } from './economy.ts';
 
 /** Real seconds the raiders take to walk the last stretch in: the fight and the clock start at contact. */
 export const FIGHT_LEAD_IN = 3.5;
@@ -159,6 +159,24 @@ export function stepFight(s: GameState, dt: number): { minutes: number; ended?: 
   const res = fight.result();
   const minutes = Math.max(0, Math.round(res.duration / FIGHT_SECONDS_PER_GAME_MINUTE) - f.ticked);
   return { minutes, ended: settle(s, f, res) };
+}
+
+/**
+ * One frame of the game while a fight is live (main.ts's loop): the fight runs dt real seconds and the clock moves a
+ * game minute for each fight-second, business hours or the night, whatever the speed (each minute's events go to
+ * onMinute). Paused, the fight and the clock both hold still, and nothing runs (null). A fight still going at 07:00
+ * holds the clock there: dawn waits for it to end (tickMinute).
+ */
+export function fightFrame(s: GameState, dt: number, paused: boolean, onMinute?: (events: SimEvent[]) => void): { minutes: number; ended?: BattleReport } | null {
+  if (paused || !s.fight) return null;
+  const from = s.phase;
+  const { minutes, ended } = stepFight(s, dt);
+  let moved = 0;
+  for (; moved < minutes && s.phase === from && (from === 'open' || from === 'night'); moved++) {
+    const ev = tickMinute(s);
+    onMinute?.(ev);
+  }
+  return { minutes: moved, ...(ended ? { ended } : {}) };
 }
 
 /** Run the live fight (and the rest of an HQ assault) to the end now: skipping the day or sleeping doesn't wait. */

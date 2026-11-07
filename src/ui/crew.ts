@@ -43,9 +43,11 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
   out.push(damageCard(s, id)); // the stand itself: its HP, and the repair once it's Damaged (src/ui/damage.ts)
   if (cur) out.push(k.card(k.ART.fence(ps.defense.tier), cur.name, cur ? k.meter(ps.defense.fenceHp / cur.hp, 'hp') : '',
     (fenceRepairCost(ps) ? k.btn('repairFence', `Patch ${k.whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
-    `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands.`));
+    `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands. Each raid costs ${k.whole(cur.repair)} to repair overnight.`));
   if (next && !k.locked(pb)) out.push(k.card(k.ART.fence(next.tier), next.name, `${next.hp} HP`, k.btn('perimeter', k.whole(next.cost), pb, `data-plot="${id}" data-testid="perimeter"`, 'go'), `${next.hp} HP${next.breachDps ? ', hurts attackers breaking through' : ''}${next.slow ? ', slows them down' : ''}`));
-  const installed = ps.defense.gadgets.map((g) => `<span class="cl-slot full" title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}">${k.GADGET_ART[g]()}</span>`).join('');
+  const installed = ps.defense.gadgets.map((g) => (g === 'slick' && ps.defense.slickSprung
+    ? `<span class="cl-slot" title="${GADGETS[g].name}: sprung. Re-laid overnight for ${k.whole(GADGETS[g].reset ?? 0)}">${k.GADGET_ART[g]()}</span>`
+    : `<span class="cl-slot full" title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}">${k.GADGET_ART[g]()}</span>`)).join('');
   const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
   const shop = (Object.keys(GADGETS) as GadgetId[]).filter((g) => !ps.defense.gadgets.includes(g)).map((g) => ({ g, b: canBuyGadget(s, id, g) })).filter(({ b }) => !k.locked(b))
     .map(({ g, b }) => `<button class="cl-gadget" data-action="gadget" data-plot="${id}" data-id="${g}" ${b.ok ? '' : `disabled`} title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}${b.ok ? '' : ` (${k.esc(b.why)})`}">${k.GADGET_ART[g]()}${k.tape(k.whole(GADGETS[g].cost))}</button>`).join('');

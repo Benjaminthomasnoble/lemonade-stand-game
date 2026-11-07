@@ -7,7 +7,7 @@ import {
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
-  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
+  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
   SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
@@ -143,24 +143,62 @@ export function buyPerimeter(s: GameState, plotId: string): boolean {
   ps.invested += next.cost;
   ps.defense.tier = next.tier;
   ps.defense.fenceHp = next.hp;
+  delete ps.defense.repairs; // the new fence goes up whole
   return true;
 }
 
-/** Patch a chopped fence back to full for 25% of its price, scaled by damage. */
+/** The fence's repair bill: its tier's flat repair (10% of its price) for every raid on the plot since the last repair, won or lost. */
 export function fenceRepairCost(ps: PlotState): number {
   const per = PERIMETERS[ps.defense.tier - 1];
-  if (!per || ps.defense.fenceHp >= per.hp) return 0;
-  return Math.ceil(per.cost * REPAIR_SHARE * (1 - ps.defense.fenceHp / per.hp));
+  if (!per) return 0;
+  return Math.max(ps.defense.repairs ?? 0, ps.defense.fenceHp < per.hp ? 1 : 0) * per.repair;
 }
 
+/** A Lemon-Peel Slick that went off costs its reset fee to lay again. */
+export const slickResetCost = (ps: PlotState) => (ps.defense.slickSprung && ps.defense.gadgets.includes('slick') ? GADGETS.slick.reset ?? 0 : 0);
+
+/** The gadgets that will go off in a fight here: a sprung Slick sits out until it is reset. */
+export const armedGadgets = (ps: PlotState): GadgetId[] => ps.defense.gadgets.filter((g) => !(g === 'slick' && ps.defense.slickSprung));
+
+/** After a fight on a plot: its fence is due a repair and an armed Slick is spent. */
+export function defensesAfterRaid(ps: PlotState): void {
+  if (ps.defense.tier) ps.defense.repairs = (ps.defense.repairs ?? 0) + 1;
+  if (armedGadgets(ps).includes('slick')) ps.defense.slickSprung = true;
+}
+
+/** Patch the fence now rather than waiting for the night (the same flat bill). */
 export function repairFence(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   const cost = fenceRepairCost(ps);
   if (ps.owner !== 'player' || !cost || s.cash < cost) return false;
   s.cash = round2(s.cash - cost);
-  s.today.land = round2(s.today.land + cost);
+  s.today.upkeep = round2(s.today.upkeep + cost); // ledger: repairs
   ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
+  delete ps.defense.repairs;
   return true;
+}
+
+/** Overnight, every raided plot's fence is repaired and a sprung Slick re-laid, each owner paying from their own cash. Short of cash, it waits: the fence stays chopped, the Slick stays sprung. */
+export function overnightRepairs(s: GameState): void {
+  let paid = 0;
+  const short = new Set<string>();
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (!ps.owner) continue;
+    const rival = ps.owner === 'player' ? null : s.rivals[ps.owner as RivalId];
+    const spend = (cost: number): boolean => {
+      if (!cost) return false;
+      if (rival) { if (rival.cash < cost) return false; rival.cash = round2(rival.cash - cost); return true; }
+      if (s.cash < cost) { short.add(PLOT_BY_ID[p.id].name); return false; }
+      s.cash = round2(s.cash - cost);
+      paid += cost;
+      return true;
+    };
+    if (spend(fenceRepairCost(ps))) { ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp; delete ps.defense.repairs; }
+    if (spend(slickResetCost(ps))) delete ps.defense.slickSprung;
+  }
+  if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: repairs
+  if (short.size) s.news.push(`No cash for the overnight repairs at ${[...short].join(', ')}. Patch them when you can.`);
 }
 
 export function canBuyGadget(s: GameState, plotId: string, g: GadgetId): Blocker {
@@ -398,6 +436,10 @@ export const raidSquad = (s: GameState, ids: string[]) => s.guards.filter((g) =>
 export function migrateCrew(s: GameState): void {
   s.guards ??= [];
   s.recruits ??= [];
+  for (const ps of Object.values(s.plots)) {
+    const per = ps.defense && PERIMETERS[ps.defense.tier - 1];
+    if (per && ps.defense.fenceHp < per.hp && !ps.defense.repairs) ps.defense.repairs = 1; // chopped before overnight repairs: fixed at the next dawn
+  }
 }
 
 // ---------- henchmen ----------
@@ -450,7 +492,7 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   const ps = s.plots[raid.target];
   return {
     attackers, defenders: defendersAt(s, raid.target, night, away, rng),
-    perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: ps.defense.gadgets,
+    perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: armedGadgets(ps),
     standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
   };
 }
@@ -652,6 +694,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   let loot = 0;
 
   ps.defense.fenceHp = res.fenceHpLeft;
+  if (input.attackers.length) defensesAfterRaid(ps); // won or lost: the fence needs its overnight repair, a Slick its reset
   // Laid Back: your stands are only ever Busted (closed until a 10% repair), never Wrecked or lost.
   const busted = defender === 'player' && difficulty(s).bustOnly;
   if (res.outcome === 'smashed' && (ps.stand || ps.facility)) {
@@ -751,6 +794,7 @@ function headline(b: BattleReport): string {
 export function crewAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
   payCrew(s);
+  overnightRepairs(s);
   dutyXp(s);
   scoutingAtDawn(s);
   if (s.day >= 6) welcomeDex(s);

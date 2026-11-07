@@ -113,7 +113,13 @@ export interface PlotState {
   busted?: boolean; // Laid Back: the player's building is closed until a repair, never lost
 }
 
-export interface Defense { tier: number; fenceHp: number; gadgets: GadgetId[] }
+export interface Defense {
+  tier: number;
+  fenceHp: number;
+  gadgets: GadgetId[];
+  slickSprung?: boolean; // the Lemon-Peel Slick went off and waits for its nightly reset
+  repairs?: number; // raids since the fence was last repaired: each costs the tier's flat repair overnight
+}
 
 export interface RivalState {
   cash: number;

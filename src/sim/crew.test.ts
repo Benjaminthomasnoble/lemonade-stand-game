@@ -5,9 +5,11 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
 } from './economy.ts';
 import {
-  availableRaiders, guardFighter, holdsStronghold, neighborhoodWatch, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, strongholdTravelMult, towerCovers, type Guard,
+  availableRaiders, fenceRepairCost, fightRaid, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, raidIsNight, raidIsNightAt, raidRepCost,
+  repairFence, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE } from './balance.ts';
+import { CLOSE, PERIMETERS } from './balance.ts';
+import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
@@ -460,5 +462,87 @@ describe('the Watchtower', () => {
     s.plots['maple-3s'].defense.gadgets = ['watchtower']; // ...but theirs watches their own
     expect(detectionChance(s, 'maple-3n', false)).toBe(0.8);
     expect(towerCovers(s, 'maple-5n')).toBe(false);
+  });
+});
+
+describe('overnight repairs', () => {
+  const bro = (i: number): Fighter => ({ id: `b${i}`, name: `Bro ${i}`, side: 'att', hp: 100, hit: 10, chop: 10, nerve: 50, armor: 0, weapon: 'fists' });
+  const raidOn = (s: GameState, target: string, n = 2): Raid => ({
+    id: `r${s.nextId++}`, attacker: 'blenders', target, objective: 'smash', party: Array.from({ length: n }, (_, i) => bro(i)), detected: true, eta: '01:00',
+  });
+  const slipped = (r: ReturnType<typeof fightRaid>) => r.events.filter((e) => e.type === 'stun' && e.by === 'slick').length;
+
+  it('every raid on a fenced plot, won or lost, costs its flat repair overnight', () => {
+    const s = newGame(95);
+    s.cash = 1000;
+    expect(buyPerimeter(s, LOTTIES_CORNER)).toBe(true);
+    const ps = s.plots[LOTTIES_CORNER];
+    fightRaid(s, raidOn(s, LOTTIES_CORNER), true);
+    fightRaid(s, raidOn(s, LOTTIES_CORNER), true);
+    expect(ps.defense.repairs).toBe(2);
+    expect(fenceRepairCost(ps)).toBe(2 * PERIMETERS[0].repair);
+    const cash = s.cash, upkeep = s.today.upkeep;
+    overnightRepairs(s);
+    expect(s.cash).toBe(cash - 30);
+    expect(s.today.upkeep).toBe(upkeep + 30);
+    expect(ps.defense.fenceHp).toBe(PERIMETERS[0].hp);
+    expect(fenceRepairCost(ps)).toBe(0);
+  });
+
+  it('a Slick goes off once, then waits for its $25 reset; short of cash, repairs wait too', () => {
+    const s = newGame(96);
+    s.rank = 4;
+    s.cash = 2000;
+    buyPerimeter(s, LOTTIES_CORNER);
+    expect(buyGadget(s, LOTTIES_CORNER, 'slick')).toBe(true);
+    const ps = s.plots[LOTTIES_CORNER];
+    expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(3);
+    expect(ps.defense.slickSprung).toBe(true);
+    expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(0); // the same night: already spent
+    s.cash = 10;
+    ps.defense.fenceHp = 100;
+    overnightRepairs(s);
+    expect(ps.defense.fenceHp).toBe(100);
+    expect(ps.defense.slickSprung).toBe(true);
+    expect(s.cash).toBe(10);
+    expect(s.news.at(-1)).toContain('No cash for the overnight repairs');
+    s.cash = 100;
+    expect(repairFence(s, LOTTIES_CORNER)).toBe(true); // two raids' worth
+    expect(s.cash).toBe(70);
+    expect(ps.defense.fenceHp).toBe(PERIMETERS[0].hp);
+    overnightRepairs(s);
+    expect(ps.defense.slickSprung).toBeUndefined();
+    expect(s.cash).toBe(45);
+    expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(3);
+  });
+
+  it('rivals pay for their own repairs; a broke rival is left with a chopped fence', () => {
+    const s = newGame(97);
+    const id = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
+    const ps = s.plots[id];
+    ps.defense = { tier: 2, fenceHp: 100, gadgets: ['slick'], repairs: 1, slickSprung: true };
+    s.rivals.blenders.cash = 1000;
+    overnightRepairs(s);
+    expect(ps.defense.fenceHp).toBe(PERIMETERS[1].hp);
+    expect(ps.defense.slickSprung).toBeUndefined();
+    expect(s.rivals.blenders.cash).toBe(1000 - PERIMETERS[1].repair - 25);
+    ps.defense.fenceHp = 50;
+    ps.defense.repairs = 1;
+    s.rivals.blenders.cash = 50;
+    overnightRepairs(s);
+    expect(ps.defense.fenceHp).toBe(50);
+    expect(s.rivals.blenders.cash).toBe(50);
+  });
+
+  it('an old save\'s chopped fence is queued for the next overnight repair', () => {
+    const s = newGame(98);
+    s.cash = 500;
+    buyPerimeter(s, LOTTIES_CORNER);
+    s.plots[LOTTIES_CORNER].defense.fenceHp = 40;
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.plots[LOTTIES_CORNER].defense.repairs).toBe(1);
+    expect(migrateSave(JSON.parse(JSON.stringify(loaded)))!.plots[LOTTIES_CORNER].defense.repairs).toBe(1);
+    playDay(loaded);
+    expect(loaded.plots[LOTTIES_CORNER].defense.fenceHp).toBe(PERIMETERS[0].hp);
   });
 });

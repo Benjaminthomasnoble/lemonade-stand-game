@@ -319,10 +319,10 @@ export const PERIMETERS: PerimeterTier[] = [
 export const FENCE_DEFENDER_BONUS = 0.25;
 
 export type GadgetId = 'alarm' | 'goose' | 'slick' | 'sprinkler' | 'floodlights' | 'watchtower';
-export const GADGETS: Record<GadgetId, { name: string; rank: number; cost: number; detection: number; text: string }> = {
+export const GADGETS: Record<GadgetId, { name: string; rank: number; cost: number; detection: number; text: string; reset?: number }> = {
   alarm: { name: 'Tin-Can Alarm', rank: 2, cost: 100, detection: 0.15, text: '+15% raid detection' },
   goose: { name: 'Guard Goose', rank: 2, cost: 400, detection: 0.15, text: '+15% detection; honks and stuns the first attacker' },
-  slick: { name: 'Lemon-Peel Slick', rank: 4, cost: 250, detection: 0, text: 'The first 3 attackers slip (stunned 4s)' },
+  slick: { name: 'Lemon-Peel Slick', rank: 4, cost: 250, detection: 0, reset: 25, text: 'The first 3 attackers slip (stunned 4s); $25 to re-lay the night after it goes off' },
   sprinkler: { name: 'Sprinkler Ambush', rank: 4, cost: 800, detection: 0, text: 'Soaked attackers deal 20% less damage' },
   floodlights: { name: 'Floodlights', rank: 5, cost: 1500, detection: 0, text: 'Cancels the night stealth bonus' },
   watchtower: { name: 'Watchtower', rank: 6, cost: 5000, detection: 0.3, text: '+30% detection here and on your plots within 2 (no stacking); shows who is coming' },

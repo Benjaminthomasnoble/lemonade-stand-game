@@ -19,7 +19,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
+import { landFrozen, priceWarCut, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -372,9 +372,13 @@ function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
   s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
 }
 
-/** A rival's everyday price: its stand's ceiling (the same formula as yours), nudged by personality (FACTIONS.price). */
-export function rivalPrice(id: RivalId, level: number, p: Plot): number {
-  return round2(ceilingFor(level, p.district, 'classic') * FACTIONS[id].price);
+/**
+ * A rival's everyday price: its stand's ceiling (the same formula as yours), nudged by personality (FACTIONS.price).
+ * Given the game, the price it posts there today: with its price war's cut where one runs (rivals' priceWarCut, 1 when none).
+ */
+export function rivalPrice(id: RivalId, level: number, p: Plot, s?: GameState): number {
+  const everyday = round2(ceilingFor(level, p.district, 'classic') * FACTIONS[id].price);
+  return s ? round2(everyday * priceWarCut(s, id, p.id)) : everyday;
 }
 
 export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settings> = {}): GameState {

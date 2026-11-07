@@ -79,9 +79,8 @@ const runningFor = (s: GameState, id: RivalId) => runningSchemes(s).find((x) => 
 // ---------- price war ----------
 
 /**
- * What a rival's price is multiplied by at a plot: 1 - the cut while its price war runs there, else 1. The seam for
- * demand's rival pricing (rivalPrice multiplies by it once that lands); until then schemes.ts sets the cut price on the
- * stand itself each dawn of the war.
+ * What a rival's price is multiplied by at a plot: 1 - the cut while its price war runs there, else 1. Demand's
+ * rivalPrice(id, level, plot, s) multiplies by it, and each dawn of the war re-posts the war's stands through it.
  */
 export function priceWarCut(s: GameState, id: RivalId, plotId: string): number {
   return runningSchemes(s).some((x) => x.kind === 'priceWar' && x.by === id && x.plots.includes(plotId)) ? 1 - SCHEMES.priceWar.cut : 1;
@@ -90,7 +89,7 @@ export function priceWarCut(s: GameState, id: RivalId, plotId: string): number {
 /** A rival stand's everyday price, with its price war's cut if one runs there. */
 function setPrice(s: GameState, id: RivalId, plotId: string): void {
   const st = s.plots[plotId].stand;
-  if (st && s.plots[plotId].owner === id) st.price = round2(rivalPrice(id, st.level, PLOT_BY_ID[plotId]) * priceWarCut(s, id, plotId));
+  if (st && s.plots[plotId].owner === id) st.price = rivalPrice(id, st.level, PLOT_BY_ID[plotId], s); // demand's, with the war's cut
 }
 
 /** A rival's intact stands that share passers-by with one of yours (the same street, within 2 plots). */

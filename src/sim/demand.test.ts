@@ -3,7 +3,7 @@ import {
   appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, drainQueue, eliminate,
   expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
-  nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, rivalPrice, rivalShare,
+  nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, priceWarCut, rivalPrice, rivalShare,
   buySupply, maxPacks, runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, servingsAvailable, setPrice, setRecipe, simulateRestOfDay, STAND_LEVELS, stock, stockCapCups,
   stockCups, storageFor, tickMinute, touristPays, withinTwo, type RecipeId,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
@@ -85,6 +85,13 @@ describe('pricing: one ceiling per stand', () => {
       expect(ps.stand.price).toBe(Math.round(priceCeiling(s, p.id) * FACTIONS[id].price * 100) / 100);
     }
     expect(rivalPrice('sourwood', 3, PLOT_BY_ID['hilltop-1s'])).toBe(6);
+    // Given the game, the price it posts today: its price war's cut where one runs (rivals' priceWarCut), else the same.
+    const plot = PLOT_BY_ID['hilltop-1s'];
+    expect(rivalPrice('sourwood', 3, plot, s)).toBe(6);
+    s.schemes = [{ kind: 'priceWar', by: 'sourwood', day: s.day, until: s.day + 2, plots: [plot.id], cost: 0 }];
+    expect(rivalPrice('sourwood', 3, plot, s)).toBe(Math.round(6 * priceWarCut(s, 'sourwood', plot.id) * 100) / 100);
+    expect(rivalPrice('sourwood', 3, plot, s)).toBeLessThan(6);
+    expect(rivalPrice('hollis', 3, plot, s)).toBe(rivalPrice('hollis', 3, plot)); // another rival's war, not this one's
   });
 
   it('lets the price tag reach late ceilings', () => {

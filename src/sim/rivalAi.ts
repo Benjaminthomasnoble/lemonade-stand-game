@@ -414,7 +414,7 @@ export function growUpgrades(s: GameState, id: RivalId): void {
     spend(s, id, 'grow', c);
     const st = ps.stand!;
     st.level += 1;
-    st.price = rivalPrice(id, st.level, PLOT_BY_ID[plotId]);
+    st.price = rivalPrice(id, st.level, PLOT_BY_ID[plotId], s); // a price war's cut stays on
     ps.invested += c;
     restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
     r.upgradesDue.splice(r.upgradesDue.indexOf(plotId), 1);

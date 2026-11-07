@@ -162,6 +162,7 @@ export interface GameState {
   combatRules?: number; // the fight rules this save's numbers follow (combat.ts migrateCombat)
   alerts?: Alert[]; // the alert feed's cards (alerts.ts)
   alertSeq?: number;
+  heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
 }
 
 export type SimEvent =

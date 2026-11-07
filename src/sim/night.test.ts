@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alert, buildFacility, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, etaMinute,
-  FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame, NIGHT_END,
-  NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS, QUIET_NIGHT_SPEED,
-  raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE, SAVE_VERSION, secondsPerMinute,
-  simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
+  alert, buildFacility, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
+  etaMinute, FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame,
+  NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS,
+  QUIET_NIGHT_SPEED, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
+  SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 
@@ -273,6 +273,36 @@ describe('Delivery Raids', () => {
     expect(s.phase).toBe('open');
     expect(ev.at(-1)).toMatchObject({ type: 'alert', alert: { kind: 'delivery' } });
     expect(s.minute).toBe(r.warnAt);
+  });
+
+  it('called off mid-loading (the rival went under), the load goes out at once and is not raided again', () => {
+    const { s, r } = raidedPickup();
+    expect(s.heldPickups).toEqual(['vip']);
+    const cash = s.cash, rep = s.reputation;
+    eliminate(s, r.attacker as RivalId, 'bankrupt');
+    expect(s.raids.includes(r)).toBe(false);
+    tickMinute(s);
+    expect(s.orders.some((o) => o.id === 'vip')).toBe(false);
+    expect(s.heldPickups).toEqual([]);
+    expect(s.bottles).toBe(2000);
+    expect(s.cash).toBeGreaterThanOrEqual(cash + 15000 - 1);
+    expect(s.reputation).toBeCloseTo(rep + VIP_STAR_BONUS);
+    simulateRestOfDay(s); // closing: nothing left to deliver, nothing rolled again
+    expect(s.raids.some((x) => x.delivery)).toBe(false);
+    expect(s.news.filter((n) => n.includes('Test Star picks up'))).toHaveLength(1);
+  });
+
+  it('a pickup still loading keeps loading across a save', () => {
+    const { s, r } = raidedPickup();
+    const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
+    delete old.heldPickups; // a save from before the hold was kept
+    const m = migrateSave(old)!;
+    expect(m.heldPickups).toEqual(['vip']);
+    const mr = m.raids.find((x) => x.id === r.id)!;
+    mr.party = mr.party!.map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 }));
+    play(m, mr);
+    expect(m.orders.some((o) => o.id === 'vip')).toBe(false);
+    expect(m.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
   });
 });
 

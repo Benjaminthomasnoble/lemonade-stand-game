@@ -125,10 +125,7 @@ function arrive(s: GameState, r: Raid): BattleReport {
   s.raids = rest.filter((x) => x.attacker !== 'player' || (x.leave ?? 0) <= s.minute);
   const report = fightRaid(s, r, s.phase === 'night');
   s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && (x.leave ?? 0) > s.minute));
-  if (r.delivery && r.order) {
-    const o = s.orders.find((x) => x.id === r.order);
-    if (o) { settling = { order: o.id, report }; try { deliver(s, o); } finally { settling = null; } }
-  }
+  if (r.delivery && r.order) settle(s, r.order, report);
   return report;
 }
 
@@ -148,6 +145,8 @@ function raidClock(s: GameState): SimEvent[] {
     if (!r.warned && onYou(s, r)) ev.push(warn(s, r)); // every raid on you is warned, even a late one
     ev.push({ type: 'fight', raid: r, report: arrive(s, r) });
   }
+  // A Delivery Raid called off mid-loading (a truce, or the rival went under): the load goes out now.
+  for (const id of [...(s.heldPickups ?? [])]) if (!s.raids.some((r) => r.delivery && r.order === id)) settle(s, id, null);
   pruneAlerts(s);
   return ev;
 }
@@ -200,7 +199,17 @@ export function nightsAtDawn(s: GameState): void {
 
 // ---------- Delivery Raids ----------
 
-let settling: { order: string; report: BattleReport } | null = null;
+/** The Delivery Raid an order is being settled against (null: it was called off), while deliver() runs again. */
+let settling: { order: string; report: BattleReport | null } | null = null;
+
+/** The raid on a pickup is over (or called off): the order loads out, or fails if the raiders overran it. */
+function settle(s: GameState, id: string, report: BattleReport | null): void {
+  s.heldPickups = (s.heldPickups ?? []).filter((x) => x !== id);
+  const o = s.orders.find((x) => x.id === id);
+  if (!o) return;
+  settling = { order: id, report };
+  try { deliver(s, o); } finally { settling = null; }
+}
 
 /** vip.ts deliver() hands its Delivery Raid roll here. A raid is warned and fought on the clock like any raid on
  * you, and the order waits (loading) until it's over. Returns the pickup to report now, or null to deliver. */
@@ -208,12 +217,16 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   const where = o.tier === 'heli' ? 'helipad' : 'pier';
   if (settling?.order === o.id) {
     const { report } = settling;
-    if (report.outcome !== 'robbed') return null; // held off: the load goes out
+    if (report?.outcome !== 'robbed') return null; // held off, or called off: the load goes out
     s.bottles = Math.max(0, s.bottles - o.qty);
     return { ...fail(`${FACTIONS[report.attacker as RivalId].name} overran the ${where} during loading.`), raid: report };
   }
-  const held = (): Pickup => { if (!s.orders.includes(o)) s.orders.push(o); return { order: o, ok: true }; };
-  if (s.raids.some((r) => r.delivery && r.order === o.id)) return held(); // still loading: the raid hasn't hit yet
+  const held = (): Pickup => {
+    if (!s.orders.includes(o)) s.orders.push(o);
+    if (!(s.heldPickups ??= []).includes(o.id)) s.heldPickups.push(o.id);
+    return { order: o, ok: true };
+  };
+  if (s.heldPickups?.includes(o.id)) return held(); // still loading: the raid hasn't hit yet (one roll per pickup)
   if (!isVip(o.tier) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
@@ -233,11 +246,13 @@ export const deliveryRaidRisk = (s: GameState, o: Order) => isVip(o.tier) && thr
 
 // ---------- saves ----------
 
-/** Older saves: alert feed defaults, and tonight's raids get their minutes (detection was already rolled). */
+/** Older saves: alert feed defaults, and tonight's raids get their minutes (detection was already rolled). A pickup
+ * a Delivery Raid is out for keeps loading. Safe to run on every load. */
 export function migrateNights(s: GameState): void {
   s.alerts ??= [];
   s.alertSeq ??= s.alerts.length;
   for (const r of s.raids ?? []) {
+    if (r.delivery && r.order && !(s.heldPickups ??= []).includes(r.order)) s.heldPickups.push(r.order);
     if (r.at !== undefined) continue;
     fillTimes(s, r);
     r.launched = true;

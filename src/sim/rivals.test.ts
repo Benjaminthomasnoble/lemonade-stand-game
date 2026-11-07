@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
+  FACTIONS, type RivalId,
 } from './economy.ts';
 
 function rich(seed = 1): GameState {
@@ -156,5 +157,18 @@ describe('review rules', () => {
     expect(buyPlot(s, lot.id)).toBe(true);
     expect(s.cash).toBe(100);
     expect(s.plots[lot.id].stand?.level).toBe(1);
+  });
+});
+
+describe('rival personalities', () => {
+  it('split their dawn spending Grow / Guard / Strike by the families table', () => {
+    const spec: Record<RivalId, [number, number, number]> = {
+      blenders: [25, 15, 60], coldbrew: [25, 25, 50], hollis: [40, 50, 10], fizzco: [50, 20, 30], sourwood: [35, 35, 30],
+    };
+    for (const id of Object.keys(spec) as RivalId[]) {
+      const f = FACTIONS[id];
+      expect([f.grow, f.guard, f.strike].map((x) => Math.round(x * 100))).toEqual(spec[id]);
+      expect(f.grow + f.guard + f.strike).toBeCloseTo(1);
+    }
   });
 });

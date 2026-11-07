@@ -78,7 +78,7 @@ mat3 clayM = normalMatrix;
   clayM = normalMatrix * mat3( batchingMatrix );
 #endif
 vClayM0 = clayM[0]; vClayM1 = clayM[1]; vClayM2 = clayM[2];`;
-const FPARS = `uniform sampler2D uClayMap; uniform float uClayStr; uniform float uClayWrap; uniform float uClayTerm; uniform float uClayGlow; uniform float uClayA;
+const FPARS = `uniform sampler2D uClayMap; uniform float uClayStr; uniform float uClayWrap; uniform float uClayTerm; uniform float uClayGlow; uniform float uClayA; uniform vec3 uClayShade;
 varying vec3 vClayP; varying vec3 vClayN; varying vec3 vClayM0; varying vec3 vClayM1; varying vec3 vClayM2;`;
 // Plain (not baked) meshes have no colour attribute: their fx comes from the uClayA uniform.
 const FCOLOR = `#if defined( USE_COLOR_ALPHA )
@@ -116,6 +116,27 @@ function clayLights() {
   return s;
 }
 
+let BEGIN: string | null = null;
+/**
+ * The light loop, keeping the sun's shadow factor (the scene has one shadow-casting
+ * directional light) so shadowed clay can be lifted with the script's lilac or indigo
+ * instead of going grey. If three's chunk ever changes shape, shadows simply stay untinted.
+ */
+function clayLightsBegin() {
+  if (BEGIN) return BEGIN;
+  BEGIN = 'float clayShadow = 1.0;\n' + THREE.ShaderChunk.lights_fragment_begin.replace(
+    /directLight\.color \*= (\( directLight\.visible && receiveShadow \) \? getShadow\( directionalShadowMap\[ i \][^;]*);/,
+    'clayShadow = min( clayShadow, $1 );\n\t\tdirectLight.color *= clayShadow;',
+  );
+  return BEGIN;
+}
+// The fill a shadowed spot gets on top of the sky light: lilac by day, indigo at night (lighting.ts sets it).
+const FSHADE = `#include <lights_fragment_end>
+reflectedLight.indirectDiffuse += ( 1.0 - clayShadow ) * uClayShade * BRDF_Lambert( material.diffuseContribution );`;
+
+/** Shadow fill colour (radiance) shared by every clay material; scene.ts sets it from the lighting script. */
+export const CLAY_SHADE = { value: new THREE.Color(0, 0, 0) };
+
 type U<T> = { value: T };
 /** Shared uniform objects for a family of materials (world, figures, peel). */
 export interface ClayUniforms {
@@ -142,7 +163,7 @@ export function clayMaterial(Un: ClayUniforms, opts: ClayMaterialOptions = {}, g
   const a = { value: fx };
   m.userData.clayA = a;
   m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uClayMap: Un.map, uClayScale: Un.scale, uClayStr: Un.str, uClayBoil: Un.boil, uClayWrap: Un.wrap, uClayTerm: Un.term, uClayGlow: glow, uClayA: a });
+    Object.assign(sh.uniforms, { uClayMap: Un.map, uClayScale: Un.scale, uClayStr: Un.str, uClayBoil: Un.boil, uClayWrap: Un.wrap, uClayTerm: Un.term, uClayGlow: glow, uClayA: a, uClayShade: CLAY_SHADE });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\n' + VPARS)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VMAIN);
@@ -152,9 +173,11 @@ export function clayMaterial(Un: ClayUniforms, opts: ClayMaterialOptions = {}, g
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n' + FROUGH)
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FNORMAL)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * clayGlow * uClayGlow;')
-      .replace('#include <lights_physical_pars_fragment>', clayLights());
+      .replace('#include <lights_physical_pars_fragment>', clayLights())
+      .replace('#include <lights_fragment_begin>', clayLightsBegin())
+      .replace('#include <lights_fragment_end>', FSHADE);
   };
-  m.customProgramCacheKey = () => 'clay-v3';
+  m.customProgramCacheKey = () => 'clay-v4';
   return m;
 }
 

@@ -11,10 +11,10 @@ const TiltShader = {
   name: 'ClayTiltShift',
   uniforms: {
     tDiffuse: { value: null }, uDir: { value: new THREE.Vector2(1, 0) }, uRes: { value: new THREE.Vector2(1, 1) },
-    uFocus: { value: 0.5 }, uBand: { value: 0.16 }, uAmt: { value: 2.4 }, uVig: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) },
+    uFocus: { value: 0.5 }, uBand: { value: 0.16 }, uAmt: { value: 2.4 }, uVig: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) }, uSat: { value: 1 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uDir; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uAmt; uniform float uVig; uniform vec3 uTint; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uDir; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uAmt; uniform float uVig; uniform vec3 uTint; uniform float uSat; varying vec2 vUv;
   void main() {
     float d = abs( vUv.y - uFocus );
     float k = smoothstep( uBand, uBand + 0.32, d ) * uAmt;
@@ -27,6 +27,7 @@ const TiltShader = {
       c += texture2D( tDiffuse, vUv + st * 3.2307692308 ) * 0.0702702703;
       c += texture2D( tDiffuse, vUv - st * 3.2307692308 ) * 0.0702702703;
     }
+    if ( uSat != 1.0 ) { float l = dot( c.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ); c.rgb = max( mix( vec3( l ), c.rgb, uSat ), 0.0 ); }
     if ( uVig > 0.0 ) { vec2 q = ( vUv - 0.5 ) * vec2( 1.0, 1.15 ); float v = 1.0 - uVig * smoothstep( 0.12, 0.62, dot( q, q ) * 1.9 ); c.rgb *= mix( uTint, vec3( 1.0 ), v ) * v; }
     gl_FragColor = c;
   }`,
@@ -41,6 +42,8 @@ export interface ClayPost {
   tilt(amount: number, vignette: number, focus?: number): void;
   /** Vignette tint (warm by day, indigo at night). */
   tint(color: THREE.ColorRepresentation): void;
+  /** Colour saturation (1 leaves it; the clay look runs a little above 1 so plasticine stays bold). */
+  saturation(s: number): void;
   dispose(): void;
 }
 
@@ -66,6 +69,7 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
       v.uniforms.uVig.value = vig;
     },
     tint(c) { v.uniforms.uTint.value.set(c); },
+    saturation(s) { v.uniforms.uSat.value = s; },
     dispose() { composer.dispose(); rt.dispose(); },
   };
 }

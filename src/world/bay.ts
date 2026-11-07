@@ -331,7 +331,9 @@ export function createBay(scene: THREE.Scene): Bay {
   scene.add(ring);
 
   const raycaster = new THREE.Raycaster();
-  const pads = Object.values(views).map((v) => v.pad);
+  const viewList = Object.values(views);
+  const farList = [...far];
+  const pads = viewList.map((v) => v.pad);
   const tint = new THREE.Color(), ground = new THREE.Color();
 
   // FOR SALE signs: one instanced draw for every unowned plot; the tape words are added per plot.
@@ -348,6 +350,8 @@ export function createBay(scene: THREE.Scene): Bay {
 
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
+    // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
+    v.root.traverse((o) => { if (o.name === 'baked') (o as THREE.Mesh).geometry.dispose(); });
     v.root.clear();
     if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
     v.stand = undefined;
@@ -427,7 +431,7 @@ export function createBay(scene: THREE.Scene): Bay {
   return {
     views,
     sync(s) {
-      for (const v of Object.values(views)) {
+      for (const v of viewList) {
         const ps = s.plots[v.plot.id];
         const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
@@ -474,13 +478,13 @@ export function createBay(scene: THREE.Scene): Bay {
       wet.visible = s.weather.kind === 'rainy' || s.weather.kind === 'storm';
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
       let merges = 2;
-      for (const [id, f] of far) {
+      for (const [id, f] of farList) {
         if (level >= 2 && f.dirty && merges > 0) { buildFar(id, f); merges--; }
         const block = level >= 2 && !f.dirty && !!f.mesh;
         if (f.mesh) f.mesh.visible = block;
         for (const v of f.views) v.root.visible = !block;
       }
-      for (const v of Object.values(views)) {
+      for (const v of viewList) {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;
         if (!st) continue;

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Phase, WeatherKind } from '../sim/economy.ts';
-import { Baker, bend, canvasTex, cyl, hash, lumpy, makeEnv, sph } from './clay/core.ts';
+import { Baker, bend, canvasTex, CLAY_SHADE, cyl, hash, lumpy, makeEnv, sph } from './clay/core.ts';
 import { clayFrom, kit, setEnvironment } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { createPost, type ClayPost } from './clay/post.ts';
@@ -175,7 +175,24 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   specks.count = 0;
   scene.add(specks);
   const hiddenPeople: THREE.Object3D[] = [];
-  const speckM = new THREE.Matrix4(), speckC = new THREE.Color();
+  const speckM = new THREE.Matrix4(), speckC = new THREE.Color(), SPECK_DEFAULT = new THREE.Color(P.terra), speckOwn = new THREE.Color();
+  /** A person's speck colour: userData.speckColor (Figures set their shirt), else the first plain-coloured part, found once and kept. */
+  function speckColor(o: THREE.Object3D): THREE.Color {
+    // A model's own speck colour may change, so it isn't cached.
+    const own = o.userData.speckColor as THREE.ColorRepresentation | undefined;
+    if (own !== undefined) return speckOwn.set(own);
+    let c = o.userData.speck as THREE.Color | undefined;
+    if (c) return c;
+    const stack: THREE.Object3D[] = [o];
+    while (stack.length && !c) {
+      const x = stack.pop()!;
+      const m = (x as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.color && !m.vertexColors) c = m.color.clone();
+      for (const ch of x.children) stack.push(ch);
+    }
+    o.userData.speck = c ??= SPECK_DEFAULT;
+    return c;
+  }
   function toSpecks(dist: number) {
     let n = 0;
     for (const o of scene.children) {
@@ -184,10 +201,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       o.visible = false;
       const s = Math.max(0.6, o.scale.y) * (dist > DETAIL_AT.bay ? 1.4 : 1);
       specks.setMatrixAt(n, speckM.makeScale(s, s, s).setPosition(o.position.x, o.position.y, o.position.z));
-      let col: THREE.Color | null = null;
-      if (o.userData.speckColor) col = speckC.set(o.userData.speckColor as THREE.ColorRepresentation).clone();
-      o.traverse((c) => { const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (!col && m?.color) col = m.color; });
-      specks.setColorAt(n, speckC.copy(col ?? speckC.set('#e8704f')));
+      specks.setColorAt(n, speckC.copy(speckColor(o)));
       n++;
     }
     specks.count = n;
@@ -199,6 +213,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const onResize = () => {
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
+    // The page may have moved to a screen with another pixel density (or been zoomed).
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, phone ? 1.5 : 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     post.setSize(container.clientWidth, container.clientHeight);
   };
@@ -216,6 +232,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   let lastHalf = 0;
   let detail: Detail = 0;
   const lightDir = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0), snapR = new THREE.Vector3(), snapU = new THREE.Vector3(), snapP = new THREE.Vector3();
   scene.userData.detail = 0;
   scene.userData.shadows = !phone;
 
@@ -277,14 +294,15 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       fog.near = Math.max(70, dist * 1.9);
       fog.far = Math.max(260, dist * 5.2);
       post.tint(L.vigTint);
+      post.saturation(L.sat);
+      CLAY_SHADE.value.copy(L.shade);
+      sun.shadow.intensity = L.shadowI;
 
       // One shadow box on whatever the camera looks at, sized by zoom; the sun by day, the desk lamp at night.
       const half = THREE.MathUtils.clamp(dist * 0.85, 26, 250);
       const lampDir = lightDir.copy(DESK_LAMP).sub(t).setY(Math.max(DESK_LAMP.y - t.y, 40)).normalize();
       const dir = lampDir.lerp(L.sunDir, 1 - L.night).normalize();
       const reach = half * 2 + 60;
-      sun.position.copy(t).setY(0).addScaledVector(dir, reach);
-      sun.target.position.copy(t).setY(0);
       const sc = sun.shadow.camera;
       if (Math.abs(half - lastHalf) > lastHalf * 0.04) {
         sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.near = 1; sc.far = reach * 2;
@@ -292,6 +310,17 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         sun.shadow.normalBias = (half * 2 / mapSize) * 0.9;
         lastHalf = half;
       }
+      // Snap the shadow box to whole shadow-map texels in the light's view, so edges don't crawl as the camera pans.
+      const texel = (lastHalf * 2) / mapSize;
+      snapP.copy(t).setY(0);
+      snapR.crossVectors(UP, dir);
+      if (snapR.lengthSq() > 1e-8) { // a light straight overhead has no "right": skip the snap
+        snapR.normalize(); snapU.crossVectors(dir, snapR);
+        const a = snapP.dot(snapR), b = snapP.dot(snapU);
+        snapP.addScaledVector(snapR, Math.round(a / texel) * texel - a).addScaledVector(snapU, Math.round(b / texel) * texel - b);
+      }
+      sun.target.position.copy(snapP);
+      sun.position.copy(snapP).addScaledVector(dir, reach);
       for (const m of dio.farCasters) m.castShadow = dist > 140;
       // Shadows redraw on twos (everything that casts moves on twos) or when the light moves.
       K.time.value = time;

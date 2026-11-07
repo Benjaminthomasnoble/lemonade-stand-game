@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLOSS, PAPER, Baker, bend, box, cap as cap0, cyl as cyl0, hash, lathe as lathe0, lumpy, shade, snake as snake0, sph as sph0, tor as tor0, type V3 } from './core.ts';
-import { P } from './palette.ts';
+import { P, SKINS } from './palette.ts';
 
 export type BodyKind = 'pear' | 'kid' | 'round' | 'stilt' | 'barrel' | 'block' | 'bean' | 'vee' | 'lanky';
 export type Eyes = 'bead' | 'happy' | 'lids' | 'sleepy' | 'glasses' | 'shades' | 'pop' | 'spiral' | 'squeeze';
@@ -759,7 +759,7 @@ export type CastId = keyof typeof SPECS;
  */
 export const CREWS: Record<'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders', FigureSpec> = {
   player: { kind: 'pear', shirt: P.lemon, pants: P.denim, shoes: P.terra, hat: 'cap', hatColor: P.lemon, hatColor2: P.green, brows: 'angry', mouth: 'flat' },
-  sourwood: { kind: 'bean', shirt: P.sw, pants: '#3a1d47', shoes: '#22202e', hat: 'bowler', hatColor: '#2a1f3a', glove: '#ffffff', brows: 'angry', mouth: 'smirk', eyes: 'lids' },
+  sourwood: { kind: 'stilt', shirt: P.sw, pants: '#3a1d47', collar: '#ffffff', shoes: '#22202e', hat: 'bowler', hatColor: '#2a1f3a', glove: '#ffffff', cuff: '#ffffff', brows: 'angry', mouth: 'smirk', eyes: 'lids', nose: 'long' },
   hollis: { kind: 'barrel', shirt: P.ging, pants: P.tea, shoes: P.walnut, hat: 'straw', hatColor: P.straw, overalls: true, brows: 'angry', mouth: 'frown' },
   fizzco: { kind: 'block', headShape: 'block', shirt: P.cola, sleeve: P.cola, pants: '#2b2b38', shoes: '#1d1d26', hairColor: '#2b2b38', hat: 'flattop', eyes: 'shades', brows: 'flat', mouth: 'flat', nose: 'square', earpiece: true },
   coldbrew: SPECS.henchman,
@@ -768,14 +768,13 @@ export const CREWS: Record<'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbr
 
 /** A customer: soft hats or none, any skin from the ramp. `pick` is 0..1 noise for the choices. */
 export function customerSpec(pick: (k: number) => number, kind: BodyKind = 'pear'): FigureSpec {
-  const skins = [P.skin, P.skin2, P.skin3, P.skin4, '#F8D3B0', '#E9B48A', '#C98E66', '#FBE0C6'];
   const shirts = [P.terra, P.teal, P.green, P.blush, P.lemon, P.denim, '#9C8AD0', P.mango, P.cream];
   const pants = [P.denim, P.plum, P.walnut, '#3b3f52', P.oat, P.teal];
   const hats: Hat[] = ['none', 'curly', 'bun', 'ponytail', 'bucket', 'bald', 'pigtails', 'propeller', 'cap'];
   const hairs = [P.walnut, '#241a14', '#C7652E', '#FBE29A', '#7A4A2A', '#F4EEE6'];
   const at = <T,>(a: readonly T[], k: number) => a[Math.floor(pick(k) * a.length) % a.length];
   return {
-    kind, skin: at(skins, 1), shirt: at(shirts, 2), pants: at(pants, 3), shoes: at([P.plum, P.terra, P.walnut, '#ffffff'], 4),
+    kind, skin: at(SKINS, 1), shirt: at(shirts, 2), pants: at(pants, 3), shoes: at([P.plum, P.terra, P.walnut, '#ffffff'], 4),
     hat: at(hats, 5), hatColor: at([P.terra, P.teal, P.lemon, P.blush], 6), hairColor: at(hairs, 7),
     mouth: at(['smile', 'smile', 'grin', 'o'] as const, 8), freckles: pick(9) < 0.3,
   };

@@ -123,7 +123,7 @@ export function buildDiorama(): Diorama {
   // ---------- the kitchen table: oilcloth gingham with a soft sheen ----------
   const ging = canvasTex(128, 128, (c) => {
     c.fillStyle = '#FFF7EC'; c.fillRect(0, 0, 128, 128);
-    c.fillStyle = 'rgba(36,104,214,0.62)'; c.fillRect(0, 0, 64, 128); c.fillRect(0, 0, 128, 64);
+    c.fillStyle = 'rgba(56,126,206,0.55)'; c.fillRect(0, 0, 64, 128); c.fillRect(0, 0, 128, 64);
     c.fillStyle = 'rgba(255,255,255,0.08)'; for (let i = 0; i < 128; i += 4) c.fillRect(i, 0, 1, 128);
   });
   ging.wrapS = ging.wrapT = THREE.RepeatWrapping; ging.repeat.set(180, 180); ging.anisotropy = 8;

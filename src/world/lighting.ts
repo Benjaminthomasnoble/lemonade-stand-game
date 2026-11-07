@@ -20,22 +20,26 @@ export interface Look {
   vig: number; vigTint: THREE.Color;
   /** reflections of the kitchen in resin and glass */ env: number;
   /** 0 day … 1 night (backdrop, desk-lamp light direction) */ night: number;
+  /** the fill shadowed clay gets (radiance): lilac by day, indigo at night, so shadows never go grey */ shade: THREE.Color;
+  /** how dark the sun's shadows go (three's shadow.intensity: 1 is black where the sun is blocked) */ shadowI: number;
+  /** colour saturation in the post (above 1 keeps the plasticine bold) */ sat: number;
 }
 
-const look = (o: { sun: string; sunI: number; sunDir: [number, number, number]; sky: string; ground: string; hemiI: number; fog: string; exposure: number; glow: number; windows: number; pools: number; vig: number; vigTint: string; env: number; night: number }): Look => ({
+const look = (o: { sun: string; sunI: number; sunDir: [number, number, number]; sky: string; ground: string; hemiI: number; fog: string; exposure: number; glow: number; windows: number; pools: number; vig: number; vigTint: string; env: number; night: number; shade: [string, number]; shadowI: number; sat: number }): Look => ({
   ...o, sun: new THREE.Color(o.sun), sunDir: new THREE.Vector3(...o.sunDir).normalize(), sky: new THREE.Color(o.sky), ground: new THREE.Color(o.ground),
-  fog: new THREE.Color(o.fog), vigTint: new THREE.Color(o.vigTint),
+  fog: new THREE.Color(o.fog), vigTint: new THREE.Color(o.vigTint), shade: new THREE.Color(o.shade[0]).multiplyScalar(o.shade[1]),
 });
 
 export const LOOKS: Record<Script, Look> = {
-  // peach window light from the bay side, long lilac shadows (the hemisphere fill is lilac); streetlights clicking off
-  dawn: look({ sun: '#ffd2b0', sunI: 3.0, sunDir: [52, 34, 34], sky: '#dccaf2', ground: '#a68bb6', hemiI: 0.95, fog: '#f3d6cc', exposure: 1.14, glow: 0.5, windows: 0.35, pools: 0.2, vig: 0.4, vigTint: '#c98a8e', env: 1.1, night: 0 }),
-  // the mockup's daylight: warm white sun high over the table, short crisp shadows
-  noon: look({ sun: '#fff0dc', sunI: 2.8, sunDir: [-15, 34, 23], sky: '#efe4fa', ground: '#b49cc4', hemiI: 0.8, fog: '#eed9b6', exposure: 1.06, glow: 0, windows: 0, pools: 0, vig: 0.42, vigTint: '#c98a6a', env: 1.25, night: 0 }),
+  // Morning Prep lives here, so it must be the friendliest frame: warm peach window light from
+  // the bay side, a cream fill, and long shadows lifted with lilac (never grey); streetlights clicking off.
+  dawn: look({ sun: '#ffcfa6', sunI: 2.9, sunDir: [48, 36, 30], sky: '#ffeadc', ground: '#c09a86', hemiI: 0.92, fog: '#f7e0cf', exposure: 1.04, glow: 0.5, windows: 0.35, pools: 0.2, vig: 0.32, vigTint: '#d49a7c', env: 1.1, night: 0, shade: ['#a58ff0', 1.25], shadowI: 0.9, sat: 1.14 }),
+  // the mockup's daylight: warm white sun high over the table, a cream fill, short crisp lilac shadows
+  noon: look({ sun: '#ffeed6', sunI: 2.75, sunDir: [-15, 34, 23], sky: '#fff2de', ground: '#b98a62', hemiI: 0.8, fog: '#efdcbc', exposure: 1.0, glow: 0, windows: 0, pools: 0, vig: 0.34, vigTint: '#c98a6a', env: 1.25, night: 0, shade: ['#9a86ec', 1.1], shadowI: 0.92, sat: 1.12 }),
   // coral and amber, low from the west (behind the Groves); windows glow
-  golden: look({ sun: '#ffa66a', sunI: 3.0, sunDir: [-46, 22, 6], sky: '#e6b8d6', ground: '#a0607a', hemiI: 0.8, fog: '#f1c49e', exposure: 1.12, glow: 0.9, windows: 0.9, pools: 0.25, vig: 0.46, vigTint: '#c96a52', env: 1.1, night: 0 }),
+  golden: look({ sun: '#ffb47e', sunI: 2.8, sunDir: [-46, 24, 6], sky: '#f6dbe6', ground: '#b07a6e', hemiI: 0.88, fog: '#f4cdb0', exposure: 1.04, glow: 0.9, windows: 0.9, pools: 0.25, vig: 0.36, vigTint: '#c97a64', env: 1.1, night: 0, shade: ['#a07ae6', 1.15], shadowI: 0.9, sat: 1.1 }),
   // the kitchen light is off: a warm desk lamp, indigo fill, glowing bulbs
-  night: look({ sun: '#ffcf9c', sunI: 1.45, sunDir: [-25, 20, -2], sky: '#6a68b8', ground: '#2e2a4f', hemiI: 0.85, fog: '#2a2340', exposure: 1.22, glow: 2.4, windows: 1.6, pools: 0.85, vig: 0.6, vigTint: '#2a2060', env: 0.35, night: 1 }),
+  night: look({ sun: '#ffcf9c', sunI: 1.5, sunDir: [-25, 20, -2], sky: '#6a68b8', ground: '#2e2a4f', hemiI: 0.85, fog: '#2a2340', exposure: 1.22, glow: 2.4, windows: 1.6, pools: 0.85, vig: 0.58, vigTint: '#2a2060', env: 0.35, night: 1, shade: ['#4f4ab8', 0.45], shadowI: 0.95, sat: 1.06 }),
 };
 
 const KEYS: [number, Script][] = [[7.5, 'dawn'], [8.5, 'noon'], [16.5, 'noon'], [17.5, 'golden'], [19.5, 'golden'], [20.25, 'night']];
@@ -77,17 +81,18 @@ export function weatherOn(l: Look, kind: WeatherKind): Look {
 const GREY = new THREE.Color('#c9cdd6'), GREY_N = new THREE.Color('#3a3a4c'), HOT = new THREE.Color('#fff4c0');
 
 export function cloneLook(l: Look): Look {
-  return { ...l, sun: l.sun.clone(), sunDir: l.sunDir.clone(), sky: l.sky.clone(), ground: l.ground.clone(), fog: l.fog.clone(), vigTint: l.vigTint.clone() };
+  return { ...l, sun: l.sun.clone(), sunDir: l.sunDir.clone(), sky: l.sky.clone(), ground: l.ground.clone(), fog: l.fog.clone(), vigTint: l.vigTint.clone(), shade: l.shade.clone() };
 }
+const lerp = (x: number, y: number, t: number) => x + (y - x) * t;
 export function copyLook(out: Look, l: Look): Look { return mixLook(out, l, l, 0); }
 export function mixLook(out: Look, a: Look, b: Look, t: number): Look {
-  const n = (x: number, y: number) => x + (y - x) * t;
-  out.sun.copy(a.sun).lerp(b.sun, t); out.sunI = n(a.sunI, b.sunI);
+  out.sun.copy(a.sun).lerp(b.sun, t); out.sunI = lerp(a.sunI, b.sunI, t);
   out.sunDir.copy(a.sunDir).lerp(b.sunDir, t).normalize();
-  out.sky.copy(a.sky).lerp(b.sky, t); out.ground.copy(a.ground).lerp(b.ground, t); out.hemiI = n(a.hemiI, b.hemiI);
-  out.fog.copy(a.fog).lerp(b.fog, t); out.exposure = n(a.exposure, b.exposure);
-  out.glow = n(a.glow, b.glow); out.windows = n(a.windows, b.windows); out.pools = n(a.pools, b.pools);
-  out.vig = n(a.vig, b.vig); out.vigTint.copy(a.vigTint).lerp(b.vigTint, t);
-  out.env = n(a.env, b.env); out.night = n(a.night, b.night);
+  out.sky.copy(a.sky).lerp(b.sky, t); out.ground.copy(a.ground).lerp(b.ground, t); out.hemiI = lerp(a.hemiI, b.hemiI, t);
+  out.fog.copy(a.fog).lerp(b.fog, t); out.exposure = lerp(a.exposure, b.exposure, t);
+  out.glow = lerp(a.glow, b.glow, t); out.windows = lerp(a.windows, b.windows, t); out.pools = lerp(a.pools, b.pools, t);
+  out.vig = lerp(a.vig, b.vig, t); out.vigTint.copy(a.vigTint).lerp(b.vigTint, t);
+  out.env = lerp(a.env, b.env, t); out.night = lerp(a.night, b.night, t);
+  out.shade.copy(a.shade).lerp(b.shade, t); out.shadowI = lerp(a.shadowI, b.shadowI, t); out.sat = lerp(a.sat, b.sat, t);
   return out;
 }

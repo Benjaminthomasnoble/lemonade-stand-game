@@ -91,9 +91,18 @@ with these pieces.
   `kit().window` and `kit().pool` already follow it.
 - Lighting scripts (`LOOKS`, `lookAt(hour)`, `hourOf(phase, minute)`): dawn,
   noon, golden hour and night, each blended over one game hour. Morning Prep
-  holds dawn and the report is night. One shadow-casting light (the sun, or
-  Lottie's desk lamp at night) re-renders its shadows only on twos.
+  holds dawn and the report is night, so dawn is tuned as the friendliest
+  frame. Day light is warm (cream sky fill, warm sun) like the mockup; each
+  script also sets `shade` (the lilac or indigo fill that shadowed clay gets,
+  through `CLAY_SHADE` in core.ts, so shadows never go grey), `shadowI` (how
+  dark the sun's shadow goes) and `sat` (post saturation, a little above 1).
+  One shadow-casting light (the sun, or Lottie's desk lamp at night)
+  re-renders its shadows only on twos, and its shadow box snaps to whole
+  texels so edges don't crawl while the camera pans.
 - The diorama: `TABLE_Y`, `PLINTH`, `DESK_LAMP` and `resinMaterial(time)` for
   water. The table, cloth and props are static and never pickable.
 - `createPost(renderer, scene, camera, samples)` returns `tilt(amount,
-  vignette, focus)` and `tint(color)`. An amount of 0 skips the blur.
+  vignette, focus)`, `tint(color)` and `saturation(s)`. An amount of 0 skips
+  the blur.
+- Rebuilding a plot disposes the merged `baked` geometry it replaces; shared
+  geometry (figure parts, props) is never disposed.

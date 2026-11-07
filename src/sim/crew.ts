@@ -283,9 +283,8 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   let nerve = GUARD_BASE.nerve;
   if (g.trait === 'Tough Cookie') hp *= 1.2;
   if (g.trait === 'Gentle Giant') { hp *= 1.4; hit *= 0.7; }
-  if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 15; }
+  if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 20; }
   if (g.trait === 'Lumberjack') chop *= 1.5;
-  if (g.trait === 'Loyal') nerve += 20;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon };
 }
@@ -303,7 +302,7 @@ function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: num
   return {
     id: `${rival}-${side}-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side,
     hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
-    nerve: GUARD_BASE.nerve - 10, armor: GEAR[h.gear].armor, weapon,
+    nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon,
   };
 }
 

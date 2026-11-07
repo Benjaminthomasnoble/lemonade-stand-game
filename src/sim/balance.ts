@@ -194,7 +194,8 @@ export const GEAR: Record<GearId, { name: string; rank: number; cost: number; hp
   vest: { name: 'Padded Vest', rank: 3, cost: 200, hp: 40, armor: 0 },
   pro: { name: 'Pro Gear', rank: 6, cost: 1500, hp: 100, armor: 0.2 },
 };
-export const GUARD_BASE = { hp: 100, nerve: 60, swing: 1.5 };
+/** Every fighter, guard or henchman: 100 HP, Nerve 50 (the % chance to stand firm), one swing every 1.5 s. */
+export const GUARD_BASE = { hp: 100, nerve: 50, swing: 1.5 };
 export const GUARD_LEVEL_TITLES = ['Rookie', 'Regular', 'Veteran', 'Elite', 'Legend'];
 export const GUARD_WAGE = [15, 25, 40, 60, 90];
 export const GUARD_FEE = [50, 150, 400, 1000, 2500];

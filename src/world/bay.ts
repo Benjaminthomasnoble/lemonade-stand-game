@@ -382,6 +382,22 @@ export function createBay(scene: THREE.Scene): Bay {
     const toShore = back > 0 ? SEA_Z + 5 - z : -Infinity;
     return toShore > 0 && toShore < 30 ? toShore : 12;
   }
+  /** A dock on the east shore (the Yacht Marina) runs its pier east from the plot's middle, out past SEA_X. */
+  function eastReach(v: PlotView) {
+    const back = v.plot.side === 0 ? -1 : 1;
+    if (back > 0 && SEA_Z + 5 - v.root.position.z < 30) return null; // the south shore is behind it
+    const toShore = SEA_X + 6 - v.root.position.x;
+    return toShore > 0 && toShore < 40 ? toShore : null;
+  }
+  function turnEast(o: THREE.Object3D, v: PlotView, len: number) {
+    o.rotation.y = v.plot.side === 0 ? -Math.PI / 2 : Math.PI / 2;
+    o.position.z = -2.5;
+    // vip.ts moors a ship at the pier's tip: a world point read from userData.moor
+    v.root.updateMatrixWorld(true);
+    o.updateMatrix();
+    o.userData.moor = new THREE.Vector3(0, 0.4, -len).applyMatrix4(o.matrix).applyMatrix4(v.root.matrixWorld);
+    return o;
+  }
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
     // The player's stand lives on across rebuilds (guards, fences and gadgets change far more often than the stand).
@@ -406,9 +422,13 @@ export function createBay(scene: THREE.Scene): Bay {
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
     else if (p.type === 'hq') building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
-    else if (ps.facility) building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, reachOf(v));
+    else if (ps.facility) {
+      const east = ps.facility.kind === 'pier' ? eastReach(v) : null;
+      building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, east ?? reachOf(v));
+      if (east) turnEast(building, v, Math.max(12 + ps.facility.level * 6, east));
+    }
     else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v); }
-    else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel(reachOf(v)))); if (!ps.owner) forSale(v); }
+    else if (p.type === 'dock') { const east = eastReach(v), pm = pierModel(east ?? reachOf(v)); if (east) turnEast(pm, v, east); v.root.add(bakeGroup(pm)); if (!ps.owner) forSale(v); }
     else if (ps.stand && ps.owner === 'player') {
       const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
@@ -503,7 +523,7 @@ export function createBay(scene: THREE.Scene): Bay {
     ground.set(GROUND[p.district]);
     // Owned tiles take their owner's main colour (the pattern carries the accent); unowned land stays bare Clay cream.
     // Owners' tiles take their main colour outright; Sourwood's plum is lifted so it never reads as road.
-    if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#7A3496' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
+    if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#4E1F63' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
     else tint.copy(ground).lerp(new THREE.Color(P.cream), 0.7);
     tiles.setColorAt(v.tile, tint);
     ownerAt[v.tile] = ps.owner;
@@ -568,7 +588,7 @@ export function createBay(scene: THREE.Scene): Bay {
         for (const m of Object.values(farPatterns.meshes)) m.visible = level >= 2;
         farOutlines.visible = level >= 2;
       }
-      townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day));
+      townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm');
       const mf = Math.floor(time * 12);
       sentries.setVisible(level < 2);
       if (mf !== moverF && level < 2) {

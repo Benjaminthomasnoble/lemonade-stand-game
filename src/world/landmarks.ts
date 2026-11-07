@@ -23,6 +23,10 @@ class Model {
   extras: THREE.Object3D[] = [];
   /** Colour of the one-block Bay View version (userData.far). */
   farColor: Col = '#FFF1D6';
+  /** Bay View draws a low inset slab instead of a block, so the owner's tile and pattern show round it (fields, groves, piers). */
+  farFlat = false;
+  /** An optional roof cap in this colour on the Bay View block (the owner's colour on a facility). */
+  farTop: Col | null = null;
   add(geo: THREE.BufferGeometry, color: Col, o: Opt = {}) { this.B.add(geo, color, o); return this; }
   win(geo: THREE.BufferGeometry, o: Opt = {}) { this.W.add(geo, '#ffffff', o); return this; }
   /** A part that moves: baked on its own, pivoting at `at`. */
@@ -56,6 +60,15 @@ class Model {
     const bb = body.geometry.boundingBox!;
     const size = bb.getSize(new THREE.Vector3()), mid = bb.getCenter(new THREE.Vector3());
     const F = new Baker();
+    if (this.farFlat) {
+      const w = Math.max(0.3, size.x * 0.62), d = Math.max(0.3, size.z * 0.62);
+      F.add(coreRbox(w, 0.45, d, 0.18, 1), this.farColor, { p: [mid.x, 0.22, mid.z] });
+      if (size.y > 1.5) for (let k = 0; k < 4; k++) F.add(sph(Math.min(w, d) * 0.16, 6, 4), this.farColor, { p: [mid.x + ((k % 2) - 0.5) * w * 0.5, 0.5, mid.z + (Math.floor(k / 2) - 0.5) * d * 0.5], s: [1, 0.8, 1] });
+      g.userData.far = F.build();
+      g.userData.ownFar = true;
+      return g;
+    }
+    if (this.farTop) F.add(coreRbox(size.x * 0.94, 0.4, size.z * 0.94, 0.15, 1), this.farTop, { p: [mid.x, size.y * 0.92 + 0.1, mid.z] });
     F.add(coreRbox(Math.max(0.3, size.x * 0.92), Math.max(0.2, size.y * 0.92), Math.max(0.3, size.z * 0.92), Math.min(0.5, size.y * 0.3), 1), this.farColor, { p: [mid.x, mid.y * 0.92, mid.z] });
     if (this.W.list.length || name === 'civic' || name === 'hq') for (let k = 0; k < 3 && size.y > 2; k++)
       F.add(new THREE.BoxGeometry(size.x * 0.18, Math.min(1.2, size.y * 0.15), 0.1), '#FFE2A8', { p: [mid.x + (k - 1) * size.x * 0.28, size.y * 0.5, mid.z + size.z * 0.46 + 0.05], fx: 1 });
@@ -302,15 +315,20 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   if (name === 'Hollis Homestead') {
     // a red barn with a gingham hayloft, tea-amber roof, a sun-tea jar and hay bales
     block(M, 9, 4.6, 6.5, tint('#C2453A'), 0, 0, fz - 3.5, 6);
-    // gambrel roof: two slabs each side
+    // the gambrel: a red gable end pressed as one piece, under one curved slab of tea-amber roof
     const roof = tint('#B5651D');
-    for (const s of [-1, 1]) {
-      M.add(rbox(3.0, 0.3, 7.2, 0.1), roof, { p: [s * 3.6, 5.6, fz - 3.5], r: [0, 0, s * -1.0] });
-      M.add(rbox(2.7, 0.3, 7.2, 0.1), roof, { p: [s * 1.25, 7.0, fz - 3.5], r: [0, 0, s * -0.35] });
-    }
-    M.add(rbox(7.6, 2.4, 6.3, 0.2), tint('#C2453A'), { p: [0, 5.4, fz - 3.5] });
+    const gam = (o: number): [number, number][] => [[-4.5 - o, 0], [-3.7 - o * 0.8, 1.9 + o * 0.6], [0, 3.1 + o], [3.7 + o * 0.8, 1.9 + o * 0.6], [4.5 + o, 0]];
+    const wall = new THREE.Shape(gam(0).map(([a, b]) => new THREE.Vector2(a, b)));
+    const wg = new THREE.ExtrudeGeometry(wall, { depth: 6.3, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2, curveSegments: 1 });
+    wg.translate(0, 0, -6.3 / 2);
+    M.add(wg, tint('#C2453A'), { p: [0, 4.55, fz - 3.5] });
+    const outer = gam(0.4), inner = gam(0.02).reverse();
+    const shell = new THREE.Shape([...outer, ...inner].map(([a, b]) => new THREE.Vector2(a, b)));
+    const rg = new THREE.ExtrudeGeometry(shell, { depth: 7.2, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.1, bevelSegments: 2, curveSegments: 1 });
+    rg.translate(0, 0, -7.2 / 2);
+    M.add(lumpy(rg, 0.03, 1.2, 6), roof, { p: [0, 4.55, fz - 3.5] });
     // gingham hayloft door
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) M.add(box(0.5, 0.5, 0.05), (r + c) % 2 ? own.accent : '#FFFDF6', { p: [-0.5 + c * 0.5, 5.0 + r * 0.5, fz - 0.22], fx: PAPER });
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) M.add(box(0.5, 0.5, 0.05), (r + c) % 2 ? own.accent : '#FFFDF6', { p: [-0.5 + c * 0.5, 5.0 + r * 0.5, fz - 0.06], fx: PAPER });
     // barn doors with the white X
     for (const s of [-1, 1]) {
       M.add(rbox(1.4, 2.8, 0.15, 0.05), tint('#A33A30'), { p: [s * 0.75, 1.4, fz - 0.2] });
@@ -322,7 +340,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
     M.add(lathe([[0, 0], [0.7, 0], [0.75, 1.6], [0.45, 1.85], [0, 1.85]], 16), '#E8B060', { p: [3.8, 0, fz + 1.4], fx: GLOSS });
     M.add(cyl(0.48, 0.48, 0.2, 14), own.accent, { p: [3.8, 1.95, fz + 1.4] });
     for (let k = 0; k < 3; k++) M.add(lumpy(rbox(1.3, 0.8, 0.8, 0.2), 0.04, 2, k), '#E8C36A', { p: [-3.8 + (k % 2) * 1.2, 0.4 + Math.floor(k / 2) * 0.8, fz + 1.5] });
-    medallion(M, owner, 0, 8.6, fz - 0.3, 1.1, 7.0);
+    medallion(M, owner, 0, 8.9, fz + 0.4, 1.1, 7.6);
     const g = M.done('hq');
     label(g, 'HOLLIS', 2.4, 0, 3.75, fz - 0.1, -0.03, '#FFFFFF', '#D64545');
     return g;
@@ -355,7 +373,9 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   for (let k = 0; k < 14; k++) M.add(rbox(10, 0.12, 0.6, 0.04), P.stick, { p: [0, 0.6, fz - 7 + k * 0.62], r: [0, (hash(k) - 0.5) * 0.03, 0], fx: PAPER });
   for (const x of [-4.6, 4.6]) for (const z of [-7, -3.5, 0.5]) M.add(cyl(0.16, 0.16, 1.6, 7), P.walnut, { p: [x, -0.2, fz + z], fx: PAPER });
   block(M, 7, 3.6, 5, tint('#FF9F1C'), 0, 0.65, fz - 4, 9);
-  M.add(rbox(8, 0.35, 6, 0.1), own.accent, { p: [0, 4.4, fz - 4] });
+  // a peaked hut roof with a shaggy straw fringe
+  M.add(lumpy(new THREE.ConeGeometry(1, 1, 4, 2).rotateY(Math.PI / 4).translate(0, 0.5, 0), 0.03, 2, 9), own.accent, { p: [0, 4.2, fz - 4], s: [8.6 / Math.SQRT2, 2.6, 6.6 / Math.SQRT2] });
+  for (let k = 0; k < 18; k++) { const t = k / 18, x = -4.2 + t * 8.4; M.add(cone(0.28, 0.6, 4), '#E8C36A', { p: [x, 4.0, fz - 0.75], r: [Math.PI, 0, 0], fx: PAPER }); }
   const wave: [number, number, number][] = [];
   for (let k = 0; k <= 16; k++) wave.push([-3.4 + k * (6.8 / 16), 3.4 + Math.sin(k * 0.9) * 0.18, fz - 1.45]);
   M.add(snake(wave, 0.1, 40, 6), owner ? '#00A6A6' : '#C8C8D0');
@@ -363,10 +383,11 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   door(M, 2, fz - 1.45, '#00A6A6', 1.2, 2.2);
   M.add(lumpy(cap(0.45, 3.2, 3, 10), 0.02, 2, 1), owner ? '#FFFDF6' : '#D8D3DE', { p: [4.3, 2.6, fz - 1.2], r: [0, 0, 0.12], s: [1, 1, 0.25] });
   M.add(box(0.12, 3.6, 0.02), '#00A6A6', { p: [4.3, 2.6, fz - 1.08], r: [0, 0, 0.12] });
-  // blender on the roof
-  M.add(lathe([[0, 0], [0.6, 0], [0.7, 1.4], [0, 1.4]], 12), '#FFE0B0', { p: [-2.5, 4.6, fz - 4.5], fx: GLOSS });
-  M.add(rbox(1.5, 0.6, 1.5, 0.15), '#00A6A6', { p: [-2.5, 4.4, fz - 4.5] });
-  medallion(M, owner, 1.6, 5.9, fz - 1.8, 1.0, 4.5);
+  // a giant blender on the deck, big enough to read from above
+  M.add(lathe([[0, 0], [0.8, 0], [0.95, 2.0], [0, 2.0]], 12), '#FFE0B0', { p: [-4.2, 1.4, fz - 0.6], fx: GLOSS });
+  M.add(rbox(2, 0.8, 2, 0.2), '#00A6A6', { p: [-4.2, 1.05, fz - 0.6] });
+  M.add(cyl(0.95, 0.95, 0.2, 12), '#00A6A6', { p: [-4.2, 3.45, fz - 0.6] });
+  medallion(M, owner, 1.6, 5.3, fz - 0.6, 1.0, 4.2);
   const g = M.done('hq');
   label(g, 'BLEND SHACK', 3.2, 0, 4.4, fz - 0.95, 0, '#00A6A6', '#FFF1D6');
   return g;
@@ -381,10 +402,11 @@ function ownerCols(id: RivalId) {
 export function fieldRows(name = ''): THREE.Group {
   const M = new Model();
   M.farColor = name === 'Hay Meadow' ? '#E8C36A' : '#5FA35A';
+  M.farFlat = true;
   // tilled soil bed
   M.add(lumpy(rbox(8.8, 0.25, 8.0, 0.12), 0.03, 1, 3), '#A7744F', { p: [0, 0.08, -2.5] }); // inset: the owner's tile shows round it
   if (name === 'Polo Lawn') {
-    for (let i = 0; i < 8; i++) M.add(rbox(1.25, 0.08, 9.4, 0.04), i % 2 ? '#6FB257' : '#8CCB6E', { p: [-4.4 + i * 1.26, 0.24, -2.5] });
+    for (let i = 0; i < 7; i++) M.add(rbox(1.2, 0.08, 7.8, 0.04), i % 2 ? '#6FB257' : '#8CCB6E', { p: [-3.66 + i * 1.22, 0.24, -2.5] });
     for (const x of [-4.6, 4.6]) { stick(M, x - 0.4, 0, 1.6, -2.5, 0.1, '#FFFDF6'); stick(M, x + 0.4, 0, 1.6, -2.5, 0.1, '#FFFDF6'); M.add(box(0.9, 0.08, 0.08), '#FFFDF6', { p: [x, 1.55, -2.5] }); }
     return M.done('field');
   }
@@ -446,7 +468,9 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
   const M = new Model();
   const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
   const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
-  M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? '#C8325A' : '#F3E9D6';
+  M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? own.main : '#F3E9D6';
+  M.farFlat = kind === 'grove' || kind === 'pier';
+  if (kind === 'bottling') M.farTop = own.main;
   if (kind === 'grove') {
     // flowering lemon trees on clay mounds, three rows
     for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
@@ -481,9 +505,12 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
   if (kind === 'helipad') {
     // a bottle cap with a lemon-wedge H and a striped windsock
     const r = 3 + level * 0.6, deck = level >= 2 ? 0.9 : 0;
+    // the player's bottle cap is raspberry; a rival's is pressed in its own colour
+    const capC = owner === 'player' || !owner ? '#C8325A' : own.main;
+    M.farColor = capC;
     if (deck) for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; stick(M, Math.cos(a) * (r - 0.6), 0, deck, -2.5 + Math.sin(a) * (r - 0.6), 0.25); }
-    M.add(cyl(r, r, 0.35, 28), '#C8325A', { p: [0, deck + 0.18, -2.5], fx: GLOSS });
-    for (let k = 0; k < 28; k++) { const a = (k / 28) * Math.PI * 2; M.add(rbox(0.5, 0.4, 0.22, 0.08), '#C8325A', { p: [Math.cos(a) * r, deck + 0.2, -2.5 + Math.sin(a) * r], r: [0, -a, 0], fx: GLOSS }); }
+    M.add(cyl(r, r, 0.35, 28), capC, { p: [0, deck + 0.18, -2.5], fx: GLOSS });
+    for (let k = 0; k < 28; k++) { const a = (k / 28) * Math.PI * 2; M.add(rbox(0.5, 0.4, 0.22, 0.08), capC, { p: [Math.cos(a) * r, deck + 0.2, -2.5 + Math.sin(a) * r], r: [0, -a, 0], fx: GLOSS }); }
     M.add(cyl(r - 0.35, r - 0.35, 0.05, 28), '#FFFDF6', { p: [0, deck + 0.38, -2.5], fx: PAPER });
     // the lemon-wedge H
     for (const s of [-1, 1]) M.add(lumpy(rbox(0.5, 0.12, 2.4, 0.1), 0.02, 3, s), Y, { p: [s * 0.8, deck + 0.45, -2.5] });
@@ -492,7 +519,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
     if (level >= 3) {
       // a second deck and a yellow carpet
       block(M, 3, 2.2, 3, '#F3E9D6', 4, 0, -7, 31, 0.25);
-      M.add(cyl(1.7, 1.7, 0.3, 20), '#C8325A', { p: [4, 2.4, -7], fx: GLOSS });
+      M.add(cyl(1.7, 1.7, 0.3, 20), capC, { p: [4, 2.4, -7], fx: GLOSS });
       M.add(rbox(1.2, 0.04, 3.8, 0.02), Y, { p: [0, 0.03, 0.6], fx: PAPER });
     }
     stick(M, -4.6, 0, 2.4, 0.8, 0.1);
@@ -638,10 +665,14 @@ export function animatePart(o: THREE.Object3D, t: number, minute: number) {
  * A faction's logo as a pressed-clay medallion facing +z: the emblem on a sunburst, bordered
  * in the owner's pattern colours, on a stick post down to `postTo` (the roof or wall it stands on).
  */
-export function medallion(M: Model, owner: RivalId | 'player' | null, x: number, y: number, z: number, R = 1.1, postTo = y - R) {
+export function medallion(M0: Model, owner: RivalId | 'player' | null, X: number, Y: number, Z: number, R = 1.1, postTo = Y - R) {
   const t = owner ? TILE_PATTERN[owner] : { main: '#A9A3B5', accent: '#D8D3DE' };
   const face = (o: Opt) => ({ ...o, r: [Math.PI / 2, 0, 0] as [number, number, number] });
-  if (postTo < y - R) stick(M, x, postTo, y - R * 0.6, z - 0.12, 0.16);
+  if (postTo < Y - R) stick(M0, X, postTo, Y - R * 0.6, Z, 0.16);
+  // Built once round its own centre, then pressed onto both faces of the disc, so it reads from either side.
+  const E = new Baker();
+  const M = { add(g: THREE.BufferGeometry, c: Col, o: Opt = {}) { E.add(g, c, o); return M; } };
+  const x = 0, y = 0, z = 0;
   // sunburst: card rays alternating cream and the owner's accent, behind a cream disc
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;
@@ -695,4 +726,8 @@ export function medallion(M: Model, owner: RivalId | 'player' | null, x: number,
   } else {
     M.add(sph(0.4 * u, 10, 6), '#B9B4C4', { p: [x, y, zf], s: [1, 1, 0.5] });
   }
+  const g = E.build();
+  M0.B.raw(g, new THREE.Matrix4().makeTranslation(X, Y, Z));
+  M0.B.raw(g, new THREE.Matrix4().makeTranslation(X, Y, Z).multiply(new THREE.Matrix4().makeRotationY(Math.PI)));
+  g.dispose();
 }

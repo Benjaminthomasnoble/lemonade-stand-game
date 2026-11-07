@@ -3,7 +3,7 @@ import {
   appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, drainQueue, eliminate,
   expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
-  nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
+  nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, rivalPrice, rivalShare,
   runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, stockCups, tickMinute, touristPays, withinTwo,
   type DistrictId, type GameState, type RivalId, type SegmentId, type SimEvent, type WeatherKind,
 } from './economy.ts';
@@ -176,6 +176,10 @@ describe('segments and the line', () => {
   it('pours at most cups an hour × 10 selling hours a day', () => {
     const s = newGame(1);
     expect(STAND_LEVELS.map((l) => { s.plots[LOTTIES_CORNER].stand!.level = l.level; return dailyService(s, LOTTIES_CORNER); })).toEqual([200, 500, 1200, 3000, 7000]);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 1;
+    st.hp = STAND_LEVELS[0].hp * 0.7; // Damaged: it pours its HP share, in whole cups an hour (damage.ts)
+    expect([pourRate(s, LOTTIES_CORNER), dailyService(s, LOTTIES_CORNER)]).toEqual([14, 140]);
   });
 
   it('matches the worked example: 187 wanted on a hot day, 200 poured on a Scorcher with a line walking off', () => {

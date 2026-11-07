@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bidGuess, bidSteps, budgetOf, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER, LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame,
-  grudgeToward, newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder, placeBid, PLOTS, PRESTON_OUTBID, reserveOf,
-  sleepUntilDawn, unlistPlot, withdrawBid,
-  type DistrictId, type GameState, type Guard, type Order, type RivalId,
+  answerBuyout, auctionCloses, auctionPlots, bidGuess, bidSteps, budgetOf, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER,
+  LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame, grudgeToward, newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder,
+  placeBid, PLOT_BY_ID, PLOTS, PRESTON_OUTBID, reserveOf, sleepUntilDawn, unlistPlot, withdrawBid,
+  type DistrictId, type GameState, type Guard, type Order, type RivalId, type Scheme,
 } from './economy.ts';
 import { takeCall } from './phone.ts';
 
@@ -130,6 +130,36 @@ describe('sealed-bid auctions', () => {
     expect(budgetOf(s, 'hollis')).toMatchObject({ grow: 0, strike: 1e5 - 4200 });
     expect(s.news.some((n) => n.includes('snipe') && n.endsWith('at the Registry'))).toBe(true);
     expect(s.news.some((n) => n.startsWith('Skip Larkin: "Outbid on') && n.includes('went to $4,200'))).toBe(true);
+  });
+
+  it('a sale Town Hall froze waits out the freeze with its sealed bids, and a snipe on the lot waits with it', () => {
+    const { s, id } = downtownAuction(58);
+    purse(s, { fizzco: 1e6 });
+    placeBid(s, id, 10000);
+    s.day++; // the dawn it was due, and Sourwood's Old Money froze the sale at Town Hall this morning
+    const freeze: Scheme = { kind: 'freeze', by: 'sourwood', day: s.day, until: s.day + 2, plots: [id], cost: 0 };
+    const snipe: Scheme = { kind: 'snipe', by: 'hollis', day: s.day - 1, until: s.day, plots: [id], cost: 0 };
+    s.schemes = [freeze, snipe];
+    const cash = s.cash, after = freeze.until + 1;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBeNull();
+    expect(s.plots[id].auction).toMatchObject({ closes: after, bid: 10000 });
+    expect(auctionCloses(s, id)).toBe(after);
+    expect(snipe.until).toBe(after);
+    expect(s.cash).toBe(cash);
+    expect(s.news.at(-1)).toBe(`Skip Larkin: "Town Hall froze the sale of ${PLOT_BY_ID[id].name}. The gavel waits till dawn on day ${after}."`);
+    expect(canBuyPlot(s, id).ok).toBe(false);
+    s.day = after;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('player');
+    expect(cash - s.cash).toBe(10000);
+  });
+
+  it('a lot frozen before its dawn already shows the later close', () => {
+    const { s, id } = downtownAuction(59);
+    expect(auctionCloses(s, id)).toBe(s.day + 1);
+    s.schemes = [{ kind: 'freeze', by: 'sourwood', day: s.day, until: s.day + 2, plots: [id], cost: 0 }];
+    expect(auctionCloses(s, id)).toBe(s.day + 3);
   });
 
   it('a tie goes to Lottie', () => {
@@ -373,6 +403,23 @@ describe('selling a plot', () => {
     closeAuctions(s);
     expect(s.plots[id].owner).not.toBe('player');
     expect(s.offers.some((o) => o.plot === id)).toBe(false);
+  });
+
+  it('a listing sold to FizzCo\'s buyout offer meanwhile leaves the Auctions list and clears at dawn', () => {
+    const { s, id } = stall(65);
+    purse(s, { fizzco: 1e6 });
+    budgetOf(s, 'fizzco').grow = 1e5;
+    listPlot(s, id);
+    s.schemes = [{ kind: 'buyout', by: 'fizzco', day: s.day, until: s.day + 1, plots: [id], price: 20000, cost: 0 }];
+    expect(answerBuyout(s, id, true)).toBe(true);
+    expect(s.plots[id].owner).toBe('fizzco');
+    expect(auctionPlots(s).some((p) => p.id === id)).toBe(false);
+    const cash = s.cash;
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('fizzco');
+    expect(s.plots[id].auction).toBeUndefined();
+    expect(s.cash).toBe(cash);
   });
 
   it('a sale listed on the last day In the Red settles at dawn, before the deadline', () => {

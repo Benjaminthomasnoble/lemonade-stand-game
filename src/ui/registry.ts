@@ -5,7 +5,7 @@
 // plots you could buy out. Plain markup with the shared clay classes; hud.ts
 // mounts it and every button goes through hud's one click listener.
 import {
-  auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
+  auctionCloses, auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
   districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
   plotPrice, PLOTS, purchasablePlots, reachBlocker, RECIPES, recipeCost, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
   type Blocker, type DistrictId, type GameState, type Plot, type RivalId,
@@ -77,12 +77,19 @@ export function priceTip(s: GameState, plotId: string): string {
   return parts.length > 1 || dibs ? parts.join(', ') : '';
 }
 
+/** When the gavel falls: the next dawn, or a later day when Town Hall froze the sale (Sourwood's Old Money). */
+const closing = (s: GameState, lot: string, verb: string) => {
+  const day = auctionCloses(s, lot);
+  return day <= s.day + 1 ? `${verb} at dawn` : `${verb} day ${day}`;
+};
+const frozenTip = (s: GameState, lot: string) => (auctionCloses(s, lot) > s.day + 1 ? ' Town Hall froze this sale: the gavel waits for the freeze to end.' : '');
+
 /** A plot (or the Lavender page) on the block: sealed bids until dawn, Skip's read on the rivals, and your bid buttons. */
 export function auctionControls(s: GameState, plotId: string): string {
   const a = auctionOf(s, plotId);
   if (!a || a.kind === 'listing') return '';
   const guess = bidGuess(s, plotId);
-  const tip = `Sealed bids: nobody sees anyone else's. Bids open at ${whole(a.min)}; the top bid wins and pays at dawn${familySilver(s) < 1 ? ', 10% off with Family Silver' : ''}. Keep the cash on hand.`;
+  const tip = `Sealed bids: nobody sees anyone else's. Bids open at ${whole(a.min)}; the top bid wins and pays when bids close${familySilver(s) < 1 ? ', 10% off with Family Silver' : ''}. Keep the cash on hand.${frozenTip(s, plotId)}`;
   const steps = bidSteps(a);
   const from = a.bid === undefined ? 0 : Math.max(0, steps.findIndex((v) => v >= a.bid!));
   const bids = steps.slice(from, from + 3).map((v) => {
@@ -90,7 +97,7 @@ export function auctionControls(s: GameState, plotId: string): string {
     const cost = bidCost(s, v);
     return btn('bid', `Bid ${whole(v)}`, b, `data-plot="${plotId}" data-amount="${v}"${b.ok && cost !== v ? ` title="You'd pay ${whole(cost)}"` : ''} data-testid="bid"`, a.bid === v ? 'go' : 'ghost');
   }).join('');
-  return `<span class="cl-note good" title="${esc(tip)}" data-testid="auction">${a.kind === 'fire' ? 'Fire Sale auction' : 'Auction'}: closes at dawn</span>
+  return `<span class="cl-note good" title="${esc(tip)}" data-testid="auction">${a.kind === 'fire' ? 'Fire Sale auction' : 'Auction'}: ${closing(s, plotId, 'closes')}</span>
     <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
     <span class="cl-acts">${bids}${a.bid !== undefined ? btn('unbid', '✕', { ok: true }, `data-plot="${plotId}" title="Take your bid back"`, 'ghost tiny') : ''}</span>
     ${a.bid !== undefined ? `<span class="cl-note">Your bid: ${whole(a.bid)}</span>` : ''}`;
@@ -102,7 +109,7 @@ export function listingControls(s: GameState, plotId: string): string {
   if (ps.owner !== 'player' || plotId === LOTTIES_CORNER || PLOT_BY_ID[plotId].type === 'hq' || (!registryOpen(s) && !ps.auction)) return '';
   const guess = bidGuess(s, plotId);
   if (ps.auction?.kind === 'listing') {
-    return `<span class="cl-note good" title="Sealed bids from ${whole(ps.auction.min)}. The top bid's cash is yours at dawn, and the plot goes with what's on it. No bids: it stays yours." data-testid="listed">On the block: sells at dawn</span>
+    return `<span class="cl-note good" title="${esc(`Sealed bids from ${whole(ps.auction.min)}. The top bid's cash is yours when bids close, and the plot goes with what's on it. No bids: it stays yours.${frozenTip(s, plotId)}`)}" data-testid="listed">On the block: ${closing(s, plotId, 'sells')}</span>
       <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
       ${btn('unlistPlot', 'Take it back', { ok: true }, `data-plot="${plotId}"`, 'ghost')}`;
   }

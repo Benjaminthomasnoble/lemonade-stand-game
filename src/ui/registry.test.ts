@@ -140,6 +140,21 @@ describe('the Land Registry', () => {
     expect(landTickets(s)).toEqual([]);
   });
 
+  it('a lot or listing Town Hall froze shows the day its bids close', () => {
+    const s = week2(58);
+    const lot = purchasablePlots('oldtown').find((p) => !s.plots[p.id].owner)!;
+    openAuction(s, lot.id, 'sale');
+    const mine = purchasablePlots('maple').find((p) => !s.plots[p.id].owner)!;
+    give(s, mine.id);
+    listPlot(s, mine.id);
+    expect(text(registryScreen(s, 'auctions'))).toContain('Auction: closes at dawn');
+    s.schemes = [{ kind: 'freeze', by: 'sourwood', day: s.day, until: s.day + 2, plots: [lot.id, mine.id], cost: 0 }];
+    const html = registryScreen(s, 'auctions');
+    expect(text(html)).toContain(`Auction: closes day ${s.day + 3}`);
+    expect(text(html)).toContain(`On the block: sells day ${s.day + 3}`);
+    expect(html).toContain('Town Hall froze this sale');
+  });
+
   it('shows the Lavender page on Auctions with its bid buttons, and a morning ticket while it runs', () => {
     const s = week2(57, 8);
     s.cash = 1e7;

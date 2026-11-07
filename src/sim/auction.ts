@@ -17,7 +17,7 @@ import { checkVictory } from './modes.ts';
 import { grantPage, movePage, pageHolder } from './recipes.ts';
 import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
-import { snipeBid } from './schemes.ts';
+import { freezeOn, runningSchemes, snipeBid } from './schemes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -61,7 +61,19 @@ export const pickupBooked = (s: GameState, plotId: string) => s.orders.some((o) 
 /** What Lottie pays for a winning bid: Family Silver takes 10% off. */
 export const bidCost = (s: GameState, amount: number) => Math.round(amount * familySilver(s));
 
-export const auctionPlots = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].auction);
+/** Plots on the block. A listing of yours that changed hands some other way (sold to a Hostile Takeover offer) just waits for dawn to clear. */
+export const auctionPlots = (s: GameState) => PLOTS.filter((p) => {
+  const ps = s.plots[p.id];
+  return !!ps.auction && (ps.auction.kind !== 'listing' || ps.owner === 'player');
+});
+
+/** The dawn a lot's gavel falls: the one after it opened, or the one after a Town Hall freeze on it ends (Sourwood's Old Money). */
+export function auctionCloses(s: GameState, lot: string): number {
+  const a = auctionOf(s, lot);
+  if (!a) return Infinity;
+  const freeze = freezeOn(s, lot);
+  return freeze ? Math.max(a.closes, freeze.until + 1) : a.closes;
+}
 
 /**
  * Elimination: every plot the rival held goes to a Fire Sale, cleared of its
@@ -206,9 +218,22 @@ function topBid(bids: Bid[]): Bid | null {
 /** What the gavel did with the lots Lottie didn't bid on, for one line in the Bugle. */
 interface Results { taken: string[]; unsold: string[] }
 
+/**
+ * A sale Town Hall froze can't close (Sourwood's Old Money: nobody buys a frozen plot). The lot waits for the dawn
+ * after the freeze with its sealed bids, and a rival's snipe on it waits too.
+ */
+function waitOutFreeze(s: GameState, plotId: string): void {
+  const a = s.plots[plotId].auction!;
+  a.closes = auctionCloses(s, plotId);
+  for (const x of runningSchemes(s)) if (x.kind === 'snipe' && x.plots.includes(plotId)) x.until = a.closes;
+  s.news.push(`Skip Larkin: "Town Hall froze the sale of ${PLOT_BY_ID[plotId].name}. The gavel waits till dawn on day ${a.closes}."`);
+}
+
 /** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget (and, for the Lavender page, their cash above the reserve). */
 export function closeAuctions(s: GameState): void {
-  const due = PLOTS.filter((p) => (s.plots[p.id].auction?.closes ?? Infinity) <= s.day);
+  const ready = PLOTS.filter((p) => (s.plots[p.id].auction?.closes ?? Infinity) <= s.day);
+  for (const p of ready) if (auctionCloses(s, p.id) > s.day) waitOutFreeze(s, p.id);
+  const due = ready.filter((p) => s.plots[p.id].auction!.closes <= s.day);
   const page = (s.lavender?.auction?.closes ?? Infinity) <= s.day;
   if (!due.length && !page) return;
   const rng = { seed: s.seed };

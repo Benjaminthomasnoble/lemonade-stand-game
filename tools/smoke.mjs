@@ -131,6 +131,7 @@ try {
   await page.screenshot({ path: 'test-results/10-raid-warning.png' });
   await page.click('[data-testid="next"]');
   await page.waitForSelector('[data-testid="replay"]');
+  await page.evaluate(() => window.__game.act({ type: 'inspect', plot: null })); // the raid planner, still open if they rebuilt, covers the feed
   await page.click('[data-testid="replay"] >> nth=0');
   await page.waitForTimeout(6000);
   await page.screenshot({ path: 'test-results/11-night-replay.png' });

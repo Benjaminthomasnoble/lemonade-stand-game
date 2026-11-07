@@ -15,6 +15,7 @@ import { threatLevel, type Raid } from './crew.ts';
 import { onYou } from './night.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { hasStory } from './story.ts';
+import { NIGHT_SHIFT } from './rivals.ts';
 
 export type BossMood = 'warn' | 'sore' | 'smashed' | 'gloat';
 /**
@@ -193,8 +194,8 @@ export function phoneCheck(s: GameState, dawn = false): void {
   }
   // A boss who hit you last night calls at dawn: gloating, or sore that you held.
   const hit = dawn && s.battles.find((b) => b.day === s.day - 1 && b.defender === 'player' && b.attacker !== 'player');
-  // (Juni's line after a Sabotage of hers is the rivals lane's: tauntsAtDawn in src/sim/rivalAi.ts.)
-  if (hit) phoneCall(s, hit.attacker as RivalId, '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
+  // Juni gloats in her Night Shift line after a Cold Brew Sabotage spoils your stock (rivals: the flag rides the crew's Sabotage).
+  if (hit) phoneCall(s, hit.attacker as RivalId, hit.attacker === 'coldbrew' && hit.outcome !== 'repelled' && hit.sabotage ? NIGHT_SHIFT.taunt : '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 /**

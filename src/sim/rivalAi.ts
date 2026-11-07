@@ -22,7 +22,7 @@ import {
 } from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
-import { CALL_PRIORITY, phoneCall, raidCall } from './phone.ts';
+import { raidCall } from './phone.ts';
 import { landFrozen } from './schemes.ts';
 import { actOf } from './modes.ts';
 
@@ -570,15 +570,6 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
 /** What Night Shift takes off your detection roll as a raid on you sets out at night (night.ts): Cold Brew's raids only. */
 export function nightShiftStealth(s: GameState, r: Raid): number {
   return r.attacker === 'coldbrew' && s.phase === 'night' ? NIGHT_SHIFT.stealth : 0;
-}
-
-/**
- * Dawn: Juni phones the Corner after a Cold Brew Sabotage spoiled your stock last night (crew's raid objective; this
- * picks it up once it merges). Tilly's line after you raid her is the phone's own: src/sim/phone.ts reads her Grudge jump.
- */
-export function tauntsAtDawn(s: GameState): void {
-  const spoiled = s.battles.some((b) => b.day === s.day - 1 && !b.hq && b.attacker === 'coldbrew' && b.defender === 'player' && b.outcome === 'robbed' && (b as { sabotage?: boolean }).sabotage);
-  if (spoiled) phoneCall(s, 'coldbrew', NIGHT_SHIFT.taunt, { mood: 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 // ---------- Attention: who comes for you ----------

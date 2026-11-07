@@ -6,7 +6,7 @@ import {
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, stockCapCups, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
-  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, tauntsAtDawn, eliteStewards,
+  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, eliteStewards,
   BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
   buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT, PICKUP_MINUTE, deliver, threatLevel,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
@@ -573,16 +573,17 @@ describe('Night Shift', () => {
     expect(nightShiftStealth(s, { attacker: 'blenders' } as Raid)).toBe(0);
   });
 
-  it('Juni phones the morning after a Cold Brew Sabotage spoils your stock, not after a plain raid', () => {
-    const s = newGame(2);
-    s.day = 30;
-    const fight = { day: 29, attacker: 'coldbrew', defender: 'player', target: LOTTIES_CORNER, outcome: 'robbed' } as BattleReport;
-    s.battles.push(fight);
-    tauntsAtDawn(s);
-    expect(s.phone?.queue ?? []).toEqual([]);
-    s.battles.push({ ...fight, sabotage: true } as BattleReport);
-    tauntsAtDawn(s);
-    expect(s.phone!.queue).toMatchObject([{ who: 'coldbrew', text: NIGHT_SHIFT.taunt, mood: 'gloat', day: 30 }]);
+  it('Juni phones the morning after a Cold Brew Sabotage spoils your stock in her Night Shift line; a plain raid gets her own pool', () => {
+    const call = (fight: Partial<BattleReport> & { sabotage?: boolean }) => {
+      const s = newGame(2);
+      s.day = 30;
+      s.battles.push({ day: 29, attacker: 'coldbrew', defender: 'player', target: LOTTIES_CORNER, outcome: 'robbed', ...fight } as BattleReport);
+      phoneCheck(s, true);
+      return s.phone!.queue.filter((c) => c.who === 'coldbrew');
+    };
+    expect(call({ sabotage: true })).toMatchObject([{ text: NIGHT_SHIFT.taunt, mood: 'gloat', day: 30 }]);
+    expect(call({})).toMatchObject([{ text: '', mood: 'gloat' }]);
+    expect(call({ sabotage: true, outcome: 'repelled' })).toMatchObject([{ text: '', mood: 'sore' }]); // held: nothing spoiled
   });
 });
 
@@ -643,7 +644,6 @@ describe('Dig In', () => {
     const target = ownedPlots(s, 'hollis').find((p) => p.type !== 'hq')!.id;
     s.battles.push({ day: 19, attacker: 'player', defender: 'hollis', target, outcome: 'repelled' } as BattleReport);
     addGrudge(s, 'hollis', 'player', GRUDGE.raided);
-    tauntsAtDawn(s);
     phoneCheck(s, true);
     expect(s.phone!.queue.filter((c) => c.who === 'hollis').map((c) => c.text)).toEqual(["Bring all the hatchets you want. I've got hay bales till Tuesday."]);
   });

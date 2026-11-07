@@ -3,7 +3,7 @@
 // repairs and send tonight's raids for a moment before the night runs on the
 // clock. Plain controls on the HUD's existing classes; clicks go through the
 // HUD's one listener (data-action).
-import { fenceRepairCost, guardReady, isWrecked, PLOT_BY_ID, PLOTS, rebuildCost, type GameState, type Guard } from '../sim/economy.ts';
+import { canBuyPerimeter, fenceRepairCost, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, rebuildCost, type GameState, type Guard } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
@@ -17,8 +17,8 @@ const place = (id: string) => PLOT_BY_ID[id].name.replace(/ lot /, ' ');
 /** The Evening on the map: start the night now (it starts by itself after a moment), skip it, or reopen the Ledger. */
 export function eveningBar(): string {
   return `<div class="cl-daybar" data-testid="evening">
-    <button class="cl-b go" data-action="night" data-testid="night" title="The night starts by itself in a moment">${art('moon', A.moonSVG)}Night</button>
-    <button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Sleep till dawn</button>
+    <button class="cl-b go" data-action="night" data-testid="night" title="Night falls by itself in a moment">${art('moon', A.moonSVG)}Sleep</button>
+    <button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Skip to dawn</button>
     <button class="cl-link" data-action="ledger" title="Today's profit and books">Ledger</button></div>`;
 }
 
@@ -40,6 +40,21 @@ export function repairCards(s: GameState): string[] {
     }
   }
   return out;
+}
+
+/** An owned plot's one action off business hours: its next fence, or a patch for a dented one (the walkthrough's
+ * Evening: a Picket Fence on the likeliest target). The stand panel only opens at Morning Prep, and a pad or pier
+ * has none, so this is where they get fenced. Locked fences stay hidden. */
+export function fenceHere(s: GameState, plotId: string): string {
+  const ps = s.plots[plotId];
+  if (ps.owner !== 'player' || isWrecked(ps) || s.phase === 'open') return '';
+  const next = PERIMETERS[ps.defense.tier];
+  const b = canBuyPerimeter(s, plotId);
+  if (next && s.rank >= next.rank) {
+    return btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, `data-plot="${plotId}" data-testid="fence-here" ${b.ok ? `title="${esc(`${next.name}: ${next.hp} HP`)}"` : `disabled title="${esc(b.why)}"`}`, 'tiny go');
+  }
+  const fix = fenceRepairCost(ps);
+  return fix ? btn('repairFence', `Patch ${whole(fix)}`, `data-plot="${plotId}" ${s.cash >= fix ? '' : 'disabled title="Not enough cash"'}`) : '';
 }
 
 /** Station guards from the map: who is posted on this plot, then one tap posts the next free guard (or everyone). */

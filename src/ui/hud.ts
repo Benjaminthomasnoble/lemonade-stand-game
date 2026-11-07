@@ -25,7 +25,7 @@ import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { eveningBar, guardsHere, repairCards } from './evening.ts';
+import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { optionsScreen } from './options.ts';
 
 export type Action =
@@ -396,7 +396,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const running = s.phase === 'open' || s.phase === 'night' || counting || hud.playing;
     if (!running) return `<div class="cl-corner">${views}</div>`;
     const sb = (v: number, label: string) => k('speed', label, `Speed ${v ? v + '×' : 'pause'} (keys: space, 1, 2, 3)`, `data-value="${v}"`, speed === v);
-    const skip = s.phase === 'open' ? k('skip', '⏭', 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', '⏭', 'Sleep till dawn (stops at big alerts)', 'data-testid="next"') : '';
+    const skip = s.phase === 'open' ? k('skip', '⏭', 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', '⏭', 'Skip to dawn (stops at big alerts)', 'data-testid="next"') : '';
     return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, '❚❚')}${sb(1, '▶')}${sb(2, '▶▶')}${sb(3, '▶▶▶')}${skip}</div>`;
   }
 
@@ -642,8 +642,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>${tip}</span></div>
       ${tonight(s)}
       ${books ? bookTable : ''}
-      <button class="cl-sleep" data-action="night" data-testid="night" title="The night runs on the clock">${ART.moon()}<span>Night</span></button>
-      <span class="cl-acts"><button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Sleep till dawn</button>
+      <button class="cl-sleep" data-action="night" data-testid="night" title="Night falls: it runs on the clock, quiet nights at 3×">${ART.moon()}<span>Sleep</span></button>
+      <span class="cl-acts"><button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Skip to dawn</button>
       <button class="cl-link" data-action="evening" data-testid="evening-map" title="Station guards, approve repairs and send tonight's raids">To the map</button>
       <button class="cl-link" data-action="books">${books ? 'Close the books' : 'See the books'}</button></span>
     </div></div>`;
@@ -692,9 +692,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fac = kinds.filter((kind) => lvl < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl]} ${whole(FACILITIES[kind].costs[lvl])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(FACILITIES[kind].blurb[lvl])}"`, 'go')).join('');
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
-      actions = stand + fac;
+      actions = stand + fac + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
-    else if (ps.owner === 'player' && st) actions = id === s.selected ? '' : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
+    else if (ps.owner === 'player' && st) actions = s.phase === 'report' || s.phase === 'night' ? fenceHere(s, id) : id === s.selected ? '' : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       const pb = canPlotBuyout(s, id);

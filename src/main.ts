@@ -329,6 +329,7 @@ async function main() {
 
   const act = (a: Action) => {
     const st = selectedStand(state);
+    if (state.phase === 'report') eveningWait = 0; // the Evening is a moment after the last thing you did
     switch (a.type) {
       case 'buy': buySupply(state, a.id, a.packs); break;
       case 'recipe': setRecipe(st, a.id); break;
@@ -352,7 +353,11 @@ async function main() {
         if (dawned) { atDawn(); afterSleep(); }
         break;
       }
-      case 'goto': hud.inspected = a.plot; focusPlot(a.plot); break;
+      case 'goto': { // an alert card's Go There: the camera goes (Captain Squawk flies home first), the Ledger folds
+        if (flight.active()) { flight.stop(); gullBtn.classList.remove('on'); }
+        hud.ledger = false; hud.inspected = a.plot; focusPlot(a.plot);
+        break;
+      }
       case 'dismiss': dismissAlert(state, a.id); break;
       case 'restockNow': {
         const ps = state.plots[a.plot];

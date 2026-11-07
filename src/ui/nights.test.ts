@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, raidPartyFor, startNight, type GameState, type Raid } from '../sim/economy.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
+import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
@@ -53,6 +54,34 @@ describe('the raid warning card', () => {
     const { s } = warned();
     while (s.minute < 22 * 60) nightStep(s);
     expect(alertCards(s).some((c) => c.includes('raid-warning'))).toBe(false);
+  });
+});
+
+describe('the Evening on the map', () => {
+  it("an owned stand's card offers its next fence after closing, never in business hours", () => {
+    const s = newGame(3);
+    s.cash = 1000;
+    s.phase = 'open';
+    expect(fenceHere(s, LOTTIES_CORNER)).toBe('');
+    s.phase = 'report';
+    expect(fenceHere(s, LOTTIES_CORNER)).toContain('data-action="perimeter"');
+    s.phase = 'night';
+    expect(fenceHere(s, LOTTIES_CORNER)).toContain('data-testid="fence-here"');
+    s.cash = 10;
+    expect(fenceHere(s, LOTTIES_CORNER)).toMatch(/disabled title="Needs \$/); // short of cash: shown, with the reason
+  });
+
+  it('a locked fence stays hidden; a dented one offers its patch', () => {
+    const s = newGame(3);
+    s.phase = 'report';
+    s.cash = 5000;
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.defense.tier = 1;
+    ps.defense.fenceHp = PERIMETERS[0].hp;
+    s.rank = PERIMETERS[1].rank - 1;
+    expect(fenceHere(s, LOTTIES_CORNER)).toBe('');
+    ps.defense.fenceHp = Math.round(PERIMETERS[0].hp / 2);
+    expect(fenceHere(s, LOTTIES_CORNER)).toContain('data-action="repairFence"');
   });
 });
 

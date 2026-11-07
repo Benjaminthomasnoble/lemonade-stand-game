@@ -5,8 +5,9 @@
 import { readFileSync } from 'node:fs';
 import {
   approveRepair, buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, PLOTS, rankFor, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
-  dayProfit,
+  dayProfit, buyPlot, canBuyPlot, CLUBHOUSE, plotPrice,
 } from '../src/sim/economy.ts';
+import { clubhouseSite } from '../src/sim/clubhouse.ts';
 import { goalsNow } from '../src/sim/goals.ts';
 import { pacingReport } from './pacing.ts';
 
@@ -37,8 +38,13 @@ for (let d = 0; d < days; d++) {
   sleepUntilDawn(s);
   if (s.battles[0] && s.battles[0] !== before) console.log(`   night: ${battleHeadline(s.battles[0])}`);
   for (const p of playerStands(s)) if (s.plots[p.id].stand!.wrecked) rebuildStand(s, p.id);
-  // Act 2: Dex pushes for a first Clubhouse (a story goal from Day 15), and the bot builds it once it can (spec: Days 15-19).
-  if (goalsNow(s).some((g) => g.text === 'Build Dex a Clubhouse' && !g.done) && canBuildClubhouse(s).ok && buildClubhouse(s)) console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`);
+  // Act 2: Dex pushes for a first Clubhouse (a story goal from Day 15; spec: Days 15-19). It needs an empty Street plot of
+  // yours: the bot buys the cheapest open one once it can pay for the plot and the Clubhouse both, then builds.
+  if (goalsNow(s).some((g) => g.text === 'Build Dex a Clubhouse' && !g.done)) {
+    const lot = clubhouseSite(s) ? null : PLOTS.filter((p) => p.type === 'street' && !s.plots[p.id].dibs?.table && canBuyPlot(s, p.id).ok).sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id))[0];
+    if (lot && s.cash >= plotPrice(s, lot.id) + CLUBHOUSE[0].cost && buyPlot(s, lot.id)) console.log(`   dawn of day ${s.day}: bought ${lot.name} for Dex's Clubhouse`);
+    if (canBuildClubhouse(s).ok && buildClubhouse(s)) console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`);
+  }
   s.news.length = 0;
 }
 if (pacing) pacingReport(process.argv.slice(3), readFileSync(new URL('../docs/spec/pacing.csv', import.meta.url), 'utf8'), (line) => console.log(line));

@@ -6,10 +6,11 @@ import {
   QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
-  autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, TUTORIAL_CALL, newStand, welcomeDex,
+  autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
+import { LINES, phoneCheck } from './phone.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
 function evening(seed: number, settings: Partial<Settings> = {}): GameState {
@@ -299,12 +300,15 @@ describe('the tutorial raid', () => {
   const tutorialRaid = (s: GameState) => s.raids.find((r) => r.tutorial)!;
   const dexOf = (s: GameState) => s.guards.find((g) => g.name === DEX);
 
-  it("Brock's Smoothie Bros come, announced, for a Shakedown, and Brock calls first", () => {
+  it("Brock's Smoothie Bros come, announced, for a Shakedown, and Brock calls first, on the Corner's phone", () => {
     const { s } = fairNight(1);
     const r = tutorialRaid(s);
     expect(r).toMatchObject({ attacker: 'blenders', target: LOTTIES_CORNER, objective: 'shakedown', detected: true, tutorial: true });
     expect(r.party).toHaveLength(2);
-    expect(s.news).toContain(`Brock: "${TUTORIAL_CALL}"`);
+    expect(s.news.some((n) => n.startsWith('Brock:'))).toBe(false); // no news line of his own: the phone rings it
+    s.story = { act: 2, since: s.day }; // the dawn after the Summer Fair turned the act (story.ts)
+    phoneCheck(s);
+    expect(s.phone!.queue[0]).toMatchObject({ who: 'blenders', text: LINES.brockFirst });
   });
 
   it('bounces wherever Dex is: moved off after the warning, out of action, or let go, with no fence', () => {

@@ -6,7 +6,7 @@
 // Yard with the elites left, the Boss Room with Vera and her Stewards. Until the siege is done the Manor can't be
 // stormed, and Vera never goes bust: only the Big Squeeze ends her.
 // Pure and seeded, like the rest of the sim.
-import { BIG_SQUEEZE, RANKS, type RivalId } from './balance.ts';
+import { ACTS, BIG_SQUEEZE, RANKS, type RivalId } from './balance.ts';
 import type { Blocker, GameState, Goal } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { alert } from './alerts.ts';
@@ -16,6 +16,8 @@ import { nextRandom } from './rng.ts';
 import { targetScore } from './rivalAi.ts';
 import { HQS, hqPlot, inTruce } from './rivals.ts';
 import { formSyndicate, syndicateFormed } from './syndicate.ts';
+import { actOf } from './modes.ts';
+import { CALL_PRIORITY, phoneCall } from './phone.ts';
 
 export interface SqueezeState {
   posted?: number; // the dawn Lottie posted the goal (Rank 9)
@@ -32,9 +34,14 @@ export interface SqueezeState {
 export const SQUEEZE_READY = "When you're ready, kid. Not a minute before.";
 
 const VERA: RivalId = 'sourwood';
+/** The campaign's last act, The Big Squeeze: it begins once FizzCo falls (story.ts). */
+const FINAL_ACT = ACTS.length;
+const STORM = 'Storm Sourwood Manor';
 /** The finale's rules hold: a campaign with Vera still in it. */
 const finale = (s: GameState) => s.settings.mode === 'campaign' && s.rivals[VERA].alive;
 const called = (s: GameState) => s.squeeze?.called !== undefined;
+/** The Big Squeeze is there to call (or called): Rank 9 in Act 5 of the campaign, with Vera still in it. */
+export const squeezeOpen = (s: GameState) => finale(s) && s.rank >= BIG_SQUEEZE.rank && actOf(s) >= FINAL_ACT;
 /** The siege is over (seven nights): the Manor is open. */
 export const siegeDone = (s: GameState) => s.squeeze?.done !== undefined;
 /** Tonight is a siege night: the Big Squeeze is called and fewer than its seven nights are over. */
@@ -56,6 +63,7 @@ export function canCallBigSqueeze(s: GameState): Blocker {
   if (s.settings.mode !== 'campaign') return { ok: false, why: 'Story campaign only' };
   if (!s.rivals[VERA].alive) return { ok: false, why: 'Vera is out of the game' };
   if (s.rank < BIG_SQUEEZE.rank) return { ok: false, why: `Needs Rank ${BIG_SQUEEZE.rank}, ${RANKS[BIG_SQUEEZE.rank - 1].title}` };
+  if (actOf(s) < FINAL_ACT) return { ok: false, why: `Opens in Act ${FINAL_ACT}` };
   if (called(s)) return { ok: false, why: 'Called already' };
   if (inTruce(s, VERA)) return { ok: false, why: `Truce with Vera until day ${s.rivals[VERA].truceUntil}` };
   if (s.phase !== 'prep') return { ok: false, why: 'Call it at Morning Prep' };
@@ -63,13 +71,15 @@ export function canCallBigSqueeze(s: GameState): Blocker {
   return { ok: true };
 }
 
-/** Call the Big Squeeze: tonight is siege night 1 and its targets are named now. Vera calls in the Pact if it isn't
- * standing yet (the siege's strikes are the Syndicate's). */
+/** Call the Big Squeeze: tonight is siege night 1 and its targets are named now. Vera answers on the phone; if the Pact
+ * isn't standing yet she calls it in (the siege's strikes are the Syndicate's), and that call is her answer. */
 export function callBigSqueeze(s: GameState): boolean {
   if (!canCallBigSqueeze(s).ok) return false;
-  if (!syndicateFormed(s)) formSyndicate(s);
+  const pact = syndicateFormed(s);
+  if (!pact) formSyndicate(s);
   s.squeeze = { ...s.squeeze, called: s.day, nights: 0, held: 0, lost: 0 };
   s.news.push('Bugle: THE BIG SQUEEZE: LOTTIE CALLS OUT SOURWOOD MANOR');
+  if (pact) phoneCall(s, VERA, '', { mood: 'warn', priority: CALL_PRIORITY.story }); // it rings at the next lull (main.ts)
   nameTargets(s);
   return true;
 }
@@ -113,9 +123,9 @@ export function siegeFought(s: GameState, r: Raid, report: BattleReport): void {
  * seventh night the Manor opens. */
 export function squeezeAtDawn(s: GameState): void {
   if (!finale(s)) return;
-  if (s.rank >= BIG_SQUEEZE.rank && s.squeeze?.posted === undefined) {
+  if (squeezeOpen(s) && s.squeeze?.posted === undefined) {
     (s.squeeze ??= {}).posted = s.day;
-    s.news.push(`Lottie: "${SQUEEZE_READY}"`); // story: her goal card, with the story-page icon, once goals merge
+    s.news.push(`Lottie: "${SQUEEZE_READY}"`); // her goal card shows story's Act 5 goal from Rank 9: Call the Big Squeeze
   }
   const q = s.squeeze;
   if (!q || q.called === undefined || siegeDone(s) || s.day <= q.called) return;
@@ -163,12 +173,12 @@ export const onlyTheSqueeze = (s: GameState, id: RivalId) => id === VERA && s.se
 
 // ---------- the goal ----------
 
-/** Lottie's story goal from Rank 9, with no timer: call it, hold the siege, storm the Manor (null before Rank 9, outside
- * the campaign, and once Vera is out). */
+/** Lottie's story goal once the Big Squeeze is called, with no timer (goals.ts GOAL_PROVIDERS, the long slot; until the
+ * call her card shows story's own Act 5 goal, Call the Big Squeeze): hold the siege, then storm the Manor, ticked off
+ * and paid as Vera falls, in place of that Act 5 goal. Null outside the campaign and before the call. */
 export function bigSqueezeGoal(s: GameState): Goal | null {
-  if (!finale(s) || s.rank < BIG_SQUEEZE.rank) return null;
-  const q = s.squeeze;
-  if (!called(s)) return { text: 'Call the Big Squeeze', progress: 0, done: false };
-  if (!siegeDone(s)) return { text: `Hold the siege: night ${siegeNight(s)} of ${BIG_SQUEEZE.nights}`, progress: (q!.nights ?? 0) / BIG_SQUEEZE.nights, done: false };
-  return { text: 'Storm Sourwood Manor', progress: 1, done: false };
+  if (s.settings.mode !== 'campaign' || !called(s)) return null;
+  if (!s.rivals[VERA].alive) return { text: STORM, progress: 1, done: true };
+  if (!siegeDone(s)) return { text: `Hold the siege: night ${siegeNight(s)} of ${BIG_SQUEEZE.nights}`, progress: (s.squeeze!.nights ?? 0) / BIG_SQUEEZE.nights, done: false };
+  return { text: STORM, progress: 0, done: false };
 }

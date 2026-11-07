@@ -4,6 +4,7 @@ import {
   syndicateLeader, syndicateMembers, threatLevel, type Difficulty, type GameState, type Mode,
   deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Raid, type RivalId,
 } from './economy.ts';
+import { CALL_PRIORITY } from './phone.ts';
 
 /** Day 60's Evening in a Sandbox where the Syndicate formed a week ago, every member flush, with `stands` stands of yours. */
 function pactEvening(difficulty: Difficulty, seed = 3, stands = 8): GameState {
@@ -54,18 +55,18 @@ describe('the Syndicate forms', () => {
     expect(formsAt('sandbox', 'classic', 10, { peaceful: true })).toBe(false); // no raids, no Syndicate
   });
 
-  it('in the campaign two weeks into Act 5 on every difficulty, whatever the Threat', () => {
+  it("in the campaign two weeks into Act 5 (story's act, which turns at FizzCo's fall) on every difficulty, whatever the Threat or rank", () => {
     for (const difficulty of ['laidback', 'classic', 'cutthroat'] as Difficulty[]) {
-      const s = run('campaign', difficulty, 7);
+      const s = run('campaign', difficulty, 9);
+      s.story = { act: 4, since: 40 };
       syndicateAtDawn(s);
-      expect(syndicateFormed(s)).toBe(false); // Cutthroat's Threat 4 is the Sandbox rule
-      s.rank = 9;
+      expect(threatLevel(s)).toBeGreaterThanOrEqual(4);
+      expect(syndicateFormed(s)).toBe(false); // Threat 5 (Cutthroat's 4) and Laid Back's Rank 9 are the Sandbox rules
+      s.story = { act: 5, since: 60 };
       expect(actOf(s)).toBe(5);
+      for (; s.day < 74; s.day++) { syndicateAtDawn(s); expect(syndicateFormed(s)).toBe(false); }
       syndicateAtDawn(s);
-      expect(s.syndicate).toEqual({ act5: 60 });
-      for (s.day = 61; s.day < 74; s.day++) { syndicateAtDawn(s); expect(syndicateFormed(s)).toBe(false); }
-      syndicateAtDawn(s);
-      expect(s.syndicate).toEqual({ act5: 60, formed: 74 });
+      expect(s.syndicate).toEqual({ formed: 74 });
     }
   });
 
@@ -77,7 +78,7 @@ describe('the Syndicate forms', () => {
     const card = s.alerts!.find((a) => a.text === pactHeadline('sourwood'))!;
     expect(card).toMatchObject({ kind: 'note', plot: hqPlot('sourwood').id, day: 61 });
     expect(card.text).toBe('Bugle: PACT IS BACK: SOURWOOD SIGNS UP EVERYONE BUT THE KID');
-    expect(s.news).toContain(`Vera: "${SYNDICATE_CALL}"`);
+    expect(s.phone!.queue[0]).toMatchObject({ who: 'sourwood', text: SYNDICATE_CALL, priority: CALL_PRIORITY.story }); // rings at a lull
     expect(syndicateMembers(s)).toHaveLength(5);
     s.day++;
     syndicateAtDawn(s);
@@ -96,7 +97,7 @@ describe('the Syndicate forms', () => {
     expect(syndicateLeader(s)).toBe('fizzco');
     expect(syndicateMembers(s)).toEqual(['hollis', 'fizzco', 'coldbrew']);
     expect(s.alerts!.some((a) => a.text === 'Bugle: PACT IS BACK: FIZZCO SIGNS UP EVERYONE BUT THE KID')).toBe(true);
-    expect(s.news.some((n) => n.startsWith('Vera:'))).toBe(false);
+    expect(s.phone!.queue[0]).toMatchObject({ who: 'fizzco', text: '', mood: 'warn', priority: CALL_PRIORITY.story }); // his own warning
     for (const id of ['hollis', 'fizzco', 'coldbrew'] as const) eliminate(s, id, 'bankrupt');
     expect(syndicateMembers(s)).toEqual([]);
     const late = run('sandbox', 'classic', 9);

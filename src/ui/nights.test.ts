@@ -404,7 +404,7 @@ describe("the Big Squeeze on Sourwood Manor's card", () => {
   /** Morning Prep on Day 136 at Rank 9, with five more stands. */
   const finale = (mode: Mode = 'campaign') => {
     const s = newGame(3, { mode });
-    Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true });
+    Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, story: { act: 5, since: 106 } });
     const side = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner);
     for (const p of side.slice(0, 5)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
     return s;
@@ -421,6 +421,9 @@ describe("the Big Squeeze on Sourwood Manor's card", () => {
     expect(panel).toContain('>Call the Big Squeeze</button>');
     s.phase = 'open';
     expect(squeezePanel(s, 'sourwood', 'ASSAULT')).toContain('disabled title="Call it at Morning Prep"');
+    s.story = { act: 4, since: 80 };
+    expect(squeezePanel(s, 'sourwood', 'ASSAULT')).toBe('ASSAULT'); // locked until Act 5 (FizzCo's fall), so hidden
+    s.story = { act: 5, since: 106 };
     s.rank = 8;
     expect(squeezePanel(s, 'sourwood', 'ASSAULT')).toBe('ASSAULT'); // locked, so hidden (the assault is too, below Rank 9)
     expect(squeezePanel(finale('sandbox'), 'sourwood', 'ASSAULT')).toBe('ASSAULT');

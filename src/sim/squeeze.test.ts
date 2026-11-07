@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bigSqueezeGoal, callBigSqueeze, canAssault, canCallBigSqueeze, CLOSE, HQS, hqPlot, isWeakened, manorStewards, migrateSave, newGame, newStand,
+  bigSqueezeGoal, callBigSqueeze, canAssault, canCallBigSqueeze, CLOSE, eliminate, HQS, hqPlot, isWeakened, manorStewards, migrateSave, newGame, newStand,
   onYou, planNight, PLOTS, raidsCounted, rivalsBankrupt, siegeDone, siegeFought, siegeTargets, siegeTonight, sleepUntilDawn, SQUEEZE_READY,
-  squeezeAtDawn, squeezedHq, stormHQ, syndicateFormed, type BattleReport, type GameState, type Guard, type Mode, type Raid, type RivalId,
+  squeezeAtDawn, squeezedHq, stormHQ, SYNDICATE_CALL, syndicateFormed, type BattleReport, type GameState, type Guard, type Mode, type Raid, type RivalId,
 } from './economy.ts';
+import { checkGoals, goalReward, goalsNow } from './goals.ts';
+import { CALL_PRIORITY } from './phone.ts';
 
 const RIVALS: RivalId[] = ['sourwood', 'fizzco', 'hollis', 'coldbrew', 'blenders'];
 
-/** Morning Prep on Day 136 of a Classic campaign at Rank 9: every rival flush, `stands` stands of yours. */
+/** Morning Prep on Day 136 of a Classic campaign at Rank 9, a month into Act 5: every rival flush, `stands` stands of yours. */
 function finale(seed = 3, stands = 6, mode: Mode = 'campaign'): GameState {
   const s = newGame(seed, { mode });
-  Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, raids: [] });
+  Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, raids: [], story: { act: 5, since: 106 } });
   for (const id of RIVALS) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
   const side = PLOTS.filter((p) => (p.district === 'maple' || p.district === 'oldtown') && p.type === 'street' && !s.plots[p.id].owner);
   for (const p of side.slice(0, stands - 1)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
@@ -28,15 +30,20 @@ function night(s: GameState, ...outcomes: BattleReport['outcome'][]) {
 }
 
 describe('the Big Squeeze goal and button', () => {
-  it('from Rank 9 of the campaign Lottie posts one goal with no timer, and says so once; never in Sandbox or Endless', () => {
+  it('opens from Rank 9 in Act 5 of the campaign, and Lottie says so once; never in Sandbox or Endless', () => {
     const s = finale();
     s.rank = 8;
-    expect(bigSqueezeGoal(s)).toBeNull();
     expect(canCallBigSqueeze(s)).toEqual({ ok: false, why: 'Needs Rank 9, Bay Kingpin' });
     squeezeAtDawn(s);
     expect(s.squeeze).toBeUndefined();
     s.rank = 9;
-    expect(bigSqueezeGoal(s)).toEqual({ text: 'Call the Big Squeeze', progress: 0, done: false });
+    s.story = { act: 4, since: 80 }; // FizzCo still stands
+    expect(canCallBigSqueeze(s)).toEqual({ ok: false, why: 'Opens in Act 5' });
+    squeezeAtDawn(s);
+    expect(s.squeeze).toBeUndefined();
+    s.story = { act: 5, since: 106 };
+    expect(canCallBigSqueeze(s)).toEqual({ ok: true });
+    expect(bigSqueezeGoal(s)).toBeNull(); // the card shows story's own Act 5 goal until the call
     squeezeAtDawn(s);
     squeezeAtDawn(s);
     expect(s.news.filter((n) => n === `Lottie: "${SQUEEZE_READY}"`)).toHaveLength(1);
@@ -65,6 +72,39 @@ describe('the Big Squeeze goal and button', () => {
     expect(siegeTonight(s)).toBe(true);
     expect(canCallBigSqueeze(s)).toEqual({ ok: false, why: 'Called already' });
     expect(bigSqueezeGoal(s)).toEqual({ text: 'Hold the siege: night 1 of 7', progress: 0, done: false });
+  });
+
+  it('Vera answers on the phone: with the Pact standing, her own call; if she calls it in, her follow-up is the answer', () => {
+    const s = finale();
+    s.syndicate = { formed: 120 };
+    callBigSqueeze(s);
+    expect(s.phone!.queue[0]).toMatchObject({ who: 'sourwood', text: '', mood: 'warn', priority: CALL_PRIORITY.story });
+    const fresh = finale();
+    callBigSqueeze(fresh);
+    expect(fresh.phone!.queue.filter((c) => c.who === 'sourwood')).toEqual([expect.objectContaining({ text: SYNDICATE_CALL, priority: CALL_PRIORITY.story })]);
+  });
+
+  it("Lottie's card: story's Call the Big Squeeze, then each siege night, then the storm, ticked off once as Vera falls", () => {
+    const s = finale();
+    checkGoals(s);
+    expect(goalsNow(s)[2]).toMatchObject({ text: 'Call the Big Squeeze', story: true, done: false });
+    callBigSqueeze(s);
+    checkGoals(s);
+    expect(goalsNow(s)[2]).toMatchObject({ text: 'Hold the siege: night 1 of 7', story: true, progress: 0 });
+    for (let n = 0; n < 7; n++) { night(s, 'repelled'); checkGoals(s); }
+    expect(goalsNow(s)[2]).toMatchObject({ text: 'Storm Sourwood Manor', story: true, done: false });
+    eliminate(s, 'sourwood', 'hq'); // stormHQ's win
+    const reward = goalReward(s, 'long');
+    checkGoals(s);
+    const paid = s.news.filter((n) => n.startsWith('✓ Storm Sourwood Manor +$'));
+    expect(paid).toHaveLength(1);
+    expect(paid[0]).toBe(`✓ Storm Sourwood Manor +$${Math.round(reward).toLocaleString('en-US')}`);
+    checkGoals(s);
+    expect(s.news.filter((n) => n.startsWith('✓ Storm Sourwood Manor'))).toHaveLength(1); // once
+    expect(s.goals!.done).toContain('big-squeeze:Storm Sourwood Manor');
+    expect(s.goals!.done).not.toContain('act-5'); // story's own Act 5 goal doesn't pay it again
+    expect(goalsNow(s)[2].text).not.toMatch(/Squeeze|Sourwood/);
+    expect(bigSqueezeGoal(finale(3, 6, 'sandbox'))).toBeNull();
   });
 
   it("names tonight's 2–3 targets among your stands, on the alert feed and in the Bugle, and forms the Pact if it must", () => {
@@ -148,7 +188,7 @@ describe('the siege', () => {
     expect(siegeTonight(s)).toBe(false);
     expect(siegeTargets(s)).toEqual([]);
     expect(s.alerts!.at(-1)).toMatchObject({ kind: 'note', text: 'The siege is over: storm Sourwood Manor', plot: hqPlot('sourwood').id });
-    expect(bigSqueezeGoal(s)).toEqual({ text: 'Storm Sourwood Manor', progress: 1, done: false });
+    expect(bigSqueezeGoal(s)).toEqual({ text: 'Storm Sourwood Manor', progress: 0, done: false });
     expect(squeezedHq(s, 'sourwood')).toMatchObject({ gate: 3500, yard: HQS.sourwood.yard - 3 });
     expect(manorStewards(s, 'sourwood')).toBe(6);
     squeezeAtDawn(s); // over is over

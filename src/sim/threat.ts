@@ -24,8 +24,6 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
 /** Lottie's first guard, the tutorial raid's wall. */
 export const DEX = 'Dex Moody';
-/** Brock's call on the day of the first raid (spec: Act 2, First call). */
-export const TUTORIAL_CALL = 'Bro. Your stand is in my sun.';
 
 // ---------- how many, and who ----------
 
@@ -63,14 +61,13 @@ function weakest(s: GameState, rival: RivalId, mine: Plot[], taken: Set<string>)
 }
 
 /** The scripted first raid on you: two Smoothie Bros with bare fists, announced, for a Shakedown, straight at Dex.
- * It always bounces (withDex, tutorialBounce). Brock calls first. */
+ * It always bounces (withDex, tutorialBounce). Brock calls first: his scripted first call rings the same day (phone.ts). */
 function tutorialRaid(s: GameState, rng: Rng, mine: Plot[], rival: RivalId): Raid {
   const dex = s.guards.find((g) => g.name === DEX && g.post && s.plots[g.post]?.owner === 'player' && hasBuilding(s.plots[g.post]));
   const target = dex ? PLOT_BY_ID[dex.post!] : weakest(s, rival, mine, new Set());
   const party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
   const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
   const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
-  if (rival === 'blenders') s.news.push(`Brock: "${TUTORIAL_CALL}"`); // story: phoneCall(s, 'blenders', TUTORIAL_CALL) once the phone lands
   return { id: `r${s.nextId++}`, attacker: rival, target: target.id, objective: 'shakedown', party, detected: true, eta: hhmm(at), leave, at, tutorial: true };
 }
 

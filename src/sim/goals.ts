@@ -19,6 +19,7 @@ import { districtControl, dominationProgress, gameOver, isEndless, winCondition 
 import { hasClubhouse, hasStory, lessonsOn, storyAct, taught } from './story.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
+import { bigSqueezeGoal } from './squeeze.ts';
 
 export type GoalSlot = 'short' | 'medium' | 'long';
 export const GOAL_SLOTS: GoalSlot[] = ['short', 'medium', 'long'];
@@ -39,7 +40,9 @@ type Candidate = Goal & { id: string; urgent?: boolean; filler?: boolean };
  * Goals from other systems (seam): Kids' Lemonade Day, the mystery Sabotage, Call the Big Squeeze. A provider's goal
  * takes its slot ahead of the rest, wears the page icon and is paid like any other.
  */
-export const GOAL_PROVIDERS: { id: string; slot: GoalSlot; goal: (s: GameState) => Goal | null }[] = [];
+export const GOAL_PROVIDERS: { id: string; slot: GoalSlot; goal: (s: GameState) => Goal | null }[] = [
+  { id: 'big-squeeze', slot: 'long', goal: (s) => bigSqueezeGoal(s) }, // nights: the siege, then the storm (src/sim/squeeze.ts)
+];
 
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 /** 1,200 (Lottie's goals are checked every few game minutes: a plain format, not Intl's). */

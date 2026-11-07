@@ -3,7 +3,7 @@
 // elites, Boss Room Stewards) and tonight's targets, each a Go There; once the siege is done, the Manor as it left it
 // above the HQ assault. Plain controls on the HUD's existing classes; clicks go through the HUD's one listener.
 import {
-  BIG_SQUEEZE, canCallBigSqueeze, manorStewards, PLOT_BY_ID, siegeDone, siegeNight, siegeTargets, squeezedHq,
+  BIG_SQUEEZE, canCallBigSqueeze, manorStewards, PLOT_BY_ID, siegeDone, siegeNight, siegeTargets, squeezedHq, squeezeOpen,
   type GameState, type RivalId,
 } from '../sim/economy.ts';
 
@@ -17,11 +17,11 @@ function manor(s: GameState): string {
   return `<span class="cl-stages" title="Gate HP, Yard elites, Stewards with Vera"><i>Gate ${hq.gate.toLocaleString('en-US')}</i>▸<i>Yard ${hq.yard}</i>▸<i>Vera +${manorStewards(s, 'sourwood')}</i></span>`;
 }
 
-/** Below the sit-downs on an HQ card (hud.ts hqPanel): on the campaign's Sourwood Manor from Rank 9, the Big Squeeze
- * until its siege is done, then the Manor it left and `assault` (the HUD's Storm the HQ). Any other card keeps
+/** Below the sit-downs on an HQ card (hud.ts hqPanel): on the campaign's Sourwood Manor from Rank 9 in Act 5, the Big
+ * Squeeze until its siege is done, then the Manor it left and `assault` (the HUD's Storm the HQ). Any other card keeps
  * `assault` as it is. */
 export function squeezePanel(s: GameState, id: RivalId, assault: string): string {
-  if (id !== 'sourwood' || s.settings.mode !== 'campaign' || !s.rivals.sourwood.alive || s.rank < BIG_SQUEEZE.rank) return assault;
+  if (id !== 'sourwood' || !squeezeOpen(s)) return assault;
   if (siegeDone(s)) return `<div class="cl-row wrap" data-testid="squeeze-manor"><span class="cl-note">The siege left:</span>${manor(s)}</div>${assault}`;
   const q = s.squeeze;
   if (q?.called === undefined) {

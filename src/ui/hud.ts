@@ -46,6 +46,7 @@ import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
 import { fightBar } from './fight.ts';
+import { shakedownLoot } from '../sim/loot.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -843,7 +844,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const can = canRaid(s, id, ids);
     const obj = (v: Objective, art: string, label: string, tip: string) => `<button class="cl-b ${objective === v ? 'go' : 'ghost'}" data-action="objective" data-value="${v}" title="${tip}">${art}${label}</button>`;
     return `<div class="cl-planner" data-testid="raid-planner">
-      <div class="cl-acts">${obj('smash', ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', ART.moneyBag(), 'Shakedown', "Grab about a day's takings")}</div>
+      <div class="cl-acts">${obj('smash', ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', ART.moneyBag(), `Shakedown ${whole(shakedownLoot(s, id))}`, 'Grab the till: about a day of its profit')}</div>
       ${squadPicker(s)}
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
       ${tripNote(s, id, ids)}

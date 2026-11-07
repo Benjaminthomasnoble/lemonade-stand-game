@@ -37,6 +37,7 @@ import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
+import { closeTills } from './loot.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -91,6 +92,7 @@ export interface Stand {
   day: StandDay;
   hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
+  lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)
 }
 
 export interface PlotState {
@@ -737,6 +739,7 @@ function closeDay(s: GameState): void {
       s.rivals[ps.owner as RivalId].salesToday = (s.rivals[ps.owner as RivalId].salesToday ?? 0) + st.day.revenue;
     }
   }
+  closeTills(s); // combat: each stand's day in its books, for Shakedown loot
   t.revenue = round2(revenue);
   t.cupCosts = round2(cupCosts);
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)

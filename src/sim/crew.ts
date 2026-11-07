@@ -17,6 +17,7 @@ import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { withBell } from './reinforce.ts';
+import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
@@ -526,12 +527,11 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     if (raid.attacker === 'player') bump(s, 'smashes');
   }
   if (res.outcome === 'robbed' && !raid.delivery) {
-    loot = defender === 'player'
-      ? Math.min(s.cash, Math.max(25, round2((ps.stand?.day.revenue ?? 0) * 0.6)))
-      : Math.min(s.rivals[defender as RivalId].cash, 40 * (ps.stand?.level ?? 1) * (ps.stand?.level ?? 1) + 40);
-    loot = round2(Math.max(0, loot));
-    if (defender === 'player') s.cash = round2(s.cash - loot); else s.rivals[defender as RivalId].cash -= loot;
-    if (raid.attacker === 'player') s.cash = round2(s.cash + loot); else s.rivals[raid.attacker as RivalId].cash += loot;
+    loot = shakedownLoot(s, raid.target); // the till: about a day of that stand's profit (loot.ts)
+    if (defender === 'player') s.cash = round2(s.cash - loot); // ledger: loot
+    else s.rivals[defender as RivalId].cash = round2(s.rivals[defender as RivalId].cash - loot);
+    if (raid.attacker === 'player') s.cash = round2(s.cash + loot); // ledger: loot
+    else s.rivals[raid.attacker as RivalId].cash = round2(s.rivals[raid.attacker as RivalId].cash + loot);
   }
   if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => input.defenders.some((d) => d.id === id)).length);
 

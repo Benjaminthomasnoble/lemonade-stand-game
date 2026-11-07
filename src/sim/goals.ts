@@ -7,16 +7,16 @@
 // goal is only paid if it was on the card when it was done, and a slot keeps its
 // goal until it's done unless a lesson or story goal steps in ahead of it.
 import {
-  BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RANKS, SALES_GOAL_SHARE,
-  STAND_LEVELS, STAND_RANK_GATE, type RivalId, type Sweetness,
+  BRAND_TIERS, CLUBHOUSE, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RAID_RANK, RANKS, SALES_GOAL_SHARE,
+  SEASON_DAYS, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, WEAPONS, type RivalId, type Sweetness,
 } from './balance.ts';
 import { DISTRICTS, LOTTIES_CORNER, PLOTS, type DistrictId } from './map.ts';
 import type { GameState, Goal } from './economy.ts';
-import { averageStopChance, canBuyPlot, expectedCups, playerStands, plotPrice, servingsAvailable, successScore } from './economy.ts';
+import { averageStopChance, canBuyPlot, expectedCups, netWorth, playerStands, plotPrice, servingsAvailable, successScore } from './economy.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
-import { HQS } from './rivals.ts';
+import { HQS, isWeakened, OUTSELL } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
-import { hasStory, lessonsOn, storyAct, taught } from './story.ts';
+import { hasClubhouse, hasStory, lessonsOn, storyAct, taught } from './story.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
 
@@ -154,6 +154,7 @@ function mediumGoals(s: GameState): Candidate[] {
   const lessons = lessonsOn(s);
   const mine = minePlots(s);
   const oldtown = standIn(s, 'oldtown', mine);
+  if (hasStory(s)) out.push(...act2Goals(s));
   // Act 1's lessons, newest first; the Wooden Stand is the first session's goal from Day 1. Week 2's Old Town
   // corner is a story beat in the campaign (page icon) and a lesson elsewhere.
   if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown)) {
@@ -200,6 +201,42 @@ function mediumGoals(s: GameState): Candidate[] {
   for (let n = 2; n <= stands + (roomToGrow(s) ? 1 : 0); n++) out.push({ id: `stands-${n}`, text: n === 2 ? 'Open a second stand' : `Run ${n} stands`, progress: stands / n, done: stands >= n });
   const worth = s.goals?.worth ?? nice(successScore(s) * 1.25);
   out.push({ id: `worth-${worth}`, text: `Grow Net Worth to ${whole(worth)}`, progress: successScore(s) / worth, done: successScore(s) >= worth, filler: true });
+  return out;
+}
+
+/**
+ * Act 2's story goals, in order (campaign). From its first day (Day 15) Dex pushes for a first Clubhouse, then a squad
+ * to fill it (the Rank 3 squad cap). After Brock's first raid on you, the payback: clubs for Dex, a Shakedown on one
+ * Blenders stand and a Smash on another (then First Dibs on the lot if Brock can't rebuild). From the first winter
+ * dawn (the Boardwalk's off-season), get the Blenders Weakened, the way to the Blend Shack.
+ */
+function act2Goals(s: GameState): Candidate[] {
+  const out: Candidate[] = [];
+  const act = storyAct(s);
+  if (act < 2) return out;
+  const beat = (id: string, text: string, progress: number, done: boolean) => out.push({ id, text, progress: done ? 1 : progress, done, story: true, urgent: true });
+  const built = hasClubhouse(s);
+  beat('beat-clubhouse', 'Build Dex a Clubhouse', Math.min(0.95, s.cash / CLUBHOUSE[0].cost), built);
+  const squad = SQUAD_CAP(RAID_RANK);
+  if (built) beat('beat-squad', `Hire a squad of ${squad}`, s.guards.length / squad, s.guards.length >= squad);
+  const brock = s.rivals.blenders.alive;
+  if (act !== 2 || !brock) return out;
+  if (s.battles.some((b) => b.defender === 'player') || s.story?.payback) {
+    const dex = s.guards.find((g) => g.name === DEX);
+    const armed = dex ? dex.weapon !== 'fists' : s.guards.some((g) => g.weapon !== 'fists');
+    beat('beat-clubs', dex ? 'Buy clubs for Dex' : 'Arm a guard with clubs', Math.min(0.95, s.cash / WEAPONS.clubs.cost), armed);
+    const pb = s.story?.payback ?? {};
+    beat('beat-shakedown', 'Shake down a Blenders stand', 0, !!pb.shakedown);
+    beat('beat-smash', 'Smash another Blenders stand', 0, !!pb.smash);
+  }
+  if (s.day > 2 * SEASON_DAYS) { // from year 1's first winter dawn (Day 29), the Boardwalk's off-season
+    const r = s.rivals.blenders;
+    const plots = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders').length;
+    const peak = Math.max(1, r.peakPlots);
+    const worth = netWorth(s, 'blenders') / Math.max(1, netWorth(s));
+    const progress = Math.max((peak - plots) / (peak * 0.6), (1 - worth) / 0.75, (r.outsoldDays ?? 0) / OUTSELL.days);
+    beat('beat-weakened', 'Get the Blenders Weakened', Math.min(0.95, progress), isWeakened(s, 'blenders'));
+  }
   return out;
 }
 

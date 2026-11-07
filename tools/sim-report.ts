@@ -1,8 +1,9 @@
 // Headless balance check: plays N days with a simple restocking policy.
 // Usage: npm run sim -- [days] [seed]
 import {
-  buySupply, maxPacks, newGame, openStand, rankFor, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
+  buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, rankFor, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
 } from '../src/sim/economy.ts';
+import { goalsNow } from '../src/sim/goals.ts';
 
 const days = Number(process.argv[2] ?? 14);
 const s = newGame(Number(process.argv[3] ?? 42));
@@ -22,5 +23,7 @@ for (let d = 0; d < days; d++) {
   sleepUntilDawn(s);
   if (s.battles[0] && s.battles[0] !== before) console.log(`   night: ${battleHeadline(s.battles[0])}`);
   for (const p of playerStands(s)) if (s.plots[p.id].stand!.wrecked) rebuildStand(s, p.id);
+  // Act 2: Dex pushes for a first Clubhouse (a story goal from Day 15), and the bot builds it once it can (spec: Days 15-19).
+  if (goalsNow(s).some((g) => g.text === 'Build Dex a Clubhouse' && !g.done) && canBuildClubhouse(s).ok && buildClubhouse(s)) console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`);
   s.news.length = 0;
 }

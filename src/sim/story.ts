@@ -14,7 +14,7 @@ import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { alert } from './alerts.ts';
 import type { GameState, Stand } from './economy.ts';
-import { expectedCups, pitcherNeeds, playerStands, plotPrice, standLevel, stock } from './economy.ts';
+import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
@@ -26,6 +26,8 @@ export interface StoryState {
   since: number; // the day the act began
   banner?: number; // the dawn whose Bugle leads with the new act
   epilogue?: number; // the day the Epilogue began (Endless Summer after the Domination win)
+  /** Act 2's payback: the Blenders stands you shook down and smashed (plot ids), kept past the battle log's last 6. */
+  payback?: { shakedown?: string; smash?: string };
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -222,6 +224,35 @@ function skipFindsACorner(s: GameState): void {
   alert(s, { kind: 'note', text: `Skip: "${name}, ${price}. Snap it up!"`, plot: lot.id });
 }
 
+/** Do you have a Clubhouse? The crew lane's beds (s.clubhouse), or combat's Clubhouse on a Street plot when it lands. */
+export function hasClubhouse(s: GameState): boolean {
+  return s.clubhouse > 0 || Object.values(s.plots).some((ps) => ps.owner === 'player' && (ps.facility?.kind as string) === 'clubhouse');
+}
+
+/**
+ * Act 2 (campaign), told around the goals card (src/sim/goals.ts): on its first morning Dex pushes for a Clubhouse
+ * and a squad to fill it; the Blenders stands you shake down and smash are noted for the payback goals; and when
+ * winter empties the Boardwalk, Lottie says so (getting the Blenders Weakened is the goal from then on).
+ */
+function act2Beats(s: GameState): void {
+  const st = s.story!;
+  if (!hasStory(s) || st.act !== 2) return;
+  if (st.since === s.day && !hasClubhouse(s)) s.news.push('Dex: "The shed sleeps one, Miss Lottie. A Clubhouse sleeps six. Just saying."');
+  if (seasonOf(s.day) === 'winter' && seasonOf(s.day - 1) !== 'winter' && s.rivals.blenders.alive) s.news.push('Lottie: "Nobody buys a smoothie in sleet."');
+}
+
+/** Note the payback raids (a won Shakedown, then a Smash on another Blenders stand) before the battle log forgets them. */
+function notePayback(s: GameState): void {
+  const st = s.story;
+  if (!st) return;
+  for (const b of [...s.battles].reverse()) {
+    if (b.attacker !== 'player' || b.defender !== 'blenders' || b.hq) continue;
+    const pb = (st.payback ??= {});
+    if (b.objective === 'shakedown' && b.outcome === 'robbed') pb.shakedown ??= b.target;
+    if (b.objective === 'smash' && b.outcome === 'smashed' && b.target !== pb.shakedown) pb.smash ??= b.target;
+  }
+}
+
 /** A new run's first Morning Prep (newGame): Lottie stocks the Corner, and the campaign opens on her scene. */
 export function storyAtStart(s: GameState): void {
   migrateStory(s);
@@ -238,6 +269,8 @@ export function storyAtDawn(s: GameState): void {
   lessonLines(s);
   stewardVisit(s);
   skipFindsACorner(s);
+  act2Beats(s);
+  notePayback(s); // last night's raids
   goalsAtDawn(s);
   scenesAtDawn(s);
   phoneCheck(s, true);
@@ -264,6 +297,7 @@ export function storyAtClose(s: GameState): void {
 export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);
   if (s.brandTier >= 1) playScene(s, 'benny'); // once a run, campaign only
+  notePayback(s); // a daytime raid just fought
   checkGoals(s);
   phoneCheck(s);
 }

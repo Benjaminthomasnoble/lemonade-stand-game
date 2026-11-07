@@ -2,9 +2,10 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  BRAND_TIERS, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, LOTTIES_SIDE_LOT,
-  nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS, servingsAvailable, SIDE_LOT,
-  simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type CampaignId, type GameState,
+  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, isWeakened,
+  LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
+  seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
+  type GameState, type Guard,
 } from './economy.ts';
 import { goalsNow } from './goals.ts';
 import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
@@ -320,5 +321,92 @@ describe('townsfolk scenes, staged by speaker', () => {
     expect(beginScene(s)).toMatchObject({ id: 'citation-12', speaker: 'budd', plot: LOTTIES_SIDE_LOT, lines, seconds: 9 });
     expect(sceneDef('budd')).toMatchObject({ speaker: 'budd' }); // ready-made: the first Citation...
     expect(sceneDef('fontaine')).toMatchObject({ speaker: 'fontaine' }); // ...and Vera's fine from Town Hall
+  });
+});
+
+/** A raid of yours on a Blenders stand, as the battle log keeps it. */
+function raidOn(s: GameState, objective: 'smash' | 'shakedown', target: string, won = true): BattleReport {
+  return {
+    day: s.day, attacker: 'player', defender: 'blenders', target, objective, outcome: won ? (objective === 'smash' ? 'smashed' : 'robbed') : 'repelled',
+    loot: 0, attackers: [], defenders: [], perimeter: 0, standLevel: 1, events: [], duration: 0, koed: [], fled: [],
+  };
+}
+/** Brock's first raid on you (the tutorial raid), repelled. */
+const tutorialRaid = (s: GameState): BattleReport => ({ ...raidOn(s, 'smash', LOTTIES_CORNER, false), attacker: 'blenders', defender: 'player' });
+/** A crew of n, Dex first. */
+const crew = (n: number, weapon: Guard['weapon'] = 'fists'): Guard[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `g${i}`, name: i ? `Guard ${i}` : 'Dex Moody', trait: 'Loyal', level: 1, xp: 0, weapon, gear: 'none', post: null, outUntil: 0, fee: 0 }));
+
+describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
+  /** Day 15's dawn: the Summer Fair is behind you, and Act 2 begins. */
+  const act2 = (seed: number) => {
+    const s = newGame(seed);
+    s.day = 14;
+    nextDawn(s);
+    expect(s.story!.act).toBe(2);
+    return s;
+  };
+  const medium = (s: GameState) => { storyAfterAct(s); return goalsNow(s)[1]; };
+  const blenderStands = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand).map((p) => p.id);
+
+  it("Dex asks on Act 2's first morning; a Clubhouse and a squad of 5 are the story goals, in order", () => {
+    const s = act2(80);
+    expect(s.news).toContain('Dex: "The shed sleeps one, Miss Lottie. A Clubhouse sleeps six. Just saying."');
+    expect(medium(s)).toMatchObject({ text: 'Build Dex a Clubhouse', story: true, done: false });
+    s.cash = 5000;
+    s.rank = Math.max(s.rank, 3);
+    expect(buildClubhouse(s)).toBe(true);
+    expect(medium(s)).toMatchObject({ text: 'Hire a squad of 5', story: true });
+    s.guards = crew(4);
+    expect(medium(s).text).toBe('Hire a squad of 5');
+    s.guards = crew(5);
+    expect(medium(s).text).not.toBe('Hire a squad of 5');
+    const built = newGame(81); // a run that already has its Clubhouse hears no push
+    built.clubhouse = 1;
+    built.day = 14;
+    nextDawn(built);
+    expect(built.story!.act).toBe(2);
+    expect(built.news.some((n) => n.startsWith('Dex: "The shed'))).toBe(false);
+    expect(goalsNow(newGame(82, { mode: 'sandbox' })).some((g) => g.text === 'Build Dex a Clubhouse')).toBe(false);
+  });
+
+  it('after Brock’s first raid: clubs for Dex, a Shakedown on one Blenders stand, a Smash on another', () => {
+    const s = act2(83);
+    s.clubhouse = 1;
+    s.guards = crew(5);
+    s.battles = [];
+    expect(medium(s).text).not.toBe('Buy clubs for Dex'); // not before the first raid on you
+    s.battles.unshift(tutorialRaid(s));
+    expect(medium(s).text).toBe('Buy clubs for Dex');
+    s.guards[0].weapon = 'clubs';
+    expect(medium(s).text).toBe('Shake down a Blenders stand');
+    const [a, b] = blenderStands(s);
+    s.battles.unshift(raidOn(s, 'shakedown', a, false)); // a bounced raid doesn't count
+    expect(medium(s).text).toBe('Shake down a Blenders stand');
+    s.battles.unshift(raidOn(s, 'shakedown', a));
+    expect(medium(s).text).toBe('Smash another Blenders stand');
+    s.battles.unshift(raidOn(s, 'smash', a)); // the same stand isn't "another"
+    expect(medium(s).text).toBe('Smash another Blenders stand');
+    s.battles.unshift(raidOn(s, 'smash', b));
+    expect(medium(s).text).not.toMatch(/Blenders stand|clubs/);
+    expect(s.story!.payback).toEqual({ shakedown: a, smash: b });
+    for (let i = 0; i < 6; i++) s.battles.unshift(tutorialRaid(s)); // the log keeps 6; the story remembers
+    s.battles.length = 6;
+    expect(goalsNow(s).some((g) => /Blenders stand/.test(g.text))).toBe(false);
+  });
+
+  it('winter empties the Boardwalk: Lottie says so, and getting the Blenders Weakened is the goal', () => {
+    const s = act2(84);
+    s.clubhouse = 1;
+    s.guards = crew(5, 'clubs');
+    s.story!.payback = { shakedown: 'x', smash: 'y' };
+    s.day = 28;
+    nextDawn(s);
+    expect(seasonOf(s.day)).toBe('winter');
+    expect(s.news).toContain('Lottie: "Nobody buys a smoothie in sleet."');
+    expect(medium(s)).toMatchObject({ text: 'Get the Blenders Weakened', story: true, done: false });
+    s.rivals.blenders.outsoldDays = 7; // outsold 2x for 7 days running
+    expect(isWeakened(s, 'blenders')).toBe(true);
+    expect(medium(s).text).not.toBe('Get the Blenders Weakened');
   });
 });

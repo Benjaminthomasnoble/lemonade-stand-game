@@ -6,7 +6,7 @@ import {
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
   forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn, ICE_MACHINE_LEVEL, priceCeiling,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
-  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL, expectedDemand, kidsShare,
+  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, KIDS_GOAL, expectedDemand, kidsShare,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -748,9 +748,10 @@ describe("Kids' Lemonade Day", () => {
     expect(kidStandCard(s, kid)).toContain('data-testid="kid-stand"');
     expect(kidStandCard(s, kid)).not.toContain('kid-raid'); // hidden while raids are locked
     s.rank = RAID_RANK;
+    const crew = s.guards; // Dex, who joined on Day 6 (once a run: src/sim/crew.ts welcomeDex)
     s.guards = [];
     expect(canRaidKids(s, kid)).toEqual({ ok: false, why: 'No guards free' });
-    welcomeDex(s);
+    s.guards = crew;
     expect(canRaidKids(s, kid)).toEqual({ ok: true });
     const plain = PLOTS.find((q) => !e.kids!.includes(q.id))!.id;
     expect(canRaidKids(s, plain)).toEqual({ ok: false, why: 'No kid stand here' });

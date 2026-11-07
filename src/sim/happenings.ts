@@ -9,14 +9,14 @@ import {
   CLOSE, EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, ICE_MACHINE_LEVEL, KIDS_DAY, OPEN, RAID_RANK, RANDOM_EVENTS, RIVAL_SHARE_CAP, SEGMENTS,
   SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
 } from './balance.ts';
-import type { Blocker, GameState, Goal, SimEvent, Stand } from './economy.ts';
+import type { Appeal, Blocker, GameState, Goal, SimEvent, Stand } from './economy.ts';
 import { appealFor, playerStands, stock } from './economy.ts';
 import { shineReason, worldOf } from './recipes.ts';
 import { liveEvent, planDay, type Placement, type WorldEvent } from './events.ts';
 import { registerEvent } from './eventTable.ts';
 import { eventWhere, newsroomNow } from './media.ts';
 import { availableRaiders } from './crew.ts';
-import { ceilingFor, segmentPriceFit, type Street } from './demand.ts';
+import { ceilingFor, segmentPriceFit, streetAt, type Street } from './demand.ts';
 import { peaceful } from './modes.ts';
 import { GOAL_PROVIDERS } from './goals.ts';
 
@@ -349,6 +349,28 @@ export function kidStandSale(s: GameState, p: Plot, rng: Rng, seg: SegmentId, st
     e.took = (e.took ?? 0) + 1;
   }
   return { type: 'passerby', plot: p.id, at: p.id, segment: seg, buys: false, reason: 'rival', price: KIDS_DAY.price, owner: home.owner! };
+}
+
+/**
+ * demand's forecast (expectedDemand: the prep odds, the stand panel and Auto-Restock): the share of plot q's walkers of one
+ * segment that reaches stand `to`, given `share`, its share with no kid stand about. Kid stands within 2 plots of q split
+ * the street as kidStandSale does: the home owner's stands keep 1 - share' (share' the rivals' and kids' part, capped at
+ * 35%), and the rival stands win share' x rivals / (rivals + kids).
+ */
+export function kidsShare(s: GameState, q: Plot, to: string, seg: SegmentId, appealOf: (plotId: string) => Appeal, share: number): number {
+  if (share <= 0) return share;
+  const e = kidsDay(s);
+  if (!e?.kids?.length) return share;
+  const kids = kidsNear(e, q.id);
+  if (!kids.length) return share;
+  const street = streetAt(s, q, appealOf);
+  let theirs = 0;
+  for (const k of kids) theirs += kidAppeal(k, seg);
+  const others = street.rivalTotal + theirs;
+  if (street.ownTotal + others <= 0) return share;
+  const cut = Math.min(RIVAL_SHARE_CAP, others / (street.ownTotal + others));
+  if (s.plots[to].owner === s.plots[q.id].owner) return (share * (1 - cut)) / (1 - street.share);
+  return street.share > 0 ? (share * cut * street.rivalTotal) / others / street.share : share;
 }
 
 /** A kid stand's Raid Planner: raids unlocked, a guard free, the stand still up, before dusk. Rivals never raid one. */

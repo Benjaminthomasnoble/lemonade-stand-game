@@ -6,7 +6,7 @@ import {
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
   forgiveSquawk, iceMachineOn, machineIce, stock,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
-  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL,
+  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, welcomeDex, KIDS_GOAL, expectedDemand, kidsShare,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -644,6 +644,33 @@ describe("Kids' Lemonade Day", () => {
     expect(Math.abs(crowd.kids + crowd.rivals - RIVAL_SHARE_CAP)).toBeLessThan(0.03);
     expect(Math.abs(crowd.kids - odds(block).kids)).toBeLessThan(0.02);
     expect(kidAppeal(LOTTIES_CORNER, 'kids')).toBeCloseTo(1.25, 9); // a Folding Table at $0.50, well under Maple Row's L1 ceiling: +25%
+  });
+
+  it('the forecast sees the kid stands: the prep odds and Auto-Restock count on what they leave you', () => {
+    const s = quietGame(75);
+    const p = PLOT_BY_ID[LOTTIES_CORNER];
+    const e = force(s, 'kidsDay');
+    const kids = kidStandsAt(s, p.id);
+    expect(kids.length).toBe(1);
+    const seg: SegmentId = 'kids';
+    const appealOf = (id: string) => appealFor(s, id, seg, s.forecast);
+    const here = streetAt(s, p, appealOf);
+    const theirs = kidAppeal(kids[0], seg);
+    const cut = Math.min(RIVAL_SHARE_CAP, (here.rivalTotal + theirs) / (here.ownTotal + here.rivalTotal + theirs));
+    expect(kidsShare(s, p, p.id, seg, appealOf, 1 - here.share)).toBeCloseTo(1 - cut, 9); // what the owner keeps
+    const withKids = expectedDemand(s, LOTTIES_CORNER);
+    const cups = expectedCups(s, LOTTIES_CORNER);
+    e.raided = [...e.kids!]; // the same morning with every kid stand gone
+    const without = expectedDemand(s, LOTTIES_CORNER);
+    expect(withKids.demand).toBeLessThan(without.demand * 0.95);
+    expect(withKids.kept).toBeLessThan(without.kept);
+    expect(cups).toBeLessThanOrEqual(expectedCups(s, LOTTIES_CORNER));
+    e.raided = [];
+    s.plots[LOTTIES_CORNER].stand!.autoRestock = true;
+    s.cash = 5000;
+    openStand(s); // Auto-Restock buys for the forecast with the kids in it
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    expect(stock(st, 'lemons')).toBeLessThanOrEqual(Math.ceil(Math.ceil(cups * 1.2) / 10) * 5 + 20);
   });
 
   it("takes walkers through a real day, and the goal on Lottie's card fills to dusk and pays", () => {

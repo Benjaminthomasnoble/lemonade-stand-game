@@ -17,6 +17,7 @@ import type { Appeal, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, servingsAvailable } from './economy.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
 import { crowdAt } from './calendar.ts';
+import { kidsShare } from './happenings.ts';
 import { stockCups } from './rivalAi.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
@@ -326,12 +327,12 @@ export function expectedDemand(s: GameState, plotId: string, w: Weather = s.fore
     const passersby = expectedPassersby(s, q.id, w) * lunchRushDay(s, q.id);
     for (const [seg, x] of dayMixOn(s, q.district)) {
       const people = passersby * x;
-      const share = shareTo(s, q, plotId, (id) => memo(id, seg));
+      const share = kidsShare(s, q, plotId, seg, (id) => memo(id, seg), shareTo(s, q, plotId, (id) => memo(id, seg))); // world: Kids' Lemonade Day's kid stands take their part
       if (q.id === plotId) {
         ownPeople += people;
         // Kept by the owner: this stand's share plus the owner's other stands' shares.
         const { own, rivals } = standsNear(s, q, (id) => memo(id, seg));
-        ownKept += people * (1 - rivalShare(own, rivals));
+        ownKept += people * kidsShare(s, q, q.id, seg, (id) => memo(id, seg), 1 - rivalShare(own, rivals));
       }
       if (share <= 0) continue;
       const a = memo(plotId, seg);

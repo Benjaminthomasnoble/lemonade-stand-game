@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, campaignCost, canRunCampaign, ceilingFor, curbAppeal, dailyService, demandChain, drainQueue, expectedCups, expectedDemand,
+  appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, drainQueue, eliminate,
+  expectedCups, expectedDemand,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
   runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, setPrice, simulateRestOfDay, STAND_LEVELS, tickMinute, touristPays, withinTwo,
@@ -94,6 +95,18 @@ describe('pricing: one ceiling per stand', () => {
     expect(st.price).toBe(50);
     setPrice(st, 0);
     expect(st.price).toBe(0.05);
+  });
+
+  it('takes the Blender Bar into your Frozen ceiling before it rounds down', () => {
+    const s = newGame(1);
+    s.plots[LOTTIES_CORNER].stand!.recipe = 'frozen';
+    expect(priceCeiling(s, LOTTIES_CORNER)).toBe(1.72); // 1.50 × 1.15 = 1.725
+    rivalStand(s, 'maple-5n', 'fizzco');
+    s.plots['maple-5n'].stand!.recipe = 'frozen';
+    const rival = priceCeiling(s, 'maple-5n');
+    eliminate(s, 'blenders', 'hq');
+    expect(priceCeiling(s, LOTTIES_CORNER)).toBe(2.07); // 1.725 × 1.2
+    expect(priceCeiling(s, 'maple-5n')).toBe(rival); // the perk is yours alone
   });
 });
 
@@ -314,6 +327,19 @@ describe('who gets the customers', () => {
     expect(sold / forecast).toBeLessThan(1.1);
   });
 
+  it('counts a festival crowd in the forecast, half of every passerby there', () => {
+    const s = newGame(1);
+    s.day = 10;
+    expect(crowdAt(s, 'oldtown')).toBe('families');
+    const plain = new Map(dayMix('oldtown'));
+    const mix = new Map(dayMixOn(s, 'oldtown'));
+    expect([...mix.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+    expect(mix.get('families')).toBeCloseTo(0.5 + 0.5 * (plain.get('families') ?? 0), 9);
+    for (const [seg, x] of plain) if (seg !== 'families') expect(mix.get(seg)).toBeCloseTo(x / 2, 9);
+    s.day = 7;
+    expect(dayMixOn(s, 'oldtown')).toBe(dayMix('oldtown'));
+  });
+
   it('gives Majority (51%+ of a district): your stands +10% sales, rivals there −10% appeal', () => {
     const s = newGame(1);
     s.plots['maple-0n'].owner = 'fizzco';
@@ -451,6 +477,14 @@ describe('the stand panel\'s demand chain', () => {
     const low = demandChain(s, LOTTIES_CORNER)!;
     expect(low.stock).toBe(50);
     expect([low.cups, low.binding]).toEqual([50, 'stock']);
+  });
+
+  it('takes the season from the card: Honey-Ginger keeps its crowd in Winter', () => {
+    const s = workedExample(1);
+    s.day = 30; // Winter
+    expect(demandChain(s, LOTTIES_CORNER)!.season).toBe(0.6);
+    s.plots[LOTTIES_CORNER].stand!.recipe = 'honeyGinger';
+    expect(demandChain(s, LOTTIES_CORNER)!.season).toBe(1);
   });
 
   it('names the perks at work', () => {

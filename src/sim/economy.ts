@@ -27,7 +27,7 @@ import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
+  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
   migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 
@@ -463,7 +463,7 @@ export function appealFor(s: GameState, plotId: string, seg: SegmentId, w: Weath
 
 /** Average stop chance across a plot's day-long customer mix. */
 export function averageStopChance(s: GameState, plotId: string, w: Weather = s.weather): number {
-  return dayMix(PLOT_BY_ID[plotId].district).reduce((a, [seg, x]) => a + appealFor(s, plotId, seg, w).stopChance * x, 0);
+  return dayMixOn(s, PLOT_BY_ID[plotId].district).reduce((a, [seg, x]) => a + appealFor(s, plotId, seg, w).stopChance * x, 0);
 }
 
 /**

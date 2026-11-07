@@ -6,15 +6,17 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  BASE_STOP_CHANCE, BOARDWALK_SEASON, CAMPAIGNS, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
-  PRICE_FIT, PRICE_TOLERANCE, RECIPES, repMultiplier, RIVAL_SHARE_CAP, SEASON_DEMAND, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
+  BASE_STOP_CHANCE, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  PRICE_FIT, PRICE_TOLERANCE, RECIPES, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, GameState, Stand, Weather } from './economy.ts';
-import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, seasonOf, servingsAvailable } from './economy.ts';
+import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, servingsAvailable } from './economy.ts';
+import { blenderBar, seasonDemand } from './recipes.ts';
+import { crowdAt } from './calendar.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -23,10 +25,13 @@ const FIRST_HOUR = OPEN / 60;
 
 // ---------- pricing: one ceiling per stand ----------
 
-/** Top-price modifiers from other sections multiply in here (Fancy Menu +20%; the Blender Bar's Frozen +20%). */
-export function topPriceMods(s: GameState, plotId: string): number {
-  void s; void plotId;
-  return 1;
+/**
+ * Top-price modifiers from other sections multiply in here, before the ceiling rounds down to the cent: the Blender
+ * Bar's Frozen +20% (world). Fancy Menu's +20% joins here when its lane lands. Rival stands take none.
+ */
+export function topPriceMods(s: GameState, plotId: string, st: Stand | null | undefined = s.plots[plotId]?.stand): number {
+  if (s.plots[plotId]?.owner !== 'player' || !st) return 1;
+  return blenderBar(s, st.recipe);
 }
 
 /** Ceiling = the level's top price × the district's price tolerance × (1 + the card's price bonus), down to the cent. */
@@ -36,7 +41,7 @@ export function ceilingFor(level: number, district: DistrictId, recipe: RecipeId
 
 /** The most this stand's crowd will pay, the same for every customer. Rival stands use the same formula. */
 export function priceCeiling(s: GameState, plotId: string, st: Stand = s.plots[plotId].stand!): number {
-  return ceilingFor(st.level, PLOT_BY_ID[plotId].district, st.recipe, topPriceMods(s, plotId));
+  return ceilingFor(st.level, PLOT_BY_ID[plotId].district, st.recipe, topPriceMods(s, plotId, st));
 }
 
 /**
@@ -157,6 +162,18 @@ export function dayMix(d: DistrictId): [SegmentId, number][] {
     dayMixes.set(d, m);
   }
   return m;
+}
+
+/**
+ * The day's mix as the forecast sees it: on a festival day half of every passerby in that district is the festival
+ * crowd (world: FESTIVAL_CROWD_SHARE), the same draw the business day makes.
+ */
+export function dayMixOn(s: GameState, d: DistrictId): [SegmentId, number][] {
+  const crowd = crowdAt(s, d);
+  if (!crowd) return dayMix(d);
+  const mix = dayMix(d).map(([seg, x]) => [seg, x * (1 - FESTIVAL_CROWD_SHARE) + (seg === crowd ? FESTIVAL_CROWD_SHARE : 0)] as [SegmentId, number]);
+  if (!mix.some(([seg]) => seg === crowd)) mix.push([crowd, FESTIVAL_CROWD_SHARE]);
+  return mix;
 }
 
 /** Draw one passerby's segment for a clock hour. */
@@ -306,7 +323,7 @@ export function expectedDemand(s: GameState, plotId: string, w: Weather = s.fore
     const qs = s.plots[q.id].stand;
     if (!qs || qs.wrecked) continue;
     const passersby = expectedPassersby(s, q.id, w) * lunchRushDay(s, q.id);
-    for (const [seg, x] of dayMix(q.district)) {
+    for (const [seg, x] of dayMixOn(s, q.district)) {
       const people = passersby * x;
       const share = shareTo(s, q, plotId, (id) => memo(id, seg));
       if (q.id === plotId) {
@@ -361,7 +378,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
   const binding: Binding = cups === demand ? 'demand' : cups === service ? 'service' : 'stock';
   return {
     traffic: p.baseTraffic, draw: STAND_LEVELS[st.level - 1].draw, marketing: marketingMultiplier(s, owner, st, plotId),
-    season: (p.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND)[seasonOf(s.day)], weather: WEATHER[w.kind].traffic, lunch,
+    season: seasonDemand(s, plotId), weather: WEATHER[w.kind].traffic, lunch,
     passersby: Math.round(passersby * lunch), kept: f.kept, inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
     base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
     reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,

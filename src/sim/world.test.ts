@@ -199,7 +199,8 @@ describe('the Blender Bar', () => {
     eliminate(s, 'blenders', 'hq');
     expect(appealFor(s, LOTTIES_CORNER, 'families').topPrice).toBeCloseTo(classic, 6);
     st.recipe = 'frozen';
-    expect(appealFor(s, LOTTIES_CORNER, 'families').topPrice / before).toBeCloseTo(1.2, 6);
+    // The ceiling is in cents (demand: rounded down), so 20% lands within a cent: $1.72 to $2.07.
+    expect(appealFor(s, LOTTIES_CORNER, 'families').topPrice / before).toBeCloseTo(1.2, 2);
   });
 });
 

@@ -65,10 +65,10 @@ export function createRevealCrate(): RevealCrate {
   body.add(lid);
   group.visible = false;
 
-  const calm = reducedMotion();
   return {
     group,
     pose(t, total) {
+      const calm = reducedMotion();
       group.visible = true;
       const q = Math.floor(t * 12) / 12;
       const burstAt = 1.3;

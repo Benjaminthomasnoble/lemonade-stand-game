@@ -6,15 +6,15 @@
 import * as THREE from 'three';
 import { Baker, sph, box, cone, lumpy, hash, canvasTex, GLOSS, PAPER } from './core.ts';
 import { P } from './palette.ts';
-import { kit } from './kit.ts';
+import { kit, reducedMotion } from './kit.ts';
 
 const INK = '#2E2A4F';
 const v = new THREE.Vector3(), s3 = new THREE.Vector3(), q = new THREE.Quaternion(), e = new THREE.Euler(), m4 = new THREE.Matrix4();
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const eY = new THREE.Euler(0, 0, 0, 'YXZ');
 
-/** Reduced motion: no shakes or flashes, and fewer flying bits. */
-export const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Reduced motion (the OS setting or the Options switch; it lives in clay/kit.ts): no shakes or flashes, and fewer flying bits. */
+export { reducedMotion };
 /** Phones run one level simpler (spec "Built from clay"). */
 export const onPhone = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
 

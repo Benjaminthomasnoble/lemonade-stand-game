@@ -52,6 +52,7 @@ import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, scen
 import { takeCall } from './sim/phone.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { createGullFlight } from './world/gullflight.ts';
+import { setReducedMotion } from './world/clay/kit.ts';
 
 // Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
 const LOOK: Record<SegmentId, { scale?: number; speed?: number; gait?: Gait; segment: SegmentId }> = {
@@ -105,6 +106,7 @@ async function main() {
   if (saved && midDay(saved)) speed = 0;
   let savedHour = -1; // the game hour last saved mid-day (the clock saves once a game hour, and when the page hides)
   let options: Options = loadOptions();
+  setReducedMotion(options.reducedMotion); // "Less motion" reaches the world too: no boil, shakes or flashes (src/world/clay/kit.ts)
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
   let onScreen: GameState['fight'] = undefined; // the live fight the 3D view is playing (its clock runs only then)
@@ -666,6 +668,7 @@ async function main() {
     else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion' || key === 'captions' || key === 'celsius') options[key] = !options[key];
     saveOptions(options);
     hud.options = options;
+    setReducedMotion(options.reducedMotion);
     prepWait = 0;
   };
   const uiRoot = document.getElementById('ui')!;

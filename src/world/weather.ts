@@ -7,11 +7,11 @@
 import * as THREE from 'three';
 import type { WeatherKind } from '../sim/economy.ts';
 import { Baker, cyl, hash, lathe, lcg, sph, GLOSS, PAPER } from './clay/core.ts';
-import { kit } from './clay/kit.ts';
+import { kit, reducedMotion } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 
 export interface WeatherFx {
-  /** Advance the weather; returns a lightning flash, 0..1, for the lights. */
+  /** Advance the weather; returns a lightning flash, 0..1, for the lights (reduced motion: a faint, slow swell and fade, never a flash). */
   update(dt: number, kind: WeatherKind, at: THREE.Vector3, dist: number): number;
 }
 
@@ -115,11 +115,17 @@ export function createWeather(scene: THREE.Scene, phone: boolean): WeatherFx {
         }
       }
 
-      // Lightning: the desk lamp flickers, a double pulse every 6-14 seconds.
+      // Lightning: the desk lamp flickers, a double pulse every 6-14 seconds. Reduced motion swaps the flash for a
+      // fade (spec "Stop motion"): the light swells a little over most of a second and dims back over two.
       if (kind !== 'storm') { bolt = -1; return 0; }
       if (bolt < 0 && time > nextBolt) { bolt = 0; nextBolt = time + 6 + rng() * 8; }
       if (bolt < 0) return 0;
       bolt += dt;
+      if (reducedMotion()) {
+        if (bolt > 2.8) { bolt = -1; return 0; }
+        const k = bolt < 0.8 ? bolt / 0.8 : 1 - (bolt - 0.8) / 2;
+        return 0.22 * k * k * (3 - 2 * k);
+      }
       if (bolt > 0.6) { bolt = -1; return 0; }
       return bolt < 0.08 ? 1 : bolt < 0.18 ? 0.15 : bolt < 0.26 ? 0.8 : Math.max(0, 1 - (bolt - 0.26) / 0.34) * 0.5;
     },

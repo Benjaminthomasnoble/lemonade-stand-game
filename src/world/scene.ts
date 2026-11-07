@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Phase, WeatherKind } from '../sim/economy.ts';
 import { Baker, bend, canvasTex, CLAY_SHADE, cyl, hash, lumpy, makeEnv, sph } from './clay/core.ts';
-import { clayFrom, kit, setEnvironment } from './clay/kit.ts';
+import { clayFrom, kit, reducedMotion, setEnvironment } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { createPost, type ClayPost } from './clay/post.ts';
 import { buildDiorama, DESK_LAMP, PLINTH } from './diorama.ts';
@@ -16,7 +16,6 @@ import { createWeather } from './weather.ts';
 import { createMist } from './mist.ts';
 
 import { setCrowdDetail } from './clay/figure.ts';
-const stillClay = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
@@ -468,8 +467,9 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       if (f !== lastF) {
         lastF = f;
         K.twos.f = f; K.twos.t = f / 12;
-        // Reduced motion stops the boil (spec "Stop motion").
-        if (!stillClay) K.U.fig.boil.value.set(hash(f, 1) * 0.035, hash(f, 2) * 0.035, hash(f, 3) * 0.035);
+        // Reduced motion stops the boil (spec "Stop motion"): the OS setting or the Options switch.
+        if (reducedMotion()) K.U.fig.boil.value.set(0, 0, 0);
+        else K.U.fig.boil.value.set(hash(f, 1) * 0.035, hash(f, 2) * 0.035, hash(f, 3) * 0.035);
       }
 
       // Tilt-shift: strongest in Street View, thinnest at Bay View; Gull Flight drops the blur for a wide, windy chase.

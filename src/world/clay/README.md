@@ -14,6 +14,13 @@ with these pieces.
   - `peel`, `glass`, `window`, `pool`, `halo`.
   - `glow` (night glow strength), `time` (smooth seconds) and `twos`
     (`f = floor(seconds * 12)`, `t = f / 12`). scene.ts drives all three.
+- **Reduced motion** lives in kit.ts too: `reducedMotion()` is the OS setting
+  OR the Options "Less motion" switch (main.ts calls `setReducedMotion` when
+  it loads or changes). Read it when a shake, punch, flash or rattle happens,
+  not once at load; for a value a module keeps (people.ts `MOTION`, the figure
+  boil, the sentries' bob) use `onReducedMotion(f)`, which calls `f` now and on
+  every change. Spec: "Reduced motion stops the boil and swaps shakes and
+  flashes for fades" (storm lightning becomes a slow swell and fade).
 - **The fx channel** is the alpha of the vertex colour: `CLAY` 0 (matte),
   `GLOSS` 2 (resin, beads, glass, chrome), `PAPER` 4 (card, wood, sticks).
   Add 0..1 to make a part glow at night, for example `fx: PAPER + 0.6`.

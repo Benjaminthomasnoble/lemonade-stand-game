@@ -173,7 +173,7 @@ interface Deb { x: number; y: number; z: number; vx: number; vy: number; vz: num
 
 export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera, hooks: BattleHooks = {}, opts: BattleOptions = {}): BattleView {
   const fx = createFx(scene);
-  const calm = reducedMotion();
+  const calm = reducedMotion; // read when a punch or shake lands: the Options switch can change mid-run
   const phone = opts.phone ?? onPhone();
   const perSide = phone ? 12 : 24; // fighters drawn a side; extras join the dust cloud
   let units: Unit[] = [];
@@ -315,7 +315,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     fx.dust(u.obj.position, 4, 0.4);
     fx.stars(head(u), 2);
     takeStars(u);
-    if (last) { freeze = 0.3; punch = calm ? 0 : 1; }
+    if (last) { freeze = 0.3; punch = calm() ? 0 : 1; }
     hooks.onKO?.(u.obj, u.f.side, u.owner, last);
   }
 
@@ -451,7 +451,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         const a = byId(ev.a);
         if (!a) return;
         a.swing = 0.35;
-        shake = calm ? 0 : 0.25;
+        shake = calm() ? 0 : 0.25;
         const hitAt = ev.target === 'fence' ? a.obj.position.clone().setY(0.8) : local((Math.random() - 0.5) * 1.6, 0.6).setY(1.2);
         // hatchets and clubs only ever bite wood: a burst of Walnut chips
         fx.chips(hitAt, a.f.weapon === 'hatchets' ? 8 : 4);
@@ -469,7 +469,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         const u = byId(ev.a);
         if (u) knockOut(u, idx === lastKo);
         else {
-          if (idx === lastKo) { freeze = 0.3; punch = calm ? 0 : 1; }
+          if (idx === lastKo) { freeze = 0.3; punch = calm() ? 0 : 1; }
           if (report && report.attackers.some((f) => f.id === ev.a)) extraAtt = Math.max(0, extraAtt - 1); else extraDef = Math.max(0, extraDef - 1);
         }
         break;

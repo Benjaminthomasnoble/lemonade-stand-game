@@ -25,10 +25,9 @@ import { createLemonWave } from './lemonWave.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
-import { reducedMotion } from './clay/fx.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
-import { clayPlain, kit, reflective } from './clay/kit.ts';
+import { clayPlain, kit, onReducedMotion, reflective } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 
 export const SIDEWALK_OFFSET = STREET_HALF + 1.1;
@@ -400,7 +399,8 @@ export function createBay(scene: THREE.Scene): Bay {
   scene.add(sentries.mesh);
   interface Posted { fig: Figure; i: number; dex: boolean; goose: boolean; crossed: boolean; x: number; boss?: BossId }
   const watches = new Map<PlotView, Posted[]>();
-  const calm = reducedMotion() ? 0.25 : 1;
+  let calm = 1;
+  onReducedMotion((on) => { calm = on ? 0.25 : 1; });
   /** Watches farther than this from the camera's focus keep their last pose. */
   const POSE_NEAR = 60;
   let fullSyncF = -1e9, fullSyncLevel = -1;

@@ -8,14 +8,16 @@
 // A buyer leaves with a cup, sips a few steps later and pulls a face.
 import { beatOffset, bob } from './beat.ts';
 import * as THREE from 'three';
-import { kit } from './clay/kit.ts';
+import { kit, onReducedMotion } from './clay/kit.ts';
 import { crowdDetail, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
 import { holdProp, makeCustomer, seasonWear, segmentSpec, type SegmentLook } from './clay/cast.ts';
 import type { Season } from '../sim/balance.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
-/** Reduced motion keeps a little life but drops the bounce. */
-export const MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.25 : 1;
+/** Reduced motion keeps a little life but drops the bounce: 0.25, else 1. A live binding that follows the OS setting
+ * and the Options switch (clay/kit.ts), so read it when you pose, not once at load. */
+export let MOTION = 1;
+onReducedMotion((on) => { MOTION = on ? 0.25 : 1; });
 
 /**
  * Hop-walk pose for any figure: lifts it off the ground at mid-stride and

@@ -668,12 +668,12 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   if (c.st && c.hp <= 0.25) root.scale.set(1.04, 0.9, 1.02);
   const menuDraw = m.menuTex?.userData.redraw as ((f: (c: CanvasRenderingContext2D, w: number, h: number) => void) => void) | undefined;
   const domeY = m.dome?.position.y ?? 0;
-  const calm = reducedMotion();
   return {
     level: L, root, anchors: m.anchors, kid: m.kid, chairX: m.chairX, chairZ: m.chairZ, serveZ: m.serveZ, spin: m.spin,
     awning: m.awning, sign: m.sign, tearable: m.tearable, flapPivot: m.flapPivot, sticks: m.sticks,
     revealSeconds: L >= 4 ? 6 : 3,
     flourish(k) {
+      const calm = reducedMotion();
       // L1 unfolds with a snap: flat on the ground, then up with an overshoot (on twos).
       if (L === 1 && !calm) {
         const sy = k < 0.17 ? 0.08 : [1.2, 0.9, 1.05, 1][Math.min(3, Math.floor((k - 0.17) * 12))];

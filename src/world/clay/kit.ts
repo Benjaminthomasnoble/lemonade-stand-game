@@ -56,6 +56,29 @@ export function kit(): ClayKit {
   return k;
 }
 
+// Reduced motion (spec "Stop motion": "Reduced motion stops the boil and swaps shakes and flashes for fades"):
+// the OS setting or the game's own "Less motion" switch (main.ts passes it in with setReducedMotion).
+const OS_CALM = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+let calmOption = false, calmNow = !!OS_CALM?.matches;
+const calmWatchers = new Set<(on: boolean) => void>();
+function calmChanged() {
+  const on = calmOption || !!OS_CALM?.matches;
+  if (on === calmNow) return;
+  calmNow = on;
+  for (const f of calmWatchers) f(on);
+}
+OS_CALM?.addEventListener?.('change', calmChanged);
+/** Reduced motion is on: no boil, no shakes or flashes (fades instead), fewer flying bits. Cheap; call it when you need it. */
+export const reducedMotion = () => calmNow;
+/** The Options "Less motion" switch, when it loads or changes. */
+export function setReducedMotion(on: boolean) { calmOption = on; calmChanged(); }
+/** Run `f` now and whenever reduced motion turns on or off (for a value a module keeps, like a motion scale). Returns an unsubscribe. */
+export function onReducedMotion(f: (on: boolean) => void): () => void {
+  calmWatchers.add(f);
+  f(calmNow);
+  return () => calmWatchers.delete(f);
+}
+
 let ENV: THREE.Texture | null = null;
 /** Give every reflective material the kitchen environment (scene.ts calls this once the renderer exists). */
 export function setEnvironment(env: THREE.Texture) {

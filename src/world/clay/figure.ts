@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLOSS, PAPER, Baker, bend, box, cap as cap0, cyl as cyl0, hash, lathe as lathe0, lumpy, shade, snake as snake0, sph as sph0, tor as tor0, type V3 } from './core.ts';
 import { P, SKINS } from './palette.ts';
+import { onReducedMotion } from './kit.ts';
 
 export type BodyKind = 'pear' | 'kid' | 'round' | 'stilt' | 'barrel' | 'block' | 'bean' | 'vee' | 'lanky';
 export type Eyes = 'bead' | 'happy' | 'lids' | 'sleepy' | 'glasses' | 'shades' | 'pop' | 'spiral' | 'squeeze';
@@ -86,8 +87,9 @@ const low = () => DETAIL <= LOW_DETAIL + 1e-6;
 /** Rounded boxes keep their corner segments in step with the detail. */
 const rbox = (w: number, h: number, d: number, seg: number, r: number) => new RoundedBoxGeometry(w, h, d, low() ? 1 : Math.max(1, Math.round(seg * Math.min(1, DETAIL * 1.6))), r);
 const n = (k: number, min = 3) => Math.max(low() ? Math.min(min, 3) : min, Math.round(k * DETAIL));
-/** Reduced motion stops the boil (spec "Stop motion"). */
-const BOIL = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1;
+/** Reduced motion stops the boil (spec "Stop motion"): the OS setting or the Options switch (clay/kit.ts). */
+let BOIL = 1;
+onReducedMotion((on) => { BOIL = on ? 0 : 1; });
 const sph = (r: number, w = 20, h = 14) => sph0(r, n(w, 5), n(h, 4));
 const cap = (r: number, l: number, cs = 4, rs = 10) => cap0(r, l, n(cs, 2), n(rs, 5));
 const cyl = (rt: number, rb: number, h: number, s = 16, open = false) => cyl0(rt, rb, h, n(s, 5), open);

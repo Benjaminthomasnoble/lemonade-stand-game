@@ -58,10 +58,10 @@ try {
   await page.waitForSelector('body[data-ready="1"]');
   const day = await page.evaluate(() => window.__game.state.day);
   if (day !== 2) fail(`save did not persist (day ${day})`);
-  // Milestone 2: upgrade the stand through the UI, then look at every level.
-  await page.evaluate(() => { window.__game.state.cash = 600; window.__game.act({ type: 'refresh' }); });
-  await page.click('[data-testid="tab-grow"]');
-  await page.click('[data-testid="upgrade"]');
+  // Milestone 2: upgrade the stand through the UI, then look at every level. Before Day 4's lesson the Grow tab
+  // is hidden, and tapping your own stand answers with its upgrade.
+  await page.evaluate(() => { const g = window.__game; g.state.cash = 600; g.act({ type: 'inspect', plot: g.state.selected }); });
+  await page.click('[data-testid="plotcard"] [data-testid="upgrade"]');
   const lvl = await page.evaluate(() => window.__game.state.plots[window.__game.state.selected].stand.level);
   if (lvl !== 2) fail(`upgrade failed (level ${lvl})`);
   await page.waitForTimeout(600);
@@ -86,8 +86,8 @@ try {
   await page.waitForTimeout(1200);
   await page.screenshot({ path: 'test-results/7-second-stand.png' });
 
-  // Milestone 3: fence and crew through the UI, then a daytime raid with its replay.
-  await page.evaluate(() => { const g = window.__game; g.state.rank = 3; g.state.cash = 5000; g.dex(); g.act({ type: 'select', plot: g.state.selected }); });
+  // Milestone 3: fence and crew through the UI, then a daytime raid with its replay. Lessons off from here: buttons follow rank alone.
+  await page.evaluate(() => { const g = window.__game; g.state.settings.lessons = false; g.state.rank = 3; g.state.cash = 5000; g.dex(); g.act({ type: 'select', plot: g.state.selected }); });
   await page.click('[data-testid="tab-crew"]');
   await page.click('[data-testid="perimeter"]');
   await page.click('[data-testid="hire"]');

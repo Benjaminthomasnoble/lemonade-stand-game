@@ -4,6 +4,7 @@
 // go through the HUD's one listener (data-action="option").
 import { raidPauses, type GameState } from '../sim/economy.ts';
 import { TEXT_SIZES, type Options } from '../settings.ts';
+import { lessonsOn } from '../sim/story.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const toggle = (key: string, on: boolean, label: string, tip: string) =>
@@ -11,7 +12,7 @@ const toggle = (key: string, on: boolean, label: string, tip: string) =>
 
 /** `saves`: the Saves panel (src/ui/saves.ts) and `keys` the key list (src/ui/keys.ts), at the foot of the screen. */
 export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): string {
-  // Each major alert has its own switch (perk picks join once rank-up perks land; lessons once onboarding does).
+  // Each major alert has its own switch (perk picks join once rank-up perks land).
   const each = o.autoPause ? `<div class="cl-row wrap">
       ${toggle('raidPause', raidPauses(s.settings), 'Raids on you', 'Raid warnings pause the game (this run). Off: the clock slows to fight speed for the countdown.')}
       ${toggle('pause.delivery', o.pause.delivery, 'Delivery Raids', 'A raid on a VIP pickup pauses the game')}
@@ -31,6 +32,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD animations')}
       ${toggle('captions', o.captions, 'Captions', "Lottie's lines and phone calls, written out")}
       ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
+      ${toggle('lessons', lessonsOn(s), 'Lessons', 'Lottie teaches one system a day (this run). Off: buttons follow rank alone.')}
       ${keys}
       ${saves}
     </div>

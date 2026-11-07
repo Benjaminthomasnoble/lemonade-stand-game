@@ -40,7 +40,7 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
-import { storyDateline, storyHeadline } from '../sim/story.ts';
+import { storyDateline, storyHeadline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
 
 export type Action =
@@ -394,6 +394,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         if (d.key === 'peaceful') st.peaceful = !st.peaceful;
         if (d.key === 'ironman') st.ironman = !st.ironman;
         if (d.key === 'raidPause') st.raidPause = !raidPauses(st);
+        if (d.key === 'lessons') st.lessons = !(st.lessons ?? true);
         redraw();
         break;
       }
@@ -433,14 +434,14 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const temp = tempText(hud.options, w.temp);
     return `<div class="cl-left">
         ${cash}
-        <div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>
+        ${taught(s, 'rank') ? `<div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>` : ''}
         <div class="cl-chip" title="${esc(repTip(s))}" data-testid="reputation">${ART.star(true)}${tape(s.reputation.toFixed(1))}</div>
-        ${threat >= 2 && !peaceful(s) ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
+        ${threat >= 2 && !peaceful(s) && taught(s, 'threat') ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
         ${s.bottles ? `<div class="cl-chip" title="${s.bottles.toLocaleString('en-US')} bottles ready for big orders"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
       <div class="cl-right">
         ${day}
-        <div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${temp}${s.phase === 'prep' ? '\nForecast: right about 4 days in 5' : ''}">${ART.sky(w.kind)}${tape(temp.slice(0, -1))}</div>
+        ${taught(s, 'forecast') ? `<div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${temp}${s.phase === 'prep' ? '\nForecast: right about 4 days in 5' : ''}">${ART.sky(w.kind)}${tape(temp.slice(0, -1))}</div>` : ''}
         ${goalCard(s, goalsOpen, ART.lottie())}
         ${phone ? fold(true) : ''}
       </div>
@@ -512,18 +513,21 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   // ---------- the morning: tabs, stand picker, Grow/Defend sheets and the wooden dock ----------
+  /** Defend opens with Day 5's lesson; with lessons off it follows rank, and the Picket Fence is a Rank 1 unlock. */
   function defendOpen(s: GameState) {
-    return s.rank >= 2 || s.day >= 4 || s.battles.length > 0 || playerStands(s).some((p) => s.plots[p.id].defense.tier > 0);
+    return taught(s, 'defense') || s.battles.length > 0 || playerStands(s).some((p) => s.plots[p.id].defense.tier > 0);
   }
 
   function prepPanel(s: GameState) {
     if (tab === 'crew' && !defendOpen(s)) tab = 'today';
     if (tab === 'fair' && !tasteOffToday(s)) tab = 'today';
+    if (tab === 'grow' && !taught(s, 'upgrade')) tab = 'today';
+    if (tab === 'book' && !taught(s, 'recipes')) tab = 'today';
     const tabs = `<div class="cl-tabs">
       <button class="cl-tab${tab === 'today' ? ' on' : ''}" data-action="tab" data-tab="today">Today</button>
-      <button class="cl-tab${tab === 'grow' ? ' on' : ''}" data-action="tab" data-tab="grow" data-testid="tab-grow">Grow</button>
+      ${taught(s, 'upgrade') ? `<button class="cl-tab${tab === 'grow' ? ' on' : ''}" data-action="tab" data-tab="grow" data-testid="tab-grow">Grow</button>` : ''}
       ${defendOpen(s) ? `<button class="cl-tab${tab === 'crew' ? ' on' : ''}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defend</button>` : ''}
-      ${worldTabs(s, tab)}
+      ${taught(s, 'recipes') ? worldTabs(s, tab) : ''}
       ${standPicker(s)}</div>`;
     const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
       : tab === 'book' || tab === 'fair' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
@@ -568,7 +572,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const restock = s.day >= AUTO_RESTOCK_DAY ? `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>` : '';
     const n = playerStands(s).length;
     return `<div class="cl-tray">
-      <div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>
+      ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>` : ''}
       <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
         <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${cents(ceiling)}: past it, buyers walk off. Costs you ${cents(cost)} a cup. Tap to price at the top"><b data-testid="price">${cents(st.price)}</b><i data-testid="ceiling">top ${cents(ceiling)}</i></div>
         <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>
@@ -597,12 +601,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
     for (const id of Object.keys(CAMPAIGNS) as CampaignId[]) {
       const c = CAMPAIGNS[id], b = canRunCampaign(s, id);
-      if (locked(b) || (!b.ok && /Only for/.test(b.why))) continue;
+      if (locked(b) || (!b.ok && /Only for/.test(b.why)) || !taught(s, 'marketing')) continue;
       const cost = campaignCost(s, id); // Word of Mouth halves it
       out.push(card(id === 'sandwichBoard' ? ART.board() : ART.sample(), c.name.replace('Sandwich-Board Kid', 'Sign kid').replace('Free Sample Day', 'Free samples'), `${c.costPerDay ? `${whole(cost.cash)} a day` : `${cost.samples} cups`}${cost.half ? ' · half off' : ''}`, btn('campaign', 'Run', b, `data-id="${id}"`), `${c.blurb}${cost.half ? '. Word of Mouth: half price' : ''}`));
     }
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
-    if (nb && !locked(bb)) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
+    if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
     out.push(bank(s));
     return `<div class="cl-cards">${out.join('')}</div>`;
   }
@@ -661,7 +665,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   function crewPanel(s: GameState) {
-    if (s.rank < HIRE_RANK && !s.guards.length) return '';
+    if (!s.guards.length && (s.rank < HIRE_RANK || !taught(s, 'crew'))) return '';
     const club = CLUBHOUSE[s.clubhouse], cb = canBuildClubhouse(s);
     const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${whole(guardWage(g))}/day">${guardFace(s, g)}<span class="cl-name">${esc(g.name.split(' ')[0])}</span>${pips(g.level, 5)}${btn('hire', whole(g.fee), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
     return `<div class="cl-crew"><span class="cl-label">Crew ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(s, g)).join('')}</div>
@@ -712,7 +716,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Sales ${money(t.revenue)}, costs ${money(costs)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
       <div class="cl-end-row"><span title="Cups sold">${ART.cup()}<b>${t.customers}</b></span>${away ? `<span class="bad" title="Turned away: ${w.soldOut} sold out, ${w.line} line too long">${ART.empty()}<b>${away}</b></span>` : ''}</div>
       <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? '▲' : repDelta < -0.004 ? '▼' : ''}</span>
-        <span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span></div>
+        ${taught(s, 'rank') ? `<span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span>` : ''}</div>
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>${tip}</span></div>
       ${tasteOffLine(s, t.day)}
       ${tonight(s)}
@@ -757,7 +761,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${ps.garrison ? `, ${ps.garrison} henchmen` : ''}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
     let actions = '';
-    if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id); actions = locked(b) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"`, 'go'); }
+    if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"`, 'go'); }
     else if (ps.owner === 'player' && isWrecked(ps)) actions = btn('rebuild', `${ps.busted ? 'Fix' : 'Rebuild'} ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}" title="${ps.busted ? 'Busted: closed until you fix it' : 'Rebuild by tomorrow or the plot goes For Sale'}"`, 'go');
     else if (ps.owner === 'player' && !st) {
       const lvl = ps.facility?.level ?? 0;
@@ -767,9 +771,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
       actions = stand + fac + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
-    // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel.
+    // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
+    // and your own stand answers with its next upgrade (before the Grow tab's lesson too).
     else if (ps.owner === 'player' && st) actions = s.phase === 'report' || s.phase === 'night' ? fenceHere(s, id)
-      : (id === s.selected ? '' : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`)) + standPanel(s, id, standMath);
+      : (id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`)) + standPanel(s, id, standMath);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       const pb = canPlotBuyout(s, id);
@@ -782,6 +787,14 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">✕</button></div>
       ${dibs}${schemeNote(s, id)}${ps.facility?.wrecked || st?.wrecked ? `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>` : ''}
       <div class="cl-plot-acts">${actions}</div></div>`;
+  }
+
+  /** Tapping your stand answers with its next upgrade from Day 1, before the Grow tab's lesson. */
+  function upgradeHere(s: GameState) {
+    const st = selectedStand(s), next = STAND_LEVELS[st.level];
+    const up = canUpgradeStand(s);
+    const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
+    return next && s.phase === 'prep' && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top)}"`, 'go') : '';
   }
 
   function squadPicker(s: GameState) {
@@ -854,7 +867,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-modes">${modes}</div>
       <div class="cl-diffs">${diffs}</div>
       ${st.difficulty === 'custom' ? customPanel(st) : ''}
-      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${scores}</div>` : ''}
+      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${toggle('lessons', st.lessons !== false, 'Lessons', 'Lottie teaches one system a day. Off: buttons follow rank alone.')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>
         ${cancel ? '<button class="cl-link" data-action="cancelSetup">Back to my game</button>' : ''}
         <button class="cl-open big" data-action="start" data-testid="start" aria-label="Open the stand"><span class="cl-btn"></span>${tape('START', 'cl-t-open')}</button></div>

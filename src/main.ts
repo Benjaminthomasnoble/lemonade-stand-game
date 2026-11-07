@@ -43,7 +43,7 @@ import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady } from './sim/scenes.ts';
 import { takeCall } from './sim/phone.ts';
-import { storyAfterAct, storyDateline, storyHeadline } from './sim/story.ts';
+import { lessonsOn, storyAfterAct, storyDateline, storyHeadline } from './sim/story.ts';
 import { createGullFlight } from './world/gullflight.ts';
 
 // Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
@@ -559,6 +559,7 @@ async function main() {
   /** Flip an option (src/settings.ts). The raid-warning switch belongs to the run. */
   const setOption = (key: string, value?: string) => {
     if (key === 'raidPause') { state.settings.raidPause = !raidPauses(state.settings); return; }
+    if (key === 'lessons') { state.settings.lessons = !lessonsOn(state); return; } // this run's lessons (src/sim/story.ts)
     if (key === 'textSize') { const v = Number(value); if ((TEXT_SIZES as number[]).includes(v)) options.textSize = v as Options['textSize']; }
     else if (key.startsWith('pause.')) { const k = key.slice(6) as PauseKind; if (k in options.pause) options.pause[k] = !options.pause[k]; }
     else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion' || key === 'captions' || key === 'celsius') options[key] = !options[key];

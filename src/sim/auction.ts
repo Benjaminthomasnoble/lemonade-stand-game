@@ -15,6 +15,8 @@ import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
 import { grantPage, movePage, pageHolder } from './recipes.ts';
+import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
+import { snipeBid } from './schemes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -56,16 +58,9 @@ export function bossCall(s: GameState, who: RivalId, text: string): void {
   s.news.push(`${HQS[who].boss} phones the Corner: "${text}"`);
 }
 
-/**
- * Whoever outbids a rival earns its Grudge (spec: Grudge rises when that
- * faction outbids them). Seam: rivals' outbidBy(s, loser, winner) after merge;
- * until then only the Grudge toward Lottie exists, so a rival-versus-rival
- * outbid changes nothing.
- */
+/** Whoever outbids a rival earns its Grudge (spec: Grudge rises when that faction outbids them), Lottie or another rival. */
 export function outbid(s: GameState, loser: RivalId, winner: FactionId): void {
-  if (winner !== 'player') return;
-  const r = s.rivals[loser];
-  r.grudge = Math.min(100, r.grudge + AUCTION.outbidGrudge);
+  outbidBy(s, loser, winner);
 }
 
 /** A VIP pickup booked at this plot's Helipad or Pier: the plot can't change hands until it's flown or shipped. */
@@ -180,8 +175,8 @@ export function rivalInterest(s: GameState, id: RivalId, plotId: string): number
   return AUCTION.interest.away;
 }
 
-/** A rival's Grow budget, the share of its cash it spends on land (as at dawn). */
-const growBudget = (s: GameState, id: RivalId) => Math.floor(Math.max(0, s.rivals[id].cash - 2000) * FACTIONS[id].grow);
+/** What a rival can bid on land: its Grow bucket (rivalAi.ts), as far as its cash covers it. */
+const growBudget = (s: GameState, id: RivalId) => Math.floor(Math.max(0, Math.min(budgetOf(s, id).grow, s.rivals[id].cash)));
 /** What's on the block: the land at its opening bid plus 75% of what's built on it. */
 const worth = (s: GameState, plotId: string, a: Auction) => a.min + BUILDING_VALUE_SHARE * s.plots[plotId].invested;
 
@@ -219,7 +214,7 @@ function topBid(bids: Bid[]): Bid | null {
 /** What the gavel did with the lots Lottie didn't bid on, for one line in the Bugle. */
 interface Results { taken: string[]; unsold: string[] }
 
-/** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget (and, for the Lavender page, their cash). */
+/** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget (and, for the Lavender page, their cash above the reserve). */
 export function closeAuctions(s: GameState): void {
   const due = PLOTS.filter((p) => (s.plots[p.id].auction?.closes ?? Infinity) <= s.day);
   const page = (s.lavender?.auction?.closes ?? Infinity) <= s.day;
@@ -248,9 +243,10 @@ function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
     if (s.cash >= bidCost(s, a.bid)) bids.push({ who: 'player', amount: a.bid });
     else s.news.push(`Skip Larkin: "Your ${money(a.bid)} bid on ${name} bounced, kid. Keep the cash on hand till dawn."`);
   }
+  const yours = bids[0]?.amount; // Lottie's sealed bid, if it stands
   for (const id of RIVALS) {
     if (!s.rivals[id].alive) continue;
-    const amount = rivalBid(s, id, plotId, a, rng);
+    const amount = snipeBid(s, id, plotId, rivalBid(s, id, plotId, a, rng), yours); // a rival sniping this lot tops your bid
     if (amount >= a.min) bids.push({ who: id, amount });
   }
   const win = topBid(bids);
@@ -266,7 +262,7 @@ function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
     return;
   }
   const id = win.who as RivalId;
-  s.rivals[id].cash -= win.amount;
+  spend(s, id, 'grow', win.amount);
   ps.owner = id;
   if (ps.stand) ps.stand.price = rivalPrice(id, ps.stand.level, PLOT_BY_ID[plotId]);
   if (bids.some((b) => b.who === 'player')) {
@@ -292,7 +288,7 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
   if (!win) { s.news.push(`Skip Larkin: "No takers for ${p.name} at ${money(a.min)}. It's still yours."`); return; }
   for (const b of bids) if (b !== win) outbid(s, b.who as RivalId, win.who);
   const id = win.who as RivalId;
-  s.rivals[id].cash -= win.amount;
+  spend(s, id, 'grow', win.amount);
   s.cash = round2(s.cash + win.amount); // ledger: land sale
   for (const g of s.guards) if (g.post === plotId) g.post = null; // posted guards go back to the Clubhouse
   s.offers = s.offers.filter((o) => o.plot !== plotId); // a VIP offer for this pad or pier lapses with it
@@ -304,15 +300,15 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
 
 // ---------- the Lavender page (spec: Recipe pages; the Big Squeeze opens) ----------
 
-/** What a rival can put into the page: its cash above a reserve. A once-a-game prize, so bosses dig past their Grow budget. */
-const pageSpend = (s: GameState, id: RivalId) => Math.max(0, s.rivals[id].cash - LAVENDER.reserve);
+/** What a rival can put into the page: its cash above its reserve (rivalAi.ts). A once-a-game prize, so bosses dig past their Grow budget. */
+const pageSpend = (s: GameState, id: RivalId) => Math.max(0, s.rivals[id].cash - reserveOf(s, id));
 /** A rival's push next to the hardest bidder's (FizzCo's): how close to the going rate it bids. */
 const pagePush = (id: RivalId) => bidStrength(id) / Math.max(...RIVALS.map(bidStrength));
 
 function rivalPageBid(s: GameState, id: RivalId, a: Auction, rng: Rng): number {
   const want = LAVENDER.value * pagePush(id) * randomRange(rng, LAVENDER.spread[0], LAVENDER.spread[1]);
-  const spend = pageSpend(s, id);
-  return spend < a.min ? 0 : Math.min(spend, Math.round(want / 1000) * 1000);
+  const room = pageSpend(s, id);
+  return room < a.min ? 0 : Math.min(room, Math.round(want / 1000) * 1000);
 }
 
 function pageGuess(s: GameState, a: Auction): number {
@@ -373,7 +369,8 @@ function settlePage(s: GameState, rng: Rng): void {
     return;
   }
   const id = win.who as RivalId;
-  s.rivals[id].cash -= win.amount;
+  spend(s, id, 'grow', win.amount); // Grow pays first; the rest comes out of what Guard and Strike had set aside
+  fitBudget(s, id);
   lv.winner = id;
   lv.paid = win.amount;
   movePage(s, 'lavender', id); // it hangs in their HQ; recoverPage brings it home when they're out

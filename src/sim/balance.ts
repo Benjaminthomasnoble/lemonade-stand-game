@@ -316,7 +316,6 @@ export const AUCTION = {
   interest: { home: 1, foothold: 0.7, border: 0.4, away: 0.15 }, // placeholder: spec gap. Chance a rival bids, and how keen
   markup: 0.4, // placeholder: spec gap. At full interest up to +40% over what the plot is worth, × push × a 0.5-1.5 roll
   push: { blenders: 0.85, coldbrew: 0.9, hollis: 1, sourwood: 1.2, fizzco: 1.35 } as Record<RivalId, number>, // placeholder: spec gap
-  outbidGrudge: 10, // placeholder: spec gap. Grudge a rival takes when Lottie outbids it
   steps: [1, 1.25, 1.5, 2, 3, 5], // the bid buttons, as multiples of the opening bid
 };
 
@@ -324,14 +323,14 @@ export const AUCTION = {
  * The Lavender page auction at the Hilltop estate (balance-tables: opens when
  * you reach Rank 8; expect the winning bid to be about $1,500,000, about a day
  * of income at that rank). Each rival still in bids about `value` × its push
- * next to FizzCo's × a `spread` roll, from its cash above `reserve`.
+ * next to FizzCo's × a `spread` roll, from its cash above the reserve every rival
+ * keeps for its running costs (rivalAi.ts).
  */
 export const LAVENDER = {
   rank: 8,
   value: 1_500_000, // the winning bid runs about this
   open: 1_000_000, // placeholder: spec gap. The opening bid
   spread: [0.85, 1.15] as [number, number], // placeholder: spec gap
-  reserve: 50_000, // placeholder: spec gap. Cash a rival keeps back from its bid
 };
 
 // ---------- defenses, crew and raids (canon sections 11–14) ----------

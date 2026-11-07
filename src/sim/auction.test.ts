@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER, LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame,
-  newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder, placeBid, PLOTS, PRESTON_OUTBID, sleepUntilDawn, unlistPlot,
-  withdrawBid,
+  bidGuess, bidSteps, budgetOf, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER, LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame,
+  grudgeToward, newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder, placeBid, PLOTS, PRESTON_OUTBID, reserveOf,
+  sleepUntilDawn, unlistPlot, withdrawBid,
   type DistrictId, type GameState, type Guard, type Order, type RivalId,
 } from './economy.ts';
 
@@ -84,17 +84,56 @@ describe('sealed-bid auctions', () => {
     expect(s.news.some((n) => n.startsWith('Preston'))).toBe(false); // he only gloats when he beats your bid
   });
 
-  it('an outbid rival holds a Grudge toward the winner (toward rivals once the rivals work lands)', () => {
+  it('an outbid rival holds a Grudge toward the winner, Lottie or another rival', () => {
     const s = newGame(39);
+    const was = grudgeToward(s, 'hollis', 'fizzco');
     outbid(s, 'hollis', 'player');
     expect(s.rivals.hollis.grudge).toBe(10);
     outbid(s, 'hollis', 'fizzco');
     expect(s.rivals.hollis.grudge).toBe(10);
+    expect(grudgeToward(s, 'hollis', 'fizzco')).toBe(was + 10);
+  });
+
+  it("rivals bid out of their Grow bucket, and the winner pays from it without denting tomorrow's takings", () => {
+    const { s, id } = downtownAuction(56);
+    purse(s, { fizzco: 1e6 });
+    budgetOf(s, 'fizzco').grow = 1999; // under the opening bid: FizzCo sits it out, whatever cash it holds
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBeNull();
+    openAuction(s, id, 'sale');
+    budgetOf(s, 'fizzco').grow = 10000;
+    const seen = s.rivals.fizzco.cashSeen!;
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('fizzco');
+    const paid = 1e6 - s.rivals.fizzco.cash;
+    expect(paid).toBeGreaterThanOrEqual(2000);
+    expect(budgetOf(s, 'fizzco').grow).toBeCloseTo(10000 - paid, 2);
+    expect(s.rivals.fizzco.cashSeen).toBeCloseTo(seen - paid, 2);
+  });
+
+  it('a rival sniping the lot tops your sealed bid by 5%, Strike paying the extra into Grow', () => {
+    const { s, id } = downtownAuction(57);
+    purse(s, { hollis: 1e6 });
+    Object.assign(budgetOf(s, 'hollis'), { grow: 0, strike: 1e5 }); // Hollis has no Grow money for Downtown, but it is sniping this lot
+    s.schemes = [{ kind: 'snipe', by: 'hollis', day: s.day, until: s.day + 1, plots: [id], cost: 0 }];
+    placeBid(s, id, 4000);
+    const cash = s.cash;
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('hollis');
+    expect(s.cash).toBe(cash);
+    expect(1e6 - s.rivals.hollis.cash).toBe(4200);
+    expect(budgetOf(s, 'hollis')).toMatchObject({ grow: 0, strike: 1e5 - 4200 });
+    expect(s.news.some((n) => n.includes('snipe') && n.endsWith('at the Registry'))).toBe(true);
+    expect(s.news.some((n) => n.startsWith('Skip Larkin: "Outbid on') && n.includes('went to $4,200'))).toBe(true);
   });
 
   it('a tie goes to Lottie', () => {
     const { s, id } = downtownAuction(43);
-    purse(s, { fizzco: 6000 }); // Grow budget: (6,000 − 2,000) × 55% = $2,200, so that is its bid
+    purse(s, { fizzco: 6000 });
+    budgetOf(s, 'fizzco').grow = 2200; // FizzCo always bids on its home turf, up to its Grow bucket: $2,200
     placeBid(s, id, 2200);
     s.day++;
     closeAuctions(s);
@@ -444,6 +483,31 @@ describe('the Lavender page auction', () => {
     expect(s.news.some((n) => n.includes('bid on the Lavender page bounced'))).toBe(true);
     expect(s.lavender?.winner).toBeUndefined();
     expect(pageHolder(s, 'lavender')).toBe('harpTeacher');
+  });
+
+  it('a rival outbid on the page holds a Grudge toward the rival that won it', () => {
+    const s = lavender(75, { fizzco: 5e6, sourwood: 5e6 });
+    const was = { fizzco: grudgeToward(s, 'fizzco', 'sourwood'), sourwood: grudgeToward(s, 'sourwood', 'fizzco') };
+    close(s);
+    const win = s.lavender!.winner as 'fizzco' | 'sourwood';
+    const lost = win === 'fizzco' ? 'sourwood' : 'fizzco';
+    expect(grudgeToward(s, lost, win)).toBe(was[lost] + 10);
+  });
+
+  it('rivals bid from their cash above the reserve, and pay out of Grow first, then what Guard and Strike set aside', () => {
+    const short = lavender(76, {});
+    short.rivals.fizzco.cash = LAVENDER.open + reserveOf(short, 'fizzco') - 1;
+    close(short);
+    expect(short.lavender?.winner).toBeUndefined(); // it won't dip into the cash it runs on
+    const s = lavender(76, { fizzco: 2e6 });
+    const b = budgetOf(s, 'fizzco');
+    Object.assign(b, { grow: 500_000, guard: 500_000, strike: 500_000 });
+    close(s);
+    expect(s.lavender!.winner).toBe('fizzco');
+    expect(s.rivals.fizzco.cash).toBe(2e6 - s.lavender!.paid!);
+    expect(b.grow).toBe(0);
+    expect(b.guard).toBe(b.strike);
+    expect(b.guard + b.strike).toBeLessThanOrEqual(s.rivals.fizzco.cash - reserveOf(s, 'fizzco') + 0.01);
   });
 
   it('a page already in the book (a Sandbox fair win) calls the auction off and opens no other', () => {

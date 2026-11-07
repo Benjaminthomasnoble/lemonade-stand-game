@@ -329,8 +329,24 @@ export function targetScore(s: GameState, attacker: RivalId, plotId: string): nu
   const ps = s.plots[plotId];
   if (!ps?.owner || ps.owner === attacker || !hasBuilding(ps)) return 0;
   if (ps.owner !== 'player' && PLOT_BY_ID[plotId].type === 'hq') return 0;
+  return worthOverDefense(s, plotId);
+}
+
+/** A plot's land and buildings over its defense: fence, gadgets, and your posted guards or a rival's garrison. */
+function worthOverDefense(s: GameState, plotId: string): number {
+  const ps = s.plots[plotId];
   const guards = ps.owner === 'player' ? s.guards.filter((g) => g.post === plotId).length : ps.garrison ?? 0;
   return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
+}
+
+/**
+ * For your raids, on the Rivals Corkboard: a rival's weakest valuable building by the same worth-over-defense rule
+ * (never its HQ), ties to the lower plot id.
+ */
+export function softSpot(s: GameState, victim: RivalId): Plot | null {
+  const score = (p: Plot) => worthOverDefense(s, p.id);
+  return PLOTS.filter((p) => s.plots[p.id].owner === victim && p.type !== 'hq' && hasBuilding(s.plots[p.id]))
+    .sort((a, b) => score(b) - score(a) || a.id.localeCompare(b.id))[0] ?? null;
 }
 
 /** Is a plot near a faction's turf: in a district where it holds land (or its home), or in one bordering those? */

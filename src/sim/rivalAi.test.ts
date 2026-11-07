@@ -7,9 +7,12 @@ import {
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
-  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes,
+  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
+import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
+import { menuScreen } from '../ui/menus.ts';
+import { DEFAULT_OPTIONS } from '../settings.ts';
 import { nextRandom } from './rng.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -913,6 +916,77 @@ describe('likeliest targets near their turf', () => {
     expect(raidBy('blenders').raid.target).toBe(LOTTIES_CORNER);
     const vera = raidBy('sourwood');
     expect(vera.raid.target).toBe(vera.h);
+  });
+});
+
+describe('Rivals Corkboard', () => {
+  /** One boss's photo on the board. */
+  const pinOf = (html: string, id: RivalId) => {
+    const at = html.indexOf(`data-testid="cork-${id}"`);
+    const next = html.indexOf('<div class="cl-card"', at);
+    return at < 0 ? '' : html.slice(at, next < 0 ? undefined : next);
+  };
+  /** The paper menu as the HUD draws it (its key, its Threat meter or the corner's list open it). */
+  const board = (s: GameState) => menuScreen(s, 'corkboard', { head: ['', ''], goals: [], crew: () => '', options: DEFAULT_OPTIONS });
+
+  it('pins every surviving boss, highest Success Score first, each with the raid\'s own likeliest target', () => {
+    const s = newGame(95);
+    const html = board(s);
+    expect(html).toContain('data-testid="menu-corkboard"');
+    expect(html).toContain(corkboardBody(s).slice(0, 40)); // the menu's sheet holds the board, your score on top
+    expect(html).toContain('data-action="menu" data-menu="" data-testid="menu-done"'); // Done puts it away, like every menu
+    const order = boardOrder(s);
+    expect(order).toEqual([...RIVALS].sort((a, b) => successScore(s, b) - successScore(s, a) || a.localeCompare(b)));
+    const at = order.map((id) => html.indexOf(`data-testid="cork-${id}"`));
+    at.forEach((x, i) => expect(x).toBeGreaterThan(i ? at[i - 1] : 0));
+    for (const id of RIVALS) {
+      const t = likeliestTarget(s, id)!;
+      expect(pinOf(html, id)).toContain(`data-action="inspect" data-plot="${t.id}" data-testid="cork-target"`); // flies there
+      expect(pinOf(html, id)).toContain(`Eyeing ${t.name}`);
+    }
+  });
+
+  it('stamps a Weakened boss, notes a Truce and a broke boss, and takes down a fallen one', () => {
+    const s = newGame(96);
+    s.rivals.blenders.peakPlots = 100; // down to 40% or less of its peak plots
+    s.rivals.hollis.truceUntil = s.day + 5;
+    budgetOf(s, 'coldbrew').strike = 0;
+    s.rivals.fizzco.alive = false;
+    const html = board(s);
+    expect(pinOf(html, 'blenders')).toContain('data-testid="cork-weakened"');
+    expect(pinOf(html, 'sourwood')).not.toContain('WEAKENED');
+    expect(pinOf(html, 'hollis')).toContain(`Truce to Day ${s.day + 5}`);
+    expect(pinOf(html, 'coldbrew')).toContain('Broke');
+    expect(pinOf(html, 'sourwood')).not.toContain('Broke');
+    expect(html).not.toContain('data-testid="cork-fizzco"');
+    for (const id of RIVALS) s.rivals[id].alive = false;
+    expect(board(s)).toContain('Every rival is out of business');
+  });
+
+  it('red string toward each faction a boss holds a Grudge against, thicker with more Grudge', () => {
+    const s = newGame(97);
+    s.rivals.blenders.grudge = GRUDGE.feud; // a feud with you: five pips
+    addGrudge(s, 'blenders', 'hollis', GRUDGE.raided); // one raid's worth: one pip
+    const strings = pinOf(board(s), 'blenders');
+    expect(strings).toContain(`Brock's Grudge toward Lottie's: ${GRUDGE.feud}">Lottie's</span><span class="cl-pips">${'<i class="on"></i>'.repeat(5)}</span>`);
+    expect(strings).toContain(`toward Hollis: ${GRUDGE.raided}">Hollis</span><span class="cl-pips"><i class="on"></i>${'<i class=""></i>'.repeat(4)}</span>`);
+    expect(pinOf(board(s), 'sourwood')).not.toContain('cork-strings'); // no Grudge, no string
+  });
+
+  it('from Rank 3, pins each rival\'s weakest valuable stand for your Raid Planner (never its HQ), and always their HQ', () => {
+    const s = newGame(98);
+    expect(pinOf(board(s), 'hollis')).not.toContain('Raid '); // the Raid Planner opens at Rank 3
+    s.rank = 3;
+    const soft = softSpot(s, 'hollis')!;
+    expect(soft.type).not.toBe('hq');
+    expect(s.plots[soft.id].owner).toBe('hollis');
+    const pin = pinOf(board(s), 'hollis');
+    expect(pin).toContain(`data-action="inspect" data-plot="${soft.id}"`);
+    expect(pin).toContain(`Raid ${soft.name}`);
+    const hq = PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === 'hollis')!;
+    expect(pin).toContain(`data-plot="${hq.id}"`);
+    s.plots[soft.id].garrison = 50; // a crowd of Farmhands moves in: another stand is softer now
+    expect(softSpot(s, 'hollis')!.id).not.toBe(soft.id);
   });
 });
 

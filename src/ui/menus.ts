@@ -5,17 +5,19 @@
 // and none shows before its system unlocks. Most are full-screen paper, which
 // pauses the clock (Options); Lottie's Goals is her sticky note and the Stand
 // panel is the stand's own card. Clicks go through the HUD's one listener.
-// Until other lanes land their screens, the Planner, Corkboard and Registry
-// list what they cover and open each one's plot card on the map; Rank and Perks
-// shows the rank ladder (Lottie's tips join it later).
+// Until other lanes land their screens, the Planner and Registry list what
+// they cover and open each one's plot card on the map; the Corkboard is the
+// rivals lane's board (corkboard.ts); Rank and Perks shows the rank ladder
+// (Lottie's tips join it later).
 import {
-  canBuyPlot, DEAL_LOADS, deliveryRaidRisk, FACTIONS, hqPlot, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  peaceful, plotPrice, raidTargets, rivalStatus, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
+  canBuyPlot, DEAL_LOADS, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
+  peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
   type FestivalId, type GameState, type Goal, type RivalId, type SupplyId,
 } from '../sim/economy.ts';
 import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
 import { taught } from '../sim/story.ts';
+import { corkboardBody } from './corkboard.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -156,14 +158,6 @@ function planner(s: GameState): string {
   return sheet('planner', 'Raid Planner', row(near.map((p) => plotButton(s, p.id, p.name, `${FACTIONS[s.plots[p.id].owner as RivalId].name} · ${DISTRICT_BY_ID[p.district].name}`)).join('') || '<span class="cl-note">Nothing to hit right now</span>'));
 }
 
-function corkboard(s: GameState): string {
-  const rivals = (Object.keys(s.rivals) as RivalId[]).filter((id) => s.rivals[id].alive).map((id) => {
-    const st = rivalStatus(s, id);
-    return plotButton(s, hqPlot(id).id, `${FACTIONS[id].name}: ${st.weakened ? 'Weakened!' : `${st.plots} plots`}${st.truce ? ' · truce' : ''}`, `Worth about ${whole(st.worth)}; peak ${st.peak} plots${st.truce ? `; truce to day ${st.truce}` : ''}`);
-  });
-  return sheet('corkboard', 'Rivals Corkboard', row(rivals.join('') || '<span class="cl-note">Every rival is out!</span>'));
-}
-
 function registry(s: GameState): string {
   const plots = forSale(s).sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id)).slice(0, 12);
   return sheet('registry', 'Land Registry', row(plots.map((p) => plotButton(s, p.id, `${p.name} · ${whole(plotPrice(s, p.id))}`, `${DISTRICT_BY_ID[p.district].name} · ~${p.baseTraffic} passersby a day`)).join('')));
@@ -179,7 +173,7 @@ export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
     case 'bugle': return bugle(s, p);
     case 'crew': return sheet('crew', 'Crew roster', p.crew());
     case 'planner': return planner(s);
-    case 'corkboard': return corkboard(s);
+    case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', corkboardBody(s));
     case 'registry': return registry(s);
     default: return '';
   }

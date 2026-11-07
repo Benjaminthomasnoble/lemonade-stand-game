@@ -795,9 +795,10 @@ export function planNight(s: GameState): void {
   s.seed = rng.seed;
   s.raids.push(...signatureRaids(s));
   // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another), and none
-  // comes before the tutorial raid is fought. A raid on several plots goes for the stock at each of them.
+  // comes before the tutorial raid is fought. A raid on several plots goes for the stock at each of them. The
+  // Syndicate's strikes (and the Big Squeeze's siege) are all Smash: Threat 5 is 0% Shakedown (threat.ts).
   const dice = { seed: s.seed };
-  if (tutorialDone(s)) for (const raid of s.raids) if (s.plots[raid.target].owner === 'player') maybeSabotage(s, raid, dice);
+  if (tutorialDone(s)) for (const raid of s.raids) if (s.plots[raid.target].owner === 'player' && !raid.syndicate) maybeSabotage(s, raid, dice);
   s.seed = dice.seed;
   spreadRaids(s); // threat.ts: a raid on several plots splits its party; a boss-led one gets its boss
 }

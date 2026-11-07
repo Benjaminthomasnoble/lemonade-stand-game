@@ -5,6 +5,7 @@ import {
   deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Order, type Raid, type RivalId,
 } from './economy.ts';
 import { CALL_PRIORITY } from './phone.ts';
+import { RIVAL_SABOTAGE } from './balance.ts';
 
 /** Day 60's Evening in a Sandbox where the Syndicate formed a week ago, every member flush, with `stands` stands of yours. */
 function pactEvening(difficulty: Difficulty, seed = 3, stands = 8): GameState {
@@ -136,6 +137,18 @@ describe("the Syndicate's strikes", () => {
           expect(new Set([first, ...rest].map((r) => r.target)).size).toBe(rest.length + 1);
         }
       }
+    }
+  });
+
+  it("is never one of crew's Sabotage raids, even with every rival sure to send one", () => {
+    const rates = { ...RIVAL_SABOTAGE };
+    for (const r of Object.keys(RIVAL_SABOTAGE) as RivalId[]) RIVAL_SABOTAGE[r] = 1;
+    try {
+      const sent = strikes(pactEvening('classic', 15), 40).flat();
+      expect(sent.length).toBeGreaterThan(20);
+      expect(sent.every((r) => r.syndicate && r.objective === 'smash' && !r.sabotage)).toBe(true);
+    } finally {
+      Object.assign(RIVAL_SABOTAGE, rates);
     }
   });
 

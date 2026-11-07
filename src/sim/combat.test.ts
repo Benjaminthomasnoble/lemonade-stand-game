@@ -798,6 +798,7 @@ describe('the Nabbed', () => {
     const theirs = ransom.rivals.blenders.cash;
     expect(settleCaptive(ransom, c.id, 'ransom')).toBe(true);
     expect(ransom.cash).toBe(s.cash + GUARD_FEE[2]);
+    expect(ransom.today.books?.loot).toBe((s.today.books?.loot ?? 0) + GUARD_FEE[2]); // the Ledger's Loot row
     expect(ransom.rivals.blenders.cash).toBe(theirs - GUARD_FEE[2]);
     expect(ransom.captives).toBeUndefined();
     const broke = clone(s);
@@ -846,8 +847,10 @@ describe('the Nabbed', () => {
     expect(canSettle(s, pip.id, 'pay')).toEqual({ ok: false, why: `Needs $${GUARD_FEE[1]}` });
     s.cash = 1000;
     const theirs = s.rivals.blenders.cash;
+    const hired = s.today.books?.hire ?? 0;
     expect(settleCaptive(s, pip.id, 'pay')).toBe(true);
     expect(s.cash).toBe(1000 - GUARD_FEE[1]);
+    expect(s.today.books?.hire).toBe(hired - GUARD_FEE[1]); // the Ledger's Hire row
     expect(s.rivals.blenders.cash).toBe(theirs + GUARD_FEE[1]);
     expect(guardReady(s, pip)).toBe(true);
     expect(s.captives).toBeUndefined();

@@ -23,6 +23,7 @@ import { backOnGuard, hqOf } from './garrison.ts';
 import { canSpend, spend } from './rivalAi.ts';
 import { alert } from './alerts.ts';
 import type { Blocker, GameState } from './economy.ts';
+import { book } from './ledger.ts';
 
 /** A KO'd raider left behind, held by the side they raided. */
 export interface Captive {
@@ -153,14 +154,14 @@ export function settleCaptive(s: GameState, id: string, choice: CaptiveChoice): 
   const first = g.name.split(' ')[0];
   if (choice === 'pay') {
     const by = c.by as RivalId;
-    s.cash = round2(s.cash - fee);
+    book(s, 'hire', -fee); // the Ledger: their hire fee again, on the Hire row
     s.rivals[by].cash = round2(s.rivals[by].cash + fee);
     g.outUntil = c.back ?? 0;
     s.news.push(`${first} is home: ${money(fee)} to ${FACTIONS[by].name}.`);
   } else if (choice === 'ransom') {
     const from = c.from as RivalId;
     spend(s, from, 'guard', fee);
-    s.cash = round2(s.cash + fee);
+    book(s, 'loot', fee); // the Ledger: a rival's money won off a raid, like a Shakedown's
     s.news.push(`${FACTIONS[from].name} pay ${money(fee)} to get ${first} back.`);
   } else if (choice === 'release') {
     s.reputation = Math.min(5, Math.max(1, round2(s.reputation + NABBED.release)));

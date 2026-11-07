@@ -2,13 +2,14 @@
 // Economy and balance: Lottie's Cookie Jar and bankruptcy; loans). Pure
 // functions over GameState, like the rest of the sim.
 import {
-  ACT_BY_RANK, ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, FACTIONS, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
+  ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, FACTIONS, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
   SEASON_DAYS, STAND_LEVELS, type Difficulty, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
 import { DISTRICTS, PLOTS, type DistrictId } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
 import { guardWage, NO_DEFENSE } from './crew.ts';
+import { beginEpilogue, storyAct } from './story.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -23,6 +24,7 @@ export interface Settings {
   ironman: boolean; // one save, no reloading the last dawn
   raidPause?: boolean; // raid warnings on you auto-pause (unset: the difficulty's default, on except Cutthroat)
   custom?: CustomDifficulty; // Custom difficulty's sliders
+  lessons?: boolean; // Lottie teaches one system a day (off: buttons follow rank alone); unset is on
 }
 
 /** Custom difficulty: each slider anywhere from Laid Back's value to Cutthroat's. */
@@ -83,8 +85,8 @@ export function bump(s: GameState, k: keyof Tally): void {
 
 // ---------- acts ----------
 
-/** The campaign act, from the rank ladder until the story's own beats drive it. */
-export const actOf = (s: GameState) => ACT_BY_RANK[s.rank - 1] ?? 5;
+/** The campaign act: the story's own state, which advances on each act's climax (src/sim/story.ts). */
+export const actOf = (s: GameState) => storyAct(s);
 export const actName = (act: number) => ACTS[act - 1];
 
 // ---------- district control and Domination ----------
@@ -144,6 +146,7 @@ export const ENDINGS = {
 export function keepSqueezing(s: GameState): boolean {
   if (s.outcome?.result !== 'won' || s.endlessSince !== undefined) return false;
   s.endlessSince = s.day;
+  beginEpilogue(s);
   s.news.push('ENDLESS SUMMER: Lottie\'s Lemonade keeps squeezing. How high can the score go?');
   return true;
 }

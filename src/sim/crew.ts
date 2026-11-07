@@ -19,6 +19,8 @@ import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
+import { dexLesson, hasStory } from './story.ts';
+import { alert } from './alerts.ts';
 
 export interface Guard {
   id: string;
@@ -664,19 +666,23 @@ export function offerSideLot(s: GameState): void {
     .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))[0];
   if (!lot) return;
   s.plots[lot.id].dibs = { who: 'player', until: s.day + 6, price: SIDE_LOT_PRICE, table: true };
-  s.news.push(`Lottie: "The side lot next to the Corner is yours for ${money(SIDE_LOT_PRICE)}, folding table and all." (${lot.name})`);
+  // A card in the feed (Go There opens the lot), as each day's lesson lands.
+  alert(s, { kind: 'note', text: `Side lot by the Corner: ${money(SIDE_LOT_PRICE)}, table included`, plot: lot.id });
 }
 
-/** Dex Moody, the first guard, turns up on Day 6 (when raids can start). */
+/** Dex Moody, the first guard, joins free on Day 6 (when raids can start), whatever your rank. */
 export function welcomeDex(s: GameState): void {
-  if ( s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
+  if (s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
   const rng = { seed: 77 };
   const dex = makeGuard(s, rng);
   dex.name = 'Dex Moody';
   dex.trait = 'Loyal';
-  dex.post = s.plots[s.selected]?.owner === 'player' ? s.selected : null;
+  // With the lessons on, stationing him is Day 6's lesson ("Station Dex for the night"); story.ts posts him at closing if nobody did.
+  dex.post = !dexLesson(s) && s.plots[s.selected]?.owner === 'player' ? s.selected : null;
   s.guards.push(dex);
-  s.news.push('Dex Moody: "Heard you could use some muscle, Miss Lottie. I work for lemonade." Dex joins free.');
+  // A card in the feed (Go There: where he stands, or the Corner to station him). In the campaign his arrival is a
+  // scene (src/sim/scenes.ts) that says the rest of his lines.
+  alert(s, { kind: 'note', text: hasStory(s) ? 'Dex Moody joins the crew, free.' : 'Dex Moody joins free: "I work for lemonade."', plot: dex.post ?? LOTTIES_CORNER });
   refreshRecruits(s, true);
 }
 

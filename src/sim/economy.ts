@@ -5,7 +5,7 @@
 import { nextRandom, randomRange } from './rng.ts';
 import {
   AUTO_RESTOCK_DAY, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
+  DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
@@ -17,7 +17,7 @@ import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { schemesAtDawn, type Scheme } from './schemes.ts';
-import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
+import { crewAtDawn, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
@@ -30,6 +30,10 @@ import {
   campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
   migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
+import { migrateStory, storyAtClose, storyAtDawn, storyMinute, type StoryState } from './story.ts';
+import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
+import type { SceneState } from './scenes.ts';
+import type { PhoneState } from './phone.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -196,6 +200,10 @@ export interface GameState {
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
   world?: WorldState; // Lottie's recipe book, the calendar's Taste-Offs, boosts and sponsorships
   schemes?: Scheme[]; // rivals' Strike schemes running or just done (schemes.ts)
+  story?: StoryState; // the campaign's act (src/sim/story.ts)
+  scenes?: SceneState; // story scenes queued, playing and seen
+  phone?: PhoneState; // boss calls waiting, and the moods they watch
+  goals?: GoalState; // what Lottie's goal card shows and has ticked off
 }
 
 export type SimEvent =
@@ -331,6 +339,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
   migrateWorld(s);
   s.today = emptyStats(s);
   s.peakScore = successScore(s);
+  migrateStory(s);
   return s;
 }
 
@@ -663,6 +672,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;
   events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
+  storyMinute(s);
   if (s.minute >= CLOSE) {
     closeDay(s);
     events.push({ type: 'close' });
@@ -733,6 +743,7 @@ function closeDay(s: GameState): void {
   damageAtClose(s); // rivals book their repairs at closing, like you (damage.ts)
   s.phase = 'report';
   planNight(s);
+  storyAtClose(s);
 }
 
 /** Sleep till dawn: the rest of the night runs minute by minute (raids hit at their minute), then dawn opens
@@ -774,6 +785,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   vipAtDawn(s);
   fortunesAtDawn(s);
   nightsAtDawn(s);
+  storyAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
@@ -924,9 +936,10 @@ export function rankFor(score: number) {
 function checkRank(s: GameState): void {
   const r = rankFor(successScore(s)).rank;
   if (r > s.rank) {
+    const was = s.rank;
     s.rank = r;
     s.news.push(`RANK UP! Lottie's grandkid is now a ${RANKS[r - 1].title}`);
-    welcomeDex(s);
+    if (was < HIRE_RANK && r >= HIRE_RANK) refreshRecruits(s, true); // the Hiring Hall opens (Dex comes on Day 6, not with a rank)
   }
 }
 
@@ -1015,28 +1028,18 @@ export function runCampaign(s: GameState, id: CampaignId, plotId = s.selected): 
 
 // ---------- Lottie's Goals ----------
 
-export interface Goal { text: string; progress: number; done: boolean }
+export interface Goal {
+  text: string;
+  progress: number;
+  done: boolean;
+  story?: boolean; // a story goal: it wears the page icon
+  slot?: GoalSlot;
+  reward?: number; // what Lottie pays when she ticks it off
+}
 
+/** Lottie's 3 goals, short, medium and long (src/sim/goals.ts). */
 export function lottieGoals(s: GameState): Goal[] {
-  const st = selectedStand(s);
-  const stands = playerStands(s).length;
-  const short: Goal = servingsAvailable(st) === 0 && s.phase === 'prep'
-    ? { text: 'Buy lemons and sugar at the market', progress: 0, done: false }
-    : { text: 'Sell 60 cups in one day', progress: Math.min(1, s.today.customers / 60), done: s.today.customers >= 60 };
-  const next = STAND_LEVELS[st.level];
-  const gate = next ? STAND_RANK_GATE[next.level - 1] : 0;
-  const medium: Goal = s.brandTier === 0 && st.level >= 2
-    ? { text: `Put up Hand-Painted Signs ($${BRAND_TIERS[0].cost})`, progress: Math.min(1, s.cash / BRAND_TIERS[0].cost), done: false }
-    : stands < 2 && st.level >= 2
-    ? { text: 'Buy a second plot on Maple Row and open another stand', progress: 0, done: false }
-    : next
-    ? { text: `Upgrade to ${next.name} ($${next.cost.toLocaleString('en-US')}${s.rank < gate ? `, needs Rank ${gate}` : ''})`, progress: Math.min(1, s.cash / next.cost), done: false }
-    : { text: 'Keep the Citrus Palace busy', progress: 1, done: true };
-  const r = rankFor(successScore(s));
-  const long: Goal = r.next
-    ? { text: `Reach Rank ${r.next.rank}, ${r.next.title} ($${r.next.ss.toLocaleString('en-US')} Success Score)`, progress: Math.min(1, successScore(s) / r.next.ss), done: false }
-    : { text: 'You are The Big Squeeze', progress: 1, done: true };
-  return [short, medium, long];
+  return goalsNow(s);
 }
 
 export function isGameState(x: unknown): x is GameState {
@@ -1057,6 +1060,9 @@ export function migrateSave(x: unknown): GameState | null {
   migrateCombat(s);
   migrateDemand(s);
   if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
-  if (isGameState(s)) migrateRivals(s);
-  return isGameState(s) ? migrateWorld(s) : null;
+  if (!isGameState(s)) return null;
+  migrateRivals(s);
+  migrateWorld(s);
+  migrateStory(s);
+  return s;
 }

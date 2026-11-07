@@ -477,7 +477,7 @@ describe('Tilly and the County Fair', () => {
     ace(s);
     withSkill(0, () => close(s));
     expect(worldOf(s).tillyWon).toBeFalsy();
-    s.rank = 7; // Act 4 (Fields & Fizz)
+    s.rank = 7; s.story!.act = 4; // Act 4 (Fields & Fizz): the campaign's act is the story's (src/sim/story.ts), not rank's
     dawn(s, 77);
     const t = tasteOffToday(s)!;
     expect([t.vs, t.stake]).toEqual([['hollis'], 'tilly']);
@@ -493,12 +493,12 @@ describe('Tilly and the County Fair', () => {
 
   it('the duel waits for Act 4, and comes back each County Fair until Tilly is won over', () => {
     const s = tillyGame();
-    s.rank = 6; // still Act 3 on Day 77: an open fair, Tilly entering like anyone with a stand there
+    s.rank = 6; s.story!.act = 3; // still Act 3 on Day 77: an open fair, Tilly entering like anyone with a stand there
     dawn(s, 77);
     expect(actOf(s)).toBe(3);
     expect(tasteOffToday(s)!.stake).toBeUndefined();
     close(s);
-    s.rank = 7;
+    s.rank = 7; s.story!.act = 4;
     dawn(s, 133); // year 3's County Fair, now in Act 4
     expect(tasteOffToday(s)).toMatchObject({ vs: ['hollis'], stake: 'tilly' });
     flub(s);

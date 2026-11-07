@@ -30,6 +30,33 @@ interface Bid { who: FactionId; amount: number }
 /** How hard a rival pushes its bids (FizzCo's Hostile Takeover outbids at auctions). The seam for rivals' per-faction bid strength. */
 export const bidStrength = (id: RivalId) => AUCTION.push[id];
 
+/** Preston's taunt after he outbids Lottie (spec: Phone taunts). */
+export const PRESTON_OUTBID = "Hold, please. I'm on the other line, buying your street.";
+
+/**
+ * A boss rings the Corner's phone. Seam: story's phoneCall(s, who, text) after
+ * merge; until then the line runs in the Bugle in the boss's voice.
+ */
+export function bossCall(s: GameState, who: RivalId, text: string): void {
+  if (!s.rivals[who]?.alive) return;
+  s.news.push(`${HQS[who].boss} phones the Corner: "${text}"`);
+}
+
+/**
+ * Whoever outbids a rival earns its Grudge (spec: Grudge rises when that
+ * faction outbids them). Seam: rivals' outbidBy(s, loser, winner) after merge;
+ * until then only the Grudge toward Lottie exists, so a rival-versus-rival
+ * outbid changes nothing.
+ */
+export function outbid(s: GameState, loser: RivalId, winner: FactionId): void {
+  if (winner !== 'player') return;
+  const r = s.rivals[loser];
+  r.grudge = Math.min(100, r.grudge + AUCTION.outbidGrudge);
+}
+
+/** A VIP pickup booked at this plot's Helipad or Pier: the plot can't change hands until it's flown or shipped. */
+export const pickupBooked = (s: GameState, plotId: string) => s.orders.some((o) => o.plot === plotId);
+
 /** What Lottie pays for a winning bid: Family Silver takes 10% off. */
 export const bidCost = (s: GameState, amount: number) => Math.round(amount * familySilver(s));
 
@@ -98,6 +125,7 @@ export function canListPlot(s: GameState, plotId: string): Blocker {
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'A Trophy is never sold' };
   if (ps.auction) return { ok: false, why: 'Already on the block' };
   if (isWrecked(ps)) return { ok: false, why: ps.busted ? 'Fix it first' : 'Rebuild it first' };
+  if (pickupBooked(s, plotId)) return { ok: false, why: 'A pickup is booked here' };
   return { ok: true };
 }
 
@@ -172,18 +200,25 @@ function topBid(bids: Bid[]): Bid | null {
 
 // ---------- closing ----------
 
+/** What the gavel did with the lots Lottie didn't bid on, for one line in the Bugle. */
+interface Results { taken: string[]; unsold: string[] }
+
 /** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget. */
 export function closeAuctions(s: GameState): void {
   const due = PLOTS.filter((p) => (s.plots[p.id].auction?.closes ?? Infinity) <= s.day);
   if (!due.length) return;
   const rng = { seed: s.seed };
-  for (const p of due) settle(s, p.id, rng);
+  const res: Results = { taken: [], unsold: [] };
+  for (const p of due) settle(s, p.id, rng, res);
   s.seed = rng.seed;
+  const taken = res.taken.length > 2 ? `${res.taken.length} plots go to rivals` : res.taken.join('; ');
+  const unsold = res.unsold.length ? `No bids on ${res.unsold.length > 2 ? `${res.unsold.length} plots` : res.unsold.join(' or ')}: back For Sale at land value` : '';
+  if (taken || unsold) s.news.push(`Skip Larkin: "Gavel's down. ${[taken, unsold].filter(Boolean).join('. ')}."`);
   announceControl(s);
   checkVictory(s);
 }
 
-function settle(s: GameState, plotId: string, rng: Rng): void {
+function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
   const ps = s.plots[plotId];
   const a = ps.auction!;
   const name = PLOT_BY_ID[plotId].name;
@@ -201,14 +236,14 @@ function settle(s: GameState, plotId: string, rng: Rng): void {
     if (amount >= a.min) bids.push({ who: id, amount });
   }
   const win = topBid(bids);
-  if (!win) return; // no bids: back to the Registry, unowned, at land value
+  if (!win) { res.unsold.push(name); return; } // no bids: back to the Registry, unowned, at land value
+  for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
   if (win.who === 'player') {
     const cost = bidCost(s, win.amount);
     s.cash = round2(s.cash - cost); // ledger: land
     s.today.land = round2(s.today.land + cost);
     ps.owner = 'player';
     ps.garrison = 0;
-    for (const b of bids) if (b.who !== 'player') { const r = s.rivals[b.who as RivalId]; r.grudge = Math.min(100, r.grudge + AUCTION.outbidGrudge); }
     s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! ${name} is yours for ${money(cost)}."`);
     return;
   }
@@ -216,10 +251,10 @@ function settle(s: GameState, plotId: string, rng: Rng): void {
   s.rivals[id].cash -= win.amount;
   ps.owner = id;
   if (ps.stand) ps.stand.price = rivalPrice(id, ps.stand.level, PLOT_BY_ID[plotId]);
-  if (a.bid !== undefined && bids.some((b) => b.who === 'player')) {
+  if (bids.some((b) => b.who === 'player')) {
     s.news.push(`Skip Larkin: "Outbid on ${name}. ${FACTIONS[id].name} went to ${money(win.amount)}."`);
-    if (id === 'fizzco') s.news.push(`${HQS.fizzco.boss}, on the car phone: "Sealed bid, open checkbook. FizzCo always closes, kid."`);
-  }
+    if (id === 'fizzco') bossCall(s, 'fizzco', PRESTON_OUTBID);
+  } else res.taken.push(`${FACTIONS[id].name} take ${name} for ${money(win.amount)}`);
 }
 
 /** A plot Lottie listed: the rivals bid; the top bid's cash comes to her and the plot goes with what's built on it. */
@@ -228,6 +263,7 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
   const p = PLOT_BY_ID[plotId];
   if (ps.owner !== 'player') return; // lost some other way meanwhile
   if (isWrecked(ps)) { s.news.push(`Skip Larkin: "Nobody bids on a smashed plot. ${p.name} is still yours."`); return; }
+  if (pickupBooked(s, plotId)) { s.news.push(`Skip Larkin: "Pulled ${p.name} off the block: a pickup is booked there."`); return; }
   const bids: Bid[] = [];
   for (const id of RIVALS) {
     if (!s.rivals[id].alive) continue;
@@ -236,10 +272,12 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
   }
   const win = topBid(bids);
   if (!win) { s.news.push(`Skip Larkin: "No takers for ${p.name} at ${money(a.min)}. It's still yours."`); return; }
+  for (const b of bids) if (b !== win) outbid(s, b.who as RivalId, win.who);
   const id = win.who as RivalId;
   s.rivals[id].cash -= win.amount;
   s.cash = round2(s.cash + win.amount); // ledger: land sale
   for (const g of s.guards) if (g.post === plotId) g.post = null; // posted guards go back to the Clubhouse
+  s.offers = s.offers.filter((o) => o.plot !== plotId); // a VIP offer for this pad or pier lapses with it
   ps.owner = id;
   ps.garrison = 0;
   if (ps.stand) { ps.stand.price = rivalPrice(id, ps.stand.level, p); ps.stand.autoRestock = false; ps.stand.campaigns = {}; }

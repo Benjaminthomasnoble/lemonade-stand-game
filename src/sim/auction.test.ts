@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, hqPlot, listPlot, LOTTIES_CORNER, newGame,
-  newStand, NO_DEFENSE, offerSideLot, openAuction, ownedPlots, placeBid, PLOTS, sleepUntilDawn, unlistPlot, withdrawBid,
-  type DistrictId, type GameState, type Guard, type RivalId,
+  newStand, NO_DEFENSE, offerSideLot, openAuction, outbid, ownedPlots, placeBid, PLOTS, PRESTON_OUTBID, sleepUntilDawn, unlistPlot, withdrawBid,
+  type DistrictId, type GameState, type Guard, type Order, type RivalId,
 } from './economy.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -63,7 +63,32 @@ describe('sealed-bid auctions', () => {
     const paid = theirs - s.rivals.fizzco.cash;
     expect(paid).toBeGreaterThan(2000 * 1.25); // at least +27% on its home turf
     expect(paid).toBeLessThanOrEqual(2000 * 1.81);
-    expect(s.news.some((n) => n.startsWith('Preston Fizzwell III'))).toBe(true);
+    expect(s.news).toContain(`Preston Fizzwell III phones the Corner: "${PRESTON_OUTBID}"`);
+    expect(PRESTON_OUTBID).toBe("Hold, please. I'm on the other line, buying your street.");
+  });
+
+  it("Skip sums up the lots you didn't bid on: what the rivals took and what goes back For Sale", () => {
+    const { s, id } = downtownAuction(49);
+    purse(s, { fizzco: 1e6 });
+    const far = street(s, 'groves');
+    s.plots[far.id].landValue = 1e7; // beyond FizzCo's Grow budget: nobody bids
+    openAuction(s, far.id, 'sale');
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('fizzco');
+    expect(s.plots[far.id].owner).toBeNull();
+    const line = s.news.find((n) => n.startsWith('Skip Larkin: "Gavel\'s down.'))!;
+    expect(line).toContain(`FizzCo Beverages take ${PLOTS.find((p) => p.id === id)!.name} for $`);
+    expect(line).toContain(`No bids on ${far.name}: back For Sale at land value`);
+    expect(s.news.some((n) => n.startsWith('Preston'))).toBe(false); // he only gloats when he beats your bid
+  });
+
+  it('an outbid rival holds a Grudge toward the winner (toward rivals once the rivals work lands)', () => {
+    const s = newGame(39);
+    outbid(s, 'hollis', 'player');
+    expect(s.rivals.hollis.grudge).toBe(10);
+    outbid(s, 'hollis', 'fizzco');
+    expect(s.rivals.hollis.grudge).toBe(10);
   });
 
   it('a tie goes to Lottie', () => {
@@ -105,7 +130,8 @@ describe('sealed-bid auctions', () => {
     b.s.day++;
     closeAuctions(b.s);
     expect(b.s.plots[b.id].owner).toBeNull();
-    expect(b.s.news.at(-1)).toContain('bounced');
+    expect(b.s.news.some((n) => n.includes('bid on') && n.includes('bounced'))).toBe(true);
+    expect(b.s.news.at(-1)).toContain('back For Sale at land value');
   });
 
   it('only rivals still in the game bid, and Skip can tell when none can afford it', () => {
@@ -196,6 +222,22 @@ describe('knock it down, buy it up: First Dibs, then the auction', () => {
     }
   });
 
+  it('a feud: a rival plot another rival smashed reaches auction like yours, and the Bugle says so', () => {
+    const s = newGame(55);
+    const plot = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    const ps = s.plots[plot.id];
+    ps.stand!.wrecked = true;
+    ps.wreckedDay = s.day;
+    ps.smashedBy = 'blenders';
+    purse(s, {}); // Hollis can't rebuild, and the Blenders can't pay for their First Dibs
+    dawn(s);
+    expect(s.plots[plot.id].owner).toBeNull();
+    expect(s.plots[plot.id].auction).toMatchObject({ kind: 'sale', closes: s.day + 1 });
+    expect(s.news.some((n) => n.includes(`${plot.name} goes to sealed bids today`))).toBe(true);
+    s.cash = 1e6;
+    expect(placeBid(s, plot.id, s.plots[plot.id].auction!.min)).toBe(true); // you can bid on it too
+  });
+
   it("rivals shopping at dawn leave First Dibs plots alone, and Lottie's side-lot offer just ends", () => {
     const s = newGame(53);
     const best = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner).sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
@@ -267,6 +309,28 @@ describe('selling a plot', () => {
     expect(canListPlot(s, hqPlot('blenders').id)).toEqual({ ok: false, why: 'A Trophy is never sold' });
     s.plots[id].stand!.wrecked = true;
     expect(canListPlot(s, id)).toEqual({ ok: false, why: 'Rebuild it first' });
+  });
+
+  it('a pad or pier with a VIP pickup booked stays yours until the pickup; a pending VIP offer there lapses when it sells', () => {
+    const { s, id } = stall(64);
+    purse(s, { sourwood: 1e6, fizzco: 1e6, hollis: 1e6, coldbrew: 1e6, blenders: 1e6 });
+    const order: Order = { id: 'o1', tier: 'heli', client: 'Test Client', qty: 2000, pay: 6000, due: s.day + 2, expires: s.day + 1, plot: id, accepted: true };
+    s.orders.push(order);
+    expect(canListPlot(s, id)).toEqual({ ok: false, why: 'A pickup is booked here' });
+    s.orders = [];
+    listPlot(s, id);
+    s.orders.push(order); // booked while it was on the block
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).toBe('player');
+    expect(s.news.at(-1)).toContain('a pickup is booked there');
+    s.orders = [];
+    s.offers.push({ ...order, id: 'o2', accepted: false });
+    listPlot(s, id);
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id].owner).not.toBe('player');
+    expect(s.offers.some((o) => o.plot === id)).toBe(false);
   });
 
   it('a sale listed on the last day In the Red settles at dawn, before the deadline', () => {

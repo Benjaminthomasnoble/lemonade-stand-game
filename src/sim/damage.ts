@@ -270,7 +270,7 @@ export function plotsAtDawn(s: GameState, rng: Rng): void {
       const lapsed = ps.dibs;
       delete ps.dibs;
       // Unused First Dibs after a Smash or a Fire Sale: a sealed-bid auction. Lottie's side-lot offer just ends.
-      if (!lapsed.table && !ps.owner) { openAuction(s, p.id, lapsed.price !== undefined ? 'fire' : 'sale'); if (lapsed.who === 'player') toAuction.push(p); }
+      if (!lapsed.table && !ps.owner) { openAuction(s, p.id, lapsed.price !== undefined ? 'fire' : 'sale'); toAuction.push(p); }
     }
     if (!ps.owner || !isWrecked(ps) || rebuilding(ps)) continue;
     if (ps.owner === 'player') {
@@ -303,8 +303,8 @@ function forSale(s: GameState, p: Plot, toAuction: Plot[]): void {
     s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
     if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${p.name} after Lottie couldn't rebuild.`);
   } else {
-    openAuction(s, p.id, 'sale');
-    if (ps.owner === 'player') toAuction.push(p);
+    openAuction(s, p.id, 'sale'); // a feud's smashed plots reach auction like yours
+    toAuction.push(p);
   }
 }
 

@@ -9,6 +9,7 @@ import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/econom
 import { threatLevel } from '../sim/crew.ts';
 import type { PlotView } from './bay.ts';
 import { hopPose, idlePose, makePerson, MOTION } from './people.ts';
+import { gull, dog } from './clay/creatures.ts';
 import { clayFrom } from './clay/kit.ts';
 
 const mat = (color: number, roughness = 0.8) => clayFrom(color, roughness);
@@ -29,66 +30,11 @@ export interface Ambient {
   squawk: THREE.Object3D;
 }
 
-/** A round cream gull; with `cap` he's Captain Squawk. */
-function gull(cap: boolean) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), mat(0xfff6e6));
-  body.scale.set(1, 0.85, 1.4);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(0xfff6e6));
-  head.position.set(0, 0.2, 0.36);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 8), mat(0xffa53a));
-  beak.rotation.x = Math.PI / 2;
-  beak.position.set(0, 0.17, 0.6);
-  const wingGeo = new THREE.BoxGeometry(0.7, 0.04, 0.3);
-  wingGeo.translate(0.35, 0, 0);
-  const wl = new THREE.Mesh(wingGeo, mat(0xd9dde2));
-  const wr = new THREE.Mesh(wingGeo, mat(0xd9dde2));
-  wr.rotation.y = Math.PI;
-  g.add(body, head, beak, wl, wr);
-  if (cap) {
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.1, 12), mat(0x23214a));
-    c.position.set(0, 0.36, 0.36);
-    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.1), mat(0x23214a));
-    brim.position.set(0, 0.32, 0.5);
-    g.add(c, brim);
-  }
-  const lemon = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), mat(0xf7c948, 0.5));
-  lemon.scale.set(1, 0.8, 1.3);
-  lemon.position.set(0, 0.12, 0.72);
-  lemon.visible = false;
-  g.add(lemon);
-  g.userData = { wl, wr, lemon };
-  g.traverse((o) => { o.castShadow = true; });
-  return g;
-}
 function flap(g: THREE.Object3D, t: number, speed = 9) {
   const { wl, wr } = g.userData as { wl: THREE.Mesh; wr: THREE.Mesh };
   const a = Math.sin(t * speed) * 0.6 * Math.max(0.3, MOTION);
   wl.rotation.z = a;
   wr.rotation.z = -a;
-}
-
-function dog() {
-  const g = new THREE.Group();
-  const brown = mat(0xb07a4a);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.35, 4, 10), brown);
-  body.rotation.x = Math.PI / 2;
-  body.position.y = 0.32;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), brown);
-  head.position.set(0, 0.48, 0.3);
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0x2e2a4f));
-  snout.position.set(0, 0.46, 0.45);
-  const ears = [-1, 1].map((sx) => { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.08), mat(0x7a4f2a)); e.position.set(sx * 0.11, 0.55, 0.26); return e; });
-  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.22, 6), brown);
-  tail.position.set(0, 0.42, -0.3);
-  tail.rotation.x = -0.8;
-  const legs = [[-0.09, 0.15], [0.09, 0.15], [-0.09, -0.15], [0.09, -0.15]].map(([x, z]) => {
-    const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.06), brown); l.position.set(x, 0.1, z); return l;
-  });
-  g.add(body, head, snout, ...ears, tail, ...legs);
-  g.userData = { tail, legs };
-  g.traverse((o) => { o.castShadow = true; });
-  return g;
 }
 
 export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): Ambient {

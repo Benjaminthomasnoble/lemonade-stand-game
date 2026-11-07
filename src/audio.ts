@@ -26,6 +26,8 @@ export interface Audio {
   babble(text: string, voice?: number, mood?: 'happy' | 'grumpy' | 'ask' | 'flat'): void;
   /** A rotary phone's double bell. */
   ring(): void;
+  /** A ship's horn: the theme's opening call, F-A-D. */
+  horn(): void;
 }
 
 export function createAudio(): Audio {
@@ -125,6 +127,33 @@ export function createAudio(): Audio {
             o.start(t); o.stop(t + 0.045);
           }
         }
+      } catch { /* no Web Audio */ }
+    },
+    horn() {
+      if (muted || !started) return;
+      try {
+        ctx ??= new AudioContext();
+        const t0 = ctx.currentTime;
+        // F2-A2-D3, the call the bari sax and trombone blow in the theme's intro
+        [[87.31, 0, 0.42], [110, 0.46, 0.42], [146.83, 0.92, 0.8]].forEach(([f, at, len]) => {
+          const t = t0 + at;
+          const lp = ctx!.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = 900;
+          const g = ctx!.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.09, t + 0.06);
+          g.gain.setValueAtTime(0.09, t + len - 0.1);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+          for (const [type, mul] of [['sawtooth', 1], ['square', 2.003]] as const) {
+            const o = ctx!.createOscillator();
+            o.type = type;
+            o.frequency.value = f * mul;
+            o.connect(lp);
+            o.start(t); o.stop(t + len + 0.02);
+          }
+          lp.connect(g).connect(ctx!.destination);
+        });
       } catch { /* no Web Audio */ }
     },
     ding(big = false) {

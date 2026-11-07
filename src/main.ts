@@ -13,6 +13,7 @@ import {
 import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
+import { createTraffic } from './world/traffic.ts';
 import { bySea, incomingRaids, isVip } from './sim/economy.ts';
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
 import { createHud, type Action } from './ui/hud.ts';
@@ -188,7 +189,8 @@ async function main() {
     ring: () => phone.ring('sourwood', 'I sent your grandmother a reminder, dear.'),
   });
 
-  const vip = createVip(world.scene);
+  const vip = createVip(world.scene, { onHorn: () => audio.horn() });
+  const traffic = createTraffic(world.scene);
   const drawEvents = (events: SimEvent[]) => {
     for (const e of events) {
       if (e.type !== 'pickup') continue;
@@ -204,7 +206,7 @@ async function main() {
         focusPlot(o.plot, bySea(o.tier) ? 60 : 45);
         if (speed) { vipResume = speed; speed = 0; }
       }
-      vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1);
+      vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1, o.client);
       audio.stinger('raid-won');
     }
     const t = world.controls.target;
@@ -225,7 +227,7 @@ async function main() {
     }
   };
 
-  const battle = createBattle(world.scene, (pos, text, kind) => { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); });
+  const battle = createBattle(world.scene, (pos, text, kind) => { const [x, y] = toScreen(pos); hud.popup(x, y, text, kind); }, world.camera);
   const playBattle = (b: BattleReport) => {
     crowd.clear();
     focusPlot(b.target, 20);
@@ -406,9 +408,11 @@ async function main() {
     scene: (id: SceneId) => scenes.play(id),
     ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
     battle: () => battle.active(),
+    playBattle: (b: BattleReport) => playBattle(b),
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
+    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '') => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client); },
     dex: () => welcomeDex(state),
     focus: (id: string) => focusPlot(id, 18),
     fastForward(minutes: number) {
@@ -441,6 +445,7 @@ async function main() {
     crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(dt);
     vip.update(Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
+    traffic.update(state, dt, world.controls.target);
     ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');

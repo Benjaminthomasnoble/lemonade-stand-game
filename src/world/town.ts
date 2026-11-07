@@ -575,6 +575,7 @@ export function createTown(scene: THREE.Scene): Town {
       meshes.push(im);
       flocks.push({ kind, list, im });
     }
+    seasonBayTrees(scene, season);
     shownDetail = -1;
     lastF = -1;
     built = season;
@@ -803,4 +804,44 @@ function beach(C: Chunk, d: District) {
     }
     add(C.props, lumpy(sph(0.4, 8, 6), 0.06, 4, k), '#B9A99A', { p: [x - 3, -0.05, SEA_Z + 0.2], s: [1.3, 0.6, 1] });
   }
+}
+
+/**
+ * The bay's own trees (baked by bay.ts into its prop chunks) follow the season too: canopies turn
+ * coral and butterscotch in fall, pick up blossom pink in spring, and drop out in winter (bare trunks).
+ * Leaf colours above hedge height are recoloured in place; winter tucks the canopy vertices under the table.
+ */
+const CANOPY = [P.green, P.leaf, P.leaf2, P.leaf3, P.lemon].map((c) => new THREE.Color(c));
+function seasonBayTrees(scene: THREE.Scene, season: Season) {
+  const fall = FALL.map((c) => new THREE.Color(c)), pink = new THREE.Color('#F7A8C4');
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || !m.name.startsWith('props:')) return;
+    const g = m.geometry, col = g.attributes.color as THREE.BufferAttribute, pos = g.attributes.position as THREE.BufferAttribute;
+    if (!col || col.itemSize !== 4) return;
+    const u = m.userData as { col0?: Float32Array; pos0?: Float32Array; canopy?: Int8Array };
+    if (!u.col0) {
+      if (season === 'summer') return; // nothing to undo yet
+      u.col0 = (col.array as Float32Array).slice();
+      u.pos0 = (pos.array as Float32Array).slice();
+      u.canopy = new Int8Array(col.count).fill(-1);
+      for (let i = 0; i < col.count; i++) {
+        if (pos.getY(i) < 1.6) continue;
+        const r = u.col0[i * 4], gg = u.col0[i * 4 + 1], b = u.col0[i * 4 + 2];
+        const k = CANOPY.findIndex((c) => Math.abs(c.r - r) + Math.abs(c.g - gg) + Math.abs(c.b - b) < 0.01);
+        if (k >= 0) u.canopy[i] = k;
+      }
+    }
+    const ca = col.array as Float32Array, pa = pos.array as Float32Array;
+    ca.set(u.col0); pa.set(u.pos0!);
+    for (let i = 0; i < col.count; i++) {
+      const k = u.canopy![i];
+      if (k < 0) continue;
+      if (season === 'winter') pa[i * 3 + 1] = -3;
+      else if (season === 'fall' && k < 4) { const c = fall[k]; ca[i * 4] = c.r; ca[i * 4 + 1] = c.g; ca[i * 4 + 2] = c.b; }
+      else if (season === 'spring' && k === 2) { ca[i * 4] = pink.r; ca[i * 4 + 1] = pink.g; ca[i * 4 + 2] = pink.b; }
+    }
+    col.needsUpdate = true;
+    pos.needsUpdate = true;
+  });
 }

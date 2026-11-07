@@ -646,7 +646,7 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
     const ps = s.plots[p.id];
     if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
     const f = FACTIONS[ps.owner as RivalId];
-    if (nextRandom(rng) < f.guard + 0.2) ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] };
+    if (nextRandom(rng) < f.guard + 0.2) { ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; ps.invested += PERIMETERS[0].cost; }
     ps.garrison = Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level);
   }
 }

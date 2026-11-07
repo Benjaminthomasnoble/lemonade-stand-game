@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
-  LOTTIES_CORNER, migrateSave, newGame, newStand, ownedPlots, planNight, plotBuyout, PLOTS, raidCost, reserveOf, rivalDawn, sharedBorders,
-  STAND_LEVELS, type BattleReport, type GameState, type RivalId,
+  LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS, raidCost, reserveOf, rivalDawn,
+  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -254,5 +254,38 @@ describe('rival attention', () => {
     raiders.clear();
     for (let i = 0; i < 6; i++) { const raid = nightsUntilRaid(s); if (raid) raiders.add(raid.attacker); }
     expect([...raiders]).toEqual(['coldbrew']);
+  });
+});
+
+describe('rival net worth', () => {
+  it('counts fences at 75% of what went into them, from the first dawn', () => {
+    const s = newGame(19);
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (ps.owner && ps.owner !== 'player' && ps.stand && ps.defense.tier) expect(ps.invested).toBeGreaterThanOrEqual(PERIMETERS[0].cost + STAND_LEVELS[0].cost);
+    }
+  });
+
+  it('never rises from spending: an upgrade or a fence costs a quarter of its price, like yours', () => {
+    const s = newGame(20);
+    const id: RivalId = 'fizzco';
+    s.day = 31;
+    budgetOf(s, id).grow = 1e6;
+    let nw = netWorth(s, id);
+    let cash = s.rivals[id].cash;
+    growUpgrades(s, id);
+    let spent = cash - s.rivals[id].cash;
+    expect(spent).toBeGreaterThan(0);
+    expect(netWorth(s, id)).toBeCloseTo(nw - 0.25 * spent, 0);
+    budgetOf(s, id).guard = 1e6;
+    nw = netWorth(s, id);
+    cash = s.rivals[id].cash;
+    const fences = ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].defense.tier, 0);
+    const hench = ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0);
+    rivalGuardSpend(s, id, { seed: 1 });
+    spent = cash - s.rivals[id].cash;
+    const fenceSpend = spent - RIVAL_HIRE_FEE * (ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0) - hench);
+    expect(ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].defense.tier, 0)).toBeGreaterThan(fences);
+    expect(netWorth(s, id)).toBeCloseTo(nw - spent + 0.75 * fenceSpend, 0);
   });
 });

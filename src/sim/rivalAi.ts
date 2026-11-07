@@ -261,6 +261,7 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
     const next = PERIMETERS[ps.defense.tier];
     if (next && next.tier <= Math.ceil(ps.stand!.level / 1.5) + 1 && canSpend(s, id, 'guard', next.cost)) {
       spend(s, id, 'guard', next.cost);
+      ps.invested += next.cost; // a fence counts in Net Worth at 75%, like yours
       ps.defense = { ...ps.defense, tier: next.tier, fenceHp: next.hp };
     } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE)) {
       spend(s, id, 'guard', RIVAL_HIRE_FEE);

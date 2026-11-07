@@ -5,7 +5,7 @@ import {
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
-  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK,
+  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
   type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -492,6 +492,16 @@ describe('Cease-and-Desist', () => {
     expect(ticket).toContain(`data-action="goto" data-plot="${downtown}"`);
     expect(schemeNote(s, downtown)).toBe('<span class="cl-note bad">Ads blocked</span>');
     expect(schemeNote(s, LOTTIES_CORNER)).toBe('');
+  });
+
+  it('Event Sponsorship counts for nothing there too: the calendar asks the same question', () => {
+    const { s } = marketed(36);
+    expect(underCeaseAndDesist(s, 'downtown')).toBe(false);
+    ceaseAndDesist(s);
+    expect(underCeaseAndDesist(s, 'downtown')).toBe(true);
+    expect(underCeaseAndDesist(s, 'maple')).toBe(false);
+    s.rivals.fizzco.alive = false;
+    expect(underCeaseAndDesist(s, 'downtown')).toBe(false);
   });
 });
 

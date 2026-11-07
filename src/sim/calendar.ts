@@ -15,6 +15,7 @@ import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDaw
 import { actOf, districtControl, isEndless } from './modes.ts';
 import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
 import { mediaAtClose, mediaAtDawn } from './media.ts';
+import { ceaseAndDesistIn } from './schemes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -119,10 +120,10 @@ export function sponsorHalfPrice(s: GameState): boolean {
   return c.total > 0 && c.mine >= c.total;
 }
 
-/** Seam: FizzCo's Cease-and-Desist (rivals lane) blocks your marketing in one district for 3 days. The rivals lane adds its
- * check here once it merges (MARKETING_BLOCKS.push(...)); until then no letters are sent. */
+/** FizzCo's Cease-and-Desist (src/sim/schemes.ts) blocks your marketing in one district for 3 days; MARKETING_BLOCKS takes
+ * any other block. */
 export const MARKETING_BLOCKS: ((s: GameState, district: DistrictId) => boolean)[] = [];
-export const underCeaseAndDesist = (s: GameState, district: DistrictId): boolean => MARKETING_BLOCKS.some((f) => f(s, district));
+export const underCeaseAndDesist = (s: GameState, district: DistrictId): boolean => ceaseAndDesistIn(s, district) || MARKETING_BLOCKS.some((f) => f(s, district));
 
 /** $2,000 for each festival day left, today included ($1,000 with Word of Mouth). */
 export function sponsorCost(s: GameState, id: FestivalId): number {

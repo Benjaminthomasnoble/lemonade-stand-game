@@ -284,7 +284,7 @@ export const RANKS = [
 ];
 
 // ---------- land (section 10) ----------
-export const PROPERTY_TAX_WEEKLY = 0.005;
+// Land carries no tax and no upkeep (spec: Land and territory): a Vacant Lot costs nothing to hold.
 export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops
 /** Development counts each facility tier as this many stand levels. */
 export const FACILITY_DEVELOPMENT = 2;

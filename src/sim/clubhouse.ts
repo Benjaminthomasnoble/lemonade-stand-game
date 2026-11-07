@@ -9,8 +9,8 @@ import { CLUBHOUSE } from './balance.ts';
 import { PLOTS, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import type { Guard } from './crew.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const isClubhouse = (s: GameState, id: string) => s.plots[id]?.owner === 'player' && s.plots[id].facility?.kind === 'clubhouse';
 const emptyStreet = (s: GameState, p: Plot) => p.type === 'street' && s.plots[p.id].owner === 'player' && !s.plots[p.id].stand && !s.plots[p.id].facility;
@@ -79,7 +79,7 @@ export function migrateClubhouse(s: GameState): void {
     ps.invested += cost;
     s.news.push(`The Clubhouse now stands on ${lot.name}: ${CLUBHOUSE[level - 1].beds} beds.`);
   } else {
-    s.cash = round2(s.cash + cost); // ledger: land
+    book(s, 'invested', cost); // the Ledger: the old Clubhouse's cost back, off the day's profit
     s.news.push(`Lottie: "The Clubhouse needs a Street plot of its own now. Here's $${cost.toLocaleString('en-US')} back to build one."`);
   }
 }

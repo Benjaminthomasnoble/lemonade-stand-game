@@ -13,6 +13,7 @@ import {
 import { DISTRICTS, LOTTIES_CORNER, PLOTS, type DistrictId } from './map.ts';
 import type { GameState, Goal } from './economy.ts';
 import { averageStopChance, canBuyPlot, expectedCups, netWorth, playerStands, plotPrice, restockOn, servingsAvailable, successScore } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import { HQS, isWeakened, OUTSELL } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
@@ -48,7 +49,6 @@ const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n))
 /** 1,200 (Lottie's goals are checked every few game minutes: a plain format, not Intl's). */
 const commas = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const whole = (n: number) => `$${commas(n)}`;
-const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Two significant figures, so targets and rewards read like Lottie wrote them. */
 export const nice = (n: number) => {
   if (n < 10) return Math.max(1, Math.round(n));
@@ -391,7 +391,7 @@ export function checkGoals(s: GameState, pay = true): void {
     const cur = list.find((g) => g.id === gs.slots[slot]);
     if (pay && cur?.done && !gs.done.includes(cur.id)) {
       const reward = goalReward(s, slot);
-      s.cash = round2(s.cash + reward);
+      book(s, 'prizes', reward);
       gs.done.push(cur.id);
       s.news.push(`✓ ${cur.text} +${whole(reward)}`); // Lottie ticks it off
       // The goals of last resort move on to a new target once they're met.

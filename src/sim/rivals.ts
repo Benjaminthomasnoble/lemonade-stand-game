@@ -7,6 +7,7 @@ import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { netWorth, ownedPlots } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
 import { retireJingle } from './radio.ts';
@@ -234,8 +235,7 @@ export function canTruce(s: GameState, id: RivalId): Blocker {
 export function makeTruce(s: GameState, id: RivalId): boolean {
   if (!canTruce(s, id).ok) return false;
   const cost = truceCost(s);
-  s.cash = round2(s.cash - cost);
-  s.today.upkeep = round2(s.today.upkeep + cost);
+  book(s, 'tribute', -cost); // once, here (closeDay takes only stand upkeep)
   const r = s.rivals[id];
   r.truceUntil = s.day + TRUCE_DAYS - 1;
   r.respectUntil = Math.max(r.respectUntil, r.truceUntil + 1);
@@ -282,8 +282,7 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   const id = ps.owner as RivalId;
   const price = plotBuyoutPrice(s, plotId);
-  s.cash = round2(s.cash - price);
-  s.today.land = round2(s.today.land + price);
+  book(s, 'invested', -price);
   s.rivals[id].cash += price;
   ps.owner = 'player';
   s.rivals[id].held = s.rivals[id].held?.filter((x) => x !== plotId); // a sale, not a taking: no Grudge
@@ -321,8 +320,7 @@ export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
 export function factionBuyout(s: GameState, id: RivalId): boolean {
   if (!canFactionBuyout(s, id).ok) return false;
   const price = factionBuyoutPrice(s, id)!;
-  s.cash = round2(s.cash - price);
-  s.today.land = round2(s.today.land + price);
+  book(s, 'invested', -price);
   s.news.push(`${HQS[id].boss} signs on the napkin at Dot's Diner: Lottie buys out ${FACTIONS[id].name} for ${money(price)}!`);
   bump(s, 'buyouts');
   eliminate(s, id, 'buyout');

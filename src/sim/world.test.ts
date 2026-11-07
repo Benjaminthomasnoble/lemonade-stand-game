@@ -379,10 +379,10 @@ describe('Event Sponsorship', () => {
     expect(sponsorCost(s, 'summerFair')).toBe(2000 * 5);
     const corner = s.plots[LOTTIES_CORNER].stand!, there = s.plots[plot].stand!;
     const before = marketingMultiplier(s, 'player', there);
-    const booked = s.today.supplies; // what Auto-Restock bought at dawn
+    const booked = s.today.books?.marketing ?? 0;
     expect(sponsorFestival(s, 'summerFair')).toBe(true);
     expect(s.cash).toBe(40000);
-    expect(s.today.supplies - booked).toBeCloseTo(10000, 6);
+    expect(booked - s.today.books!.marketing!).toBeCloseTo(10000, 6); // the Ledger's marketing row
     expect(marketingMultiplier(s, 'player', there) - before).toBeCloseTo(0.5, 6);
     expect(calendarTraffic(s, 'player', corner)).toBe(0); // Maple Row isn't the festival's district
     expect(canSponsor(s, 'summerFair')).toEqual({ ok: false, why: 'Sponsored' });
@@ -474,7 +474,7 @@ describe('Taste-Offs', () => {
     expect(r.score).toBeCloseTo(1.2 * 1.1 * 1.1, 6);
     expect(ownedRecipes(s)).toContain('strawberry');
     expect(s.news.some((n) => n.includes('revenge'))).toBe(true);
-    expect(s.today.revenue).toBeGreaterThanOrEqual(TASTE_OFF.prize);
+    expect(s.today.books!.prizes).toBeGreaterThanOrEqual(TASTE_OFF.prize); // the Ledger's prizes row (a goal's reward may share it)
     expect(s.cash - cash).toBeGreaterThan(TASTE_OFF.prize - 100); // the prize, less the day's upkeep
     expect(s.reputation).toBeGreaterThan(rep + 0.05);
     sleepUntilDawn(s);

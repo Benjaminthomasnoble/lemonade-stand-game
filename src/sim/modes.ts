@@ -8,6 +8,7 @@ import {
 import { DISTRICTS, PLOTS, type DistrictId } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
 import { announceControl } from './land.ts';
@@ -171,7 +172,7 @@ export function canBorrow(s: GameState, amount: number): Blocker {
 /** Borrow from the First Bank of Citrine Bay: 3% a week on what's left, paid off over 4 weekly dawns. */
 export function borrow(s: GameState, amount: number): boolean {
   if (!canBorrow(s, amount).ok) return false;
-  s.cash = round2(s.cash + amount);
+  book(s, 'loan', amount);
   if (s.loan) {
     s.loan.principal = round2(s.loan.principal + amount);
     s.loan.weeksLeft = LOAN.weeks;
@@ -192,7 +193,7 @@ export function loanPayment(s: GameState): number {
 export function repayLoan(s: GameState): boolean {
   const l = s.loan;
   if (!l || s.cash < l.principal || s.phase === 'open') return false;
-  s.cash = round2(s.cash - l.principal);
+  book(s, 'loan', -l.principal);
   delete s.loan;
   s.news.push('Marisol: "Loan paid off. I\'ve framed the receipt."');
   return true;
@@ -205,8 +206,8 @@ function loanAtDawn(s: GameState): void {
   const due = loanPayment(s);
   l.nextDue = s.day + 7;
   if (s.cash >= due) {
-    s.cash = round2(s.cash - due);
-    s.today.upkeep = round2(s.today.upkeep + interest);
+    book(s, 'interest', -interest); // the payment's interest is a cost; the rest pays the loan down
+    book(s, 'loan', -round2(due - interest));
     l.principal = round2(l.principal - (due - interest));
     l.weeksLeft--;
     l.missed = 0;
@@ -270,7 +271,7 @@ export function fortunesAtDawn(s: GameState): void {
       s.news.push(`IN THE RED! Cash is ${money(s.cash)}. ${left} day${left === 1 ? '' : 's'} to get back above $0: sell, borrow from Marisol, or cut costs.`);
     } else if (cookieJarReady(s)) {
       const pay = round2(-s.cash + dailyCosts(s));
-      s.cash = round2(s.cash + pay);
+      book(s, 'cookieJar', pay);
       s.redDays = 0;
       if (d.cookieJar === 'perAct') (s.cookieJar ??= []).push(cookieJarPeriod(s));
       s.news.push(`Lottie's Cookie Jar! Grandma covers ${money(pay)}: "Don't make me bake for this twice${d.cookieJar === 'always' ? '' : ' this ' + (cookieJarPeriod(s).startsWith('act') ? 'act' : 'season')}."`);

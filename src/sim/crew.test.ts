@@ -15,6 +15,7 @@ import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { reserveMinutes } from './reinforce.ts';
 import { BORDERS } from './map.ts';
+import { rowAmount } from './ledger.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
@@ -210,7 +211,8 @@ describe('wages and duty', () => {
     payCrew(s);
     expect(s.cash).toBe(5); // Ann's $15 is paid; Bob's $25 isn't, and Dex waits his turn
     expect(s.guards.map((g) => g.id)).toEqual([dex.id, 'ga']);
-    expect(s.today.upkeep).toBe(15);
+    expect(rowAmount(s.today, 'wages')).toBe(-15); // the Ledger's Wages row, one guard paid
+    expect(s.today.counts?.wages).toBe(1);
     s.cash = 0;
     payCrew(s);
     expect(s.guards.map((g) => g.name)).toEqual(['Dex Moody']);
@@ -545,10 +547,10 @@ describe('overnight repairs', () => {
     fightRaid(s, raidOn(s, LOTTIES_CORNER), true);
     expect(ps.defense.repairs).toBe(2);
     expect(fenceRepairCost(ps)).toBe(2 * PERIMETERS[0].repair);
-    const cash = s.cash, upkeep = s.today.upkeep;
+    const cash = s.cash, repairs = rowAmount(s.today, 'repairs');
     overnightRepairs(s);
     expect(s.cash).toBe(cash - 30);
-    expect(s.today.upkeep).toBe(upkeep + 30);
+    expect(rowAmount(s.today, 'repairs')).toBe(repairs - 30); // the Ledger's Repairs row
     expect(ps.defense.fenceHp).toBe(PERIMETERS[0].hp);
     expect(fenceRepairCost(ps)).toBe(0);
   });

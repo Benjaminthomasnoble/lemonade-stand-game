@@ -15,6 +15,7 @@ import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, cupsInStock, expectedPassersby, marketingMultiplier, rivalPrice } from './economy.ts';
+import { migrateLedger } from './ledger.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
 import { crowdAt } from './calendar.ts';
 import { kidsShare } from './happenings.ts';
@@ -412,6 +413,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
  * stand, should you take one) gets it on.
  */
 export function migrateDemand(s: GameState): void {
+  migrateLedger(s); // the Ledger's score log, from what the history still knows
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;
     if (!st) continue;

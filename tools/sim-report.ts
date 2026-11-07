@@ -2,6 +2,7 @@
 // Usage: npm run sim -- [days] [seed]
 import {
   buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, rankFor, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
+  dayProfit,
 } from '../src/sim/economy.ts';
 import { goalsNow } from '../src/sim/goals.ts';
 
@@ -17,7 +18,7 @@ for (let d = 0; d < days; d++) {
   simulateRestOfDay(s);
   const t = s.today;
   const w = t.walkedPast;
-  const profit = t.revenue - t.supplies - t.cupCosts - t.upkeep;
+  const profit = dayProfit(t); // the Ledger's profit: supplies as used, not as bought
   console.log(`day ${String(t.day).padStart(2)} ${t.weather.kind.padEnd(8)} ${t.weather.temp}F  passers ${t.passersby}  sold ${t.customers}  out ${w.soldOut} line ${w.line} pricey ${w.pricey} rival ${w.rival}  profit $${profit.toFixed(2)}  rep ${s.reputation}  cash $${s.cash.toFixed(2)}  SS ${successScore(s)} ${rankFor(successScore(s)).title}`);
   const before = s.battles.length ? s.battles[0] : null;
   sleepUntilDawn(s);

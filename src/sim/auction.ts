@@ -18,9 +18,9 @@ import { grantPage, movePage, pageHolder } from './recipes.ts';
 import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
 import { freezeOn, runningSchemes, snipeBid } from './schemes.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 export type AuctionKind = 'sale' | 'fire' | 'listing' | 'page';
@@ -271,8 +271,7 @@ function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
   for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
   if (win.who === 'player') {
     const cost = bidCost(s, win.amount);
-    s.cash = round2(s.cash - cost); // ledger: land
-    s.today.land = round2(s.today.land + cost);
+    book(s, 'invested', -cost); // the Ledger's Invested row
     ps.owner = 'player';
     ps.garrison = 0;
     s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! ${name} is yours for ${money(cost)}."`);
@@ -306,7 +305,7 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
   for (const b of bids) if (b !== win) outbid(s, b.who as RivalId, win.who);
   const id = win.who as RivalId;
   spend(s, id, 'grow', win.amount);
-  s.cash = round2(s.cash + win.amount); // ledger: land sale
+  book(s, 'invested', win.amount); // the Ledger: a plot sold comes back off Invested
   for (const g of s.guards) if (g.post === plotId) g.post = null; // posted guards go back to the Clubhouse
   s.offers = s.offers.filter((o) => o.plot !== plotId); // a VIP offer for this pad or pier lapses with it
   ps.owner = id;
@@ -377,8 +376,7 @@ function settlePage(s: GameState, rng: Rng): void {
   for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
   if (win.who === 'player') {
     const cost = bidCost(s, win.amount);
-    s.cash = round2(s.cash - cost); // ledger: the Lavender auction (the Ledger's Other line, once it has one)
-    s.today.land = round2(s.today.land + cost);
+    book(s, 'other', -cost); // the Ledger's Other row (spec: Money in, money out)
     lv.winner = 'player';
     lv.paid = cost;
     s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! The Lavender page is yours for ${money(cost)}."`);

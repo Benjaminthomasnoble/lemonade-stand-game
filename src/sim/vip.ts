@@ -8,8 +8,9 @@ import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
 import { FIZZCO_PLANT, hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
-import { pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
+import { costPerCup, pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
+import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { restoreHp } from './damage.ts';
 import { ownedRecipes, ownsRecipe, recipeCost, worldOf } from './recipes.ts';
 import { fullControl } from './demand.ts';
@@ -189,8 +190,7 @@ export function buildFacility(s: GameState, plotId: string, kind: FacilityKind):
   const ps = s.plots[plotId];
   const lvl = ps.facility?.level ?? 0;
   const cost = FACILITIES[kind].costs[lvl];
-  s.cash = round2(s.cash - cost);
-  s.today.land = round2(s.today.land + cost);
+  book(s, 'invested', -cost);
   ps.invested += cost;
   restoreHp(s, plotId); // the new tier comes up at full HP; a repair queued for the old one is paid back (damage.ts)
   ps.facility = { kind, level: lvl + 1 };
@@ -326,8 +326,7 @@ export function vipAtDawn(s: GameState): void {
     if (make <= 0) continue;
     stockBottles(s, recipe, make);
     room -= make;
-    s.cash = round2(s.cash - make * cost);
-    s.today.supplies = round2(s.today.supplies + make * cost);
+    book(s, 'bottling', -round2(make * cost)); // the Ledger's Bottling row, at today's cost
   }
   for (const o of s.offers) if (o.expires < s.day) rivalTakesJob(s, o); // an offer let go: a rival who bid does the job
   s.offers = s.offers.filter((o) => o.expires >= s.day);
@@ -542,7 +541,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   o.loaded = before + n;
   const pay = withLane(s, o, payFor(o, o.loaded) - payFor(o, before));
   stockBottles(s, orderRecipe(o), -n);
-  s.cash = round2(s.cash + pay);
+  book(s, 'orders', pay);
   s.today.revenue = round2(s.today.revenue + pay);
   s.lifetimeCups += n;
   const done = o.loaded >= o.qty;
@@ -612,8 +611,9 @@ function pour(s: GameState, o: Order): Pickup | null {
   o.loaded = before + cups;
   const pay = payFor(o, o.loaded) - payFor(o, before);
   s.today.revenue = round2(s.today.revenue + pay);
-  s.today.supplies = round2(s.today.supplies + cost);
-  s.cash = round2(s.cash + pay - cost);
+  book(s, 'orders', pay);
+  book(s, 'supplies', -cost); // the cups, the card's extra and machine ice, paid as they pour
+  useStock(s, round2(cups * costPerCup(s, st) - cost)); // their lemons, sugar and ice, at the day's cost per cup
   s.lifetimeCups += cups;
   const done = o.loaded >= o.qty;
   if (done) s.orders = s.orders.filter((x) => x !== o);
@@ -637,7 +637,7 @@ function handOver(s: GameState, o: Order): Pickup {
   s.orders = s.orders.filter((x) => x !== o);
   stockBottles(s, orderRecipe(o), -o.qty);
   o.loaded = o.qty;
-  s.cash = round2(s.cash + o.pay);
+  book(s, 'orders', o.pay);
   s.today.revenue = round2(s.today.revenue + o.pay);
   s.lifetimeCups += o.qty;
   s.news.push(`${o.client} picks up ${o.qty.toLocaleString('en-US')} bottles: ${money(o.pay)}!`);

@@ -220,11 +220,11 @@ describe('repairs', () => {
     const s = kiosk(10);
     const ps = s.plots[LOTTIES_CORNER];
     ps.stand!.hp = 400;
-    const cash = s.cash, land = s.today.land;
+    const cash = s.cash, repairs = s.today.books?.repairs ?? 0;
     expect(canRepair(s, LOTTIES_CORNER).ok).toBe(true);
     expect(approveRepair(s, LOTTIES_CORNER)).toBe(true);
     expect(s.cash).toBe(cash - 304);
-    expect(s.today.land).toBe(land + 304);
+    expect(s.today.books!.repairs).toBe(repairs - 304); // the Ledger's repairs row
     expect(ps.repair).toEqual({ by: 'player', cost: 304, hp: 400 });
     expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Fixing tonight' });
     expect(approveRepair(s, LOTTIES_CORNER)).toBe(false);
@@ -265,12 +265,12 @@ describe('repairs', () => {
     const ps = s.plots[LOTTIES_CORNER];
     ps.stand!.hp = 400;
     s.phase = 'report';
-    const cash = s.cash, land = s.today.land;
+    const cash = s.cash, repairs = s.today.books?.repairs ?? 0;
     approveRepair(s, LOTTIES_CORNER);
     expect(smash(s, LOTTIES_CORNER, 500, 2).outcome).toBe('smashed');
     expect(ps.repair).toBeUndefined();
     expect(s.cash).toBe(cash);
-    expect(s.today.land).toBe(land);
+    expect(s.today.books!.repairs).toBe(repairs); // paid back on the same row
     expect(s.news.some((n) => n.includes('called off'))).toBe(true);
   });
 
@@ -462,11 +462,11 @@ describe('rebuilds run overnight', () => {
 
   it('are paid on approval; the stand stays closed all day and opens at dawn at full HP', () => {
     const { s, ps } = smashedAtNight(40);
-    const cash = s.cash, land = s.today.land;
+    const cash = s.cash, repairs = s.today.books?.repairs ?? 0;
     expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: true });
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
     expect(s.cash).toBe(cash - 608);
-    expect(s.today.land).toBe(land + 608);
+    expect(s.today.books!.repairs).toBe(repairs - 608); // the Ledger's Repairs and rebuilds row
     expect(ps.repair).toEqual({ by: 'player', cost: 608, hp: 800, rebuild: true });
     expect(rebuilding(ps)).toBe(true);
     expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Rebuilding tonight' });

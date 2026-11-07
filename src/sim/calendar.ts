@@ -11,6 +11,7 @@ import {
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
 import { actOf, districtControl, isEndless } from './modes.ts';
 import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
@@ -150,8 +151,7 @@ export function sponsorFestival(s: GameState, id: FestivalId): boolean {
   if (!canSponsor(s, id).ok) return false;
   const cost = sponsorCost(s, id);
   const f = FESTIVALS[id];
-  s.cash = round2(s.cash - cost);
-  s.today.supplies = round2(s.today.supplies + cost); // ledger: marketing
+  book(s, 'marketing', -cost);
   worldOf(s).sponsored.push({ festival: id, district: f.district, from: s.day, to: festivalDays(id, yearOf(s.day)).to });
   s.news.push(`Lottie's Lemonade sponsors the ${f.name}: +${Math.round(SPONSORSHIP.traffic * 100)}% traffic at your ${DISTRICT_BY_ID[f.district].name} stands!`);
   return true;
@@ -318,8 +318,7 @@ function judgeTasteOff(s: GameState, t: TasteOff): TasteOffResult {
   if (winner === 'player') {
     s.reputation = clamp(round2(s.reputation + TASTE_OFF.stars), 1, 5);
     s.today.reputationAfter = s.reputation;
-    s.cash = round2(s.cash + TASTE_OFF.prize); // ledger: fair prizes
-    s.today.revenue = round2(s.today.revenue + TASTE_OFF.prize);
+    book(s, 'prizes', TASTE_OFF.prize); // fair prizes
     s.news.push(`TASTE-OFF! Lottie's Lemonade wins the ${fair}: +${TASTE_OFF.stars} star and a $${TASTE_OFF.prize} prize!`);
   } else if (winner === 'local') {
     s.news.push(`TASTE-OFF: Dot's Diner wins the ${fair}. The locals cheer.`);

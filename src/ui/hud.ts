@@ -7,7 +7,7 @@ import {
   averageStopChance, restockOn, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
-  selectedStand, cupsInStock, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
+  selectedStand, cupsInStock, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
@@ -40,6 +40,7 @@ import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
+import { booksRows } from './ledger.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
@@ -673,8 +674,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- day's end: one number, one tip, one button ----------
   function dayEnd(s: GameState) {
     const t = s.history[s.history.length - 1] ?? s.today;
-    const costs = t.supplies + t.cupCosts + t.upkeep + t.tax;
-    const profit = t.revenue - costs;
+    const profit = dayProfit(t); // the Ledger's rows (ledger.ts)
     const repDelta = t.reputationAfter - t.reputationBefore;
     const w = t.walkedPast;
     const away = w.soldOut + w.line;
@@ -694,13 +694,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const bookTable = `<table class="cl-books">
         <tr><td>People walking by</td><td>${t.passersby}</td></tr><tr><td>Cups sold</td><td>${t.customers}</td></tr>${playerStands(s).length > 1 ? rows : ''}
         <tr><td>Not thirsty / too pricey</td><td>${w.notThirsty} / ${w.pricey}</td></tr><tr><td>Line / sold out / a rival</td><td>${w.line} / ${w.soldOut} / ${w.rival}</td></tr>
-        <tr><td>Sales</td><td class="good">${money(t.revenue)}</td></tr><tr><td>Supplies, cups, upkeep, tax</td><td class="bad">${money(-costs)}</td></tr>${helperRows(t)}
-        ${t.land ? `<tr><td>Invested in land and stands</td><td>${money(t.land)}</td></tr>` : ''}
+        ${booksRows(t)}${helperRows(t)}
         <tr><td>Reputation</td><td>${t.reputationAfter.toFixed(2)} (${repDelta >= 0 ? '+' : ''}${repDelta.toFixed(2)})</td></tr>
         <tr><td>Success Score</td><td>${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})</td></tr></table>`;
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="report">
       <div class="cl-end-day">${tape(`Day ${t.day}`)}</div>
-      <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Sales ${money(t.revenue)}, costs ${money(costs)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
+      <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Sales ${money(t.revenue)}, costs ${money(t.revenue - profit)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
       <div class="cl-end-row"><span title="Cups sold">${ART.cup()}<b>${t.customers}</b></span>${away ? `<span class="bad" title="Turned away: ${w.soldOut} sold out, ${w.line} line too long">${ART.empty()}<b>${away}</b></span>` : ''}</div>
       <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? '▲' : repDelta < -0.004 ? '▼' : ''}</span>
         ${taught(s, 'rank') ? `<span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span>` : ''}</div>

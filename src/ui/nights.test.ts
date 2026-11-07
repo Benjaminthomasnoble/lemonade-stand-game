@@ -208,7 +208,8 @@ describe('the ten menus', () => {
     const html = menuScreen(s, 'ledger', parts());
     expect(html.match(/<svg /g)).toHaveLength(2);
     expect(html.match(/<rect /g)).toHaveLength(3); // a profit bar a day
-    expect(html.match(/<circle /g)).toHaveLength(3); // a score dot a day
+    expect(html).toContain('data-testid="score-chart"'); // the whole run's closing scores, the peak marked
+    expect(html.match(/<polyline points="([^"]+)"/)![1].split(' ')).toHaveLength(3); // a point a day
     for (const d of s.history) expect(html).toContain(`<td>Day ${d.day}</td>`);
   });
 

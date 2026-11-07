@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder,
+  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, costPerCup, CUP_COST, dealShortfallPerDay, declineOrder,
   DELIVERY_WINDOW, FAILED_ORDER_STARS, FEST_HUMS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
 } from './economy.ts';
+import { rowAmount } from './ledger.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -206,7 +207,7 @@ describe('VIP clients', () => {
     vipAtDawn(s);
     expect(s.bottles).toBe(1000);
     expect(s.cash).toBeCloseTo(cash - 1000 * each);
-    expect(s.today.supplies).toBeCloseTo(1000 * each);
+    expect(rowAmount(s.today, 'bottling')).toBeCloseTo(-1000 * each); // the Ledger's Bottling row
   });
 
   it("orders name a recipe from Lottie's book, and bottles are filled and stocked per recipe", () => {
@@ -342,7 +343,7 @@ describe('VIP clients', () => {
     st.inventory.sugar = 1000;
     st.inventory.ice = 900; // 300 cups' worth
     const o = order(s, { id: 'l1', tier: 'local', qty: 300, pay: 450, plot: home.id, due: s.day + 2 });
-    const cash = s.cash, sales = s.today.revenue, supplies = s.today.supplies;
+    const cash = s.cash, sales = s.today.revenue, supplies = rowAmount(s.today, 'supplies'), orders = rowAmount(s.today, 'orders');
     s.phase = 'open';
     s.minute = PICKUP_MINUTE.local - 1;
     expect(pickupsAt(s)).toEqual([]); // not before 7 pm
@@ -356,7 +357,8 @@ describe('VIP clients', () => {
     expect(st.pitcherCups).toBe(4);
     expect(st.inventory.ice).toBe(0);
     expect(s.today.revenue).toBe(round(sales + 450));
-    expect(s.today.supplies).toBe(round(supplies + 300 * CUP_COST));
+    expect(rowAmount(s.today, 'orders')).toBe(round(orders + 450)); // the Ledger: the Orders row, and each cup on Supplies
+    expect(rowAmount(s.today, 'supplies')).toBeCloseTo(supplies - 300 * costPerCup(s, st), 2);
     expect(st.day.revenue).toBe(0); // the stand's till keeps its walk-in day: that's what a Shakedown takes
     expect(s.cash).toBe(round(cash + 450 - 300 * CUP_COST));
     expect(s.news.at(-1)).toBe(`Delivered 300 cups for ${o.client}: $450!`);

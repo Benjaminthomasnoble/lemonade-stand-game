@@ -13,7 +13,7 @@
 import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
+  dayProfit, peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
   type FestivalId, type GameState, type Goal, type RivalId,
 } from '../sim/economy.ts';
 import { MENU_IDS, type MenuId, type Options } from '../settings.ts';
@@ -22,6 +22,7 @@ import { bugleSheet } from './bugle.ts';
 import { corkboardBody } from './corkboard.ts';
 import { matchButton, orderNote, orderWhen, recipeOf } from './orders.ts';
 import { registryOpen } from './registry.ts';
+import { scoreLine } from './ledger.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -84,8 +85,8 @@ function index(s: GameState, o: Options): string {
 }
 
 type Day = GameState['history'][number];
-const costsOf = (d: Day) => d.supplies + d.cupCosts + d.upkeep + d.tax;
-const profitOf = (d: Day) => d.revenue - costsOf(d);
+const profitOf = (d: Day) => dayProfit(d); // the Ledger's rows (ledger.ts)
+const costsOf = (d: Day) => d.revenue - profitOf(d);
 
 /** Daily profit as bars around zero and the Success Score as a line, the last 30 days. */
 function charts(s: GameState): string {
@@ -97,15 +98,11 @@ function charts(s: GameState): string {
     const h = (Math.abs(p) / most) * (H / 2 - 2);
     return `<rect x="${(i * bw + bw * 0.15).toFixed(1)}" y="${(p >= 0 ? H / 2 - h : H / 2).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="1.5" fill="${p >= 0 ? '#7CC47F' : '#E8704F'}"><title>Day ${days[i].day}: ${signed(p)}</title></rect>`;
   }).join('');
-  // The score at each day's close: the next day's opening score, and today's for the last one.
-  const score = days.map((_, i) => days[i + 1]?.scoreBefore ?? successScore(s)), top = Math.max(1, ...score);
-  const pts = score.map((v, i) => `${(i * bw + bw / 2).toFixed(1)},${(H - 3 - (v / top) * (H - 8)).toFixed(1)}`).join(' ');
-  const dots = score.map((v, i) => `<circle cx="${(i * bw + bw / 2).toFixed(1)}" cy="${(H - 3 - (v / top) * (H - 8)).toFixed(1)}" r="2.2" fill="#2E2A4F"><title>Day ${days[i].day}: ${whole(v)}</title></circle>`).join('');
   const svg = (inner: string, label: string) => `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${label}" style="max-width:${W * 1.6}px;background:#fffdf6;border-radius:8px">${inner}</svg>`;
-  return `${row(`<span class="cl-label" title="Each day's sales minus supplies, cups, upkeep and tax">Profit a day</span>`)}
+  return `${row(`<span class="cl-label" title="Each day's profit in the Ledger: sales and orders less supplies used, upkeep, wages and the rest">Profit a day</span>`)}
     ${svg(`<line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="#2E2A4F" stroke-opacity=".25"/>${bars}`, 'Profit each day')}
-    ${row(`<span class="cl-label" title="Your Success Score at each day's close">Success Score</span>`)}
-    ${svg(`<polyline points="${pts}" fill="none" stroke="#2E2A4F" stroke-width="2" stroke-linejoin="round"/>${dots}`, 'Success Score each day')}`;
+    ${row(`<span class="cl-label" title="Your Success Score at each day's close, from Day 1: gold where a rank came, green at the peak">Success Score</span>`)}
+    ${scoreLine(s)}`;
 }
 
 function ledger(s: GameState): string {

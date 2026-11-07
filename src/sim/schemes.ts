@@ -18,6 +18,7 @@ import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAt
 import { AD_BLITZ, CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { actOf } from './modes.ts';
 
 export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'blitz' | 'cease' | 'buyout' | 'fine' | 'freeze';
@@ -370,7 +371,7 @@ export function answerBuyout(s: GameState, plotId: string, sell: boolean): boole
   if (!canSellToFizzco(s, plotId).ok) return false;
   const price = offer.price!;
   spend(s, id, 'grow', price);
-  s.cash = round2(s.cash + price); // ledger: land sale
+  book(s, 'invested', price); // the Ledger: a plot sold comes back off Invested
   const ps = s.plots[plotId];
   ps.owner = id;
   ps.garrison = 0;
@@ -404,7 +405,7 @@ function startFine(s: GameState, id: RivalId): Scheme | null {
   const fine = mayorsFine(s);
   if (fine <= 0 || !canSpend(s, id, 'strike', OLD_MONEY.fineCost)) return null;
   spend(s, id, 'strike', OLD_MONEY.fineCost);
-  s.cash = round2(s.cash - fine); // ledger: fines (Old Money: the Mayor's fine)
+  book(s, 'citations', -fine); // the Ledger: Old Money's fine, on the Citations row
   const job: Scheme = { kind: 'fine', by: id, day: s.day, until: s.day, plots: [], price: fine, cost: OLD_MONEY.fineCost, done: true };
   s.schemes!.push(job);
   alert(s, { kind: 'note', text: `MAYOR'S FINE! Town Hall fines Lottie's Lemonade ${money(fine)} for "unlicensed cheer".`, plot: LOTTIES_CORNER });

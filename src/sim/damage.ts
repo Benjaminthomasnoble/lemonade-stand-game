@@ -18,6 +18,7 @@ import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { alert } from './alerts.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
 import { openAuction } from './auction.ts';
@@ -31,7 +32,6 @@ export { buildingHp } from './crew.ts';
  * Busted one on Laid Back) puts the whole building back up. */
 export interface Repair { by: FactionId; cost: number; hp: number; rebuild?: true }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /** The building on a plot: its stand or its facility (null on an empty plot). */
@@ -190,8 +190,7 @@ export function approveRepair(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   const cost = repairCost(s, plotId);
   const hp = unbookedLoss(ps);
-  s.cash = round2(s.cash - cost);
-  s.today.land = round2(s.today.land + cost); // ledger: repairs
+  book(s, 'repairs', -cost);
   const r = booked(ps);
   ps.repair = r ? { ...r, cost: r.cost + cost, hp: r.hp + hp } : { by: 'player', cost, hp };
   return true;
@@ -204,8 +203,7 @@ function callOffRepair(s: GameState, plotId: string): void {
   if (!r) return;
   delete ps.repair;
   if (r.by === 'player') {
-    s.cash = round2(s.cash + r.cost);
-    s.today.land = round2(s.today.land - r.cost); // ledger: repairs and rebuilds (paid back)
+    book(s, 'repairs', r.cost); // paid back
     s.news.push(`The ${r.rebuild && !ps.busted ? 'rebuild' : 'repair'} at ${PLOT_BY_ID[plotId].name} is called off: ${money(r.cost)} back.`);
   } else if (s.rivals[r.by as RivalId]) s.rivals[r.by as RivalId].cash += r.cost;
 }
@@ -239,8 +237,7 @@ export function approveRebuild(s: GameState, plotId: string): boolean {
   if (!canRebuild(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const cost = rebuildCost(ps);
-  s.cash = round2(s.cash - cost);
-  s.today.land = round2(s.today.land + cost); // ledger: repairs and rebuilds
+  book(s, 'repairs', -cost); // the Ledger's Repairs and rebuilds row
   ps.repair = { by: 'player', cost, hp: standingHp(ps), rebuild: true };
   return true;
 }

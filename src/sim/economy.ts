@@ -36,6 +36,7 @@ import {
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
+import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -71,6 +72,7 @@ export * from './radio.ts';
 export * from './land.ts';
 export * from './auction.ts';
 export * from './automation.ts';
+export * from './ledger.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -172,12 +174,17 @@ export interface DayStats {
   passersby: number;
   customers: number;
   walkedPast: Record<WalkReason, number>;
-  revenue: number;
-  supplies: number; // bought today
+  revenue: number; // cups sold at your stands
+  supplies: number; // stock bought today (the Ledger's Supplies is what the day used: ledger.ts)
   cupCosts: number;
-  upkeep: number;
-  tax: number;
-  land: number; // land and buildings bought today
+  upkeep: number; // stand upkeep
+  land: number; // land, buildings and defenses bought today (the Ledger's Invested)
+  /** Every cash movement of the day, by Ledger row (ledger.ts): + in, − out. Missing on days from older saves. */
+  books?: Partial<Record<LedgerRow, number>>;
+  counts?: Partial<Record<LedgerRow, number>>; // what a row was for: stands charged upkeep, guards paid
+  stockUsed?: number; // stock poured, given away, melted or spoiled, at its value
+  waste?: number; // the part that melted or spoiled
+  cashAtDawn?: number; // cash when the day's books opened: the next day's, less this, is the day's rows
   iceMelted: number;
   lemonsSpoiled: number;
   satisfaction: number; // average 0..1 over customers
@@ -241,6 +248,7 @@ export interface GameState {
   world?: WorldState; // Lottie's recipe book, the calendar's Taste-Offs, boosts and sponsorships
   schemes?: Scheme[]; // rivals' Strike schemes running or just done (schemes.ts)
   helpersMet?: string[]; // automation helpers that have introduced themselves (automation.ts)
+  scores?: (number | null)[]; // the Success Score at each day's close, Day 1 first (ledger.ts; null: not known)
   story?: StoryState; // the campaign's act (src/sim/story.ts)
   scenes?: SceneState; // story scenes queued, playing and seen
   phone?: PhoneState; // boss calls waiting, and the moods they watch
@@ -302,8 +310,8 @@ const emptyStandDay = (): StandDay => ({ passersby: 0, customers: 0, walkedPast:
 function emptyStats(s: GameState): DayStats {
   return {
     day: s.day, weather: s.forecast, passersby: 0, customers: 0, walkedPast: emptyWalk(), revenue: 0, supplies: 0, cupCosts: 0,
-    upkeep: 0, tax: 0, land: 0, iceMelted: 0, lemonsSpoiled: 0, satisfaction: 0, reputationBefore: s.reputation,
-    reputationAfter: s.reputation, scoreBefore: successScore(s),
+    upkeep: 0, land: 0, iceMelted: 0, lemonsSpoiled: 0, satisfaction: 0, reputationBefore: s.reputation,
+    reputationAfter: s.reputation, scoreBefore: successScore(s), cashAtDawn: s.cash,
   };
 }
 
@@ -446,8 +454,7 @@ export function buySupply(s: GameState, id: SupplyId, packs = 1, st: Stand = sel
   const qty = SUPPLIES[id].pack * packs;
   const unit = s.market[id];
   const cost = round2(qty * unit);
-  s.cash = round2(s.cash - cost);
-  s.today.supplies = round2(s.today.supplies + cost);
+  book(s, 'stock', -cost); // the day's stock bought (the Ledger's Supplies are what it uses)
   const inv = st.inventory;
   if (id === 'lemons') {
     const last = inv.lemons[inv.lemons.length - 1];
@@ -720,7 +727,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   d.revenue = round2(d.revenue + paid);
   d.cupCosts = round2(d.cupCosts + cupCost);
   if (isPlayer) {
-    s.cash = round2(s.cash + paid - cupCost);
+    sellCup(s, st, paid, cupCost); // the Ledger: the sale, the cup's cash costs and its stock used (ledger.ts)
     s.lifetimeCups++;
   } else {
     const r = s.rivals[ps.owner as RivalId];
@@ -790,15 +797,17 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
 
 function closeDay(s: GameState): void {
   const t = s.today;
-  let satSum = 0, satN = 0, revenue = 0, cupCosts = 0;
+  let satSum = 0, satN = 0, revenue = 0, cupCosts = 0, upkeep = 0, stands = 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     const st = ps.stand;
     if (ps.owner === 'player') {
       if (st) {
-        t.upkeep += standLevel(st).upkeep;
+        upkeep += standLevel(st).upkeep;
+        stands++;
         if (!iceMachineOn(s, p.id)) { // world: an ice machine keeps its ice (a Power Outage's leftovers melt)
           t.iceMelted += st.inventory.ice;
+          useStock(s, st.inventory.ice * st.inventory.iceCost, true);
           st.inventory.ice = 0; // ice never keeps overnight
         }
         st.pitcherCups = 0; // leftover lemonade is poured out
@@ -817,7 +826,7 @@ function closeDay(s: GameState): void {
   t.cupCosts = round2(cupCosts);
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
-  s.cash = round2(s.cash - t.upkeep - t.tax);
+  book(s, 'upkeep', -round2(upkeep), stands); // stand upkeep only: wages, tribute and interest left cash when paid
   let rep = s.reputation;
   if (satN > 0) rep += (1 + 4 * t.satisfaction - rep) * Math.min(0.25, satN / 400);
   rep -= Math.min(0.15, t.walkedPast.soldOut * 0.004) + Math.min(0.1, t.walkedPast.line * 0.002);
@@ -827,6 +836,7 @@ function closeDay(s: GameState): void {
   s.history.push(t);
   if (s.history.length > 60) s.history.shift();
   const score = successScore(s);
+  logScore(s, score); // the Ledger's chart (ledger.ts)
   if (score > s.peakScore) { s.peakScore = score; s.peakDay = s.day; }
   trackOutselling(s);
   checkRank(s);
@@ -846,12 +856,12 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.minute = DAWN;
   damageAtDawn(s); // the night's repairs are done (damage.ts)
   const rng = { seed: s.seed };
-  let spoiled = 0;
+  let spoiled = 0, spoiledValue = 0;
   for (const p of playerStands(s)) {
     const st = s.plots[p.id].stand!;
     st.inventory.lemons = st.inventory.lemons.filter((b) => {
       const bad = s.day - b.day >= (SUPPLIES.lemons.spoilDays ?? 99);
-      if (bad) spoiled += b.qty;
+      if (bad) { spoiled += b.qty; spoiledValue += b.qty * b.unitCost; }
       return !bad;
     });
     for (const id of Object.keys(st.campaigns) as CampaignId[]) {
@@ -869,6 +879,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.phase = 'prep';
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
+  useStock(s, spoiledValue, true); // the Ledger's Supplies count what spoiled
   landAtDawn(s);
   crewAtDawn(s);
   rivalsBankrupt(s);
@@ -945,8 +956,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   if (!canBuyPlot(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const price = plotPrice(s, plotId);
-  s.cash = round2(s.cash - price);
-  s.today.land = round2(s.today.land + price);
+  book(s, 'invested', -price);
   ps.owner = 'player';
   if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
   delete ps.dibs;
@@ -971,8 +981,7 @@ export function canBuildStand(s: GameState, plotId: string): Blocker {
 export function buildStand(s: GameState, plotId: string): boolean {
   if (!canBuildStand(s, plotId).ok) return false;
   const ps = s.plots[plotId];
-  s.cash = round2(s.cash - STAND_LEVELS[0].cost);
-  s.today.land = round2(s.today.land + STAND_LEVELS[0].cost);
+  book(s, 'invested', -STAND_LEVELS[0].cost);
   ps.stand = newStand(1);
   ps.stand.price = priceCeiling(s, plotId); // a new table opens at its ceiling
   ps.invested += STAND_LEVELS[0].cost;
@@ -1051,8 +1060,7 @@ export function upgradeStand(s: GameState, plotId = s.selected): boolean {
   if (!canUpgradeStand(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const next = STAND_LEVELS[ps.stand!.level];
-  s.cash = round2(s.cash - next.cost);
-  s.today.land = round2(s.today.land + next.cost);
+  book(s, 'invested', -next.cost);
   ps.invested += next.cost;
   ps.stand!.level = next.level;
   repostPrice(s, plotId); // Auto-Price follows the new level's ceiling (automation.ts)
@@ -1073,7 +1081,7 @@ export function canBuyBrand(s: GameState): Blocker {
 export function buyBrand(s: GameState): boolean {
   if (!canBuyBrand(s).ok) return false;
   const next = BRAND_TIERS[s.brandTier];
-  s.cash = round2(s.cash - next.cost);
+  book(s, 'marketing', -next.cost);
   s.brandTier = next.tier;
   s.news.push(`${next.name} go up all over town: +${Math.round(next.traffic * 100)}% foot traffic`);
   return true;
@@ -1100,18 +1108,15 @@ export function runCampaign(s: GameState, id: CampaignId, plotId = s.selected): 
   const c = CAMPAIGNS[id];
   const st = s.plots[plotId].stand!;
   const cost = campaignCost(s, id);
-  if (cost.cash) {
-    s.cash = round2(s.cash - cost.cash);
-    s.today.supplies = round2(s.today.supplies + cost.cash);
-  }
+  if (cost.cash) book(s, 'marketing', -cost.cash);
   if (cost.samples) {
     const n = pitcherNeeds(st);
     const pitchers = Math.ceil(cost.samples / CUPS_PER_PITCHER);
     useLemons(st, n.lemons * pitchers);
     st.inventory.sugar = Math.max(0, st.inventory.sugar - n.sugar * pitchers);
     st.inventory.ice = Math.max(0, st.inventory.ice - n.icePerCup * cost.samples);
-    s.cash = round2(s.cash - CUP_COST * cost.samples);
-    s.today.cupCosts = round2(s.today.cupCosts + CUP_COST * cost.samples);
+    book(s, 'marketing', -CUP_COST * cost.samples); // the samples' cups; their lemonade comes out of stock
+    useStock(s, (costPerCup(s, st) - CUP_COST - RECIPES[st.recipe].extraPerCup) * cost.samples);
   }
   if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 100) / 100, 1, 5);
   st.campaigns[id] = c.days;

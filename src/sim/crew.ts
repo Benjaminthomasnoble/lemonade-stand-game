@@ -16,6 +16,7 @@ import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type 
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { newStand, ownedPlots, priceCeiling } from './economy.ts';
+import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn, raidDamage } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
@@ -151,8 +152,7 @@ export function buyPerimeter(s: GameState, plotId: string): boolean {
   if (!canBuyPerimeter(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const next = PERIMETERS[ps.defense.tier];
-  s.cash = round2(s.cash - next.cost);
-  s.today.land = round2(s.today.land + next.cost);
+  book(s, 'invested', -next.cost);
   ps.invested += next.cost;
   ps.defense.tier = next.tier;
   ps.defense.fenceHp = next.hp;
@@ -185,8 +185,7 @@ export function repairFence(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   const cost = fenceRepairCost(ps);
   if (ps.owner !== 'player' || !cost || s.cash < cost) return false;
-  s.cash = round2(s.cash - cost);
-  s.today.upkeep = round2(s.today.upkeep + cost); // ledger: repairs
+  book(s, 'repairs', -cost);
   mendFence(ps);
   return true;
 }
@@ -200,7 +199,6 @@ export function mendFence(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1].
 /** Overnight, each of your raided plots has its fence repaired and a sprung Slick re-laid, paid from your cash (rivals pay
  * theirs from their Guard money: rivalDefenseSpend). Short of cash, it waits: the fence stays chopped, the Slick stays sprung. */
 export function overnightRepairs(s: GameState): void {
-  let paid = 0;
   const short = new Set<string>();
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
@@ -208,14 +206,12 @@ export function overnightRepairs(s: GameState): void {
     const pay = (cost: number): boolean => {
       if (!cost) return false;
       if (s.cash < cost) { short.add(PLOT_BY_ID[p.id].name); return false; }
-      s.cash = round2(s.cash - cost);
-      paid += cost;
+      book(s, 'repairs', -cost);
       return true;
     };
     if (pay(fenceRepairCost(ps))) mendFence(ps);
     if (pay(slickResetCost(ps))) delete ps.defense.slickSprung;
   }
-  if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: repairs
   if (short.size) s.news.push(`No cash for the overnight repairs at ${[...short].join(', ')}. Patch them when you can.`);
 }
 
@@ -234,8 +230,7 @@ export function canBuyGadget(s: GameState, plotId: string, g: GadgetId): Blocker
 export function buyGadget(s: GameState, plotId: string, g: GadgetId): boolean {
   if (!canBuyGadget(s, plotId, g).ok) return false;
   const ps = s.plots[plotId];
-  s.cash = round2(s.cash - GADGETS[g].cost);
-  s.today.land = round2(s.today.land + GADGETS[g].cost);
+  book(s, 'invested', -GADGETS[g].cost);
   ps.invested += GADGETS[g].cost;
   ps.defense.gadgets.push(g);
   return true;
@@ -298,12 +293,10 @@ export const guardWage = (g: Guard) => GUARD_WAGE[g.level - 1];
 /** Dawn payday, guard by guard in roster order with the Loyal paid last. Wages never take cash below $0: an unpaid guard quits, a Loyal one stays on unpaid. */
 export function payCrew(s: GameState): void {
   const order = [...s.guards.filter((g) => g.trait !== 'Loyal'), ...s.guards.filter((g) => g.trait === 'Loyal')];
-  let paid = 0;
   for (const g of order) {
     const wage = guardWage(g);
     if (s.cash >= wage) {
-      s.cash = round2(s.cash - wage);
-      paid += wage;
+      book(s, 'wages', -wage, 1); // once, here (closeDay takes only stand upkeep)
     } else if (g.trait === 'Loyal') {
       s.news.push(`${g.name} stays on without pay. "Loyal to the last drop, Miss Lottie."`);
     } else {
@@ -311,7 +304,6 @@ export function payCrew(s: GameState): void {
       s.news.push(`${g.name} quits: "No pay, no play."`);
     }
   }
-  if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: wages
 }
 
 /** Level up once XP reaches the next threshold (duty adds fractions, so allow for rounding). The Training Yard can call this too. */
@@ -349,7 +341,7 @@ export function hireGuard(s: GameState, id: string): boolean {
   if (!canHire(s, id).ok) return false;
   const i = s.recruits.findIndex((r) => r.id === id);
   const g = s.recruits.splice(i, 1)[0];
-  s.cash = round2(s.cash - g.fee);
+  book(s, 'hire', -g.fee);
   g.post = null;
   s.guards.push(g);
   const posted = postGuard(s, g.id, s.selected); // the plot you're looking at, if it has a free post; else the Clubhouse
@@ -432,8 +424,8 @@ export function canEquip(s: GameState, id: string, item: WeaponId | GearId): Blo
 export function equip(s: GameState, id: string, item: WeaponId | GearId): boolean {
   if (!canEquip(s, id, item).ok) return false;
   const g = s.guards.find((x) => x.id === id)!;
-  if (item in WEAPONS) { g.weapon = item as WeaponId; s.cash = round2(s.cash - WEAPONS[item as WeaponId].cost); }
-  else { g.gear = item as GearId; s.cash = round2(s.cash - GEAR[item as GearId].cost); }
+  if (item in WEAPONS) { g.weapon = item as WeaponId; book(s, 'gear', -WEAPONS[item as WeaponId].cost); }
+  else { g.gear = item as GearId; book(s, 'gear', -GEAR[item as GearId].cost); }
   return true;
 }
 
@@ -851,9 +843,9 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   if (raid.sabotage && res.outcome === 'robbed') spoilStock(s, raid.target);
   if (res.outcome === 'robbed' && !raid.delivery && !raid.sabotage) {
     loot = shakedownLoot(s, raid.target); // the till: about a day of that stand's profit (loot.ts)
-    if (defender === 'player') s.cash = round2(s.cash - loot); // ledger: loot
+    if (defender === 'player') book(s, 'loot', -loot);
     else s.rivals[defender as RivalId].cash = round2(s.rivals[defender as RivalId].cash - loot);
-    if (raid.attacker === 'player') s.cash = round2(s.cash + loot); // ledger: loot
+    if (raid.attacker === 'player') book(s, 'loot', loot);
     else s.rivals[raid.attacker as RivalId].cash = round2(s.rivals[raid.attacker as RivalId].cash + loot);
   }
   if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => input.defenders.some((d) => d.id === id)).length);

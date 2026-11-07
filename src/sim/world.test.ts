@@ -673,7 +673,11 @@ describe('what the player sees', () => {
   it("the Summer Fair's front pages: the countdown, the day itself, and Brock's defeat", () => {
     const s = game(4);
     dawn(s, 12);
-    expect(frontPage(s).briefs[0]).toBe('TASTE-OFF IN 2 DAYS: BODINE NOT WORRIED, BRO.');
+    // A rival's new stand is in the paper too (it would lead any other morning): the countdown leads.
+    const fizz = PLOTS.find((p) => s.plots[p.id].owner === 'fizzco' && s.plots[p.id].stand)!;
+    s.world!.paper!.moves = [{ rival: 'fizzco', gained: [fizz.id], lost: [] }];
+    expect(bugleHeadline(s)).toEqual(['TASTE-OFF IN 2 DAYS', "Bodine 'not worried, bro'"]);
+    expect(frontPage(s).briefs).toContain(`FizzCo Beverages open a stand at ${fizz.name.replace(/ lot /, ' ')}.`);
     dawn(s, 14);
     expect(bugleHeadline(s)).toEqual(['TASTE-OFF TODAY!', 'Summer Fair, Old Town']);
     const sheet = worldSheet(s, 'fair');

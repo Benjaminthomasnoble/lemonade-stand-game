@@ -162,6 +162,10 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   }
   const t = tasteOffToday(s);
   if (t) add('TASTE-OFF TODAY!', `${FESTIVALS[t.fair].name}, ${DISTRICT_BY_ID[t.district].name}`, `Taste-Off today at the ${FESTIVALS[t.fair].name}.`, 1.5);
+  // The campaign's first Taste-Off countdown (spec walkthrough, Day 12): it leads over the night's raids and rival moves.
+  if (storyFairs(s) && s.day === festivalDays('summerFair', 1).to - 2 && s.rivals.blenders.alive) {
+    add('TASTE-OFF IN 2 DAYS', "Bodine 'not worried, bro'", 'Taste-Off in 2 days: Bodine not worried, bro.', 1.5);
+  }
   return out;
 }
 
@@ -211,10 +215,9 @@ function fillers(s: GameState): string[] {
 }
 
 /** The raids, the rival moves, the countdowns and the event notes the paper has room for. */
-function stories(s: GameState): { lead: Story[]; pinned: string[]; briefs: string[] } {
+function stories(s: GameState): { lead: Story[]; briefs: string[] } {
   const paper = s.world?.paper?.day === s.day ? s.world.paper : undefined;
   const lead = storyBeats(s, paper);
-  const pinned: string[] = [];
   const briefs: string[] = [];
   if (paper?.rankUp) {
     const title = RANKS[paper.rankUp - 1].title;
@@ -244,7 +247,6 @@ function stories(s: GameState): { lead: Story[]; pinned: string[]; briefs: strin
     lead.push({ big: `${f.name.toUpperCase()}!`, small: `${DISTRICT_BY_ID[f.district].name}, ${lengthText(n)}`, brief: `The ${f.name} opens in ${DISTRICT_BY_ID[f.district].name}: ${lengthText(n)}.`, rank: 4.5 });
   }
   // Countdowns.
-  if (storyFairs(s) && s.day === festivalDays('summerFair', 1).to - 2 && s.rivals.blenders.alive) pinned.push('TASTE-OFF IN 2 DAYS: BODINE NOT WORRIED, BRO.');
   for (const x of upcomingFestivals(s, 2)) {
     const f = FESTIVALS[x.id];
     briefs.push(`${f.name} opens ${x.from === s.day + 1 ? 'tomorrow' : 'in 2 days'} in ${DISTRICT_BY_ID[f.district].name}.`);
@@ -264,18 +266,18 @@ function stories(s: GameState): { lead: Story[]; pinned: string[]; briefs: strin
     const story = wireStory(line);
     if (story) lead.push(story); else briefs.push(line);
   }
-  return { lead, pinned, briefs };
+  return { lead, briefs };
 }
 
 /** The headline and 2-3 briefs: the top story leads (the weather when nothing else does), the rest print as briefs. */
 function news(s: GameState): Pick<FrontPage, 'headline' | 'briefs'> {
-  const { lead, pinned, briefs } = stories(s);
+  const { lead, briefs } = stories(s);
   lead.sort((a, b) => a.rank - b.rank);
   const pool = WEATHER_HEADS[s.forecast.kind];
   const [big, small] = pool[s.day % pool.length];
   const weather: Story = { big, small, brief: `${weatherText(s.forecast)} today.`, rank: 5 };
   const top = lead[0] ?? weather;
-  const all = [...pinned, ...lead.slice(1).map((x) => x.brief), ...briefs, ...(top === weather ? [] : [weather.brief]), ...fillers(s)];
+  const all = [...lead.slice(1).map((x) => x.brief), ...briefs, ...(top === weather ? [] : [weather.brief]), ...fillers(s)];
   const seen = new Set<string>();
   return { headline: [top.big, top.small], briefs: all.filter((b) => !seen.has(b) && seen.add(b)).slice(0, 3) };
 }

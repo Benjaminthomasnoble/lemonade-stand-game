@@ -587,6 +587,34 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   return { pickup: { order: o, ok: true }, load: n };
 }
 
+/** The last day a facility's trips can have `bottles` loaded: today's trips still to come first (all of them at Morning
+ * Prep; mid-day, the ones from this minute on, since a minute's pickups run before its clock moves; none after closing),
+ * then its daily rate. */
+function lastLoadDay(s: GameState, f: Facility, rate: number, bottles: number): number {
+  const trips = s.phase === 'prep' ? tripMinutes(f).length : s.phase === 'open' ? tripMinutes(f).filter((m) => m >= s.minute).length : 0;
+  const today = trips * tripLoad(f);
+  return bottles <= today ? s.day : s.day + Math.ceil((bottles - today) / rate);
+}
+
+/** Orders from older saves (the save version stays 8): a VIP order that names no recipe was taken when a whole order loaded
+ * in one go on its deadline. It's Classic, and since a facility now loads its daily rate, its deadline moves out to the
+ * first day its facility can have it all loaded, the orders ahead of it first, as the clients load. A Supply Deal in
+ * weekly loads keeps its weeks. migrateWorld calls it on every load; idempotent (a migrated order names its recipe). */
+export function migrateOrders(s: GameState): void {
+  const legacy = new Set(s.orders.filter((o) => isVip(o.tier) && !o.recipe));
+  const ahead: Record<string, number> = {}; // bottles still to load at each facility, oldest order first
+  for (const o of s.orders) {
+    const f = o.plot ? s.plots[o.plot]?.facility : undefined;
+    const line = f ? lineOf(f) : null;
+    if (!isVip(o.tier) || !o.plot || !f || !line) continue;
+    ahead[o.plot] = (ahead[o.plot] ?? 0) + (o.loads ? Math.max(0, loadCap(o, s.day) - (o.loaded ?? 0)) : bottlesLeft(o));
+    const rate = LOADING_PER_DAY[line][f.level - 1] ?? 0;
+    if (!legacy.has(o) || o.loads || rate <= 0) continue;
+    o.due = Math.max(o.due, lastLoadDay(s, f, rate, ahead[o.plot]));
+  }
+  for (const o of [...legacy, ...s.offers.filter((x) => isVip(x.tier) && !x.recipe)]) o.recipe = 'classic';
+}
+
 /** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded (out of stock since the
  * hold began; an older save's hold takes them now). */
 export function loseLoad(s: GameState, o: Order): void {

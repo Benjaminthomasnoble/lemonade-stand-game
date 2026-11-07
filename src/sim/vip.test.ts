@@ -5,7 +5,7 @@ import {
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_CHANCE, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
-  grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen, DELIVERY_RAID_CHANCE, raidFought, type BattleReport,
+  grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen, DELIVERY_RAID_CHANCE, raidFought, migrateSave, migrateWorld, type BattleReport,
 } from './economy.ts';
 import { rowAmount } from './ledger.ts';
 import { nextRandom } from './rng.ts';
@@ -313,6 +313,82 @@ describe('VIP clients', () => {
     expect(bottleStock(s)).toBe('500 Classic Lemonade, 1,000 Pink Lemonade');
     s.offers.push({ id: 'd', tier: 'deal', client: 'Gulfstream Grocers', qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'mint' });
     expect(orderWhen(s, s.offers[0], true)).toBe(`4 weekly loads to day ${s.day + 28}`);
+  });
+
+  it("an older save's ship order due today gets the days its Jetty needs to load it, in Classic, and loads in peace", () => {
+    const { s, dock } = vipGame(53);
+    noRaids(s);
+    buildFacility(s, dock.id, 'pier'); // a Jetty: 5,000 bottles a day
+    s.phase = 'prep';
+    s.offers = [];
+    const day0 = s.day;
+    // Taken when a whole order loaded in one go on its deadline, and named no recipe: 20,000 bottles due today.
+    order(s, { id: 'old', tier: 'ship', qty: 20000, pay: 800000, plot: dock.id });
+    order(s, { id: 'next', tier: 'ship', qty: 5000, pay: 200000, plot: dock.id, due: day0 + 2 });
+    s.offers.push({ id: 'offer', tier: 'ship', client: 'a cruise line', qty: 10000, pay: 400000, due: day0 + 7, expires: day0 + 1, plot: dock.id, accepted: false });
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.orders.map((o) => [o.id, o.recipe, o.due])).toEqual([
+      ['old', 'classic', day0 + 3], // 4 days at 5,000 a day, today's trip the first
+      ['next', 'classic', day0 + 4], // after the 20,000 ahead of it
+    ]);
+    expect(back.offers[0]).toMatchObject({ recipe: 'classic', due: day0 + 7 }); // an offer's card shows whether it fits
+    const once = JSON.stringify(back);
+    migrateWorld(back);
+    expect(JSON.stringify(back)).toBe(once); // idempotent
+    back.bottles = 25000;
+    const rep = back.reputation;
+    const cash = back.cash;
+    for (let d = 0; d < 5; d++) trips(back);
+    expect(back.orders).toEqual([]);
+    expect(back.reputation).toBe(rep); // no star lost
+    expect(back.cash).toBe(cash + 1000000);
+    // Saved after closing, with today's trip gone: its days start tomorrow.
+    const late = vipGame(54);
+    noRaids(late.s);
+    buildFacility(late.s, late.dock.id, 'pier');
+    late.s.phase = 'night';
+    order(late.s, { id: 'late', tier: 'ship', qty: 10000, pay: 400000, plot: late.dock.id, due: late.s.day + 1 });
+    expect(migrateSave(JSON.parse(JSON.stringify(late.s)))!.orders.find((o) => o.id === 'late')!.due).toBe(late.s.day + 2);
+  });
+
+  it("an older save's Supply Deal keeps its weekly loads; one of the old four separate loads gets its days", () => {
+    const { s, dock } = vipGame(55);
+    Object.assign(s, { rank: 8, cash: 10_000_000, phase: 'prep' });
+    for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier'); // the Cargo Terminal: 25,000 a day
+    s.offers = [];
+    s.orders = [];
+    const day0 = s.day;
+    order(s, { id: 'weekly', tier: 'deal', qty: 200000, pay: 6000000, plot: dock.id, due: day0 + 20, loads: 4, loaded: 50000 });
+    order(s, { id: 'part', tier: 'deal', qty: 50000, pay: 1500000, plot: dock.id }); // due today, in one go
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.orders.map((o) => [o.id, o.recipe, o.due])).toEqual([
+      ['weekly', 'classic', day0 + 20], // its weeks stand
+      ['part', 'classic', day0 + 3], // after this week's 50,000 of the deal: 100,000 at 25,000 a day
+    ]);
+  });
+
+  it("an older save made mid-day counts only the Heliport's trips still to come: 10,000 bottles a trip, the 19:30 one left", () => {
+    const { s, field } = vipGame(56);
+    noRaids(s);
+    Object.assign(s, { rank: 8, cash: 10_000_000, phase: 'prep' });
+    for (let i = 0; i < 3; i++) buildFacility(s, field.id, 'helipad'); // a Heliport: 20,000 a day in 2 trips
+    s.offers = [];
+    s.orders = [];
+    const day0 = s.day;
+    order(s, { id: 'gala', tier: 'heli', qty: 10000, pay: 300000, plot: field.id }); // due today, in one go at 17:30
+    order(s, { id: 'party', tier: 'heli', qty: 5000, pay: 150000, plot: field.id });
+    Object.assign(s, { phase: 'open', minute: PICKUP_MINUTE.heli + 30 }); // saved at 18:00, the first trip gone
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.orders.map((o) => [o.id, o.due])).toEqual([['gala', day0], ['party', day0 + 1]]);
+    // Saved at 19:30 itself: that minute's trip hasn't run yet, so it still counts.
+    s.minute = PICKUP_MINUTE.heli + DELIVERY_WINDOW;
+    expect(migrateSave(JSON.parse(JSON.stringify(s)))!.orders.find((o) => o.id === 'gala')!.due).toBe(day0);
+    back.bottles = 15000;
+    const cash = back.cash;
+    for (const m of [PICKUP_MINUTE.heli + DELIVERY_WINDOW]) { back.minute = m; pickupsAt(back); }
+    pickupsAtClose(back);
+    expect(back.orders.map((o) => o.id)).toEqual(['party']); // the gala loaded in full; the party loads tomorrow
+    expect(back.cash).toBe(cash + 300000);
   });
 
   it('offers left unanswered never hold the next back: each tier calls at its own rate, and every 10 days at the least', () => {

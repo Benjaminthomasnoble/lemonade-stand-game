@@ -13,6 +13,7 @@ import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, ty
 import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
 import { provideKidsGoal } from './happenings.ts';
+import { migrateOrders } from './vip.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -67,6 +68,7 @@ export function migrateWorld(s: GameState): GameState {
   }
   if (!w.tasteOff && s.phase !== 'report') setupTasteOff(s); // loaded on a Taste-Off morning
   provideKidsGoal(); // Kids' Lemonade Day's goal on Lottie's card (happenings.ts)
+  migrateOrders(s); // VIP orders from before recipes and loading rates (vip.ts)
   return s;
 }
 

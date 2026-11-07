@@ -12,7 +12,7 @@ import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } fr
 import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
-import { actOf, isEndless } from './modes.ts';
+import { actOf, districtControl, isEndless } from './modes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -90,7 +90,8 @@ function plotOfStand(s: GameState, st: Stand): string | undefined {
   return p?.id;
 }
 
-/** marketingMultiplier's one term: +20% after a Taste-Off win, +50% at sponsored festivals, in that district. */
+/** marketingMultiplier's one term: +20% after a Taste-Off win, +50% at sponsored festivals, in that district.
+ * A Cease-and-Desist there makes the sponsorship count for nothing (your marketing is blocked; a Taste-Off win isn't marketing). */
 export function calendarTraffic(s: GameState, owner: FactionId, st?: Stand): number {
   const w = s.world;
   if (!st || !w || (!w.boosts.length && !w.sponsored.length)) return 0;
@@ -101,14 +102,28 @@ export function calendarTraffic(s: GameState, owner: FactionId, st?: Stand): num
   const plot = plotOfStand(s, st);
   if (!plot) return 0;
   const d = PLOT_BY_ID[plot].district;
-  return (won.some((b) => b.district === d) ? TASTE_OFF.traffic : 0) + (sponsored.some((x) => x.district === d) ? SPONSORSHIP.traffic : 0);
+  const backed = sponsored.some((x) => x.district === d) && !underCeaseAndDesist(s, d);
+  return (won.some((b) => b.district === d) ? TASTE_OFF.traffic : 0) + (backed ? SPONSORSHIP.traffic : 0);
 }
 
 // ---------- Event Sponsorship ----------
 
-/** $2,000 for each festival day left, today included. */
+/** Word of Mouth (Campus & Arts at Full Control): local campaigns half price everywhere, Event Sponsorship included.
+ * Seam: land's perkActive(s, 'wordOfMouth') once it merges; until then Full Control is read off the district's share. */
+export function sponsorHalfPrice(s: GameState): boolean {
+  const c = districtControl(s, 'campus');
+  return c.total > 0 && c.mine >= c.total;
+}
+
+/** Seam: FizzCo's Cease-and-Desist (rivals lane) blocks your marketing in one district for 3 days. The rivals lane adds its
+ * check here once it merges (MARKETING_BLOCKS.push(...)); until then no letters are sent. */
+export const MARKETING_BLOCKS: ((s: GameState, district: DistrictId) => boolean)[] = [];
+export const underCeaseAndDesist = (s: GameState, district: DistrictId): boolean => MARKETING_BLOCKS.some((f) => f(s, district));
+
+/** $2,000 for each festival day left, today included ($1,000 with Word of Mouth). */
 export function sponsorCost(s: GameState, id: FestivalId): number {
-  return SPONSORSHIP.perDay * (festivalDays(id, yearOf(s.day)).to - s.day + 1);
+  const days = festivalDays(id, yearOf(s.day)).to - s.day + 1;
+  return SPONSORSHIP.perDay * days * (sponsorHalfPrice(s) ? SPONSORSHIP.wordOfMouth : 1);
 }
 export const isSponsored = (s: GameState, id: FestivalId) => !!s.world?.sponsored.some((x) => x.festival === id && x.to >= s.day);
 
@@ -119,6 +134,7 @@ export function canSponsor(s: GameState, id: FestivalId): Blocker {
   if (s.phase !== 'prep') return { ok: false, why: 'Sponsor during Morning Prep' };
   const d = FESTIVALS[id].district;
   if (!playerStands(s).some((p) => p.district === d)) return { ok: false, why: `No stand of yours in ${DISTRICT_BY_ID[d].name}` };
+  if (underCeaseAndDesist(s, d)) return { ok: false, why: `Cease-and-Desist: your ads count for nothing in ${DISTRICT_BY_ID[d].name}` };
   const cost = sponsorCost(s, id);
   if (s.cash < cost) return { ok: false, why: `Needs $${cost.toLocaleString('en-US')}` };
   return { ok: true };

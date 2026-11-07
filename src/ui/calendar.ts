@@ -4,7 +4,7 @@
 // day's-end card, and the Bugle's calendar headlines.
 import {
   boothCeiling, canSponsor, CONTESTANT_NAME, DISTRICT_BY_ID, entryOf, festivalDays, FESTIVALS, festivalsOn, isSponsored, ownedRecipes,
-  RECIPES, seasonDay, SEGMENTS, sponsorCost, storyFairs, TASTE_OFF, tasteOffResult, tasteOffToday, upcomingFestivals,
+  RECIPES, seasonDay, SEGMENTS, sponsorCost, sponsorHalfPrice, storyFairs, TASTE_OFF, tasteOffResult, tasteOffToday, upcomingFestivals,
   type FestivalId, type GameState, type Judge, type RecipeId, type SegmentId, type Stake, type Sweetness,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
@@ -75,7 +75,8 @@ export function calendarTickets(s: GameState): string[] {
   for (const id of festivalsOn(s.day)) {
     const f = FESTIVALS[id];
     const b = canSponsor(s, id);
-    const action = isSponsored(s, id) ? tape('Sponsored') : locked(b) ? '' : btn('sponsor', `Sponsor ${whole(sponsorCost(s, id))}`, b, `data-festival="${id}" data-testid="sponsor"`);
+    const half = sponsorHalfPrice(s) ? ' title="Word of Mouth: half price"' : '';
+    const action = isSponsored(s, id) ? tape('Sponsored') : locked(b) ? '' : btn('sponsor', `Sponsor ${whole(sponsorCost(s, id))}`, b, `data-festival="${id}" data-testid="sponsor"${b.ok ? half : ''}`);
     const length = f.to - f.from + 1;
     const when = length === 1 ? 'today only' : `day ${seasonDay(s.day) - f.from + 1} of ${length}`;
     const tip = `${f.name}, ${DISTRICT_BY_ID[f.district].name}, ${when}${f.crowd ? `. ${SEGMENTS[f.crowd].label} fill the street` : ''}`;

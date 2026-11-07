@@ -5,7 +5,7 @@ import {
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
   simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
-  tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf,
+  tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf, sponsorHalfPrice, underCeaseAndDesist, DISTRICTS, MARKETING_BLOCKS,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
 import { calendarHeadline, calendarTickets, worldSheet } from '../ui/calendar.ts';
@@ -345,6 +345,45 @@ describe('Event Sponsorship', () => {
     t.rank = 5; t.cash = 50000;
     dawn(t, 10);
     expect(canSponsor(t, 'summerFair').ok).toBe(false); // no stand in Old Town
+  });
+
+  it('half price ($1,000 a day) with Campus & Arts at Full Control (Word of Mouth)', () => {
+    const s = game();
+    standIn(s, 'oldtown');
+    dawn(s, 10);
+    s.rank = 5; s.cash = 50000;
+    expect(sponsorHalfPrice(s)).toBe(false);
+    const campus = PLOTS.filter((p) => p.district === 'campus' && p.type !== 'civic' && p.type !== 'hq');
+    for (const p of campus.slice(1)) s.plots[p.id].owner = 'player';
+    expect(sponsorHalfPrice(s)).toBe(false); // one plot short of Full Control
+    s.plots[campus[0].id].owner = 'player';
+    expect(sponsorHalfPrice(s)).toBe(true);
+    expect(sponsorCost(s, 'summerFair')).toBe(1000 * 5);
+    expect(calendarTickets(s).join('')).toContain('Sponsor $5,000');
+    expect(sponsorFestival(s, 'summerFair')).toBe(true);
+    expect(s.cash).toBe(45000);
+  });
+
+  it('a Cease-and-Desist in the district makes it count for nothing', () => {
+    const s = game();
+    const plot = standIn(s, 'oldtown');
+    dawn(s, 10);
+    s.rank = 5; s.cash = 50000;
+    sponsorFestival(s, 'summerFair');
+    const there = s.plots[plot].stand!;
+    expect(calendarTraffic(s, 'player', there)).toBe(0.5);
+    expect(DISTRICTS.some((d) => underCeaseAndDesist(s, d.id))).toBe(false); // no letters until FizzCo's scheme merges
+    const letter = (_s: GameState, d: DistrictId) => d === 'oldtown';
+    MARKETING_BLOCKS.push(letter);
+    try {
+      expect(calendarTraffic(s, 'player', there)).toBe(0);
+      const u = game();
+      standIn(u, 'oldtown');
+      dawn(u, 10);
+      u.rank = 5; u.cash = 50000;
+      expect(canSponsor(u, 'summerFair')).toEqual({ ok: false, why: 'Cease-and-Desist: your ads count for nothing in Old Town' });
+    } finally { MARKETING_BLOCKS.splice(MARKETING_BLOCKS.indexOf(letter), 1); }
+    expect(calendarTraffic(s, 'player', there)).toBe(0.5); // the letter runs out: the sponsorship counts again
   });
 });
 

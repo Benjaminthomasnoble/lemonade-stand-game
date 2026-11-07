@@ -209,8 +209,9 @@ export const TASTE_OFF = {
 };
 /** How often each contestant reads a judge's hint right. placeholder: spec gap */
 export const TASTE_OFF_SKILL: Record<RivalId | 'local', number> = { blenders: 0.6, hollis: 0.65, sourwood: 0.5, fizzco: 0.45, coldbrew: 0.45, local: 0.4 };
-/** Event Sponsorship (Rank 5): $2,000 per festival day, +50% traffic for your stands in the festival's district. */
-export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5 };
+/** Event Sponsorship (Rank 5): $2,000 per festival day, +50% traffic for your stands in the festival's district.
+ * It's a local campaign, so Word of Mouth (Campus & Arts at Full Control) halves it: $1,000 a day. */
+export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5, wordOfMouth: 0.5 };
 /** Tilly, out-brewed at the County Fair, sells a Field at 1.5× land value instead of her home-turf 2.5×. */
 export const TILLY_FIELD_BUYOUT = 1.5;
 /** Campaign: Tilly duels at the County Fairs from Act 4 on; its Act 4 edition is year 2's (Days 71-77) on target pacing. */

@@ -16,6 +16,7 @@ import { daysLeft, eventDef, liveEvents, type WorldEvent } from './events.ts';
 import { forecastAhead } from './weather.ts'; // demand: the 2-day look-ahead off the weather queue
 import { storyHeadline } from './story.ts';
 import { pactNews } from './squeeze.ts';
+import { crewName, grandkid } from './grandkid.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** Rivals as the paper names them in a headline. */
@@ -141,12 +142,13 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   const act = storyHeadline(s); // a new act leads the morning paper (story.ts)
   if (act) add(act[0], act[1], `${act[0]} ${act[1]}.`, 0);
   for (const n of pactNews(s)) add(n.big, n.small, n.brief, n.rank); // nights: the Pact and the Big Squeeze land at dawn, after the newsroom's notes (squeeze.ts)
-  if (s.day === 1) add("SCHOOL'S OUT!", 'Grandkid opens on Maple Row', "School's out: Lottie's grandkid opens on Maple Row.");
+  const kid = grandkid(s); // the Grandkid's name and pronouns (src/sim/grandkid.ts)
+  if (s.day === 1) add("SCHOOL'S OUT!", `${kid.first} opens on Maple Row`, `School's out: Lottie's ${kid.kin} ${kid.name} takes over ${kid.their} grandma's corner on Maple Row.`);
   const act1 = tasteOffResult(s, 'summerFair', 1);
   if (storyFairs(s) && act1?.stake === 'strawberry' && act1.winner === 'player' && s.day === act1.day + 1) {
     add('FOLDING TABLE STUNS', 'Smoothie Empire at Summer Fair', 'Folding table stuns Smoothie Empire at Summer Fair.');
   }
-  if (paper?.scandal === s.day - 1) add("GRANDKID RAIDS KIDS' STAND", 'Seven-year-old left in tears', "Lottie's grandkid raids a seven-year-old's lemonade stand.");
+  if (paper?.scandal === s.day - 1) add(`${kid.kin.toUpperCase()} RAIDS KIDS' STAND`, 'Seven-year-old left in tears', `Lottie's ${kid.kin} ${kid.first} raids a seven-year-old's lemonade stand.`);
   const pages = pagesInTheBugle(s);
   if (pages.length === 1) add('PAGE COMES HOME!', `${RECIPES[pages[0]].label} back in the book`, `${RECIPES[pages[0]].label} is back in Lottie's book.`);
   else if (pages.length > 1) {
@@ -169,15 +171,15 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   return out;
 }
 
-/** Last night's fights with you in them: held, smashed, robbed, or your own crew's raid. */
-function fightStory(f: FightNote): Story {
+/** Last night's fights with you in them: held, smashed, robbed, or your own crew's raid (`us`, by its name). */
+function fightStory(f: FightNote, us: string): Story {
   const at = place(f.target);
   if (f.attacker === 'player') {
     switch (f.outcome) {
-      case 'smashed': return { big: "LOTTIE'S CREW STRIKES!", small: `${who(f.defender)} flattened at ${at}`, brief: `Lottie's crew flattens the ${who(f.defender)} stand at ${at}.`, rank: 3 };
-      case 'robbed': return { big: 'SHAKEDOWN!', small: `Lottie's crew takes ${money(f.loot)}`, brief: `Lottie's crew shakes down ${at} for ${money(f.loot)}.`, rank: 3 };
-      case 'damaged': return { big: 'RAID RUNS LATE', small: `${at} roughed up`, brief: `Lottie's crew roughs up ${at}.`, rank: 3 };
-      default: return { big: 'RAID GOES BUST', small: `${who(f.defender)} hold ${at}`, brief: `${who(f.defender)} send Lottie's crew home from ${at}.`, rank: 3 };
+      case 'smashed': return { big: `${us.toUpperCase()} STRIKES!`, small: `${who(f.defender)} flattened at ${at}`, brief: `${us} flattens the ${who(f.defender)} stand at ${at}.`, rank: 3 };
+      case 'robbed': return { big: 'SHAKEDOWN!', small: `${us} takes ${money(f.loot)}`, brief: `${us} shakes down ${at} for ${money(f.loot)}.`, rank: 3 };
+      case 'damaged': return { big: 'RAID RUNS LATE', small: `${at} roughed up`, brief: `${us} roughs up ${at}.`, rank: 3 };
+      default: return { big: 'RAID GOES BUST', small: `${who(f.defender)} hold ${at}`, brief: `${who(f.defender)} send ${us} home from ${at}.`, rank: 3 };
     }
   }
   switch (f.outcome) {
@@ -221,11 +223,12 @@ function stories(s: GameState): { lead: Story[]; briefs: string[] } {
   const briefs: string[] = [];
   if (paper?.rankUp) {
     const title = RANKS[paper.rankUp - 1].title;
-    lead.push({ big: 'RANK UP!', small: `Grandkid now a ${title}`, brief: `Lottie's grandkid is now a ${title}.`, rank: 2 });
+    const kid = grandkid(s);
+    lead.push({ big: 'RANK UP!', small: `${kid.first} now a ${title}`, brief: `Lottie's ${kid.kin} ${kid.name} is now a ${title}.`, rank: 2 });
   }
   const night = (s.world?.fights ?? []).filter((f) => f.day === s.day - 1);
   for (const f of night) {
-    if (f.attacker === 'player' || f.defender === 'player') lead.push(fightStory(f));
+    if (f.attacker === 'player' || f.defender === 'player') lead.push(fightStory(f, crewName(s)));
     else briefs.push(`${who(f.attacker)} raid ${who(f.defender)} at ${place(f.target)}: ${OUTCOME[f.outcome]}.`);
   }
   const moves = [...(paper?.moves ?? [])].filter((m) => m.gained.length).sort((a, b) => b.gained.length - a.gained.length);

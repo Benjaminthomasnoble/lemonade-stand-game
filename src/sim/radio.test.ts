@@ -111,7 +111,7 @@ describe('101.5 The Squeeze', () => {
     const note = (attacker: FightNote['attacker'], defender: FightNote['defender'], outcome: FightNote['outcome']): FightNote => ({ day: s.day, minute: OPEN, attacker, defender, target, outcome, loot: 120 });
     const at2 = PLOT_BY_ID[target].name.replace(/ lot /, ' ');
     expect(callFight(note('blenders', 'coldbrew', 'smashed'))).toBe(`The Smoothie Bros come over the fence at ${at2}... and down goes the stand! What a night for the Blenders!`);
-    expect(callFight(note('player', 'coldbrew', 'robbed'))).toBe(`Lottie's crew hit the till at ${at2} and run off with $120! What a grab by Lottie's!`);
+    expect(callFight(note('player', 'coldbrew', 'robbed'))).toBe(`The Peel Patrol hit the till at ${at2} and run off with $120! What a grab by Lottie's!`); // your crew, by name
     expect(callFight(note('coldbrew', 'player', 'repelled'))).toBe(`The Baristas charge ${at2}... and bounce right off! What a stand by Lottie's!`);
     expect(callFight(note('sourwood', 'hollis', 'damaged'))).toBe(`The Stewards rattle ${at2} and leave empty-handed! Close one for Hollis Sweet Tea!`);
   });

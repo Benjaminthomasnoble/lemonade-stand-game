@@ -340,6 +340,8 @@
 .clay .cl-toggle i { position: relative; width: calc(var(--u) * 4.4); height: calc(var(--u) * 2.4); border-radius: 999px; border: calc(var(--u) * .22) solid #2E2A4F; background: #e6d6b8; }
 .clay .cl-toggle i::after { content: ''; position: absolute; left: calc(var(--u) * .2); top: calc(var(--u) * .15); width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); border-radius: 50%; background: #fff; border: calc(var(--u) * .18) solid #2E2A4F; transition: left .2s cubic-bezier(.3,1.6,.5,1); }
 .clay .cl-toggle.on i { background: #7CC47F; } .clay .cl-toggle.on i::after { left: calc(var(--u) * 2.2); }
+/* story lane: your name and your crew's (src/ui/grandkid.ts), a pill like the difficulty's (UI thread restyles) */
+.clay .cl-field { width: calc(var(--u) * 22); max-width: 100%; padding: calc(var(--u) * .5) calc(var(--u) * 1.2); border: calc(var(--u) * .25) solid #2E2A4F; border-radius: 999px; background: #fffaf0; font: 600 calc(var(--u) * 1.8)/1 'Fredoka', sans-serif; color: #2E2A4F; }
 .clay .cl-setup-foot { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: calc(var(--u) * 1); }
 .clay .cl-blurb { margin: 0; width: 100%; text-align: center; font-size: calc(var(--u) * 1.5); line-height: 1.35; color: var(--ink, #3b2a1a); }
 .clay .cl-blurb b { font-weight: 800; }

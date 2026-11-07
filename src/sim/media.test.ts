@@ -80,7 +80,7 @@ describe('the Morning Bugle', () => {
     s.rank = 2;
     dawn(s, 5);
     calm(s);
-    expect(bugleHeadline(s)).toEqual(['RANK UP!', `Grandkid now a ${RANKS[1].title}`]);
+    expect(bugleHeadline(s)).toEqual(['RANK UP!', `Charlie now a ${RANKS[1].title}`]); // the Grandkid, by name (grandkid.ts)
     expect(frontPage(s).briefs.length).toBeGreaterThanOrEqual(2);
 
     // A page coming home is a story beat: it leads over both.
@@ -91,7 +91,7 @@ describe('the Morning Bugle', () => {
     dawn(s, 6);
     calm(s);
     expect(bugleHeadline(s)).toEqual(['PAGE COMES HOME!', 'Honey-Ginger Hot Lemonade back in the book']);
-    expect(frontPage(s).briefs[0]).toBe(`Lottie's grandkid is now a ${RANKS[2].title}.`);
+    expect(frontPage(s).briefs[0]).toBe(`Lottie's grandkid Charlie Puckett is now a ${RANKS[2].title}.`);
 
     // The morning a new act begins (story.ts), its banner leads over every other story; the page drops to a brief.
     s.story!.act = 2;

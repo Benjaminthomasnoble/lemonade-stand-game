@@ -46,6 +46,9 @@ import { autoTickets, helperRows, priceSwitch, restockControl } from './automati
 import { booksRows } from './ledger.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
+import { kidPanel, pickKid, typeName } from './grandkid.ts';
+import { nameDraft } from '../sim/grandkid.ts';
+import { crewOf } from '../sim/crew.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom } from './clubhouse.ts';
@@ -159,6 +162,7 @@ export type Action =
   | { type: 'listPlot'; plot: string }
   | { type: 'unlistPlot'; plot: string }
   | { type: 'callSqueeze' } // Sourwood Manor's card: start the Big Squeeze (src/ui/squeeze.ts)
+  | { type: 'crewName'; name: string } // the Crew roster's name field, as typed (src/sim/grandkid.ts)
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -255,7 +259,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // A pressed button keeps its markup until release: a live panel (the stand's, mid-day) redraws as it sells,
   // and a button swapped out between press and release never gets its click.
   let pressed: Element | null = null;
-  const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html && !(pressed && el.contains(pressed))) { el.innerHTML = html; last.set(el, html); } };
+  let drawn: HTMLElement | null = null; // a name field took a letter: this element's next render is already on screen
+  const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html && !(pressed && el.contains(pressed))) { if (el !== drawn) el.innerHTML = html; last.set(el, html); } };
   const redraw = () => onAction({ type: 'refresh' });
 
   let lastCash: number | null = null, lastDay = 0;
@@ -309,6 +314,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
       set(plotEl, hud.inspected && !(s.phase === 'report' && hud.ledger) && !modal ? plotCard(s, hud.inspected) : '');
+      drawn = null;
     },
     popup(x, y, text, kind) {
       const el = document.createElement('div');
@@ -390,6 +396,17 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   root.addEventListener('pointerup', cancelHold);
   root.addEventListener('pointerleave', cancelHold);
   root.addEventListener('contextmenu', (e) => { if ((e.target as HTMLElement).closest('[data-fill-packs]')) e.preventDefault(); });
+  // A name field (src/ui/grandkid.ts): each letter goes straight in, and the field already shows it, so the next render
+  // takes its HTML as drawn rather than redrawing under the caret.
+  root.addEventListener('input', (e) => {
+    const f = e.target as HTMLInputElement;
+    const id = f.dataset?.field;
+    if (!id) return;
+    const v = nameDraft(f.value);
+    if (v !== f.value) f.value = v;
+    drawn = [phaseEl, plotEl].find((el) => el.contains(f)) ?? null;
+    if (hud.setup) typeName(hud.setup.settings, id, v); else if (id === 'crew') onAction({ type: 'crewName', name: v });
+  });
 
   root.addEventListener('click', (e) => {
     if (heldFired) { heldFired = false; return; }
@@ -486,6 +503,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         if (d.key === 'ironman') st.ironman = !st.ironman;
         if (d.key === 'raidPause') st.raidPause = !raidPauses(st);
         if (d.key === 'lessons') st.lessons = !(st.lessons ?? true);
+        if (d.key?.startsWith('kid.')) pickKid(st, d.key.slice(4), d.value); // you: a look, your pronouns (src/ui/grandkid.ts)
         redraw();
         break;
       }
@@ -783,7 +801,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
   function fightLine(b: GameState['battles'][number]) {
     const where = PLOT_BY_ID[b.target].name;
-    const who = (f: string) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
+    const who = (f: string) => (f === 'player' ? crewOf(b) : FACTIONS[f as RivalId].name);
     const verb = b.sabotage ? (b.outcome === 'robbed' ? 'stock spoiled' : 'no time to spoil the stock') : { smashed: 'smashed', robbed: `robbed (${whole(b.loot)})`, damaged: 'roughed up', repelled: 'held' }[b.outcome];
     if (b.hq) return b.outcome === 'repelled' ? `HQ assault on ${where}: stalled at the ${b.hq}` : `HQ assault on ${where}: captured!`;
     if (b.fellBack) return b.attacker === 'player' ? `Your raid on ${where}: fell back` : `${who(b.attacker)} hit ${where}: your guards fell back${b.outcome === 'repelled' ? '' : `, ${verb}`}`;
@@ -885,6 +903,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-diffs">${diffs}</div>
       <p class="cl-blurb" data-testid="setup-blurb"><b>${esc(MODES[st.mode].label.replace('Sandbox: ', ''))}:</b> ${esc(MODES[st.mode].blurb)}<br><b>${esc(DIFFICULTY[st.difficulty].label)}:</b> ${esc(DIFFICULTY[st.difficulty].blurb)}</p>
       ${st.difficulty === 'custom' ? customPanel(st) : ''}
+      ${kidPanel(st)}
       ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${toggle('lessons', st.lessons !== false, 'Lessons', 'Lottie teaches one system a day. Off: buttons follow rank alone.')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>
         ${cancel ? '<button class="cl-link" data-action="cancelSetup">Back to my game</button>' : ''}

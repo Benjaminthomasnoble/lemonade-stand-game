@@ -12,6 +12,7 @@ import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
 import { announceControl, awardEveryLastPlot, rivalsInPlay } from './land.ts';
+import type { Grandkid } from './grandkid.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -31,6 +32,8 @@ export interface Settings {
   rivals?: RivalId[]; // the rivals that play (unset: all five)
   districts?: DistrictId[]; // the districts cut from Citrine Bay for this map (unset: all eight)
   retag?: Record<string, PlotType>; // plain plots the cut made a Dock, Field or Industrial lot, so VIP clients stay reachable
+  grandkid?: Grandkid; // your name, pronouns and look (src/sim/grandkid.ts); unset is Charlie Puckett
+  crew?: string; // your crew's name, as typed (src/sim/grandkid.ts); unset or blank is The Peel Patrol
 }
 
 /** Custom difficulty: each slider anywhere from Laid Back's value to Cutthroat's. */

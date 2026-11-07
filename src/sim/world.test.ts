@@ -298,7 +298,7 @@ describe("Lottie's recipe book", () => {
     const s = game();
     eliminate(s, 'coldbrew', 'buyout'); // at Morning Prep, after the paper
     expect(pagesInTheBugle(s)).toEqual([]);
-    expect(bugleHeadline(s)).toEqual(["SCHOOL'S OUT!", 'Grandkid opens on Maple Row']);
+    expect(bugleHeadline(s)).toEqual(["SCHOOL'S OUT!", 'Charlie opens on Maple Row']);
     dawn(s, 2);
     expect(pagesInTheBugle(s)).toEqual(['honeyGinger']);
     expect(bugleHeadline(s)).toEqual(['PAGE COMES HOME!', 'Honey-Ginger Hot Lemonade back in the book']);

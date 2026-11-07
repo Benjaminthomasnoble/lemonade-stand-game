@@ -41,6 +41,7 @@ import { actAtDawn, migrateStory, storyAtClose, storyAtDawn, storyAtStart, story
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
 import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
+import { grandkid } from './grandkid.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -1068,7 +1069,7 @@ function checkRank(s: GameState): void {
   if (r > s.rank) {
     const was = s.rank;
     s.rank = r;
-    s.news.push(`RANK UP! Lottie's grandkid is now a ${RANKS[r - 1].title}`);
+    s.news.push(`RANK UP! ${grandkid(s).first} is now a ${RANKS[r - 1].title}`);
     if (was < HIRE_RANK && r >= HIRE_RANK) refreshRecruits(s, true); // the Hiring Hall opens (Dex comes on Day 6, not with a rank)
   }
 }

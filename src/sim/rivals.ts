@@ -19,6 +19,7 @@ import { startFireSale } from './auction.ts';
 import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
 import { raidBan } from './citations.ts';
+import { crewName } from './grandkid.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -650,7 +651,7 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
   reports.push({
     day: s.day, attacker: 'player', defender: id, target: plot.id, objective: input.objective,
     outcome: won ? (stage === 'boss' ? 'smashed' : 'damaged') : 'repelled', loot: 0, attackers: input.attackers, defenders: roomDefenders(input, res),
-    perimeter: input.perimeter, standLevel: 3, events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, hq: stage,
+    perimeter: input.perimeter, standLevel: 3, events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, hq: stage, crew: crewName(s),
   });
   if (!won) {
     s.rivals[id].grudge = Math.min(100, s.rivals[id].grudge + 30);
@@ -662,7 +663,7 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
     return 'lost';
   }
   if (stage !== 'boss') return 'next';
-  s.news.push(`${hq.boss} tries "${hq.move}", but it isn't enough. Lottie's crew takes ${plot.name}!`);
+  s.news.push(`${hq.boss} tries "${hq.move}", but it isn't enough. ${crewName(s)} takes ${plot.name}!`);
   bump(s, 'hqs');
   eliminate(s, id, 'hq');
   finish(s, reports);

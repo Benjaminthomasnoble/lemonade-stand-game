@@ -8,6 +8,7 @@ import { BRAND_TIERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { CALL_PRIORITY, LINES, phoneCall } from './phone.ts';
+import { grandkid } from './grandkid.ts';
 
 /**
  * Townsfolk the world stages by speaker (src/world/scenes.ts walks them on in their clay look): queue a scene with
@@ -27,6 +28,7 @@ export interface SceneDef {
   until?: number;
   /** How long the captions run when there's no world scene to wait for (never over SCENE_MAX_SECONDS). */
   seconds: number;
+  /** {kid} in a line (or the recap) is the Grandkid's first name. */
   lines: SceneLine[];
   /** Posted when the scene is skipped. */
   recap: string;
@@ -54,7 +56,7 @@ export const SCENES: Record<string, SceneDef> = {
   opening: {
     seconds: 21, until: 1,
     lines: [
-      { who: 'Lottie', text: 'My folding table. My pitcher. And three pages.', at: 0.5 },
+      { who: 'Lottie', text: '{kid}! My folding table. My pitcher. And three pages.', at: 0.5 },
       { who: 'Lottie', text: "Classic, Pink and Mint: all Vera didn't steal.", at: 4.6 },
       { who: 'Lottie', text: 'And a spare lemon. I keep one in my cardigan.', at: 8.8 },
       { who: 'Lottie', text: 'When life gives you lemons, you take the whole town.', at: 13 },
@@ -209,7 +211,15 @@ export function playScene(s: GameState, id: string, data?: SceneData): boolean {
 
 export function playingScene(s: GameState): Scene | null {
   const p = s.scenes?.playing;
-  return p ? sceneDef(p.id, p.data) : null;
+  return p ? named(s, sceneDef(p.id, p.data)) : null;
+}
+
+/** Lottie calls the Grandkid by name: {kid} in a scene's lines and recap is their first name (src/sim/grandkid.ts). */
+function named(s: GameState, sc: Scene | null): Scene | null {
+  if (!sc) return null;
+  const first = grandkid(s).first;
+  const fill = (t: string) => t.replace(/\{kid\}/g, () => first);
+  return { ...sc, lines: sc.lines.map((l) => ({ ...l, text: fill(l.text) })), recap: fill(sc.recap) };
 }
 
 /** A scene is waiting and the sim is at a lull: Morning Prep, the run going on, no scene yet today. */
@@ -230,7 +240,7 @@ export function beginScene(s: GameState): Scene | null {
     if (!def) continue;
     sc.playing = { id: next.id, day: s.day, ...(next.data ? { data: next.data } : {}) };
     sc.lastDay = s.day;
-    return def;
+    return named(s, def);
   }
   return null;
 }
@@ -242,7 +252,7 @@ export function endScene(s: GameState, skipped: boolean): void {
   if (!sc || !p) return;
   delete sc.playing;
   if (!sc.seen.includes(p.id)) sc.seen.push(p.id);
-  const def = sceneDef(p.id, p.data);
+  const def = named(s, sceneDef(p.id, p.data));
   if (skipped && def?.recap) s.news.push(def.recap);
   if (def?.call) phoneCall(s, def.call.who, LINES[def.call.line], { priority: CALL_PRIORITY.story });
 }

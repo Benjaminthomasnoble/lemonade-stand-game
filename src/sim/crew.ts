@@ -29,6 +29,7 @@ import { bump, difficulty, districtControl, peaceful } from './modes.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
+import { CREW_NAME, crewName } from './grandkid.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
@@ -118,6 +119,7 @@ export interface BattleReport {
   fled: string[];
   joins?: BattleInput['joins']; // who reached the fight late (Ring the Bell's reserves), and when
   fellBack?: Side; // that side Fell Back, and lost the fight
+  crew?: string; // your crew's name when it fought (src/sim/grandkid.ts); unset is The Peel Patrol
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -1015,7 +1017,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, ...(input.joins?.length ? { joins: input.joins } : {}),
-    gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined, ...(res.fellBack ? { fellBack: res.fellBack } : {}),
+    gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined, ...(res.fellBack ? { fellBack: res.fellBack } : {}), crew: crewName(s),
   };
   if (raid.sabotage) report.sabotage = true;
   if (raid.attacker === 'player' || defender === 'player') {
@@ -1042,7 +1044,10 @@ export function creditGuards(s: GameState, input: BattleInput, res: { koed: stri
   }
 }
 
-const fname = (f: FactionId) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
+/** Your crew in a fight's lines: its name when it fought (src/sim/grandkid.ts). */
+export const crewOf = (b: BattleReport): string => b.crew ?? CREW_NAME;
+/** Each side of a fight as its lines name it: your crew, or the gang. */
+const sideName = (b: BattleReport) => (f: FactionId): string => (f === 'player' ? crewOf(b) : FACTIONS[f as RivalId].name);
 
 /** The Bugle's line for a fight, with the HP a building lost and kept (damage.ts). Guards who Fell Back lost the fight,
  * and the line opens with it. */
@@ -1053,21 +1058,22 @@ export function battleHeadline(b: BattleReport): string {
 
 function headline(b: BattleReport): string {
   const where = PLOT_BY_ID[b.target].name;
+  const us = crewOf(b), fname = sideName(b);
   if (b.hq) return b.outcome === 'repelled'
     ? `HQ assault on ${where} stalls at the ${b.hq === 'gate' ? 'Gate' : b.hq === 'yard' ? 'Yard' : 'Boss Room'}.`
-    : `Lottie's crew storms ${where}! ${fname(b.defender)} are finished.`;
+    : `${us} storms ${where}! ${fname(b.defender)} are finished.`;
   // Fall Back: that side lost, carrying its KO'd. Guards who left a fence the raiders still couldn't get through lost
   // the fight all the same, and the raiders don't back off for it.
-  if (b.fellBack === 'att' && b.attacker === 'player') return `Lottie's crew falls back from ${where}, carrying its KO'd home.`;
+  if (b.fellBack === 'att' && b.attacker === 'player') return `${us} falls back from ${where}, carrying its KO'd home.`;
   if (b.fellBack === 'def' && b.defender === 'player' && b.outcome === 'repelled') return `Your guards fall back from ${where}, and ${fname(b.attacker)} leave empty-handed.`;
   if (b.sabotage) return sabotageHeadline(b);
   if (b.delivery) return b.outcome === 'robbed' ? `Delivery raid! ${fname(b.attacker)} overrun ${where} and make off with the cargo.` : `Delivery raid at ${where} beaten off! The cargo gets through.`;
   if (b.attacker === 'player') {
     switch (b.outcome) {
-      case 'smashed': return `RAID! Lottie's crew flattens the ${fname(b.defender)} ${b.standLevel ? 'stand' : 'facility'} at ${where}.`;
-      case 'robbed': return `RAID! Lottie's crew shakes down ${where} for ${money(b.loot)}.`;
-      case 'damaged': return `Lottie's crew roughs up ${where} but runs out of time.`;
-      default: return `Raid on ${where} goes bust: ${fname(b.defender)} sends Lottie's crew packing.`;
+      case 'smashed': return `RAID! ${us} flattens the ${fname(b.defender)} ${b.standLevel ? 'stand' : 'facility'} at ${where}.`;
+      case 'robbed': return `RAID! ${us} shakes down ${where} for ${money(b.loot)}.`;
+      case 'damaged': return `${us} roughs up ${where} but runs out of time.`;
+      default: return `Raid on ${where} goes bust: ${fname(b.defender)} sends ${us} packing.`;
     }
   }
   switch (b.outcome) {
@@ -1106,11 +1112,12 @@ export function crewAtDawn(s: GameState): void {
 
 function sabotageHeadline(b: BattleReport): string {
   const where = PLOT_BY_ID[b.target].name;
+  const us = crewOf(b), fname = sideName(b);
   if (b.attacker === 'player') {
     switch (b.outcome) {
-      case 'robbed': return `SABOTAGE! Lottie's crew spoils the stock at ${where}: it sells nothing on its next day.`;
-      case 'damaged': return `Lottie's crew gets into ${where} but runs out of time to spoil the stock.`;
-      default: return `Sabotage at ${where} foiled: ${fname(b.defender)} chase Lottie's crew off.`;
+      case 'robbed': return `SABOTAGE! ${us} spoils the stock at ${where}: it sells nothing on its next day.`;
+      case 'damaged': return `${us} gets into ${where} but runs out of time to spoil the stock.`;
+      default: return `Sabotage at ${where} foiled: ${fname(b.defender)} chase ${us} off.`;
     }
   }
   switch (b.outcome) {

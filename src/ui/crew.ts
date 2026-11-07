@@ -8,6 +8,7 @@ import {
   type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
+import { crewField } from './grandkid.ts'; // story: the crew's name, renamable here (src/sim/grandkid.ts)
 import { damageCard } from './damage.ts';
 import type { Kit } from './hud.ts';
 import { nextClubhouse, type ClubKit } from './clubhouse.ts';
@@ -91,7 +92,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
 export function crewPanel(k: Kit, s: GameState): string {
   if (!s.guards.length && (s.rank < HIRE_RANK || !taught(s, 'crew'))) return '';
   const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${k.esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${k.whole(guardWage(g))}/day">${guardFace(k, s, g)}<span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}${k.btn('hire', k.whole(g.fee), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
-  return `<div class="cl-crew"><span class="cl-label">Crew ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(k, s, g)).join('')}</div>
+  return `<div class="cl-crew"><span class="cl-label">${crewField(s)} ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(k, s, g)).join('')}</div>
       ${recruits ? `<span class="cl-label">Hiring Hall</span><div class="cl-faces">${recruits}</div>` : ''}
       ${nextClubhouse(clubKit(k), s)}</div>`;
 }

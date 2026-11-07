@@ -15,6 +15,13 @@ import { actBegan, storyAtDawn, storyDateline, storyHeadline, taught } from './s
 import { LESSON_DAY } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
+import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
+import { battleHeadline, crewOf, fightRaid, welcomeDex } from './crew.ts';
+import { hqStageOver } from './rivals.ts';
+import { bugleHeadline, frontPage } from './media.ts';
+import { defaultSettings } from './modes.ts';
+import type { BattleInput, BattleResult } from './combat.ts';
+import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 /** The year-1 Summer Fair's last day: its Taste-Off closes Act 1. */
@@ -600,5 +607,91 @@ describe('lessons and Dex', () => {
     expect(s.news).toContain(`${hire.name} quits: "No pay, no play."`);
     const old = migrateSave(JSON.parse(JSON.stringify({ ...s, story: { act: 1, since: 1 } })))!; // a save from before the flag
     expect(old.story!.dexJoined).toBe(true);
+  });
+});
+
+describe('the Grandkid and the crew', () => {
+  it('the Grandkid is Charlie Puckett until the New Game screen says otherwise; the name, pronouns and look save with the run', () => {
+    const s = newGame(41);
+    expect(grandkid(s)).toMatchObject({ name: KID_NAME, first: 'Charlie', pronouns: 'they', kin: 'grandkid', their: 'their', look: 0 });
+    expect(kidLook(s)).toEqual(KID_LOOKS[0]);
+    const st = defaultSettings();
+    expect(kidPanel(st)).toContain(`value="${KID_NAME}"`);
+    expect(kidPanel(st)).toContain(`value="${CREW_NAME}"`);
+    expect(kidPanel(st).match(/data-key="kid.look"/g)).toHaveLength(KID_LOOKS.length);
+    expect(kidPanel(st)).toContain('class="cl-pick on" data-action="pick" data-key="kid.look" data-value="0"');
+    typeName(st, 'kid', 'Sam "<b>" Rivera'); // a name field takes each letter as typed, with no markup
+    pickKid(st, 'pronouns', 'she');
+    pickKid(st, 'look', '3');
+    pickKid(st, 'look', '99'); // no such look: the last one stays
+    expect(st.grandkid).toEqual({ name: 'Sam b Rivera', pronouns: 'she', look: 3 });
+    expect(kidPanel(st)).toContain('value="Sam b Rivera"');
+    expect(kidPanel(st)).toContain('data-value="she" aria-pressed="true"');
+    typeName(st, 'kid', ' Sam  Rivera ');
+    const t2 = newGame(42, st);
+    expect(grandkid(t2)).toMatchObject({ name: 'Sam Rivera', first: 'Sam', pronouns: 'she', kin: 'granddaughter', their: 'her', look: 3 });
+    expect(kidLook(t2)).toEqual(KID_LOOKS[3]);
+    const back = migrateSave(JSON.parse(JSON.stringify(t2)))!;
+    expect(grandkid(back).name).toBe('Sam Rivera');
+    expect(grandkid(migrateSave(JSON.parse(JSON.stringify({ ...t2, settings: { ...t2.settings, grandkid: undefined } })))!).name).toBe(KID_NAME);
+    expect(nameDraft('x'.repeat(40))).toHaveLength(NAME_MAX); // short enough for a phone's alert card
+    setGrandkid(st, { name: '   ' });
+    expect(grandkid(st).name).toBe(KID_NAME); // a blank name is Charlie again
+  });
+
+  it("the story uses them: Lottie's opening line, the Bugle's Day 1 and rank-up stories, and the rank-up toast", () => {
+    const st = defaultSettings({ grandkid: { name: 'Sam Rivera', pronouns: 'he', look: 1 } });
+    const s = newGame(43, st);
+    expect(bugleHeadline(s)).toEqual(["SCHOOL'S OUT!", 'Sam opens on Maple Row']);
+    expect(frontPage(s).headline).toEqual(["SCHOOL'S OUT!", 'Sam opens on Maple Row']);
+    const sc = beginScene(s)!;
+    expect(sc.id).toBe('opening');
+    expect(sc.lines[0].text).toBe('Sam! My folding table. My pitcher. And three pages.');
+    expect(playingScene(s)!.lines[0].text).toBe(sc.lines[0].text);
+    expect(sc.replies).toContain('Okay, Grandma. One town, coming up.'); // the Grandkid's signature quick reply
+    endScene(s, true);
+    s.cash = 5000; // a rank-up at close
+    playDay(s);
+    expect(s.news.some((n) => n.startsWith('RANK UP! Sam is now a '))).toBe(true);
+    expect(s.world!.paper?.rankUp).toBeGreaterThan(1);
+    const all = JSON.stringify(frontPage(s));
+    expect(all).toContain('Sam now a ');
+  });
+
+  it('the crew is The Peel Patrol until renamed, and every crew-facing line names it; a name never carries markup', () => {
+    const s = newGame(44);
+    expect(crewName(s)).toBe(CREW_NAME);
+    welcomeDex(s);
+    const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand)!.id;
+    const raid = (id: string) => fightRaid(s, { id, attacker: 'player', target: theirs, objective: 'smash', guards: s.guards.map((g) => g.id), detected: false, eta: '' }, true);
+    const first = raid('r1');
+    expect(first.crew).toBe(CREW_NAME);
+    expect(battleHeadline(first)).toContain(CREW_NAME);
+    expect(s.news).toContain(battleHeadline(first));
+    renameCrew(s, '  Sour <Patch> Kids ');
+    expect(s.settings.crew).toBe('  Sour Patch Kids ');
+    expect(crewName(s)).toBe('Sour Patch Kids');
+    expect(crewField(s)).toContain('value="  Sour Patch Kids "');
+    for (const g of s.guards) g.outUntil = 0;
+    const second = raid('r2');
+    expect(crewOf(second)).toBe('Sour Patch Kids');
+    expect(battleHeadline(second)).toContain('Sour Patch Kids');
+    expect(battleHeadline(first)).toContain(CREW_NAME); // an old report keeps the name it fought under
+    expect(battleHeadline({ ...first, crew: undefined })).toContain(CREW_NAME); // a save from before the name
+    nextDawn(s);
+    expect(JSON.stringify(frontPage(s)).toLowerCase()).toContain('sour patch kids'); // the Bugle's raid story
+    // HQ capture news (rivals.ts), with the name on the Boss Room's report.
+    const reports: BattleReport[] = [];
+    const input = { attackers: [], defenders: [], objective: 'smash', perimeter: 0 } as unknown as BattleInput;
+    const res = { winner: 'att', outcome: 'smashed', events: [], duration: 1, koed: [], fled: [] } as unknown as BattleResult;
+    expect(hqStageOver(s, 'blenders', 'boss', input, res, reports)).toBe('won');
+    expect(reports[0].crew).toBe('Sour Patch Kids');
+    expect(s.news.some((n) => /Sour Patch Kids takes .+!$/.test(n))).toBe(true);
+    expect(battleHeadline(reports[0])).toContain('Sour Patch Kids storms');
+    renameCrew(s, '');
+    expect(crewName(s)).toBe(CREW_NAME); // blank: The Peel Patrol again
+    const st = defaultSettings();
+    typeName(st, 'crew', 'Lemon Heads');
+    expect(crewName(newGame(45, st))).toBe('Lemon Heads'); // named on the New Game screen
   });
 });

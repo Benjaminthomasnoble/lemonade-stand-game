@@ -57,6 +57,7 @@ import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './w
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
+import { grandkid, renameCrew } from './sim/grandkid.ts';
 import { takeCall } from './sim/phone.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { answerOffer } from './sim/beats.ts';
@@ -698,10 +699,11 @@ async function main() {
       case 'sponsor': sponsorFestival(state, a.festival); break;
       case 'skipScene': finishScene(true); break;
       case 'storyOffer': answerOffer(state, a.accept); break;
+      case 'crewName': renameCrew(state, a.name); break; // the Crew roster's name field (src/sim/grandkid.ts)
       case 'sceneReply': {
         replyScene(state, a.text);
         const kid = bay.views[LOTTIES_CORNER]?.stand?.kid;
-        if (kid) bubbles.say(kid, a.text, { who: 'You', height: 1.6 });
+        if (kid) bubbles.say(kid, a.text, { who: grandkid(state).first, height: 1.6 });
         break;
       }
       case 'forgive': forgiveSquawk(state, a.plot); break;

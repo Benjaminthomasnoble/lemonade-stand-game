@@ -17,6 +17,7 @@ import { storyFairs, tasteOffResult } from './calendar.ts';
 import { bugleNews, lookAhead, marketLines, marketText, type FightNote } from './media.ts';
 import { kidsDay } from './happenings.ts';
 import { worldOf } from './recipes.ts';
+import { CREW_NAME, crewName } from './grandkid.ts';
 
 /** jingle: Lottie's spot; rival: a rival's jingle (a blitz); silence: the second of dead air for a retired rival's jingle. */
 export type RadioKind = 'id' | 'news' | 'weather' | 'jingle' | 'forecast' | 'ad' | 'gossip' | 'fight' | 'break' | 'live' | 'signoff'
@@ -42,7 +43,7 @@ export const RIVAL_JINGLES: Record<RivalId, string> = {
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const TEAM: Record<RivalId, string> = { sourwood: 'the Sourwoods', hollis: 'Hollis Sweet Tea', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'the Blenders' };
 const team = (f: FactionId) => (f === 'player' ? "Lottie's" : TEAM[f as RivalId]);
-const crew = (f: FactionId) => (f === 'player' ? "Lottie's crew" : `the ${FACTIONS[f as RivalId].henchmen}`);
+const crew = (f: FactionId, us: string) => (f === 'player' ? us : `the ${FACTIONS[f as RivalId].henchmen}`);
 const place = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -108,14 +109,14 @@ export const inCelsius = (text: string, celsius: boolean) => (celsius ? text.rep
  * With the °C option he says the Celsius number. */
 export const weatherTalk = (w: Weather, celsius = false) => WEATHER_TALK[w.kind](sayNumber(celsius ? toCelsius(w.temp) : w.temp));
 
-/** A fight called like a ball game, whoever's in it: Cal never takes sides. */
-export function callFight(f: FightNote): string {
+/** A fight called like a ball game, whoever's in it: Cal never takes sides. `us`: your crew's name (src/sim/grandkid.ts). */
+export function callFight(f: FightNote, us = CREW_NAME): string {
   const at = place(f.target);
   switch (f.outcome) {
-    case 'smashed': return `${cap(crew(f.attacker))} come over the fence at ${at}... and down goes the stand! What a night for ${team(f.attacker)}!`;
-    case 'robbed': return `${cap(crew(f.attacker))} hit the till at ${at} and run off with ${money(f.loot)}! What a grab by ${team(f.attacker)}!`;
-    case 'damaged': return `${cap(crew(f.attacker))} rattle ${at} and leave empty-handed! Close one for ${team(f.defender)}!`;
-    default: return `${cap(crew(f.attacker))} charge ${at}... and bounce right off! What a stand by ${team(f.defender)}!`;
+    case 'smashed': return `${cap(crew(f.attacker, us))} come over the fence at ${at}... and down goes the stand! What a night for ${team(f.attacker)}!`;
+    case 'robbed': return `${cap(crew(f.attacker, us))} hit the till at ${at} and run off with ${money(f.loot)}! What a grab by ${team(f.attacker)}!`;
+    case 'damaged': return `${cap(crew(f.attacker, us))} rattle ${at} and leave empty-handed! Close one for ${team(f.defender)}!`;
+    default: return `${cap(crew(f.attacker, us))} charge ${at}... and bounce right off! What a stand by ${team(f.defender)}!`;
   }
 }
 
@@ -162,7 +163,7 @@ function boxScore(s: GameState): FightNote | undefined {
 function kidsTalk(s: GameState): string | null {
   const e = kidsDay(s);
   if (!e) return null;
-  return e.raided?.length ? "Cal hears Lottie's crew took a seven-year-old's pitcher today. Shame, shame, shame."
+  return e.raided?.length ? `Cal hears ${crewName(s)} took a seven-year-old's pitcher today. Shame, shame, shame.`
     : `Kids' Lemonade Day, folks: the kid stands have taken ${e.took ?? 0} of Lottie's customers so far. Adorable. Leave them be.`;
 }
 
@@ -179,7 +180,7 @@ function hourLines(s: GameState, h: number, briefs: () => string[], celsius: boo
     case 2: return [gossip(0, 1)];
     case 3: case 8: return [say('ad', sponsor(s, h))];
     case 4: return jingleOn(s) ? [say('jingle', JINGLE), say('forecast', twoDay(s, celsius), minute + 10)] : [id(2)];
-    case 5: { const f = boxScore(s); return [f ? say('fight', `Last night on the scoreboard: ${callFight(f)}`) : gossip(1, 0)]; }
+    case 5: { const f = boxScore(s); return [f ? say('fight', `Last night on the scoreboard: ${callFight(f, crewName(s))}`) : gossip(1, 0)]; }
     case 7: { const k = kidsTalk(s); return [k ? say('gossip', k) : gossip(2, 1)]; }
     case 9: return [id(0)];
     case 10: return [say('news', `At the Market today: ${marketText(marketLines(s))}.`)];
@@ -203,7 +204,7 @@ export function airedToday(s: GameState, celsius = false): RadioLine[] {
   const out: RadioLine[] = [];
   for (let h = 0; h < 12; h++) if (OPEN + h * 60 <= s.minute) out.push(...hourLines(s, h, briefs, celsius));
   for (const b of s.world?.breaks ?? []) if (b.day === s.day) out.push({ minute: b.minute, kind: 'break', text: `Breaking on 101.5: ${b.text}` });
-  for (const f of [...(s.world?.fights ?? [])].reverse()) if (f.day === s.day) out.push({ minute: f.minute, kind: 'fight', text: callFight(f) });
+  for (const f of [...(s.world?.fights ?? [])].reverse()) if (f.day === s.day) out.push({ minute: f.minute, kind: 'fight', text: callFight(f, crewName(s)) });
   const brock = brockLive(s);
   if (brock) out.push(brock);
   out.push({ minute: CLOSE + 1, kind: 'signoff', text: `That's the day, folks. ${SIGN_OFF}` });

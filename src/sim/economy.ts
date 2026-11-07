@@ -20,7 +20,7 @@ import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackO
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
-import type { GadgetId } from './balance.ts';
+import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
 import { DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
@@ -77,6 +77,7 @@ export * from './auction.ts';
 export * from './automation.ts';
 export * from './ledger.ts';
 export * from './marketing.ts';
+export * from './specializations.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -119,6 +120,7 @@ export interface Stand {
   startTable?: true; // Lottie's own Folding Table, the run's first stand: its L1 counts as START.tableInvested ($100) in rebuilds and repairs (damage.ts)
   lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)
   spoiledDay?: number; // a Sabotage spoiled the stock: no sales this day
+  specs?: (SpecId | null)[]; // what each specialization slot holds, slot 1 first (specializations.ts); missing means empty
 }
 
 export interface PlotState {

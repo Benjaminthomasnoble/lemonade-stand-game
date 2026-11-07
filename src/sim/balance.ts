@@ -170,6 +170,23 @@ export const BUILDING_VALUE_SHARE = 0.75;
 /** Rank needed to upgrade TO each level (index = level - 1). */
 export const STAND_RANK_GATE = [1, 1, 3, 5, 7];
 
+// ---------- stand specializations (spec: Stands, Specializations; balance-tables.md) ----------
+export type SpecId = 'express' | 'fancy' | 'fortified' | 'roof';
+export const SPEC_IDS: SpecId[] = ['express', 'fancy', 'fortified', 'roof'];
+/** The slots: the first opens at The Kiosk (L3), the second at The Citrus Palace (L5). Fitting one, or swapping what it holds, costs its price. */
+export const SPEC_SLOTS = [{ level: 3, cost: 2000 }, { level: 5, cost: 40000 }];
+/**
+ * Each slot holds one of these. `service` multiplies the stand's cups an hour, `topPrice` its top price, `hp` its max
+ * HP; `traffic` is the Billboard Roof's term in the marketing number at each of your stands within 2 plots.
+ */
+export interface Specialization { name: string; effect: string; best: string; service?: number; topPrice?: number; hp?: number; traffic?: number }
+export const SPECIALIZATIONS: Record<SpecId, Specialization> = {
+  express: { name: 'Express Window', effect: '+30% service (cups/hour)', best: 'A stand with a line out the door', service: 1.3 },
+  fancy: { name: 'Fancy Menu', effect: '+20% top price', best: 'Rich crowds: Downtown, The Boardwalk, Hilltop Estates', topPrice: 1.2 },
+  fortified: { name: 'Fortified Frame', effect: '+50% HP', best: 'A front-line stand rivals keep targeting', hp: 1.5 },
+  roof: { name: 'Billboard Roof', effect: '+15% traffic to your stands within 2 plots', best: 'The middle of your own cluster', traffic: 0.15 },
+};
+
 // ---------- marketing ----------
 export const BRAND_TIERS = [
   { tier: 1, name: 'Hand-Painted Signs', rank: 1, cost: 100, traffic: 0.05 },

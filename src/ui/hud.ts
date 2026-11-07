@@ -17,7 +17,7 @@ import {
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
-  type Blocker, type LocalCampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
+  type Blocker, type LocalCampaignId, type SpecId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
@@ -40,6 +40,7 @@ import { cashTip, dayTip, scoreTip, standRepTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { campaignCards } from './marketing.ts';
+import { specCards } from './specializations.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 import { booksRows } from './ledger.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
@@ -72,6 +73,7 @@ export type Action =
   | { type: 'upgrade' }
   | { type: 'brand' }
   | { type: 'campaign'; id: LocalCampaignId; plot?: string } // plot: a ticket's stand (else the selected one)
+  | { type: 'spec'; slot: number; id: SpecId } // fit or swap a specialization into a slot of the selected stand
   | { type: 'restock' }
   | { type: 'autoPrice' } // the selected stand's Auto-Price switch (Rank 3)
   | { type: 'stockTarget'; delta: number } // Auto-Restock's target: a step down (-1) or up (1), or back to the suggestion (0)
@@ -368,6 +370,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'price': onAction({ type: 'price', delta: Number(d.delta) }); break;
       case 'speed': onAction({ type: 'speed', value: Number(d.value) }); break;
       case 'campaign': onAction({ type: 'campaign', id: d.id as LocalCampaignId, plot: d.plot }); break;
+      case 'spec': onAction({ type: 'spec', slot: Number(d.slot), id: d.id as SpecId }); break;
       case 'select': onAction({ type: 'select', plot: d.plot! }); break;
       case 'buyPlot': onAction({ type: 'buyPlot', plot: d.plot! }); break;
       case 'build': onAction({ type: 'build', plot: d.plot! }); break;
@@ -654,6 +657,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const out: string[] = [];
     if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur, topAt(cur))}\nNext: ${levelStats(next, topAt(next))}`, 'data-big'));
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
+    out.push(...specCards(kit, s)); // specializations: a card for each open slot at this stand (src/ui/specializations.ts)
     out.push(...campaignCards(kit, s)); // local campaigns: this stand's and its district's (src/ui/marketing.ts)
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
     if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever${nb.unlocks ? `\nUnlocks ${nb.unlocks}` : ''}`));

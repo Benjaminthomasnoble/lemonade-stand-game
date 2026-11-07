@@ -33,6 +33,7 @@ import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
 import { raidsOnYou, rivalRaids, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
+import { fortifiedFrame } from './specializations.ts'; // demand: the Fortified Frame's max HP
 
 export interface Guard {
   id: string;
@@ -125,7 +126,7 @@ export const isWrecked = (ps: PlotState) => !!(ps.stand?.wrecked || ps.facility?
 export const hasBuilding = (ps: PlotState) => !!(ps.stand || ps.facility) && !isWrecked(ps);
 /** Hit points of whatever stands on the plot. */
 export function buildingHp(ps: PlotState): number {
-  if (ps.stand) return ps.stand.wrecked ? 0 : STAND_HP[ps.stand.level - 1];
+  if (ps.stand) return ps.stand.wrecked ? 0 : Math.round(STAND_HP[ps.stand.level - 1] * fortifiedFrame(ps)); // a Fortified Frame: ×1.5 (specializations.ts)
   if (ps.facility) return ps.facility.wrecked ? 0 : FACILITIES[ps.facility.kind].hp[ps.facility.level - 1];
   return 0;
 }

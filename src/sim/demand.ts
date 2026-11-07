@@ -25,6 +25,7 @@ import { adBlitzBoost } from './schemes.ts';
 import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
 import { billboardCurb, billboardTerms, campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
+import { expressWindow, fancyMenu, migrateSpecs, roofTerms } from './specializations.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -35,11 +36,11 @@ const FIRST_HOUR = OPEN / 60;
 
 /**
  * Top-price modifiers from other sections multiply in here, before the ceiling rounds down to the cent: the Blender
- * Bar's Frozen +20% (world). Fancy Menu's +20% joins here when its lane lands. Rival stands take none.
+ * Bar's Frozen +20% (world) and the Fancy Menu's +20% (specializations.ts). Rival stands take none.
  */
 export function topPriceMods(s: GameState, plotId: string, st: Stand | null | undefined = s.plots[plotId]?.stand): number {
   if (s.plots[plotId]?.owner !== 'player' || !st) return 1;
-  return blenderBar(s, st.recipe);
+  return blenderBar(s, st.recipe) * fancyMenu(st);
 }
 
 /** Ceiling = the level's top price × the district's price tolerance × (1 + the card's price bonus), down to the cent. */
@@ -134,7 +135,7 @@ export const adsBlocked = (s: GameState, owner: FactionId, plotId?: string): boo
 /**
  * Every traffic bonus reaching a stand adds into one marketing number, in the order the stand panel lists them.
  * Surges written ×2 (Viral Video, Parade Route; Roadworks ×0.5) multiply on top, in expectedPassersby. A new
- * source (the Billboard Roof within 2 plots) adds one entry here. A Coupon Blitz is appeal, not traffic (marketing.ts).
+ * source adds one entry here. A Coupon Blitz is appeal, not traffic (marketing.ts).
  */
 export const MARKETING_TERMS: MarketingSource[] = [
   (s, owner, add, _st, plotId) => { // the brand tier: each replaces the last
@@ -159,6 +160,7 @@ export const MARKETING_TERMS: MarketingSource[] = [
   },
   (s, owner, add, st, plotId) => campaignTerms(s, owner, add, st, plotId), // Sunny's walk, and a campaign booked for today (marketing.ts)
   (s, owner, add, _st, plotId) => billboardTerms(s, owner, add, plotId), // +20% for each of its owner's Billboards within 2 plots (marketing.ts)
+  (s, owner, add, _st, plotId) => roofTerms(s, owner, add, plotId), // +15% for each Billboard Roof of yours within 2 plots (specializations.ts)
   (s, owner, add, st) => { // FizzCo's ad blitz: its mascot works one district (schemes.ts)
     const b = adBlitzBoost(s, owner, st);
     if (b) add('blitz', "FizzCo's mascot", b);
@@ -352,12 +354,12 @@ function shareTo(s: GameState, q: Plot, to: string, appealOf: (plotId: string) =
 // ---------- service and the line ----------
 
 /**
- * Cups an hour the stand pours: a Damaged stand pours its HP share, in whole cups (damage.ts). Seam: the Express
- * Window's +30% multiplies in here when stand specializations land.
+ * Cups an hour the stand pours: the level's, ×1.3 behind an Express Window of yours (specializations.ts), and a
+ * Damaged stand pours its HP share of that, in whole cups (damage.ts).
  */
 export function pourRate(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
-  return hpCapacity(ps, STAND_LEVELS[ps.stand!.level - 1].capacityPerHour);
+  return hpCapacity(ps, Math.round(STAND_LEVELS[ps.stand!.level - 1].capacityPerHour * expressWindow(ps)));
 }
 
 /** The most a stand pours in a day: cups an hour × 10 effective selling hours (L1 200, L2 500, L3 1,200, L4 3,000, L5 7,000). */
@@ -607,6 +609,7 @@ export function reputationAtClose(s: GameState, t: DayStats = s.today): void {
 export function migrateDemand(s: GameState): void {
   migrateLedger(s); // the Ledger's score log, from what the history still knows
   migrateMarketing(s); // district campaigns and bookings (marketing.ts)
+  migrateSpecs(s); // stand specializations: empty slots on older saves (specializations.ts)
   for (const r of Object.values(s.rivals ?? {})) r.reputation ??= REP_DRIFT.base; // rivals' own stars start at 3.0
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;

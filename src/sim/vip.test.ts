@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, BOTTLE_CAP, bottleCost, dealShortfallPerDay, buildFacility, canBuildFacility, CUP_COST, recipeCost, vipAtDawn, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
+  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, ownsRecipe, dealShortfallPerDay, buildFacility, canBuildFacility, CUP_COST, recipeCost, vipAtDawn, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
   nextDue, openStand, owedBy, PICKUP_MINUTE, pickupsAt, pickupsAtClose, PLOTS, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes,
   VIP_STAR_BONUS, type GameState, type Order,
 } from './economy.ts';
@@ -187,6 +187,35 @@ describe('VIP clients', () => {
     expect(s.bottles).toBe(1000);
     expect(s.cash).toBeCloseTo(cash - 1000 * each);
     expect(s.today.supplies).toBeCloseTo(1000 * each);
+  });
+
+  it("orders name a recipe from Lottie's book, and bottles are filled and stocked per recipe", () => {
+    const { s, field, lot } = vipGame(12);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, lot.id, 'bottling'); // 1,500 a day
+    const picks = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      s.offers = [];
+      s.lastOffer = {}; // every tier is due a call
+      vipAtDawn(s);
+      for (const o of s.offers) if (o.tier === 'heli' || o.tier === 'caterer') picks.add(o.recipe!);
+    }
+    expect(picks.size).toBeGreaterThan(1);
+    expect([...picks].every((r) => ownsRecipe(s, r as 'classic'))).toBe(true);
+    s.offers = [];
+    s.bottles = 3000; // bottles from before recipes: all Classic
+    expect([bottlesOf(s, 'classic'), bottlesOf(s, 'pink')]).toEqual([3000, 0]);
+    const o = order(s, { id: 'pink', tier: 'heli', qty: 2000, pay: 60000, due: s.day + 4, plot: field.id, recipe: 'pink' });
+    trips(s);
+    expect(o.loaded).toBeUndefined(); // Classic doesn't fill a Pink order
+    const cash = s.cash;
+    vipAtDawn(s);
+    expect([bottlesOf(s, 'pink'), bottlesOf(s, 'classic'), s.bottles]).toEqual([1500, 3000, 4500]);
+    expect(s.cash).toBeCloseTo(cash - 1500 * bottleCost(s, 'pink'));
+    trips(s);
+    expect(o.loaded).toBe(1500);
+    expect([bottlesOf(s, 'pink'), bottlesOf(s, 'classic')]).toEqual([0, 3000]);
   });
 
   it('an order with no bottles fails and costs a star', () => {

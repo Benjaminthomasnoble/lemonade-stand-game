@@ -10,7 +10,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, playerStands } from './economy.ts';
 import { restoreHp } from './damage.ts';
-import { recipeCost } from './recipes.ts';
+import { ownedRecipes, ownsRecipe, recipeCost } from './recipes.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -34,6 +34,7 @@ export interface Order {
   loaded?: number; // VIP orders: bottles loaded so far (each pickup pays for its own load)
   loading?: number; // the bottles on the trip a Delivery Raid is holding, until it's fought
   loads?: number; // a Supply Deal: its weekly loads, each due a week after the last
+  recipe?: RecipeId; // what the client wants bottled (older orders: Classic); a Local Order pours its stand's card
 }
 
 // ---------- tunables (starting values; the balance thread replaces these) ----------
@@ -52,6 +53,25 @@ export const BOTTLES_PER_DAY = [1500, 4000, 12000];
 export const BOTTLE_CAP = 0.15;
 /** A bottle: the recipe's ingredients at today's Market plus the bottle and cap (Classic about $0.31: $0.16 + $0.15). */
 export const bottleCost = (s: GameState, recipe: RecipeId = 'classic') => recipeCost(s, recipe) - CUP_COST + BOTTLE_CAP;
+/** The recipe an order is bottled in: the client's pick (orders from before recipes: Classic). */
+export const orderRecipe = (o: Order): RecipeId => o.recipe ?? 'classic';
+
+/** Bottles of one recipe on hand. s.bottles counts them all and s.bottleStock holds each recipe but Classic, which is the
+ * rest: older saves, whose bottles were all Classic, need no migration. */
+export function bottlesOf(s: GameState, recipe: RecipeId): number {
+  if (recipe !== 'classic') return Math.min(s.bottleStock?.[recipe] ?? 0, s.bottles);
+  let others = 0;
+  for (const n of Object.values(s.bottleStock ?? {})) others += n ?? 0;
+  return Math.max(0, s.bottles - others);
+}
+/** Bottles of a recipe into stock (n < 0 takes them out). */
+export function stockBottles(s: GameState, recipe: RecipeId, n: number): void {
+  s.bottles = Math.max(0, s.bottles + n);
+  if (recipe === 'classic') return;
+  const m = (s.bottleStock ??= {});
+  const left = Math.max(0, (m[recipe] ?? 0) + n);
+  if (left) m[recipe] = left; else delete m[recipe];
+}
 /** Pay is per bottle (Local Orders: 1.5× that stand's cup price). Chance = offers per day. */
 export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size: [number, number]; pay: number; days: number; chance: number; label: string }> = {
   local: { rank: 3, stars: 0, size: [300, 1500], pay: 1.5, days: 2, chance: 0.5, label: 'Local Order' },
@@ -175,10 +195,15 @@ function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const days = t.days;
   const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : undefined;
   const clients = CLIENTS[tier];
-  return {
+  const o: Order = {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
     pay: Math.round(qty * unit), due: s.day + days, expires: s.day + 1, plot, accepted: false,
   };
+  if (tier !== 'local') { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own)
+    const book = ownedRecipes(s);
+    o.recipe = book[Math.floor(nextRandom(rng) * book.length)];
+  }
+  return o;
 }
 
 function localPrice(s: GameState): number {
@@ -189,16 +214,21 @@ function localPrice(s: GameState): number {
 /** At dawn: production, expiring offers, new offers. */
 export function vipAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
-  // Bottling runs only while an accepted order still needs bottles.
-  const need = bottlesNeeded(s) - s.bottles;
-  if (need > 0) {
-    const cost = bottleCost(s);
-    const make = Math.min(need, bottlingCapacity(s), Math.floor(Math.max(0, s.cash) / cost));
-    if (make > 0) {
-      s.bottles += make;
-      s.cash = round2(s.cash - make * cost);
-      s.today.supplies = round2(s.today.supplies + make * cost);
-    }
+  // Bottling runs only while an accepted order still needs bottles: each recipe the orders want, the soonest due first,
+  // at its own cost (a page that has left the book can't be bottled).
+  let room = bottlingCapacity(s);
+  const want = new Map<RecipeId, number>();
+  for (const o of s.orders.filter((x) => x.tier !== 'local').sort((a, b) => nextDue(a, s.day) - nextDue(b, s.day))) {
+    want.set(orderRecipe(o), (want.get(orderRecipe(o)) ?? 0) + bottlesLeft(o));
+  }
+  for (const [recipe, n] of want) {
+    const cost = bottleCost(s, recipe);
+    const make = ownsRecipe(s, recipe) ? Math.min(n - bottlesOf(s, recipe), room, Math.floor(Math.max(0, s.cash) / cost)) : 0;
+    if (make <= 0) continue;
+    stockBottles(s, recipe, make);
+    room -= make;
+    s.cash = round2(s.cash - make * cost);
+    s.today.supplies = round2(s.today.supplies + make * cost);
   }
   s.offers = s.offers.filter((o) => o.expires >= s.day);
   const last = (s.lastOffer ??= {});
@@ -237,7 +267,9 @@ export function declineOrder(s: GameState, id: string): void {
 export function dealShortfallPerDay(s: GameState, o: Order): number {
   const perDay = o.qty / ORDER_TIERS.deal.days;
   const committed = s.orders.filter((x) => x.tier !== 'local').reduce((a, x) => a + bottlesLeft(x) / Math.max(1, x.due - s.day), 0);
-  return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, s.bottles - bottlesNeeded(s)) / ORDER_TIERS.deal.days);
+  const r = orderRecipe(o);
+  const spare = bottlesOf(s, r) - s.orders.filter((x) => x.tier !== 'local' && orderRecipe(x) === r).reduce((a, x) => a + bottlesLeft(x), 0);
+  return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, spare) / ORDER_TIERS.deal.days);
 }
 
 /** Bottles an order still has to load. */
@@ -334,7 +366,7 @@ export function deliver(s: GameState, o: Order): Pickup | null {
 /** The client loads up to `room` bottles, as many as are ready, and pays for them; the last load completes the order (a
  * helicopter order adds 0.2 star). A Delivery Raid rolled on the trip holds it until the raid is fought. */
 function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: number } | null {
-  const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), s.bottles);
+  const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), bottlesOf(s, orderRecipe(o)));
   if (n <= 0) return null;
   o.loading = n;
   const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: a Delivery Raid is warned and fought on the clock
@@ -343,7 +375,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   const before = o.loaded ?? 0;
   o.loaded = before + n;
   const pay = payFor(o, o.loaded) - payFor(o, before);
-  s.bottles -= n;
+  stockBottles(s, orderRecipe(o), -n);
   s.cash = round2(s.cash + pay);
   s.today.revenue = round2(s.today.revenue + pay);
   s.lifetimeCups += n;
@@ -359,7 +391,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
 
 /** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded. */
 export function loseLoad(s: GameState, o: Order): void {
-  s.bottles = Math.max(0, s.bottles - (o.loading ?? bottlesLeft(o)));
+  stockBottles(s, orderRecipe(o), -(o.loading ?? bottlesLeft(o)));
   delete o.loading;
 }
 
@@ -396,9 +428,10 @@ function handOver(s: GameState, o: Order): Pickup {
     s.news.push(`Delivered ${o.qty} cups to ${o.client}: ${money(o.pay)}!`);
     return { order: o, ok: true };
   }
-  if (s.bottles < o.qty) return failOrder(s, o, `Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
+  const ready = bottlesOf(s, orderRecipe(o));
+  if (ready < o.qty) return failOrder(s, o, `Only ${ready.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
   s.orders = s.orders.filter((x) => x !== o);
-  s.bottles -= o.qty;
+  stockBottles(s, orderRecipe(o), -o.qty);
   o.loaded = o.qty;
   s.cash = round2(s.cash + o.pay);
   s.today.revenue = round2(s.today.revenue + o.pay);

@@ -189,6 +189,7 @@ export interface GameState {
   battles: BattleReport[]; // most recent first
   respectFromPlayer: Partial<Record<RivalId, number>>;
   bottles: number;
+  bottleStock?: Partial<Record<RecipeId, number>>; // world: the bottles of each recipe but Classic, which has the rest (vip.ts)
   lastOffer?: Partial<Record<OrderTier, number>>; // day each VIP tier last made an offer
   seenClients?: string[]; // VIP clients who've visited before (no cutscene pause after the first)
   noTruceUntil?: number; // after breaking a truce, no rival accepts one through this day

@@ -6,9 +6,9 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, DISTRICT_CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
   PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF, WEATHER,
-  type CampaignId, type RecipeId, type RivalId, type SegmentId,
+  type CampaignId, type DistrictCampaignId, type LocalCampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
@@ -24,6 +24,7 @@ import { groveTraffic } from './vip.ts';
 import { adBlitzBoost } from './schemes.ts';
 import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
+import { campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -132,7 +133,7 @@ export const adsBlocked = (s: GameState, owner: FactionId, plotId?: string): boo
 /**
  * Every traffic bonus reaching a stand adds into one marketing number, in the order the stand panel lists them.
  * Surges written ×2 (Viral Video, Parade Route; Roadworks ×0.5) multiply on top, in expectedPassersby. A new
- * source (Billboards and Roofs within 2 plots, Sunny, a rival's ad blitz) adds one entry here.
+ * source (Billboards and Roofs within 2 plots) adds one entry here. A Coupon Blitz is appeal, not traffic (marketing.ts).
  */
 export const MARKETING_TERMS: MarketingSource[] = [
   (s, owner, add, _st, plotId) => { // the brand tier: each replaces the last
@@ -155,6 +156,7 @@ export const MARKETING_TERMS: MarketingSource[] = [
       if (c && (st.campaigns[id as CampaignId] ?? 0) > 0) add(id, c.name, c.traffic, adsBlocked(s, owner, plotId));
     }
   },
+  (s, owner, add, st, plotId) => campaignTerms(s, owner, add, st, plotId), // Sunny's walk, and a campaign booked for today (marketing.ts)
   (s, owner, add, st) => { // FizzCo's ad blitz: its mascot works one district (schemes.ts)
     const b = adBlitzBoost(s, owner, st);
     if (b) add('blitz', "FizzCo's mascot", b);
@@ -217,12 +219,15 @@ export function touristPays(s: GameState, plotId: string, seg: SegmentId): numbe
   return seg === 'tourists' && s.plots[plotId].owner === 'player' && fullControl(s, 'boardwalk') ? 1 + PERKS.touristTrap : 1;
 }
 
-/** What a local campaign costs today: Word of Mouth (Campus & Arts at Full Control) halves the dollars or the free cups. */
-export function campaignCost(s: GameState, id: CampaignId): { cash: number; samples: number; half: boolean } {
-  const c = CAMPAIGNS[id];
+/**
+ * What a local campaign costs today: Word of Mouth (Campus & Arts at Full Control) halves the dollars, the free cups,
+ * or a Coupon Blitz's price cut (−12.5% for the same ×1.4 appeal: placeholder, spec gap).
+ */
+export function campaignCost(s: GameState, id: LocalCampaignId): { cash: number; samples: number; cut: number; half: boolean } {
+  const c: { costPerDay?: number; samples?: number; priceCut?: number } = id in DISTRICT_CAMPAIGNS ? DISTRICT_CAMPAIGNS[id as DistrictCampaignId] : CAMPAIGNS[id as CampaignId];
   const half = fullControl(s, 'campus');
   const k = half ? PERKS.wordOfMouth : 1;
-  return { cash: (c.costPerDay ?? 0) * k, samples: Math.ceil((c.samples ?? 0) * k), half };
+  return { cash: (c.costPerDay ?? 0) * k, samples: Math.ceil((c.samples ?? 0) * k), cut: (c.priceCut ?? 0) * k, half };
 }
 
 // ---------- who walks by, hour by hour ----------
@@ -465,7 +470,8 @@ export interface DemandChain {
   kept: number; toOwn: number; inflow: number; visitors: number;
   // 2. Stop chance
   base: number; thirst: number; curb: number; recipe: number; sweet: number; priceFit: number; reputation: number; stopChance: number;
-  price: number; ceiling: number;
+  /** What a cup sells for (a Coupon Blitz's `coupon` cut off the stand's price) and the stand's ceiling. */
+  price: number; coupon: number; ceiling: number;
   // 3. Cups sold
   demand: number; pourRate: number; service: number; stock: number; cups: number; binding: Binding;
   /** Perks at work at this stand. */
@@ -493,7 +499,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
     passersby: Math.round(passersby * lunch), kept: f.kept, toOwn: Math.round(f.toOwn), inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
     base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
     reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,
-    price: st.price, ceiling: priceCeiling(s, plotId, st),
+    price: salePrice(s, plotId, st), coupon: couponCut(s, plotId), ceiling: priceCeiling(s, plotId, st),
     demand, pourRate: pourRate(s, plotId), service, stock, cups, binding,
     perks: {
       townFavorite: owner === 'player' && (p.district === 'oldtown' || p.district === 'maple') && fullControl(s, 'oldtown'),
@@ -550,6 +556,7 @@ export function driftReputation(s: GameState, t: DayStats = s.today): void {
  */
 export function migrateDemand(s: GameState): void {
   migrateLedger(s); // the Ledger's score log, from what the history still knows
+  migrateMarketing(s); // district campaigns and bookings (marketing.ts)
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;
     if (!st) continue;

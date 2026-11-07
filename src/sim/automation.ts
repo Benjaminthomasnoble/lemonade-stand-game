@@ -11,6 +11,7 @@ import { AUTO_PRICE_RANK, CUPS_PER_PITCHER, RECIPES, SUPPLIES, type RecipeId, ty
 import type { DayStats, GameState, Stand } from './economy.ts';
 import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, stock, storageFor } from './economy.ts';
 import { priceCeiling, serviceLeft, stockCapCups } from './demand.ts';
+import { bookedSamples, salePrice } from './marketing.ts';
 import { ownedRecipes, pickRecipe } from './recipes.ts';
 import { gameOver } from './modes.ts';
 import { taught } from './story.ts';
@@ -122,7 +123,7 @@ export function bestSetting(s: GameState, plotId: string): PriceSetting {
       st.sweetness = sweetness;
       st.price = priceCeiling(s, plotId, st);
       const cups = expectedCups(s, plotId, s.forecast);
-      const profit = cups * (st.price - costPerCup(s, st));
+      const profit = cups * (salePrice(s, plotId, st) - costPerCup(s, st)); // a Coupon Blitz sells at its cut
       if (!best || profit > best.profit + 1e-9) best = { recipe, sweetness, price: st.price, cups, profit };
     }
   } finally {
@@ -236,7 +237,7 @@ export const targetStep = (level: number) => stockCapCups(level) / 30;
 export function restockGoal(s: GameState, plotId: string): number {
   const st = s.plots[plotId]?.stand;
   if (!st || st.wrecked) return 0;
-  if (s.phase === 'prep') return stockTarget(s, plotId);
+  if (s.phase === 'prep') return Math.min(stockCapCups(st.level), stockTarget(s, plotId) + bookedSamples(s, plotId)); // and a booked Free Sample Day's cups
   return s.phase === 'open' ? Math.min(stockTarget(s, plotId), serviceLeft(s, plotId)) : 0;
 }
 

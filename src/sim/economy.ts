@@ -8,7 +8,7 @@ import {
   DAWN, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
-  type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
+  type CampaignId, type LocalCampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
@@ -19,7 +19,7 @@ import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type 
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
-import { crewAtDawn, isSpoiled, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
+import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
 import { DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -32,8 +32,9 @@ import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
   adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
-  marketingMultiplier, migrateDemand, pourRate, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
+  marketingMultiplier, migrateDemand, pourRate, priceCeiling, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
+import { campaignDay, districtBlocker, isDistrictCampaign, planCampaign, salePrice, standCampaignBusy, standPriceFit, startBookings, type MarketingState } from './marketing.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
@@ -75,6 +76,7 @@ export * from './land.ts';
 export * from './auction.ts';
 export * from './automation.ts';
 export * from './ledger.ts';
+export * from './marketing.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -268,6 +270,7 @@ export interface GameState {
   squeeze?: SqueezeState; // campaign: the Big Squeeze, its 7-night siege of Sourwood Manor and what it won (squeeze.ts)
   autoDefend?: boolean; // Dex's Auto-Defend switch, from Rank 4 (autodefend.ts)
   captives?: Captive[]; // the Nabbed: raiders you hold, and your guards a rival holds (captives.ts)
+  marketing?: MarketingState; // Sunny's walks and Coupon Blitzes by district and day, and campaigns booked for tomorrow (marketing.ts)
 }
 
 export type SimEvent =
@@ -544,7 +547,7 @@ export function appealFor(s: GameState, plotId: string, seg: SegmentId, w: Weath
   const ps = s.plots[plotId];
   const st = ps.stand!;
   const ceiling = priceCeiling(s, plotId, st);
-  const priceFit = segmentPriceFit(plotId, seg, st.price, ceiling);
+  const priceFit = standPriceFit(s, plotId, seg, st, ceiling); // a Coupon Blitz's ×1.4 (marketing.ts)
   // world: where the card shines and the Sweetness dial (rivals: 1). Its top-price perk is in the ceiling (topPriceMods).
   const card = cardFit(s, plotId, seg);
   const recipeMatch = card.match;
@@ -587,6 +590,7 @@ export function openStands(s: GameState): boolean {
   if (s.phase !== 'prep' || gameOver(s)) return false;
   holdPrices(s); // Auto-Price re-posts any ceiling Morning Prep moved, then Auto-Restock tops up (automation.ts)
   restockAtOpen(s);
+  startBookings(s); // campaigns booked yesterday start now; a booked Free Sample Day hands out its cups (marketing.ts)
   const rng = { seed: s.seed };
   let weather: Weather;
   if (nextRandom(rng) < FORECAST_ACCURACY) {
@@ -706,7 +710,8 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
     st.pitcherCups--;
   }
   st.queue = (st.queue ?? 0) + 1;
-  const paid = round2(st.price * touristPays(s, plotId, seg)); // Tourist Trap: tourists pay +20%
+  const price = salePrice(s, plotId, st); // a Coupon Blitz takes its cut off the price (marketing.ts)
+  const paid = round2(price * touristPays(s, plotId, seg)); // Tourist Trap: tourists pay +20%
   let cupCost = CUP_COST;
   if (isPlayer) {
     const ice = RECIPES[st.recipe].icePerCup;
@@ -718,7 +723,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   }
   // How pleased this buyer is: the day's mood, never Reputation (it drifts on stand levels and walk-aways, demand.ts).
   // world: the card and the Sweetness dial win customers through appeal (spec: Reputation).
-  const sat = clamp(0.55 + 0.4 * (a.fairPrice - st.price) / a.fairPrice, 0, 1);
+  const sat = clamp(0.55 + 0.4 * (a.fairPrice - price) / a.fairPrice, 0, 1);
   const d = st.day;
   d.satisfaction = (d.satisfaction * d.customers + sat) / (d.customers + 1);
   d.customers++;
@@ -790,7 +795,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   if (chosenOwner === 'player') {
     if (result.buys) s.today.customers++; else s.today.walkedPast[result.reason!]++;
   }
-  return { type: 'passerby', plot: p.id, at: chosen, segment: seg, buys: result.buys, reason: result.reason, price: result.paid ?? s.plots[chosen].stand!.price, owner: chosenOwner };
+  return { type: 'passerby', plot: p.id, at: chosen, segment: seg, buys: result.buys, reason: result.reason, price: result.paid ?? salePrice(s, chosen), owner: chosenOwner };
 }
 
 function closeDay(s: GameState): void {
@@ -1083,28 +1088,45 @@ export function buyBrand(s: GameState): boolean {
   return true;
 }
 
-export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected): Blocker {
+/**
+ * Can this campaign run? At Morning Prep it starts today; during business hours it books for tomorrow and starts at
+ * the next open (marketing.ts). Sunny and the Coupon Blitz work the stand's whole district. A booking starting at the
+ * open is `prepaid`: its money left when it was booked.
+ */
+export function canRunCampaign(s: GameState, id: LocalCampaignId, plotId = s.selected, prepaid = false): Blocker {
+  if (isDistrictCampaign(id)) return districtBlocker(s, id, plotId);
   const c = CAMPAIGNS[id];
-  const st = s.plots[plotId]?.stand;
-  if (!st) return { ok: false, why: 'Pick a stand' };
-  if (s.phase !== 'prep') return { ok: false, why: 'Plan campaigns during Morning Prep' };
+  const ps = s.plots[plotId];
+  const st = ps?.stand;
+  if (!st || ps.owner !== 'player') return { ok: false, why: 'Pick a stand' };
+  const day = campaignDay(s);
+  if (day === null) return { ok: false, why: 'Plan campaigns during Morning Prep' };
   if (s.rank < c.rank) return { ok: false, why: `Needs Rank ${c.rank}, ${RANKS[c.rank - 1].title}` };
+  if (isWrecked(ps)) return { ok: false, why: ps.busted ? 'Fix it first' : 'Rebuild it first' };
   if (c.maxLevel && st.level > c.maxLevel) return { ok: false, why: `Only for L1–L${c.maxLevel} stands` };
   if (adsBlocked(s, 'player', plotId)) return { ok: false, why: 'Cease-and-Desist: ads count for nothing here' };
-  const left = st.campaigns[id] ?? 0;
-  if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
+  const busy = standCampaignBusy(s, id, plotId, day); // running or booked here; one Free Sample Day across your empire
+  if (busy) return { ok: false, why: busy };
   const cost = campaignCost(s, id); // Word of Mouth halves it
-  if (cost.cash && s.cash < cost.cash) return { ok: false, why: `Needs $${cost.cash}` };
-  if (cost.samples && cupsInStock(s, plotId) < cost.samples) return { ok: false, why: `Needs stock for ${cost.samples} cups` };
+  if (cost.cash && !prepaid && s.cash < cost.cash) return { ok: false, why: `Needs $${cost.cash}` };
+  if (cost.samples && day === s.day && cupsInStock(s, plotId) < cost.samples) return { ok: false, why: `Needs stock for ${cost.samples} cups` };
   return { ok: true };
 }
 
-export function runCampaign(s: GameState, id: CampaignId, plotId = s.selected): boolean {
+export function runCampaign(s: GameState, id: LocalCampaignId, plotId = s.selected): boolean {
   if (!canRunCampaign(s, id, plotId).ok) return false;
+  if (isDistrictCampaign(id) || s.phase === 'open') return planCampaign(s, id, plotId); // a district's day, or tomorrow's booking
+  const cost = campaignCost(s, id);
+  if (cost.cash) book(s, 'marketing', -cost.cash);
+  startCampaign(s, id, plotId);
+  return true;
+}
+
+/** A stand's campaign starts (Morning Prep, or a booking at the open): its free cups come out of stock and its star lands. */
+export function startCampaign(s: GameState, id: CampaignId, plotId: string): void {
   const c = CAMPAIGNS[id];
   const st = s.plots[plotId].stand!;
   const cost = campaignCost(s, id);
-  if (cost.cash) book(s, 'marketing', -cost.cash);
   if (cost.samples) {
     const n = pitcherNeeds(st);
     const pitchers = Math.ceil(cost.samples / CUPS_PER_PITCHER);
@@ -1114,9 +1136,8 @@ export function runCampaign(s: GameState, id: CampaignId, plotId = s.selected): 
     book(s, 'marketing', -CUP_COST * cost.samples); // the samples' cups; their lemonade comes out of stock
     useStock(s, (costPerCup(s, st) - CUP_COST - RECIPES[st.recipe].extraPerCup) * cost.samples);
   }
-  if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 100) / 100, 1, 5);
+  if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 1e4) / 1e4, 1, 5); // Reputation keeps four decimals
   st.campaigns[id] = c.days;
-  return true;
 }
 
 // ---------- Lottie's Goals ----------

@@ -181,8 +181,20 @@ export const BRAND_TIERS = [
 export type CampaignId = 'sandwichBoard' | 'freeSamples';
 export const CAMPAIGNS: Record<CampaignId, { name: string; rank: number; blurb: string; costPerDay?: number; traffic: number; days: number; samples?: number; reputation?: number; maxLevel?: number }> = {
   sandwichBoard: { name: 'Sandwich-Board Kid', rank: 2, blurb: '+20% foot traffic today (L1–L3 stands)', costPerDay: 40, traffic: 0.2, days: 1, maxLevel: 3 },
-  freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 30 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 30, reputation: 0.1 },
+  freeSamples: { name: 'Free Sample Day', rank: 2, blurb: 'Give away 100 cups: +0.1 star and +15% traffic for 3 days', traffic: 0.15, days: 3, samples: 100, reputation: 0.1 },
 };
+/**
+ * Local campaigns that work one district for a day (spec: Local campaigns). There is only one Sunny, so the mascot
+ * walks one district a day. A Coupon Blitz takes `priceCut` off your prices there, and its appeal is ×`appeal` in
+ * place of what that cut would win on the price-fit curve; it counts in the split with rival stands nearby.
+ */
+export type DistrictCampaignId = 'sunny' | 'couponBlitz';
+export const DISTRICT_CAMPAIGNS: Record<DistrictCampaignId, { name: string; rank: number; blurb: string; costPerDay?: number; traffic?: number; priceCut?: number; appeal?: number; onePerDay?: boolean }> = {
+  sunny: { name: 'Sunny the Lemon', rank: 3, blurb: '+25% foot traffic at your stands in one district today', costPerDay: 300, traffic: 0.25, onePerDay: true },
+  couponBlitz: { name: 'Coupon Blitz', rank: 4, blurb: 'Your prices −25% in one district today: +40% appeal, and they win the split', priceCut: 0.25, appeal: 1.4 },
+};
+/** Every local campaign: a stand's own and a district's. */
+export type LocalCampaignId = CampaignId | DistrictCampaignId;
 
 // ---------- the calendar: fairs, festivals and Taste-Offs (spec: Events and the living world) ----------
 export const YEAR_DAYS = SEASON_DAYS * 4; // a year is 4 seasons of 14 days, starting on Summer Day 1

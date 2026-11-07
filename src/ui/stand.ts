@@ -3,7 +3,7 @@
 // while open. Mounted inside the plot card for your own stands (hud.ts); exact numbers sit in the math table and
 // in title tooltips, the panel itself stays a few words a line.
 import {
-  BASE_STOP_CHANCE, costPerCup, curbAppeal, demandChain, FACTIONS, lunchRushDay, marketingMultiplier, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID,
+  BASE_STOP_CHANCE, costPerCup, couponCut, curbAppeal, demandChain, DISTRICT_CAMPAIGNS, FACTIONS, lunchRushDay, marketingMultiplier, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID,
   pourRate, priceCeiling, RECIPES, seasonOf, serviceLeft, cupsInStock, iceMachineOn, stock, storageFor, SUPPLIES, WEATHER,
   type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
@@ -11,6 +11,7 @@ import { taught } from '../sim/story.ts';
 import { emoteUrl, type Emote } from './emotes.ts';
 import { recipeRow } from './recipes.ts';
 import { priceSwitch } from './automation.ts';
+import { bookingRow } from './marketing.ts';
 import * as A from './clay.ts';
 
 /** Why people walked past, in the order the panel lists them, with the street's reaction icon for each. */
@@ -62,7 +63,7 @@ function chainFor(s: GameState, plotId: string): DemandChain | null {
   // and the walkers and curb appeal each brings to the split.
   const block = nearbyPlots(PLOT_BY_ID[plotId]).map((q) => {
     const ps = s.plots[q.id], x = ps.stand;
-    return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}:${k4(marketingMultiplier(s, ps.owner!, x, q.id))}:${k4(curbAppeal(s, q.id))}` : '-';
+    return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}:${k4(marketingMultiplier(s, ps.owner!, x, q.id))}:${k4(curbAppeal(s, q.id))}:${couponCut(s, q.id)}` : '-';
   }).join(',');
   const surging = (s.world?.events?.on ?? []).map((e) => `${e.id}${e.live ? 1 : 0}`).join(); // a surge starts mid-day too
   const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, pourRate(s, plotId), priceCeiling(s, plotId, st),
@@ -109,7 +110,7 @@ function mathTable(s: GameState, plotId: string, c: DemandChain): string {
     ['Curb appeal', times(c.curb)],
     ['Recipe match', times(c.recipe)],
     ['Sweetness', times(c.sweet)],
-    [`Price fit (${usd(c.price)} of ${usd(c.ceiling)})`, times(c.priceFit)],
+    [`Price fit (${usd(c.price)}${c.coupon ? ' with coupons' : ''} of ${usd(c.ceiling)})`, times(c.priceFit)],
     ['Reputation', times(c.reputation)],
     ['Stop', pct(c.stopChance), 'good'],
     ['Want a cup', n0(c.demand)],
@@ -153,6 +154,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
       <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > c.ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${usd(c.ceiling)}: past it, buyers walk off. Costs you ${usd(cost)} a cup. Tap to price at the top"><b>${usd(st.price)}</b><i>top ${usd(c.ceiling)}</i></div>
       <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>${priceSwitch(s, plotId)}</div>
     <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div></div>
+    ${bookingRow(s, plotId)}
   </div>`;
 }
 
@@ -170,7 +172,7 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   const ads = c.terms.filter((t) => !t.blocked).map((t) => `${t.label} +${pct(t.traffic)}`).join(', ');
   const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing${ads ? ` (${ads})` : ''} × ${num(c.season)} season × ${num(c.weather)} weather${c.surge !== 1 ? ` × ${num(c.surge)} events` : ''}${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''} = ${n0(c.passersby)}`
     + (c.visitors !== c.passersby ? `. At this stand: ${n0(c.passersby)}${c.kept < 1 ? ` × ${pct(c.kept)} kept from rivals` : ''}${c.toOwn > 0 ? ` − ${n0(c.toOwn)} to your stand next door` : ''}${c.inflow > 0 ? ` + ${n0(c.inflow)} from next door` : ''} = ${n0(c.visitors)}` : '');
-  const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars = ${pct(c.stopChance)}. Want a cup: ${n0(c.visitors)} × ${pct(c.stopChance)} = ${n0(c.demand)}`;
+  const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)}${c.coupon ? ` with coupons, ×${num(DISTRICT_CAMPAIGNS.couponBlitz.appeal!)} appeal` : ''} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars = ${pct(c.stopChance)}. Want a cup: ${n0(c.visitors)} × ${pct(c.stopChance)} = ${n0(c.demand)}`;
   const caps: [string, number, boolean][] = open
     ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', cupsInStock(s, plotId), cupsInStock(s, plotId) <= 0]]
     : [['want', c.demand, c.binding === 'demand'], ['pour', c.service, c.binding === 'service'], ['stock', c.stock, c.binding === 'stock']];

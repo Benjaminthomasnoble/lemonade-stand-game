@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  buildFacility, demandChain, eventsOf, LOTTIES_CORNER, LOTTIES_SIDE_LOT, newGame, newStand, openStands, priceCeiling, tickMinute, type GameState,
+  buildFacility, demandChain, eventsOf, LOTTIES_CORNER, LOTTIES_SIDE_LOT, newGame, newStand, openStands, priceCeiling, runCampaign, tickMinute, type GameState,
 } from '../sim/economy.ts';
 import { standPanel, walkerInfo, walkerLine } from './stand.ts';
 
@@ -175,5 +175,40 @@ describe('the stand panel', () => {
     s.day = 3;
     s.selected = 'maple-1n'; // another stand's card has Manage first
     expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-testid="nudges"');
+  });
+});
+
+describe("booking tomorrow's campaigns from the nudges", () => {
+  /** Lottie's Corner an hour after opening on Day 8, past the marketing lesson. */
+  function open(rank: number): GameState {
+    const s = corner();
+    s.day = 8;
+    s.rank = rank;
+    s.cash = 2000;
+    openStands(s);
+    s.weather = { kind: 'hot', temp: 88 };
+    for (let i = 0; i < 60; i++) tickMinute(s);
+    return s;
+  }
+
+  it('offers every campaign this stand can book, and marks the one booked', () => {
+    const s = open(4);
+    const html = standPanel(s, LOTTIES_CORNER, false);
+    expect(html).toContain('data-testid="book-tomorrow"');
+    for (const id of ['sandwichBoard', 'freeSamples', 'sunny', 'couponBlitz']) expect(html).toContain(`data-action="campaign" data-id="${id}" data-plot="${LOTTIES_CORNER}"`);
+    expect(runCampaign(s, 'sandwichBoard')).toBe(true);
+    expect(standPanel(s, LOTTIES_CORNER, false)).toMatch(/data-id="sandwichBoard"[^>]*aria-pressed="true" title="Booked for tomorrow" disabled/);
+  });
+
+  it('hides what the rank has not unlocked, and shows nothing at Morning Prep', () => {
+    const s = open(2);
+    const html = standPanel(s, LOTTIES_CORNER, false);
+    expect(html).toContain('data-id="sandwichBoard"');
+    expect(html).not.toContain('data-id="sunny"');
+    expect(html).not.toContain('data-id="couponBlitz"');
+    const prep = corner();
+    prep.day = 8;
+    prep.rank = 4;
+    expect(standPanel(prep, LOTTIES_CORNER, false)).not.toContain('book-tomorrow');
   });
 });

@@ -518,10 +518,13 @@ describe('district perks at Full Control', () => {
     s.rank = 2;
     s.cash = 100;
     stockUp(s, LOTTIES_CORNER);
-    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 40, samples: 0, half: false });
+    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 40, samples: 0, cut: 0, half: false });
+    expect(campaignCost(s, 'couponBlitz')).toEqual({ cash: 0, samples: 0, cut: 0.25, half: false });
     fullControl(s, 'campus');
-    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 20, samples: 0, half: true });
-    expect(campaignCost(s, 'freeSamples').samples).toBe(15);
+    expect(campaignCost(s, 'sandwichBoard')).toEqual({ cash: 20, samples: 0, cut: 0, half: true });
+    expect(campaignCost(s, 'freeSamples').samples).toBe(50);
+    expect(campaignCost(s, 'sunny').cash).toBe(150);
+    expect(campaignCost(s, 'couponBlitz').cut).toBe(0.125); // the Blitz's cost is its cut: halved (placeholder)
     s.cash = 25;
     expect(canRunCampaign(s, 'sandwichBoard').ok).toBe(true);
     expect(runCampaign(s, 'sandwichBoard')).toBe(true);

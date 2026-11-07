@@ -13,6 +13,8 @@ import { P } from './clay/palette.ts';
 import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.ts';
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
 import { createRevealCrate } from './clay/crate.ts';
+import { specGeometry } from './clay/specs.ts';
+import type { SpecId } from '../sim/balance.ts';
 import { wreckPile } from './clay/defenses.ts';
 import { cardFlap, cardPlane, clayMesh, crayonSign, stick, whenFonts } from './clay/standKit.ts';
 
@@ -76,6 +78,8 @@ export interface Stand {
   setWrecked(wrecked: boolean): void;
   /** Busted (Laid Back): still standing but battered, taped shut and closed until it's repaired. */
   setBusted(busted: boolean): void;
+  /** The specializations fitted (Express Window, Fancy Menu, Fortified Frame, Billboard Roof), shown on an L3+ stand. */
+  setSpecs(ids: readonly SpecId[]): void;
   /** Free the stand's GPU resources and its tap listener (the kid and Lottie figures are left alone). */
   dispose(): void;
 }
@@ -207,6 +211,27 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   let detailNow = 0;
   function showSmall() {
     props.showSmall(detailNow < 1, (busted ? Math.min(hpNow, 0.25) : hpNow) > 0.5);
+  }
+
+  // ---------- specializations ----------
+  // The fit-outs bake into one draw on the level's root (so they rise, slump and fall with it),
+  // and the level's Bay View far version gains their silhouettes.
+  let specIds: SpecId[] = [], specKey = '', specMesh: THREE.Mesh | null = null;
+  function fitSpecs() {
+    if (!model) return;
+    const key = `${model.level}|${specIds.join(',')}`;
+    if (key === specKey) return;
+    specKey = key;
+    if (specMesh) { specMesh.removeFromParent(); specMesh.geometry.dispose(); specMesh = null; }
+    const far0 = farLevel(model.level, 'player', gilt);
+    (levelRoot.userData.far as THREE.BufferGeometry | undefined)?.dispose();
+    const fit = specGeometry(model.level, specIds);
+    if (!fit) { levelRoot.userData.far = far0; return; }
+    specMesh = clayMesh(fit.geo, kit().world);
+    specMesh.name = 'specs';
+    model.root.add(specMesh);
+    levelRoot.userData.far = new Baker().raw(far0).raw(fit.far).build();
+    far0.dispose(); fit.far.dispose();
   }
 
   // ---------- damage ----------
@@ -449,6 +474,8 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       levelRoot.add(model.root);
       // Bay View's district block draws the cheap far version instead.
       levelRoot.userData.far = farLevel(l, 'player', gilded);
+      specKey = '';
+      fitSpecs();
       spin = model.spin;
       props.place(model.anchors);
       const [kx, ky, kz] = model.kid;
@@ -465,6 +492,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       applyDamage();
       if (wreck) { wreck.removeFromParent(); disposeTree(wreck); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
     },
+    setSpecs(ids) { specIds = [...ids]; fitSpecs(); },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },

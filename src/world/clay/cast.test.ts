@@ -150,3 +150,13 @@ describe('clay cast', () => {
     expect(watch.children).toEqual([m]);
   });
 });
+
+describe('Dex in a brawl', () => {
+  it('reads as Dex with his weapon in hand', () => {
+    const f = makeCrew('player', { dex: true, weapon: 'clubs', level: 2 }, mat);
+    expect(f.sp).toMatchObject({ kind: 'lanky', vest: P.lemon, hat: 'beret' });
+    expect(f.sp.crossed).toBeFalsy();
+    expect(f.hand.getObjectByName('weapon')).toBeTruthy();
+    expect(makeCrew('player', { dex: true, gear: 'vest' }, mat).sp.vest).toBeUndefined();
+  });
+});

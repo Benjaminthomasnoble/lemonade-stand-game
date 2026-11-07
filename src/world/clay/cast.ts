@@ -313,7 +313,12 @@ export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
   if (look.role === 'wrecker') sp.toolbelt = true;
   if (look.role === 'captain') sp.whistle = true;
   if (look.onGuard && side === 'player') sp.crossed = true;
-  if (look.dex && side === 'player') Object.assign(sp, { kind: TOWNSFOLK.dex.kind, skin: TOWNSFOLK.dex.skin, hairColor: TOWNSFOLK.dex.hairColor, vest: P.lemon, seed: undefined });
+  if (look.dex && side === 'player') {
+    // Dex in a brawl is still Dex: lanky, green shirt, beret and lemon guard vest (under any Padded Vest), with his gear on top
+    const d = TOWNSFOLK.dex;
+    Object.assign(sp, { kind: d.kind, skin: d.skin, shirt: d.shirt, sleeve: d.sleeve, pants: d.pants, hairColor: d.hairColor, brows: d.brows, mouth: d.mouth, noseR: d.noseR, vest: sp.padded ? undefined : P.lemon, bib: undefined, seed: 32_200 });
+    if (sp.hat !== 'helmet') Object.assign(sp, { hat: d.hat, hatColor: d.hatColor });
+  }
   return sp;
 }
 /** Put the crew member's weapon in hand, or, arms crossed on guard, leaning against a leg. */

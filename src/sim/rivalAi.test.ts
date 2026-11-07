@@ -322,6 +322,7 @@ describe('Blender Rush', () => {
   it('Brock phones before each Blender Rush on you', () => {
     const s = newGame(42);
     s.day = 20;
+    s.story!.act = 2; // Day 20 is Act 2, when Brock's calls start (src/sim/story.ts)
     s.rank = 5;
     pastTutorial(s);
     for (const id of RIVALS) budgetOf(s, id).strike = 0;
@@ -331,7 +332,7 @@ describe('Blender Rush', () => {
     expect(raid.party!.length).toBe(RAID_PARTY[tierAt(s) - 1].size[1]);
     expect(raid.party!.every((f) => f.weapon === 'fists')).toBe(true);
     expect(s.rivals.blenders.rush).toBe(s.day);
-    expect(s.news).toContain(`Brock: "${BLENDER_RUSH.taunt}"`);
+    expect(s.phone!.queue.some((c) => c.who === 'blenders' && c.text === BLENDER_RUSH.taunt && c.raid === raid.id)).toBe(true); // rings once it's spotted (src/sim/phone.ts)
     expect(budgetOf(s, 'blenders').strike).toBeCloseTo(1e5 - raidCost(s, 'blenders', raid.party!.length), 2);
   });
 

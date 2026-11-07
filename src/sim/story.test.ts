@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   actOf, averageStopChance, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
-  festivalDays, openStand, planNight, PLOTS, postGuard, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
-  type BattleReport, type GameState,
+  festivalDays, openStand, planNight, PLOTS, postGuard, SCHEMES, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
+  type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
+import { sharedBorders } from './rivalAi.ts';
+import { startScheme } from './schemes.ts';
 import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTarget } from './goals.ts';
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
@@ -223,6 +225,44 @@ describe('boss phone taunts', () => {
     expect(takeCall(s)).toMatchObject({ who: 'blenders', text: '', raid: 'r2' }); // not tonight's "blend your stand" line
     s.day++;
     expect(takeCall(s)).toBeNull(); // once
+  });
+
+  it("read each boss's Attention from the first dawn: no calls on the first mornings, one when you move in by their turf", () => {
+    const camp = newGame(36);
+    playDay(camp);
+    playDay(camp);
+    expect(camp.phone!.queue).toEqual([]); // the first dawn only reads their moods: Days 2 and 3 are quiet
+    const s = newGame(37, { mode: 'sandbox' });
+    playDay(s);
+    const rivals = Object.keys(s.rivals) as RivalId[];
+    const borders = () => rivals.map((r) => sharedBorders(s, r));
+    const before = borders();
+    const lot = PLOTS.find((p) => {
+      if (s.plots[p.id].owner) return false;
+      s.plots[p.id].owner = 'player';
+      const more = borders().some((n, i) => n > before[i]);
+      s.plots[p.id].owner = null;
+      return more;
+    })!;
+    s.plots[lot.id].owner = 'player'; // land of yours on a boss's border (src/sim/rivalAi.ts): their Attention jumps
+    const keen = rivals.filter((r, i) => sharedBorders(s, r) > before[i]);
+    expect(takeCall(s)).toBeNull();
+    playDay(s);
+    // (Vera may ring first about your Threat: more land can lift it.) The boss's own pool fills the line in.
+    expect(s.phone!.queue.some((c) => keen.includes(c.who) && c.mood === 'warn' && c.text === '' && !c.raid)).toBe(true);
+  });
+
+  it("the rivals' schemes ring the Corner: Juni phones when her smear posters go up", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const s = newGame(seed);
+      s.day = 10;
+      const job = startScheme(s, 'coldbrew', 'posters')!;
+      if (job.caught) { expect(s.phone!.queue).toEqual([]); continue; } // caught in the act: nothing to crow about
+      expect(s.news.some((n) => n.startsWith('Juni:'))).toBe(false); // a call now, not a news line
+      expect(takeCall(s)).toMatchObject({ who: 'coldbrew', text: SCHEMES.posters.taunt, mood: 'gloat' });
+      return;
+    }
+    throw new Error('no posters went up in 40 seeds');
   });
 
   it("a daytime raid of yours gets its call at the next dawn, and the Bugle after the call reports the boss's moves", () => {

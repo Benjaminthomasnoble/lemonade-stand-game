@@ -443,5 +443,7 @@ export const SALES_GOAL_SHARE = 0.9; // placeholder: spec gap (the walkthrough's
 export const LESSON_DAY = { recipes: 2, forecast: 2, upgrade: 4, rank: 4, threat: 5, defense: 5, crew: 6, marketing: 7, land: 8 } as const;
 /** A boss phones when their Grudge toward you jumps this much at once (a raid on them adds 8 or 20). */
 export const PHONE_GRUDGE_JUMP = 8; // placeholder: spec gap ("a mood shift")
+/** ...or their Attention on you, beyond Threat, rises this much from one dawn to the next (one more district of yours on their border). */
+export const PHONE_ATTENTION_JUMP = 0.5; // placeholder: spec gap ("a mood shift")
 /** Marisol's loans from the First Bank of Citrine Bay. */
 export const LOAN = { share: 0.5, weeklyRate: 0.03, weeks: 4, missesToRepossess: 2 };

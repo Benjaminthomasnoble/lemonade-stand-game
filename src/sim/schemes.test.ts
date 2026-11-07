@@ -122,7 +122,8 @@ describe('smear posters', () => {
       } else {
         hit++;
         expect(s.reputation).toBeCloseTo(rep - 0.1, 5);
-        expect(s.news.slice(-2)).toEqual(['Juni: "It\'s not graffiti. It\'s a review."', `Bugle: Smear posters plaster ${PLOT_BY_ID[job.plots[0]].name}`]);
+        expect(s.news.at(-1)).toBe(`Bugle: Smear posters plaster ${PLOT_BY_ID[job.plots[0]].name}`);
+        expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === 'It\'s not graffiti. It\'s a review.')).toBe(true); // Juni phones (src/sim/phone.ts)
       }
     }
     expect(hit).toBeGreaterThan(caught); // 25% at night with no alarms or lights

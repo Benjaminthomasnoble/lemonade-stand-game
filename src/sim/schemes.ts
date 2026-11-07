@@ -13,6 +13,7 @@ import { rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { budgetOf, canSpend, chargeStrike, keptShare, spend } from './rivalAi.ts';
 import { inTruce, SCHEMES } from './rivals.ts';
+import { phoneCall } from './phone.ts';
 
 export type SchemeKind = 'priceWar' | 'posters' | 'snipe';
 export interface Scheme {
@@ -131,8 +132,7 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
     s.news.push(`Bugle: Lottie's night watch catches a poster crew at ${where}`);
   } else {
     s.reputation = Math.max(1, round2(s.reputation - SCHEMES.posters.stars));
-    // story: phoneCall(s, 'coldbrew', taunt) rings the Corner once the phone lands; until then the line runs in the news.
-    s.news.push(`Juni: "${SCHEMES.posters.taunt}"`);
+    phoneCall(s, 'coldbrew', SCHEMES.posters.taunt, { mood: 'gloat' }); // Juni rings the Corner (src/sim/phone.ts)
     s.news.push(`Bugle: Smear posters plaster ${where}`);
   }
   return job;

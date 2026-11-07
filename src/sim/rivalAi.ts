@@ -19,6 +19,7 @@ import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
+import { raidCall } from './phone.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -625,7 +626,7 @@ export function signatureRaids(s: GameState): Raid[] {
       if (raider === 'blenders') {
         raid.party = blenderRush(s, raid.party, threat);
         s.rivals.blenders.rush = s.day;
-        s.news.push(`Brock: "${BLENDER_RUSH.taunt}"`);
+        raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)
       }
       spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, threat));
       kept.push(raid);

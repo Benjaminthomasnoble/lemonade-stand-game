@@ -101,6 +101,7 @@ interface Walker {
   /** Stomping off after a long wait in line. */
   huff: boolean;
   standZ: number;
+  clap: number;
 }
 
 /**
@@ -134,6 +135,8 @@ export interface Crowd {
   clear(): void;
   activeCount(): number;
   setWeather(kind: StreetWeather): void;
+  /** Everyone walking near this spot stops to clap for a moment (a stand reveal, a big win). */
+  cheer(at: THREE.Vector3, radius: number): number;
 }
 
 /** Laptop cap from the spec (about 150 animated people in Street View). */
@@ -168,7 +171,7 @@ export function createCrowd(
     cup.visible = false;
     (obj.userData.limbs as THREE.Mesh[])[3].add(cup);
     scene.add(obj);
-    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0 });
+    walkers.push({ obj, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0, clap: 0 });
   }
   let queueSlot = 0;
 
@@ -201,6 +204,7 @@ export function createCrowd(
       w.photo = w.gait === 'tourist' && kind !== 'sale' ? 0 : -1;
       w.huff = false;
       w.standZ = route.serve?.z ?? z - 3;
+      w.clap = 0;
       w.obj.rotation.x = 0;
       w.path.push(end);
       w.leg = 1;
@@ -227,6 +231,15 @@ export function createCrowd(
             // Served: a quick stretch up, then settle (a happy little boing).
             const k = Math.sin((1 - w.boing / 0.35) * Math.PI) * 0.16 * MOTION;
             w.obj.scale.set(w.base * (1 - k * 0.4), w.base * (1 + k), w.base * (1 - k * 0.4));
+          } else if (w.clap > 0) {
+            // Clapping: mittens together and apart, a happy bounce.
+            w.clap = Math.max(0, w.clap - step);
+            const c = Math.sin(w.clap * 26);
+            limbs[2].rotation.x = limbs[3].rotation.x = -1.3;
+            limbs[2].rotation.z = 0.35 + c * 0.25; limbs[3].rotation.z = -0.35 - c * 0.25;
+            hopPose(w.obj, w.clap * 9, w.base, 0.12, 0.6);
+            if (w.clap === 0) { limbs[2].rotation.z = limbs[3].rotation.z = 0; }
+            continue;
           } else if (w.photo > 0) {
             // Snap! Both mittens up to the face, then a little flinch on the shutter.
             limbs[2].rotation.x = limbs[3].rotation.x = -2.1;
@@ -297,6 +310,18 @@ export function createCrowd(
       for (const w of walkers) { w.active = false; w.obj.visible = false; }
     },
     activeCount() { return walkers.filter((w) => w.active).length; },
+    cheer(at, radius) {
+      let n = 0;
+      for (const w of walkers) {
+        if (!w.active || w.wait > 0 || w.huff) continue;
+        if (Math.hypot(w.obj.position.x - at.x, w.obj.position.z - at.z) > radius) continue;
+        w.clap = 1.4 + Math.random() * 0.4;
+        w.wait = w.clap;
+        w.obj.rotation.y = Math.atan2(at.x - w.obj.position.x, at.z - w.obj.position.z);
+        n++;
+      }
+      return n;
+    },
     setWeather(kind) {
       if (kind === weather) return;
       weather = kind;

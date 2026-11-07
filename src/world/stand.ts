@@ -196,7 +196,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
         p.rotation.x += dt * 6; p.rotation.z += dt * 4;
         if (p.position.y < 0.06) { p.position.y = 0.06; plankVel[i].set(0, 0, 0); }
       });
-      if (t > 3.2) { planks.forEach((p) => { p.visible = false; }); levelRoot.scale.set(1, 1, 1); revealT = -1; }
+      if (t > 3.2) { planks.forEach((p) => { p.visible = false; }); levelRoot.scale.set(1, 1, 1); revealT = -1; window.dispatchEvent(new CustomEvent('stand-revealed', { detail: { stand: group, level } })); }
     }
   }
 

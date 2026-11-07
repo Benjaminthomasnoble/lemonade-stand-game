@@ -126,6 +126,22 @@ async function main() {
     if (delay) setTimeout(go, delay); else go();
   };
 
+  /** A finished crate reveal: passers-by clap, Lottie cheers, the Bugle gets its photo. */
+  let pendingReveal: ReturnType<typeof setTimeout> | undefined;
+  const celebrateReveal = (standObj: THREE.Object3D | null) => {
+    clearTimeout(pendingReveal);
+    pendingReveal = undefined;
+    const at = new THREE.Vector3();
+    if (standObj) standObj.getWorldPosition(at); else at.copy(bay.views[state.selected]?.serve ?? world.controls.target);
+    crowd.cheer(at, 9);
+    lottieSays('upgrade', { react: 'cheer' });
+    snap('LOTTIE\'S STAND GETS A MAKEOVER; NEIGHBORS GAWK', 4);
+  };
+  window.addEventListener('stand-revealed', (e) => {
+    const d = (e as CustomEvent<{ stand?: THREE.Object3D; level?: number }>).detail;
+    celebrateReveal(d?.stand ?? null);
+  });
+
   /** Lottie reads the sky each morning. */
   const morningLine = () => {
     if (state.phase !== 'prep') return;
@@ -266,8 +282,8 @@ async function main() {
         const before = selectedStand(state).level;
         upgradeStand(state);
         if (selectedStand(state).level > before) {
-          setTimeout(() => lottieSays('upgrade', { react: 'cheer' }), 1700); // as the crate bursts
-          snap('LOTTIE\'S STAND GETS A MAKEOVER; NEIGHBORS GAWK', 4, 2000);
+          // The stand fires 'stand-revealed' when its crate reveal ends; this is the fallback if it doesn't.
+          pendingReveal = setTimeout(() => celebrateReveal(null), 7000);
         }
         break;
       }

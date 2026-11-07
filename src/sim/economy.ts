@@ -5,7 +5,7 @@
 import { nextRandom, randomRange } from './rng.ts';
 import {
   AUTO_RESTOCK_DAY, BASE_STOP_CHANCE, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, OPEN,
+  CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, BOARDWALK_SEASON, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
@@ -18,6 +18,8 @@ import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
+import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
+import { isMajor, type Alert } from './alerts.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -25,12 +27,15 @@ export * from './crew.ts';
 export * from './vip.ts';
 export * from './rivals.ts';
 export * from './modes.ts';
+export * from './night.ts';
+export * from './alerts.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
 
 export interface Weather { kind: WeatherKind; temp: number }
-export type Phase = 'prep' | 'open' | 'report';
+/** Morning Prep, business hours, the Evening (the day's Ledger, a moment at 20:00) and the night (20:00–07:00). */
+export type Phase = 'prep' | 'open' | 'report' | 'night';
 export type WalkReason = 'notThirsty' | 'pricey' | 'line' | 'soldOut' | 'rival';
 
 export interface LemonBatch { qty: number; day: number; unitCost: number }
@@ -114,7 +119,7 @@ export interface GameState {
   version: number;
   seed: number;
   day: number;
-  minute: number; // minute of the day, 0..1439
+  minute: number; // minute of the day, 0..1439 (at night it counts on past midnight to 1,860, 07:00)
   phase: Phase;
   cash: number;
   reputation: number; // stars 1..5
@@ -155,12 +160,17 @@ export interface GameState {
   outcome?: Outcome; // the run was won or lost
   endlessSince?: number; // kept squeezing after a win (Endless Summer) from this day
   combatRules?: number; // the fight rules this save's numbers follow (combat.ts migrateCombat)
+  alerts?: Alert[]; // the alert feed's cards (alerts.ts)
+  alertSeq?: number;
 }
 
 export type SimEvent =
   | { type: 'passerby'; plot: string; at: string; segment: SegmentId; buys: boolean; reason?: WalkReason; price: number; owner: FactionId }
   | { type: 'pickup'; order: Order; ok: boolean; raid?: BattleReport }
-  | { type: 'close' };
+  | { type: 'close' }
+  | { type: 'alert'; alert: Alert } // a card landed in the alert feed
+  | { type: 'fight'; raid: Raid; report: BattleReport } // a raid hit at its minute and was fought
+  | { type: 'dawn' }; // the night is over: Morning Prep
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -327,7 +337,7 @@ export function maxPacks(s: GameState, st: Stand, id: SupplyId): number {
 }
 
 export function buySupply(s: GameState, id: SupplyId, packs = 1, st: Stand = selectedStand(s)): boolean {
-  if (s.phase === 'report' || packs <= 0 || packs > maxPacks(s, st, id)) return false;
+  if (s.phase === 'report' || s.phase === 'night' || packs <= 0 || packs > maxPacks(s, st, id)) return false;
   const qty = SUPPLIES[id].pack * packs;
   const unit = s.market[id];
   const cost = round2(qty * unit);
@@ -564,6 +574,11 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
 
 /** Advance one game minute. Returns what happened, for the renderer. */
 export function tickMinute(s: GameState): SimEvent[] {
+  if (s.phase === 'night') { // the night runs on the same clock; at 07:00 dawn opens Morning Prep
+    const night = nightStep(s);
+    if (s.minute >= NIGHT_END && sleepUntilDawn(s)) night.push({ type: 'dawn' });
+    return night;
+  }
   if (s.phase !== 'open') return [];
   const events: SimEvent[] = [];
   const rng = { seed: s.seed };
@@ -584,6 +599,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   s.seed = rng.seed;
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;
+  events.push(...onTheClock(s)); // daytime raids are warned and fought on the clock; small calls land in the feed
   if (s.minute >= CLOSE) {
     closeDay(s);
     events.push({ type: 'close' });
@@ -662,9 +678,11 @@ function closeDay(s: GameState): void {
   planNight(s);
 }
 
-/** Night passes (tonight's raids are fought), then dawn opens Morning Prep. */
-export function sleepUntilDawn(s: GameState): boolean {
-  if (s.phase !== 'report' || gameOver(s)) return false;
+/** Sleep till dawn: the rest of the night runs minute by minute (raids hit at their minute), then dawn opens
+ * Morning Prep. With stopAtAlerts it stops at the next major alert instead (false: the night isn't over). */
+export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimEvent[]): boolean {
+  if ((s.phase !== 'report' && s.phase !== 'night') || gameOver(s)) return false;
+  if (!runNight(s, stopAtAlerts, events)) return false;
   resolveNight(s);
   s.day++;
   s.minute = DAWN;
@@ -695,14 +713,20 @@ export function sleepUntilDawn(s: GameState): boolean {
   rivalsBankrupt(s);
   vipAtDawn(s);
   fortunesAtDawn(s);
+  nightsAtDawn(s);
   if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
 
-/** Run the rest of the business day instantly (tests, skip button). */
-export function simulateRestOfDay(s: GameState): SimEvent[] {
+/** Run the rest of the business day instantly (tests, Finish the day). With stopAtAlerts it stops after the
+ * minute that raised a major alert (a Delivery Raid warning, say), so the skip never jumps past one. */
+export function simulateRestOfDay(s: GameState, stopAtAlerts = false): SimEvent[] {
   const all: SimEvent[] = [];
-  while (s.phase === 'open') all.push(...tickMinute(s));
+  while (s.phase === 'open') {
+    const ev = tickMinute(s);
+    all.push(...ev);
+    if (stopAtAlerts && ev.some((e) => e.type === 'alert' && isMajor(e.alert))) break;
+  }
   return all;
 }
 
@@ -988,5 +1012,6 @@ export function migrateSave(x: unknown): GameState | null {
     s.version = 8;
   }
   migrateCombat(s);
+  if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
   return isGameState(s) ? s : null;
 }

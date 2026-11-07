@@ -21,6 +21,7 @@ export interface Settings {
   win: WinCondition; // Sandbox only; the campaign always plays for Domination, Endless for score
   target: number; // Economic win: Success Score to reach
   ironman: boolean; // one save, no reloading the last dawn
+  raidPause?: boolean; // raid warnings on you auto-pause (unset: the difficulty's default, on except Cutthroat)
 }
 
 export const defaultSettings = (over: Partial<Settings> = {}): Settings => ({
@@ -40,6 +41,8 @@ export interface Tally { buyouts: number; smashes: number; hqs: number }
 export interface Loan { principal: number; weeksLeft: number; nextDue: number; missed: number }
 
 export const difficulty = (s: GameState) => DIFFICULTY[s.settings.difficulty];
+/** Do raid warnings on you auto-pause this run? The player's switch, else the difficulty's default. */
+export const raidPauses = (st: Settings) => st.raidPause ?? DIFFICULTY[st.difficulty].raidPause;
 export const peaceful = (s: GameState) => s.settings.mode === 'sandbox' && s.settings.peaceful;
 export const winCondition = (s: GameState): WinCondition =>
   s.settings.mode === 'campaign' ? 'domination' : s.settings.mode === 'endless' ? 'none' : s.settings.win;

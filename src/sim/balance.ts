@@ -16,6 +16,12 @@ export const DAWN = 7 * 60; // Morning Prep
 export const OPEN = 8 * 60;
 export const CLOSE = 20 * 60;
 export const BUSINESS_MINUTES = CLOSE - OPEN;
+/** The night runs on from closing to the next dawn: minutes past midnight count on from 1,440, so 07:00 is 1,860. */
+export const NIGHT_END = MINUTES_PER_DAY + DAWN;
+/** At night a game hour lasts about 8 real seconds at 1×: 20:00 to 07:00 takes about 1.5 real minutes. */
+export const NIGHT_REAL_SECONDS_PER_MINUTE = 8 / 60;
+/** Quiet nights: from closing until an alert, the night runs at 3× by itself (a setting, on by default). */
+export const QUIET_NIGHT_SPEED = 3;
 export const SEASON_DAYS = 14;
 /** Real seconds per game minute at 1×: business hours take ~3.5 real minutes. */
 export const REAL_SECONDS_PER_MINUTE = 210 / BUSINESS_MINUTES;
@@ -227,6 +233,17 @@ export const RAID_PARTY: { size: [number, number]; weapons: [number, number, num
 ];
 export const DETECTION_BASE = 0.5;
 export const NIGHT_STEALTH = 0.25;
+/** Raids travel 1–3 game hours by distance (canon). The build maps straight-line plot distance onto that range:
+ * across the whole bay (about 350 map units) is 3 hours, so Maple Row to the Boardwalk (about 100) is 1.5 hours. */
+export const RAID_TRAVEL = { min: 60, max: 180, span: 350 }; // placeholder: spec gap (the distance scale)
+/** Rival raids set out between 20:15 and 01:45 (15-minute steps), so they land between 21:15 and 04:45. */
+export const RAID_LEAVE = { first: 20 * 60 + 15, steps: 23 }; // placeholder: spec gap (departure window)
+/** Rivals raiding each other arrive at 02:00. */
+export const RIVAL_RAID_AT = 26 * 60;
+/** Your 'tonight' raids hit at 01:00 until raid travel times land (crew's Raid Planner). */
+export const PLAYER_RAID_AT = 25 * 60;
+/** A Delivery Raid hits within the pickup's 2-hour loading window. */
+export const DELIVERY_WINDOW = 120;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',
@@ -282,10 +299,12 @@ export const DIFFICULTY: Record<Difficulty, {
   bustOnly: boolean; // a lost raid only Busts your stand (closed until a repair), never Wrecks it
   cookieJar: 'always' | 'perAct' | 'never';
   canLose: boolean;
+  notice: number; // an undetected raid still warns this many game minutes before it hits
+  raidPause: boolean; // raid warnings auto-pause by default
 }> = {
-  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get Busted, never Wrecked. No game over.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false },
-  classic: { label: 'Classic', blurb: 'The intended balance. Lottie\'s Cookie Jar bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true },
-  cutthroat: { label: 'Cutthroat', blurb: 'Half again as many raids, a 1-day Respect cooldown, no Cookie Jar.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true },
+  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get Busted, never Wrecked. No game over.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true },
+  classic: { label: 'Classic', blurb: 'The intended balance. Lottie\'s Cookie Jar bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
+  cutthroat: { label: 'Cutthroat', blurb: 'Half again as many raids, a 1-day Respect cooldown, no Cookie Jar.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false },
 };
 /** Laid Back: repair a Busted stand for this share of what was invested (canon; Appendix A's 15% is older). */
 export const BUSTED_REPAIR_SHARE = 0.1;

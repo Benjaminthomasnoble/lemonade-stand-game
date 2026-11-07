@@ -1,0 +1,295 @@
+import { describe, expect, it } from 'vitest';
+import {
+  alert, buildFacility, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, etaMinute,
+  FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame, NIGHT_END,
+  NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS, QUIET_NIGHT_SPEED,
+  raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE, SAVE_VERSION, secondsPerMinute,
+  simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
+  type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
+} from './economy.ts';
+
+/** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
+function evening(seed: number, settings: Partial<Settings> = {}): GameState {
+  const s = newGame(seed, settings);
+  s.phase = 'report';
+  s.minute = CLOSE;
+  s.raids = [];
+  return s;
+}
+
+/** A raid on Lottie's Corner that sets out at `leave` and arrives at `at` (minutes; past midnight counts on from 1,440). */
+function raidOn(s: GameState, leave: number, at: number, over: Partial<Raid> = {}): Raid {
+  const r: Raid = { id: `t${s.nextId++}`, attacker: 'blenders', target: LOTTIES_CORNER, objective: 'shakedown', party: raidPartyFor(s, 'blenders'), detected: true, eta: hhmm(at), leave, at, ...over };
+  s.raids.push(r);
+  return r;
+}
+
+const crew = (n: number, post: string | null): Guard[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `g${i}`, name: `Test ${i}`, trait: 'Loyal', level: 5, xp: 0, weapon: 'hatchets', gear: 'pro', post, outUntil: 0, fee: 0 }) as Guard);
+
+describe('the night on the clock', () => {
+  it('the Evening holds at 20:00, then the night runs minute by minute to 07:00 and dawn opens Morning Prep', () => {
+    const s = evening(3);
+    expect(tickMinute(s)).toEqual([]);
+    expect(s.minute).toBe(CLOSE);
+    expect(startNight(s)).toBe(true);
+    expect(s.phase).toBe('night');
+    let ticks = 0, dawn = 0;
+    while (s.phase === 'night' && ticks < 2000) { ticks++; dawn += tickMinute(s).filter((e) => e.type === 'dawn').length; }
+    expect(ticks).toBe(NIGHT_END - CLOSE); // 11 game hours
+    expect(dawn).toBe(1);
+    expect(s).toMatchObject({ phase: 'prep', day: 2, minute: DAWN });
+  });
+
+  it('watching the night and sleeping through it end the same', () => {
+    const a = evening(12), b = evening(12);
+    for (const s of [a, b]) { raidOn(s, 21 * 60, 22 * 60 + 30, { detected: false }); raidOn(s, 22 * 60, 23 * 60, { attacker: 'sourwood', objective: 'smash' }); }
+    startNight(a);
+    while (a.phase === 'night') tickMinute(a);
+    expect(sleepUntilDawn(b)).toBe(true);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('Sleep till dawn stops at a raid warning, then carries on through the fight to dawn', () => {
+    const s = evening(4);
+    const r = raidOn(s, 21 * 60, 22 * 60);
+    const ev: SimEvent[] = [];
+    expect(sleepUntilDawn(s, true, ev)).toBe(false);
+    expect(s).toMatchObject({ phase: 'night', minute: 21 * 60 });
+    const warning = ev.flatMap((e) => (e.type === 'alert' ? [e.alert] : []));
+    expect(warning).toHaveLength(1);
+    expect(warning[0]).toMatchObject({ kind: 'raid', raid: r.id, plot: LOTTIES_CORNER });
+    expect(warning[0].text).toBe("RAID WARNING! The Boardwalk Blenders are heading for Lottie's Corner, ETA 10:00pm.");
+    expect(s.news).toContain(warning[0].text);
+    const rest: SimEvent[] = [];
+    expect(sleepUntilDawn(s, true, rest)).toBe(true);
+    expect(rest.filter((e) => e.type === 'fight')).toHaveLength(1);
+    expect(s).toMatchObject({ phase: 'prep', day: 2 });
+    expect(s.battles[0]).toMatchObject({ day: 1, attacker: 'blenders', target: LOTTIES_CORNER });
+  });
+
+  it("a detected raid warns as it sets out; an undetected one at the difficulty's minimum notice", () => {
+    let early = 0;
+    for (const difficulty of ['laidback', 'classic', 'cutthroat'] as const) {
+      let late = 0;
+      for (let seed = 1; seed <= 12; seed++) {
+        const s = evening(seed, { difficulty });
+        const r = raidOn(s, 21 * 60, 23 * 60, { detected: false });
+        expect(sleepUntilDawn(s, true)).toBe(false);
+        expect(r.warned).toBe(true);
+        if (r.detected) { early++; expect(s.minute).toBe(21 * 60); }
+        else { late++; expect(s.minute).toBe(23 * 60 - DIFFICULTY[difficulty].notice); }
+      }
+      expect(late).toBeGreaterThan(0);
+    }
+    expect(early).toBeGreaterThan(0);
+    expect([30, 15, 5].map((n, i) => n === raidNotice(newGame(1, { difficulty: (['laidback', 'classic', 'cutthroat'] as const)[i] })))).toEqual([true, true, true]);
+  });
+
+  it('raids hit one by one at their minute, in ETA order', () => {
+    const s = evening(5);
+    const late = raidOn(s, 21 * 60, 23 * 60 + 30);
+    const early = raidOn(s, 21 * 60 + 30, 22 * 60 + 15);
+    const hit: Record<string, number> = {};
+    startNight(s);
+    while (s.phase === 'night') for (const e of tickMinute(s)) if (e.type === 'fight') hit[e.raid.id] = s.minute;
+    expect(hit).toEqual({ [early.id]: 22 * 60 + 15, [late.id]: 23 * 60 + 30 });
+    expect(s.raids).toEqual([]);
+  });
+
+  it('your raid tonight sets out at 01:00', () => {
+    const s = evening(8);
+    s.rank = 6;
+    s.guards = crew(3, null);
+    const target = raidTargets(s)[0];
+    expect(planRaid(s, target.id, ['g0', 'g1'], 'smash', 'tonight')).toBe(true);
+    let at = 0;
+    startNight(s);
+    while (s.phase === 'night') for (const e of tickMinute(s)) if (e.type === 'fight' && e.raid.attacker === 'player') at = s.minute;
+    expect(clockText(at)).toBe('1:00am');
+    expect(s.battles[0]).toMatchObject({ attacker: 'player', target: target.id });
+  });
+
+  it('the HUD only hears of raids it has been warned of', () => {
+    const s = evening(6);
+    const r = raidOn(s, 21 * 60, 22 * 60);
+    expect(incomingRaids(s)).toEqual([]);
+    startNight(s);
+    while (!r.warned) nightStep(s);
+    expect(s.minute).toBe(21 * 60);
+    expect(incomingRaids(s)).toEqual([r]);
+  });
+
+  it('rival raids set out after closing and travel 1–3 game hours by distance', () => {
+    const s = newGame(21);
+    s.day = 30;
+    s.rank = 6;
+    s.battles.push({ defender: 'player', day: 1 } as GameState['battles'][number]); // past the tutorial raid
+    let mine = 0;
+    for (let i = 0; i < 60; i++) {
+      s.raids = [];
+      planNight(s);
+      for (const r of s.raids) {
+        expect(r.leave).toBeGreaterThanOrEqual(CLOSE);
+        expect(r.at).toBeLessThan(NIGHT_END);
+        expect(r.eta).toBe(hhmm(r.at!));
+        expect(etaMinute(r.eta)).toBe(r.at);
+        expect(r.warned).toBeFalsy();
+        if (!onYou(s, r)) continue;
+        mine++;
+        expect(r.at! - r.leave!).toBe(travelMinutes(s, raidStart(s, r.attacker as RivalId, r.target), r.target));
+      }
+      expect(incomingRaids(s)).toEqual([]); // nobody is warned at closing: warnings come as they set out
+    }
+    expect(mine).toBeGreaterThan(5);
+    let lo = Infinity, hi = 0;
+    for (const a of PLOTS) for (const b of PLOTS) { const t = travelMinutes(s, a.id, b.id); lo = Math.min(lo, t); hi = Math.max(hi, t); if (t % 5) throw new Error(`${t} minutes`); }
+    expect(lo).toBe(60);
+    expect(hi).toBeLessThanOrEqual(180);
+    expect(hi).toBeGreaterThanOrEqual(150);
+  });
+
+  it('the clock: about 18 real seconds a game hour by day and 8 at night, quiet nights 3×, fight speed for a countdown', () => {
+    const s = newGame(2);
+    expect(secondsPerMinute(s, 1)).toBe(Infinity); // only Morning Prep waits
+    openStand(s);
+    expect(secondsPerMinute(s, 1) * 60).toBeCloseTo(17.5);
+    expect(secondsPerMinute(s, 3)).toBeCloseTo(REAL_SECONDS_PER_MINUTE / 3);
+    expect(secondsPerMinute(s, 0)).toBe(Infinity);
+    expect(secondsPerMinute(s, 3, { fighting: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // a brawl on screen
+    const n = evening(2);
+    expect(secondsPerMinute(n, 1)).toBe(Infinity); // the Evening
+    startNight(n);
+    expect(secondsPerMinute(n, 1) * 60).toBeCloseTo(8);
+    expect((NIGHT_END - CLOSE) * secondsPerMinute(n, 1)).toBeCloseTo(88); // about 1.5 real minutes
+    expect(secondsPerMinute(n, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / QUIET_NIGHT_SPEED);
+    const r = raidOn(n, CLOSE + 1, CLOSE + 60);
+    nightStep(n);
+    expect(r.warned).toBe(true);
+    expect(secondsPerMinute(n, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the warning ends the quiet
+    while (r.at! - n.minute > raidNotice(n)) nightStep(n);
+    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the last minutes of notice
+  });
+
+  it('raid warnings pause by default, except on Cutthroat', () => {
+    expect(raidPauses(defaultSettings())).toBe(true);
+    expect(raidPauses(defaultSettings({ difficulty: 'laidback' }))).toBe(true);
+    expect(raidPauses(defaultSettings({ difficulty: 'cutthroat' }))).toBe(false);
+    expect(raidPauses(defaultSettings({ difficulty: 'cutthroat', raidPause: true }))).toBe(true);
+  });
+});
+
+describe('the alert feed', () => {
+  it('keeps 8 cards, the small ones going first, and dawn clears the night', () => {
+    const s = evening(9);
+    alert(s, { kind: 'delivery', text: 'big' });
+    for (let i = 0; i < 10; i++) alert(s, { kind: 'soldout', text: `n${i}`, plot: LOTTIES_CORNER });
+    expect(s.alerts).toHaveLength(MAX_ALERTS);
+    expect(s.alerts![0].text).toBe('big');
+    expect(s.alerts!.at(-1)!.text).toBe('n9');
+    dismissAlert(s, s.alerts![1].id);
+    expect(s.alerts).toHaveLength(MAX_ALERTS - 1);
+    sleepUntilDawn(s);
+    expect(s.alerts).toEqual([]);
+  });
+
+  it('a raid card goes when its raid hits', () => {
+    const s = evening(10);
+    raidOn(s, 21 * 60, 22 * 60);
+    startNight(s);
+    while (s.minute < 21 * 60) nightStep(s);
+    expect(s.alerts).toHaveLength(1);
+    while (s.minute < 22 * 60) nightStep(s);
+    expect(s.alerts).toEqual([]);
+  });
+});
+
+describe('Delivery Raids', () => {
+  /** Rank 7 with a helipad and a 4,000-bottle chopper order due at 14:00 today. */
+  function pickupGame(seed: number) {
+    const s = newGame(seed);
+    s.rank = 7;
+    s.reputation = 4.5;
+    s.cash = 3_000_000;
+    const field = PLOTS.find((p) => p.type === 'field' && !s.plots[p.id].facility)!.id;
+    s.plots[field] = { ...s.plots[field], owner: 'player', stand: null };
+    buildFacility(s, field, 'helipad');
+    s.bottles = 6000;
+    s.orders.push({ id: 'vip', tier: 'heli', client: 'Test Star', qty: 4000, pay: 15000, due: s.day, expires: s.day, plot: field, accepted: true });
+    openStand(s);
+    return { s, field };
+  }
+  /** The first seed whose pickup draws a Delivery Raid, played to the minute after the chopper lands. */
+  function raidedPickup() {
+    for (let seed = 1; seed < 80; seed++) {
+      const g = pickupGame(seed);
+      const ev: SimEvent[] = [];
+      while (g.s.minute <= PICKUP_MINUTE.heli) ev.push(...tickMinute(g.s));
+      const r = g.s.raids.find((x) => x.delivery);
+      if (r) return { ...g, seed, r, ev };
+    }
+    throw new Error('no Delivery Raid in 80 seeds');
+  }
+  const play = (s: GameState, r: Raid) => { const ev: SimEvent[] = []; while (s.raids.includes(r)) ev.push(...tickMinute(s)); return ev; };
+
+  it('is warned and fought during loading; overrun, the order fails and costs a star', () => {
+    const { s, r, ev, field } = raidedPickup();
+    expect(r).toMatchObject({ target: field, order: 'vip', leave: PICKUP_MINUTE.heli });
+    expect(r.at! - r.leave!).toBeGreaterThanOrEqual(60);
+    expect(r.at! - r.leave!).toBeLessThan(DELIVERY_WINDOW);
+    expect(ev.some((e) => e.type === 'pickup' && e.order.id === 'vip' && e.ok)).toBe(true); // the chopper lands and loads
+    expect(s.orders.some((o) => o.id === 'vip')).toBe(true); // still loading
+    r.party = r.party!.map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 }));
+    const rep = s.reputation;
+    const all = [...ev, ...play(s, r)];
+    const warning = all.flatMap((e) => (e.type === 'alert' ? [e.alert] : []));
+    expect(warning).toHaveLength(1);
+    expect(warning[0]).toMatchObject({ kind: 'delivery', raid: r.id, plot: field });
+    expect(warning[0].text).toMatch(/^DELIVERY RAID! .+ are coming for the pickup at .+, ETA \d+:\d\d(am|pm)\.$/);
+    expect(all.some((e) => e.type === 'fight' && e.raid === r && e.report.outcome === 'robbed')).toBe(true);
+    expect(s.orders.some((o) => o.id === 'vip')).toBe(false);
+    expect(s.reputation).toBeCloseTo(rep - 0.3);
+    expect(s.bottles).toBe(2000);
+    expect(s.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
+  });
+
+  it('held off, the load goes out and pays', () => {
+    const { s, r, field } = raidedPickup();
+    s.guards = crew(6, field);
+    r.party = r.party!.map((f) => ({ ...f, hit: 0.1, chop: 0, hp: 1, nerve: 1 }));
+    const rep = s.reputation;
+    const ev = play(s, r);
+    expect(ev.some((e) => e.type === 'fight' && e.report.outcome !== 'robbed')).toBe(true);
+    expect(s.orders.some((o) => o.id === 'vip')).toBe(false);
+    expect(s.bottles).toBe(2000);
+    expect(s.reputation).toBeCloseTo(rep + VIP_STAR_BONUS);
+    expect(s.news.some((n) => n.includes('Test Star picks up 4,000 bottles'))).toBe(true);
+  });
+
+  it('Finish the day stops at the warning', () => {
+    const { seed, r } = raidedPickup();
+    const { s } = pickupGame(seed);
+    const ev = simulateRestOfDay(s, true);
+    expect(s.phase).toBe('open');
+    expect(ev.at(-1)).toMatchObject({ type: 'alert', alert: { kind: 'delivery' } });
+    expect(s.minute).toBe(r.warnAt);
+  });
+});
+
+describe('saves', () => {
+  it("an older save's raids get their minutes, once", () => {
+    const s = evening(31);
+    s.raids.push({ id: 'old', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: raidPartyFor(s, 'blenders'), detected: false, eta: '23:40' });
+    const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
+    delete old.alerts;
+    delete old.alertSeq;
+    const m = migrateSave(old)!;
+    expect(m.version).toBe(SAVE_VERSION);
+    expect(m.alerts).toEqual([]);
+    expect(m.raids[0]).toMatchObject({ at: 23 * 60 + 40, launched: true, warnAt: 23 * 60 + 25 });
+    expect(m.raids[0].leave).toBeGreaterThanOrEqual(CLOSE);
+    expect(JSON.stringify(migrateSave(JSON.parse(JSON.stringify(m))))).toBe(JSON.stringify(m));
+    expect(sleepUntilDawn(m, true)).toBe(false); // it plays on: warned at its notice
+    expect(m.minute).toBe(23 * 60 + 25);
+  });
+});

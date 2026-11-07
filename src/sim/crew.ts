@@ -1,11 +1,11 @@
 // Milestone 3: defenses, guards, raids and Threat (canon sections 10–14).
 // Pure functions over GameState, like the economy. Night raids are planned
-// when the stands close (so the player always gets a warning) and fought
-// when the player sleeps.
+// when the stands close and fought on the night's clock (night.ts), each at
+// its arrival minute, after a warning.
 import {
   CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Objective } from './combat.ts';
@@ -16,6 +16,7 @@ import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, peaceful } from './modes.ts';
+import { etaMinute, hhmm, raidStart, travelMinutes } from './night.ts';
 
 export interface Guard {
   id: string;
@@ -40,6 +41,13 @@ export interface Raid {
   detected: boolean;
   eta: string; // "23:40"
   delivery?: boolean; // a raid on a VIP pickup: they're after the cargo, not the till
+  // The raid clock (night.ts): minutes of the day, past midnight counting on from 1,440.
+  leave?: number; // sets out
+  at?: number; // arrives, and the fight starts
+  warnAt?: number; // the warning lands (a detected raid as it sets out, else the minimum notice before it hits)
+  launched?: boolean; // has set out (detection rolled)
+  warned?: boolean; // the warning has landed
+  order?: string; // a Delivery Raid: the VIP order it's after
 }
 
 export interface BattleReport {
@@ -407,7 +415,8 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
 
 // ---------- rival raids and the night ----------
 
-/** Called when the stands close: rivals decide tonight's raids, and the player gets warned. */
+/** Called when the stands close (the Evening): rivals decide tonight's raids. Each sets out at its own minute and
+ * travels by distance (night.ts runs the clock); the player is warned as the night goes, never all at once. */
 export function planNight(s: GameState): void {
   if (peaceful(s)) return; // Peaceful Sandbox: rivals scheme with prices and land, never fists
   const rng = { seed: s.seed };
@@ -434,7 +443,7 @@ export function planNight(s: GameState): void {
       };
       let target = mine.sort((a, b) => score(b) - score(a))[0];
       let party = raidParty(s, rival, threat, rng);
-      let detected = nextRandom(rng) < detectionChance(s, target.id, true);
+      let detected = false; // rolled as they set out (night.ts)
       if (tutorial) {
         // The tutorial raid: two Smoothie Bros with bare fists, straight at Dex. It always bounces.
         const dex = s.guards.find((g) => g.name === 'Dex Moody' && g.post);
@@ -444,8 +453,9 @@ export function planNight(s: GameState): void {
         detected = true;
       }
       const objective: Objective = nextRandom(rng) < 0.5 || threat === 1 ? 'shakedown' : 'smash';
-      const h = 21 + Math.floor(nextRandom(rng) * 6), m = Math.floor(nextRandom(rng) * 4) * 15;
-      s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: `${String(h % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}` });
+      const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
+      const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
+      s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: hhmm(at), leave, at });
     }
   }
   // Rivals also raid each other (about 30% of their raids at Threat 1–3).
@@ -453,16 +463,20 @@ export function planNight(s: GameState): void {
     const a = RIVALS[Math.floor(nextRandom(rng) * RIVALS.length)];
     const targets = PLOTS.filter((p) => { const o = s.plots[p.id].owner; return o && o !== 'player' && o !== a && hasBuilding(s.plots[p.id]) && p.type !== 'hq'; });
     const t = targets[Math.floor(nextRandom(rng) * targets.length)];
-    if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: '02:00' });
+    if (s.rivals[a].alive && t) s.raids.push({ id: `r${s.nextId++}`, attacker: a, target: t.id, objective: 'smash', party: raidParty(s, a, Math.min(3, threat + 1), rng), detected: true, eta: hhmm(RIVAL_RAID_AT), leave: RIVAL_RAID_AT - travelMinutes(s, raidStart(s, a, t.id), t.id), at: RIVAL_RAID_AT });
   }
   s.seed = rng.seed;
 }
 
-/** Fight every planned raid (called as the player sleeps). */
+/** At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). */
 export function resolveNight(s: GameState): void {
-  const raids = s.raids;
-  s.raids = [];
-  for (const r of raids) fightRaid(s, r, true);
+  const ord = (r: Raid) => r.at ?? etaMinute(r.eta);
+  const left = s.raids.map((r, i) => ({ r, i })).sort((a, b) => ord(a.r) - ord(b.r) || a.i - b.i).map(({ r }) => r);
+  for (const r of left) {
+    if (!s.raids.includes(r)) continue;
+    s.raids = s.raids.filter((x) => x !== r);
+    fightRaid(s, r, true);
+  }
 }
 
 export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleReport {
@@ -672,9 +686,9 @@ export function welcomeDex(s: GameState): void {
   refreshRecruits(s, true);
 }
 
-/** For the HUD: what tonight looks like. */
+/** For the HUD: the raids on you that you've been warned of (night.ts warns each at its minute). */
 export function incomingRaids(s: GameState): Raid[] {
-  return s.raids.filter((r) => r.attacker !== 'player' && s.plots[r.target].owner === 'player');
+  return s.raids.filter((r) => r.attacker !== 'player' && s.plots[r.target].owner === 'player' && r.warned);
 }
 
 export const rankTitle = (rank: number) => RANKS[rank - 1].title;

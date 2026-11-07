@@ -1,9 +1,9 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { FACTIONS, RANKS, type RivalId } from './balance.ts';
-import { fightRaid, raidPartyFor, threatLevel, type BattleReport } from './crew.ts';
-import { peaceful } from './modes.ts';
+import { RANKS } from './balance.ts';
+import type { BattleReport } from './crew.ts';
+import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
 import { hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -244,7 +244,7 @@ export function pickupsAtClose(s: GameState): Pickup[] {
   return s.orders.filter((o) => o.due <= s.day).map((o) => deliver(s, o));
 }
 
-function deliver(s: GameState, o: Order): Pickup {
+export function deliver(s: GameState, o: Order): Pickup {
   s.orders = s.orders.filter((x) => x !== o);
   const fail = (why: string): Pickup => {
     s.reputation = Math.max(1, Math.round((s.reputation - FAILED_ORDER_STARS) * 100) / 100);
@@ -263,27 +263,13 @@ function deliver(s: GameState, o: Order): Pickup {
   }
   if (o.plot && s.plots[o.plot].facility?.wrecked) return fail(`The ${o.tier === 'heli' ? 'helipad' : 'pier'} was smashed.`);
   if (s.bottles < o.qty) return fail(`Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
-  let raid: BattleReport | undefined;
-  if (isVip(o.tier) && o.plot && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s)) {
-    const rng = { seed: s.seed };
-    const roll = nextRandom(rng);
-    const rivals = (Object.keys(FACTIONS) as RivalId[]).filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day);
-    const rival = rivals[Math.floor(nextRandom(rng) * rivals.length)];
-    s.seed = rng.seed;
-    if (roll < DELIVERY_RAID_CHANCE && rival) {
-      raid = fightRaid(s, { id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party: raidPartyFor(s, rival), detected: true, eta: '', delivery: true }, false);
-      if (raid.outcome === 'robbed') {
-        s.bottles = Math.max(0, s.bottles - o.qty);
-        const p = fail(`${FACTIONS[rival].name} overran the ${o.tier === 'heli' ? 'helipad' : 'pier'} during loading.`);
-        return { ...p, raid };
-      }
-    }
-  }
+  const held = scheduleDeliveryRaid(s, o, fail); // nights: a Delivery Raid is warned and fought on the clock
+  if (held) return held;
   s.bottles -= o.qty;
   s.cash = round2(s.cash + o.pay);
   s.today.revenue = round2(s.today.revenue + o.pay);
   if (o.tier === 'heli' || o.tier === 'ship') s.reputation = Math.min(5, Math.round((s.reputation + VIP_STAR_BONUS) * 100) / 100);
   s.lifetimeCups += o.qty;
   s.news.push(`${o.tier === 'heli' ? '🚁' : bySea(o.tier) ? '🚢' : '🚚'} ${o.client} picks up ${o.qty.toLocaleString('en-US')} bottles: ${money(o.pay)}!`);
-  return { order: o, ok: true, raid };
+  return { order: o, ok: true };
 }

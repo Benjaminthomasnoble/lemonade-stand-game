@@ -849,7 +849,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} · ${rivalStars(s, id).toFixed(1)} stars${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
     if (s.rank < SITDOWN_RANK) return head;
     const tb = canTruce(s, id), fb = canFactionBuyout(s, id);
-    const sit = `<div class="cl-acts">${locked(tb) ? '' : btn('truce', `Truce ${whole(truceCost(s))}`, tb, `data-rival="${id}" data-testid="truce" title="7 days of peace for a tribute"`)}${locked(fb) ? '' : btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`)}</div>`;
+    const sit = `<div class="cl-acts">${locked(tb) ? '' : btn('truce', `Truce ${whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="7 days of peace. Their Grudge sets the tribute"`)}${locked(fb) ? '' : btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`)}</div>`;
     const ids = [...planner.squad];
     const ab = canAssault(s, id, ids);
     const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>

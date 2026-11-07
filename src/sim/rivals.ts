@@ -30,6 +30,11 @@ export const FACTION_BUYOUT_RANK = 5;
 export const TRUCE_DAYS = 7;
 export const TRUCE_BREAK_STARS = 1;
 export const TRUCE_BAN_DAYS = 14;
+/**
+ * A Truce's cash tribute, "set by their Grudge" (spec gives no formula; placeholders): `share` of your Net Worth (at
+ * least `floor`), times 1 + Grudge/100, so a boss at Grudge 50 asks half again, rounded to $100.
+ */
+export const TRUCE_TRIBUTE = { share: 0.02, floor: 500, grudge: 0.01 };
 export const PLOT_BUYOUT = { home: 2.5, away: 2 };
 export const FIRE_SALE = { share: 0.75, days: 2 };
 export const BANKRUPT_DAYS = 7;
@@ -233,7 +238,11 @@ export const hqPlot = (id: RivalId): Plot => PLOTS.find((p) => p.type === 'hq' &
 
 // ---------- Truce ----------
 
-export const truceCost = (s: GameState) => Math.max(500, Math.round(netWorth(s) * 0.02 / 100) * 100);
+/** The tribute this boss asks for a Truce: a share of your Net Worth, raised by their Grudge toward you. */
+export function truceCost(s: GameState, id: RivalId): number {
+  const base = Math.max(TRUCE_TRIBUTE.floor, Math.round(netWorth(s) * TRUCE_TRIBUTE.share / 100) * 100);
+  return Math.round(base * (1 + Math.max(0, s.rivals[id].grudge) * TRUCE_TRIBUTE.grudge) / 100) * 100;
+}
 export const inTruce = (s: GameState, id: RivalId) => (s.rivals[id].truceUntil ?? 0) >= s.day;
 
 export function canTruce(s: GameState, id: RivalId): Blocker {
@@ -242,13 +251,13 @@ export function canTruce(s: GameState, id: RivalId): Blocker {
   if (inTruce(s, id)) return { ok: false, why: `Truce until day ${s.rivals[id].truceUntil}` };
   if ((s.noTruceUntil ?? 0) >= s.day) return { ok: false, why: `Nobody trusts your handshake until day ${s.noTruceUntil! + 1}` };
   if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
-  if (s.cash < truceCost(s)) return { ok: false, why: `Tribute is ${money(truceCost(s))}` };
+  if (s.cash < truceCost(s, id)) return { ok: false, why: `Tribute is ${money(truceCost(s, id))}` };
   return { ok: true };
 }
 
 export function makeTruce(s: GameState, id: RivalId): boolean {
   if (!canTruce(s, id).ok) return false;
-  const cost = truceCost(s);
+  const cost = truceCost(s, id);
   book(s, 'tribute', -cost); // once, here (closeDay takes only stand upkeep)
   const r = s.rivals[id];
   r.truceUntil = s.day + TRUCE_DAYS - 1;

@@ -515,7 +515,7 @@ describe('Act 3: the handshake and the night flight', () => {
     expect(s.story!.offer).toMatchObject({ from: 'fizzco' });
     expect(queuedCall(s, LINES.prestonTruce)).toBe(true);
     const offer = storyOffer(s)!;
-    expect(offer.cost).toBe(truceCost(s));
+    expect(offer.cost).toBe(truceCost(s, 'fizzco'));
     expect(offer.why).toBeUndefined();
     expect(answerOffer(s, true)).toBe(true);
     expect(inTruce(s, 'fizzco')).toBe(true);

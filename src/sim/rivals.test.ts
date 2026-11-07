@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
-  FACTIONS, type RivalId,
+  FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
 } from './economy.ts';
 
 function rich(seed = 1): GameState {
@@ -30,6 +30,24 @@ describe('sit-downs and buyouts', () => {
     const rep = s.reputation;
     fightRaid(s, { id: 'x', attacker: 'player', target: target.id, objective: 'shakedown', guards: s.guards.map((g) => g.id), detected: false, eta: '' }, true);
     expect(s.reputation).toBe(rep); // fightRaid alone does not break it; planRaid does
+  });
+
+  it("a Truce's tribute is set by that boss's Grudge toward you", () => {
+    const s = rich();
+    s.cash = 1_000_000;
+    for (const id of ['blenders', 'coldbrew'] as const) s.rivals[id].grudge = 0;
+    const base = Math.max(TRUCE_TRIBUTE.floor, Math.round(netWorth(s) * TRUCE_TRIBUTE.share / 100) * 100);
+    expect(truceCost(s, 'blenders')).toBe(base);
+    s.rivals.blenders.grudge = 50;
+    expect(truceCost(s, 'blenders')).toBe(Math.round(base * 1.5 / 100) * 100); // half again at Grudge 50
+    expect(truceCost(s, 'coldbrew')).toBe(base); // Juni holds nothing against you
+    s.rivals.blenders.grudge = 100;
+    expect(truceCost(s, 'blenders')).toBe(Math.round(base * 2 / 100) * 100);
+    const paid = truceCost(s, 'blenders'), cash = s.cash;
+    expect(makeTruce(s, 'blenders')).toBe(true);
+    expect(s.cash).toBe(cash - paid);
+    s.cash = TRUCE_TRIBUTE.floor - 1; // short of even the smallest tribute
+    expect(canTruce(s, 'coldbrew')).toEqual({ ok: false, why: `Tribute is $${truceCost(s, 'coldbrew').toLocaleString('en-US')}` });
   });
 
   it('plot buyout costs 2.5x land at home and hands over the stand', () => {

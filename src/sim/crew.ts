@@ -197,15 +197,15 @@ export function overnightRepairs(s: GameState): void {
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.owner !== 'player') continue;
-    const spend = (cost: number): boolean => {
+    const pay = (cost: number): boolean => {
       if (!cost) return false;
       if (s.cash < cost) { short.add(PLOT_BY_ID[p.id].name); return false; }
       s.cash = round2(s.cash - cost);
       paid += cost;
       return true;
     };
-    if (spend(fenceRepairCost(ps))) mendFence(ps);
-    if (spend(slickResetCost(ps))) delete ps.defense.slickSprung;
+    if (pay(fenceRepairCost(ps))) mendFence(ps);
+    if (pay(slickResetCost(ps))) delete ps.defense.slickSprung;
   }
   if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: repairs
   if (short.size) s.news.push(`No cash for the overnight repairs at ${[...short].join(', ')}. Patch them when you can.`);

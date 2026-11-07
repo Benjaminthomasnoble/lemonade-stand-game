@@ -77,6 +77,7 @@ export interface Raid {
   syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
   siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
   help?: { from: string; ids: string[] }[]; // your raid was spotted (reinforce.ts): the henchmen each rival plot sent, home after the fight
+  syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */

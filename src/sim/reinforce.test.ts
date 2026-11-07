@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   AUTO_DEFEND, BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
-  PERIMETERS, PLOT_BY_ID, PLOTS, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
+  detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
   type Raid, type SimEvent,
 } from './economy.ts';
 import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, postsAt, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
@@ -409,5 +409,67 @@ describe("Dex's Auto-Defend", () => {
     const theirs = ownedPlots(s, 'blenders')[0].id;
     expect(setDefendPriority(s, theirs, 2)).toBe(false);
     expect(defendPriority(s, theirs)).toBe(0);
+  });
+});
+
+describe('holding out against the Syndicate', () => {
+  /** Night on the clock and these raids on you, all warned `notice` minutes before they hit at 02:25. */
+  function warnAll(s: GameState, raids: Raid[], notice: number): void {
+    const at = 26 * 60 + 25;
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.raids = raids.map((r) => Object.assign(r, { eta: hhmm(at), leave: at - 90, at, launched: true, warnAt: at - notice }));
+    startNight(s);
+    s.minute = at - notice - 1;
+    while (raids.some((r) => !r.warned)) nightStep(s);
+  }
+
+  it('a strike on three plots: each part warned rings its own bell, from the Clubhouses in or beside its district', () => {
+    const { s, lou, pip, marnie, gus } = bay();
+    setAutoDefend(s, true);
+    const hill = PLOTS.find((x) => x.district === 'hilltop' && x.type !== 'hq' && !s.plots[x.id].owner)!.id;
+    const harbor = PLOTS.find((x) => x.district === 'harbor' && x.type !== 'hq' && !s.plots[x.id].owner)!.id;
+    for (const id of [hill, harbor]) Object.assign(s.plots[id], { owner: 'player', stand: newStand(1) });
+    // One strike's parts, each its own raid (nights' strikes tie them with a shared group).
+    const parts = [LOTTIES_CORNER, hill, harbor].map((target): Raid => ({
+      id: `r${s.nextId++}`, attacker: 'sourwood', target, objective: 'smash', party: henchmenOf(6, 5, 'hatchets'), detected: true, eta: '', syndicate: true,
+    }));
+    warnAll(s, parts, 90);
+    expect(parts[0].bell!.map((b) => b.id)).toEqual([lou.id, pip.id, marnie.id]); // Maple Row's Clubhouse and Old Town's next door
+    expect(parts[1].bell!.map((b) => b.id)).toEqual([gus.id]); // Hilltop's own
+    expect(parts[2].bell).toBeUndefined(); // no Clubhouse in or beside the Harbor
+    // Warned 90 minutes out, the help is there before contact.
+    const b = hit(s, parts[0]);
+    expect(b.defenders.map((f) => f.id)).toEqual(expect.arrayContaining([lou.id, pip.id, marnie.id]));
+  });
+
+  it('a Watchtower on the plot spots a strike 30% more often, and its warning shows who is coming', () => {
+    const { s } = bay();
+    const plain = detectionChance(s, LOTTIES_CORNER, true);
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    expect(detectionChance(s, LOTTIES_CORNER, true) - plain).toBeCloseTo(0.3, 6);
+    const r: Raid = { id: `r${s.nextId++}`, attacker: 'sourwood', target: LOTTIES_CORNER, objective: 'smash', party: henchmenOf(6, 5, 'hatchets'), detected: true, eta: '', syndicate: true };
+    warnAll(s, [r], 60);
+    const card = alertCards(s).find((c) => c.includes(`data-raid="${r.id}"`))!;
+    expect(card).toContain('cl-vs'); // the makeup: what they're after, then each raider's weapon
+    expect(card).toContain('6 coming for a smash: hatchets, hatchets, hatchets, hatchets, hatchets, hatchets.');
+  });
+
+  it("a Citrus Fortress Wall takes 5,000 HP of chopping, and its defenders hit 50% harder while it stands", () => {
+    const { s, dex } = bay();
+    s.guards = [dex];
+    Object.assign(s.plots[LOTTIES_CORNER].defense, { tier: 5, fenceHp: PERIMETERS[4].hp });
+    expect(PERIMETERS[4].hp).toBe(5000);
+    const r: Raid = { id: 'r-syn', attacker: 'sourwood', target: LOTTIES_CORNER, objective: 'smash', party: henchmenOf(12, 5, 'hatchets'), detected: true, eta: '02:25', syndicate: true };
+    const b = fightRaid(s, r, true);
+    const breach = b.events.find((e) => e.type === 'breach');
+    const chopped = b.events.reduce((a, e) => a + (e.type === 'chop' && e.target === 'fence' && (!breach || e.t <= breach.t) ? e.dmg : 0), 0);
+    if (breach) expect(chopped).toBeGreaterThanOrEqual(5000 - 1e-6); else expect(chopped).toBeLessThan(5000);
+    const hitOf = b.defenders.find((f) => f.id === dex.id)!.hit;
+    const swings = b.events.filter((e): e is Extract<typeof e, { type: 'swing' }> => e.type === 'swing' && e.a === dex.id);
+    const before = swings.filter((e) => !breach || e.t < breach.t), after = swings.filter((e) => breach && e.t > breach.t);
+    expect(before.length).toBeGreaterThan(0);
+    for (const e of before) expect(e.dmg).toBeCloseTo(hitOf * 1.5, 1);
+    for (const e of after) expect(e.dmg).toBeCloseTo(hitOf, 1);
   });
 });

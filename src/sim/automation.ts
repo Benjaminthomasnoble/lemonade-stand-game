@@ -9,7 +9,7 @@
 // the Prep preview. A helper that spends at another hour books it with bookHelper.
 import { AUTO_PRICE_RANK, CUPS_PER_PITCHER, RECIPES, SUPPLIES, type RecipeId, type SupplyId, type Sweetness } from './balance.ts';
 import type { DayStats, GameState, Stand } from './economy.ts';
-import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, stock, storageFor } from './economy.ts';
+import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, setSweetness, stock, storageFor } from './economy.ts';
 import { priceCeiling, serviceLeft, stockCapCups } from './demand.ts';
 import { bookedSamples, salePrice } from './marketing.ts';
 import { bottlesLeft, localStand } from './vip.ts';
@@ -152,7 +152,7 @@ export function autoPrice(s: GameState, plotId: string): boolean {
   const pick = bestSetting(s, plotId);
   const swapped = pick.recipe !== st.recipe;
   if (swapped) pickRecipe(s, st, pick.recipe);
-  st.sweetness = pick.sweetness;
+  setSweetness(st, pick.sweetness); // the Sweetness dial's own setter, as the player's turn of it
   setPrice(st, priceCeiling(s, plotId, st));
   return swapped;
 }

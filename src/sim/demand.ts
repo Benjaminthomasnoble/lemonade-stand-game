@@ -6,12 +6,12 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, DISTRICT_CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  AUTO_PRICE_RANK, BASE_STOP_CHANCE, BRAND_TIERS, CAMPAIGNS, DISTRICT_CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
   PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF, WEATHER,
   type CampaignId, type DistrictCampaignId, type LocalCampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
-import { districtControl } from './modes.ts';
+import { controlTier, perkActive, tierAtLeast } from './land.ts'; // land: control tiers and the Full Control perks
 import { hpCapacity } from './damage.ts';
 import type { Appeal, DayStats, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, cupsInStock, expectedPassersby, rivalPrice } from './economy.ts';
@@ -82,19 +82,14 @@ export function stopOdds(thirst: number, appealBeforePrice: number, fit: number)
 
 // ---------- curb appeal, Majority and the district perks ----------
 
-/** Majority: the player holds 51%+ of the district's purchasable plots (civic and HQ plots don't count). */
-export function majorityHeld(s: GameState, d: DistrictId): boolean {
-  return districtControl(s, d).share >= MAJORITY;
-}
+/** Majority: the player holds 51%+ of the district's purchasable plots (land's control tiers: civic and HQ plots don't count). */
+export const majorityHeld = (s: GameState, d: DistrictId): boolean => tierAtLeast(controlTier(s, d), 'majority');
 
 /**
- * Full Control: the player holds every purchasable plot, and the district's perk is on (live: lose one plot and it
- * switches off). Seam: land's controlTier(s, d) and perkActive(s, perk) replace this once they merge.
+ * Full Control: the player holds every purchasable plot (land's controlTier), so the district's perk is on (live: lose
+ * one plot and it switches off). Demand's own perks ask land's perkActive; vip.ts reads this for Shipping Lane and Old Money.
  */
-export function fullControl(s: GameState, d: DistrictId): boolean {
-  const c = districtControl(s, d);
-  return c.total > 0 && c.mine === c.total;
-}
+export const fullControl = (s: GameState, d: DistrictId): boolean => controlTier(s, d) === 'full';
 
 /**
  * Curb appeal is ×1.0 at every stand level (a level pays off through draw, service and top price). Majority pushes
@@ -117,9 +112,9 @@ export function perkTraffic(s: GameState, owner: FactionId, plotId?: string): nu
 
 function perkTerms(s: GameState, owner: FactionId, add: MarketingAdd, plotId?: string): void {
   if (owner !== 'player') return;
-  if (fullControl(s, 'groves')) add('orchardFresh', 'Orchard Fresh', PERKS.orchardFresh);
+  if (perkActive(s, 'orchardFresh')) add('orchardFresh', 'Orchard Fresh', PERKS.orchardFresh);
   const d = plotId ? PLOT_BY_ID[plotId]?.district : undefined;
-  if ((d === 'oldtown' || d === 'maple') && fullControl(s, 'oldtown')) add('townFavorite', 'Town Favorite', PERKS.townFavorite);
+  if ((d === 'oldtown' || d === 'maple') && perkActive(s, 'townFavorite')) add('townFavorite', 'Town Favorite', PERKS.townFavorite);
 }
 
 // ---------- the marketing number (spec: How marketing stacks) ----------
@@ -211,7 +206,7 @@ export function lunchRush(s: GameState, plotId: string, hour: number): number {
   if (hour < L.from || hour >= L.to || s.plots[plotId].owner !== 'player') return 1;
   const d = PLOT_BY_ID[plotId].district;
   if (d !== 'downtown' && d !== 'oldtown') return 1;
-  return fullControl(s, 'downtown') ? L.mult : 1;
+  return perkActive(s, 'powerLunch') ? L.mult : 1;
 }
 
 /** The lunch rush over a whole day's traffic (×1.1 with Power Lunch), for forecasts. */
@@ -221,7 +216,7 @@ export function lunchRushDay(s: GameState, plotId: string): number {
 
 /** Tourist Trap (the Boardwalk at Full Control): tourists pay +20% for every cup at your stands, everywhere. */
 export function touristPays(s: GameState, plotId: string, seg: SegmentId): number {
-  return seg === 'tourists' && s.plots[plotId].owner === 'player' && fullControl(s, 'boardwalk') ? 1 + PERKS.touristTrap : 1;
+  return seg === 'tourists' && s.plots[plotId].owner === 'player' && perkActive(s, 'touristTrap') ? 1 + PERKS.touristTrap : 1;
 }
 
 /**
@@ -230,7 +225,7 @@ export function touristPays(s: GameState, plotId: string, seg: SegmentId): numbe
  */
 export function campaignCost(s: GameState, id: LocalCampaignId): { cash: number; samples: number; cut: number; half: boolean } {
   const c: { costPerDay?: number; samples?: number; priceCut?: number } = id in DISTRICT_CAMPAIGNS ? DISTRICT_CAMPAIGNS[id as DistrictCampaignId] : CAMPAIGNS[id as CampaignId];
-  const half = fullControl(s, 'campus');
+  const half = perkActive(s, 'wordOfMouth');
   const k = half ? PERKS.wordOfMouth : 1;
   return { cash: (c.costPerDay ?? 0) * k, samples: Math.ceil((c.samples ?? 0) * k), cut: (c.priceCut ?? 0) * k, half };
 }
@@ -503,14 +498,14 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
     terms: marketingTerms(s, owner, st, plotId), surges: surges(s, plotId),
     passersby: Math.round(passersby * lunch), kept: f.kept, toOwn: Math.round(f.toOwn), inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
     base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
-    reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,
+    reputation: repMultiplier(owner === 'player' ? s.reputation : rivalStars(s, owner as RivalId)), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,
     price: salePrice(s, plotId, st), coupon: couponCut(s, plotId), ceiling: priceCeiling(s, plotId, st),
     demand, pourRate: pourRate(s, plotId), service, stock, cups, binding,
     perks: {
-      townFavorite: owner === 'player' && (p.district === 'oldtown' || p.district === 'maple') && fullControl(s, 'oldtown'),
-      orchardFresh: owner === 'player' && fullControl(s, 'groves'),
+      townFavorite: owner === 'player' && (p.district === 'oldtown' || p.district === 'maple') && perkActive(s, 'townFavorite'),
+      orchardFresh: owner === 'player' && perkActive(s, 'orchardFresh'),
       powerLunch: lunch > 1,
-      touristTrap: owner === 'player' && fullControl(s, 'boardwalk'),
+      touristTrap: owner === 'player' && perkActive(s, 'touristTrap'),
       majority: majorityHeld(s, p.district),
     },
   };

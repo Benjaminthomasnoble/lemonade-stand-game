@@ -10,7 +10,7 @@ import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleRe
 import {
   awayGuards, buildClubhouse, buySupply, CLOSE, creditGuards, DAYTIME_RAID_REP, detectionChance, DIFFICULTY, emptyPosts, fenceRepairCost, fightRaid, GEAR,
   guardFighter, hhmm, isMajor, LOTTIES_CORNER, NABBED, newGame, nightStep, openStand, ownedPlots, PERIMETERS, planRaid, PLOT_BY_ID, PLOTS, raidInput, raidNotice, raidOdds,
-  setPrice, simulateRestOfDay, SQUAD_CAP, squadTrip, STAND_HP, startNight, threatLevel, tickMinute, travelMinutes, WEAPONS, type Alert, type BattleReport,
+  simulateRestOfDay, SQUAD_CAP, squadTrip, STAND_HP, startNight, threatLevel, tickMinute, travelMinutes, WEAPONS, type Alert, type BattleReport,
   type GameState, type GadgetId, type Guard, type Raid, type SimEvent, type Trait,
 } from './economy.ts';
 import { DEFAULT_OPTIONS, autoPauses } from '../settings.ts';
@@ -173,13 +173,13 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
     expect(s.cash).toBe(cash - report.loot);
   });
 
-  // Measured: a Kiosk on Lottie's Corner at 3.3 stars and $2.10 a cup makes about $512 on a warm day (302 cups), and
-  // about $635 at its best price ($2.80). The day of profit a Shakedown takes is the demand model's to set.
+  // Measured: a Kiosk on Lottie's Corner at 3.3 stars makes about $633 on a warm day at Auto-Price's $3.00 ceiling
+  // (248 cups), and about $512 priced by hand at $2.10 (302 cups). The day of profit a Shakedown takes is the demand
+  // model's to set.
   it.fails('... and a day of the Kiosk\'s profit is about $800', () => {
     const s = newGame(26);
     s.rank = 4; s.cash = 1e5; s.reputation = 3.3; s.day = 20;
-    s.plots[LOTTIES_CORNER].stand!.level = 3;
-    setPrice(s.plots[LOTTIES_CORNER].stand!, 2.1);
+    s.plots[LOTTIES_CORNER].stand!.level = 3; // Auto-Price (from Rank 3) posts it at its ceiling as it opens
     buySupply(s, 'lemons', 10); buySupply(s, 'sugar', 10); buySupply(s, 'ice', 20);
     openStand(s);
     simulateRestOfDay(s);
@@ -262,7 +262,7 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 
-  // Measured: a Blenders Kiosk on the Boardwalk makes about $1,508 on a hot day (800 cups at $2.16, the rival's price).
+  // Measured: a Blenders Kiosk on the Boardwalk makes about $1,553 on a hot day (823 cups at $2.16, the rival's price).
   it.fails('expected loot is about $2,400, one day of the Kiosk\'s profit', () => {
     const { s, kiosk } = day24();
     buySupply(s, 'lemons', 2); buySupply(s, 'sugar', 2); buySupply(s, 'ice', 4);

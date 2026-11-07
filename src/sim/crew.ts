@@ -14,7 +14,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
-import { buildingInvested, dollarsUp } from './damage.ts';
+import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, peaceful } from './modes.ts';
 import { etaMinute, hhmm, raidStart, travelMinutes } from './night.ts';
@@ -56,6 +56,7 @@ export interface BattleReport {
   delivery?: boolean;
   busted?: boolean; // Laid Back: your stand was Busted (closed until a repair), not Wrecked
   hq?: 'gate' | 'yard' | 'boss'; // a stage of an HQ assault
+  hpLost?: number; // HP the building lost and kept (damage.ts): Damaged until a repair
   day: number;
   attacker: FactionId;
   defender: FactionId;
@@ -189,6 +190,7 @@ export function rebuildStand(s: GameState, plotId: string): boolean {
   s.today.land = round2(s.today.land + cost);
   if (ps.stand) ps.stand.wrecked = false;
   if (ps.facility) ps.facility.wrecked = false;
+  restoreHp(s, plotId); // back up at full HP
   delete ps.wreckedDay;
   delete ps.busted;
   s.news.push(`Hammers and elbow grease: ${PLOT_BY_ID[plotId].name} is back in business.`);
@@ -356,7 +358,7 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   return {
     attackers, defenders: defendersAt(s, raid.target, night, away, rng),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: ps.defense.gadgets,
-    standHp: buildingHp(ps), objective: raid.objective, detected: raid.detected,
+    standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
   };
 }
 
@@ -533,7 +535,9 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + DIFFICULTY[s.settings.difficulty].respectDays;
   }
 
+  const hpLost = raidDamage(s, raid.target, res.standHpLeft); // the building keeps what the fight left it (damage.ts)
   const report: BattleReport = {
+    hpLost: hpLost || undefined,
     delivery: raid.delivery, busted: busted && res.outcome === 'smashed' ? true : undefined,
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
@@ -561,7 +565,12 @@ export function creditGuards(s: GameState, input: BattleInput, res: { koed: stri
 
 const fname = (f: FactionId) => (f === 'player' ? "Lottie's crew" : FACTIONS[f as RivalId].name);
 
+/** The Bugle's line for a fight, with the HP a building lost and kept (damage.ts). */
 export function battleHeadline(b: BattleReport): string {
+  return headline(b) + hpLostNote(b);
+}
+
+function headline(b: BattleReport): string {
   const where = PLOT_BY_ID[b.target].name;
   if (b.hq) return b.outcome === 'repelled'
     ? `HQ assault on ${where} stalls at the ${b.hq === 'gate' ? 'Gate' : b.hq === 'yard' ? 'Yard' : 'Boss Room'}.`

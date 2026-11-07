@@ -18,6 +18,7 @@ import {
 import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
+import { restoreHp } from './damage.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -372,6 +373,7 @@ export function growUpgrades(s: GameState, id: RivalId): void {
     st.level += 1;
     st.price = rivalPrice(id, st.level, PLOT_BY_ID[plotId]);
     ps.invested += c;
+    restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
     r.upgradesDue.splice(r.upgradesDue.indexOf(plotId), 1);
   }
 }

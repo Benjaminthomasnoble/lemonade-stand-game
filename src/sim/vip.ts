@@ -9,6 +9,7 @@ import { hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, playerStands } from './economy.ts';
+import { restoreHp } from './damage.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -17,7 +18,7 @@ export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal';
 /** VIP tiers: a chopper or a ship comes to your facility. */
 export const isVip = (t: OrderTier) => t === 'heli' || bySea(t);
 
-export interface Facility { kind: FacilityKind; level: number; wrecked?: boolean }
+export interface Facility { kind: FacilityKind; level: number; wrecked?: boolean; hp?: number } // hp: as a Stand's (damage.ts)
 
 export interface Order {
   id: string;
@@ -122,6 +123,7 @@ export function buildFacility(s: GameState, plotId: string, kind: FacilityKind):
   s.cash = round2(s.cash - cost);
   s.today.land = round2(s.today.land + cost);
   ps.invested += cost;
+  restoreHp(s, plotId); // the new tier comes up at full HP; a repair queued for the old one is paid back (damage.ts)
   ps.facility = { kind, level: lvl + 1 };
   s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
   return true;

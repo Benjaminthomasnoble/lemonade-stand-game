@@ -22,6 +22,7 @@ import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
+import { damageAtClose, damageAtDawn, hpCapacity, migrateDamage, restoreHp, type Repair } from './damage.ts';
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
 import { isMajor, type Alert } from './alerts.ts';
 
@@ -70,6 +71,7 @@ export interface Stand {
   campaigns: Partial<Record<CampaignId, number>>; // days left
   autoRestock: boolean;
   day: StandDay;
+  hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
 }
 
@@ -81,6 +83,7 @@ export interface PlotState {
   defense: Defense;
   garrison?: number; // rival henchmen on guard here
   facility?: Facility; // Bottling Works, Helipad or Pier
+  repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
   dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
   wreckedDay?: number; // day the stand or facility here was smashed
   smashedBy?: FactionId;
@@ -472,7 +475,7 @@ export function expectedCups(s: GameState, plotId: string, w: Weather = s.foreca
   const st = s.plots[plotId].stand!;
   const rivals = nearbyPlots(PLOT_BY_ID[plotId]).filter((q) => q.id !== plotId && s.plots[q.id].stand && s.plots[q.id].owner !== 'player').length;
   const share = 1 / (1 + rivals * 0.6);
-  return Math.min(Math.round(expectedPassersby(s, plotId, w) * averageStopChance(s, plotId, w) * share), standLevel(st).capacityPerHour * 12);
+  return Math.min(Math.round(expectedPassersby(s, plotId, w) * averageStopChance(s, plotId, w) * share), hpCapacity(s.plots[plotId], standLevel(st).capacityPerHour) * 12);
 }
 
 const HOURLY_SUM = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
@@ -557,7 +560,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
   const st = ps.stand!;
   const isPlayer = ps.owner === 'player';
   if (nextRandom(rng) >= a.stopChance) return { buys: false, reason: a.priceFit < 0.6 ? 'pricey' : 'notThirsty' };
-  if (st.servedThisHour >= standLevel(st).capacityPerHour) return { buys: false, reason: 'line' };
+  if (st.servedThisHour >= hpCapacity(ps, standLevel(st).capacityPerHour)) return { buys: false, reason: 'line' }; // a Damaged stand pours its HP share
   if (!isPlayer && st.day.customers >= stockCups(st)) return { buys: false, reason: 'soldOut' }; // a rival sells one full stock a day
   if (isPlayer) {
     if (st.pitcherCups === 0) {
@@ -702,6 +705,7 @@ function closeDay(s: GameState): void {
   if (score > s.peakScore) { s.peakScore = score; s.peakDay = s.day; }
   trackOutselling(s);
   checkRank(s);
+  damageAtClose(s); // rivals book their repairs at closing, like you (damage.ts)
   s.phase = 'report';
   planNight(s);
 }
@@ -714,6 +718,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   resolveNight(s);
   s.day++;
   s.minute = DAWN;
+  damageAtDawn(s); // the night's repairs are done (damage.ts)
   const rng = { seed: s.seed };
   let spoiled = 0;
   for (const p of playerStands(s)) {
@@ -921,6 +926,7 @@ export function upgradeStand(s: GameState, plotId = s.selected): boolean {
   s.today.land = round2(s.today.land + next.cost);
   ps.invested += next.cost;
   ps.stand!.level = next.level;
+  restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
   s.news.push(`${PLOT_BY_ID[plotId].name} gets a makeover: say hello to ${next.name}!`);
   checkRank(s);
   return true;
@@ -1019,6 +1025,7 @@ export function migrateSave(x: unknown): GameState | null {
     s.peakDay = s.day;
     s.version = 8;
   }
+  migrateDamage(s); // building HP and queued repairs (damage.ts)
   migrateCombat(s);
   if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
   if (isGameState(s)) migrateRivals(s);

@@ -290,6 +290,11 @@ export const RAID_RANK = 3;
 export const SQUAD_CAP = (rank: number) => (rank >= 7 ? 12 : rank >= 5 ? 8 : 5);
 /** Stand hit points by level (how much chopping a Smash needs). */
 export const STAND_HP = STAND_LEVELS.map((l) => l.hp);
+/** Repair a Damaged building for this share of what was invested in it, times the share of HP lost (half HP: 7.5%). */
+export const DAMAGE_REPAIR_SHARE = 0.15;
+/** A rival repairs a Damaged building at closing only with this much cash to spare beyond the bill (placeholder: the spec
+ * says only that rivals repair under the same cost rule). */
+export const RIVAL_REPAIR_RESERVE = 500;
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
 export const REPAIR_SHARE = 0.15; // of the fence's price, times the share of HP lost

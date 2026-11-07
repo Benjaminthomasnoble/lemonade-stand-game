@@ -506,7 +506,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const out: string[] = [];
     if (cur) out.push(card(ART.fence(ps.defense.tier), cur.name, cur ? meter(ps.defense.fenceHp / cur.hp, 'hp') : '',
       (fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
-      `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit 25% harder while it stands.`));
+      `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands.`));
     if (next && !locked(pb)) out.push(card(ART.fence(next.tier), next.name, `${next.hp} HP`, btn('perimeter', whole(next.cost), pb, `data-plot="${id}" data-testid="perimeter"`, 'go'), `${next.hp} HP${next.breachDps ? ', hurts attackers breaking through' : ''}${next.slow ? ', slows them down' : ''}`));
     const installed = ps.defense.gadgets.map((g) => `<span class="cl-slot full" title="${GADGETS[g].name}: ${esc(GADGETS[g].text)}">${GADGET_ART[g]()}</span>`).join('');
     const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');

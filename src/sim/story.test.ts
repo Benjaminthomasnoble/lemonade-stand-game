@@ -105,6 +105,22 @@ describe('story acts', () => {
     expect(goalsNow(s)[2].text).toMatch(/^Reach Rank 10/); // Lottie names Rank 10 first
     expect(actBegan(newGame(32, { mode: 'sandbox' }))).toBeNull();
   });
+
+  it("the act turns before the Cookie Jar is read: a new act's first dawn has a full jar", () => {
+    const s = newGame(33);
+    s.day = SUMMER_FAIR_DAY;
+    s.cash = -50;
+    s.redDays = 3; // the third day In the Red is behind us
+    s.cookieJar = ['act1']; // Act 1's jar is spent
+    nextDawn(s); // Act 2's first morning
+    expect(actOf(s)).toBe(2);
+    expect(s.outcome).toBeUndefined();
+    expect(s.cash).toBeGreaterThanOrEqual(0);
+    expect(s.cookieJar).toEqual(['act1', 'act2']);
+    expect(s.news.indexOf('ACT 2: SURF & TURF! Brock wants his sun back.')).toBeLessThan(s.news.findIndex((n) => n.startsWith("Lottie's Cookie Jar!")));
+    nextDawn(s);
+    expect(actOf(s)).toBe(2); // one act a dawn
+  });
 });
 
 describe('story scenes', () => {

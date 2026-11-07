@@ -139,7 +139,7 @@ export function migrateStory(s: GameState): void {
   migrateGoals(s);
 }
 
-/** One act a dawn, so each climax gets its own morning. */
+/** One act a dawn, so each climax gets its own morning (actAtDawn). */
 function advanceAct(s: GameState): void {
   const st = s.story!;
   if (!hasStory(s) || st.epilogue !== undefined || st.act >= ACTS.length || !climaxDone(s, st.act)) return;
@@ -273,10 +273,18 @@ export function storyAtStart(s: GameState): void {
   scenesAtDawn(s);
 }
 
-/** Dawn (one line in sleepUntilDawn): the act may turn, the day's goals and scenes arrive, bosses' moods are read. */
-export function storyAtDawn(s: GameState): void {
+/**
+ * Dawn, before the Cookie Jar is read (one line in sleepUntilDawn, ahead of fortunesAtDawn): the act may turn, so a new
+ * act's first morning has a full jar. One act a dawn.
+ */
+export function actAtDawn(s: GameState): void {
   migrateStory(s);
   advanceAct(s);
+}
+
+/** Dawn (one line in sleepUntilDawn, after actAtDawn): the day's goals and scenes arrive, bosses' moods are read. */
+export function storyAtDawn(s: GameState): void {
+  migrateStory(s);
   lottieStocksStands(s);
   lessonLines(s);
   stewardVisit(s);

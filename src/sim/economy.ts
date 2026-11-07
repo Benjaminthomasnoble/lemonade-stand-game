@@ -37,7 +37,7 @@ import {
   marketingMultiplier, migrateDemand, pourRate, priceCeiling, reputationAtClose, rivalStars, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 import { campaignDay, districtBlocker, isDistrictCampaign, planCampaign, salePrice, standCampaignBusy, standingBillboard, standPriceFit, startBookings, type MarketingState } from './marketing.ts';
-import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
+import { actAtDawn, migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
 import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
@@ -902,6 +902,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   rivalsBankrupt(s);
   worldAtDawn(s);
   vipAtDawn(s);
+  actAtDawn(s); // the act turns before the Cookie Jar reads it (story.ts)
   fortunesAtDawn(s);
   nightsAtDawn(s);
   storyAtDawn(s);

@@ -4,7 +4,7 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
+  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -41,7 +41,11 @@ function warning(s: GameState, a: Alert, r: Raid): string {
     + (r.tutorial && !s.guards.some((g) => g.name === DEX && g.post === r.target && guardReady(s, g)) ? 1 : 0); // Dex always meets the first raid
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
   const after = r.delivery ? 'the cargo' : r.sabotage ? 'the stock' : r.objective === 'smash' ? 'a smash' : 'the till'; // crew: Sabotage spoils the stock
-  const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
+  // What a tower sees besides the weapons: the boss at the head (Threat 5, the Syndicate) and any lookouts.
+  const boss = seen && r.attacker !== 'player' ? r.party!.find((f) => f.name === HQS[r.attacker as RivalId].boss) : undefined;
+  const more = `${boss ? ` ${boss.name} leads them.` : ''}${seen && r.lookouts ? ` ${r.lookouts} lookout${r.lookouts > 1 ? 's' : ''}.` : ''}`;
+  const others = r.group ? s.raids.filter((x) => x.group === r.group && x !== r).length : 0; // the same raid's other parts
+  const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${more}${others ? ` One of ${others + 1} plots they hit tonight.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
   // The one action: Ring the Bell while a reserve is in range (then when help gets there), else a fence.
   const next = PERIMETERS[ps.defense.tier];
   const pb = canBuyPerimeter(s, r.target);

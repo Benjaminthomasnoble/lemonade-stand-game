@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alert, clockText, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, planRaid, raidPartyFor, raidTargets, squadTrip, startNight,
+  alert, clockText, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, planRaid, raidBoss, raidPartyFor, raidTargets, squadTrip, startNight,
   type GameState, type Guard, type Raid,
 } from '../sim/economy.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
@@ -82,6 +82,19 @@ describe('the raid warning card', () => {
     const { s } = warned();
     while (s.minute < 22 * 60) nightStep(s);
     expect(alertCards(s).some((c) => c.includes('raid-warning'))).toBe(false);
+  });
+
+  it('a Watchtower names the boss at the head and the lookouts; a split raid says how many plots it hits', () => {
+    const { s, r } = warned({ attacker: 'hollis', lookouts: 2, group: 'w1' });
+    r.party = [raidBoss(s, 'hollis'), ...r.party!];
+    s.raids.push({ ...r, id: 'w2', target: raidTargets(s)[0].id, warned: false }); // the other part (on a plot of theirs here: only the count matters)
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    const card = alertCards(s)[0];
+    expect(card).toContain('Tilly Hollis leads them.');
+    expect(card).toContain('2 lookouts.');
+    expect(card).toContain('One of 2 plots they hit tonight.');
+    s.plots[LOTTIES_CORNER].defense.gadgets = [];
+    expect(alertCards(s)[0]).not.toContain('leads them'); // no tower, no sighting
   });
 
   it('on the tutorial raid Dex is among the shields, wherever he is posted', () => {

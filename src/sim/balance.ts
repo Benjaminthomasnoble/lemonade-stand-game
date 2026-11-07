@@ -446,6 +446,21 @@ export const RAID_PARTY: { size: [number, number]; weapons: [number, number, num
   { size: [8, 12], weapons: [0.1, 0.6, 0.3] },
   { size: [12, 20], weapons: [0, 0.5, 0.5] },
 ];
+/** Share of raids on the player that are a Smash, by Threat (the rest are Shakedowns). */
+export const SMASH_SHARE = [0, 0.3, 0.6, 0.7, 1];
+/** How many of your plots one raid hits, by Threat: [fewest, most], each equally likely (Threat 4's 1-or-2 odds are a
+ * placeholder: spec gap). A raid on several plots splits its party between them. */
+export const RAID_TARGETS: [number, number][] = [[1, 1], [1, 1], [1, 1], [1, 2], [2, 3]];
+/** Lookouts riding with each raid on the player, by Threat (from Threat 3), and how much each cuts the target's
+ * detection chance (placeholders: the spec puts lookouts in the Threat 3 party but doesn't say what they do). */
+export const RIVAL_LOOKOUTS = { perRaid: [0, 0, 1, 1, 2], stealth: 0.1 };
+/** Share of all rival raids aimed at other rivals rather than you, by Threat; none once the Syndicate forms (the
+ * Threat 5 share before it forms is a placeholder: spec gap). */
+export const RIVAL_VS_RIVAL = [0.3, 0.3, 0.3, 0.15, 0.15];
+/** A boss leading a raid (Threat 5, every Syndicate strike): built like their Boss Room self (rivals.ts stormHQ). */
+export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2 };
+/** The Syndicate's raids on you per week, Classic (Laid Back ×0.5 = 3, Cutthroat ×1.5 = 9). */
+export const SYNDICATE_RAIDS_PER_WEEK = 6;
 /** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off, down to 0% (the floor is a placeholder: spec gap). */
 export const DETECTION_BASE = 0.5;
 export const DETECTION_CAP = 0.95;

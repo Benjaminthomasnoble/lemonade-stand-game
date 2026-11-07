@@ -5,8 +5,8 @@
 import {
   BUILDING_POSTS, BUSTED_REPAIR_SHARE, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
   DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
-  GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, OPEN, PERIMETERS,
-  PROMOTE_LEVEL, RAIDS_PER_WEEK, RAID_LEAVE, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
+  GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, OPEN, PERIMETERS,
+  PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
   RIVAL_KIT, RIVAL_RAID_AT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
   STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
@@ -29,7 +29,7 @@ import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
-import { TUTORIAL_CALL, tutorialBounce, withDex } from './threat.ts';
+import { raidsOnYou, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
 
 export interface Guard {
   id: string;
@@ -69,6 +69,10 @@ export interface Raid {
   bell?: { id: string; at: number }[]; // Ring the Bell (reinforce.ts): the reserve on its way, and the minute each gets there
   sabotage?: boolean; // fought as a Shakedown, but the 10 minutes go on spoiling the stock instead of the till
   tutorial?: boolean; // the scripted first raid on you: Dex is always there, and it always bounces (threat.ts)
+  group?: string; // one raid on several of your plots: each part's fight, all sharing the raid's id (threat.ts spreadRaids)
+  spread?: number; // planned to hit this many of your plots (split once the bosses settle who sends it)
+  led?: boolean; // planned boss-led (Threat 5): the boss joins once the raider is settled
+  lookouts?: number; // lookouts riding along (from Threat 3): each cuts the target's detection chance
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
@@ -535,7 +539,8 @@ export function raidPartyFor(s: GameState, rival: RivalId): Fighter[] {
   return party;
 }
 
-function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng): Fighter[] {
+/** A raiding party at a Threat tier: its size range and weapon odds (RAID_PARTY), henchmen at the tier's strength. */
+export function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng): Fighter[] {
   const [lo, hi] = RAID_PARTY[threat - 1].size;
   const n = lo + Math.floor(nextRandom(rng) * (hi - lo + 1));
   return Array.from({ length: n }, (_, i) => henchman(s, rival, threat, rng, i, 'att'));
@@ -777,51 +782,14 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
 
 // ---------- rival raids and the night ----------
 
-/** Called when the stands close (the Evening): rivals decide tonight's raids. Each sets out at its own minute and
- * travels by distance (night.ts runs the clock); the player is warned as the night goes, never all at once. */
+/** Called when the stands close (the Evening): rivals decide tonight's raids (threat.ts: how many come, from whom, at
+ * which plots and what for). Each sets out at its own minute and travels by distance (night.ts runs the clock); the
+ * player is warned as the night goes, never all at once. */
 export function planNight(s: GameState): void {
   if (peaceful(s)) return; // Peaceful Sandbox: rivals scheme with prices and land, never fists
   const rng = { seed: s.seed };
   const threat = threatLevel(s);
-  // Rivals scheme against the player.
-  const recentlyHit = s.battles.some((b) => b.defender === 'player' && b.day >= s.day - 1);
-  // The first raid on you is the tutorial raid: it comes the night your first Kiosk opens or the night of the Summer Fair (Day 15), whichever is first.
-  const tutorial = !s.battles.some((b) => b.defender === 'player');
-  const tutorialNight = tutorial && (s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3));
-  const roll = nextRandom(rng);
-  if (s.day > NO_RAID_DAYS && !recentlyHit && (tutorial ? tutorialNight : roll < RAIDS_PER_WEEK[threat - 1] * difficulty(s).raids / 7)) {
-    const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
-    const candidates = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day + 1);
-    if (mine.length && candidates.length) {
-      const weights = candidates.map((r) => 1 + s.rivals[r].grudge / 10 + s.rivals[r].attention + FACTIONS[r].strike * 4);
-      let x = nextRandom(rng) * weights.reduce((a, b) => a + b, 0);
-      let rival = candidates[0];
-      for (let i = 0; i < candidates.length; i++) { x -= weights[i]; if (x <= 0) { rival = candidates[i]; break; } }
-      // The weakest valuable stand: value over defense.
-      const score = (p: Plot) => {
-        const ps = s.plots[p.id];
-        const guards = s.guards.filter((g) => g.post === p.id).length;
-        return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
-      };
-      let target = mine.sort((a, b) => score(b) - score(a))[0];
-      let party = raidParty(s, rival, threat, rng);
-      let detected = false; // rolled as they set out (night.ts)
-      if (tutorial) {
-        // The tutorial raid: two Smoothie Bros with bare fists, straight at Dex. It always bounces.
-        const dex = s.guards.find((g) => g.name === 'Dex Moody' && g.post);
-        target = (dex ? PLOT_BY_ID[dex.post!] : target);
-        rival = s.rivals.blenders.alive ? 'blenders' : rival;
-        party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
-        detected = true;
-        s.news.push(`Brock: "${TUTORIAL_CALL}"`); // story: phoneCall(s, 'blenders', TUTORIAL_CALL) once the phone lands
-      }
-      const roll = nextRandom(rng);
-      const objective: Objective = tutorial || roll < 0.5 || threat === 1 ? 'shakedown' : 'smash'; // the tutorial raid is a Threat 1 Shakedown
-      const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
-      const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
-      s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: hhmm(at), leave, at, ...(tutorial ? { tutorial: true } : {}) });
-    }
-  }
+  s.raids.push(...raidsOnYou(s, rng));
   // Rivals also raid each other (about 30% of their raids at Threat 1–3).
   if (threat < 5 && nextRandom(rng) < (threat <= 3 ? 0.3 : 0.15)) {
     const a = RIVALS[Math.floor(nextRandom(rng) * RIVALS.length)];
@@ -831,11 +799,12 @@ export function planNight(s: GameState): void {
   }
   s.seed = rng.seed;
   s.raids.push(...signatureRaids(s));
-  if (tutorial) return;
-  // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another).
+  // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another), and none
+  // comes before the tutorial raid is fought. A raid on several plots goes for the stock at each of them.
   const dice = { seed: s.seed };
-  for (const raid of s.raids) if (s.plots[raid.target].owner === 'player') maybeSabotage(s, raid, dice);
+  if (tutorialDone(s)) for (const raid of s.raids) if (s.plots[raid.target].owner === 'player') maybeSabotage(s, raid, dice);
   s.seed = dice.seed;
+  spreadRaids(s); // threat.ts: a raid on several plots splits its party; a boss-led one gets its boss
 }
 
 /** At dawn, anything still out arrives, in ETA order (the night's clock fights the rest at their minute). */

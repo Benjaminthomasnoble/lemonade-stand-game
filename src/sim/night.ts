@@ -21,6 +21,7 @@ import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
+import { lookoutStealth } from './threat.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
@@ -153,8 +154,13 @@ const early = (s: GameState, r: Raid) => (onYou(s, r) && hasTrophy(s, 'coldbrew'
  * notice before it hits. The Grapevine moves either an hour earlier. */
 const warnMinute = (s: GameState, r: Raid) => (r.detected ? r.leave! : Math.max(r.leave!, r.at! - raidNotice(s))) - early(s, r);
 
-/** The raid sets out (a raid on you is rolled an hour early with the Grapevine): detection is rolled against the
- * target's alarms, lookouts and lights. Your own squad musters: anyone KO'd, gone or still out on another raid stays
+/** The chance a raid on you is spotted as it sets out: the target's alarms, lookouts and lights (crew's
+ * detectionChance), less what the raiders' own lookouts take off (threat.ts; never under 5% on their own) and Cold
+ * Brew's Night Shift (rivalAi.ts), which leaves a stand with no alarm blind at night. */
+export const spotChance = (s: GameState, r: Raid) =>
+  Math.max(0.05, detectionChance(s, r.target, s.phase === 'night') - lookoutStealth(r)) - nightShiftStealth(s, r);
+
+/** The raid sets out (a raid on you is rolled an hour early with the Grapevine): detection is rolled (spotChance). Your own squad musters: anyone KO'd, gone or still out on another raid stays
  * behind, and with nobody fit to go the raid is called off (no fight, no Grudge). */
 function launch(s: GameState, r: Raid): void {
   r.launched = true;
@@ -162,7 +168,7 @@ function launch(s: GameState, r: Raid): void {
   if (!onYou(s, r)) return;
   if (!r.detected) {
     const rng = { seed: s.seed };
-    r.detected = nextRandom(rng) < detectionChance(s, r.target, s.phase === 'night') - nightShiftStealth(s, r); // Cold Brew's Night Shift
+    r.detected = nextRandom(rng) < spotChance(s, r); // the raiders' lookouts, and Cold Brew's Night Shift
     s.seed = rng.seed;
   }
   r.warnAt = Math.max(s.minute, warnMinute(s, r));

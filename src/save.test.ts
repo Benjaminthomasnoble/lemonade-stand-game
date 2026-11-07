@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  clearSave, DAWN_SLOTS, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadSlot, onSaveTrouble, SAVE_SLOTS, saveDawn, saveGame,
-  saveSlot, saveUnreadable, slotList,
+  clearSave, DAWN_SLOTS, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, SAVE_SLOTS,
+  saveDawn, saveGame, saveSlot, saveUnreadable, slotList,
 } from './save.ts';
 import {
   migrateSave, newGame, openStands, simulateRestOfDay, sleepUntilDawn, startNight, successScore, tickMinute, type GameState,
@@ -220,5 +220,18 @@ describe('manual slots', () => {
     expect(loadGame()).toBeNull();
     expect(loadSlot(0)!.runId).toBe('a');
     expect(dawnsOf('a')).toHaveLength(1);
+  });
+});
+
+describe('the leaderboard', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('a Custom run keeps its sliders for its tag; a preset run has none', () => {
+    memoryStorage();
+    recordScore(run('c', { difficulty: 'custom', custom: { raids: 1.2, notice: 10, respectDays: 2, bustOnly: true, cookieJar: 'always' } }));
+    recordScore(run('p', { difficulty: 'cutthroat' }));
+    const board = loadLeaderboard();
+    expect(board.find((e) => e.runId === 'c')).toMatchObject({ difficulty: 'custom', custom: { raids: 1.2, notice: 10, respectDays: 2, bustOnly: true, cookieJar: 'always' } });
+    expect(board.find((e) => e.runId === 'p')!.custom).toBeUndefined();
   });
 });

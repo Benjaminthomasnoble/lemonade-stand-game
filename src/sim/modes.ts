@@ -2,7 +2,7 @@
 // Economy and balance: Lottie's Cookie Jar and bankruptcy; loans). Pure
 // functions over GameState, like the rest of the sim.
 import {
-  ACT_BY_RANK, ACTS, BELOVED_STARS, DIFFICULTY, ECONOMIC_DEFAULT_RANK, FACTIONS, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
+  ACT_BY_RANK, ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, FACTIONS, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
   SEASON_DAYS, STAND_LEVELS, type Difficulty, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
 import { DISTRICTS, PLOTS, type DistrictId } from './map.ts';
@@ -22,7 +22,21 @@ export interface Settings {
   target: number; // Economic win: Success Score to reach
   ironman: boolean; // one save, no reloading the last dawn
   raidPause?: boolean; // raid warnings on you auto-pause (unset: the difficulty's default, on except Cutthroat)
+  custom?: CustomDifficulty; // Custom difficulty's sliders
 }
+
+/** Custom difficulty: each slider anywhere from Laid Back's value to Cutthroat's. */
+export interface CustomDifficulty {
+  raids: number; // rival raids on you, × Classic
+  notice: number; // minimum raid notice, game minutes
+  respectDays: number; // Respect cooldown
+  bustOnly: boolean; // a lost raid only Busts your stand
+  cookieJar: 'always' | 'perAct' | 'never';
+}
+export const customDefaults = (): CustomDifficulty => {
+  const c = DIFFICULTY.classic;
+  return { raids: c.raids, notice: c.notice, respectDays: c.respectDays, bustOnly: c.bustOnly, cookieJar: c.cookieJar };
+};
 
 export const defaultSettings = (over: Partial<Settings> = {}): Settings => ({
   mode: 'campaign', difficulty: 'classic', peaceful: false, win: 'domination', target: RANKS[ECONOMIC_DEFAULT_RANK - 1].ss, ironman: false, ...over,
@@ -40,7 +54,19 @@ export interface Tally { buyouts: number; smashes: number; hqs: number }
 
 export interface Loan { principal: number; weeksLeft: number; nextDue: number; missed: number }
 
-export const difficulty = (s: GameState) => DIFFICULTY[s.settings.difficulty];
+/** The difficulty's rules for a run: a preset's row, or Custom's sliders on Classic's (every lookup goes through here). */
+export function difficultyOf(st: Settings) {
+  const row = DIFFICULTY[st.difficulty] ?? DIFFICULTY.classic;
+  if (st.difficulty !== 'custom') return row;
+  const c = { ...customDefaults(), ...st.custom };
+  const fit = (v: number, [lo, hi]: readonly [number, number, number]) => Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo));
+  const jar = (['always', 'perAct', 'never'] as const).find((j) => j === c.cookieJar) ?? row.cookieJar;
+  return {
+    ...row, raids: fit(c.raids, CUSTOM_RANGE.raids), notice: Math.round(fit(c.notice, CUSTOM_RANGE.notice)),
+    respectDays: Math.round(fit(c.respectDays, CUSTOM_RANGE.respectDays)), bustOnly: !!c.bustOnly, cookieJar: jar, threat: 0, canLose: jar !== 'always',
+  };
+}
+export const difficulty = (s: GameState) => difficultyOf(s.settings);
 /** Do raid warnings on you auto-pause this run? The player's switch, else the difficulty's default. */
 export const raidPauses = (st: Settings) => st.raidPause ?? DIFFICULTY[st.difficulty].raidPause;
 export const peaceful = (s: GameState) => s.settings.mode === 'sandbox' && s.settings.peaceful;

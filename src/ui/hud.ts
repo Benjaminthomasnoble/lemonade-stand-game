@@ -6,7 +6,7 @@
 import {
   AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
-  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful,
+  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   availableRaiders, canBuildClubhouse, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid, CLUBHOUSE, clubhouseBeds,
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
@@ -38,6 +38,7 @@ import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts'
 import { keysPanel } from './keys.ts';
 import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
+import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -366,12 +367,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'loadSlot': onAction({ type: 'loadSlot', slot: Number(d.slot), dawn: d.dawn === '1' }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
       case 'entry': case 'sponsor': onAction(worldAction(d)); break;
-      case 'start': if (hud.setup) onAction({ type: 'start', settings: { ...hud.setup.settings } }); break;
+      case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
         if (!st) break;
         if (d.key === 'mode') st.mode = d.value as Mode;
         if (d.key === 'difficulty') st.difficulty = d.value as Difficulty;
+        if (d.key?.startsWith('custom.')) pickCustom(st, d.key.slice(7), d.value); // Custom's sliders (src/ui/custom.ts)
         if (d.key === 'win') st.win = d.value as WinCondition;
         if (d.key === 'target') st.target = Number(d.value);
         if (d.key === 'peaceful') st.peaceful = !st.peaceful;
@@ -407,7 +409,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const folded = phone && !unfolded;
     // A meter opens its menu (once that menu's system is open); on a folded phone bar, any tap unfolds it.
     const opens = (id: Parameters<typeof menuUnlocked>[1]) => (folded ? ' data-action="fold" role="button"' : menuUnlocked(s, id) ? ` data-action="menu" data-menu="${id}" role="button"` : '');
-    const mode = `${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${DIFFICULTY[s.settings.difficulty].label}${s.settings.ironman ? ' · Ironman' : ''}`;
+    const mode = `${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${difficultyLabel(s.settings.difficulty, s.settings.custom)}${s.settings.ironman ? ' · Ironman' : ''}`;
     const time = s.phase === 'open' || s.phase === 'night' ? clock(s.minute) : '';
     const cash = `<div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${esc(cashTip(s))}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>`;
     const day = `<div class="cl-chip cl-day" title="${esc(dayTip(s, mode))}"${opens('bugle')}>${ART.egg()}${tape(time && phone ? time : time ? `Day ${s.day} · ${time}` : `Day ${s.day}`)}</div>`;
@@ -838,17 +840,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function setupScreen(st: Settings, cancel: boolean) {
     const modeArt: Record<Mode, string> = { campaign: ART.lottie(), sandbox: ART.fence(2), endless: ART.sky('hot') };
     const modes = (Object.keys(MODES) as Mode[]).map((m) => `<button class="cl-mode${st.mode === m ? ' on' : ''}" data-action="pick" data-key="mode" data-value="${m}" data-testid="mode-${m}" title="${esc(MODES[m].blurb)}"><span class="cl-art">${modeArt[m]}</span>${tape(MODES[m].label.replace('Story Campaign', 'Story').replace('Sandbox: ', ''))}</button>`).join('');
-    const diffs = (Object.keys(DIFFICULTY) as Difficulty[]).map((d, i) => `<button class="cl-diff${st.difficulty === d ? ' on' : ''}" data-action="pick" data-key="difficulty" data-value="${d}" data-testid="difficulty-${d}" title="${esc(DIFFICULTY[d].blurb)}"><span>${Array.from({ length: i + 1 }, () => ART.sour()).join('')}</span>${DIFFICULTY[d].label}</button>`).join('');
+    const diffs = (Object.keys(DIFFICULTY) as Difficulty[]).map((d, i) => `<button class="cl-diff${st.difficulty === d ? ' on' : ''}" data-action="pick" data-key="difficulty" data-value="${d}" data-testid="difficulty-${d}" title="${esc(DIFFICULTY[d].blurb)}"><span>${d === 'custom' ? '<b>±</b>' : Array.from({ length: i + 1 }, () => ART.sour()).join('')}</span>${DIFFICULTY[d].label}</button>`).join('');
     const toggle = (key: string, on: boolean, label: string, tip: string) => `<button class="cl-toggle${on ? ' on' : ''}" data-action="pick" data-key="${key}" title="${esc(tip)}"><i></i>${label}</button>`;
     const sandbox = st.mode === 'sandbox' ? `<div class="cl-row wrap">
         ${([['domination', 'Domination', 'Every rival out, a Majority in every district'], ['economic', 'Score target', 'Reach a Success Score'], ['none', 'No end', 'Just build']] as const).map(([v, l, t]) => `<button class="cl-b ${st.win === v ? 'go' : 'ghost'}" data-action="pick" data-key="win" data-value="${v}" title="${t}">${l}</button>`).join('')}</div>
       ${st.win === 'economic' ? `<div class="cl-row wrap">${RANKS.slice(3).map((r) => `<button class="cl-b tiny ${st.target === r.ss ? 'go' : 'ghost'}" data-action="pick" data-key="target" data-value="${r.ss}" title="${r.title}">${whole(r.ss)}</button>`).join('')}</div>` : ''}
       ${toggle('peaceful', st.peaceful, 'Peaceful', 'No raids, Sabotage or HQ assaults for anyone. Rivals fall to buyouts or bankruptcy, and even Vera sells.')}` : '';
-    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${DIFFICULTY[e.difficulty].label}${e.result === 'won' ? ' · 🏆' : ''}</td></tr>`).join('')}</table>` : '';
+    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${esc(difficultyLabel(e.difficulty, e.custom))}${e.result === 'won' ? ' · 🏆' : ''}</td></tr>`).join('')}</table>` : '';
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="setup">
       <h1 class="cl-title">Lemonade Stand Wars</h1>
       <div class="cl-modes">${modes}</div>
       <div class="cl-diffs">${diffs}</div>
+      ${st.difficulty === 'custom' ? customPanel(st) : ''}
       ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>
         ${cancel ? '<button class="cl-link" data-action="cancelSetup">Back to my game</button>' : ''}
@@ -860,7 +863,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const o = s.outcome;
     if (!o || (o.result === 'won' && s.endlessSince !== undefined)) return '';
     const t = s.tally ?? { buyouts: 0, smashes: 0, hqs: 0 };
-    const stats = `<div class="cl-end-row" title="Day ${o.day} · Buyouts ${t.buyouts}, Smashes ${t.smashes}, HQs ${t.hqs} · ${MODES[s.settings.mode].label} · ${DIFFICULTY[s.settings.difficulty].label}"><span>${ART.rosette()}<b>R${s.rank}</b></span><span>${ART.coin()}<b>${whole(s.peakScore)}</b></span><span>${ART.egg()}<b>Day ${o.day}</b></span></div>`;
+    const stats = `<div class="cl-end-row" title="Day ${o.day} · Buyouts ${t.buyouts}, Smashes ${t.smashes}, HQs ${t.hqs} · ${MODES[s.settings.mode].label} · ${esc(difficultyLabel(s.settings.difficulty, s.settings.custom))}"><span>${ART.rosette()}<b>R${s.rank}</b></span><span>${ART.coin()}<b>${whole(s.peakScore)}</b></span><span>${ART.egg()}<b>Day ${o.day}</b></span></div>`;
     if (o.result === 'won') {
       const e = o.ending ? ENDINGS[o.ending] : null;
       const bugle = e ? e.bugle : o.how === 'domination' ? 'LOTTIE\'S OWNS THE BAY!' : `PAST ${whole(s.settings.target)}!`;

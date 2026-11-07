@@ -15,6 +15,8 @@ import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
 import { openStands, simulateRestOfDay, sleepUntilDawn, successScore } from '../sim/economy.ts';
 import { scoreParts, scoreTip, threatTip } from './meters.ts';
+import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
+import { defaultSettings } from '../sim/economy.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -295,5 +297,35 @@ describe('your raids on the Planner and the Evening', () => {
     s.raids.push({ id: 'home', attacker: 'player', target, objective: 'smash', guards: ['g1'], detected: true, eta: '19:00', leave: 17 * 60, at: 19 * 60, launched: true, back: 21 * 60 });
     expect(tripLines(s)).toHaveLength(2);
     expect(tripLines(s)[1]).toContain(`Home ~${clockText(21 * 60)}`);
+  });
+});
+
+describe('the Custom difficulty panel', () => {
+  it("opens on Classic's values; each step stays in its span; Busted-only and the Jar switch", () => {
+    const st = defaultSettings({ difficulty: 'custom' });
+    const first = customPanel(st);
+    expect(first).toContain('data-testid="custom-raids">×1.0<');
+    expect(first).toContain('data-testid="custom-notice">15 min<');
+    expect(first).toContain('data-testid="custom-respectDays">3 days<');
+    expect(first).not.toContain('disabled');
+    for (let i = 0; i < 8; i++) { pickCustom(st, 'raids', '1'); pickCustom(st, 'notice', '-1'); pickCustom(st, 'respectDays', '-1'); }
+    pickCustom(st, 'bustOnly');
+    pickCustom(st, 'cookieJar', 'never');
+    pickCustom(st, 'cookieJar', 'sometimes'); // not a setting: ignored
+    expect(st.custom).toEqual({ raids: 1.5, notice: 5, respectDays: 1, bustOnly: true, cookieJar: 'never' });
+    const last = customPanel(st);
+    expect(last).toMatch(/data-key="custom\.raids" data-value="1" disabled/);
+    expect(last).toMatch(/data-key="custom\.notice" data-value="-1" disabled/);
+    expect(last).toMatch(/data-key="custom\.respectDays" data-value="-1" disabled/);
+    expect(last).toContain('cl-toggle on');
+    expect(last).toContain('cl-b tiny go" data-action="pick" data-key="custom.cookieJar" data-value="never"');
+    pickCustom(st, 'raids', '-1');
+    expect(st.custom!.raids).toBe(1.4);
+  });
+
+  it("tags a Custom run with its values; a preset keeps its name", () => {
+    expect(difficultyLabel('custom', { raids: 1.5, notice: 5, respectDays: 1, bustOnly: true, cookieJar: 'never' })).toBe('Custom ×1.5 · 5m · 1d · Busted · Jar never');
+    expect(difficultyLabel('custom')).toBe('Custom ×1.0 · 15m · 3d · Jar once an act');
+    expect(difficultyLabel('laidback')).toBe('Laid Back');
   });
 });

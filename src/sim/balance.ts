@@ -366,7 +366,7 @@ export const HENCHMEN = [
 
 // ---------- modes, difficulty, winning and losing (spec: Game modes and winning) ----------
 export type Mode = 'campaign' | 'sandbox' | 'endless';
-export type Difficulty = 'laidback' | 'classic' | 'cutthroat';
+export type Difficulty = 'laidback' | 'classic' | 'cutthroat' | 'custom';
 export type WinCondition = 'domination' | 'economic' | 'none';
 export const MODES: Record<Mode, { label: string; blurb: string }> = {
   campaign: { label: 'Story Campaign', blurb: 'Lottie\'s Corner to the whole Bay. Win by Domination, then keep squeezing.' },
@@ -388,7 +388,13 @@ export const DIFFICULTY: Record<Difficulty, {
   laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get Busted, never Wrecked. No game over.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true },
   classic: { label: 'Classic', blurb: 'The intended balance. Lottie\'s Cookie Jar bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
   cutthroat: { label: 'Cutthroat', blurb: 'Half again as many raids, a 1-day Respect cooldown, no Cookie Jar.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false },
+  // Custom starts from Classic; Settings.custom holds the sliders (modes.ts difficultyOf). No Threat nudge, and a run
+  // can be lost unless the Cookie Jar is always there (placeholders: the spec leaves both open).
+  custom: { label: 'Custom', blurb: 'Your own sliders, anywhere from Laid Back to Cutthroat.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
 };
+/** Custom's sliders (spec: Custom: raids ×0.5 to ×1.5; notice and Respect cooldown anywhere from Laid Back's to
+ * Cutthroat's): [lowest, highest, step]. */
+export const CUSTOM_RANGE = { raids: [0.5, 1.5, 0.1], notice: [5, 30, 5], respectDays: [1, 5, 1] } as const;
 /** Laid Back: repair a Busted stand for this share of what was invested (canon; Appendix A's 15% is older). */
 export const BUSTED_REPAIR_SHARE = 0.1;
 /** Cash below $0 at dawn this many days running, and the Cookie Jar is the last chance. */

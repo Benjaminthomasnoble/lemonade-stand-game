@@ -5,7 +5,7 @@
 import {
   CLUBHOUSE, COMBAT, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Objective } from './combat.ts';
@@ -16,7 +16,7 @@ import { ownedPlots } from './economy.ts';
 import { FACILITIES } from './vip.ts';
 import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
 import { breakTruce } from './rivals.ts';
-import { bump, peaceful } from './modes.ts';
+import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 
@@ -102,7 +102,7 @@ export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale i
 
 /** Threat follows rank (Ranks 1–2 give 1, up to 5 at Ranks 9–10); Laid Back takes 1 away. */
 export function threatLevel(s: GameState): number {
-  return Math.min(5, Math.max(1, Math.ceil(s.rank / 2) + DIFFICULTY[s.settings.difficulty].threat));
+  return Math.min(5, Math.max(1, Math.ceil(s.rank / 2) + difficulty(s).threat)); // Custom too (modes.ts difficultyOf)
 }
 
 // ---------- defenses ----------
@@ -429,7 +429,7 @@ export function planNight(s: GameState): void {
   const tutorial = !s.battles.some((b) => b.defender === 'player');
   const tutorialNight = tutorial && (s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3));
   const roll = nextRandom(rng);
-  if (s.day > NO_RAID_DAYS && !recentlyHit && (tutorial ? tutorialNight : roll < RAIDS_PER_WEEK[threat - 1] * DIFFICULTY[s.settings.difficulty].raids / 7)) {
+  if (s.day > NO_RAID_DAYS && !recentlyHit && (tutorial ? tutorialNight : roll < RAIDS_PER_WEEK[threat - 1] * difficulty(s).raids / 7)) {
     const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
     const candidates = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day + 1);
     if (mine.length && candidates.length) {
@@ -498,7 +498,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
 
   ps.defense.fenceHp = res.fenceHpLeft;
   // Laid Back: your stands are only ever Busted (closed until a 10% repair), never Wrecked or lost.
-  const busted = defender === 'player' && DIFFICULTY[s.settings.difficulty].bustOnly;
+  const busted = defender === 'player' && difficulty(s).bustOnly;
   if (res.outcome === 'smashed' && (ps.stand || ps.facility)) {
     if (ps.stand) ps.stand.wrecked = true; else ps.facility!.wrecked = true;
     ps.wreckedDay = s.day;
@@ -526,7 +526,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     r.grudge = Math.min(100, r.grudge + (res.winner === 'att' ? 20 : 8));
   }
   if (defender === 'player' && raid.attacker !== 'player' && res.winner === 'def') {
-    s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + DIFFICULTY[s.settings.difficulty].respectDays;
+    s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + difficulty(s).respectDays;
   }
 
   const hpLost = raidDamage(s, raid.target, res.standHpLeft); // the building keeps what the fight left it (damage.ts)

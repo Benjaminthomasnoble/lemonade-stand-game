@@ -6,7 +6,8 @@ import {
   QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
-  type BattleReport, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
+  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, threatLevel,
+  type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
@@ -591,5 +592,89 @@ describe('saves', () => {
     expect(JSON.stringify(migrateSave(JSON.parse(JSON.stringify(m))))).toBe(JSON.stringify(m));
     expect(sleepUntilDawn(m, true)).toBe(false); // it plays on: warned at its notice
     expect(m.minute).toBe(23 * 60 + 25);
+  });
+});
+
+describe('Custom difficulty', () => {
+  const custom = (c: Partial<CustomDifficulty> = {}): Partial<Settings> => ({ difficulty: 'custom', custom: { ...customDefaults(), ...c } });
+  const tough = (s: GameState) => raidPartyFor(s, 'blenders').map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 }));
+
+  it("starts from Classic; each slider stays between Laid Back's and Cutthroat's", () => {
+    expect(difficultyOf(defaultSettings({ difficulty: 'custom' }))).toMatchObject({ raids: 1, notice: 15, respectDays: 3, bustOnly: false, cookieJar: 'perAct', threat: 0, canLose: true });
+    const wild = { raids: 9, notice: 1, respectDays: Number.NaN, bustOnly: true, cookieJar: 'always' } as CustomDifficulty;
+    expect(difficultyOf(defaultSettings({ difficulty: 'custom', custom: wild }))).toMatchObject({ raids: 1.5, notice: 5, respectDays: 1, bustOnly: true, cookieJar: 'always', canLose: false });
+    expect(difficultyOf(defaultSettings({ difficulty: 'custom', custom: { ...customDefaults(), raids: 0.1, notice: 99, respectDays: 9, cookieJar: 'sometimes' as 'never' } })))
+      .toMatchObject({ raids: 0.5, notice: 30, respectDays: 5, cookieJar: 'perAct' });
+    const { laidback: lb, cutthroat: ct } = DIFFICULTY;
+    expect([CUSTOM_RANGE.raids[0], CUSTOM_RANGE.raids[1]]).toEqual([lb.raids, ct.raids]);
+    expect([CUSTOM_RANGE.notice[0], CUSTOM_RANGE.notice[1]]).toEqual([ct.notice, lb.notice]);
+    expect([CUSTOM_RANGE.respectDays[0], CUSTOM_RANGE.respectDays[1]]).toEqual([ct.respectDays, lb.respectDays]);
+    expect(difficultyOf(defaultSettings({ difficulty: 'laidback', custom: wild }))).toBe(lb); // the sliders only count on Custom
+  });
+
+  it('Threat takes no nudge, and an undetected raid warns at the notice slider', () => {
+    const c = newGame(1, custom({ notice: 25 })), lb = newGame(1, { difficulty: 'laidback' });
+    c.rank = lb.rank = 6;
+    expect([threatLevel(c), threatLevel(lb)]).toEqual([3, 2]);
+    expect(raidNotice(c)).toBe(25);
+    let late = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const s = evening(seed, custom({ notice: 25 }));
+      const r = raidOn(s, 21 * 60, 23 * 60, { detected: false });
+      expect(sleepUntilDawn(s, true)).toBe(false);
+      if (!r.detected) { late++; expect(s.minute).toBe(23 * 60 - 25); }
+    }
+    expect(late).toBeGreaterThan(0);
+  });
+
+  it('raids on you follow the slider, and at its defaults Custom raids as Classic does', () => {
+    const raided = (settings: Partial<Settings>) => {
+      const hit: number[] = [];
+      for (let seed = 1; seed <= 60; seed++) {
+        const s = evening(seed, settings);
+        s.day = 10;
+        s.rank = 4;
+        s.battles.push({ day: 1, attacker: 'blenders', defender: 'player', target: LOTTIES_CORNER, outcome: 'repelled' } as BattleReport); // past the tutorial raid
+        planNight(s);
+        if (s.raids.some((r) => onYou(s, r))) hit.push(seed);
+      }
+      return hit;
+    };
+    const few = raided(custom({ raids: 0.5 })), many = raided(custom({ raids: 1.5 }));
+    expect(few.every((seed) => many.includes(seed))).toBe(true); // the same nights' dice: ×0.5 raids a subset of ×1.5's
+    expect(many.length).toBeGreaterThan(few.length * 2);
+    expect(raided(custom())).toEqual(raided({ difficulty: 'classic' }));
+  });
+
+  it('Busted-only and the Respect cooldown come from the sliders', () => {
+    const smash = (s: GameState) => fightRaid(s, { id: 'r1', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: tough(s), detected: true, eta: '23:00' }, true);
+    const bust = newGame(3, custom({ bustOnly: true }));
+    expect(smash(bust)).toMatchObject({ outcome: 'smashed', busted: true });
+    expect(bust.plots[LOTTIES_CORNER].busted).toBe(true);
+    const wreck = newGame(3, custom());
+    expect(smash(wreck).busted).toBeUndefined();
+    expect(wreck.plots[LOTTIES_CORNER].busted).toBeUndefined();
+    const s = newGame(4, custom({ respectDays: 5 }));
+    s.guards = crew(4, LOTTIES_CORNER);
+    const weak = raidPartyFor(s, 'blenders').slice(0, 1).map((f) => ({ ...f, hit: 1, chop: 1, hp: 1, nerve: 1 }));
+    expect(fightRaid(s, { id: 'r2', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: weak, detected: true, eta: '23:00' }, true).outcome).toBe('repelled');
+    expect(s.rivals.blenders.respectUntil).toBe(s.day + 1 + 5);
+  });
+
+  it('the Cookie Jar slider: Always never ends the run; Never squeezes you out after 3 days In the Red', () => {
+    const brokeDawn = (s: GameState) => { s.phase = 'report'; s.cash = -100; sleepUntilDawn(s); };
+    const always = newGame(5, custom({ cookieJar: 'always' }));
+    for (let i = 0; i < 8; i++) brokeDawn(always);
+    expect(always.outcome).toBeUndefined();
+    const never = newGame(5, custom({ cookieJar: 'never' }));
+    for (let i = 0; i < 4; i++) brokeDawn(never);
+    expect(never.outcome?.how).toBe('squeezed');
+  });
+
+  it('a Custom run saves its sliders', () => {
+    const s = newGame(6, custom({ raids: 1.3, notice: 10, bustOnly: true }));
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.settings.custom).toEqual({ ...customDefaults(), raids: 1.3, notice: 10, bustOnly: true });
+    expect(raidNotice(back)).toBe(10);
   });
 });

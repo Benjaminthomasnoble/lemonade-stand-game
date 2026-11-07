@@ -138,9 +138,8 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
 
   it.todo('aftermath: each of the 4 KO\'d Bros has a 10% chance to be Nabbed (nabbed-captives)');
 
-  // Measured: $92 (15% of the Chain-Link's $1,200 price for the 51% of its HP lost: 247 of 500 left). PERIMETERS[1].repair
-  // is $120, flat: crew's fence-repair-overnight-flat uses it.
-  it.fails('aftermath: the night costs $120 of fence repair', () => {
+  // PERIMETERS[1].repair: the Chain-Link's flat $120 for the night's one raid (crew's fence-repair-overnight-flat).
+  it('aftermath: the night costs $120 of fence repair', () => {
     const { s } = day26({ bell: true });
     near(fenceRepairCost(s.plots[LOTTIES_CORNER]), 120, 120 * 0.05);
   });

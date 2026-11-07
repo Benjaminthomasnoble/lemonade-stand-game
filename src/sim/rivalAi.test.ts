@@ -14,6 +14,7 @@ import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
 import { menuScreen } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { nextRandom } from './rng.ts';
+import { phoneCheck } from './phone.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const levels = (s: GameState, id: RivalId) => ownedPlots(s, id).map((p) => s.plots[p.id].stand?.level ?? 0);
@@ -512,10 +513,10 @@ describe('Night Shift', () => {
     const fight = { day: 29, attacker: 'coldbrew', defender: 'player', target: LOTTIES_CORNER, outcome: 'robbed' } as BattleReport;
     s.battles.push(fight);
     tauntsAtDawn(s);
-    expect(s.news.filter((n) => n.startsWith('Juni:'))).toEqual([]);
+    expect(s.phone?.queue ?? []).toEqual([]);
     s.battles.push({ ...fight, sabotage: true } as BattleReport);
     tauntsAtDawn(s);
-    expect(s.news.at(-1)).toBe(`Juni: "${NIGHT_SHIFT.taunt}"`);
+    expect(s.phone!.queue).toMatchObject([{ who: 'coldbrew', text: NIGHT_SHIFT.taunt, mood: 'gloat', day: 30 }]);
   });
 });
 
@@ -567,13 +568,16 @@ describe('Dig In', () => {
     expect(guard - budgetOf(s, 'hollis').guard).toBeGreaterThanOrEqual(Math.ceil(fencePrice('hollis', ps.defense.tier) * REPAIR_SHARE * 0.5));
   });
 
-  it('Tilly phones the morning after you raid her', () => {
+  it('Tilly phones the morning after you raid her (the phone reads her Grudge jump)', () => {
     const s = newGame(23);
     s.day = 20;
+    phoneCheck(s); // the phone notes her Grudge
     const target = ownedPlots(s, 'hollis').find((p) => p.type !== 'hq')!.id;
     s.battles.push({ day: 19, attacker: 'player', defender: 'hollis', target, outcome: 'repelled' } as BattleReport);
+    addGrudge(s, 'hollis', 'player', GRUDGE.raided);
     tauntsAtDawn(s);
-    expect(s.news.at(-1)).toBe(`Tilly: "${DIG_IN.taunt}"`);
+    phoneCheck(s, true);
+    expect(s.phone!.queue.filter((c) => c.who === 'hollis').map((c) => c.text)).toEqual(["Bring all the hatchets you want. I've got hay bales till Tuesday."]);
   });
 });
 

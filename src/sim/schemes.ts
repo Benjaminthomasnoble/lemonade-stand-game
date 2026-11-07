@@ -300,8 +300,7 @@ export function ceaseAndDesist(s: GameState, district?: DistrictId): Scheme | nu
   s.schemes.push(letter);
   const name = DISTRICT_BY_ID[d].name;
   alert(s, { kind: 'note', text: `CEASE-AND-DESIST! FizzCo's lawyers block your ads in ${name} for ${CEASE.days} days. Lottie keeps the fruit basket.`, plot: mine[0].id });
-  // story: phoneCall(s, 'fizzco', taunt) rings the Corner once the phone lands; until then the line runs in the news.
-  s.news.push(`Preston: "${CEASE.taunt}"`);
+  phoneCall(s, 'fizzco', CEASE.taunt, { mood: 'warn' }); // Preston rings the Corner (src/sim/phone.ts)
   return letter;
 }
 
@@ -365,8 +364,7 @@ export function answerBuyout(s: GameState, plotId: string, sell: boolean): boole
   if (!sell) {
     offer.done = true;
     addGrudge(s, id, 'player', TAKEOVER.snub);
-    // story: phoneCall(s, 'fizzco', taunt) once the phone lands; until then the line runs in the news.
-    s.news.push(`Preston: "${TAKEOVER.taunt}"`);
+    phoneCall(s, 'fizzco', '', { mood: 'sore' }); // Preston rings, sore, in his own words: the one call his Grudge jump makes
     return true;
   }
   if (!canSellToFizzco(s, plotId).ok) return false;

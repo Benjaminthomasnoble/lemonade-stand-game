@@ -106,9 +106,9 @@ export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It 
 /**
  * Dig In, Hollis's signature move: cheap, tough fences with hay bales stacked behind them. Hollis pays `cost` of a
  * fence's price (repairs too), and the bales give it `hp` times the fence's HP. Hollis also fences every Field it
- * holds, up to `fieldTier`. Tilly answers your raids with `taunt` (placeholders: the spec gives no numbers).
+ * holds, up to `fieldTier` (placeholders: the spec gives no numbers). Tilly phones after your raids (src/sim/phone.ts).
  */
-export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2, taunt: "Bring all the hatchets you want. I've got hay bales till Tuesday." };
+export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2 };
 /**
  * FizzCo's Cease-and-Desist (Hostile Takeover): from Act `act` (Fields & Fizz, where the spec's first letter comes), a
  * letter costs FizzCo's Strike `cost` and blocks your marketing in one district for `days` days: your tier bonus and
@@ -118,9 +118,10 @@ export const CEASE = { act: 4, cost: 2000, days: 3, taunt: "I'm not threatening 
 /**
  * FizzCo's buyout offers (Hostile Takeover): from Act `act`, FizzCo offers `price` times a plot's land and building
  * value, out of its Grow, for your best plot on or beside its turf. The offer stands `days` days, and you answer at
- * Morning Prep. Turning it down adds `snub` to Preston's Grudge (placeholders: the spec gives no numbers).
+ * Morning Prep. Turning it down adds `snub` to Preston's Grudge, and he phones sore (placeholders: the spec gives no
+ * numbers or line).
  */
-export const TAKEOVER = { act: 4, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
+export const TAKEOVER = { act: 4, price: 1.25, days: 2, snub: 10 };
 /**
  * Old Money, Sourwood's signature move: from Act `act` (The Big Squeeze, where the spec teaches it), Mayor Fontaine
  * fines you `fine` of your average daily sales over the last week (at least `minFine`, never more than your cash) for

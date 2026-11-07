@@ -9,6 +9,7 @@ import {
   type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
+import { phoneCheck } from './phone.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -445,7 +446,7 @@ describe('Cease-and-Desist', () => {
     expect(canRunCampaign(s, 'sandwichBoard', downtown)).toEqual({ ok: false, why: 'Cease-and-Desist: ads count for nothing here' });
     expect(canRunCampaign(s, 'sandwichBoard', LOTTIES_CORNER).ok).toBe(s.cash >= 40);
     expect(s.alerts!.at(-1)!.text).toBe('CEASE-AND-DESIST! FizzCo\'s lawyers block your ads in Downtown for 3 days. Lottie keeps the fruit basket.');
-    expect(s.news).toContain(`Preston: "${CEASE.taunt}"`);
+    expect(s.phone!.queue.some((c) => c.who === 'fizzco' && c.text === CEASE.taunt)).toBe(true); // Preston phones
     hush(s);
     for (const day of [61, 62]) { s.day = day; schemesAtDawn(s); expect(ceaseAndDesistIn(s, 'downtown')).toBe(true); }
     s.day = 63;
@@ -534,9 +535,12 @@ describe('FizzCo buyout offers', () => {
     const { s, plot } = wanted(42);
     startScheme(s, 'fizzco', 'buyout');
     const g = s.rivals.fizzco.grudge;
+    phoneCheck(s); // the phone notes his Grudge
     expect(answerBuyout(s, plot, false)).toBe(true);
     expect(s.rivals.fizzco.grudge).toBe(g + TAKEOVER.snub);
-    expect(s.news.at(-1)).toBe(`Preston: "${TAKEOVER.taunt}"`);
+    expect(s.phone!.queue.filter((c) => c.who === 'fizzco')).toMatchObject([{ text: '', mood: 'sore' }]); // Preston phones, sore
+    phoneCheck(s); // his Grudge jump: still the one call
+    expect(s.phone!.queue.filter((c) => c.who === 'fizzco')).toMatchObject([{ text: '', mood: 'sore' }]);
     expect(s.plots[plot].owner).toBe('player');
     expect(offerOn(s, plot)).toBeUndefined();
     const t = wanted(43);

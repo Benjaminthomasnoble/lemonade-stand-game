@@ -20,7 +20,7 @@ import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
-import { raidCall } from './phone.ts';
+import { CALL_PRIORITY, phoneCall, raidCall } from './phone.ts';
 import { landFrozen } from './schemes.ts';
 import { actOf } from './modes.ts';
 
@@ -590,15 +590,12 @@ export function nightShiftStealth(s: GameState, r: Raid): number {
 }
 
 /**
- * Dawn: the bosses' lines on yesterday's fights (news lines in their voice, until story's phone calls land). Juni,
- * after a Cold Brew Sabotage spoiled your stock (crew's raid objective; this picks it up once it merges); Tilly, after
- * you raid her.
+ * Dawn: Juni phones the Corner after a Cold Brew Sabotage spoiled your stock last night (crew's raid objective; this
+ * picks it up once it merges). Tilly's line after you raid her is the phone's own: src/sim/phone.ts reads her Grudge jump.
  */
 export function tauntsAtDawn(s: GameState): void {
-  const last = s.battles.filter((b) => b.day === s.day - 1 && !b.hq);
-  const spoiled = last.some((b) => b.attacker === 'coldbrew' && b.defender === 'player' && b.outcome === 'robbed' && (b as { sabotage?: boolean }).sabotage);
-  if (spoiled && s.rivals.coldbrew.alive) s.news.push(`Juni: "${NIGHT_SHIFT.taunt}"`);
-  if (s.rivals.hollis.alive && last.some((b) => b.attacker === 'player' && b.defender === 'hollis')) s.news.push(`Tilly: "${DIG_IN.taunt}"`);
+  const spoiled = s.battles.some((b) => b.day === s.day - 1 && !b.hq && b.attacker === 'coldbrew' && b.defender === 'player' && b.outcome === 'robbed' && (b as { sabotage?: boolean }).sabotage);
+  if (spoiled) phoneCall(s, 'coldbrew', NIGHT_SHIFT.taunt, { mood: 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 // ---------- Attention: who comes for you ----------

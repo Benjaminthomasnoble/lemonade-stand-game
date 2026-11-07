@@ -8,13 +8,11 @@ import {
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
-  availableRaiders, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid,
-  fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
-  RAID_RANK, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
-  type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
-  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, PLOTS,
-  type FacilityKind, RANKS, rebuildChance,
-  canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
+  PERIMETERS, SQUAD_CAP, threatLevel,
+  type GadgetId, type GearId, type Objective, type WeaponId,
+  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
+  type FacilityKind, RANKS,
+  canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, ENDINGS, everyLastPlot,
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
@@ -26,13 +24,13 @@ import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
+import { damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
 import { calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
-import { tripLines, tripNote } from './trips.ts';
+import { tripLines } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
 import { keysPanel } from './keys.ts';
@@ -44,10 +42,11 @@ import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
-import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
+import { clubhouseRoom } from './clubhouse.ts';
 import { fightBar } from './fight.ts';
-import { shakedownLoot } from '../sim/loot.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
+import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
+import { createRaidPlanner } from './raidPlanner.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -163,6 +162,15 @@ const meter = (v: number, cls = '') => `<span class="cl-snake ${cls}" style="--v
 const ownerName = (o: string | null) => (o === 'player' ? "Lottie's (you)" : o ? FACTIONS[o as RivalId].name : 'For sale');
 const ownerColor = (o: string | null) => (o === 'player' ? '#F7C948' : o ? hex(FACTIONS[o as RivalId].color) : '#FFF1D6');
 
+/** The clay pieces a panel module draws with (crew.ts, raidPlanner.ts). */
+export interface Kit {
+  ART: typeof ART;
+  btn: (action: string, label: string, b?: Blocker, extra?: string, cls?: string) => string;
+  card: (art: string, title: string, sub: string, action: string, tip?: string, extra?: string) => string;
+  tape: typeof tape; meter: typeof meter; pips: typeof pips; locked: typeof locked; esc: typeof esc; whole: typeof whole;
+  GADGET_ART: typeof GADGET_ART; WEAPON_ART: typeof WEAPON_ART;
+}
+
 export interface Hud {
   render(s: GameState, speed: number): void;
   popup(x: number, y: number, text: string, kind: 'sale' | 'miss'): void;
@@ -205,9 +213,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   let tab: 'today' | 'grow' | 'crew' | WorldTab = 'today';
   let books = false, moreOpts = false, standMath = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
-  const squad = new Set<string>();
-  let objective: Objective = 'smash';
-  const oddsMemo = new Map<string, number>();
   const last = new Map<HTMLElement, string>();
   const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html) { el.innerHTML = html; last.set(el, html); } };
   const redraw = () => onAction({ type: 'refresh' });
@@ -231,7 +236,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
-        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
+        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(kit, s) || defenseSheet(kit, s, s.selected), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -358,10 +363,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;
       case 'bell': onAction({ type: 'bell', raid: d.raid! }); break;
-      case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); redraw(); break;
-      case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); break; }
-      case 'objective': objective = d.value as Objective; redraw(); break;
-      case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); break;
+      case 'squad': case 'squadAll': case 'objective': case 'raid': planner.click(d); break;
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;
@@ -369,7 +371,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
-      case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
+      case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...planner.squad] }); planner.squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;
       case 'evening': case 'ledger': onAction({ type: d.action }); break;
@@ -529,7 +531,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${defendOpen(s) ? `<button class="cl-tab${tab === 'crew' ? ' on' : ''}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defend</button>` : ''}
       ${taught(s, 'recipes') ? worldTabs(s, tab) : ''}
       ${standPicker(s)}</div>`;
-    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
+    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${crewSheet(kit, s, s.selected)}</div>`
       : tab === 'book' || tab === 'fair' || tab === 'bugle' ? `<div class="cl-sheet">${worldSheet(s, tab, hud.options.celsius)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
@@ -584,7 +586,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
 
   // ---------- Grow: picture cards ----------
   const card = (art: string, title: string, sub: string, action: string, tip = '', extra = '') => `<div class="cl-card" ${tip ? `title="${esc(tip)}"` : ''} ${extra}><span class="cl-pic">${art}</span><span class="cl-txt"><b>${title}</b>${sub ? `<i>${sub}</i>` : ''}</span>${action}</div>`;
-  const kit: ClubKit = { ART, btn, card, tape, locked, esc, whole, face: guardFace };
+  const kit: Kit = { ART, btn, card, tape, meter, pips, locked, esc, whole, GADGET_ART, WEAPON_ART };
+  const clubs = clubKit(kit); // the Clubhouse panels (src/ui/clubhouse.ts) draw with it
+  const planner = createRaidPlanner(kit, redraw, onAction);
   function levelStats(l: StandLevel, top: number) {
     return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.storage.lemons} lemons`;
   }
@@ -620,57 +624,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (!limit || s.cash > 60) return '';
     const amt = Math.floor(limit / 2 / 50) * 50 || limit;
     return card(ART.piggy(), "Marisol's bank", 'Short on cash?', btn('borrow', `Borrow ${whole(amt)}`, canBorrow(s, amt), `data-amount="${amt}" data-testid="borrow"`), 'Up to half what your land and stands are worth, 3% a week, paid back over 4 weeks');
-  }
-
-  // ---------- Defend: the fence, gadget slots, the crew as faces ----------
-  function defensePanel(s: GameState, id: string) {
-    const ps = s.plots[id];
-    const cur = ps.defense.tier ? PERIMETERS[ps.defense.tier - 1] : null;
-    const next = PERIMETERS[ps.defense.tier];
-    const slots = GADGET_SLOTS(ps.stand?.level ?? 1);
-    const pb = canBuyPerimeter(s, id);
-    const out: string[] = [];
-    out.push(damageCard(s, id)); // the stand itself: its HP, and the repair once it's Damaged (src/ui/damage.ts)
-    if (cur) out.push(card(ART.fence(ps.defense.tier), cur.name, cur ? meter(ps.defense.fenceHp / cur.hp, 'hp') : '',
-      (fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
-      `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands.`));
-    if (next && !locked(pb)) out.push(card(ART.fence(next.tier), next.name, `${next.hp} HP`, btn('perimeter', whole(next.cost), pb, `data-plot="${id}" data-testid="perimeter"`, 'go'), `${next.hp} HP${next.breachDps ? ', hurts attackers breaking through' : ''}${next.slow ? ', slows them down' : ''}`));
-    const installed = ps.defense.gadgets.map((g) => `<span class="cl-slot full" title="${GADGETS[g].name}: ${esc(GADGETS[g].text)}">${GADGET_ART[g]()}</span>`).join('');
-    const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
-    const shop = (Object.keys(GADGETS) as GadgetId[]).filter((g) => !ps.defense.gadgets.includes(g)).map((g) => ({ g, b: canBuyGadget(s, id, g) })).filter(({ b }) => !locked(b))
-      .map(({ g, b }) => `<button class="cl-gadget" data-action="gadget" data-plot="${id}" data-id="${g}" ${b.ok ? '' : `disabled`} title="${GADGETS[g].name}: ${esc(GADGETS[g].text)}${b.ok ? '' : ` (${esc(b.why)})`}">${GADGET_ART[g]()}${tape(whole(GADGETS[g].cost))}</button>`).join('');
-    return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
-  }
-
-  function guardFace(s: GameState, g: Guard) {
-    const out = !guardReady(s, g);
-    return `<span class="cl-face${out ? ' out' : ''}">${ART.face(g.id)}${out ? `<span class="cl-band">${ART.bandage()}</span>` : ''}<span class="cl-wpn">${WEAPON_ART[g.weapon]()}</span></span>`;
-  }
-
-  function guardRow(s: GameState, g: Guard) {
-    const stands = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && (s.plots[p.id].stand || s.plots[p.id].facility));
-    const i = g.post ? stands.findIndex((p) => p.id === g.post) : -1;
-    const nextPost = stands[(i + 1) % stands.length];
-    const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);
-    const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
-    const wb = nextWeapon ? canEquip(s, g.id, nextWeapon) : null, gb = nextGear ? canEquip(s, g.id, nextGear) : null;
-    const tip = `${g.name}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}`;
-    return `<div class="cl-guard" data-testid="guard" title="${esc(tip)}">${guardFace(s, g)}
-      <span class="cl-name">${esc(g.name.split(' ')[0])}</span>${pips(g.level, 5)}
-      <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Posted at ${g.post ? esc(PLOT_BY_ID[g.post].name) : 'the Clubhouse'}: tap to move" aria-label="Move post">${A.glyph('pin')}</button>
-        ${nextWeapon && wb && !locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${esc(wb.why)})`}">${WEAPON_ART[nextWeapon]()}</button>` : ''}
-        ${nextGear && gb && !locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${esc(gb.why)})`}">${ART.shield()}</button>` : ''}
-        ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${esc(g.name)} go" aria-label="Let ${esc(g.name)} go">${A.glyph('close')}</button>`}
-      </span></div>`;
-  }
-
-  function crewPanel(s: GameState) {
-    if (!s.guards.length && (s.rank < HIRE_RANK || !taught(s, 'crew'))) return '';
-    const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${whole(guardWage(g))}/day">${guardFace(s, g)}<span class="cl-name">${esc(g.name.split(' ')[0])}</span>${pips(g.level, 5)}${btn('hire', whole(g.fee), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
-    return `<div class="cl-crew"><span class="cl-label">Crew ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(s, g)).join('')}</div>
-      ${recruits ? `<span class="cl-label">Hiring Hall</span><div class="cl-faces">${recruits}</div>` : ''}
-      ${nextClubhouse(kit, s)}</div>`;
   }
 
   // ---------- selling: a cup counter; the crowd shows the rest ----------
@@ -769,7 +722,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fac = kinds.filter((kind) => lvl < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl]} ${whole(FACILITIES[kind].costs[lvl])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(FACILITIES[kind].blurb[lvl])}"`, 'go')).join('');
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
-      actions = stand + fac + clubhouseRoom(kit, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
+      actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
     // and your own stand answers with its next upgrade (before the Grow tab's lesson too).
@@ -778,10 +731,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       const pb = canPlotBuyout(s, id);
-      actions = (hasBuilding(ps) ? raidPlanner(s, id) : '') + (s.rank >= SITDOWN_RANK && !locked(pb) ? btn('plotBuyout', `Buy it ${whole(plotBuyoutPrice(s, id))}`, pb, `data-plot="${id}" data-testid="plot-buyout"`) : '');
+      actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + (s.rank >= SITDOWN_RANK && !locked(pb) ? btn('plotBuyout', `Buy it ${whole(plotBuyoutPrice(s, id))}`, pb, `data-plot="${id}" data-testid="plot-buyout"`) : '');
     }
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
-    if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(s, g)); // station guards from the map
+    if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
@@ -798,17 +751,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return next && s.phase === 'prep' && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top)}"`, 'go') : '';
   }
 
-  function squadPicker(s: GameState) {
-    const crew = availableRaiders(s);
-    for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
-    const ids = crew.map((g) => g.id).join(',');
-    return `<div class="cl-squad">${crew.map((g) => `<button class="cl-pick${squad.has(g.id) ? ' on' : ''}" data-action="squad" data-id="${g.id}" title="${esc(g.name)}: L${g.level}, ${WEAPONS[g.weapon].name}" aria-pressed="${squad.has(g.id)}">${guardFace(s, g)}</button>`).join('')}
-      ${crew.length > 1 ? `<button class="cl-b ghost tiny" data-action="squadAll" data-ids="${ids}">${crew.every((g) => squad.has(g.id)) ? 'None' : 'Take all'}</button>` : ''}</div>`;
-  }
-
-  const oddsWord = (p: number) => (p < 0.25 ? 'Long shot' : p < 0.45 ? 'Risky' : p < 0.6 ? 'Coin flip' : p < 0.85 ? 'Good odds' : 'Sure thing');
-  const dial = (p: number) => `<span class="cl-dial" style="--v:${p.toFixed(3)}" title="${Math.round(p * 100)}% to win"><i></i></span><b class="cl-odds">${oddsWord(p)}</b>`;
-
   /** A rival's HQ: Dot's Diner sit-downs and the assault. */
   function hqPanel(s: GameState, id: RivalId) {
     const st = rivalStatus(s, id);
@@ -818,38 +760,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (s.rank < SITDOWN_RANK) return head;
     const tb = canTruce(s, id), fb = canFactionBuyout(s, id);
     const sit = `<div class="cl-acts">${locked(tb) ? '' : btn('truce', `Truce ${whole(truceCost(s))}`, tb, `data-rival="${id}" data-testid="truce" title="7 days of peace for a tribute"`)}${locked(fb) ? '' : btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`)}</div>`;
-    const ids = [...squad];
+    const ids = [...planner.squad];
     const ab = canAssault(s, id, ids);
     const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>
-      <span class="cl-stages"><i>Gate</i>▸<i>Yard</i>▸<i>Boss</i></span>${squadPicker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
+      <span class="cl-stages"><i>Gate</i>▸<i>Yard</i>▸<i>Boss</i></span>${planner.picker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
       ${btn('assault', 'Storm it!', ab, `data-rival="${id}" data-testid="assault"`, 'go')}</div>`;
     return head + sit + assault;
-  }
-
-  function raidPlanner(s: GameState, id: string) {
-    if (s.rank < RAID_RANK) return '';
-    const crew = availableRaiders(s);
-    for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
-    if (!crew.length) return '<span class="cl-note">No guards free</span>';
-    const ids = [...squad];
-    const odds = (night: boolean) => {
-      const ps = s.plots[id];
-      const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, ps.defense, ps.garrison, s.guards.map((g) => [g.id, g.weapon, g.gear, g.level])]);
-      let v = oddsMemo.get(key);
-      if (v === undefined) { v = raidOdds(s, id, ids, objective, night); if (oddsMemo.size > 200) oddsMemo.clear(); oddsMemo.set(key, v); }
-      return v;
-    };
-    const night = odds(true), day = odds(false);
-    const can = canRaid(s, id, ids);
-    const obj = (v: Objective, art: string, label: string, tip: string) => `<button class="cl-b ${objective === v ? 'go' : 'ghost'}" data-action="objective" data-value="${v}" title="${tip}">${art}${label}</button>`;
-    return `<div class="cl-planner" data-testid="raid-planner">
-      <div class="cl-acts">${obj('smash', ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', ART.moneyBag(), `Shakedown ${whole(shakedownLoot(s, id))}`, 'Grab the till: about a day of its profit')}</div>
-      ${squadPicker(s)}
-      ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
-      ${tripNote(s, id, ids)}
-      ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
-      <div class="cl-acts">${btn('raid', `${ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight" title="${Math.round(night * 100)}% to win"`, 'go')}
-      ${s.phase === 'report' || s.phase === 'night' ? '' : btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}${A.glyph('star')}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
   }
 
   // ---------- New Game, victory and game over ----------

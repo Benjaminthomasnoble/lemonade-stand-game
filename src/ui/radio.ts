@@ -1,7 +1,7 @@
 // 101.5 The Squeeze in the clay HUD (spec: Music and sound): a ticket in the feed with Cal Clementine's line on the air.
 // In Morning Prep it carries the whole show, and tuneRadio turns the dial through it in place, a line every few seconds,
 // so the feed isn't redrawn under the player's finger. "All day" keeps the station on as the soundtrack (kept on this
-// device, like the other options). Text-first: once the captions setting lands (nights-2) it gates the ticket.
+// device, like the other options). Text-first, so the Captions option (on by default) gates the ticket: captions cover the radio.
 import { airedToday, morningShow, radioOn, type GameState } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { esc, once } from './recipes.ts';
@@ -33,7 +33,7 @@ function lines(s: GameState): string[] {
 }
 
 /** The feed's 101.5 ticket while the station is on: the line on the air, or in Morning Prep the whole show (tuneRadio turns
- * through it). captions: the seam for the captions setting. */
+ * through it). captions: the Captions option (Options; the HUD passes it). */
 export function radioTicket(s: GameState, captions = true): string {
   if (!captions || !radioOn(s, soundtrack())) return '';
   const show = lines(s);

@@ -459,7 +459,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
-    const radio = radioTicket(s); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air (src/ui/radio.ts)
+    const radio = radioTicket(s, hud.options.captions); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {

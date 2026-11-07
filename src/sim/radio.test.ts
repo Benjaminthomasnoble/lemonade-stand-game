@@ -143,7 +143,7 @@ describe('101.5 The Squeeze', () => {
     expect(card).toContain(`data-testid="radio-line">${STATION_IDS[s.day % 3]}<`);
     expect(card).toContain('data-show="');
     expect(card).toContain('data-action="radio"');
-    expect(radioTicket(s, false)).toBe(''); // the captions seam
+    expect(radioTicket(s, false)).toBe(''); // Captions off: the radio is text only
     const line = { textContent: '' };
     const show = morningShow(s).map((l) => l.text);
     const ticket = { dataset: { show: JSON.stringify(show) }, querySelector: () => line };

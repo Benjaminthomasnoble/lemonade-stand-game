@@ -13,13 +13,15 @@ import {
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { alert } from './alerts.ts';
-import type { GameState, Stand } from './economy.ts';
+import type { DayStats, GameState, Stand } from './economy.ts';
+import type { BattleReport } from './crew.ts';
 import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
 import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 import { endingFor } from './modes.ts';
+import { crewName } from './grandkid.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -38,6 +40,9 @@ export interface StoryState {
   vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean };
   /** Dex Moody has joined (every mode): once a run, so nothing brings a fresh Dex back. */
   dexJoined?: boolean;
+  /** The tone guide's lines on triggers that exist: the day Dex last shouted at Honkers the goose, and the best day's profit so far (Marisol's record days). */
+  honked?: number;
+  bestDay?: number;
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -135,6 +140,7 @@ export function migrateStory(s: GameState): void {
   // A save from before the scripted first chopper and ship: a tier that has made offers already had its first.
   s.story.vip ??= { ...(s.lastOffer?.heli !== undefined ? { heli: '' } : {}), ...(s.lastOffer?.ship !== undefined ? { ship: '' } : {}) };
   if (s.guards.some((g) => g.name === 'Dex Moody')) s.story.dexJoined = true;
+  if (s.story.bestDay === undefined && s.history.length) s.story.bestDay = Math.max(...s.history.map(dayProfit)); // older saves: the best day on the books
   migrateScenes(s);
   migratePhone(s);
   migrateGoals(s);
@@ -331,7 +337,49 @@ export function storyMinute(s: GameState): void {
 export function storyAtClose(s: GameState): void {
   checkGoals(s);
   dexOnDuty(s);
+  recordDay(s);
   phoneAtClose(s);
+}
+
+// ---------- the tone guide's lines on triggers that already exist (spec "Tone guide") ----------
+// Brock's fence line rides his warning calls and Tilly's line her call after you raid her (src/sim/phone.ts).
+
+/** Dex's line, by your crew's name ("Peel Patrol, hold the line!"). */
+export const dexGooseLine = (s: GameState) => `${crewName(s).replace(/^the\s+/i, '')}, hold the line! Not you, Honkers. You hold that line over there.`;
+
+/** After a fight on your plot (one line in crew.ts fightRaid): Dex was in it and the Guard Goose posted there stunned a raider. Once a day. */
+export function dexHoldsTheLine(s: GameState, b: BattleReport): void {
+  const dex = s.guards.find((g) => g.name === 'Dex Moody');
+  if (!dex || !s.story || b.defender !== 'player' || s.story.honked === s.day || !b.defenders.some((f) => f.id === dex.id)) return;
+  if (!b.events.some((e) => e.type === 'stun' && e.by === 'goose')) return;
+  s.story.honked = s.day;
+  alert(s, { kind: 'note', text: `Dex: "${dexGooseLine(s)}"`, plot: b.target });
+}
+
+/** A day's profit, as the Ledger counts it: sales less supplies, cups, upkeep and tax. */
+export const dayProfit = (t: DayStats) => t.revenue - (t.supplies + t.cupCosts + t.upkeep + t.tax);
+/** A record day beats the best day so far by this share at least. Placeholder: spec gap (the tone guide names no floor). */
+export const RECORD_GAIN = 0.1;
+export const marisolLine = (pct: number) => `Profit's up ${pct} percent. Please don't celebrate by buying another goose.`;
+
+/**
+ * Closing on a record day (spec tone guide, "Marisol, record day", with the real percentage): Marisol says it. Her first
+ * in the campaign is a visit the next Morning Prep (she walks over with the Ledger: src/world/scenes.ts stages her by
+ * speaker); every other is her line in the day's news.
+ */
+function recordDay(s: GameState): void {
+  const st = s.story!;
+  const t = s.history[s.history.length - 1];
+  if (!t || t.day !== s.day) return;
+  const p = dayProfit(t), best = st.bestDay;
+  st.bestDay = best === undefined ? p : Math.max(best, p);
+  if (best === undefined || best <= 0 || p < best * (1 + RECORD_GAIN)) return;
+  const pct = Math.round((p / best - 1) * 100);
+  if (hasStory(s) && !s.scenes?.seen.includes('marisol')) {
+    const [, ...rest] = SCENES.marisol.lines;
+    if (playScene(s, 'marisol', { until: s.day + 1, lines: [{ ...SCENES.marisol.lines[0], text: `Profit's up ${pct} percent.` }, ...rest], recap: `Marisol Vega brought the Ledger round: profit up ${pct} percent, a record.` })) return;
+  }
+  s.news.push(`Marisol: "${marisolLine(pct)}"`);
 }
 
 /**

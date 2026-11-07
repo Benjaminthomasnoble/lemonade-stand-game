@@ -142,6 +142,17 @@ export const SCENES: Record<string, SceneDef> = {
     recap: 'Captain Squawk caught Cold Brew baristas in beanies at your stand at 3 a.m.',
     call: { who: 'coldbrew', line: 'juniAct3' },
   },
+  // A record day's closing (story.ts recordDay): Marisol Vega brings the Ledger round. story.ts puts in the real percentage.
+  marisol: {
+    speaker: 'marisol', seconds: 14,
+    lines: [
+      { who: SPEAKERS.marisol, text: "Profit's up 40 percent.", at: 3.6 },
+      { who: SPEAKERS.marisol, text: "Please don't celebrate by buying another goose.", at: 6.8 },
+      { who: 'Lottie', text: 'Marisol keeps our books, kid. Mind her.', at: 10.4 },
+    ],
+    replies: ['Just one goose?', 'Thanks, Marisol!'],
+    recap: 'Marisol Vega brought the Ledger round: a record day.',
+  },
   // Act 5's tea at the Manor (src/sim/beats.ts): Vera offers to buy you out. Every reply is a no, and none changes a thing.
   tea: {
     seconds: 18,

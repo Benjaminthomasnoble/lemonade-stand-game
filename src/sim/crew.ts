@@ -28,7 +28,7 @@ import { breakTruce, canAssault, HQ_STAGES, hqPlot, hqStageInput, hqSurvivors } 
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
-import { dexLesson, hasStory } from './story.ts';
+import { dexHoldsTheLine, dexLesson, hasStory } from './story.ts';
 import { CREW_NAME, crewName } from './grandkid.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
@@ -1024,6 +1024,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     s.battles.unshift(report);
     s.battles.length = Math.min(s.battles.length, 6);
     s.news.push(battleHeadline(report));
+    dexHoldsTheLine(s, report); // story.ts: Dex's line when Honkers the goose stuns a raider
   }
   // Aftermath: a beaten raid leaves its KO'd behind, and each may be Nabbed (captives.ts).
   nabLeftBehind(s, raid.attacker, defender, leftBehind(input.attackers, res), raid.target, res.hatchetKos);

@@ -11,12 +11,12 @@ import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTar
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
-import { actBegan, LEAN_LINES, leanLine, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
-import { LESSON_DAY } from './balance.ts';
+import { actBegan, dayProfit, dexGooseLine, LEAN_LINES, leanLine, marisolLine, RECORD_GAIN, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { LESSON_DAY, PERIMETERS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
-import { battleHeadline, crewOf, fightRaid, welcomeDex } from './crew.ts';
+import { battleHeadline, crewOf, fightRaid, raidPartyFor, welcomeDex } from './crew.ts';
 import { hqStageOver } from './rivals.ts';
 import { bugleHeadline, frontPage } from './media.ts';
 import { defaultSettings, endingFor } from './modes.ts';
@@ -721,5 +721,72 @@ describe('the Grandkid and the crew', () => {
     const st = defaultSettings();
     typeName(st, 'crew', 'Lemon Heads');
     expect(crewName(newGame(45, st))).toBe('Lemon Heads'); // named on the New Game screen
+  });
+});
+
+describe("the tone guide's lines on triggers that exist", () => {
+  it("Dex shouts at Honkers when the goose at his post stuns a raider, by your crew's name, once a day", () => {
+    const s = newGame(61);
+    welcomeDex(s);
+    const dex = s.guards[0];
+    dex.post = LOTTIES_CORNER;
+    s.plots[LOTTIES_CORNER].defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['goose'] };
+    const raid = () => fightRaid(s, { id: `r${s.nextId++}`, attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: raidPartyFor(s, 'blenders').slice(0, 3), detected: true, eta: '23:00' }, true);
+    const said = (text: string) => (s.alerts ?? []).filter((a) => a.text === `Dex: "${text}"`).length;
+    const line = 'Peel Patrol, hold the line! Not you, Honkers. You hold that line over there.';
+    expect(dexGooseLine(s)).toBe(line); // the spec's line, from The Peel Patrol
+    const b = raid();
+    expect(b.events.some((e) => e.type === 'stun' && e.by === 'goose')).toBe(true);
+    expect(said(line)).toBe(1);
+    raid();
+    expect(said(line)).toBe(1); // once a day
+    renameCrew(s, 'Lemon Heads');
+    s.day++;
+    dex.outUntil = 0;
+    raid();
+    expect(said('Lemon Heads, hold the line! Not you, Honkers. You hold that line over there.')).toBe(1);
+    s.day++;
+    dex.outUntil = 0;
+    dex.post = null; // Dex is somewhere else: Honkers holds the line alone
+    raid();
+    expect((s.alerts ?? []).filter((a) => a.day === s.day && a.text.startsWith('Dex: "Lemon Heads'))).toHaveLength(0);
+  });
+
+  it("a record day: Marisol says the real percentage; her first in the campaign is a visit with the Ledger", () => {
+    const close = (s: GameState, revenue: number) => {
+      s.history.push({ ...structuredClone(s.today), day: s.day, revenue, supplies: 0, cupCosts: 0, upkeep: 0, tax: 0 });
+      storyAtClose(s);
+      s.day++;
+    };
+    const s = newGame(62);
+    close(s, 100);
+    expect(s.story!.bestDay).toBe(100);
+    close(s, 100 * (1 + RECORD_GAIN) - 1); // up, but not by enough
+    expect(s.scenes!.queue.some((q) => q.id === 'marisol')).toBe(false);
+    close(s, 150);
+    const visit = s.scenes!.queue.find((q) => q.id === 'marisol')!;
+    expect(sceneDef(visit.id, visit.data)).toMatchObject({ speaker: 'marisol', until: s.day });
+    expect(visit.data!.lines!.map((l) => l.text)).toEqual([`Profit's up ${Math.round((150 / 109 - 1) * 100)} percent.`, "Please don't celebrate by buying another goose.", 'Marisol keeps our books, kid. Mind her.']);
+    close(s, 200); // the next record: her line in the news
+    expect(s.news).toContain(`Marisol: "${marisolLine(33)}"`);
+    expect(s.story!.bestDay).toBe(200);
+    // Sandbox: no scenes, just her line; a save from before the record keeping takes its best day off the books.
+    const t = newGame(63, { mode: 'sandbox' });
+    close(t, 80);
+    close(t, 120);
+    expect(t.news).toContain(`Marisol: "${marisolLine(50)}"`);
+    const old = migrateSave(JSON.parse(JSON.stringify({ ...t, story: { act: 1, since: 1 } })))!;
+    expect(old.story!.bestDay).toBe(Math.max(...t.history.map(dayProfit)));
+  });
+
+  it("Tilly's line when you raid a Hollis plot; Brock's fence line rides his warnings", () => {
+    const s = newGame(64);
+    welcomeDex(s);
+    phoneCheck(s, true); // the phone notes every boss's mood
+    const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && p.type !== 'hq')!.id;
+    fightRaid(s, { id: 'h1', attacker: 'player', target: theirs, objective: 'smash', guards: s.guards.map((g) => g.id), detected: false, eta: '' }, true);
+    phoneCheck(s, true);
+    expect(s.phone!.queue.some((c) => c.who === 'hollis' && c.text === LINES.tillyRaided)).toBe(true);
+    expect(LINES.brockFence).toBe('Your fence is cute, bro. My guys are gonna do pull-ups on it.'); // tested with his warnings above
   });
 });

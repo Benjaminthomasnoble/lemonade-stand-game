@@ -1,16 +1,19 @@
 // Rival schemes on the HUD (spec: Rival marketing; How rivals think): a ticket in
-// the left feed while a rival's price war runs near your stands, and on the
-// morning a smear-poster crew hits (with Free Sample Day, the spec's answer, one
-// tap away), plus a note on the plot card of a stand in a price war. Plain
+// the left feed while a rival's price war runs near your stands or FizzCo's
+// Cease-and-Desist blocks your ads in a district, and on the morning a
+// smear-poster crew hits (with Free Sample Day, the spec's answer, one tap away),
+// plus a note on the plot card of a stand in a price war or under a letter. Plain
 // functional controls on the HUD's ticket styles; clicks go through the HUD's one
 // listener (data-action).
-import { canRunCampaign, PLOT_BY_ID, runningSchemes, SCHEMES, warAt, type GameState, type RivalId, type Scheme } from '../sim/economy.ts';
+import {
+  canRunCampaign, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, PLOT_BY_ID, runningSchemes, SCHEMES, warAt, type GameState, type RivalId, type Scheme,
+} from '../sim/economy.ts';
 import * as A from './clay.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
 const art = (key: string, f: () => string) => { let v = memo.get(key); if (v === undefined) { v = f(); memo.set(key, v); } return v; };
-const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG) };
+const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG) };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const btn = (action: string, label: string, extra = '', cls = 'tiny', why?: string) =>
   `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
@@ -42,16 +45,31 @@ function posters(s: GameState, job: Scheme): string {
     <span class="cl-acts">${samples}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }
 
-/** The feed's scheme tickets: each price war running now, and this morning's posters. */
+/** FizzCo's letter: the district it blocks, days left, and Go There (the fruit basket stays with Lottie). */
+function cease(s: GameState, letter: Scheme): string {
+  const left = letter.until - s.day + 1;
+  const name = DISTRICT_BY_ID[letter.district!].name;
+  const tip = `FizzCo's Cease-and-Desist: your ads and campaigns count for nothing in ${name}, ${left} day${left === 1 ? '' : 's'} left. `
+    + 'Advertise in the next district over. Lottie keeps the fruit basket.';
+  return `<div class="cl-ticket red" data-testid="cease" title="${esc(tip)}">${ICON.basket()}<b>Ads blocked: ${esc(name)}</b>
+    <span class="cl-acts">${pips(left, CEASE.days)}${btn('goto', 'Go there', `data-plot="${letter.plots[0]}"`)}</span></div>`;
+}
+
+/** The feed's scheme tickets: each price war and Cease-and-Desist running now, and this morning's posters. */
 export function schemeTickets(s: GameState): string[] {
-  const out = runningSchemes(s).filter((x) => x.kind === 'priceWar').map((x) => priceWar(s, x));
+  const out: string[] = [];
+  for (const x of runningSchemes(s)) {
+    if (x.kind === 'priceWar') out.push(priceWar(s, x));
+    else if (x.kind === 'cease' && x.district && ceaseAndDesistIn(s, x.district)) out.push(cease(s, x));
+  }
   for (const x of s.schemes ?? []) if (x.kind === 'posters' && x.day === s.day) out.push(posters(s, x));
   return out;
 }
 
-/** A plot card's note: the stand is in a price war, or posters went up on your stand this morning. */
+/** A plot card's note: the stand is in a price war, its ads are blocked, or posters went up on your stand this morning. */
 export function schemeNote(s: GameState, plotId: string): string {
   if (warAt(s, plotId)) return `<span class="cl-note bad">Price war ${CUT}</span>`;
+  if (s.plots[plotId]?.owner === 'player' && ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return '<span class="cl-note bad">Ads blocked</span>';
   const hit = (s.schemes ?? []).some((x) => x.kind === 'posters' && x.day === s.day && !x.caught && x.plots.includes(plotId));
   return hit ? '<span class="cl-note bad">Smear posters</span>' : '';
 }

@@ -3,25 +3,28 @@
 // "come more often with each lemon"). Each dawn a rival with no scheme running
 // may start one, paid from its Strike bucket: a price war at its stands that
 // share customers with yours, the Cold Brew Collective's smear posters on one
-// of your stands, or a snipe at an auction you bid on. The Bugle reports each
+// of your stands, a snipe at an auction you bid on, or FizzCo's
+// Cease-and-Desist on your marketing in one district. The Bugle reports each
 // one. Pure and seeded, like the rest of the sim.
-import { FACTIONS, type RivalId } from './balance.ts';
-import { nearbyPlots, PLOT_BY_ID, PLOTS } from './map.ts';
+import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
+import { DISTRICT_BY_ID, DISTRICTS, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { GameState } from './economy.ts';
+import type { GameState, Stand } from './economy.ts';
 import { rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
-import { inTruce, SCHEMES } from './rivals.ts';
+import { CEASE, inTruce, SCHEMES } from './rivals.ts';
+import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 
-export type SchemeKind = 'priceWar' | 'posters' | 'snipe';
+export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease';
 export interface Scheme {
   kind: SchemeKind;
   by: RivalId;
   day: number; // the dawn it started
   until: number; // it runs through this day
-  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot
+  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit
+  district?: DistrictId; // a Cease-and-Desist: the district it blocks
   caught?: boolean; // posters: your night watch caught the crew
   cost?: number; // what Strike has paid for it so far
   done?: boolean; // over: it ran its days, Strike ran dry, or the snipe went off
@@ -31,14 +34,29 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const short = (id: RivalId) => FACTIONS[id].name;
 
-/** Which scheme each rival reaches for first (spec: Cold Brew's posters, FizzCo's auction outbids; a price war is anyone's). */
+/**
+ * The schemes each rival reaches for, most likely first (spec: Cold Brew's posters, FizzCo's auction outbids and
+ * Cease-and-Desist letters; a price war is anyone's). Each dawn's order is a seeded draw weighted this way.
+ */
 const PREFERS: Record<RivalId, SchemeKind[]> = {
   coldbrew: ['posters', 'priceWar', 'snipe'],
-  fizzco: ['snipe', 'priceWar'],
+  fizzco: ['snipe', 'cease', 'priceWar'],
   sourwood: ['priceWar', 'snipe'],
   hollis: ['priceWar', 'snipe'],
   blenders: ['priceWar', 'snipe'],
 };
+
+/** The order a rival tries its schemes in this dawn: a seeded draw that favors the ones it reaches for first. */
+function tryOrder(id: RivalId, rng: Rng): SchemeKind[] {
+  const left = PREFERS[id].map((kind, i, all) => ({ kind, w: all.length - i }));
+  const out: SchemeKind[] = [];
+  while (left.length > 1) {
+    let x = nextRandom(rng) * left.reduce((a, k) => a + k.w, 0);
+    const i = left.findIndex((k) => (x -= k.w) < 0);
+    out.push(left.splice(i < 0 ? left.length - 1 : i, 1)[0].kind);
+  }
+  return [...out, ...left.map((k) => k.kind)];
+}
 
 /** The schemes running today (started, not yet over). */
 export const runningSchemes = (s: GameState) => (s.schemes ?? []).filter((x) => !x.done && x.day <= s.day && x.until >= s.day);
@@ -138,6 +156,74 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
   return job;
 }
 
+// ---------- Cease-and-Desist ----------
+
+/** Is your marketing blocked in this district today? A FizzCo letter is running there, and FizzCo is still in business. */
+export function ceaseAndDesistIn(s: GameState, district: DistrictId): boolean {
+  return !!s.schemes?.length && s.rivals.fizzco.alive && runningSchemes(s).some((x) => x.kind === 'cease' && x.district === district);
+}
+
+const standPlots = new WeakMap<Stand, string>();
+function plotOfStand(s: GameState, st: Stand): string | undefined {
+  const known = standPlots.get(st);
+  if (known && s.plots[known]?.stand === st) return known;
+  const p = PLOTS.find((q) => s.plots[q.id].stand === st);
+  if (p) standPlots.set(st, p.id);
+  return p?.id;
+}
+
+/** What your tier bonus and campaigns add at this stand: everything a Cease-and-Desist strikes out. */
+function adsAt(s: GameState, st: Stand): number {
+  let m = s.brandTier ? BRAND_TIERS[s.brandTier - 1].traffic : 0;
+  for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
+  return m;
+}
+
+/** marketingMultiplier's Cease-and-Desist term: at your stand in a blocked district, your tier bonus and campaigns count for nothing. */
+export function ceaseAndDesistCut(s: GameState, owner: FactionId, st?: Stand): number {
+  if (owner !== 'player' || !st || !s.schemes?.some((x) => x.kind === 'cease' && !x.done)) return 0;
+  const plot = plotOfStand(s, st);
+  return plot && ceaseAndDesistIn(s, PLOT_BY_ID[plot].district) ? adsAt(s, st) : 0;
+}
+
+/** Your intact stands in a district. */
+const yoursIn = (s: GameState, d: DistrictId) => PLOTS.filter((p) => p.district === d && s.plots[p.id].owner === 'player' && !!s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked);
+
+/** Where a letter hurts most: the district where your marketing pulled the most passers-by yesterday (FizzCo's Downtown on a tie). */
+function ceaseTarget(s: GameState): DistrictId | null {
+  let best: DistrictId | null = null, top = 0;
+  for (const d of DISTRICTS) {
+    const pull = yoursIn(s, d.id).reduce((a, p) => { const st = s.plots[p.id].stand!; return a + adsAt(s, st) * Math.max(1, st.day.passersby); }, 0);
+    if (pull > top || (pull === top && pull > 0 && d.id === 'downtown')) { best = d.id; top = pull; }
+  }
+  return best;
+}
+
+/**
+ * FizzCo's lawyers send a Cease-and-Desist: your marketing counts for nothing in one district for 3 days (the one
+ * where it pulls the most, unless `district` is given: the seam for story's Act 4 letter on Downtown). It comes with
+ * a fruit basket. From Rank 6, paid from FizzCo's Strike; null if there's nothing of yours to block there.
+ */
+export function ceaseAndDesist(s: GameState, district?: DistrictId): Scheme | null {
+  const id: RivalId = 'fizzco';
+  if (!s.rivals[id].alive || s.rank < CEASE.rank) return null;
+  const d = district ?? ceaseTarget(s);
+  const mine = d ? yoursIn(s, d) : [];
+  if (!d || !mine.length || runningSchemes(s).some((x) => x.kind === 'cease' && x.district === d) || !canSpend(s, id, 'strike', CEASE.cost)) return null;
+  spend(s, id, 'strike', CEASE.cost);
+  s.schemes ??= [];
+  const letter: Scheme = { kind: 'cease', by: id, day: s.day, until: s.day + CEASE.days - 1, plots: mine.map((p) => p.id), district: d, cost: CEASE.cost };
+  s.schemes.push(letter);
+  const name = DISTRICT_BY_ID[d].name;
+  alert(s, { kind: 'note', text: `CEASE-AND-DESIST! FizzCo's lawyers block your ads in ${name} for ${CEASE.days} days. Lottie keeps the fruit basket.`, plot: mine[0].id });
+  // story: phoneCall(s, 'fizzco', taunt) rings the Corner once the phone lands; until then the line runs in the news.
+  s.news.push(`Preston: "${CEASE.taunt}"`);
+  return letter;
+}
+
+/** For the HUD and tests: the Cease-and-Desist running in a district today, if any. */
+export const ceaseIn = (s: GameState, district: DistrictId) => (s.rivals.fizzco.alive ? runningSchemes(s).find((x) => x.kind === 'cease' && x.district === district) : undefined);
+
 // ---------- auction snipe ----------
 
 /** An open auction on a plot, as land's auctions keep it (PlotState.auction once they land; none before). */
@@ -187,7 +273,7 @@ export function schemesAtDawn(s: GameState): void {
     if (x.done) continue;
     if (!s.rivals[x.by]?.alive) { x.done = true; continue; }
     if (x.kind === 'priceWar') runPriceWar(s, x);
-    else if (s.day > x.until) x.done = true; // a snipe whose lot closed without it
+    else if (s.day > x.until) x.done = true; // a letter that ran its days, or a snipe whose lot closed without it
   }
   s.schemes = s.schemes.filter((x) => !x.done || x.until >= s.day - SCHEMES.keep);
   if (s.day < SCHEMES.from) return;
@@ -197,7 +283,7 @@ export function schemesAtDawn(s: GameState): void {
     const r = s.rivals[id];
     if (!r.alive || inTruce(s, id) || runningFor(s, id)) continue;
     if (nextRandom(rng) >= chance) continue;
-    for (const kind of PREFERS[id]) if (startScheme(s, id, kind, rng)) break;
+    for (const kind of tryOrder(id, rng)) if (startScheme(s, id, kind, rng)) break;
   }
   s.seed = rng.seed;
 }
@@ -206,7 +292,8 @@ export function schemesAtDawn(s: GameState): void {
 export function startScheme(s: GameState, id: RivalId, kind: SchemeKind, rng?: Rng): Scheme | null {
   s.schemes ??= [];
   const r = rng ?? { seed: s.seed };
-  const started = kind === 'priceWar' ? startPriceWar(s, id) : kind === 'posters' ? startPosters(s, id, r) : startSnipe(s, id);
+  const started = kind === 'priceWar' ? startPriceWar(s, id) : kind === 'posters' ? startPosters(s, id, r) : kind === 'snipe' ? startSnipe(s, id)
+    : id === 'fizzco' ? ceaseAndDesist(s) : null;
   if (!rng) s.seed = r.seed; // called on its own: write the draws back
   return started;
 }

@@ -106,6 +106,12 @@ export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It 
  * holds, up to `fieldTier`. Tilly answers your raids with `taunt` (placeholders: the spec gives no numbers).
  */
 export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2, taunt: "Bring all the hatchets you want. I've got hay bales till Tuesday." };
+/**
+ * FizzCo's Cease-and-Desist (Hostile Takeover): from Rank `rank` (Act 4), a letter costs FizzCo's Strike `cost`
+ * and blocks your marketing in one district for `days` days: your tier bonus and campaigns count for nothing there.
+ * The letters stop when FizzCo falls (placeholders for rank and cost; the 3 days are the spec's).
+ */
+export const CEASE = { rank: 6, cost: 2000, days: 3, taunt: "I'm not threatening you. Legal says I can't. I'm forecasting." };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

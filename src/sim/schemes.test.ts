@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   budgetOf, FACTIONS, keptShare, migrateSave, nearbyPlots, newGame, newStand, openStand, PLOT_BY_ID, PLOTS, priceWarCut, rivalPrice,
   runningSchemes, SCHEMES, schemesAtDawn, simulateRestOfDay, sleepUntilDawn, snipeBid, startScheme, warAt, warFront,
+  BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -312,5 +313,82 @@ describe('on the HUD', () => {
       return;
     }
     throw new Error('no posters landed in 12 seeds');
+  });
+});
+
+describe('Cease-and-Desist', () => {
+  /** Rank 6 with Flyers & Sidewalk Chalk, and a busy stand of Lottie's in Downtown as well as her Corner. */
+  function marketed(seed: number) {
+    const s = newGame(seed);
+    s.rank = 6;
+    s.brandTier = 2;
+    s.day = 60;
+    const p = PLOTS.find((q) => q.district === 'downtown' && !s.plots[q.id].owner && q.type === 'street')!;
+    s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2, 2) };
+    s.plots[p.id].stand!.day.passersby = 5000; // Downtown is where her ads pull the most
+    return { s, downtown: p.id };
+  }
+
+  it('blocks your tier bonus and campaigns in the district where your ads pull most, for 3 days, with a fruit basket', () => {
+    const { s, downtown } = marketed(31);
+    const st = s.plots[downtown].stand!;
+    const corner = s.plots[LOTTIES_CORNER].stand!;
+    const before = marketingMultiplier(s, 'player', st);
+    const strike = budgetOf(s, 'fizzco').strike;
+    const letter = startScheme(s, 'fizzco', 'cease')!;
+    expect(letter).toMatchObject({ kind: 'cease', by: 'fizzco', district: 'downtown', day: 60, until: 62, plots: [downtown] });
+    expect(strike - budgetOf(s, 'fizzco').strike).toBeCloseTo(CEASE.cost, 2);
+    expect(marketingMultiplier(s, 'player', st)).toBeCloseTo(before - BRAND_TIERS[1].traffic, 5);
+    expect(marketingMultiplier(s, 'player', corner)).toBeCloseTo(before, 5); // Maple Row keeps its ads
+    s.phase = 'prep';
+    expect(canRunCampaign(s, 'sandwichBoard', downtown)).toEqual({ ok: false, why: 'Cease-and-Desist: ads count for nothing here' });
+    expect(canRunCampaign(s, 'sandwichBoard', LOTTIES_CORNER).ok).toBe(s.cash >= 40);
+    expect(s.alerts!.at(-1)!.text).toBe('CEASE-AND-DESIST! FizzCo\'s lawyers block your ads in Downtown for 3 days. Lottie keeps the fruit basket.');
+    expect(s.news).toContain(`Preston: "${CEASE.taunt}"`);
+    hush(s);
+    for (const day of [61, 62]) { s.day = day; schemesAtDawn(s); expect(ceaseAndDesistIn(s, 'downtown')).toBe(true); }
+    s.day = 63;
+    schemesAtDawn(s);
+    expect(ceaseAndDesistIn(s, 'downtown')).toBe(false);
+    expect(letter.done).toBe(true);
+    expect(marketingMultiplier(s, 'player', st)).toBeCloseTo(before, 5);
+  });
+
+  it('a campaign there counts for nothing too, and the letters stop the moment FizzCo falls', () => {
+    const { s, downtown } = marketed(32);
+    const st = s.plots[downtown].stand!;
+    st.campaigns.sandwichBoard = 1;
+    const before = marketingMultiplier(s, 'player', st);
+    ceaseAndDesist(s);
+    expect(marketingMultiplier(s, 'player', st)).toBeCloseTo(before - BRAND_TIERS[1].traffic - 0.2, 5);
+    s.rivals.fizzco.alive = false;
+    expect(ceaseAndDesistIn(s, 'downtown')).toBe(false);
+    expect(marketingMultiplier(s, 'player', st)).toBeCloseTo(before, 5);
+    expect(ceaseAndDesist(s)).toBeNull();
+  });
+
+  it('never before Rank 6, with nothing to block, or twice on one district; story can aim the Act 4 letter', () => {
+    const early = marketed(33).s;
+    early.rank = 5;
+    expect(ceaseAndDesist(early)).toBeNull();
+    const plain = marketed(34).s;
+    plain.brandTier = 0;
+    expect(ceaseAndDesist(plain)).toBeNull(); // no ads to strike out
+    expect(ceaseAndDesist(plain, 'downtown')).not.toBeNull(); // the story's letter on Downtown goes regardless
+    expect(ceaseAndDesist(plain, 'downtown')).toBeNull();
+    expect(ceaseAndDesist(plain, 'harbor')).toBeNull(); // nothing of yours there
+    expect(startScheme(plain, 'blenders', 'cease')).toBeNull(); // only FizzCo has lawyers
+  });
+
+  it('on the HUD: a red ticket with the district, days left and Go There; your stand card says the ads are blocked', () => {
+    const { s, downtown } = marketed(35);
+    ceaseAndDesist(s);
+    const ticket = schemeTickets(s).find((x) => x.includes('data-testid="cease"'))!;
+    expect(ticket).toContain('cl-ticket red');
+    expect(ticket).toContain('Ads blocked: Downtown');
+    expect(ticket).toContain('<i class="on"></i><i class="on"></i><i class="on"></i>');
+    expect(ticket).toContain(`data-action="goto" data-plot="${downtown}"`);
+    expect(schemeNote(s, downtown)).toBe('<span class="cl-note bad">Ads blocked</span>');
+    expect(schemeNote(s, LOTTIES_CORNER)).toBe('');
   });
 });

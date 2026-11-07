@@ -18,7 +18,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { schemesAtDawn, type Scheme } from './schemes.ts';
+import { ceaseAndDesistCut, ceaseAndDesistIn, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -494,6 +494,7 @@ export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, 
   let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0) + calendarTraffic(s, owner, st);
   m += perkTraffic(s, owner, plotId); // Town Favorite, Orchard Fresh
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
+  m -= ceaseAndDesistCut(s, owner, st); // FizzCo's Cease-and-Desist: your tier bonus and campaigns count for nothing in its district
   return m;
 }
 
@@ -1012,6 +1013,7 @@ export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected
   if (s.phase !== 'prep') return { ok: false, why: 'Plan campaigns during Morning Prep' };
   if (s.rank < c.rank) return { ok: false, why: `Needs Rank ${c.rank}, ${RANKS[c.rank - 1].title}` };
   if (c.maxLevel && st.level > c.maxLevel) return { ok: false, why: `Only for L1–L${c.maxLevel} stands` };
+  if (ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return { ok: false, why: 'Cease-and-Desist: ads count for nothing here' };
   const left = st.campaigns[id] ?? 0;
   if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
   const cost = campaignCost(s, id); // Word of Mouth halves it

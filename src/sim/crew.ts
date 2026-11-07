@@ -552,19 +552,23 @@ export const rivalKit = (ps: PlotState) => RIVAL_KIT[Math.min(5, Math.max(1, ps.
 
 /** A rival plot's defenders: its garrison fit to fight (the knocked-out are Out; never more than its posts), armed and padded as its kit row says. */
 function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
+  return Array.from({ length: Math.min(fitGarrison(s, plotId), postsFor(s, plotId)) }, (_, i) => garrisonHenchman(s, plotId, rng, i));
+}
+
+/** One of a rival plot's garrison as they fight: armed (weapon drawn from rng), padded and levelled as the plot's kit
+ * row says. Who stands guard there, and who it sends as help to a plot nearby (reinforce.ts rivalHelpFor). */
+export function garrisonHenchman(s: GameState, plotId: string, rng: Rng, i: number): Fighter {
   const ps = s.plots[plotId];
   const rival = ps.owner as RivalId;
   const kit = rivalKit(ps);
   const m = 1 + 0.1 * (kit.level - 1);
-  return Array.from({ length: Math.min(fitGarrison(s, plotId), postsFor(s, plotId)) }, (_, i) => {
-    const r = nextRandom(rng);
-    const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
-    return {
-      id: `${rival}-def-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side: 'def' as const,
-      hp: (GUARD_BASE.hp + GEAR[kit.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
-      nerve: GUARD_BASE.nerve, armor: GEAR[kit.gear].armor, weapon, // everyone starts at Nerve 50 (combat)
-    };
-  });
+  const r = nextRandom(rng);
+  const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
+  return {
+    id: `${rival}-def-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side: 'def',
+    hp: (GUARD_BASE.hp + GEAR[kit.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
+    nerve: GUARD_BASE.nerve, armor: GEAR[kit.gear].armor, weapon, // everyone starts at Nerve 50 (combat)
+  };
 }
 
 /** How a rival pays for its defenses: the rivals lane's Guard bucket (rivalAi.ts rivalGuardSpend), at its own prices. */

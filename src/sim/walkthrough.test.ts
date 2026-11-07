@@ -236,11 +236,11 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
 
   it.todo('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)');
 
-  // Measured: the Planner reads 61% (69% over 400 runs). Each of its runs fights its own draw of the garrison the sim
+  // Measured: the Planner reads 53% (61% over 400 runs). Each of its runs fights its own draw of the garrison the sim
   // posts at a rival L3 Kiosk (crew's kit row: 3 Bros with clubs at 18 a hit, no vests) and rolls the 55% detection;
   // a raid that's spotted loses its first strike (84% of 400 won) and also meets the help the Blenders send from their
-  // other Boardwalk plots (1 with fists, there by contact). Unseen, as the walkthrough has it, the squad wins all 400
-  // (see raidInput below).
+  // other Boardwalk plots (1 from their L2 stand next door, in its kit: fists or clubs at even odds, there by contact).
+  // Unseen, as the walkthrough has it, the squad wins all 400 (see raidInput below).
   it.fails('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
     const { s, kiosk } = day24();
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true), 0.81, 0.05);

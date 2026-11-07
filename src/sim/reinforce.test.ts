@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   AUTO_DEFEND, BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
   detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, postsFor, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
-  type Raid, type SimEvent,
+  hqStageInput, raidInput, type Raid, type SimEvent,
 } from './economy.ts';
+import type { Fighter } from './combat.ts';
 import { fitGarrison } from './garrison.ts';
 import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 import { reserveAt } from './clubhouse.ts';
@@ -298,6 +299,48 @@ describe('rivals send help', () => {
       return;
     }
     throw new Error('never spotted');
+  });
+
+  /** Each fighter's kit as a share of the draws: weapon, HP, armor and Hit. */
+  const kitShares = (fighters: Fighter[]) => {
+    const n = new Map<string, number>();
+    for (const f of fighters) { const k = `${f.weapon} ${f.hp} ${f.armor} ${f.hit}`; n.set(k, (n.get(k) ?? 0) + 1); }
+    return new Map([...n].map(([k, v]) => [k, v / fighters.length]));
+  };
+  const sameKit = (a: Fighter[], b: Fighter[]) => {
+    const x = kitShares(a), y = kitShares(b);
+    expect([...x.keys()].sort()).toEqual([...y.keys()].sort());
+    for (const [k, v] of x) expect(Math.abs(v - y.get(k)!)).toBeLessThan(0.08);
+  };
+
+  it.each([3, 4, 5])("help from an L%i stand fights in that plot's own kit, as its garrison does at home", (level) => {
+    const { s, target, near } = spotted(6, 10);
+    Object.assign(s.plots[near], { stand: newStand(level), facility: null });
+    const rng = { seed: 7 };
+    const helpers = Array.from({ length: 300 }, () => rivalHelpFor(s, raidOn(s, target, 600), rng).flatMap((h) => h.fighters)).flat();
+    const home: Fighter[] = [];
+    while (home.length < helpers.length) {
+      const raid: Raid = { id: 'rh', attacker: 'player', target: near, objective: 'smash', guards: s.guards.map((g) => g.id), detected: false, eta: '' };
+      home.push(...raidInput(s, raid, false, rng).defenders);
+    }
+    expect(helpers.length).toBe(900); // three a raid at Threat 5
+    sameKit(helpers, home);
+  });
+
+  it("an HQ's help comes at the HQ's own strength, as its Gate is held", () => {
+    const s = newGame(1);
+    s.rank = 10;
+    const hq = PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === 'fizzco')!;
+    const target = ownedPlots(s, 'fizzco').find((p) => p.type !== 'hq' && p.district === hq.district && s.plots[p.id].stand)!.id;
+    for (const p of ownedPlots(s, 'fizzco')) s.plots[p.id].garrison = 0;
+    s.plots[hq.id].garrison = 6;
+    s.guards = Array.from({ length: 3 }, (_, i) => guard(`G${i}`));
+    const rng = { seed: 9 };
+    const helpers = Array.from({ length: 300 }, () => rivalHelpFor(s, raidOn(s, target, 600), rng).flatMap((h) => h.fighters)).flat();
+    const gate: Fighter[] = [];
+    while (gate.length < helpers.length) gate.push(...hqStageInput(s, 'fizzco', 'gate', [], rng).defenders);
+    expect(helpers.length).toBe(900);
+    sameKit(helpers, gate);
   });
 
   it("the Raid Planner's odds count the help a spotted raid would meet", () => {

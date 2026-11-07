@@ -18,8 +18,8 @@ import { FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, RESERVE_MINUTES, RIVAL_HELP, t
 import { BORDERS, PLOT_BY_ID, PLOTS } from './map.ts';
 import type { BattleInput, BattleResult, Fighter } from './combat.ts';
 import { clubhouses, reserveAt } from './clubhouse.ts';
-import { guardFighter, guardReady, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
-import { garrisonTier } from './rivalAi.ts';
+import { garrisonHenchman, guardFighter, guardReady, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
+import { HQS } from './rivals.ts';
 import { backOnGuard, fitGarrison, knockOut } from './garrison.ts';
 import { joinFight } from './fight.ts';
 import { travelMinutes } from './night.ts';
@@ -110,7 +110,9 @@ export interface RivalHelp { from: string; minutes: number; fighters: Fighter[] 
 /**
  * Who a rival sends when it spots your raid on one of its plots (RIVAL_HELP): half the garrison of each of its other
  * plots and its HQ in the same or a bordering district, nearest first, up to the cap by Threat. They walk over from
- * their plot (travelMinutes). An undetected raid gets no help. Draws the henchmen's weapons from rng.
+ * their plot (travelMinutes), and fight as they stand guard there: in their plot's kit (crew.ts garrisonHenchman), an
+ * HQ's at the HQ's own strength, as its Gate is held (rivals.ts hqStageInput). An undetected raid gets no help. Draws
+ * the henchmen's weapons from rng.
  */
 export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
   const rival = s.plots[raid.target]?.owner;
@@ -125,8 +127,9 @@ export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
   for (const { id, minutes } of near) {
     const n = Math.min(room, Math.floor(fitGarrison(s, id) * RIVAL_HELP.share));
     if (n <= 0) continue;
-    const tier = garrisonTier(s.plots[id]);
-    out.push({ from: id, minutes, fighters: Array.from({ length: n }, (_, i) => henchmanFor(s, rival as RivalId, tier, rng, 10 + i)) });
+    const hq = PLOT_BY_ID[id].type === 'hq';
+    const helper = (i: number) => (hq ? henchmanFor(s, rival as RivalId, HQS[rival as RivalId].tier, rng, 10 + i) : garrisonHenchman(s, id, rng, 10 + i));
+    out.push({ from: id, minutes, fighters: Array.from({ length: n }, (_, i) => helper(i)) });
     room -= n;
     if (room <= 0) break;
   }

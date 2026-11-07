@@ -210,8 +210,10 @@ export function gadgetsModel(ids: readonly GadgetId[], owner: Owner = 'player'):
     for (const s of [-1, 1]) B.add(sph(0.025, 6, 5), INK, { p: at([s * 0.08, 1.15, 0.4]), fx: GLOSS });
     for (const s of [-1, 1]) B.add(cyl(0.025, 0.025, 0.22, 5), P.terra, { p: at([s * 0.1, 0.11, 0]) });
     for (const s of [-1, 1]) B.add(box(0.12, 0.02, 0.16), P.terra, { p: at([s * 0.1, 0.01, 0.06]) });
-    for (let k = 0; k < 4; k++) B.add(box(0.08, 0.14, 0.02), k % 2 ? '#ffffff' : P.ging, { p: at([-0.12 + k * 0.08, 0.66, 0.36]), r: [0.3, 0, 0], fx: PAPER });
-    B.add(cone(0.14, 0.2, 3), P.ging, { p: at([0, 0.52, 0.38]), r: [Math.PI, 0, 0], s: [1, 1, 0.2], fx: PAPER });
+    // the neckerchief in the owner's trim (lemon and white on yours), matching the brawl's Honkers (creatures.ts goose)
+    const nt = trim(owner);
+    for (let k = 0; k < 4; k++) B.add(box(0.08, 0.14, 0.02), k % 2 ? nt.acc : nt.yel, { p: at([-0.12 + k * 0.08, 0.66, 0.36]), r: [0.3, 0, 0], fx: PAPER });
+    B.add(cone(0.14, 0.2, 3), nt.yel, { p: at([0, 0.52, 0.38]), r: [Math.PI, 0, 0], s: [1, 1, 0.2], fx: PAPER });
   }
   if (has('slick')) {
     // Glossy clay peels on the path inside the gate.

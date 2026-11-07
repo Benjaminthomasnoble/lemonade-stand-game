@@ -141,16 +141,24 @@ function tugBar() {
 const hatCache = new Map<Owner, THREE.BufferGeometry>();
 /** Each crew's own hat (Peel Patrol leaf cap, bowler, straw disc, flat-top, beanie, visor), for flinging out of the cloud. */
 const hatOf = (o: Owner) => { let g = hatCache.get(o); if (!g) { g = hatGeometry(CREW_LOOK[o]); g.center(); hatCache.set(o, g); } return g; };
-let honkers: THREE.Group | null = null;
-/** One Honkers for every fight, reused. */
-const theGoose = () => (honkers ??= goose());
+const geese = new Map<Owner, THREE.Group>();
+/** One Honkers per owner, reused: his bib is in the owner's colours, like the gadget goose he stands in for. */
+const theGoose = (o: Owner) => { let g = geese.get(o); if (!g) { g = goose(o); geese.set(o, g); } return g; };
 
 /** A unit cone with its tip at the origin, opening along +z (flashlights, floodlights, the watchtower beam). */
 function beamGeometry() {
-  const g = new THREE.ConeGeometry(1, 1, 18, 1, true);
+  const g = new THREE.ConeGeometry(1, 1, 36, 1, true);
   g.translate(0, -0.5, 0);
   g.rotateX(-Math.PI / 2);
   return g;
+}
+/** Light along a beam: bright at the lamp, fading to nothing at the far end (no hard rim). */
+function beamTexture() {
+  return canvasTex(4, 64, (c) => {
+    const g = c.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.45, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); // the canvas top is the cone's tip
+    c.clearRect(0, 0, 4, 64); c.fillStyle = g; c.fillRect(0, 0, 4, 64);
+  });
 }
 /** A soft round pool of light on the ground. */
 function poolTexture() {
@@ -214,7 +222,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   const debs: (Deb | null)[] = Array(DEBRIS).fill(null);
   let nextDeb = 0;
   // light: flashlight cones, floodlight cones and the watchtower beam, plus a pool of floodlight on the ground
-  const beamMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const beamMat = new THREE.MeshBasicMaterial({ color: '#ffffff', map: beamTexture(), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
   const beams = new THREE.InstancedMesh(beamGeometry(), beamMat, BEAMS);
   for (let i = 0; i < BEAMS; i++) beams.setColorAt(i, new THREE.Color(LAMP));
   beams.renderOrder = 5;
@@ -225,8 +233,10 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   scene.add(floodPool);
   const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
   const pools = [cloud, limbs, lemons, orbit, rain, honkRings, debris, beams] as THREE.InstancedMesh[];
-  const zeroAll = (im: THREE.InstancedMesh) => { for (let i = 0; i < im.count; i++) im.setMatrixAt(i, ZERO); im.instanceMatrix.needsUpdate = true; im.visible = false; };
-  for (const im of pools) { im.frustumCulled = false; zeroAll(im); scene.add(im); }
+  const zeroAll = (im: THREE.InstancedMesh) => { im.count = im.userData.cap; for (let i = 0; i < im.count; i++) im.setMatrixAt(i, ZERO); im.instanceMatrix.needsUpdate = true; im.visible = false; };
+  for (const im of pools) { im.userData.cap = im.count; im.frustumCulled = false; zeroAll(im); scene.add(im); }
+  /** Draw only the first n instances of a pool that packs its live ones first (empty ones cost nothing). */
+  const drawN = (im: THREE.InstancedMesh, n: number) => { im.count = Math.max(1, Math.min(n, im.userData.cap)); im.visible = n > 0; };
   let hats: THREE.InstancedMesh[] = [];
   const bar = tugBar();
   bar.sprite.visible = false;
@@ -236,8 +246,16 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s3 = new THREE.Vector3(), d3 = new THREE.Vector3(), c3 = new THREE.Color();
   const Z = new THREE.Vector3(0, 0, 1);
   /** Aim a beam instance from `from` along `dir`, `len` long and `r` wide at the end. */
+  const camFwd = new THREE.Vector3();
   const aim = (i: number, from: THREE.Vector3, dir: THREE.Vector3, len: number, r: number, color: string) => {
-    q.setFromUnitVectors(Z, dir.normalize());
+    dir.normalize();
+    // a beam pointing along the camera's view from close by fills the screen: fade it out
+    if (camera) {
+      camera.getWorldDirection(camFwd);
+      const near = camera.position.distanceTo(from);
+      if (near < 18 && camFwd.dot(dir) > 0.35) { const k = Math.max(0, (near - 8) / 10); len *= k; r *= k; }
+    }
+    q.setFromUnitVectors(Z, dir);
     beams.setMatrixAt(i, m4.compose(from, q, s3.set(r, r, len)));
     beams.setColorAt(i, c3.set(color));
   };
@@ -306,7 +324,9 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     debris.visible = true;
   }
   /** Each perimeter breaks its own way (spec "Defenses and gadgets", Breach column). */
-  function breach(tier: number, att: Owner) {
+  function breach(tier: number, att: Owner, def: Owner) {
+    // the fence breaks in its owner's trim, as fenceModel dresses it: lemon only on the player's
+    const yel = def === 'player' ? P.lemon : mainOf(def);
     if (!view) return;
     const out = local(0, 1).sub(local(0, 0)).normalize(); // toward the street
     const front = (x: number, y: number) => local(x, FENCE.zf).setY(y);
@@ -315,7 +335,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     const word = (text: string) => sideWord(front(0, 2.4), text, att, 1.15);
     switch (tier) {
       case 1: // pickets pop like piano keys, one after the next along the front
-        for (let i = 0; i < 18; i++) deb(front(-5 + i * 0.59, 0.4), i % 4 ? P.cream : P.lemon, [0.11, 0.8, 0.04], ov(0.6, 3.4 + rnd()), 0, 7, i * 0.04);
+        for (let i = 0; i < 18; i++) deb(front(-5 + i * 0.59, 0.4), i % 4 ? P.cream : yel, [0.11, 0.8, 0.04], ov(0.6, 3.4 + rnd()), 0, 7, i * 0.04);
         word('POP-POP-POP!');
         break;
       case 2: // the mesh peels back like a can lid, panel by panel from the gate
@@ -323,7 +343,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         word('SKREEEK!');
         break;
       case 3: // the pencil stakes go flying, and the choppers yelp
-        for (let i = 0; i < 14; i++) deb(front(-4.6 + i * 0.7, 0.5), P.lemon, [0.14, 1.0, 0.14], ov(1.2, 3 + rnd() * 1.5, (rnd() - 0.5)), i % 2 ? 0 : 2, 9, rnd() * 0.25);
+        for (let i = 0; i < 14; i++) deb(front(-4.6 + i * 0.7, 0.5), yel, [0.14, 1.0, 0.14], ov(1.2, 3 + rnd() * 1.5, (rnd() - 0.5)), i % 2 ? 0 : 2, 9, rnd() * 0.25);
         word('OUCH!');
         break;
       case 4: // the coils snap, and snagged sleeves go with them
@@ -365,7 +385,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   /** Honkers waddles out of his spot by the gate (the baked gadget goose steps aside for him). */
   function bringHonkers(at: THREE.Vector3) {
     if (!honker) {
-      honker = theGoose();
+      honker = theGoose((report?.defender ?? 'player') as Owner);
       honker.scale.setScalar(1.3);
       scene.add(honker);
       if (gadgetsObj && !gadgetsSwap) {
@@ -438,7 +458,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         break;
       }
       case 'breach':
-        if (fence) { fence.visible = false; breach(report?.perimeter ?? 1, report?.attacker as Owner); }
+        if (fence) { fence.visible = false; breach(report?.perimeter ?? 1, report?.attacker as Owner, (report?.defender ?? 'player') as Owner); }
         pop(local(0, 2.2).setY(2), 'The fence is down!', 'miss');
         break;
       case 'ko': {
@@ -471,7 +491,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
           bringHonkers(u.obj.position);
           u.frozen = COMBAT.goose.stun;
           takeStars(u);
-          fx.word(head(u).setY(2.6), 'HONK!', '#FFFFFF', P.lemon, 1.1);
+          { const d = (report.defender ?? 'player') as Owner; fx.word(head(u).setY(2.6), 'HONK!', mainOf(d), accentOf(d), 1.1); }
         } else {
           // the peels: spin like a top, then flop flat on your back for the rest of the stun
           u.spin = SPIN;
@@ -547,7 +567,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     for (let i = li; i < LIMBS; i++) limbs.setMatrixAt(i, ZERO);
     cloud.instanceMatrix.needsUpdate = limbs.instanceMatrix.needsUpdate = true;
     if (limbs.instanceColor) limbs.instanceColor.needsUpdate = true;
-    cloud.visible = limbs.visible = pi > 0;
+    drawN(cloud, pi); drawN(limbs, li);
     // each crew's own hats, and a lemon or two, tumble out of the biggest cloud on a tilted axis
     const big = clusters[0];
     lemons.visible = !!big;
@@ -706,22 +726,18 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     }
     orbit.visible = orbiting;
     if (orbiting) orbit.instanceMatrix.needsUpdate = true;
-    for (let i = ri; i < RAIN; i++) rain.setMatrixAt(i, ZERO);
-    rain.visible = ri > 0;
+    drawN(rain, ri);
     rain.instanceMatrix.needsUpdate = true;
 
     // floodlights (KA-CHUNK: night turns to day) and the watchtower's sweeping beam
     if (view && lit > 0) {
       lit = Math.min(1, lit + dt * 3);
-      for (const s of [-1, 1]) {
-        v.copy(local(s * 4.45, -6.45)).setY(3.2);
-        aim(bi++, v, d3.copy(local(s * 1.6, -0.5)).sub(v), 7, 2.2 * lit, '#E8DCB8');
-      }
+      // no cones: the lamp hoods glow and the whole yard sits in a pool of daylight
       floodPool.visible = true;
-      floodPool.position.copy(local(0, -1.5)).setY(0.05);
-      floodPool.scale.set(15, 13, 1);
+      floodPool.position.copy(local(0, -1.5)).setY(0.12);
+      floodPool.scale.set(17, 15, 1);
       floodPool.rotation.z = view.root.rotation.y;
-      (floodPool.material as THREE.MeshBasicMaterial).opacity = 0.75 * lit;
+      (floodPool.material as THREE.MeshBasicMaterial).opacity = 0.95 * lit;
     }
     if (view && watch > 0) {
       const sweep = Math.sin(tq * 1.6) * 0.8;
@@ -729,8 +745,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       const to = local(Math.sin(sweep) * 4.5, 1.2 + Math.cos(sweep) * 1.2); // sweeps the yard inside the fence
       aim(bi++, v, d3.copy(to).sub(v), v.distanceTo(to), 0.7, dark ? LAMP : '#7a7262'); // by day the beam is faint
     }
-    for (let i = bi; i < BEAMS; i++) beams.setMatrixAt(i, ZERO);
-    beams.visible = bi > 0;
+    drawN(beams, bi);
     beams.instanceMatrix.needsUpdate = true;
     if (beams.instanceColor) beams.instanceColor.needsUpdate = true;
     stepDebris(dt);

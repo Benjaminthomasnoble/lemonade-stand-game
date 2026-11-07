@@ -11,6 +11,9 @@ import { kit } from './kit.ts';
 
 const INK = '#2E2A4F';
 const GLASS = '#7FD3E6';
+// neutral trims: no owner colours (gold is Sourwood's, chrome FizzCo's)
+const BRASS = '#E9C98F';
+const ROAD_GREY = '#8E8AA6';
 
 function mesh(geo: THREE.BufferGeometry, cast = true) {
   const m = new THREE.Mesh(geo, kit().fig);
@@ -181,7 +184,7 @@ export function ship(kind: ShipKind): Ship {
   if (kind === 'yacht') {
     B.add(rbox(1.1, 0.7, 1.1, 0.2, 3), P.cream, { p: [0, 0.6, -0.35] });
     B.add(rbox(1.25, 0.12, 1.25, 0.06, 2), P.terra, { p: [0, 1.0, -0.35] });
-    for (const s of [-1, 1]) { B.add(cyl(0.13, 0.13, 0.05, 14), GLASS, { p: [s * 0.56, 0.62, -0.35], r: [0, 0, Math.PI / 2], fx: GLOSS }); B.add(tor(0.14, 0.03, 6, 14), P.gold, { p: [s * 0.57, 0.62, -0.35], r: [0, Math.PI / 2, 0], fx: GLOSS }); }
+    for (const s of [-1, 1]) { B.add(cyl(0.13, 0.13, 0.05, 14), GLASS, { p: [s * 0.56, 0.62, -0.35], r: [0, 0, Math.PI / 2], fx: GLOSS }); B.add(tor(0.14, 0.03, 6, 14), BRASS, { p: [s * 0.57, 0.62, -0.35], r: [0, Math.PI / 2, 0], fx: GLOSS }); }
     B.add(cyl(0.03, 0.03, 1.2, 6), P.walnut, { p: [0, 1.6, -0.35], fx: PAPER });
     B.add(cone(0.25, 0.5, 3), P.terra, { p: [0.22, 1.95, -0.35], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
     B.add(tor(0.22, 0.07, 6, 14), P.terra, { p: [0, 0.4, 0.9], r: [0.2, 0, 0] });
@@ -210,13 +213,14 @@ export function ship(kind: ShipKind): Ship {
       const x = -0.62 + c * 1.24, z = -L / 2 + 3.0 + r * 1.35, y = 0.85 + h * 0.75;
       B.add(rbox(1.1, 0.7, 1.15, 0.05, 2), crateCols[(r + c + h) % 3], { p: [x, y, z], r: [0, (hash(r * 3 + c, h) - 0.5) * 0.12, 0], fx: PAPER });
       for (const yy of [-0.2, 0.2]) B.add(box(1.14, 0.06, 1.19), '#8B5E3C', { p: [x, y + yy, z], fx: PAPER });
-      B.add(rbox(0.5, 0.3, 0.02, 0.02, 1), P.lemon, { p: [x, y, z + 0.59], fx: PAPER }); // the crate label
+      B.add(rbox(0.5, 0.3, 0.02, 0.02, 1), P.cream, { p: [x, y, z + 0.59], fx: PAPER }); // the crate label, with a clay lemon on it
+      B.add(lumpy(sph(0.09, 8, 6), 0.01, 8, r + c + h), P.lemon, { p: [x, y, z + 0.62], s: [1.3, 1, 0.5] });
     }
     B.add(cyl(0.07, 0.07, 3, 8), P.stick, { p: [W * 0.3, 2.3, L / 2 - 1.4], fx: PAPER });
     B.add(lumpy(tor(0.32, 0.09, 6, 16), 0.02, 4, 2), P.terra, { p: [W * 0.5 + 0.02, 0.5, -L / 2 + 2.4], r: [0, Math.PI / 2, 0] });
   }
   // a horn on the bridge (it plays the theme's F-A-D call)
-  B.add(cone(0.08, 0.22, 10), P.gold, { p: [0.3, kind === 'yacht' ? 1.12 : kind === 'cruise' ? 2.7 : 2.0, kind === 'freighter' ? -L / 2 + 1.7 : 0], r: [Math.PI / 2, 0, 0], fx: GLOSS });
+  B.add(cone(0.08, 0.22, 10), P.terra, { p: [0.3, kind === 'yacht' ? 1.12 : kind === 'cruise' ? 2.7 : 2.0, kind === 'freighter' ? -L / 2 + 1.7 : 0], r: [Math.PI / 2, 0, 0], fx: GLOSS });
   const hull = mesh(B.build());
   g.add(hull);
   // sculpted clay wake: a V of white ridges and a bow curl
@@ -275,7 +279,7 @@ const buttonWheel = (r: number) => {
 };
 export interface Truck { group: THREE.Group; body: THREE.Object3D; wheels: THREE.Object3D[] }
 /** A clay box truck stacked with lemon crates, on button wheels. */
-export function truck(cab: string = P.terra): Truck {
+export function truck(cab: string = P.terra, skin: string = P.skin): Truck {
   const g = new THREE.Group(), body = new THREE.Group();
   g.add(body);
   const B = new Baker();
@@ -284,16 +288,16 @@ export function truck(cab: string = P.terra): Truck {
   // an open windscreen with the driver looking out: a clay head and a cream cap
   B.add(rbox(1.3, 0.55, 0.08, 0.08, 2), '#3d3a5c', { p: [0, 1.35, 1.72], r: [-0.2, 0, 0] });
   B.add(rbox(1.38, 0.62, 0.06, 0.05, 2), P.cream, { p: [0, 1.35, 1.7], r: [-0.2, 0, 0], s: [1, 1, 0.6] });
-  B.add(lumpy(sph(0.2, 12, 9), 0.01, 8, 5), P.skin, { p: [0.3, 1.32, 1.72] });
+  B.add(lumpy(sph(0.2, 12, 9), 0.01, 8, 5), skin, { p: [0.3, 1.32, 1.72] });
   for (const e of [-1, 1]) B.add(sph(0.025, 6, 4), INK, { p: [0.3 + e * 0.07, 1.36, 1.9], fx: GLOSS });
   B.add(sph(0.2, 12, 8, ), P.cream, { p: [0.3, 1.45, 1.7], s: [1.05, 0.5, 1.05] });
   B.add(cyl(0.16, 0.16, 0.03, 12), P.cream, { p: [0.3, 1.45, 1.86], s: [1, 1, 0.8] });
   for (const s of [-1, 1]) {
     B.add(sph(0.16, 12, 9), '#FFF3C4', { p: [s * 0.55, 0.85, 2.5], s: [1, 1, 0.5], fx: GLOSS + 0.8 });
-    B.add(tor(0.17, 0.035, 6, 14), P.chrome, { p: [s * 0.55, 0.85, 2.52], fx: GLOSS });
+    B.add(tor(0.17, 0.035, 6, 14), ROAD_GREY, { p: [s * 0.55, 0.85, 2.52], fx: GLOSS });
     B.add(rbox(0.06, 0.4, 0.6, 0.03, 2), GLASS, { p: [s * 0.86, 1.3, 1.0], fx: GLOSS });
   }
-  B.add(rbox(1.75, 0.18, 0.2, 0.08, 2), P.chrome, { p: [0, 0.48, 2.55], fx: GLOSS });
+  B.add(rbox(1.75, 0.18, 0.2, 0.08, 2), ROAD_GREY, { p: [0, 0.48, 2.55], fx: GLOSS });
   B.add(rbox(1.8, 0.2, 2.2, 0.06, 2), P.walnut, { p: [0, 0.55, -0.9], fx: PAPER });
   for (const [x, yy, z] of [[-0.42, 0.95, -0.4], [0.42, 0.95, -0.4], [-0.42, 0.95, -1.4], [0.42, 0.95, -1.4], [0, 1.6, -0.9]]) {
     B.add(rbox(0.78, 0.6, 0.86, 0.04, 2), '#C79A62', { p: [x, yy, z], r: [0, (hash(x, z) - 0.5) * 0.15, 0], fx: PAPER });

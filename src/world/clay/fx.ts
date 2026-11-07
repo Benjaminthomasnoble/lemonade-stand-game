@@ -114,8 +114,8 @@ export interface Fx {
   pellets(at: THREE.Vector3, n?: number): void;
   /** White water puffs (a ship's bow, a dropped crate in the bay). */
   splash(at: THREE.Vector3, n?: number): void;
-  /** Rotor wash: grass tufts on the lawn just outside `radius`, pressed flat outward in a ring, then springing back. */
-  ring(at: THREE.Vector3, radius?: number): void;
+  /** Rotor wash: grass tufts on the lawn just outside `radius`, pressed flat outward in a ring, then springing back; none toward `street` (a unit direction). */
+  ring(at: THREE.Vector3, radius?: number, street?: THREE.Vector3): void;
   /** A sound word on a cut-paper starburst, coloured for the side that landed it. */
   word(at: THREE.Vector3, text: string, fill: string, edge?: string, size?: number): void;
   update(dt: number): void;
@@ -139,11 +139,11 @@ export function createFx(scene: THREE.Scene): Fx {
   const pellets = new Pool(scene, pelletG, 60, [P.lemon, '#FFFFFF', P.lemon, P.green, P.blush]);
   const splash = new Pool(scene, puffG, 24, ['#FFFFFF', '#E8F7F8']);
   // Rotor wash: grass tufts on the lawn around the pad, pressed flat outward in a ring, then springing back
-  const BLADES = 48;
+  const BLADES = 72;
   const blades = new THREE.InstancedMesh(bladeG, kit().fig, BLADES);
   blades.frustumCulled = false;
   blades.visible = false;
-  for (let i = 0; i < BLADES; i++) { blades.setMatrixAt(i, ZERO); blades.setColorAt(i, new THREE.Color(shadeHex(P.green, i % 3 ? 0.08 : 0.14))); }
+  for (let i = 0; i < BLADES; i++) { blades.setMatrixAt(i, ZERO); blades.setColorAt(i, new THREE.Color(shadeHex(P.green, i % 3 ? 0.14 : 0.22))); }
   scene.add(blades);
   const tufts: ({ x: number; z: number; yaw: number; r0: number; age: number; life: number } | null)[] = Array(BLADES).fill(null);
   let nextTuft = 0;
@@ -161,7 +161,7 @@ export function createFx(scene: THREE.Scene): Fx {
       const r = b.r0 + Math.min(1, u * 2.5) * 0.9;
       q.setFromEuler(eY.set(-(0.05 + (1 - press) * 1.1), b.yaw, 0));
       const sz = u > 0.8 ? 1 - (u - 0.8) / 0.2 : 1;
-      blades.setMatrixAt(i, m4.compose(v.set(b.x + Math.sin(b.yaw) * r, 0.04, b.z + Math.cos(b.yaw) * r), q, s3.setScalar(sz * 1.3)));
+      blades.setMatrixAt(i, m4.compose(v.set(b.x + Math.sin(b.yaw) * r, 0.13, b.z + Math.cos(b.yaw) * r), q, s3.setScalar(sz * 1.9)));
     });
     blades.instanceMatrix.needsUpdate = true;
     if (!live) blades.visible = false;
@@ -188,12 +188,14 @@ export function createFx(scene: THREE.Scene): Fx {
     stars(at, n = 3) { burst(stars, at, n, { speed: 2.4, up: 3, life: 0.9, size: 1, grav: 6, spin: 6 }); },
     pellets(at, n = 16) { burst(pellets, at, n, { speed: 2.6, up: 5, life: 1.6, size: 1, grav: 10, spin: 4 }); },
     splash(at, n = 6) { burst(splash, at, n, { speed: 1.4, up: 2.2, life: 0.8, size: 0.5, grav: 7, spin: 2 }); },
-    ring(at, radius = 2.2) {
-      // a ring of tufts on the grass just outside the radius (never on the pad itself)
+    ring(at, radius = 2.2, street) {
+      // a ring of tufts on the grass just outside the radius (never on the pad itself, nor out over the street)
       blades.visible = true;
-      const n = Math.round(16 * few), off = rnd() * 6;
+      const n = Math.round(28 * few), off = rnd() * 6;
       for (let i = 0; i < n; i++) {
-        tufts[nextTuft] = { x: at.x, z: at.z, yaw: off + (i / n) * Math.PI * 2 + (rnd() - 0.5) * 0.2, r0: radius + 0.15 + rnd() * 0.25, age: 0, life: 1.1 + rnd() * 0.3 };
+        const yaw = off + (i / n) * Math.PI * 2 + (rnd() - 0.5) * 0.2;
+        if (street && Math.sin(yaw) * street.x + Math.cos(yaw) * street.z > 0.35) continue;
+        tufts[nextTuft] = { x: at.x, z: at.z, yaw, r0: radius + 0.15 + rnd() * 0.3, age: 0, life: 1.1 + rnd() * 0.3 };
         nextTuft = (nextTuft + 1) % BLADES;
       }
     },

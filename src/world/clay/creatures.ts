@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { Baker, sph, cap, cyl, cone, box, tor, rbox, lumpy, snake, GLOSS, PAPER } from './core.ts';
 import { P } from './palette.ts';
+import { DRESS } from './standKit.ts';
 import { kit } from './kit.ts';
 
 const INK = '#2E2A4F';
@@ -101,8 +102,10 @@ export function dog(): THREE.Group {
   return g;
 }
 
-/** Honkers, the Guard Goose: white clay goose in a striped card neckerchief. */
-export function goose(): THREE.Group {
+/** Honkers, the Guard Goose: white clay goose in a striped card neckerchief in his owner's colours (lemon and white for yours). */
+export function goose(owner: keyof typeof DRESS = 'player'): THREE.Group {
+  // the same trim as the gadget goose (defenses.ts): lemon and white on yours, the owner's main and accent on a rival's
+  const bibA = owner === 'player' ? P.lemon : DRESS[owner].main, bibB = owner === 'player' ? '#FFFFFF' : DRESS[owner].accent;
   const g = new THREE.Group();
   const B = new Baker();
   B.add(lumpy(sph(0.3, 16, 12), 0.015, 5, 7), '#FFFDF6', { p: [0, 0.38, 0], s: [0.85, 0.75, 1.25] });
@@ -117,11 +120,11 @@ export function goose(): THREE.Group {
   neck.position.set(0, 0.5, 0.25);
   const NB = new Baker();
   NB.add(cap(0.075, 0.32, 4, 10), '#FFFDF6', { p: [0, 0.2, 0.02], r: [0.2, 0, 0] });
-  // the striped card neckerchief (he's your goose: lemon and white), a band and a big triangular bib
+  // the striped card neckerchief in the owner's colours, a band and a big triangular bib
   // under the chin with four bold stripes, so it reads at Street View
-  for (let k = 0; k < 6; k++) NB.add(new THREE.CylinderGeometry(0.105, 0.115, 0.05, 14, 1, true, (k / 6) * Math.PI * 2, Math.PI / 3), k % 2 ? '#FFFFFF' : P.lemon, { p: [0, 0.04, 0.02], fx: PAPER });
-  NB.add(cone(0.2, 0.34, 3), '#FFFFFF', { p: [0, -0.1, 0.12], r: [Math.PI + 0.25, 0, 0], s: [1, 1, 0.22], fx: PAPER });
-  for (let k = 0; k < 4; k++) NB.add(box(0.3 * (1 - k * 0.24), 0.045, 0.02), P.lemon, { p: [0, 0.02 - k * 0.075, 0.17 - k * 0.018], r: [0.25, 0, 0], fx: PAPER });
+  for (let k = 0; k < 6; k++) NB.add(new THREE.CylinderGeometry(0.105, 0.115, 0.05, 14, 1, true, (k / 6) * Math.PI * 2, Math.PI / 3), k % 2 ? bibB : bibA, { p: [0, 0.04, 0.02], fx: PAPER });
+  NB.add(cone(0.2, 0.34, 3), bibB, { p: [0, -0.1, 0.12], r: [Math.PI + 0.25, 0, 0], s: [1, 1, 0.22], fx: PAPER });
+  for (let k = 0; k < 4; k++) NB.add(box(0.3 * (1 - k * 0.24), 0.045, 0.02), bibA, { p: [0, 0.02 - k * 0.075, 0.17 - k * 0.018], r: [0.25, 0, 0], fx: PAPER });
   neck.add(part(NB));
   const head = new THREE.Group();
   head.position.set(0, 0.42, 0.06);

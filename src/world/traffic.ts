@@ -11,7 +11,7 @@ import type { GameState } from '../sim/economy.ts';
 import { DISTRICTS, PLOT_SPACING, SEA_X, SEA_Z } from '../sim/map.ts';
 import { truck, bike, blimp, type Truck, type Bike } from './clay/rides.ts';
 import { kit } from './clay/kit.ts';
-import { P } from './clay/palette.ts';
+import { P, SKINS } from './clay/palette.ts';
 import { makeCustomer, type SegmentLook } from './clay/cast.ts';
 import { freezeFigures } from './clay/figureBatch.ts';
 
@@ -19,7 +19,7 @@ const NEAR = 70; // only a street this close to the camera's target gets traffic
 const LANE = 1.8;
 const BLIMP_TIER = 5; // M5, The Lemon Blimp
 
-interface Car { v: Truck | Bike; kind: 'truck' | 'bike'; x: number; dir: 1 | -1; speed: number; z: number; x0: number; x1: number; brake: number; go: number; wait: number }
+interface Car { v: Truck | Bike; kind: 'truck' | 'bike'; rider: THREE.Group | null; x: number; dir: 1 | -1; speed: number; z: number; x0: number; x1: number; brake: number; go: number; wait: number }
 
 export interface TrafficScene {
   /** A brawl or VIP pickup is playing: the street clears until it ends. */
@@ -32,27 +32,42 @@ export interface Traffic { update(s: GameState, dt: number, target: THREE.Vector
 const BLIMP_Y = 64; // above the mid-zoom cameras
 const BLIMP_NEAR = 80;
 
-/** A rider for an ice-cream bike, pedalling hunched over the bars, frozen into one draw. */
-function rider(i: number): THREE.Object3D {
+/**
+ * A rider for an ice-cream bike, hunched over the bars, in two pedal poses (one draw each, frozen):
+ * the traffic swaps them on twos while the bike rolls, and on a stop the rider waves.
+ */
+function rider(i: number): THREE.Group {
   const seg: SegmentLook[] = ['kids', 'students', 'families'];
-  const { fig } = makeCustomer(seg[i % seg.length], i + 3, kit().fig, { detail: 0.5 });
-  fig.pose({ lean: 0.35, lL: -1.25, lR: -0.55, aL: [-1.35, 0.15], aR: [-1.35, -0.15], headTilt: -0.25 }, 0);
   const g = new THREE.Group();
-  g.add(fig.root);
-  fig.root.updateMatrixWorld(true);
-  const hip = fig.legs[0].getWorldPosition(new THREE.Vector3());
-  const s = 0.62;
-  fig.root.scale.setScalar(s);
-  fig.root.position.set(0, 1.26 - hip.y * s, -0.3);
-  freezeFigures(g, kit().fig);
+  const poses = [
+    { lean: 0.35, lL: -1.25, lR: -0.55, aL: [-1.35, 0.15], aR: [-1.35, -0.15], headTilt: -0.25 },
+    { lean: 0.35, lL: -0.55, lR: -1.25, aL: [-1.35, 0.15], aR: [-1.35, -0.15], headTilt: -0.2 },
+    { lean: 0.15, lL: -0.9, lR: -0.9, aL: [-1.35, 0.15], aR: [-2.8, -0.5], headTilt: -0.05 }, // a wave
+  ] as const;
+  const frames = poses.map((pose) => {
+    const { fig } = makeCustomer(seg[i % seg.length], i + 3, kit().fig, { detail: 0.5 });
+    fig.pose({ ...pose, aL: [...pose.aL] as [number, number], aR: [...pose.aR] as [number, number] }, 0);
+    const holder = new THREE.Group();
+    holder.add(fig.root);
+    fig.root.updateMatrixWorld(true);
+    const hip = fig.legs[0].getWorldPosition(new THREE.Vector3());
+    const sc = 0.62;
+    fig.root.scale.setScalar(sc);
+    fig.root.position.set(0, 1.26 - hip.y * sc, -0.3);
+    freezeFigures(holder, kit().fig);
+    g.add(holder);
+    return holder;
+  });
+  g.userData.frames = frames;
+  frames.forEach((h, k) => (h.visible = k === 0));
   return g;
 }
 
 export function createTraffic(scene: THREE.Scene): Traffic {
   const cabs = [P.terra, P.teal, '#9C8AD0', P.blush];
   const cars: Car[] = [
-    ...cabs.map((c) => ({ v: truck(c), kind: 'truck' as const })),
-    ...[P.blush, P.green, '#9C8AD0'].map((c, i) => { const v = bike(c); v.group.add(rider(i)); return { v, kind: 'bike' as const }; }),
+    ...cabs.map((c, i) => ({ v: truck(c, SKINS[(i * 3 + 1) % SKINS.length]), kind: 'truck' as const, rider: null as THREE.Group | null })),
+    ...[P.blush, P.green, '#9C8AD0'].map((c, i) => { const v = bike(c); const r = rider(i); v.group.add(r); return { v, kind: 'bike' as const, rider: r }; }),
   ].map((c, i) => {
     c.v.group.visible = false;
     c.v.group.scale.setScalar(c.kind === 'truck' ? 0.9 : 0.8);
@@ -142,6 +157,12 @@ export function createTraffic(scene: THREE.Scene): Traffic {
         }
         const roll = c.wait > 0 ? 0 : (c.speed * step) / 0.45;
         for (const w of c.v.wheels) w.rotation.x += roll;
+        if (c.rider) {
+          // pedal on twos while rolling; waiting at the end of the street, a wave
+          const fr = c.rider.userData.frames as THREE.Object3D[];
+          const k = c.wait > 0 ? 2 : roll > 0 ? Math.floor(f / 2) % 2 : 0;
+          fr.forEach((h, j) => (h.visible = j === k));
+        }
       }
     },
   };

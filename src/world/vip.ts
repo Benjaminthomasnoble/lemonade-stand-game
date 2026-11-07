@@ -43,6 +43,8 @@ interface Job {
   /** Choppers: the cap's rim radius and the lawn under it (the wash flattens the grass outside the rim). */
   ring?: number;
   ground?: THREE.Vector3;
+  /** Toward the street: the wash flattens no grass that way (it's pavement). */
+  street?: THREE.Vector3;
   /** Ships: the model's full scale (it grows in from the far water and shrinks away). */
   scale?: number;
 }
@@ -101,26 +103,44 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
           return { pos: pad.clone().setY(pad.y + 8 * Math.min(1, k * 2)).lerp(to, e), yaw: yaw0 - 0.8 * k, sq: -0.12 * Math.max(0, 1 - k * 3), tilt: -0.2 * Math.min(1, k * 3) };
         };
         scene.add(heli.group, heli.line);
-        job = { kind, obj: heli.group, heli, t: 0, path, length: 13.5, pad, horns: [], ring: capR, ground: at(0, 0, -2.5) };
+        job = { kind, obj: heli.group, heli, t: 0, path, length: 13.5, pad, horns: [], ring: capR, ground: at(0, 0, -2.5), street: at(0, 0, 1).sub(at(0, 0, 0)).normalize() };
       } else {
         const sk = SHIPS[Math.max(0, Math.min(2, level - 1))];
         const sh = ship(big && sk === 'yacht' ? 'cruise' : sk);
         const scale = 2.2; // the soap ships are built small; scale them to the old berths
         sh.group.scale.setScalar(scale);
         const len = sh.length * scale;
-        const pierLen = 12 + level * 6, pierW = 3 + level;
+        const pierW = 3 + level;
         const side = pierW / 2 + (sh.beam * scale) / 2 + 0.4;
-        // moored alongside the pier, its bow well clear of the beach's foam line
         const margin = len / 2 + 3;
-        const berth = onPlinth(at(side, 0, -(Math.max(pierLen * 0.55, 10) + len / 2)), margin);
+        // Which water? The pier's own way out if it points at the sea, else the nearest shore (the Yacht Marina's
+        // water is east of it). The ship moors at the pier head, its bow 5 units past the foam line, beside the pier's line.
+        const root = at(0, 0, 0), pierDir = at(0, 0, -1).sub(root).normalize();
+        const shores = [
+          { dir: new THREE.Vector3(0, 0, 1), dist: SEA_Z - root.z },
+          { dir: new THREE.Vector3(1, 0, 0), dist: SEA_X - root.x },
+        ].filter((c) => c.dist > -20);
+        const pick = shores.find((c) => c.dir.dot(pierDir) > 0.7 && c.dist < 60) ?? shores.sort((a, b) => a.dist - b.dist)[0] ?? { dir: pierDir, dist: 12 };
+        const seaward = pick.dir.clone();
+        const perp = new THREE.Vector3(-seaward.z, 0, seaward.x);
+        // The town pins a turned dock's tip (pier.userData.moor, world space): moor alongside it, bow 4 back from the tip.
+        let moor: THREE.Vector3 | undefined;
+        view.root.traverse((o) => { if (!moor && o.userData.moor instanceof THREE.Vector3) moor = o.userData.moor; });
+        if (moor) {
+          const out = moor.clone().sub(root).setY(0);
+          const best = shores.slice().sort((a, b) => b.dir.dot(out) - a.dir.dot(out))[0];
+          if (best) seaward.copy(best.dir);
+          perp.set(-seaward.z, 0, seaward.x);
+        }
+        // Beside a pinned dock, take the -perp side: the town's own soap yacht lies on the +perp side of the Yacht Marina pier.
+        const lateral = moor ? -side : side * (Math.sign(at(1, 0, 0).sub(root).dot(perp)) || 1); // else the same side of the pier as before
+        const berth = onPlinth(moor
+          ? moor.clone().setY(root.y).addScaledVector(seaward, len / 2 - 4).addScaledVector(perp, lateral)
+          : root.clone().addScaledVector(seaward, Math.max(0, pick.dist) + 5 + len / 2).addScaledVector(perp, lateral), margin);
+        const moorYaw = Math.atan2(-seaward.x, -seaward.z); // bow toward the land
         // The whole voyage stays on the resin: it slides in along the coast, swings round to the berth,
         // and leaves the other way, growing out of the far water and shrinking back into it (never over the tablecloth).
-        const out = at(side, 0, -(pierLen + len)), seaward = out.clone().sub(at(side, 0, 0)).normalize();
-        // push the berth out until the bow clears the foam line by a clear gap of water
-        const bow = berth.clone().addScaledVector(seaward, -len / 2);
-        const short = Math.abs(seaward.z) > Math.abs(seaward.x) ? (SEA_Z + 5 - bow.z) * Math.sign(seaward.z) : (SEA_X + 5 - bow.x) * Math.sign(seaward.x);
-        if (short > 0) onPlinth(berth.addScaledVector(seaward, short), margin);
-        const along = new THREE.Vector3(-seaward.z, 0, seaward.x);
+        const along = perp;
         const turn = onPlinth(berth.clone().addScaledVector(seaward, len * 0.9), margin);
         const inFrom = onPlinth(turn.clone().addScaledVector(along, 70).addScaledVector(seaward, 6), margin);
         const outTo = onPlinth(turn.clone().addScaledVector(along, -70).addScaledVector(seaward, 6), margin);
@@ -132,8 +152,8 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
             return { pos: bez(inFrom, turn, berth, e), yaw: heading(inFrom, turn, berth, e), sq: 0, tilt: 0, grow: Math.min(1, t / 1.2) };
           }
           // tying up: the hull squashes a hair as it nudges the pier
-          if (t < 6.6) { const k = (t - 6) / 0.6; return { pos: berth.clone(), yaw: yaw0, sq: Math.sin(k * Math.PI) * 0.06, tilt: 0 }; }
-          if (t < 11) return { pos: berth.clone().setY(Math.sin(t * 2) * 0.05), yaw: yaw0, sq: 0, tilt: Math.sin(t * 1.4) * 0.02 };
+          if (t < 6.6) { const k = (t - 6) / 0.6; return { pos: berth.clone(), yaw: moorYaw, sq: Math.sin(k * Math.PI) * 0.06, tilt: 0 }; }
+          if (t < 11) return { pos: berth.clone().setY(Math.sin(t * 2) * 0.05), yaw: moorYaw, sq: 0, tilt: Math.sin(t * 1.4) * 0.02 };
           // backs out and steams off along the coast
           const k = (t - 11) / 6, e = k * k;
           return { pos: bez(berth, turn, outTo, e), yaw: heading(berth, turn, outTo, e) + (e < 0.3 ? Math.PI * (1 - e / 0.3) : 0), sq: -0.04 * Math.max(0, 1 - k * 4), tilt: 0, grow: Math.min(1, (17 - t) / 1.2) };
@@ -173,7 +193,7 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
         h.hang(top);
         // rotor wash flattens the clay grass tufts on the lawn into rings, just outside the cap's rim
         const low = h.group.position.y - job.pad.y;
-        if (low < 6 && job.t - ringAt > 0.4) { ringAt = job.t; fx.ring(job.ground!, job.ring! + 0.2 + Math.max(0, low) * 0.15); if (low < 1) fx.dust(job.pad, 3, 2.2); }
+        if (low < 6 && job.t - ringAt > 0.4) { ringAt = job.t; fx.ring(job.ground!, job.ring! + 0.2 + Math.max(0, low) * 0.15, job.street); if (low < 1) fx.dust(job.pad, 3, 2.2); }
       } else if (job.ship) {
         const s = job.ship;
         s.hull.scale.set(1 + p.sq * 0.4, 1 - p.sq, 1 + p.sq * 0.2);

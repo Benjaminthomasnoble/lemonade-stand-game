@@ -41,6 +41,9 @@ import { createBugle } from './ui/bugle.ts';
 import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
+import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady } from './sim/scenes.ts';
+import { takeCall } from './sim/phone.ts';
+import { storyAfterAct, storyDateline, storyHeadline } from './sim/story.ts';
 import { createGullFlight } from './world/gullflight.ts';
 
 // Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
@@ -120,17 +123,15 @@ async function main() {
   window.addEventListener('pointerdown', wake, { once: true });
   window.addEventListener('keydown', wake, { once: true });
   const won = (b: BattleReport) => (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
-  /** A raid warning lands: the Raid Incoming stinger, the boss on the phone, Lottie's fist. */
-  const raidWarned = (a: Alert) => {
-    const boss = state.raids.find((r) => r.id === a.raid)?.attacker;
+  /** A raid warning lands: the Raid Incoming stinger and Lottie's fist (the boss's call rings from the sim's phone queue). */
+  const raidWarned = () => {
     stinger('raid-incoming');
-    if (boss && boss !== 'player' && boss in BOSS) phone.ring(boss as RivalId, pick(BOSS[boss as RivalId].warn));
     lottieSays('raidComing', { react: 'fist' });
   };
   /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. A VIP client's first visit
    * pauses and waits for its card's Watch (see watchVip); dismissing the card skips the show. */
   const onAlert = (a: Alert) => {
-    if (a.kind === 'raid' || a.kind === 'delivery') raidWarned(a);
+    if (a.kind === 'raid' || a.kind === 'delivery') raidWarned();
     if (isMajor(a) && autoPauses(options, state, a.kind)) { pause(); if (a.kind === 'vip') vipPaused = a.id; }
   };
   /** A VIP card's Watch: the camera flies to the pad or pier and the arrival plays. A first visit holds the clock
@@ -139,6 +140,7 @@ async function main() {
     if (!a.plot || !a.scene || !bay.views[a.plot]) return;
     if (flight.active()) { flight.stop(); gullBtn.classList.remove('on'); }
     hud.ledger = false;
+    cutScene(); // the show takes the screen: a story scene stops
     crowd.clear();
     focusPlot(a.plot, a.scene.kind === 'ship' ? 60 : 45);
     vip.play(a.scene.kind, bay.views[a.plot], a.scene.big, state.plots[a.plot].facility?.level ?? 1, a.scene.client);
@@ -161,7 +163,7 @@ async function main() {
     state = s;
     state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`;
     hud.inspected = null; vipResume = 0; vipPaused = ''; acc = 0; savedHour = -1;
-    crowd.clear(); stopFights(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
+    crowd.clear(); stopFights(); scenes.stop(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
     if (midDay(state)) pause(); else resume();
     hud.toast(line);
   };
@@ -172,8 +174,8 @@ async function main() {
     crowd.clear();
     morningLine();
     prepWait = 0;
-    const shot = bugle.best(state.day - 1);
-    if (shot) bugle.show(shot);
+    const shot = bugle.best(state.day - 1), act = storyHeadline(state);
+    if (shot) bugle.show({ ...shot, edition: storyDateline(state), headline: act ? `${act[0]} ${act[1].toUpperCase()}` : shot.headline });
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);
@@ -287,8 +289,35 @@ async function main() {
   const scenes = createScenes(world.scene, {
     say: (who, line, speaker, color) => { bubbles.say(who, line, { who: speaker, color, height: 2.1 }); audio.babble(line, speaker === 'Dex' ? 1.2 : 0.9, 'flat'); },
     lottie: (line, react) => lottieSays('morning', { text: line, react }),
-    ring: () => phone.ring('sourwood', 'I sent your grandmother a reminder, dear.'),
+    // No ring hook: a scene's follow-up call (Vera after the Steward) is queued by the sim when the scene ends.
+    done: (id) => { if (playingScene(state)?.world === id) finishScene(false); },
+    driven: true, // the story's scene queue (src/sim/scenes.ts) says when
   });
+
+  // Story scenes wait for a lull: Morning Prep with nothing else on screen. One plays at a time, under a minute.
+  let sceneT = 0, sceneWorld = false;
+  const busy = () => !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || battle.active() || vip.active() || !!vipResume || phone.ringing() || flight.active() || !!document.querySelector('.frontpage');
+  const lull = () => !busy() && !scenes.active() && speed !== 0; // a paused game starts no scene
+  const startScene = () => {
+    const sc = beginScene(state);
+    if (!sc) return;
+    sceneT = 0;
+    crowd.clear();
+    focusPlot(LOTTIES_CORNER);
+    sceneWorld = !!sc.world && !!bay.views[LOTTIES_CORNER]?.stand;
+    if (sceneWorld) scenes.play(sc.world as SceneId);
+    saveGame(state);
+  };
+  const finishScene = (skipped: boolean) => {
+    if (skipped) scenes.stop();
+    endScene(state, skipped);
+    sceneT = 0;
+    flushNews();
+    if (state.phase === 'prep' || state.phase === 'report') saveGame(state);
+  };
+  /** A fight replay or a VIP pickup cuts a scene short. */
+  const cutScene = () => { if (playingScene(state)) finishScene(true); };
+  let callsQuietUntil = 0; // a rank-up's fanfare outranks a boss's call
 
   const vip = createVip(world.scene, { onHorn: () => audio.horn() });
   const traffic = createTraffic(world.scene);
@@ -345,6 +374,7 @@ async function main() {
   }, { phone: world.quality === 'phone' });
   /** Play a brawl. live: it's happening now, so the clock runs at fight speed and the next one waits its turn. */
   const playBattle = (b: BattleReport, live = false) => {
+    cutScene();
     crowd.clear();
     focusPlot(b.target, 20);
     liveFight = live;
@@ -356,11 +386,6 @@ async function main() {
       snap(battleHeadline(b).toUpperCase(), 5);
       if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
       else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
-      const rival = (b.attacker === 'player' ? b.defender : b.defender === 'player' ? b.attacker : null) as RivalId | null;
-      if (rival && rival in BOSS) {
-        const mood = b.attacker === 'player' ? (won(b) ? 'smashed' : 'gloat') : (won(b) ? 'sore' : 'gloat');
-        setTimeout(() => phone.ring(rival, pick(BOSS[rival][mood])), 1200);
-      }
     });
   };
 
@@ -387,6 +412,7 @@ async function main() {
       case 'evening': hud.ledger = false; eveningWait = 0; break;
       case 'ledger': hud.ledger = true; break;
       case 'sleep': {
+        cutScene();
         resume(); // a skip means go; the next big alert pauses again
         stopFights();
         crowd.clear();
@@ -435,7 +461,7 @@ async function main() {
         clearSave();
         state = freshRun(a.settings);
         hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; vipPaused = ''; bubbles.clear();
-        crowd.clear(); stopFights(); bay.sync(state); focusPlot(state.selected);
+        crowd.clear(); stopFights(); scenes.stop(); bay.sync(state); focusPlot(state.selected);
         break;
       }
       case 'keepSqueezing': keepSqueezing(state); break;
@@ -509,8 +535,16 @@ async function main() {
       case 'decline': declineOrder(state, a.id); break;
       case 'entry': setTasteOffEntry(state, a); break;
       case 'sponsor': sponsorFestival(state, a.festival); break;
+      case 'skipScene': finishScene(true); break;
+      case 'sceneReply': {
+        replyScene(state, a.text);
+        const kid = bay.views[LOTTIES_CORNER]?.stand?.kid;
+        if (kid) bubbles.say(kid, a.text, { who: 'You', height: 1.6 });
+        break;
+      }
       case 'refresh': break;
     }
+    storyAfterAct(state); // a goal met by this tap ticks off now
     bay.sync(state);
     bay.select(hud.inspected);
     flushNews();
@@ -555,7 +589,7 @@ async function main() {
     while (state.news.length) {
       const n = state.news.shift()!;
       if (cards.has(n)) continue;
-      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); }
+      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); callsQuietUntil = performance.now() + 4500; }
       if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) stinger('squeezed-out');
       hud.toast(n);
     }
@@ -709,7 +743,7 @@ async function main() {
       if (midDay(state) && hour !== savedHour) { savedHour = hour; saveGame(state); }
     } else acc = 0;
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it.
-    if (state.phase === 'prep' && options.autoContinue && !frozen && !paper && !state.outcome && !(state.redDays && autoPauses(options, state, 'red'))) {
+    if (state.phase === 'prep' && options.autoContinue && !frozen && !paper && !state.outcome && !playingScene(state) && !sceneReady(state) && !(state.redDays && autoPauses(options, state, 'red'))) {
       prepWait += realDt;
       if (prepWait >= AUTO_CONTINUE_SECONDS) act({ type: 'open' });
     } else if (state.phase !== 'prep') prepWait = 0;
@@ -731,6 +765,17 @@ async function main() {
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');
     scenes.update(state, frozen ? 0 : dt, bay.views);
+    const sc = playingScene(state);
+    if (sc) {
+      if (!frozen) sceneT += dt;
+      if ((!sceneWorld && sceneT >= sc.seconds) || sceneT >= SCENE_MAX_SECONDS) finishScene(false);
+    } else if (sceneReady(state) && lull()) startScene();
+    hud.sceneTime = sceneT;
+    // Boss calls ring at a lull too, one a game day (src/sim/phone.ts picks which); never over a scene, fight or pickup.
+    if (!busy() && !playingScene(state) && !sceneReady(state) && performance.now() > callsQuietUntil) {
+      const call = takeCall(state);
+      if (call) { phone.ring(call.who, call.text || pick(BOSS[call.who][call.mood])); if (state.phase === 'prep' || state.phase === 'report') saveGame(state); }
+    }
     if (state.phase === 'report' || state.phase === 'night') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) vipResume = 0;

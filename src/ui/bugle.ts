@@ -2,7 +2,7 @@
 // moment from the 3D scene (a rush, an upgrade, a raid held, a helicopter)
 // and the dawn paper prints it in halftone. Click to put the paper down.
 
-export interface Snapshot { url: string; headline: string; score: number; day: number }
+export interface Snapshot { url: string; headline: string; score: number; day: number; edition?: string /* the campaign's act, for the dateline */ }
 
 export interface Bugle {
   /** Keep this photo if it beats today's best moment so far. */
@@ -54,7 +54,7 @@ export function createBugle(root: HTMLElement): Bugle {
         const el = document.createElement('div');
         el.className = 'frontpage';
         el.innerHTML = `<div class="paper"><div class="mast">The Citrine Bay Bugle</div><div class="dateline"></div><img alt=""><div class="head"></div><div class="tap">tap to put it down</div></div>`;
-        (el.querySelector('.dateline') as HTMLElement).textContent = `Morning edition · Day ${shot.day + 1} · 5¢`;
+        (el.querySelector('.dateline') as HTMLElement).textContent = `Morning edition · ${shot.edition ? `${shot.edition} · ` : ''}Day ${shot.day + 1} · 5¢`;
         (el.querySelector('img') as HTMLImageElement).src = photo;
         (el.querySelector('.head') as HTMLElement).textContent = shot.headline;
         const close = () => { if (!el.isConnected) return; el.classList.add('leaving'); setTimeout(() => el.remove(), 300); };

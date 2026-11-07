@@ -17,6 +17,8 @@ export interface SceneHooks {
   lottie(line: string, react?: 'cheer' | 'fist'): void;
   ring?(): void;
   done?(id: SceneId): void;
+  /** The story queues the scenes (src/sim/scenes.ts) and calls play(): no triggers of this module's own. */
+  driven?: boolean;
 }
 
 export interface Scenes {
@@ -24,6 +26,8 @@ export interface Scenes {
   /** Start a scene now (tests and debugging). */
   play(id: SceneId): void;
   active(): SceneId | null;
+  /** Cut the playing scene short (skipped): the actor leaves at once, no done hook. */
+  stop(): void;
 }
 
 const key = (runId: string | undefined) => `lemonade-stand-wars/scenes/${runId ?? 'run'}`;
@@ -84,10 +88,11 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
   return {
     play(id) { forced = id; },
     active: () => current?.id ?? null,
+    stop() { forced = null; if (current) scene.remove(current.ctx.actor); current = null; },
     update(s, dt, views) {
       if (!current) {
         if (forced) { const f = forced; forced = null; start(f, views); return; }
-        if (s.phase !== 'open') return;
+        if (hooks.driven || s.phase !== 'open') return;
         const done = seen(s.runId);
         const minute = s.minute;
         // Day 5, mid-morning: the Steward's "reminder" (spec Act 1).

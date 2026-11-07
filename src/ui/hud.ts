@@ -16,8 +16,8 @@ import {
   type FacilityKind, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
-  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, dominationProgress, ENDINGS, everyLastPlot,
-  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition, deliveryRaidRisk, raidPauses,
+  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, ENDINGS, everyLastPlot,
+  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   tasteOffToday, type FestivalId,
@@ -40,6 +40,8 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
+import { storyDateline, storyHeadline } from '../sim/story.ts';
+import { goalCard, sceneTicket, withScene } from './story.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -106,6 +108,8 @@ export type Action =
   | { type: 'resetKeys' }
   | { type: 'turn'; dir: 1 | -1 } // the corner's quarter-turn buttons (Q and E)
   | { type: 'priceCeiling' } // set the selected stand's price to its ceiling
+  | { type: 'skipScene' }
+  | { type: 'sceneReply'; text: string }
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -120,6 +124,8 @@ function clock(min: number) {
 }
 
 function headline(s: GameState): [string, string] {
+  const act = storyHeadline(s); // a new act leads the morning paper
+  if (act) return act;
   if (s.day === 1) return ["SCHOOL'S OUT!", 'Grandkid opens on Maple Row'];
   const cal = calendarHeadline(s); if (cal) return cal;
   const pool: Record<string, [string, string][]> = {
@@ -188,6 +194,8 @@ export interface Hud {
   menu: MenuView | null;
   /** Options: the action waiting for its new key. */
   remap: KeyAction | null;
+  /** Seconds into the story scene that's playing (main.ts keeps it). */
+  sceneTime: number;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -221,17 +229,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     playing: false,
     menu: null,
     remap: null,
+    sceneTime: 0,
     render(s, speed) {
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
-        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: headline(s), goals: goalsOf(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
+        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: headline(s), goals: lottieGoals(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
       set(topEl, modal && hud.setup ? '' : topbar(s));
       set(dawnEl, !modal && s.phase === 'prep' ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(headline(s)[0], 'cl-big')}${tape(headline(s)[1], 'cl-sub')}</div>` : '');
-      set(feedEl, modal ? '' : feed(s));
+      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie())));
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
       set(plotEl, hud.inspected && !(s.phase === 'report' && hud.ledger) && !modal ? plotCard(s, hud.inspected) : '');
@@ -371,6 +380,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'loadSlot': onAction({ type: 'loadSlot', slot: Number(d.slot), dawn: d.dawn === '1' }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
       case 'entry': case 'sponsor': onAction(worldAction(d)); break;
+      case 'skipScene': onAction({ type: 'skipScene' }); break;
+      case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -406,8 +417,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const pct = (v: number) => (hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 1);
     const now = pct(ss), peak = Math.max(now, pct(s.peakScore));
     const threat = threatLevel(s);
-    const goals = goalsOf(s);
-    const goal = goals.find((g) => !g.done) ?? goals[0];
     const goalsOpen = hud.menu === 'goals';
     const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
     const folded = phone && !unfolded;
@@ -416,9 +425,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const mode = `${MODES[s.settings.mode].label}${isEndless(s) && s.settings.mode !== 'endless' ? ' · Endless Summer' : ''} · ${difficultyLabel(s.settings.difficulty, s.settings.custom)}${s.settings.ironman ? ' · Ironman' : ''}`;
     const time = s.phase === 'open' || s.phase === 'night' ? clock(s.minute) : '';
     const cash = `<div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${esc(cashTip(s))}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>`;
-    const day = `<div class="cl-chip cl-day" title="${esc(dayTip(s, mode))}"${opens('bugle')}>${ART.egg()}${tape(time && phone ? time : time ? `Day ${s.day} · ${time}` : `Day ${s.day}`)}</div>`;
+    const dateline = storyDateline(s); // the campaign's act
+    const day = `<div class="cl-chip cl-day" title="${esc(dayTip(s, mode) + (dateline ? `\n${dateline}` : ''))}"${opens('bugle')}>${ART.egg()}${tape(time && phone ? time : time ? `Day ${s.day} · ${time}` : `Day ${s.day}`)}</div>`;
     const fold = (open: boolean) => `<button class="cl-knob-s" data-action="fold" data-testid="topbar-fold" title="${open ? 'Fold the top bar' : 'The whole top bar'}" aria-label="${open ? 'Fold the top bar' : 'Show the whole top bar'}" aria-expanded="${open}">${open ? '▴' : '⋯'}</button>`;
-    if (folded) return `<div class="cl-left">${cash}</div><div class="cl-right">${day}${fold(false)}</div>`;
+    // Folded, Lottie's goal card still sits at the right edge: there's always a next goal in view.
+    if (folded) return `<div class="cl-left">${cash}</div><div class="cl-right">${day}${goalCard(s, goalsOpen, ART.lottie())}${fold(false)}</div>`;
     const temp = tempText(hud.options, w.temp);
     return `<div class="cl-left">
         ${cash}
@@ -430,30 +441,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-right">
         ${day}
         <div class="cl-chip cl-wx" title="${WEATHER[w.kind].label}, ${temp}${s.phase === 'prep' ? '\nForecast: right about 4 days in 5' : ''}">${ART.sky(w.kind)}${tape(temp.slice(0, -1))}</div>
-        <button class="cl-sticky${goalsOpen ? ' open' : ''}" data-action="goals" title="Lottie's goals">
-          <span class="cl-doodle">${ART.lottie()}</span><span class="cl-goal">${esc(goal.text)}</span>${meter(goal.progress, 'cl-pencil')}
-          ${goalsOpen ? `<span class="cl-goals">${goals.map((g) => `<span class="${g.done ? 'done' : ''}">${g.done ? '✓' : '•'} ${esc(g.text)}</span>`).join('')}</span>` : ''}
-        </button>
+        ${goalCard(s, goalsOpen, ART.lottie())}
         ${phone ? fold(true) : ''}
       </div>
 `;
-  }
-
-  /** Lottie's goals, then the run's big goal. */
-  const goalsOf = (s: GameState) => { const big = bigGoal(s); return [...lottieGoals(s), ...(big ? [big] : [])]; };
-
-  /** The run's big goal under Lottie's: Domination, a score target, or the Peak to beat. */
-  function bigGoal(s: GameState) {
-    const win = winCondition(s);
-    if (s.outcome?.result === 'won' || win === 'none') {
-      if (!isEndless(s)) return null;
-      return { text: `Beat your best: ${whole(s.peakScore)}`, progress: Math.min(1, successScore(s) / Math.max(1, s.peakScore)), done: false };
-    }
-    if (win === 'economic') return { text: `Reach ${whole(s.settings.target)}`, progress: Math.min(1, successScore(s) / s.settings.target), done: false };
-    if (s.rank < 3) return null;
-    const d = dominationProgress(s);
-    const out = 5 - d.rivalsLeft.length;
-    return { text: `Own the Bay: ${out}/5 rivals out`, progress: (out / 5 + d.majority / d.districts) / 2, done: false };
   }
 
   // ---------- bottom right: views, sound, options, new game and (while the clock runs) speed ----------

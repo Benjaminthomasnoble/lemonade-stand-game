@@ -147,7 +147,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
 body.gull-flight #goals, body.gull-flight #plotcard { display: none; }
 #ui .clay .bump { animation: bump 0.25s ease-out; }
 #ui .clay .cl-short svg { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
-body.gull-flight .cl-sticky, body.gull-flight .cl-plot { display: none; }
+body.gull-flight .cl-plot { display: none; } /* Lottie's goal card stays up, even in flight */
+#ui.clay .cl-sticky { z-index: 3; } /* ...and nothing covers it: not the feed's tickets (a scene), not the evening card */
 #ui .gullbtn { bottom: calc(var(--u) * 7.5); font-family: Fredoka, system-ui, sans-serif; }
 /* Phones: the dock fills the bottom, so the gull flies up to the right edge as a
    round icon above the corner buttons' column (which moves to top: u*22 there). */

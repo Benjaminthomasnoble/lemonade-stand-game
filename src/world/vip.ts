@@ -27,6 +27,8 @@ export interface VipView {
   skip(): void;
   active(): boolean;
   where(): number[] | null;
+  /** Where the show plays out (the pad, or the ship's berth), for the camera to frame; null when none plays. */
+  stage(): THREE.Vector3 | null;
 }
 
 export interface VipEvents {
@@ -340,5 +342,6 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
     },
     active: () => !!job,
     where: () => (job ? [job.obj.position.x, job.obj.position.y, job.obj.position.z, job.t] : null),
+    stage: () => (job ? job.pad.clone() : null),
   };
 }

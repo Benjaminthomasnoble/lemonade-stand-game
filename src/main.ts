@@ -40,7 +40,7 @@ import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './ui/knob.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
-import { createWorld } from './world/scene.ts';
+import { createWorld, dirOf, headingOf, STREET_LOOK } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
 import { setBeatSource } from './world/beat.ts';
@@ -81,9 +81,15 @@ const RUSH_MS = 5000;
 /** Not every buyer says something, or the street turns into a wall of bubbles. */
 const SIP_CHANCE = 0.35;
 
-/** Street View's framing (focusPlot): the distance back, and how far from the street's centre line the camera aims. */
-const STREET_DIST = { landscape: 14, portrait: 17 };
-const STREET_AIM = { landscape: 7, portrait: 7.5 };
+/** Street View's framing (focusPlot, streetShot): the distance back by stand level (L1 … L5; a plot with no stand as
+ * L1), so a Kiosk and a Lemon Shack both fill about a third of the screen, and how far from the street's centre line
+ * the camera aims (the sidewalk is at 5.1, the plot's centre at 10). A portrait phone stands further back for width. */
+const STREET_DIST = { landscape: [13, 13, 14, 14.5, 15.5], portrait: [15.5, 16, 17, 19, 20] };
+const STREET_AIM = { landscape: 7, portrait: 8 };
+/** A VIP arrival's framing (watchVip): a laptop at mid zoom; a phone inside DETAIL_AT.mid and from higher up, so the
+ * pad and pier keep their real models (a phone at mid-zoom distance draws Bay View blocks) and the shot sees less of
+ * the town behind, which keeps a late-game phone within its budget. */
+const SHOW_SHOT = { heli: { laptop: 45, phone: 40 }, ship: { laptop: 60, phone: 44 }, phonePitch: 0.85 };
 /** Draw walkers only for plots this close to what the camera looks at, and only when zoomed in. */
 const STREET_VIEW_RADIUS = 45;
 const STREET_VIEW_MAX_DIST = 70;
@@ -162,8 +168,8 @@ async function main() {
     hud.ledger = false;
     cutScene(); // the show takes the screen: a story scene stops
     crowd.clear();
-    focusPlot(a.plot, a.scene.kind === 'ship' ? 60 : 45);
     playVip(a.scene.kind, a.plot, a.scene.big, a.scene.client ?? '', a.kind === 'vip');
+    showShot(a.plot, a.scene.kind);
     stinger('raid-won');
     if (a.kind === 'vip' && autoPauses(options, state, 'vip')) vipResume = 1;
     if (vipPaused === a.id) resume();
@@ -205,11 +211,21 @@ async function main() {
   const world = await createWorld(document.getElementById('app')!);
   const bay = createBay(world.scene);
   bay.sync(state);
-  const home = PLOT_BY_ID[LOTTIES_CORNER];
-  // Look from the street side, so the stand faces the player above the dock (Street View's framing, as focusPlot).
-  const portrait = world.camera.aspect < 1;
-  world.controls.target.set(home.x + 1, 0.8, home.streetZ - home.facing * (portrait ? STREET_AIM.portrait : STREET_AIM.landscape));
-  world.camera.position.set(5, 7.7, -11).setLength(portrait ? STREET_DIST.portrait : STREET_DIST.landscape).add(world.controls.target);
+  /** Street View's shot of a plot: where the camera aims, how far back it stands (by the stand's level), and the
+   * heading that looks at the stand's front from the street. */
+  const streetShot = (id: string) => {
+    const p = PLOT_BY_ID[id], portrait = world.camera.aspect < 1;
+    const level = Math.min(5, Math.max(1, state.plots[id]?.stand?.level ?? 1));
+    return {
+      x: p.x, z: p.streetZ - p.facing * (portrait ? STREET_AIM.portrait : STREET_AIM.landscape),
+      distance: (portrait ? STREET_DIST.portrait : STREET_DIST.landscape)[level - 1],
+      face: STREET_LOOK.heading + (p.facing > 0 ? Math.PI : 0),
+    };
+  };
+  // The opening shot: Street View on Lottie's Corner, from the street side above the dock.
+  const opening = streetShot(LOTTIES_CORNER);
+  world.controls.target.set(opening.x, 0.8, opening.z);
+  world.camera.position.copy(dirOf(opening.face, STREET_LOOK.pitch)).multiplyScalar(opening.distance).add(world.controls.target);
 
   const tmp = new THREE.Vector3();
   const toScreen = (pos: THREE.Vector3) => {
@@ -501,12 +517,24 @@ async function main() {
 
   /** Look at a plot. Street View (no distance given) frames the stand, its queue and the sidewalk in the middle of
    * the screen above the dock, close enough that the stand and its walkers fill about a third of it (spec "Camera");
-   * a portrait phone's narrow frame stands a little further back. The aim sits on the stand (7.5 from the street's
-   * centre line; the sidewalk is at 5.1), so the road stays at the bottom edge. */
-  const focusPlot = (id: string, distance?: number) => {
-    const p = PLOT_BY_ID[id];
-    const portrait = world.camera.aspect < 1;
-    world.focus(p.x, p.streetZ - p.facing * (portrait ? STREET_AIM.portrait : STREET_AIM.landscape), distance ?? (portrait ? STREET_DIST.portrait : STREET_DIST.landscape));
+   * a portrait phone's narrow frame stands a little further back. The aim sits on the stand (7-8 from the street's
+   * centre line; the sidewalk is at 5.1), so the road stays at the bottom edge. A plot across the street swings the
+   * camera round to its front (streetShot); `pitch` looks from higher up (a phone's VIP shot). */
+  const focusPlot = (id: string, distance?: number, pitch?: number) => {
+    const s = streetShot(id);
+    world.focus(s.x, s.z, distance ?? s.distance, { face: s.face, pitch });
+  };
+  /** A VIP arrival on screen (after vip.play): framed on its stage (vip.stage(): the pad, or the ship's berth), the
+   * pad from the plot's street side, a ship from behind its pier looking out at the berth (a turned dock's berth is
+   * round the side). The shot's heading and pitch hold for the show; the next look goes back to the ones before. */
+  const showShot = (plot: string, kind: 'heli' | 'ship') => {
+    const ph = world.quality === 'phone', dist = SHOW_SHOT[kind][ph ? 'phone' : 'laptop'], pitch = ph ? SHOW_SHOT.phonePitch : undefined;
+    const p = PLOT_BY_ID[plot], at = vip.stage();
+    if (!at) { focusPlot(plot, dist, pitch); return; }
+    const out = new THREE.Vector3(p.x - at.x, 0, p.z - at.z);
+    const ship = kind === 'ship' && out.lengthSq() > 4;
+    const k = ship ? 0.6 : 1; // a ship: between the pier and the berth, nearer the berth
+    world.focus(p.x + (at.x - p.x) * k, p.z + (at.z - p.z) * k, dist, { heading: ship ? headingOf(out) : streetShot(plot).face, pitch });
   };
 
   const act = (a: Action) => {
@@ -857,7 +885,7 @@ async function main() {
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
-    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '', first = false) => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client, first); },
+    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '', first = false) => { vip.play(kind, bay.views[plot], big, level, client, first); showShot(plot, kind); },
     vipSkip: () => vip.skip(),
     dex: () => welcomeDex(state),
     coach: () => ({ step: coach.current(), seen: [...coach.memory().seen], off: coach.memory().off }),
@@ -952,8 +980,6 @@ async function main() {
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
     markers.update(state, world.camera, world.controls.target, bay.views, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) vipResume = 0;
-    // A VIP show or a brawl is framed close: phones keep mid-zoom models there instead of Bay View blocks.
-    world.capDetail(battle.active() || vip.active() ? 1 : null);
     world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);

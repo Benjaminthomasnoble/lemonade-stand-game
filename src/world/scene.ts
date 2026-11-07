@@ -20,8 +20,20 @@ import { setCrowdDetail } from './clay/figure.ts';
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
 export type Detail = 0 | 1 | 2;
-/** Camera distances where mid zoom and Bay View detail begin. A detail cap (World.capDetail) holds closer than `show`. */
-export const DETAIL_AT = { mid: 45, bay: 200, show: 75 };
+/** Camera distances where mid zoom and Bay View detail begin (phones run one level simpler, so a phone shot that
+ * should keep real models, like a VIP arrival, frames inside `mid`). */
+export const DETAIL_AT = { mid: 45, bay: 200 };
+/** Street View's look: a heading (radians about y, 0 looking toward +z from the -z side) that faces a south-side
+ * stand's front from the street, and the pitch above the ground. A north-side stand is seen from heading + π. */
+export const STREET_LOOK = { heading: Math.atan2(5, 11), pitch: Math.asin(7.7 / Math.hypot(5, 7.7, 11)) };
+export interface FocusOptions {
+  /** Come round to this heading when the camera's own is more than a quarter-turn off it (a stand seen from behind). */
+  face?: number;
+  /** Look from exactly this heading and/or pitch (radians above the ground) instead of the camera's own, for this look
+   * only (a VIP shot): the next focus without them goes back to the heading and pitch from before. */
+  heading?: number;
+  pitch?: number;
+}
 
 export interface World {
   renderer: THREE.WebGLRenderer;
@@ -33,19 +45,14 @@ export interface World {
   quality: Quality;
   /** The detail level this frame: 0 Street View, 1 mid zoom, 2 Bay View (phones run one level simpler). Also in scene.userData.detail. */
   detail(): Detail;
-  /**
-   * Hold the detail at or below `max` while the camera is closer than DETAIL_AT.show (never below what a laptop
-   * would draw at that distance), so a VIP show or a brawl framed at 45-60 doesn't drop to Bay View blocks on a
-   * phone. null releases it. Pulling out past DETAIL_AT.show goes back to the usual levels, which keeps the budget.
-   */
-  capDetail(max: Detail | null): void;
   /** Weather for the sky and sun. `dayFraction` (0 open … 1 close) sets the hour unless setClock is used. */
   setWeather(kind: WeatherKind, dayFraction: number): void;
   /** The game clock for the lighting scripts: prep holds dawn, open follows the minute, report is night. */
   setClock(phase: Phase, minute: number): void;
-  /** Glide the camera to look at a point from a distance. A close look after Bay View turns back to the heading the
-   * camera had before it (unless the player turned the view meanwhile). */
-  focus(x: number, z: number, distance: number): void;
+  /** Glide the camera to look at a point from a distance, swinging round the point (not through it) when the heading
+   * changes. A close look after Bay View turns back to the heading the camera had before it (unless the player turned
+   * the view meanwhile). `opts` can ask for a heading to come round to, or a look of its own for one shot. */
+  focus(x: number, z: number, distance: number, opts?: FocusOptions): void;
   /**
    * Glide out to Bay View: the whole plinth on the table, squared to the screen (its long side across a landscape
    * screen, up a portrait one) from as far back as this screen's aspect needs (bayDistance()).
@@ -84,9 +91,10 @@ const BAY_ELEV = { landscape: 0.9, portrait: 1.05 };
 const PLINTH_CORNERS = [0, -14].flatMap((y) => [-1, 1].flatMap((sx) => [-1, 1].map((sz) =>
   new THREE.Vector3(PLINTH.cx + sx * (PLINTH.w / 2 + 4), y, PLINTH.cz + sz * (PLINTH.d / 2 + 4)))));
 /** A heading (radians about y, 0 looking toward +z from the -z side) as a camera direction (target to camera) at a pitch. */
-const dirOf = (heading: number, elev: number, out = new THREE.Vector3()) =>
+export const dirOf = (heading: number, elev: number, out = new THREE.Vector3()) =>
   out.set(Math.sin(heading) * Math.cos(elev), Math.sin(elev), -Math.cos(heading) * Math.cos(elev));
-const headingOf = (dir: THREE.Vector3) => Math.atan2(dir.x, -dir.z);
+/** A camera direction's (or any horizontal vector's) heading, as dirOf takes it. */
+export const headingOf = (dir: THREE.Vector3) => Math.atan2(dir.x, -dir.z);
 const angleTo = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 export { SEA_X, SEA_Z } from '../sim/map.ts';
 export { TABLE_Y } from './diorama.ts';
@@ -283,12 +291,31 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   }
   /** The heading a close look returns to after Bay View squared the camera (cleared once used, or once the player turns). */
   let beforeBay: { dir: THREE.Vector3; bay: number } | null = null;
+  /** The heading and pitch a look goes back to after a look that set its own (FocusOptions.heading and pitch). */
+  let held: { h: number; e: number } | null = null;
   const curDir = (out = new THREE.Vector3()) => {
     out.copy(camera.position).sub(controls.target).normalize();
     if (out.y < 0.3) out.set(0.35, 0.75, 0.55).normalize();
     return out;
   };
   const post: ClayPost = createPost(renderer, scene, camera, phone ? 2 : 4);
+
+  /** A glide: the target slides, and the camera swings round it (heading, pitch and distance eased), never through it. */
+  let glide: { from: THREE.Vector3; to: THREE.Vector3; h0: number; h1: number; e0: number; e1: number; d0: number; d1: number; t: number } | null = null;
+  const glideDir = new THREE.Vector3();
+  function glideTo(to: THREE.Vector3, dir: THREE.Vector3, distance: number) {
+    const off = camera.position.clone().sub(controls.target), d0 = Math.max(1e-3, off.length());
+    glide = { from: controls.target.clone(), to, h0: headingOf(off), h1: headingOf(dir), e0: Math.asin(THREE.MathUtils.clamp(off.y / d0, -1, 1)), e1: Math.asin(dir.y), d0, d1: distance, t: 0 };
+  }
+  let piloted = false;
+  /** Glide out to Bay View, fitted to this screen. */
+  function goBay() {
+    const now = curDir(), dir = bayDir(now);
+    if (camera.position.distanceTo(controls.target) < DETAIL_AT.bay) beforeBay = { dir: now, bay: headingOf(dir) };
+    else if (beforeBay) beforeBay.bay = headingOf(dir);
+    glideTo(bayTarget.clone(), dir, fitDistance(dir));
+  }
+  let wasPortrait = camera.aspect < 1;
   const onResize = () => {
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
@@ -297,11 +324,16 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     renderer.setSize(container.clientWidth, container.clientHeight);
     post.setSize(container.clientWidth, container.clientHeight);
     fitMaxDistance();
+    // A phone turned on its side (or a window resized) while the bay is in view: fit the plinth again, squared to the
+    // new screen. That's any zoomed-out view when the screen turns, or Bay View itself after any resize.
+    const portraitNow = camera.aspect < 1, turned = portraitNow !== wasPortrait;
+    wasPortrait = portraitNow;
+    const atBay = controls.target.distanceTo(bayTarget) < 1 || (glide !== null && glide.to.distanceTo(bayTarget) < 1);
+    if (!piloted && camera.position.distanceTo(controls.target) >= DETAIL_AT.bay && (turned || atBay)) goBay();
   };
   onResize();
   window.addEventListener('resize', onResize);
 
-  let glide: { from: THREE.Vector3; to: THREE.Vector3; camFrom: THREE.Vector3; camTo: THREE.Vector3; t: number } | null = null;
   let turn: { by: number; done: number; t: number } | null = null; // an eased quarter-turn (Q and E)
   const TURN_AXIS = new THREE.Vector3(0, 1, 0);
   let weather: WeatherKind = 'warm';
@@ -313,8 +345,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const lastShadow = new THREE.Vector3(Infinity, 0, 0);
   let lastHalf = 0;
   let detail: Detail = 0;
-  let detailCap: Detail | null = null;
-  let piloted = false, warmed = false;
+  let warmed = false;
   const lookPt = new THREE.Vector3(), lookDir = new THREE.Vector3();
   const lightDir = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0), snapR = new THREE.Vector3(), snapU = new THREE.Vector3(), snapP = new THREE.Vector3();
@@ -324,7 +355,6 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const world: World = {
     renderer, scene, camera, controls, backend, quality,
     detail: () => detail,
-    capDetail(max) { detailCap = max; },
     pilot(on) {
       if (on && !piloted) { glide = null; turn = null; }
       piloted = on;
@@ -337,7 +367,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       clocked = true;
       hour = hourOf(phase, minute);
     },
-    focus(x, z, distance) {
+    focus(x, z, distance, opts = {}) {
       let dir = curDir();
       if (beforeBay && distance < DETAIL_AT.bay) {
         // Back in close after Bay View: the pitch from before, and its heading too unless the player has turned the view since.
@@ -345,15 +375,18 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         dir = dirOf(angleTo(h, beforeBay.bay) < 0.2 ? headingOf(beforeBay.dir) : h, Math.asin(beforeBay.dir.y), dir);
         beforeBay = null;
       }
-      const to = new THREE.Vector3(x, 0.8, z);
-      glide = { from: controls.target.clone(), to, camFrom: camera.position.clone(), camTo: to.clone().addScaledVector(dir, distance), t: 0 };
+      if (opts.heading !== undefined || opts.pitch !== undefined) {
+        // A look of its own (a VIP shot) holds for that one look: the next goes back to the heading and pitch from before.
+        held ??= { h: headingOf(dir), e: Math.asin(dir.y) };
+        dir = dirOf(opts.heading ?? headingOf(dir), opts.pitch ?? Math.asin(dir.y), dir);
+      } else {
+        if (held) { dir = dirOf(held.h, held.e, dir); held = null; }
+        // A quarter-turn off (Q or E) is the player's choice; further round, the stand would show its back.
+        if (opts.face !== undefined && angleTo(headingOf(dir), opts.face) > Math.PI * 0.6) dir = dirOf(opts.face, Math.asin(dir.y), dir);
+      }
+      glideTo(new THREE.Vector3(x, 0.8, z), dir, distance);
     },
-    bayView() {
-      const now = curDir(), dir = bayDir(now);
-      if (camera.position.distanceTo(controls.target) < DETAIL_AT.bay) beforeBay = { dir: now, bay: headingOf(dir) };
-      else if (beforeBay) beforeBay.bay = headingOf(dir);
-      glide = { from: controls.target.clone(), to: bayTarget.clone(), camFrom: camera.position.clone(), camTo: bayTarget.clone().addScaledVector(dir, fitDistance(dir)), t: 0 };
-    },
+    bayView: goBay,
     bayDistance: () => fitDistance(bayDir(curDir())),
     panBy(right, ahead) {
       glide = null;
@@ -391,9 +424,11 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         }
         if (glide) {
           glide.t = Math.min(1, glide.t + dt * 1.6);
-          const k = glide.t * glide.t * (3 - 2 * glide.t);
+          const k = glide.t * glide.t * (3 - 2 * glide.t), lerp = THREE.MathUtils.lerp;
           controls.target.lerpVectors(glide.from, glide.to, k);
-          camera.position.lerpVectors(glide.camFrom, glide.camTo, k);
+          const dh = Math.atan2(Math.sin(glide.h1 - glide.h0), Math.cos(glide.h1 - glide.h0));
+          dirOf(glide.h0 + dh * k, lerp(glide.e0, glide.e1, k), glideDir);
+          camera.position.copy(controls.target).addScaledVector(glideDir, lerp(glide.d0, glide.d1, k));
           if (glide.t >= 1) glide = null;
         }
         // Keep the camera over the bay.
@@ -404,7 +439,6 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       }
       const byDist = dist < DETAIL_AT.mid ? 0 : dist < DETAIL_AT.bay ? 1 : 2;
       detail = Math.min(2, byDist + (phone ? 1 : 0)) as Detail;
-      if (detailCap !== null && dist < DETAIL_AT.show) detail = Math.max(byDist, Math.min(detail, detailCap)) as Detail;
       scene.userData.detail = detail;
       scene.userData.distance = dist;
       const near = THREE.MathUtils.clamp(dist * 0.01, 0.5, 8);

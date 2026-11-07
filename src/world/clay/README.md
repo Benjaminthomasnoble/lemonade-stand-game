@@ -116,10 +116,9 @@ with these pieces.
 - `world.render()` draws a frame: the scene, the tilt-shift and the warm
   vignette. `world.stats()` gives the last frame's draws and triangles.
 - `world.detail()` (also `scene.userData.detail`) is 0 in Street View, 1 at
-  mid zoom and 2 at Bay View (`DETAIL_AT`). Phones run one level simpler.
-  `world.capDetail(1)` holds it at mid-zoom models closer than
-  `DETAIL_AT.show` (main.ts holds it while a VIP show or a brawl plays, so a
-  phone doesn't drop to Bay View blocks at 45-60); `capDetail(null)` releases.
+  mid zoom and 2 at Bay View (`DETAIL_AT`). Phones run one level simpler, so
+  a phone shot that should keep real models (a VIP arrival) frames inside
+  `DETAIL_AT.mid`, from higher up so it sees less of the town behind.
   `scene.userData.distance` is the camera distance, and
   `scene.userData.shadows` is false when the sun casts none (phones: show
   blob shadows instead).
@@ -127,7 +126,14 @@ with these pieces.
   long side across a landscape screen, up a portrait one) from the distance
   this aspect needs (`world.bayDistance()`: about 420 on a laptop, 850 on a
   portrait phone); the next close `focus()` turns back to the heading from
-  before. `controls.maxDistance` and the camera's near plane follow the fit.
+  before. `controls.maxDistance` and the camera's near plane follow the fit,
+  and turning a phone (or resizing the window) at Bay View fits it again.
+- `world.focus(x, z, distance, { face, heading, pitch })` glides to a point, swinging
+  round it on an arc. `face` is a heading the camera comes round to when its
+  own is more than about a quarter-turn off (main.ts passes each plot's front,
+  from `STREET_LOOK`, so a stand across the street isn't seen from behind).
+  `heading` and `pitch` set the look exactly for that one shot (a VIP
+  arrival); the next focus without them goes back to the look from before.
 - `world.pilot(true)` hands the camera to something else (Gull Flight): the
   clock, twos, light and boil run on, detail and fog come from the camera's
   height, the shadow box follows what it looks at, and the tilt-shift drops.

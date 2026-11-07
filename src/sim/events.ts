@@ -93,8 +93,12 @@ export function liveEvents(s: GameState): WorldEvent[] {
   const on = s.world?.events?.on;
   return on?.length ? on.filter((e) => e.live && runsOn(e, s.day) && eventDef(e)) : [];
 }
-/** Today's running event of a kind, if one is on. */
-export const liveEvent = (s: GameState, id: string): WorldEvent | undefined => s.world?.events?.on.find((e) => e.id === id && e.live && runsOn(e, s.day));
+/** Today's running event of a kind, if one is on. Every walker asks (Kids' Day), so it walks the list without a closure. */
+export function liveEvent(s: GameState, id: string): WorldEvent | undefined {
+  const on = s.world?.events?.on;
+  if (on) for (const e of on) if (e.id === id && e.live && runsOn(e, s.day)) return e;
+  return undefined;
+}
 /** Days left of an event, today included. */
 export const daysLeft = (s: GameState, e: WorldEvent) => e.to - Math.max(s.day, e.from) + 1;
 /** The absolute first day of the season a day falls in. */

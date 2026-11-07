@@ -5,8 +5,8 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, SEASON_DEMAND, SEASON_WEATHER, SEASONS, STAND_LEVELS,
-  WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND, SEASON_WEATHER, SEASONS,
+  STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -17,6 +17,7 @@ import {
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
+import { hhmm, raidStart, travelMinutes } from './night.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -589,6 +590,10 @@ export function signatureRaids(s: GameState): Raid[] {
         raid.party = raidPartyFor(s, raider).slice(0, size);
         rng.seed = s.seed;
         raid.attacker = raider;
+        if (raid.leave !== undefined) { // the night clock: they set out at the same minute, from their own turf
+          raid.at = raid.leave + travelMinutes(s, raidStart(s, raider, raid.target), raid.target);
+          raid.eta = hhmm(raid.at);
+        }
       }
       if (raider === 'blenders') {
         raid.party = blenderRush(s, raid.party, threat);
@@ -606,6 +611,7 @@ export function signatureRaids(s: GameState): Raid[] {
       if (!target) continue;
       spend(s, attacker, 'strike', cost);
       raid.target = target.id;
+      if (raid.leave !== undefined) raid.leave = (raid.at ?? RIVAL_RAID_AT) - travelMinutes(s, raidStart(s, attacker, target.id), target.id);
       addGrudge(s, s.plots[target.id].owner as RivalId, attacker, GRUDGE.raided);
       kept.push(raid);
     }

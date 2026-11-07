@@ -10,7 +10,7 @@
 // rivals lane's board (corkboard.ts); Rank and Perks shows the rank ladder
 // (Lottie's tips join it later).
 import {
-  canBuyPlot, DEAL_LOADS, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
+  canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
   peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
   type FestivalId, type GameState, type Goal, type RivalId, type SupplyId,
 } from '../sim/economy.ts';
@@ -18,6 +18,7 @@ import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
 import { taught } from '../sim/story.ts';
 import { corkboardBody } from './corkboard.ts';
+import { orderWhen, recipeOf } from './orders.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -113,9 +114,8 @@ function ledger(s: GameState): string {
 function orders(s: GameState): string {
   const card = (o: GameState['offers'][number], waiting: boolean) => {
     const unit = o.tier === 'local' ? 'cups' : 'bottles';
-    const stand = o.plot ? s.plots[o.plot]?.stand : undefined;
-    const recipe = RECIPES[o.tier === 'local' && stand ? stand.recipe : 'classic'].label; // bottles are bottled Classic
-    const due = o.tier === 'deal' ? `${DEAL_LOADS} weekly loads` : `day ${o.due}`;
+    const recipe = RECIPES[recipeOf(s, o)].label; // world: the client's recipe, a Local Order its stand's (src/ui/orders.ts)
+    const due = orderWhen(s, o, waiting); // world: the deadline, or how far a job you took has loaded
     const risk = deliveryRaidRisk(s, o);
     const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button><button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks">✕</button></span>` : '';
     return `<div class="cl-ticket order${risk ? ' warn' : ''}" data-testid="order-card" title="${esc(`${ORDER_TIERS[o.tier].label} for ${o.client}${waiting ? `; offer good till day ${o.expires}` : '; accepted'}`)}">

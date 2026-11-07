@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, ownsRecipe, dealShortfallPerDay, buildFacility, canBuildFacility, CUP_COST, recipeCost, vipAtDawn, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
-  nextDue, openStand, owedBy, PICKUP_MINUTE, pickupsAt, pickupsAtClose, PLOTS, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes,
-  VIP_STAR_BONUS, type GameState, type Order,
+  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, DELIVERY_WINDOW,
+  FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame, nextDue, openStand, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose,
+  PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes, VIP_STAR_BONUS, vipAtDawn, type GameState, type Order,
 } from './economy.ts';
+import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
+import { menuScreen } from '../ui/menus.ts';
+import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 
 const day = (s: GameState) => { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); };
 
@@ -216,6 +219,31 @@ describe('VIP clients', () => {
     trips(s);
     expect(o.loaded).toBe(1500);
     expect([bottlesOf(s, 'pink'), bottlesOf(s, 'classic')]).toEqual([0, 3000]);
+  });
+
+  it('the Order Book card names the recipe and flags a possible Delivery Raid; a job you took shows its loading', () => {
+    const { s, field, dock } = vipGame(13);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    s.offers.push({ id: 'o1', tier: 'heli', client: 'a movie star\'s pool party', qty: 3000, pay: 90000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'pink' });
+    const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
+    let book = menuScreen(s, 'orders', parts);
+    expect(book).toContain(`3,000 bottles of Pink Lemonade · day ${s.day + 4} · Delivery Raid possible`); // Rank 7: Threat 3 and up
+    expect(orderGoods(s, s.offers[0])).toBe('3,000 bottles of Pink Lemonade');
+    acceptOrder(s, 'o1');
+    s.bottleStock = { pink: 1000 };
+    s.bottles = 1500;
+    s.orders[0].loaded = 1000;
+    expect(orderWhen(s, s.orders[0], false)).toBe(`1,000 of 3,000 loaded · next due day ${s.day + 4}`);
+    book = menuScreen(s, 'orders', parts);
+    expect(book).toContain(`3,000 bottles of Pink Lemonade · 1,000 of 3,000 loaded · next due day ${s.day + 4}`);
+    const ticket = orderTicket(s, s.orders[0]);
+    expect(ticket).toContain(`<b>Due day ${s.day + 4}</b>`);
+    expect(ticket).toContain('--v:0.333');
+    expect(ticket).toContain('2,000 to load, 1,000 ready');
+    expect(bottleStock(s)).toBe('500 Classic Lemonade, 1,000 Pink Lemonade');
+    s.offers.push({ id: 'd', tier: 'deal', client: 'Gulfstream Grocers', qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'mint' });
+    expect(orderWhen(s, s.offers[0], true)).toBe(`4 weekly loads to day ${s.day + 28}`);
   });
 
   it('an order with no bottles fails and costs a star', () => {

@@ -12,7 +12,7 @@ import {
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
-  bottlesNeeded, canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, PLOTS,
+  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, PLOTS,
   type FacilityKind, RANKS, rebuildChance,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
@@ -47,6 +47,7 @@ import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
 import { fightBar } from './fight.ts';
 import { shakedownLoot } from '../sim/loot.ts';
+import { bottleStock, orderGoods, orderTicket } from './orders.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -438,7 +439,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         ${taught(s, 'rank') ? `<div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>` : ''}
         <div class="cl-chip" title="${esc(repTip(s))}" data-testid="reputation">${ART.star(true)}${tape(s.reputation.toFixed(1))}</div>
         ${threat >= 2 && !peaceful(s) && taught(s, 'threat') ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
-        ${s.bottles ? `<div class="cl-chip" title="${s.bottles.toLocaleString('en-US')} bottles ready for big orders"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
+        ${s.bottles ? `<div class="cl-chip" title="Bottles ready for big orders: ${esc(bottleStock(s))}"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
       <div class="cl-right">
         ${day}
@@ -503,13 +504,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const when = o.tier === 'deal' ? `in ${DEAL_LOADS} weekly loads` : `by day ${o.due}`;
       const fit = o.tier === 'deal' ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
       const risk = deliveryRaidRisk(s, o) ? `<span class="cl-short" title="Rivals may raid this pickup">${ART.raid()}</span>` : '';
-      t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
+      t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${esc(orderGoods(s, o))} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
         <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${btn('decline', '✕', { ok: true }, `data-id="${o.id}" title="No thanks"`, 'ghost')}</span></div>`);
     }
-    const need = bottlesNeeded(s);
-    for (const o of s.orders) {
-      t.push(`<div class="cl-ticket order" title="${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} for ${whole(o.pay)}${o.tier !== 'local' ? `, ${s.bottles.toLocaleString('en-US')} of ${need.toLocaleString('en-US')} bottles ready` : ''}">${ART.crate()}<b>Pickup ${o.due === s.day ? 'today!' : `day ${o.due}`}</b>${o.tier !== 'local' && need ? meter(s.bottles / need) : ''}</div>`);
-    }
+    for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     const servings = servingsAvailable(st);
     if (servings === 0 && !st.autoRestock && !st.wrecked) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';

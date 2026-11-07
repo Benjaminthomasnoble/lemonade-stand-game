@@ -147,7 +147,7 @@ describe('rival dawn budget', () => {
     const flush = smashed(10_000);
     crewAtDawn(flush.s);
     expect(flush.s.plots[flush.plot].owner).toBe('sourwood');
-    expect(flush.s.plots[flush.plot].stand!.wrecked).toBe(false);
+    expect(flush.s.plots[flush.plot].repair?.rebuild).toBe(true); // booked: built overnight, open at the next dawn (damage.ts)
     expect(budgetOf(flush.s, 'sourwood').grow).toBeCloseTo(10_000 - flush.cost, 2);
     expect(flush.s.rivals.sourwood.cash).toBeCloseTo(flush.cash - flush.cost, 2);
     expect(bankTakings(flush.s, 'sourwood')).toBe(0); // a rebuild is Grow spending, not tomorrow's loss

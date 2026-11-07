@@ -10,7 +10,7 @@ import {
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   availableRaiders, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid,
   fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
-  RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
+  RAID_RANK, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, PLOTS,
   type FacilityKind, RANKS, rebuildChance,
@@ -26,7 +26,7 @@ import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { damageCard, damageHere, damageTickets } from './damage.ts';
+import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, wreckNote } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
@@ -483,18 +483,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
     }
     const st = selectedStand(s);
-    const plotId = s.selected;
     if (s.redDays) {
       const left = redDaysLeft(s);
       const jar = difficulty(s).cookieJar === 'always' || cookieJarReady(s) ? 'Cookie Jar can cover you' : 'Cookie Jar is empty';
       const need = Math.ceil(-s.cash / 50) * 50;
       t.push(`<div class="cl-ticket red" data-testid="in-the-red" title="${jar}">${ART.piggy()}<b>In the Red! ${left} day${left === 1 ? '' : 's'}</b>${need > 0 && canBorrow(s, need).ok ? btn('borrow', `Borrow ${whole(need)}`, { ok: true }, `data-amount="${need}" data-testid="borrow"`) : ''}</div>`);
     }
-    if (st.wrecked) {
-      const ps = s.plots[plotId];
-      t.push(`<div class="cl-ticket red">${ART.boom()}<b>${ps.busted ? 'Busted up!' : 'Smashed!'}</b>${btn('rebuild', `${ps.busted ? 'Fix' : 'Rebuild'} ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${plotId}"`)}</div>`);
-    }
-    t.push(...damageTickets(s)); // Damaged buildings: the HP left and a repair (src/ui/damage.ts)
+    t.push(...rebuildTickets(s), ...damageTickets(s)); // smashed and Damaged buildings: the rebuild, the HP left, the repair (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
@@ -765,7 +760,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
     let actions = '';
     if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"`, 'go'); }
-    else if (ps.owner === 'player' && isWrecked(ps)) actions = btn('rebuild', `${ps.busted ? 'Fix' : 'Rebuild'} ${whole(rebuildCost(ps))}`, s.cash >= rebuildCost(ps) ? { ok: true } : { ok: false, why: 'Not enough cash' }, `data-plot="${id}" title="${ps.busted ? 'Busted: closed until you fix it' : 'Rebuild by tomorrow or the plot goes For Sale'}"`, 'go');
+    else if (ps.owner === 'player' && isWrecked(ps)) actions = rebuildButton(s, id, 'cl-b go'); // overnight, or tonight's booking (src/ui/damage.ts)
     else if (ps.owner === 'player' && !st) {
       const lvl = ps.facility?.level ?? 0;
       const kinds = ps.facility ? [ps.facility.kind] : facilitiesFor(p.type);
@@ -789,7 +784,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
-      ${dibs}${schemeNote(s, id)}${ps.facility?.wrecked || st?.wrecked ? `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>` : ''}
+      ${dibs}${schemeNote(s, id)}${wreckNote(s, id)}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
 

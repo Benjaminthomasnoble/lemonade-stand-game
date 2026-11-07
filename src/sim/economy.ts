@@ -973,6 +973,7 @@ export function canUpgradeStand(s: GameState, plotId = s.selected): Blocker {
   if (!st || s.plots[plotId].owner !== 'player') return { ok: false, why: 'Not your stand' };
   const next = STAND_LEVELS[st.level];
   if (!next) return { ok: false, why: 'Already the Citrus Palace' };
+  if (st.wrecked) return { ok: false, why: 'Rebuild it first' };
   if (s.phase !== 'prep') return { ok: false, why: 'Upgrade during Morning Prep' };
   const gate = STAND_RANK_GATE[next.level - 1];
   if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };

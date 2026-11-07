@@ -1,12 +1,13 @@
 // Damaged buildings on the HUD (spec: Stands, "Damage, repairs and rebuilds"). Any standing building's plot card, and
 // the stand panel's Defend tab for the selected stand, show an HP meter with the exact points in its tooltip; your own
-// Damaged ones get a Repair button with the price, or a note once tonight's repair is booked. Your Damaged buildings
-// also get a ticket in the feed at Morning Prep and with the Evening's repairs. From Rank 3 each of your plots has an
-// Auto-Repair switch (on unless you skip the plot). Plain controls on the HUD's existing classes; clicks go through the
-// HUD's one listener (data-action="repair" approves, "autoRepair" flips the switch, "goto" flies there).
+// Damaged ones get a Repair button with the price, or a note once tonight's repair is booked. Your smashed plots get a
+// Rebuild button (Fix when Busted) the same way. Your Damaged and smashed buildings also get a ticket in the feed at
+// Morning Prep and with the Evening's repairs. From Rank 3 each of your plots has an Auto-Repair switch (on unless you
+// skip the plot). Plain controls on the HUD's existing classes; clicks go through the HUD's one listener
+// (data-action="repair" and "rebuild" approve, "autoRepair" flips the switch, "goto" flies there).
 import {
-  autoRepairOn, buildingHp, canRepair, currentHp, FACILITIES, hpCapacity, hpShare, isDamaged, PLOT_BY_ID, PLOTS, repairCost,
-  standLevel, type GameState,
+  autoRepairOn, buildingHp, canRebuild, canRepair, currentHp, FACILITIES, hpCapacity, hpShare, isDamaged, isWrecked, lastRebuildDay,
+  PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, type GameState,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -38,6 +39,46 @@ function repairButton(s: GameState, plotId: string, cls = 'cl-b tiny go'): strin
   if (!isDamaged(ps)) return '';
   const b = canRepair(s, plotId);
   return `<button class="${cls}" data-action="repair" data-plot="${plotId}" data-testid="repair-hp" ${b.ok ? 'title="Fixed overnight: good as new at dawn"' : `disabled title="${esc(b.why)}"`}>Repair ${whole(repairCost(s, plotId))}</button>`;
+}
+
+/** How long your smashed plot can wait: Busted ones wait for their fix; a Wrecked one lapses the day after the smash. */
+function lapseTip(s: GameState, plotId: string): string {
+  const ps = s.plots[plotId];
+  if (ps.busted) return 'Busted: closed until you fix it';
+  return lastRebuildDay(s, ps) ? 'Book it today or the plot goes For Sale' : 'Book it by tomorrow or the plot goes For Sale';
+}
+
+/** Your smashed building's rebuild (Busted: its fix): Rebuild $X (a blocked one says why), or a note once tonight's
+ * rebuild is booked. */
+export function rebuildButton(s: GameState, plotId: string, cls = 'cl-b tiny go', testid = 'rebuild'): string {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player' || !isWrecked(ps)) return '';
+  if (rebuilding(ps)) return `<span class="cl-note good" title="Paid ${whole(ps.repair!.cost)}: open at dawn">${ps.busted ? 'Fixing tonight' : 'Rebuilding tonight'}</span>`;
+  const b = canRebuild(s, plotId);
+  const tip = !b.ok ? b.why : ps.busted ? 'Fixed overnight: open at dawn' : `Built overnight: open at dawn. ${lapseTip(s, plotId)}`;
+  return `<button class="${cls}" data-action="rebuild" data-plot="${plotId}" data-testid="${testid}" ${b.ok ? '' : 'disabled '}title="${esc(tip)}">${ps.busted ? 'Fix' : 'Rebuild'} ${whole(rebuildCost(ps))}</button>`;
+}
+
+/** The plot card's note on a smashed building: Wrecked or Busted, and a rival's Rebuilding once it has booked one. */
+export function wreckNote(s: GameState, plotId: string): string {
+  const ps = s.plots[plotId];
+  if (!isWrecked(ps)) return '';
+  if (ps.owner !== 'player' && rebuilding(ps)) return '<span class="cl-note" title="Open again at dawn">Rebuilding</span>';
+  return `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>`;
+}
+
+/** Feed tickets for your smashed plots: Go There, and the rebuild (or the fix), or tonight's booking. */
+export function rebuildTickets(s: GameState, testid = 'rebuild'): string[] {
+  const out: string[] = [];
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (ps.owner !== 'player' || !isWrecked(ps)) continue;
+    const booked = rebuilding(ps);
+    const go = `<button class="cl-b tiny" data-action="goto" data-plot="${p.id}">Go there</button>`;
+    const tip = `${p.name}: ${ps.busted ? 'Busted' : 'Wrecked'}. ${booked ? 'Open again at dawn' : lapseTip(s, p.id)}`;
+    out.push(`<div class="cl-ticket${booked ? '' : ' red'}" data-testid="wrecked" title="${esc(tip)}">${art('boom', A.boomSVG)}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${rebuildButton(s, p.id, 'cl-b tiny go', testid)}</span></div>`);
+  }
+  return out;
 }
 
 /** Auto-Repair's switch on a plot of yours with a building (Rank 3 on): on, or this plot skipped. */

@@ -2,23 +2,28 @@
 // Knock it down, buy it up). Every faction's stands and facilities keep their HP from one raid to the next: a Smash
 // that runs out of time, or any chopping short of 0, leaves the building Damaged. A Damaged stand stays open and pours
 // its HP share of its cups an hour until a repair, approved by the end of the Evening and paid on approval, puts it
-// back to full HP at dawn. Rebuilds and repairs cost a share of what went into the building itself: a stand's level
-// steps or a facility's tiers, never the plot's fences and gadgets. Pure functions over GameState, like the rest of
-// the sim; nothing here rolls dice.
+// back to full HP at dawn. Wrecked rebuilds and Busted fixes join the same overnight queue: the building stays closed
+// for the rest of the day and opens at dawn as good as new, so a stand smashed at night misses a day of sales. An
+// unrebuilt plot lapses For Sale (Knock it down, buy it up). Rebuilds and repairs cost a share of what went into the
+// building itself: a stand's level steps or a facility's tiers, never the plot's fences and gadgets. Pure functions
+// over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes the dawn's rng.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId,
 } from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
-import { PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
+import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
+import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
-import { buildingHp, isWrecked, type BattleReport } from './crew.ts';
+import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
+import { canSpend, spend } from './rivalAi.ts';
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
 export { buildingHp } from './crew.ts';
 
-/** A repair waiting for the night: who paid, what, and the HP it puts back at dawn. */
-export interface Repair { by: FactionId; cost: number; hp: number }
+/** Work waiting for the night: who paid, what, and the HP it puts back at dawn. A rebuild (a Wrecked building, or a
+ * Busted one on Laid Back) puts the whole building back up. */
+export interface Repair { by: FactionId; cost: number; hp: number; rebuild?: true }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -60,6 +65,11 @@ export function hpShare(ps: PlotState): number {
 /** Standing but short of full HP: open, pouring at its HP share, until a repair. */
 export const isDamaged = (ps: PlotState) => !isWrecked(ps) && currentHp(ps) < buildingHp(ps);
 
+/** The max HP a Wrecked building has once it stands again (the same building, through the one max-HP source). */
+function standingHp(ps: PlotState): number {
+  return buildingHp({ ...ps, stand: ps.stand && { ...ps.stand, wrecked: false }, facility: ps.facility && { ...ps.facility, wrecked: false } });
+}
+
 /** What a stand pours an hour at its HP share of `perHour`, in whole cups: at 60% HP, 60% of its cups an hour. */
 export function hpCapacity(ps: PlotState, perHour: number): number {
   const share = hpShare(ps);
@@ -85,7 +95,7 @@ export function raidDamage(s: GameState, plotId: string, hpLeft: number): number
   if (!b) return 0;
   if (b.wrecked) {
     delete b.hp;
-    callOffRepair(s, plotId);
+    if (!ps.repair?.rebuild) callOffRepair(s, plotId); // it fell: tonight's repair can't happen (a booked rebuild of a wreck still can)
     return 0;
   }
   const before = currentHp(ps);
@@ -141,7 +151,7 @@ export function approveRepair(s: GameState, plotId: string): boolean {
   return true;
 }
 
-/** A queued repair that can't happen (the building fell, or came back full some other way): the money goes back. */
+/** Queued work that can't happen (the building fell, or came back some other way): the money goes back. */
 function callOffRepair(s: GameState, plotId: string): void {
   const ps = s.plots[plotId];
   const r = ps.repair;
@@ -149,9 +159,94 @@ function callOffRepair(s: GameState, plotId: string): void {
   delete ps.repair;
   if (r.by === 'player') {
     s.cash = round2(s.cash + r.cost);
-    s.today.land = round2(s.today.land - r.cost); // ledger: repairs (paid back)
-    s.news.push(`The repair at ${PLOT_BY_ID[plotId].name} is called off: ${money(r.cost)} back.`);
+    s.today.land = round2(s.today.land - r.cost); // ledger: repairs and rebuilds (paid back)
+    s.news.push(`The ${r.rebuild && !ps.busted ? 'rebuild' : 'repair'} at ${PLOT_BY_ID[plotId].name} is called off: ${money(r.cost)} back.`);
   } else if (s.rivals[r.by as RivalId]) s.rivals[r.by as RivalId].cash += r.cost;
+}
+
+// ---------- rebuilds ----------
+
+/** Is a rebuild (or a Busted fix) booked here for tonight? It counts as rebuilt: the plot won't lapse. */
+export const rebuilding = (ps: PlotState) => !!ps.repair?.rebuild;
+
+/** Is today the last day to book the rebuild of your Wrecked plot? Unbooked, it goes For Sale at the next dawn. Busted
+ * plots never lapse. */
+export const lastRebuildDay = (s: GameState, ps: PlotState) =>
+  ps.owner === 'player' && isWrecked(ps) && !ps.busted && s.day >= (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS;
+
+/** Your Wrecked building's rebuild (or your Busted one's fix) is approved like a repair: any time until the end of the
+ * Evening, business hours included, and it runs overnight. */
+export function canRebuild(s: GameState, plotId: string): Blocker {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player') return { ok: false, why: 'Not your plot' };
+  if (!isWrecked(ps)) return { ok: false, why: 'Nothing to rebuild' };
+  if (ps.repair) return { ok: false, why: ps.busted ? 'Fixing tonight' : 'Rebuilding tonight' };
+  if (s.phase === 'night') return { ok: false, why: lastRebuildDay(s, ps) ? 'Too late: it goes For Sale at dawn' : 'Too late tonight: approve it tomorrow' };
+  const cost = rebuildCost(ps);
+  if (s.cash < cost) return { ok: false, why: `Needs ${money(cost)}` };
+  return { ok: true };
+}
+
+/** Approve a rebuild (a Busted fix on Laid Back): paid now (the Ledger's repairs), closed for the rest of the day, built
+ * overnight, open at dawn at full HP. Auto-Repair's seam too. */
+export function approveRebuild(s: GameState, plotId: string): boolean {
+  if (!canRebuild(s, plotId).ok) return false;
+  const ps = s.plots[plotId];
+  const cost = rebuildCost(ps);
+  s.cash = round2(s.cash - cost);
+  s.today.land = round2(s.today.land + cost); // ledger: repairs and rebuilds
+  ps.repair = { by: 'player', cost, hp: standingHp(ps), rebuild: true };
+  return true;
+}
+
+/** The night's rebuild is done: the building stands again at full HP. */
+function rebuilt(ps: PlotState): void {
+  if (ps.stand) { ps.stand.wrecked = false; delete ps.stand.hp; }
+  if (ps.facility) { ps.facility.wrecked = false; delete ps.facility.hp; }
+  delete ps.wreckedDay;
+  delete ps.busted;
+}
+
+/**
+ * Dawn, after the night's work is done (damageAtDawn): First Dibs runs out, and each Wrecked plot with no rebuild booked
+ * faces Knock it down, buy it up. Yours has until the end of the day after the smash to book one (Busted ones never
+ * lapse). A rival decides the morning after: if its Grow money covers the bill and its personality says so, it books
+ * the rebuild (closed today, open tomorrow); otherwise the plot goes For Sale, with First Dibs for whoever smashed it.
+ */
+export function plotsAtDawn(s: GameState, rng: Rng): void {
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (ps.dibs && ps.dibs.until < s.day) delete ps.dibs;
+    if (!ps.owner || !isWrecked(ps) || rebuilding(ps)) continue;
+    if (ps.owner === 'player') {
+      if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(s, p); // Busted stands wait for their fix
+      continue;
+    }
+    const owner = ps.owner as RivalId;
+    const cost = rebuildCost(ps);
+    if (s.rivals[owner] && canSpend(s, owner, 'grow', cost) && nextRandom(rng) < rebuildChance(s, p.id)) {
+      spend(s, owner, 'grow', cost); // a rival rebuild is Grow money (rivalAi.ts)
+      ps.repair = { by: owner, cost, hp: standingHp(ps), rebuild: true };
+      if (ps.smashedBy === 'player') s.news.push(`${FACTIONS[owner].name} rebuild ${p.name} tonight: it opens again tomorrow.`);
+    } else forSale(s, p);
+  }
+}
+
+/** A Wrecked plot nobody rebuilt goes For Sale: whoever smashed it has First Dibs today (a rival buys at once if it can). */
+function forSale(s: GameState, p: Plot): void {
+  const ps = s.plots[p.id];
+  const smasher = ps.smashedBy ?? 'player';
+  s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: smasher, until: s.day } };
+  if (smasher === 'player') { s.news.push(`${p.name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
+  const r = s.rivals[smasher as RivalId];
+  if (r?.alive && canSpend(s, smasher as RivalId, 'grow', ps.landValue)) {
+    spend(s, smasher as RivalId, 'grow', ps.landValue); // a First Dibs buy is Grow money too
+    s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
+    if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${p.name} after Lottie couldn't rebuild.`);
+  } else {
+    delete s.plots[p.id].dibs;
+    if (ps.owner === 'player') s.news.push(`${p.name} lapses and goes For Sale.`);
+  }
 }
 
 // ---------- Auto-Repair ----------
@@ -173,16 +268,21 @@ export function toggleAutoRepair(s: GameState, plotId: string): boolean {
   return true;
 }
 
-/** Closing time: Auto-Repair books the fixes your plots need, the worst first, as far as the cash goes. Plots you skip
- * wait for you. */
+/** Which fix Auto-Repair books first: Wrecked plots (they lapse), then Busted ones, then the worst Damaged. */
+const urgency = (ps: PlotState) => (isWrecked(ps) ? (ps.busted ? 1 : 0) : 2 + hpShare(ps));
+
+/** Closing time: Auto-Repair books the rebuilds and repairs your plots need, the most urgent first, as far as the cash
+ * goes. Plots you skip wait for you. */
 function autoRepair(s: GameState): void {
   if (!autoRepairOn(s)) return;
-  const due = PLOTS.filter((p) => autoRepairs(s, p.id) && isDamaged(s.plots[p.id]))
-    .sort((a, b) => hpShare(s.plots[a.id]) - hpShare(s.plots[b.id]));
+  const due = PLOTS.filter((p) => autoRepairs(s, p.id) && (isWrecked(s.plots[p.id]) || isDamaged(s.plots[p.id])))
+    .sort((a, b) => urgency(s.plots[a.id]) - urgency(s.plots[b.id]));
   let n = 0, paid = 0;
   for (const p of due) {
-    const cost = repairCost(s, p.id);
-    if (!approveRepair(s, p.id)) continue;
+    const ps = s.plots[p.id];
+    const fall = isWrecked(ps);
+    const cost = fall ? rebuildCost(ps) : repairCost(s, p.id);
+    if (!(fall ? approveRebuild(s, p.id) : approveRepair(s, p.id))) continue;
     n++;
     paid += cost;
   }
@@ -204,7 +304,8 @@ export function damageAtClose(s: GameState): void {
   }
 }
 
-/** Dawn: the night's repairs are done. Each puts back the HP it was paid for, so a building the night left alone is good
+/** Dawn, before anything lapses: the night's work is done. A rebuild puts the building back up at full HP (the work goes
+ * with the plot, like the building). A repair puts back the HP it was paid for, so a building the night left alone is good
  * as new; one a raid dented again after the approval keeps the fresh damage. */
 export function damageAtDawn(s: GameState): void {
   const fixed: string[] = [], dented: string[] = [];
@@ -213,8 +314,14 @@ export function damageAtDawn(s: GameState): void {
     const r = ps.repair;
     if (!r) continue;
     const b = building(ps);
-    if (!b || b.wrecked) { callOffRepair(s, p.id); continue; } // a fall calls it off at once; this is the safety net
+    // Safety nets: a fall calls a repair off at once, and a rebuild only puts back a fallen building.
+    if (!b || !!b.wrecked !== !!r.rebuild) { callOffRepair(s, p.id); continue; }
     delete ps.repair;
+    if (r.rebuild) {
+      rebuilt(ps);
+      if (ps.owner === 'player') s.news.push(`Hammers and elbow grease: ${p.name} is back in business.`);
+      continue;
+    }
     const hp = currentHp(ps) + r.hp;
     if (hp >= buildingHp(ps)) delete b.hp; else b.hp = hp;
     if (r.by === 'player') (hp >= buildingHp(ps) ? fixed : dented).push(p.name);
@@ -235,7 +342,8 @@ export function migrateDamage(s: GameState): void {
       else x.hp = Math.max(1, Math.round(x.hp));
     }
     const r = ps.repair as Partial<Repair> | undefined;
-    if (r !== undefined && (!r || typeof r !== 'object' || typeof r.by !== 'string' || typeof r.cost !== 'number' || typeof r.hp !== 'number' || !b || isWrecked(ps))) delete ps.repair;
+    if (r !== undefined && (!r || typeof r !== 'object' || typeof r.by !== 'string' || typeof r.cost !== 'number' || typeof r.hp !== 'number' || !b
+      || (r.rebuild !== undefined && r.rebuild !== true) || isWrecked(ps) !== !!r.rebuild)) delete ps.repair; // a rebuild waits on a wreck, a repair on a standing building
     if (ps.noAutoRepair !== undefined && (ps.noAutoRepair !== true || ps.owner !== 'player')) delete ps.noAutoRepair;
   }
 }

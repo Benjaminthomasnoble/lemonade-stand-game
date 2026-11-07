@@ -14,14 +14,14 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
-import { buildingInvested, currentHp, dollarsUp, hpLostNote, raidDamage, restoreHp } from './damage.ts';
+import { approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn, raidDamage } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { withBell } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
-import { canSpend, rivalGuardSpend, signatureRaids, spend } from './rivalAi.ts';
+import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
@@ -192,20 +192,9 @@ export function rebuildCost(ps: PlotState): number {
   return dollarsUp(buildingInvested(ps) * (ps.busted ? BUSTED_REPAIR_SHARE : REBUILD_SHARE));
 }
 
-export function rebuildStand(s: GameState, plotId: string): boolean {
-  const ps = s.plots[plotId];
-  const cost = rebuildCost(ps);
-  if (ps.owner !== 'player' || !isWrecked(ps) || s.cash < cost || s.phase === 'open') return false;
-  s.cash = round2(s.cash - cost);
-  s.today.land = round2(s.today.land + cost);
-  if (ps.stand) ps.stand.wrecked = false;
-  if (ps.facility) ps.facility.wrecked = false;
-  restoreHp(s, plotId); // back up at full HP
-  delete ps.wreckedDay;
-  delete ps.busted;
-  s.news.push(`Hammers and elbow grease: ${PLOT_BY_ID[plotId].name} is back in business.`);
-  return true;
-}
+/** Approve the rebuild of your Wrecked building (the fix of a Busted one): paid now, built overnight, open at dawn at
+ * full HP (damage.ts approveRebuild). */
+export const rebuildStand = (s: GameState, plotId: string): boolean => approveRebuild(s, plotId);
 
 // ---------- guards ----------
 
@@ -601,7 +590,7 @@ function headline(b: BattleReport): string {
   switch (b.outcome) {
     case 'smashed': return b.busted
       ? `Night raid! ${fname(b.attacker)} bust up ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. It's closed until you repair it.`
-      : `Night raid! ${fname(b.attacker)} smash ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. Rebuild it at Morning Prep or lose the plot!`;
+      : `Night raid! ${fname(b.attacker)} smash ${b.standLevel ? 'the stand' : 'the facility'} at ${where}. Book a rebuild before the next nightfall or lose the plot!`;
     case 'robbed': return `Night raid! ${fname(b.attacker)} grab ${money(b.loot)} from the till at ${where}.`;
     case 'damaged': return `${fname(b.attacker)} rattle ${where} but leave empty-handed.`;
     default: return `Raid repelled at ${where}! ${fname(b.attacker)} limp home. They'll keep their distance for a few days.`;
@@ -626,38 +615,7 @@ export function crewAtDawn(s: GameState): void {
   if (s.day >= 6) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
-  for (const p of PLOTS) {
-    const ps = s.plots[p.id];
-    if (ps.dibs && ps.dibs.until < s.day) delete ps.dibs;
-    if (!ps.owner || !isWrecked(ps)) continue;
-    const smasher = ps.smashedBy ?? 'player';
-    const forSale = () => {
-      s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(), dibs: { who: smasher, until: s.day } };
-      if (smasher === 'player') { s.news.push(`${PLOT_BY_ID[p.id].name} is For Sale after the smash. Lottie has First Dibs today!`); return; }
-      // A rival with First Dibs buys straight away if they can.
-      const r = s.rivals[smasher as RivalId];
-      if (r?.alive && canSpend(s, smasher as RivalId, 'grow', ps.landValue)) {
-        spend(s, smasher as RivalId, 'grow', ps.landValue);
-        s.plots[p.id] = { owner: smasher, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE() };
-        if (ps.owner === 'player') s.news.push(`${FACTIONS[smasher as RivalId].name} snap up ${PLOT_BY_ID[p.id].name} after Lottie couldn't rebuild.`);
-      } else {
-        delete s.plots[p.id].dibs;
-        if (ps.owner === 'player') s.news.push(`${PLOT_BY_ID[p.id].name} lapses and goes For Sale.`);
-      }
-    };
-    if (ps.owner === 'player') {
-      if (!ps.busted && s.day > (ps.wreckedDay ?? s.day) + PLAYER_REBUILD_DAYS) forSale(); // Busted stands wait for their repair
-      continue;
-    }
-    const owner = ps.owner as RivalId;
-    const cost = rebuildCost(ps);
-    if (canSpend(s, owner, 'grow', cost) && nextRandom(rng) < rebuildChance(s, p.id)) {
-      spend(s, owner, 'grow', cost); // a rival rebuild is Grow money
-      if (ps.stand) ps.stand.wrecked = false;
-      if (ps.facility) ps.facility.wrecked = false;
-      delete ps.wreckedDay;
-    } else forSale();
-  }
+  plotsAtDawn(s, rng); // First Dibs, rival rebuilds and lapsed plots (damage.ts)
   // Rivals spend their Guard bucket: fences and henchmen on their best stands.
   for (const id of RIVALS) {
     rivalGuardSpend(s, id, rng);

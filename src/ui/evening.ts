@@ -3,9 +3,9 @@
 // repairs and send tonight's raids for a moment before the night runs on the
 // clock. Plain controls on the HUD's existing classes; clicks go through the
 // HUD's one listener (data-action).
-import { canBuyPerimeter, fenceRepairCost, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, rebuildCost, type GameState, type Guard } from '../sim/economy.ts';
+import { canBuyPerimeter, fenceRepairCost, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type Guard } from '../sim/economy.ts';
 import * as A from './clay.ts';
-import { damageTickets } from './damage.ts';
+import { damageTickets, rebuildTickets } from './damage.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
@@ -25,16 +25,12 @@ export function eveningBar(): string {
 
 /** Approve repairs: each of your plots with a smashed stand or a dented fence, with its fix (after closing and at night). */
 export function repairCards(s: GameState): string[] {
-  const out: string[] = [];
+  const out = rebuildTickets(s, 'repair'); // smashed plots: the rebuild, or tonight's booking (src/ui/damage.ts)
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (ps.owner !== 'player') continue;
+    if (ps.owner !== 'player' || isWrecked(ps)) continue;
     const go = btn('goto', 'Go there', `data-plot="${p.id}"`);
-    if (isWrecked(ps)) {
-      const cost = rebuildCost(ps);
-      const fix = btn('rebuild', `${ps.busted ? 'Fix' : 'Rebuild'} ${whole(cost)}`, `data-plot="${p.id}" data-testid="repair" ${s.cash >= cost ? '' : 'disabled title="Not enough cash"'}`, 'tiny go');
-      out.push(`<div class="cl-ticket red" title="${esc(`${p.name}: ${ps.busted ? 'Busted, closed until you fix it' : 'Smashed. Rebuild by tomorrow or the plot goes For Sale'}`)}">${art('boom', A.boomSVG)}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${fix}</span></div>`);
-    } else if (fenceRepairCost(ps)) {
+    if (fenceRepairCost(ps)) {
       const cost = fenceRepairCost(ps);
       const fix = btn('repairFence', `Patch ${whole(cost)}`, `data-plot="${p.id}" data-testid="repair" ${s.cash >= cost ? '' : 'disabled title="Not enough cash"'}`);
       out.push(`<div class="cl-ticket" title="${esc(`${p.name}: the fence is dented`)}">${art(`fence${ps.defense.tier}`, () => A.fenceSVG(ps.defense.tier))}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${fix}</span></div>`);

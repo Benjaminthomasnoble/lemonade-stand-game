@@ -38,8 +38,12 @@ describe('difficulty', () => {
     for (let i = 0; i < 4; i++) { s.cash = Math.max(s.cash, 50); s.phase = 'report'; sleepUntilDawn(s); }
     expect(s.plots[LOTTIES_CORNER].owner).toBe('player'); // a Wrecked stand would have lapsed by now
     s.cash = 100;
-    expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
+    expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true); // the fix runs overnight
+    expect(s.plots[LOTTIES_CORNER].busted).toBe(true);
+    s.phase = 'report';
+    sleepUntilDawn(s);
     expect(s.plots[LOTTIES_CORNER].busted).toBeUndefined();
+    expect(s.plots[LOTTIES_CORNER].stand!.wrecked).toBe(false);
   });
 
   it('Classic Wrecks your stand, and an unrebuilt plot lapses', () => {

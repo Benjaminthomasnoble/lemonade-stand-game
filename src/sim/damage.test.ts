@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget, buyPerimeter,
-  canRepair, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid, growUpgrades, hpCapacity, hpShare,
-  isDamaged, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOTS, raidDamage,
-  raidPartyFor, rebuildCost, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, tickMinute, toggleAutoRepair,
-  upgradeStand, type GameState, type RivalId, type SupplyId,
+  approveRebuild, approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget,
+  buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid,
+  growUpgrades, hpCapacity, hpShare, isDamaged, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame, newStand, openStand,
+  ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, raidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand,
+  simulateRestOfDay, sleepUntilDawn, tickMinute, toggleAutoRepair, upgradeStand, type GameState, type RivalId, type SupplyId,
 } from './economy.ts';
+import { nextRandom } from './rng.ts';
 
 /** Lottie's Corner grown into a Kiosk the normal way: Folding Table ($150), Lemonade Cart ($400), Kiosk ($3,500). */
 function kiosk(seed = 1): GameState {
@@ -160,6 +161,9 @@ describe('building HP', () => {
     expect(b.hpLost).toBeUndefined();
     expect(ps.stand!.hp).toBeUndefined();
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
+    expect(currentHp(ps)).toBe(0); // still a plank pile until the night's work is done
+    s.phase = 'report';
+    sleepUntilDawn(s);
     expect(currentHp(ps)).toBe(800);
   });
 });
@@ -412,6 +416,24 @@ describe('Auto-Repair (Rank 3)', () => {
     expect(s.cash).toBe(68);
   });
 
+  it('books your rebuilds too, before any repair, and they are up again at dawn', () => {
+    const { s, side } = twoDamaged();
+    const table = s.plots[side];
+    table.stand!.wrecked = true;
+    delete table.stand!.hp;
+    table.wreckedDay = s.day;
+    s.cash = 30; // the $23 rebuild, not the $304 repair as well
+    damageAtClose(s);
+    expect(table.repair).toEqual({ by: 'player', cost: 23, hp: 100, rebuild: true });
+    expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
+    expect(s.cash).toBe(7);
+    expect(s.news).toContain('Auto-Repair: 1 fix booked for tonight, $23. Good as new at dawn.');
+    s.phase = 'report';
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(table.stand!.wrecked).toBe(false);
+    expect(currentHp(table)).toBe(100);
+  });
+
   it('a skip on a plot that is not yours does not survive a load', () => {
     const { s } = twoDamaged();
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
@@ -423,7 +445,154 @@ describe('Auto-Repair (Rank 3)', () => {
   });
 });
 
+describe('rebuilds run overnight', () => {
+  /** Lottie's Kiosk smashed in the night: the dawn after, with the plank pile and its rebuild to book. */
+  function smashedAtNight(seed: number) {
+    const s = kiosk(seed);
+    s.phase = 'night';
+    expect(smash(s, LOTTIES_CORNER, 500, 2).outcome).toBe('smashed');
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Too late tonight: approve it tomorrow' });
+    const night = s.day;
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(s.day).toBe(night + 1);
+    expect(s.plots[LOTTIES_CORNER].owner).toBe('player'); // still time to book it today
+    return { s, ps: s.plots[LOTTIES_CORNER] };
+  }
+
+  it('are paid on approval; the stand stays closed all day and opens at dawn at full HP', () => {
+    const { s, ps } = smashedAtNight(40);
+    const cash = s.cash, land = s.today.land;
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: true });
+    expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
+    expect(s.cash).toBe(cash - 608);
+    expect(s.today.land).toBe(land + 608);
+    expect(ps.repair).toEqual({ by: 'player', cost: 608, hp: 800, rebuild: true });
+    expect(rebuilding(ps)).toBe(true);
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Rebuilding tonight' });
+    expect(approveRebuild(s, LOTTIES_CORNER)).toBe(false);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(ps.stand!.wrecked).toBe(true); // a plank pile all day long
+    expect(ps.stand!.day.customers).toBe(0);
+    expect(s.cash).toBeLessThanOrEqual(cash - 608);
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(ps.stand!.wrecked).toBe(false);
+    expect(currentHp(ps)).toBe(800);
+    expect(ps.repair).toBeUndefined();
+    expect(ps.wreckedDay).toBeUndefined();
+    expect(s.news).toContain(`Hammers and elbow grease: ${PLOT_BY_ID[LOTTIES_CORNER].name} is back in business.`);
+  });
+
+  it('can be booked through the day after the smash, business hours and Evening included, never at night', () => {
+    const { s } = smashedAtNight(41);
+    for (const phase of ['prep', 'open', 'report'] as const) {
+      s.phase = phase;
+      expect(canRebuild(s, LOTTIES_CORNER).ok).toBe(true);
+    }
+    s.phase = 'night';
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Too late: it goes For Sale at dawn' });
+    s.phase = 'report';
+    s.cash = 100;
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Needs $608' });
+    expect(approveRebuild(s, LOTTIES_CORNER)).toBe(false);
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    expect(canRebuild(s, rival.id)).toEqual({ ok: false, why: 'Not your plot' });
+    expect(canUpgradeStand(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Rebuild it first' });
+  });
+
+  it('an unbooked wreck goes For Sale the dawn after next; a booked one counts as rebuilt', () => {
+    const lapse = smashedAtNight(42);
+    lapse.s.rank = 2; // no Auto-Repair
+    lapse.s.phase = 'report';
+    expect(sleepUntilDawn(lapse.s)).toBe(true);
+    expect(lapse.s.plots[LOTTIES_CORNER].owner).not.toBe('player');
+    const kept = smashedAtNight(42);
+    kept.s.rank = 2;
+    kept.s.phase = 'report'; // booked in the Evening, the last moment
+    expect(approveRebuild(kept.s, LOTTIES_CORNER)).toBe(true);
+    expect(sleepUntilDawn(kept.s)).toBe(true);
+    expect(kept.s.plots[LOTTIES_CORNER].owner).toBe('player');
+    expect(kept.s.plots[LOTTIES_CORNER].stand!.wrecked).toBe(false);
+  });
+
+  it('Auto-Repair books the rebuild at closing, in time to keep the plot', () => {
+    const { s, ps } = smashedAtNight(43);
+    expect(autoRepairs(s, LOTTIES_CORNER)).toBe(true);
+    closeShop(s);
+    expect(ps.repair).toMatchObject({ by: 'player', cost: 608, rebuild: true });
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(ps.stand!.wrecked).toBe(false);
+    expect(s.plots[LOTTIES_CORNER].owner).toBe('player');
+  });
+
+  it('a rival decides the morning after: it rebuilds overnight (closed that day) or the plot goes For Sale', () => {
+    const roll = (want: (x: number) => boolean) => Array.from({ length: 1000 }, (_, k) => k).find((k) => want(nextRandom({ seed: k })))!;
+    const setup = () => {
+      const s = kiosk(44);
+      const p = PLOTS.find((q) => s.plots[q.id].owner === 'hollis' && s.plots[q.id].stand)!;
+      const ps = s.plots[p.id];
+      ps.stand!.wrecked = true;
+      ps.wreckedDay = s.day;
+      ps.smashedBy = 'player';
+      s.rivals.hollis.cash = 100000;
+      budgetOf(s, 'hollis').grow = 1000; // a rival rebuild is Grow money (rivalAi.ts)
+      s.day++;
+      return { s, p, ps };
+    };
+    const yes = setup();
+    const cost = rebuildCost(yes.ps);
+    plotsAtDawn(yes.s, { seed: roll((x) => x < 0.1) }); // Hollis rebuilds 60% of the time
+    expect(yes.ps.repair).toMatchObject({ by: 'hollis', cost, rebuild: true });
+    expect(yes.s.rivals.hollis.cash).toBe(100000 - cost);
+    expect(budgetOf(yes.s, 'hollis').grow).toBeCloseTo(1000 - cost, 2);
+    expect(yes.ps.stand!.wrecked).toBe(true); // closed today
+    expect(yes.s.news).toContain(`${FACTIONS.hollis.name} rebuild ${yes.p.name} tonight: it opens again tomorrow.`);
+    plotsAtDawn(yes.s, { seed: roll((x) => x > 0.9) }); // booked: no second roll and no second bill
+    expect(yes.s.plots[yes.p.id].owner).toBe('hollis');
+    expect(yes.s.rivals.hollis.cash).toBe(100000 - cost);
+    yes.s.day++;
+    damageAtDawn(yes.s);
+    expect(yes.ps.stand!.wrecked).toBe(false);
+    expect(currentHp(yes.ps)).toBe(buildingHp(yes.ps));
+    const no = setup();
+    plotsAtDawn(no.s, { seed: roll((x) => x > 0.9) });
+    expect(no.s.plots[no.p.id].owner).toBeNull();
+    expect(no.s.plots[no.p.id].dibs?.who).toBe('player');
+  });
+
+  it('a plot bought mid-rebuild comes with the rebuild', () => {
+    const s = kiosk(45);
+    const p = PLOTS.find((q) => s.plots[q.id].owner === 'hollis' && s.plots[q.id].stand)!;
+    const ps = s.plots[p.id];
+    ps.stand!.wrecked = true;
+    ps.repair = { by: 'hollis', cost: 50, hp: buildingHp({ ...ps, stand: { ...ps.stand!, wrecked: false } }), rebuild: true };
+    ps.owner = 'player'; // a Plot Buyout at Morning Prep
+    s.day++;
+    damageAtDawn(s);
+    expect(ps.stand!.wrecked).toBe(false);
+    expect(ps.repair).toBeUndefined();
+    expect(s.news).toContain(`Hammers and elbow grease: ${p.name} is back in business.`);
+  });
+});
+
 describe('saves', () => {
+  it('a booked rebuild survives a save and load; work that cannot happen is dropped', () => {
+    const s = kiosk(19);
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.wrecked = true;
+    ps.wreckedDay = s.day;
+    expect(approveRebuild(s, LOTTIES_CORNER)).toBe(true);
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.plots[LOTTIES_CORNER].repair).toEqual({ by: 'player', cost: 608, hp: 800, rebuild: true });
+    ps.stand!.wrecked = false; // a rebuild booked on a standing building
+    migrateDamage(s);
+    expect(ps.repair).toBeUndefined();
+    ps.stand!.hp = 400;
+    ps.repair = { by: 'player', cost: 304, hp: 400, rebuild: 'yes' as never };
+    migrateDamage(s);
+    expect(ps.repair).toBeUndefined();
+  });
+
   it('building HP and queued repairs survive a save and load', () => {
     const s = kiosk(17);
     s.plots[LOTTIES_CORNER].stand!.hp = 400;

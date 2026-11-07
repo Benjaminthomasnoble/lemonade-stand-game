@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, canBuildClubhouse, canBuildStand, canHire, CLUBHOUSE, fightRaid, LOTTIES_CORNER, migrateSave, newGame, PLOTS,
+  buildClubhouse, canBuildClubhouse, canBuildStand, canHire, CLUBHOUSE, damageAtDawn, fightRaid, LOTTIES_CORNER, migrateSave, newGame, PLOTS,
   rebuildCost, rebuildStand, refreshRecruits, rosterCap, successScore, type GameState,
 } from './economy.ts';
 import { allBeds, clubhouses, clubhouseSite, clubOf, reserveAt, waitAt } from './clubhouse.ts';
@@ -95,6 +95,8 @@ describe('a Clubhouse on a Street plot', () => {
     expect(rebuildCost(s.plots[a])).toBe(Math.ceil(2000 * 0.15));
     s.phase = 'prep';
     expect(rebuildStand(s, a)).toBe(true);
+    expect(allBeds(s)).toBe(0); // the rebuild runs overnight (damage.ts)
+    damageAtDawn(s);
     expect(allBeds(s)).toBe(6);
   });
 });

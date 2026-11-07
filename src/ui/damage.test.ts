@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { approveRepair, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
-import { damageCard, damageHere, damageTickets } from './damage.ts';
+import { approveRebuild, approveRepair, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
+import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
 /** Lottie's Corner as a Kiosk ($4,050, 800 HP, 120 cups an hour) at Morning Prep. */
@@ -115,5 +115,59 @@ describe('the HP readout and the repair', () => {
     const cards = repairCards(s).join('');
     expect(cards).toContain('data-testid="damaged"');
     expect(cards).toContain('Repair $456');
+  });
+});
+
+describe('the rebuild', () => {
+  it('a smashed plot of yours gets a Rebuild button and a ticket, then a note once it is booked for tonight', () => {
+    const s = kiosk();
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.wrecked = true;
+    ps.wreckedDay = s.day - 1; // smashed last night: today is the last day to book it
+    const btn = rebuildButton(s, LOTTIES_CORNER);
+    expect(btn).toContain(`data-action="rebuild" data-plot="${LOTTIES_CORNER}" data-testid="rebuild"`);
+    expect(btn).toContain('title="Built overnight: open at dawn. Book it today or the plot goes For Sale"');
+    expect(btn).toContain('Rebuild $608');
+    const [ticket] = rebuildTickets(s);
+    expect(ticket).toContain('cl-ticket red');
+    expect(ticket).toContain('data-testid="wrecked"');
+    expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
+    expect(ticket).toContain('Rebuild $608');
+    expect(wreckNote(s, LOTTIES_CORNER)).toContain('Wrecked');
+    s.phase = 'night';
+    expect(rebuildButton(s, LOTTIES_CORNER)).toContain('disabled title="Too late: it goes For Sale at dawn"');
+    s.phase = 'report';
+    expect(repairCards(s).join('')).toContain('data-testid="repair"');
+    expect(approveRebuild(s, LOTTIES_CORNER)).toBe(true);
+    expect(rebuildButton(s, LOTTIES_CORNER)).toContain('Rebuilding tonight');
+    expect(rebuildButton(s, LOTTIES_CORNER)).not.toContain('data-action="rebuild"');
+    const cards = repairCards(s).join('');
+    expect(cards).toContain('Rebuilding tonight');
+    expect(cards).not.toContain('cl-ticket red');
+  });
+
+  it('a Busted stand gets a Fix button that never lapses', () => {
+    const s = kiosk();
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.wrecked = true;
+    ps.busted = true;
+    ps.wreckedDay = s.day - 1;
+    const btn = rebuildButton(s, LOTTIES_CORNER);
+    expect(btn).toContain('Fix $405');
+    expect(btn).toContain('title="Fixed overnight: open at dawn"');
+    expect(rebuildTickets(s)[0]).toContain('Busted: closed until you fix it');
+    expect(wreckNote(s, LOTTIES_CORNER)).toContain('Busted');
+  });
+
+  it("a rival's smashed plot shows Wrecked, then Rebuilding once it books one, and never a button", () => {
+    const s = kiosk();
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    expect(wreckNote(s, rival.id)).toBe('');
+    s.plots[rival.id].stand!.wrecked = true;
+    expect(wreckNote(s, rival.id)).toContain('Wrecked');
+    s.plots[rival.id].repair = { by: 'hollis', cost: 60, hp: 300, rebuild: true };
+    expect(wreckNote(s, rival.id)).toContain('Rebuilding');
+    expect(rebuildButton(s, rival.id)).toBe('');
+    expect(rebuildTickets(s)).toEqual([]);
   });
 });

@@ -218,6 +218,56 @@ describe('segments and the line', () => {
     expect(joinsLine(st, 'tourists')).toBe(false);
     st.queue = 11;
     expect(joinsLine(st, 'seniors')).toBe(false);
+    // Mid-minute, a buyer counts only who's still waiting once the minute's cups are poured: an L5 pours 11.67 a minute.
+    st.queue = 14;
+    expect(peopleAhead(st, 700 / 60)).toBe(3);
+    expect(joinsLine(st, 'office', 700 / 60)).toBe(true);
+    expect(joinsLine(st, 'highRollers', 700 / 60)).toBe(false);
+    st.queue = 5;
+    expect(peopleAhead(st, 700 / 60)).toBe(0); // never fewer than nobody
+  });
+
+  /** A lone stand of yours on a plot (every stand within 2 plots cleared), at its ceiling with stock to spare. */
+  function lone(s: GameState, plotId: string, level: number) {
+    for (const q of nearbyPlots(PLOT_BY_ID[plotId])) { s.plots[q.id].stand = null; s.plots[q.id].owner = null; delete s.plots[q.id].facility; }
+    playerStand(s, plotId, level);
+    const st = s.plots[plotId].stand!;
+    st.inventory.lemons = [{ qty: 200000, day: s.day, unitCost: 0.1 }];
+    st.inventory.sugar = 800000;
+    st.inventory.ice = 2000000;
+    return st;
+  }
+
+  it('lets a big stand pour what it promises: a minute\'s buyers are served within the minute', () => {
+    // A lone L5 on a Downtown Prime plot, about two-thirds loaded on a Warm day: almost nobody finds the line too long.
+    const a = newGame(7);
+    a.brandTier = 3;
+    const st = lone(a, 'downtown-2n', 5);
+    a.forecast = { kind: 'warm', temp: 78 };
+    const promised = expectedCups(a, 'downtown-2n');
+    expect(promised / dailyService(a, 'downtown-2n')).toBeGreaterThan(0.6);
+    expect(promised / dailyService(a, 'downtown-2n')).toBeLessThan(0.75);
+    playDay(a, 'warm', 78);
+    expect(st.day.walkedPast.line / (st.day.customers + st.day.walkedPast.line)).toBeLessThan(0.02);
+    expect(st.day.customers).toBeGreaterThan(promised * 0.94);
+    // Saturated on a Scorcher, the Citrus Palace pours its whole day: 700 cups an hour × 10.
+    const b = newGame(7);
+    b.brandTier = 3;
+    const big = lone(b, 'downtown-6s', 5);
+    playDay(b, 'scorcher', 99);
+    expect(big.day.customers).toBe(dailyService(b, 'downtown-6s'));
+    expect(big.day.customers).toBe(7000);
+  });
+
+  it('shows the line still waiting after the minute\'s pours', () => {
+    const t = newGame(7);
+    const live = lone(t, 'downtown-2n', 5);
+    t.forecast = { kind: 'warm', temp: 78 };
+    openStands(t);
+    t.weather = { kind: 'warm', temp: 78 };
+    let longest = 0;
+    while (t.phase === 'open') { tickMinute(t); longest = Math.max(longest, peopleAhead(live)); }
+    expect(longest).toBeLessThan(8); // two-thirds loaded, the line never really builds
   });
 
   it('moves the line at the pour rate and stops pouring at the day\'s service', () => {

@@ -363,18 +363,25 @@ export function stockCapCups(level: number): number {
   return STAND_LEVELS[level - 1].stock;
 }
 
-/** People ahead of a newcomer in the stand's line. */
-export const peopleAhead = (st: Stand) => Math.ceil((st.queue ?? 0) - 1e-9);
+/**
+ * People ahead of a newcomer in the stand's line. Mid-minute, `perMinute` is what the stand still pours before the
+ * minute is out: a minute's walkers arrive together, so a buyer counts only the people the stand won't have served
+ * by then (an L5 pours nearly 12 cups a minute, and a peak minute's dozen buyers never really stand in a line).
+ */
+export const peopleAhead = (st: Stand, perMinute = 0) => Math.max(0, Math.ceil((st.queue ?? 0) - perMinute - 1e-9));
 
 /** A buyer joins the line only if the people ahead are within their segment's patience (seniors wait behind 10, high rollers 2). */
-export const joinsLine = (st: Stand, seg: SegmentId) => peopleAhead(st) <= SEGMENTS[seg].patience;
+export const joinsLine = (st: Stand, seg: SegmentId, perMinute = 0) => peopleAhead(st, perMinute) <= SEGMENTS[seg].patience;
 
 /** Cups the stand can still pour today: the day's service less what it has sold. At 0, every buyer walks off "line too long". */
 export function serviceLeft(s: GameState, plotId: string): number {
   return Math.max(0, dailyService(s, plotId) - s.plots[plotId].stand!.day.customers);
 }
 
-/** The line moves at the stand's pour rate (cups an hour). Call once a game minute while open. */
+/**
+ * The line moves at the stand's pour rate (cups an hour). Call once a game minute while open, after the minute's
+ * walkers: what's left is the line waiting into the next minute, the one the queue counter shows.
+ */
 export function drainQueue(s: GameState, plotId: string): void {
   const st = s.plots[plotId].stand!;
   if (!st.queue) return;
@@ -402,6 +409,8 @@ export interface DemandForecast {
   demand: number;
   /** The share of its own passersby the owner keeps (1 alone; at least 65% in a rival block). */
   kept: number;
+  /** Of those kept, the people who walk on to the owner's other stands within 2 plots (they stay the owner's). */
+  toOwn: number;
   /** Visitors who came from other plots' passersby. */
   inflow: number;
   /** Visitor-weighted averages of the per-segment factors. */
@@ -410,12 +419,12 @@ export interface DemandForecast {
 
 /** Expected demand at a stand for a day's weather, by the same split, segment, price and stop rules the day runs on. */
 export function expectedDemand(s: GameState, plotId: string, w: Weather = s.forecast): DemandForecast {
-  const out: DemandForecast = { visitors: 0, demand: 0, kept: 1, inflow: 0, recipe: 1, sweet: 1, priceFit: 1 };
+  const out: DemandForecast = { visitors: 0, demand: 0, kept: 1, toOwn: 0, inflow: 0, recipe: 1, sweet: 1, priceFit: 1 };
   const st = s.plots[plotId]?.stand;
   if (!st || st.wrecked || isSpoiled(s, s.plots[plotId])) return out; // crew: a Sabotaged stand sells nothing today
   const memo = appealMemo(s, w);
   const p = PLOT_BY_ID[plotId];
-  let recipe = 0, sweet = 0, fit = 0, ownPeople = 0, ownKept = 0;
+  let recipe = 0, sweet = 0, fit = 0, ownPeople = 0, ownKept = 0, ownStay = 0;
   for (const q of nearbyPlots(p)) {
     const qs = s.plots[q.id].stand;
     if (!qs || qs.wrecked) continue;
@@ -433,12 +442,13 @@ export function expectedDemand(s: GameState, plotId: string, w: Weather = s.fore
       const a = memo(plotId, seg);
       const v = people * share;
       out.visitors += v;
-      if (q.id !== plotId) out.inflow += v;
+      if (q.id !== plotId) out.inflow += v; else ownStay += v;
       out.demand += v * a.stopChance;
       recipe += v * a.recipeMatch; sweet += v * a.sweetMatch; fit += v * a.priceFit;
     }
   }
   if (ownPeople > 0) out.kept = ownKept / ownPeople;
+  out.toOwn = Math.max(0, ownKept - ownStay);
   if (out.visitors > 0) { out.recipe = recipe / out.visitors; out.sweet = sweet / out.visitors; out.priceFit = fit / out.visitors; }
   return out;
 }
@@ -451,7 +461,8 @@ export interface DemandChain {
   traffic: number; draw: number; marketing: number; season: number; weather: number; surge: number; lunch: number; passersby: number;
   /** The marketing number's terms, and the surges multiplying on top. */
   terms: MarketingTerm[]; surges: { label: string; mult: number }[];
-  kept: number; inflow: number; visitors: number;
+  /** Walk by × kept − toOwn (to your stands next door) + inflow (from next door) = visitors, the people at this stand. */
+  kept: number; toOwn: number; inflow: number; visitors: number;
   // 2. Stop chance
   base: number; thirst: number; curb: number; recipe: number; sweet: number; priceFit: number; reputation: number; stopChance: number;
   price: number; ceiling: number;
@@ -479,7 +490,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
     traffic: p.baseTraffic, draw: STAND_LEVELS[st.level - 1].draw, marketing: marketingMultiplier(s, owner, st, plotId),
     season: seasonDemand(s, plotId), weather: WEATHER[w.kind].traffic, surge: eventTraffic(s, plotId), lunch,
     terms: marketingTerms(s, owner, st, plotId), surges: surges(s, plotId),
-    passersby: Math.round(passersby * lunch), kept: f.kept, inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
+    passersby: Math.round(passersby * lunch), kept: f.kept, toOwn: Math.round(f.toOwn), inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
     base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
     reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,
     price: st.price, ceiling: priceCeiling(s, plotId, st),

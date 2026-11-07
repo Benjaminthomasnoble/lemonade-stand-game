@@ -32,7 +32,7 @@ import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
   adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
-  marketingMultiplier, migrateDemand, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
+  marketingMultiplier, migrateDemand, pourRate, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
@@ -686,10 +686,11 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   // Over the ceiling, the buyers lost to price walk off "too pricey"; the rest simply aren't thirsty.
   const roll = nextRandom(rng);
   if (roll >= a.stopChance) return { buys: false, reason: roll < a.wouldStop ? 'pricey' : 'notThirsty' };
-  // A buyer joins the line only if the people ahead are within their patience; it moves at the pour rate.
+  // A buyer joins the line only if the people ahead are within their patience; it moves at the pour rate, and a
+  // minute's walkers count only those still waiting once this minute's cups are poured (demand.ts).
   // The day's pours stop at cups/hour × 10 (service); past that, everyone finds the line too long too.
   // A Damaged stand pours its HP share (pourRate, damage.ts), so its line moves slower and its day ends sooner.
-  if (!joinsLine(st, seg) || serviceLeft(s, plotId) <= 0) return { buys: false, reason: 'line' };
+  if (!joinsLine(st, seg, pourRate(s, plotId) / 60) || serviceLeft(s, plotId) <= 0) return { buys: false, reason: 'line' };
   if (!isPlayer && st.day.customers >= stockCups(st)) return { buys: false, reason: 'soldOut' }; // a rival sells one full stock a day
   if (isPlayer) {
     if (st.inventory.ice < RECIPES[st.recipe].icePerCup && !iceMachineOn(s, plotId)) return { buys: false, reason: 'soldOut' }; // a cup needs its ice: no warm lemonade
@@ -748,7 +749,6 @@ export function tickMinute(s: GameState): SimEvent[] {
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps)) continue;
-    drainQueue(s, p.id);
     const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx] * lunchRush(s, p.id, 8 + hourIdx)) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);
     while (carry >= 1) {
@@ -757,6 +757,7 @@ export function tickMinute(s: GameState): SimEvent[] {
     }
     s.spawnCarry[p.id] = carry;
   }
+  for (const p of PLOTS) if (s.plots[p.id].stand?.queue) drainQueue(s, p.id); // the minute's pours: what's left waits into the next
   s.seed = rng.seed;
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actOf, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
+  actOf, averageStopChance, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
   festivalDays, openStand, planNight, PLOTS, postGuard, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
   type BattleReport, type GameState,
 } from './economy.ts';
-import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, salesTarget } from './goals.ts';
+import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTarget } from './goals.ts';
+import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady, SCENES } from './scenes.ts';
 import { actBegan, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
@@ -363,6 +364,22 @@ describe("Lottie's goals", () => {
 });
 
 describe('lessons and Dex', () => {
+  it("Day 2's recipe goal is met by the best card in your book, not one you don't have yet", () => {
+    const s = newGame(32);
+    s.day = 1;
+    nextDawn(s);
+    const st = s.plots[s.selected].stand!;
+    let best = -1, pick = { recipe: st.recipe, sweetness: st.sweetness };
+    for (const recipe of ownedRecipes(s)) for (const sweetness of ['less', 'classic', 'extra'] as const) {
+      Object.assign(st, { recipe, sweetness });
+      const c = averageStopChance(s, s.selected, s.forecast);
+      if (c > best) { best = c; pick = { recipe, sweetness }; }
+    }
+    Object.assign(st, pick);
+    expect(recipeMatch(s)).toBeCloseTo(1);
+    expect(ownedRecipes(s)).toContain(st.recipe);
+  });
+
   it('teach one system a day, unless switched off', () => {
     const s = newGame(24);
     expect(taught(s, 'recipes')).toBe(false);

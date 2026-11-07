@@ -7,8 +7,8 @@
 // goal is only paid if it was on the card when it was done, and a slot keeps its
 // goal until it's done unless a lesson or story goal steps in ahead of it.
 import {
-  BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RANKS, RECIPES, SALES_GOAL_SHARE,
-  STAND_LEVELS, STAND_RANK_GATE, type RecipeId, type RivalId, type Sweetness,
+  BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RANKS, SALES_GOAL_SHARE,
+  STAND_LEVELS, STAND_RANK_GATE, type RivalId, type Sweetness,
 } from './balance.ts';
 import { DISTRICTS, LOTTIES_CORNER, PLOTS, type DistrictId } from './map.ts';
 import type { GameState, Goal } from './economy.ts';
@@ -18,6 +18,7 @@ import { HQS } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
 import { hasStory, lessonsOn, storyAct, taught } from './story.ts';
 import { festivalDays } from './calendar.ts';
+import { ownedRecipes } from './recipes.ts';
 
 export type GoalSlot = 'short' | 'medium' | 'long';
 export const GOAL_SLOTS: GoalSlot[] = ['short', 'medium', 'long'];
@@ -88,7 +89,7 @@ function districtOpen(s: GameState, d: DistrictId): boolean {
   });
 }
 
-/** How close the selected stand's recipe and sweetness come to the best pick for the forecast and today's crowd (1 = a match). */
+/** How close the selected stand's recipe and sweetness come to the best pick in your recipe book for the forecast and today's crowd (1 = a match). */
 export function recipeMatch(s: GameState): number {
   const st = ownStand(s);
   if (!st) return 0;
@@ -96,7 +97,7 @@ export function recipeMatch(s: GameState): number {
   const now = averageStopChance(s, s.selected, w);
   const r0 = st.recipe, sw0 = st.sweetness;
   let best = now;
-  for (const r of Object.keys(RECIPES) as RecipeId[]) {
+  for (const r of ownedRecipes(s)) {
     for (const sw of ['less', 'classic', 'extra'] as Sweetness[]) { st.recipe = r; st.sweetness = sw; best = Math.max(best, averageStopChance(s, s.selected, w)); }
   }
   st.recipe = r0; st.sweetness = sw0;

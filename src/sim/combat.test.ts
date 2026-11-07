@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
 import {
-  BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad, hqStageInput,
-  hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets, resolveNight,
-  rosterCap, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait,
+  BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, FACTIONS, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad,
+  hqStageInput, hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets,
+  refreshRecruits, resolveNight, rosterCap, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId, type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait,
   type WeaponId,
 } from './economy.ts';
 import { fitGarrison, hqOf, knockOut } from './garrison.ts';
@@ -912,6 +912,69 @@ describe('the Nabbed', () => {
     const bad = clone(s) as unknown as Record<string, unknown>;
     bad.captives = 'nobody';
     expect(migrateSave(bad)!.captives).toBeUndefined();
+  });
+});
+
+describe('Former Rival', () => {
+  /** A Smoothie Bro nabbed off a beaten raid and recruited: a Former Rival of the Blenders, with clubs. */
+  function exBro(): { s: GameState; ex: Guard } {
+    const s = newGame(4);
+    s.rank = 6;
+    s.cash = 5000;
+    s.guards = [];
+    let x = 1;
+    while (nextRandom({ seed: x }) >= NABBED.chance) x++;
+    s.seed = x;
+    const [c] = nabLeftBehind(s, 'blenders', 'player', many(1, 'att', 'clubs', { level: 2 }), LOTTIES_CORNER);
+    c.guard!.trait = 'Hothead'; // whatever they rolled, as long as it isn't Loyal
+    settleCaptive(s, c.id, 'recruit');
+    const ex = s.guards[0];
+    ex.weapon = 'clubs';
+    ex.outUntil = 0;
+    return { s, ex };
+  }
+  const near = (a: number, b: number) => expect(a).toBeCloseTo(b, 9);
+
+  it('a recruited captive hits and chops 10% harder against their old faction: raids on its plots, its raids on you, its HQ', () => {
+    const { s, ex } = exBro();
+    expect(ex).toMatchObject({ trait: 'Former Rival', oldFaction: 'blenders' });
+    const plain = guardFighter(ex, 'att', false);
+    const vs = guardFighter(ex, 'att', false, 'blenders');
+    near(vs.hit, plain.hit * 1.1);
+    near(vs.chop, plain.chop * 1.1);
+    expect(guardFighter(ex, 'att', false, 'hollis')).toMatchObject({ hit: plain.hit, chop: plain.chop });
+    const theirPlot = (r: RivalId) => ownedPlots(s, r).find((p) => s.plots[p.id].stand && p.type !== 'hq')!.id;
+    const ours = (target: string): Raid => ({ id: `r${s.nextId++}`, attacker: 'player', target, objective: 'smash', guards: [ex.id], detected: false, eta: '' });
+    near(raidInput(s, ours(theirPlot('blenders')), false, { seed: 1 }).attackers[0].hit, plain.hit * 1.1);
+    near(raidInput(s, ours(theirPlot('hollis')), false, { seed: 1 }).attackers[0].hit, plain.hit);
+    ex.post = LOTTIES_CORNER;
+    const theirs = (attacker: RivalId): Raid => ({ id: `r${s.nextId++}`, attacker, target: LOTTIES_CORNER, objective: 'smash', party: many(2, 'att'), detected: true, eta: '' });
+    near(raidInput(s, theirs('blenders'), true, { seed: 1 }).defenders[0].hit, plain.hit * 1.1);
+    near(raidInput(s, theirs('coldbrew'), true, { seed: 1 }).defenders[0].hit, plain.hit);
+    ex.post = null; // in the Clubhouse reserve: the bell brings them, and they have it too
+    const rung = raidInput(s, { ...theirs('blenders'), bell: [{ id: ex.id, at: s.minute }] }, true, { seed: 1 });
+    near(rung.defenders.find((f) => f.id === ex.id)!.hit, plain.hit * 1.1);
+    near(hqSquad(s, 'blenders', [ex.id])[0].hit, plain.hit * 1.1);
+    near(hqSquad(s, 'sourwood', [ex.id])[0].hit, plain.hit);
+  });
+
+  it("the Hiring Hall's recruits never roll it, and every other trait still turns up", () => {
+    const s = newGame(9);
+    s.rank = 2;
+    const traits = new Set<string>();
+    for (let i = 0; i < 200; i++) { refreshRecruits(s, true); for (const r of s.recruits) traits.add(r.trait); }
+    expect(traits.has('Former Rival')).toBe(false);
+    expect(traits.size).toBe(12);
+  });
+
+  it('a Former Rival from an old save gets an old faction, and keeps it', () => {
+    const s = newGame(9);
+    s.guards = [guard({ id: 'g42', trait: 'Former Rival' }), guard({ trait: 'Hothead' })];
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    const was = loaded.guards[0].oldFaction!;
+    expect(Object.keys(FACTIONS)).toContain(was);
+    expect(loaded.guards[1].oldFaction).toBeUndefined();
+    expect(migrateSave(JSON.parse(JSON.stringify(loaded)))!.guards[0].oldFaction).toBe(was);
   });
 });
 

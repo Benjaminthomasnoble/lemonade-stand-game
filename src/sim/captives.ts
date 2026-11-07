@@ -14,7 +14,7 @@
 // on your roster, Out while held: pay their hire fee within a few days, or they
 // go over to the rival; a Loyal guard won't, and walks home. Pure, like the
 // rest of the sim.
-import { FACTIONS, GUARD_FEE, HIRE_RANK, NABBED, RANKS, type RivalId } from './balance.ts';
+import { FACTIONS, GUARD_FEE, HIRE_RANK, NABBED, RANKS, TRAITS, type RivalId, type Trait } from './balance.ts';
 import type { BattleResult, Fighter } from './combat.ts';
 import type { FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -39,8 +39,17 @@ export type CaptiveChoice = 'ransom' | 'release' | 'recruit' | 'pay';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** A rival's henchman, one of them: "Smoothie Bros" makes a "Smoothie Bro". */
 export const henchmanWord = (r: RivalId) => FACTIONS[r].henchmen.replace(/s$/, '');
+
+/** A recruit's trait: anything but Former Rival, which only a captive who comes over has (a reroll keeps the rest even). */
+export function recruitTrait(rng: Rng): Trait {
+  for (;;) {
+    const t = TRAITS[Math.floor(nextRandom(rng) * TRAITS.length)];
+    if (t !== 'Former Rival') return t;
+  }
+}
 
 /** A captive's ransom: their hire fee by level ($50–$2,500). */
 export const ransomFor = (level: number) => GUARD_FEE[Math.min(5, Math.max(1, Math.round(level))) - 1];
@@ -193,7 +202,16 @@ export function captivesAtDawn(s: GameState): void {
   }
 }
 
-/** Saves: a captives list that isn't one goes. Idempotent; runs on every load. */
+/**
+ * Saves: a captives list that isn't one goes, and a Former Rival from before the Nabbed (the Hiring Hall could roll
+ * one) gets an old faction, picked from their id. Idempotent; runs on every load.
+ */
 export function migrateCaptives(s: GameState): void {
   if (s.captives !== undefined && !Array.isArray(s.captives)) delete s.captives;
+  for (const g of [...(s.guards ?? []), ...(s.recruits ?? [])]) {
+    if (g.trait !== 'Former Rival' || g.oldFaction) continue;
+    let h = 0;
+    for (const ch of g.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    g.oldFaction = RIVALS[h % RIVALS.length];
+  }
 }

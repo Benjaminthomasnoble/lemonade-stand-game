@@ -402,7 +402,7 @@ function boss(id: RivalId, n: number): Fighter {
 /** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */
 export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[] {
   breakTruce(s, id);
-  return squadFighters(raidSquad(s, guardIds), 'att', raidIsNight(s)); // crew: a Captain leads the squad; Morning Prep is night
+  return squadFighters(raidSquad(s, guardIds), 'att', raidIsNight(s), id); // crew: a Captain leads the squad; Morning Prep is night
 }
 
 /**

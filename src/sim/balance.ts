@@ -593,6 +593,8 @@ export const AUTO_DEFEND = { rank: 4, top: 3, buildingPosts: 3 };
  * yours for `days` days (placeholder: spec gap) before they go over to it (a Loyal one walks home).
  */
 export const NABBED = { chance: 0.1, release: 0.05, days: 3 };
+/** Former Rival: this much more Hit and Chop against their old faction (its plots, its raids on you, its HQ). */
+export const FORMER_RIVAL = 0.1;
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

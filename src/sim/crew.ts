@@ -4,11 +4,11 @@
 // its arrival minute, after a warning.
 import {
   BUILDING_POSTS, BUSTED_REPAIR_SHARE, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
-  DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
+  DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, FORMER_RIVAL, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
   GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, OPEN, PERIMETERS,
   PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
   RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
-  STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
+  STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -22,7 +22,7 @@ import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { fitGarrison, knockOut } from './garrison.ts';
-import { captivesAtDawn, leftBehind, nabLeftBehind } from './captives.ts';
+import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './captives.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
@@ -267,7 +267,7 @@ const LAST = ['Moody', 'Malone', 'Pickles', 'Brickman', 'Quill', 'Sorrel', 'Kett
 
 export function makeGuard(s: GameState, rng: Rng, level = 1): Guard {
   const name = `${FIRST[Math.floor(nextRandom(rng) * FIRST.length)]} ${LAST[Math.floor(nextRandom(rng) * LAST.length)]}`;
-  const trait = TRAITS[Math.floor(nextRandom(rng) * TRAITS.length)];
+  const trait = recruitTrait(rng); // combat: never a Former Rival, who only comes from the Nabbed (captives.ts)
   const face = Math.floor(nextRandom(rng) * 0x7fffffff);
   return { id: `g${s.nextId++}`, name, trait, level, xp: GUARD_XP_TO_LEVEL[level - 1], weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: GUARD_FEE[level - 1], face };
 }
@@ -474,7 +474,8 @@ export function promote(s: GameState, id: string, sp: Specialty): boolean {
 }
 export const guardReady = (s: GameState, g: Guard) => g.outUntil <= s.day;
 
-export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fighter {
+/** A guard as they fight. `foe`: the side they fight (a Former Rival hits and chops harder against their old faction). */
+export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean, foe?: FactionId | null): Fighter {
   const m = 1 + 0.1 * (g.level - 1);
   let hp = (GUARD_BASE.hp + GEAR[g.gear].hp) * m;
   let hit = WEAPONS[g.weapon].hit * m;
@@ -487,12 +488,13 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   chop *= 1 + (g.trait === 'Lumberjack' ? 0.5 : 0) + (g.specialty === 'wrecker' ? WRECKER_CHOP : 0); // Lumberjack and Wrecker: +50% each
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
+  if (g.trait === 'Former Rival' && foe && g.oldFaction === foe) { hit *= 1 + FORMER_RIVAL; chop *= 1 + FORMER_RIVAL; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait, gear: g.gear, level: g.level };
 }
 
 /** Your guards as one side of a fight: a Captain among them gives everyone on that side +20 Nerve and +10% Hit (Captains don't stack). */
-export function squadFighters(guards: Guard[], side: 'att' | 'def', night: boolean): Fighter[] {
-  const fighters = guards.map((g) => guardFighter(g, side, night));
+export function squadFighters(guards: Guard[], side: 'att' | 'def', night: boolean, foe?: FactionId | null): Fighter[] {
+  const fighters = guards.map((g) => guardFighter(g, side, night, foe)); // combat: `foe` for a Former Rival's edge
   if (guards.some((g) => g.specialty === 'captain')) for (const f of fighters) { f.nerve += CAPTAIN.nerve; f.hit *= 1 + CAPTAIN.hit; }
   return fighters;
 }
@@ -618,16 +620,16 @@ export function rivalDefenseSpend(s: GameState, id: RivalId, purse: GuardPurse):
   }
 }
 
-function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng): Fighter[] {
+function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng, foe?: FactionId): Fighter[] {
   const ps = s.plots[plotId];
-  if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g)), 'def', night);
+  if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g)), 'def', night, foe);
   return garrisonFighters(s, plotId, rng);
 }
 
 function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng): BattleInput {
   const ps = s.plots[raid.target];
   return {
-    attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng), night),
+    attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng, raid.attacker), night),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: armedGadgets(ps),
     standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
   };
@@ -766,7 +768,7 @@ const oddsSeed = (plotId: string) => [...plotId].reduce((h, c) => Math.imul(h ^ 
  */
 export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): number {
   if (!guardIds.length) return 0;
-  const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
+  const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night, s.plots[plotId].owner);
   const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
   const lead = travelMinutes(s, squadHome(s, plotId), plotId); // spotted as it sets out: the warning comes this far ahead
   const nextId = s.nextId; // each henchman drawn takes an id: hand them back
@@ -830,7 +832,7 @@ export function resolveNight(s: GameState): void {
 export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): BattleInput {
   const away = awayOnRaid(s); // out on a raid, or in the fight playing live: not at their posts
   const attackers = raid.attacker === 'player'
-    ? squadFighters(raidSquad(s, raid.guards!), 'att', night)
+    ? squadFighters(raidSquad(s, raid.guards!), 'att', night, s.plots[raid.target].owner)
     : raid.party!;
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night, sneakyIn(s, raid.guards!));
   const input = sendHelp(s, raid, battleInput(s, raid, attackers, night, away, rng), rng); // spotted: the rival sends help

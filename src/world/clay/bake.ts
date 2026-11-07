@@ -92,14 +92,17 @@ export function bakeGroup<T extends THREE.Object3D>(root: T, opts: BakeOptions =
  * coloured from their material, already-baked ones go in as they are. Labels,
  * glass and instanced parts are left out. An object carrying `userData.far`
  * (a baked clay geometry in its own frame) goes in as that cheap version
- * instead of its children. Bay View uses it to draw a whole district's plots
- * as one block. Returns how many parts went in.
+ * instead of its children. People (a Figure root: `userData.figure` or
+ * `userData.limbs`) and anything flagged `userData.noFar` (transient parts such
+ * as a mid-reveal crate, small props) never go in: Bay View draws people as
+ * specks. Bay View uses it to draw a whole district's plots as one block.
+ * Returns how many parts went in.
  */
 export function collectClay(root: THREE.Object3D, B: Baker, space?: THREE.Matrix4): number {
   root.updateMatrixWorld(true);
   let n = 0;
   const visit = (o: THREE.Object3D) => {
-    if (!o.visible || o.userData.noFar) return; // people, reveal crates and other passing parts
+    if (!o.visible || o.userData.noFar || o.userData.figure || o.userData.limbs) return; // people, reveal crates and other passing parts
     // A part with a cheap far version (stands, fences, wrecks) goes in as that instead of its children.
     const far = o.userData.far as THREE.BufferGeometry | undefined;
     if (far) {

@@ -21,8 +21,8 @@ const stillClay = typeof matchMedia === 'function' && matchMedia('(prefers-reduc
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
 export type Detail = 0 | 1 | 2;
-/** Camera distances where mid zoom and Bay View detail begin. */
-export const DETAIL_AT = { mid: 45, bay: 200 };
+/** Camera distances where mid zoom and Bay View detail begin. A detail cap (World.capDetail) holds closer than `show`. */
+export const DETAIL_AT = { mid: 45, bay: 200, show: 75 };
 
 export interface World {
   renderer: THREE.WebGLRenderer;
@@ -34,6 +34,12 @@ export interface World {
   quality: Quality;
   /** The detail level this frame: 0 Street View, 1 mid zoom, 2 Bay View (phones run one level simpler). Also in scene.userData.detail. */
   detail(): Detail;
+  /**
+   * Hold the detail at or below `max` while the camera is closer than DETAIL_AT.show (never below what a laptop
+   * would draw at that distance), so a VIP show or a brawl framed at 45-60 doesn't drop to Bay View blocks on a
+   * phone. null releases it. Pulling out past DETAIL_AT.show goes back to the usual levels, which keeps the budget.
+   */
+  capDetail(max: Detail | null): void;
   /** Weather for the sky and sun. `dayFraction` (0 open … 1 close) sets the hour unless setClock is used. */
   setWeather(kind: WeatherKind, dayFraction: number): void;
   /** The game clock for the lighting scripts: prep holds dawn, open follows the minute, report is night. */
@@ -244,6 +250,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const lastShadow = new THREE.Vector3(Infinity, 0, 0);
   let lastHalf = 0;
   let detail: Detail = 0;
+  let detailCap: Detail | null = null;
   const lightDir = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0), snapR = new THREE.Vector3(), snapU = new THREE.Vector3(), snapP = new THREE.Vector3();
   scene.userData.detail = 0;
@@ -252,6 +259,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   const world: World = {
     renderer, scene, camera, controls, backend, quality,
     detail: () => detail,
+    capDetail(max) { detailCap = max; },
     setWeather(kind, dayFraction) {
       weather = kind;
       if (!clocked) hour = 8 + 12 * dayFraction;
@@ -304,7 +312,9 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       if (cx !== t.x || cz !== t.z) { camera.position.x += cx - t.x; camera.position.z += cz - t.z; t.x = cx; t.z = cz; }
       controls.update();
       const dist = camera.position.distanceTo(t);
-      detail = Math.min(2, (dist < DETAIL_AT.mid ? 0 : dist < DETAIL_AT.bay ? 1 : 2) + (phone ? 1 : 0)) as Detail;
+      const byDist = dist < DETAIL_AT.mid ? 0 : dist < DETAIL_AT.bay ? 1 : 2;
+      detail = Math.min(2, byDist + (phone ? 1 : 0)) as Detail;
+      if (detailCap !== null && dist < DETAIL_AT.show) detail = Math.max(byDist, Math.min(detail, detailCap)) as Detail;
       scene.userData.detail = detail;
       scene.userData.distance = dist;
 

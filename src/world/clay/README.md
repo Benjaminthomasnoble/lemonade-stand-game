@@ -55,7 +55,13 @@ with these pieces.
   space, to a Baker. Bay View uses it to draw a whole district's plots as one
   block. An object with `userData.far` (a cheap baked geometry in its own
   frame) goes in as that instead: stands, fences and wrecks carry one, so a
-  district block costs a few hundred triangles a plot.
+  district block costs a few hundred triangles a plot. People never go in
+  (any Figure root, `userData.figure` or `userData.limbs`: Bay View draws them
+  as specks), and neither does anything flagged `userData.noFar`. Set `noFar`
+  on transient or tiny parts that shouldn't freeze into a block: the reveal
+  crate (a block rebuilt mid-reveal would keep it until the district next
+  changes), Lottie's lawn chair and phone. Give a part `far` when it should
+  show at Bay View as something cheaper, `noFar` when it shouldn't show at all.
 
 ## Figures (figure.ts)
 
@@ -104,6 +110,9 @@ with these pieces.
   vignette. `world.stats()` gives the last frame's draws and triangles.
 - `world.detail()` (also `scene.userData.detail`) is 0 in Street View, 1 at
   mid zoom and 2 at Bay View (`DETAIL_AT`). Phones run one level simpler.
+  `world.capDetail(1)` holds it at mid-zoom models closer than
+  `DETAIL_AT.show` (main.ts holds it while a VIP show or a brawl plays, so a
+  phone doesn't drop to Bay View blocks at 45-60); `capDetail(null)` releases.
   `scene.userData.distance` is the camera distance, and
   `scene.userData.shadows` is false when the sun casts none (phones: show
   blob shadows instead).

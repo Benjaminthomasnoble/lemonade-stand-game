@@ -6,14 +6,15 @@
 // pauses the clock (Options); Lottie's Goals is her sticky note and the Stand
 // panel is the stand's own card. Clicks go through the HUD's one listener.
 // The Morning Bugle is world's front page (src/ui/bugle.ts) and the Corkboard
-// the rivals lane's board (corkboard.ts). The Raid Planner lists the nearest
+// the rivals lane's board (corkboard.ts); the Land Registry is the land lane's
+// screen (registry.ts, which hud.ts draws). The Raid Planner lists the nearest
 // targets and mounts crew's planner (src/ui/raidPlanner.ts) for the one picked,
 // the same panel as on its plot card; Rank and Perks shows the rank ladder
 // (Lottie's tips join it later).
 import { glyph } from './clay.ts';
 import {
-  canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  dayIncomeCosts, dayProfit, peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
+  deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, RAID_RANK, RANKS, RECIPES,
+  dayIncomeCosts, dayProfit, peaceful, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
   type FestivalId, type GameState, type Goal, type RivalId,
 } from '../sim/economy.ts';
 import { MENU_IDS, type MenuId, type Options } from '../settings.ts';
@@ -38,13 +39,6 @@ export const MENU_LABEL: Record<MenuId, string> = {
 
 /** Full-screen paper: it pauses the clock while it's up (Options: Screens pause). */
 export const isFullMenu = (m: MenuView | null): boolean => !!m && m !== 'goals' && m !== 'stand';
-
-/** Land the player could buy now or soon: open plots whose district isn't still rank-locked. */
-const forSale = (s: GameState) => PLOTS.filter((p) => {
-  if (s.plots[p.id].owner || p.type === 'civic' || p.type === 'hq') return false;
-  const b = canBuyPlot(s, p.id);
-  return b.ok || !/Rank \d/.test(b.why);
-});
 
 /** Nothing appears before its system unlocks. */
 export function menuUnlocked(s: GameState, id: MenuId): boolean {
@@ -173,12 +167,8 @@ function siegePins(s: GameState): string {
   return siege.length ? row(`<span class="cl-note">Siege night ${siegeNight(s)}: they hit</span>${siege.join('')}`) : '';
 }
 
-function registry(s: GameState): string {
-  const plots = forSale(s).sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id)).slice(0, 12);
-  return sheet('registry', 'Land Registry', row(plots.map((p) => plotButton(s, p.id, `${p.name} · ${whole(plotPrice(s, p.id))}`, `${DISTRICT_BY_ID[p.district].name} · ~${p.baseTraffic} passersby a day`)).join('')));
-}
-
-/** The full-screen paper for `view` (empty for the Goals note and the Stand panel, which live on the map). */
+/** The full-screen paper for `view` (empty for the Goals note and the Stand panel, which live on the map, and for the
+ * Land Registry, which hud.ts draws from registry.ts). */
 export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
   switch (view) {
     case 'index': return index(s, p.options);
@@ -189,7 +179,6 @@ export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
     case 'crew': return sheet('crew', 'Crew roster', p.crew());
     case 'planner': return planner(s, p.plan);
     case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', siegePins(s) + corkboardBody(s));
-    case 'registry': return registry(s);
     default: return '';
   }
 }

@@ -602,13 +602,13 @@ async function main() {
       case 'turn': world.turnStep(a.dir); break;
       case 'option': setOption(a.key, a.value); break;
       case 'mute': hud.muted = audio.toggle(); break;
-      case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); break;
+      case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); hud.menu = null; break; // no paper left open under the New Game screen
       case 'cancelSetup': hud.setup = null; break;
       case 'start': {
         if (state.day > 1) recordScore(state); // the run being left keeps its row on the leaderboard
         clearSave();
         state = freshRun(a.settings);
-        hud.setup = null; hud.inspected = null; Object.assign(knob, newKnob()); vipResume = 0; vipPaused = ''; bubbles.clear();
+        hud.setup = null; hud.inspected = null; hud.menu = null; Object.assign(knob, newKnob()); vipResume = 0; vipPaused = ''; bubbles.clear();
         crowd.clear(); stopFights(); resetScene(); bay.sync(state); focusPlot(state.selected);
         break;
       }

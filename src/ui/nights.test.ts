@@ -258,7 +258,6 @@ describe('the ten menus', () => {
     expect(html).toContain('<b>R1 Sidewalk Squeezer</b>');
     expect(html).toMatch(/R2 Corner Hustler<\/td><td>\$1,500 \(\$[\d,]+ to go\)/);
     expect(menuScreen(s, 'corkboard', parts()).match(/data-action="inspect"/g)!.length).toBeGreaterThan(3);
-    expect(menuScreen(s, 'registry', parts())).toContain('data-action="inspect"');
     expect(menuScreen(s, 'crew', parts())).toContain('CREW');
   });
 

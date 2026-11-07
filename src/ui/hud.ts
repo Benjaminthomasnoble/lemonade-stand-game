@@ -46,6 +46,7 @@ import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom } from './clubhouse.ts';
+import { autoDefendSwitch, defendPriorityHere } from './autodefend.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
@@ -90,6 +91,8 @@ export type Action =
   | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
   | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
   | { type: 'bell'; raid: string } // Ring the Bell: the Clubhouse reserve in range sets out (warning card, fight bar)
+  | { type: 'autodefend' } // Dex's Auto-Defend switch (Crew tab, src/ui/autodefend.ts)
+  | { type: 'priority'; plot: string } // Dex's priority for a plot: one pip more (past the top, none)
   | { type: 'raid'; plot: string; guards: string[]; objective: RaidObjective; when: 'now' | 'tonight' }
   | { type: 'scout'; id: string; plot: string }
   | { type: 'replay'; index: number }
@@ -256,7 +259,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
         : outcomeScreen(s) || (hud.menu === 'registry' ? registryScreen(s, registryTab) // the Land Registry (src/ui/registry.ts)
-          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(kit, s) || defenseSheet(kit, s, s.selected), options: hud.options }) : '');
+          : isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => (crewPanel(kit, s) || defenseSheet(kit, s, s.selected)) + crewExtras(s), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
@@ -389,6 +392,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;
       case 'bell': onAction({ type: 'bell', raid: d.raid! }); break;
+      case 'autodefend': onAction({ type: 'autodefend' }); break;
+      case 'priority': onAction({ type: 'priority', plot: d.plot! }); break;
       case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': planner.click(d); break;
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
@@ -568,7 +573,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${defendOpen(s) ? `<button class="cl-tab${tab === 'crew' ? ' on' : ''}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defend</button>` : ''}
       ${taught(s, 'recipes') ? worldTabs(s, tab) : ''}
       ${standPicker(s)}</div>`;
-    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${crewSheet(kit, s, s.selected)}</div>`
+    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${crewSheet(kit, s, s.selected)}${crewExtras(s)}</div>`
       : tab === 'book' || tab === 'fair' || tab === 'bugle' ? `<div class="cl-sheet">${worldSheet(s, tab, hud.options.celsius)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
@@ -624,6 +629,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const card = (art: string, title: string, sub: string, action: string, tip = '', extra = '') => `<div class="cl-card" ${tip ? `title="${esc(tip)}"` : ''} ${extra}><span class="cl-pic">${art}</span><span class="cl-txt"><b>${title}</b>${sub ? `<i>${sub}</i>` : ''}</span>${action}</div>`;
   const kit: Kit = { ART, btn, card, tape, meter, pips, locked, esc, whole, GADGET_ART, WEAPON_ART };
   const clubs = clubKit(kit); // the Clubhouse panels (src/ui/clubhouse.ts) draw with it
+  /** combat's panels under the crew (Defend tab, Crew roster): Dex's Auto-Defend switch (src/ui/autodefend.ts). */
+  const crewExtras = (s: GameState) => autoDefendSwitch(s);
   const planner = createRaidPlanner(kit, redraw, onAction);
   function levelStats(l: StandLevel, top: number) {
     return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;
@@ -769,6 +776,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
+    actions += defendPriorityHere(s, id, tape); // Dex's Auto-Defend: this plot's priority (src/ui/autodefend.ts)
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     if (ps.owner === 'player') actions += listingControls(s, id);
     if (id === TOWN_HALL) actions += registryButton(s);

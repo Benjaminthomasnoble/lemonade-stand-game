@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, nightStep, ownedPlots, PERIMETERS, PLOT_BY_ID,
-  PLOTS, raidOdds, RIVAL_HELP, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard, type Raid, type SimEvent,
+  AUTO_DEFEND, BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
+  PERIMETERS, PLOT_BY_ID, PLOTS, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
+  type Raid, type SimEvent,
 } from './economy.ts';
+import { autoDefendOn, canAutoDefend, cycleDefendPriority, defendPriority, postsAt, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 import { reserveAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
@@ -303,5 +305,109 @@ describe('rivals send help', () => {
     }
     const odds = (x: typeof quiet) => raidOdds(x.s, x.target, x.s.guards.map((g) => g.id), 'smash', false, 200);
     expect(odds(busy)).toBeLessThan(odds(quiet) - 0.1);
+  });
+});
+
+describe("Dex's Auto-Defend", () => {
+  /** A plot of yours in this district with a stand on it. */
+  function standIn(s: GameState, district: string, level = 1): string {
+    const p = PLOTS.find((x) => x.district === district && x.type !== 'hq' && !s.plots[x.id].owner)!;
+    Object.assign(s.plots[p.id], { owner: 'player', stand: newStand(level) });
+    return p.id;
+  }
+
+  it('is a switch from Rank 4, off until you flip it', () => {
+    const s = newGame(1);
+    s.rank = AUTO_DEFEND.rank - 1;
+    expect(canAutoDefend(s)).toEqual({ ok: false, why: `Needs Rank 4, ${RANKS[3].title}` });
+    expect(setAutoDefend(s, true)).toBe(false);
+    s.rank = AUTO_DEFEND.rank;
+    expect(autoDefendOn(s)).toBe(false);
+    expect(setAutoDefend(s, true)).toBe(true);
+    expect(autoDefendOn(s)).toBe(true);
+    setAutoDefend(s, false);
+    expect(s.autoDefend).toBeUndefined();
+  });
+
+  it('when a raid on you is warned, Dex rings the bell: the reserve in range sets out at once', () => {
+    const { s, maple, oldtown, lou, pip, marnie } = bay();
+    setAutoDefend(s, true);
+    const r = warned(s, 15);
+    expect(r.bell!.map((b) => [b.id, b.at - s.minute])).toEqual([[lou.id, 30], [pip.id, 30], [marnie.id, 60]]); // Gus on Hilltop is out of range
+    expect(s.news.slice(-2)).toEqual([
+      "RAID WARNING! The Boardwalk Blenders are heading for Lottie's Corner, ETA 2:25am.",
+      `Ding-ding! Dex rings the bell. Big Lou and Pip leave ${name(maple)}, 30 min out; Marnie leaves ${name(oldtown)}, 60 min out.`,
+    ]);
+    expect(canRingBell(s, r.id)).toBe(false); // once a raid
+    expect(alertCards(s).join('')).toContain('Help in 30 min');
+    // They join the fight as they arrive, 15 fight-seconds in, like a bell you rang yourself.
+    const b = hit(s, r);
+    if (b.duration > 15) expect(arrived(b, lou)).toBeCloseTo(15 * FIGHT_SECONDS_PER_GAME_MINUTE, 6);
+  });
+
+  it('off, Dex leaves the bell to you', () => {
+    const { s } = bay();
+    const r = warned(s, 15);
+    expect(r.bell).toBeUndefined();
+    expect(canRingBell(s, r.id)).toBe(true);
+  });
+
+  it("each Evening Dex posts the idle reserve by priority, highest first, the most seasoned first, within each plot's posts", () => {
+    const s = newGame(3);
+    s.rank = 4;
+    setAutoDefend(s, true);
+    const kiosk = standIn(s, 'maple', 3), wooden = standIn(s, 'maple', 2), lot = lotIn(s, 'maple');
+    s.cash = 1e6;
+    buildClubhouse(s, lot);
+    expect([postsAt(s, kiosk), postsAt(s, wooden), postsAt(s, LOTTIES_CORNER), postsAt(s, lot)]).toEqual([3, 2, 1, 3]);
+    const [a, b, c, d, e, f, g, ko, raider, held] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'Ko', 'Raider', 'Held'].map((n, i) => guard(n, { level: [3, 3, 2, 2, 1, 1, 1, 5, 5, 1][i] }));
+    held.post = wooden; // already there: one post left
+    ko.outUntil = s.day + 1;
+    s.guards = [g, f, e, d, c, b, a, ko, raider, held];
+    s.raids = [{ id: 'mine', attacker: 'player', target: 'oldtown-1s', objective: 'smash', guards: [raider.id], detected: false, eta: '23:00' }];
+    setDefendPriority(s, kiosk, 1);
+    setDefendPriority(s, wooden, 3);
+    setDefendPriority(s, LOTTIES_CORNER, 2);
+    s.news = [];
+    expect(stationByPriority(s)).toBe(5);
+    const at = (x: Guard) => x.post;
+    expect([b, a].map(at).sort()).toEqual([LOTTIES_CORNER, wooden].sort()); // the two Veterans to the top two
+    expect(s.guards.filter((x) => x.post === wooden).length).toBe(2);
+    expect([d, c, g].map(at)).toEqual([kiosk, kiosk, kiosk]); // then priority 1, best first
+    expect([f, e, ko, raider].map(at)).toEqual([null, null, null, null]); // the rest wait: KO'd and raiding guards stay put
+    expect(s.guards.filter((x) => x.post === lot)).toEqual([]); // the Clubhouse is left to the bell
+    expect(s.news).toEqual(['Dex posts 5 guards for the night.']);
+    expect(stationByPriority(s)).toBe(0); // every post is full
+    setAutoDefend(s, false);
+    setDefendPriority(s, lot, 3);
+    expect(stationByPriority(s)).toBe(0);
+  });
+
+  it('runs as the stands close, before the night is planned', () => {
+    const s = newGame(4);
+    s.rank = 4;
+    setAutoDefend(s, true);
+    setDefendPriority(s, LOTTIES_CORNER, 1);
+    const pip = guard('Pip');
+    s.guards = [pip];
+    openStands(s);
+    simulateRestOfDay(s);
+    expect(s.phase).toBe('report');
+    expect(pip.post).toBe(LOTTIES_CORNER);
+  });
+
+  it("each plot's priority is 0 to 3 and yours alone (land's Fortify raises it through setDefendPriority)", () => {
+    const s = newGame(1);
+    expect(defendPriority(s, LOTTIES_CORNER)).toBe(0);
+    expect(setDefendPriority(s, LOTTIES_CORNER, 9)).toBe(true);
+    expect(defendPriority(s, LOTTIES_CORNER)).toBe(AUTO_DEFEND.top);
+    expect(cycleDefendPriority(s, LOTTIES_CORNER)).toBe(true);
+    expect(defendPriority(s, LOTTIES_CORNER)).toBe(0);
+    expect(s.plots[LOTTIES_CORNER].defendPriority).toBeUndefined();
+    cycleDefendPriority(s, LOTTIES_CORNER);
+    expect(defendPriority(s, LOTTIES_CORNER)).toBe(1);
+    const theirs = ownedPlots(s, 'blenders')[0].id;
+    expect(setDefendPriority(s, theirs, 2)).toBe(false);
+    expect(defendPriority(s, theirs)).toBe(0);
   });
 });

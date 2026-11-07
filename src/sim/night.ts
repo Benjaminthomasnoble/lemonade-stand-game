@@ -30,6 +30,7 @@ import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
 import { nightShiftStealth } from './rivalAi.ts';
 import { scriptedRaider } from './beats.ts';
+import { autoDefendOnWarning } from './autodefend.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -200,8 +201,9 @@ function warn(s: GameState, r: Raid): SimEvent {
   const text = r.delivery
     ? `DELIVERY RAID! ${who} are coming for the pickup at ${where}, ETA ${clockText(r.at!)}.`
     : `RAID WARNING! ${who} are heading for ${where}, ETA ${clockText(r.at!)}.`;
-  // combat: autoDefendOnWarning(s, r) rings the bell here once Dex's Auto-Defend merges.
-  return { type: 'alert', alert: alert(s, { kind: r.delivery ? 'delivery' : 'raid', text, plot: r.target, raid: r.id }) };
+  const ev: SimEvent = { type: 'alert', alert: alert(s, { kind: r.delivery ? 'delivery' : 'raid', text, plot: r.target, raid: r.id }) };
+  autoDefendOnWarning(s, r); // combat: Dex's Auto-Defend rings the bell (autodefend.ts)
+  return ev;
 }
 
 /** The raid arrives and the fight starts: live while the game watches (combat's startFight), else fought at once.

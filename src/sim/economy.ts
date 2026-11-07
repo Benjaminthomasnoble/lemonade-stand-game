@@ -27,6 +27,7 @@ import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, typ
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
 import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
+import { stationByPriority } from './autodefend.ts';
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
@@ -133,6 +134,7 @@ export interface PlotState {
   smashes?: number[]; // days this plot was smashed (rebuild chance drops for each in the last 7 days)
   busted?: boolean; // Laid Back: the player's building is closed until a repair, never lost
   auction?: Auction; // a 24-hour sealed-bid auction is open on this plot
+  defendPriority?: number; // Dex's Auto-Defend: posts here filled first each Evening, higher first (autodefend.ts)
 }
 
 export interface Defense {
@@ -262,6 +264,7 @@ export interface GameState {
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
   syndicate?: SyndicateState; // the rivals' Pact against you: Act 5's first day and the day it formed (syndicate.ts)
   squeeze?: SqueezeState; // campaign: the Big Squeeze, its 7-night siege of Sourwood Manor and what it won (squeeze.ts)
+  autoDefend?: boolean; // Dex's Auto-Defend switch, from Rank 4 (autodefend.ts)
 }
 
 export type SimEvent =
@@ -829,6 +832,7 @@ function closeDay(s: GameState): void {
   checkRank(s);
   damageAtClose(s); // rivals book their repairs at closing, like you (damage.ts)
   s.phase = 'report';
+  stationByPriority(s); // Dex's Auto-Defend posts the idle reserve by each plot's priority (autodefend.ts)
   planNight(s);
   storyAtClose(s);
 }

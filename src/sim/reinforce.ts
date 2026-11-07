@@ -61,15 +61,15 @@ export function canRingBell(s: GameState, raidId: string): boolean {
 
 const names = (gs: Guard[]) => (gs.length === 1 ? gs[0].name : `${gs.slice(0, -1).map((g) => g.name).join(', ')} and ${gs[gs.length - 1].name}`);
 
-/** Ring the Bell: the reserve in range sets out now. Under way, they join the fight as they arrive. */
-export function ringTheBell(s: GameState, raidId: string): boolean {
+/** Ring the Bell: the reserve in range sets out now. Under way, they join the fight as they arrive. `dex`: Auto-Defend rang it. */
+export function ringTheBell(s: GameState, raidId: string, dex = false): boolean {
   if (!canRingBell(s, raidId)) return false;
   const r = bellRaid(s, raidId)!;
   const party = bellParty(s, r.target);
   r.bell = party.flatMap(({ minutes, guards }) => guards.map((g) => ({ id: g.id, at: s.minute + minutes })));
   const f = s.fight;
   if (f?.raid === r) for (const { minutes, guards } of party) joinFight(s, guards.map((g) => guardFighter(g, 'def', f.night)), minutes * FIGHT_SECONDS_PER_GAME_MINUTE);
-  s.news.push(`Ding-ding! ${party.map((p) => `${names(p.guards)} leave${p.guards.length === 1 ? 's' : ''} ${PLOT_BY_ID[p.club].name}, ${p.minutes} min out`).join('; ')}.`);
+  s.news.push(`Ding-ding!${dex ? ' Dex rings the bell.' : ''} ${party.map((p) => `${names(p.guards)} leave${p.guards.length === 1 ? 's' : ''} ${PLOT_BY_ID[p.club].name}, ${p.minutes} min out`).join('; ')}.`);
   return true;
 }
 

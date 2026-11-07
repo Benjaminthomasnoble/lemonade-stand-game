@@ -581,6 +581,12 @@ export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; wea
  * first, up to `cap` henchmen by Threat. Placeholders: spec gap.
  */
 export const RIVAL_HELP = { share: 0.5, cap: [1, 1, 2, 2, 3] };
+/**
+ * Dex's Auto-Defend (Rank 4): each plot's priority runs 0 (the default: left to the bell) to `top` (placeholder: the
+ * spec names no scale). `buildingPosts` is the spec's 3 guard posts on buildings other than stands (crew's postsFor
+ * holds it once guard-posts-cap merges).
+ */
+export const AUTO_DEFEND = { rank: 4, top: 3, buildingPosts: 3 };
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

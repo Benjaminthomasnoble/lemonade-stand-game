@@ -30,16 +30,19 @@ class Pool {
     this.mesh.castShadow = false;
     this.bits = Array(n).fill(null);
     for (let i = 0; i < n; i++) this.mesh.setMatrixAt(i, ZERO);
+    this.mesh.visible = false; // an idle pool costs no draw
     if (colors) for (let i = 0; i < n; i++) this.mesh.setColorAt(i, new THREE.Color(colors[i % colors.length]));
     scene.add(this.mesh);
   }
-  spawn(b: Bit) { this.bits[this.next] = b; this.next = (this.next + 1) % this.bits.length; }
+  spawn(b: Bit) { this.mesh.visible = true; this.bits[this.next] = b; this.next = (this.next + 1) % this.bits.length; }
   step(dt: number) {
-    let any = false;
+    if (!this.mesh.visible) return;
+    let any = false, live = 0;
     this.bits.forEach((b, i) => {
       if (!b) return;
       b.age += dt;
       if (b.age >= b.life) { this.bits[i] = null; this.mesh.setMatrixAt(i, ZERO); any = true; return; }
+      live++;
       const k = Math.exp(-b.drag * dt);
       b.vx *= k; b.vz *= k; b.vy = b.vy * k - b.grav * dt;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
@@ -53,8 +56,9 @@ class Pool {
       any = true;
     });
     if (any) this.mesh.instanceMatrix.needsUpdate = true;
+    if (!live) this.mesh.visible = false;
   }
-  clear() { this.bits.fill(null); for (let i = 0; i < this.bits.length; i++) this.mesh.setMatrixAt(i, ZERO); this.mesh.instanceMatrix.needsUpdate = true; }
+  clear() { this.mesh.visible = false; this.bits.fill(null); for (let i = 0; i < this.bits.length; i++) this.mesh.setMatrixAt(i, ZERO); this.mesh.instanceMatrix.needsUpdate = true; }
 }
 
 function starGeo(r0: number, r1: number) {

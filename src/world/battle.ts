@@ -12,10 +12,12 @@
 import * as THREE from 'three';
 import { FACTIONS, PLAYER_COLOR, type BattleReport, type Fighter, type RivalId } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
-import { Baker, sph, cap, cyl, cone, box, rbox, lumpy, canvasTex, GLOSS, PAPER } from './clay/core.ts';
+import { Baker, sph, cap, cyl, cone, lumpy, canvasTex } from './clay/core.ts';
 import { P } from './clay/palette.ts';
 import { kit } from './clay/kit.ts';
-import { Figure, CREWS, GAIT_OF, gait } from './clay/figure.ts';
+import { Figure, GAIT_OF, gait } from './clay/figure.ts';
+import { makeCrew } from './clay/cast.ts';
+import { createFigureBatch, type FigureBatch } from './clay/figureBatch.ts';
 import { createFx, starGeometry, reducedMotion, onPhone } from './clay/fx.ts';
 import { goose } from './clay/creatures.ts';
 
@@ -62,46 +64,6 @@ const faceOf = (fig: Figure) => (fig as Figure & { face?: (name: string) => void
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 const mainOf = (o: Owner) => hex(o === 'player' ? PLAYER_COLOR : FACTIONS[o].color);
 const accentOf = (o: Owner) => (o === 'player' ? '#FFFFFF' : hex(FACTIONS[o].accent));
-
-// ---------- crew weapons, in clay (spec "Characters": club and hatchet tiers) ----------
-const weaponCache = new Map<string, THREE.BufferGeometry>();
-function weaponGeo(owner: Owner, kind: Fighter['weapon']): THREE.BufferGeometry | null {
-  if (kind === 'fists') return null;
-  const key = owner + kind;
-  const hit = weaponCache.get(key);
-  if (hit) return hit;
-  const B = new Baker();
-  const handle = (len: number, c: string, grip?: string) => {
-    B.add(cyl(0.035, 0.045, len, 8), c, { p: [0, -len / 2, 0], fx: PAPER });
-    if (grip) for (let k = 0; k < 3; k++) B.add(cyl(0.05, 0.05, 0.05, 8), grip, { p: [0, -0.06 - k * 0.07, 0] });
-  };
-  if (kind === 'clubs') {
-    switch (owner) {
-      case 'player': handle(0.62, P.stick); B.add(cyl(0.07, 0.05, 0.3, 10), P.lemon, { p: [0, -0.5, 0] }); B.add(cyl(0.072, 0.072, 0.04, 10), '#FFFFFF', { p: [0, -0.45, 0] }); break; // a bat in yellow tape
-      case 'sourwood': handle(0.7, '#2A1F3A'); B.add(sph(0.06, 8, 6), '#D9DDE2', { p: [0, 0, 0], fx: GLOSS }); B.add(cyl(0.03, 0.03, 0.06, 6), '#D9DDE2', { p: [0, -0.7, 0], fx: GLOSS }); break; // a walking cane
-      case 'hollis': handle(0.6, P.walnut); B.add(rbox(0.22, 0.26, 0.04, 0.03, 1), '#9AA3B5', { p: [0, -0.7, 0], fx: GLOSS }); break; // a shovel
-      case 'fizzco': handle(0.6, '#1D1D26', '#3A3A48'); break; // a baton
-      case 'coldbrew': B.add(rbox(0.2, 0.7, 0.04, 0.04, 1), P.esp, { p: [0, -0.35, 0] }); B.add(box(0.21, 0.4, 0.02), P.neon, { p: [0, -0.35, 0.025] }); for (const y of [-0.1, -0.6]) B.add(cyl(0.035, 0.035, 0.2, 8), P.oat, { p: [0, y, -0.05], r: [0, 0, Math.PI / 2] }); break; // a skateboard
-      case 'blenders': B.add(lumpy(cap(0.1, 0.65, 3, 10), 0.01, 4, 2), P.mango, { p: [0, -0.42, 0], s: [1, 1, 0.3] }); B.add(box(0.05, 0.7, 0.07), P.lagoon, { p: [0, -0.42, 0.01] }); break; // a paddleboard
-    }
-  } else {
-    const head: Record<Owner, [string, string, string?]> = {
-      player: ['#FFFFFF', '#B8C2CC', P.lemon], // striped handle
-      sourwood: ['#2A1F3A', '#E6E9EE'], // silver head
-      hollis: [P.walnut, '#8D96A6'], // farm axe
-      fizzco: ['#1D1D26', P.chrome], // chrome head
-      coldbrew: [P.esp, '#B8C2CC', P.neon], // pink tape
-      blenders: [P.walnut, '#B8C2CC', P.lagoon], // teal grip
-    };
-    const [h, blade, grip] = head[owner];
-    handle(owner === 'hollis' ? 0.7 : 0.55, h, grip);
-    const L = owner === 'hollis' ? 0.7 : 0.55;
-    B.add(rbox(0.04, 0.18, 0.22, 0.02, 1), blade, { p: [0, -L + 0.08, 0.1], fx: GLOSS });
-  }
-  const g = B.build();
-  weaponCache.set(key, g);
-  return g;
-}
 
 // ---------- the tug-of-war bar ----------
 function pattern(c: CanvasRenderingContext2D, o: Owner, x: number, w: number, h: number) {
@@ -155,6 +117,8 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   const calm = reducedMotion();
   const perSide = onPhone() ? 12 : 24; // fighters drawn a side; extras join the dust cloud
   let units: Unit[] = [];
+  let batch: FigureBatch | null = null;
+  let lowDetail = false;
   let report: BattleReport | null = null;
   let view: PlotView | null = null;
   let t = 0, acc = 0, lastF = -1;
@@ -198,6 +162,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
 
   function clear() {
     for (const u of units) scene.remove(u.obj);
+    if (batch) { scene.remove(batch.mesh); batch.mesh.dispose(); batch = null; }
     units = [];
     report = null;
     won = false;
@@ -509,23 +474,22 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       const add = (f: Fighter, i: number, n: number) => {
         const isAtt = f.side === 'att';
         const owner = (isAtt ? r.attacker : r.defender) as Owner;
-        const fig = new Figure({ ...CREWS[owner] }, kit().fig, { detail: n > 12 ? 0.5 : 1 });
+        // the crew's own look and tier weapon; Pro Gear (the only armour) shows as helmet and pads
+        const fig = makeCrew(owner, { weapon: f.weapon, gear: f.armor > 0 ? 'pro' : 'none', seed: i + 1 }, kit().fig, { detail: lowDetail ? 0.5 : 1 });
         const obj = fig.root;
-        const g = weaponGeo(owner, f.weapon);
-        if (g) {
-          const w = new THREE.Mesh(g, kit().fig);
-          w.castShadow = true;
-          w.rotation.x = Math.PI / 2.4;
-          (obj.userData.hands as THREE.Object3D[])[1].add(w);
-        }
         const spread = (i - (n - 1) / 2) * Math.min(1.1, 9 / Math.max(1, n));
         obj.position.copy(isAtt ? local(spread, 10 + Math.random() * 2) : local(spread * 0.8, 0.9 + (i % 2) * 0.6));
         const target = isAtt ? local(spread, fenced ? 3.1 : 1.8) : obj.position.clone();
         const home = isAtt ? local(spread * 1.5, 16) : local(spread * 0.6, -7);
         obj.rotation.y = isAtt ? Math.PI + v0.root.rotation.y : v0.root.rotation.y;
         scene.add(obj);
+        batch!.track(obj); // every fighter draws through one batch: a whole brawl is one call
         units.push({ f, owner, fig, obj, target, home, swing: 0, state: 'march', st: 0, spin: 0, stars: -1, phase: Math.random() * 6, inCloud: false, zig: Math.random() * 3 });
       };
+      // phones and big fights use the crowd-detail figures (about a third of the triangles)
+      lowDetail = onPhone() || Math.min(r.attackers.length, perSide) + Math.min(r.defenders.length, perSide) > 10;
+      batch = createFigureBatch(kit().fig, { instances: 512, vertices: 120_000, indices: 360_000 });
+      scene.add(batch.mesh);
       const atts = r.attackers.slice(0, perSide), defs = r.defenders.slice(0, perSide);
       atts.forEach((f, i) => add(f, i, atts.length));
       defs.forEach((f, i) => add(f, i, defs.length));
@@ -556,7 +520,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       if (shake > 0 && standObj) { shake -= dt; standObj.rotation.z = Math.sin(t * 60) * 0.03 * (shake > 0 ? 1 : 0); }
       acc += dt * PLAY_SPEED;
       const f = kit().twos.f;
-      if (f !== lastF) { lastF = f; step(Math.min(acc, 0.3), f); acc = 0; }
+      if (f !== lastF) { lastF = f; step(Math.min(acc, 0.3), f); acc = 0; batch?.setVisible((scene.userData.detail ?? 0) < 2); batch?.sync(); }
       if (t > report.duration + LINGER) {
         const cb = done;
         done = null;

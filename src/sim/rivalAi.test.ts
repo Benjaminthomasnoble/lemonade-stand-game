@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
-  raidCost, reserveOf, rivalDawn, simulateRestOfDay,
+  fenceRepairCost, henchWage, payWages, raidCost, reserveOf, rivalDawn, simulateRestOfDay, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -29,10 +29,12 @@ function nightsUntilRaid(s: GameState, tries = 300) {
 }
 
 describe('rival dawn budget', () => {
-  it('opens the books with the starting cash split Grow / Guard / Strike', () => {
+  it('opens the books with the starting cash split Grow / Guard / Strike, less a reserve from the first dawn', () => {
     const s = newGame(3);
     for (const id of RIVALS) {
       const b = budgetOf(s, id), f = FACTIONS[id];
+      expect([b.grow, b.guard, b.strike]).toEqual([f.startCash * f.grow, f.startCash * f.guard, f.startCash * f.strike]);
+      bankTakings(s, id);
       const room = f.startCash - reserveOf(s, id);
       expect(b.grow + b.guard + b.strike).toBeCloseTo(room, 0);
       expect(b.grow / room).toBeCloseTo(f.grow, 2);
@@ -42,6 +44,7 @@ describe('rival dawn budget', () => {
 
   it('banks each dawn\'s takings by the split, and spending does not count as a loss', () => {
     const s = newGame(4);
+    bankTakings(s, 'hollis'); // the first dawn sets the reserve aside
     const before = { ...budgetOf(s, 'hollis') };
     s.rivals.hollis.cash += 1000;
     expect(bankTakings(s, 'hollis')).toBe(1000);
@@ -301,5 +304,55 @@ describe('rival trade', () => {
     const st = s.plots[p.id].stand!;
     expect(st.day.cupCosts / st.day.customers).toBeCloseTo(costPerCup(s, st), 2);
     expect(costPerCup(s, st)).toBeCloseTo((5 * 0.3 + 10 * 0.05) / 10 + 3 * 0.02 + CUP_COST, 5);
+  });
+
+  it('a rival stand sells out once a full day\'s stock is gone', () => {
+    const s = newGame(21);
+    openStand(s);
+    simulateRestOfDay(s);
+    let soldOut = 0;
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (!ps.owner || ps.owner === 'player' || !ps.stand) continue;
+      expect(ps.stand.day.customers).toBeLessThanOrEqual(stockCups(ps.stand));
+      if (ps.stand.day.walkedPast.soldOut) { soldOut++; expect(ps.stand.day.customers).toBe(stockCups(ps.stand)); }
+    }
+    expect(soldOut).toBeGreaterThan(0);
+    expect(stockCups(newStand(1))).toBe(120); // 60 lemons, 5 a pitcher, 10 cups a pitcher
+  });
+
+  it('rivals pay their henchmen your wages out of Guard at dawn, and the ones they can\'t pay walk off', () => {
+    const s = newGame(22);
+    const id: RivalId = 'coldbrew';
+    const posts = ownedPlots(s, id).filter((p) => (s.plots[p.id].garrison ?? 0) > 0);
+    const bill = posts.reduce((a, p) => a + (s.plots[p.id].garrison ?? 0) * henchWage(s.plots[p.id]), 0);
+    const crew = () => ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0);
+    const all = crew();
+    expect(henchWage({ ...s.plots[posts[0].id], stand: newStand(1) })).toBe(15); // a Rookie's wage
+    const cash = s.rivals[id].cash;
+    budgetOf(s, id).guard = bill;
+    expect(payWages(s, id)).toBe(0);
+    expect(budgetOf(s, id).guard).toBe(0);
+    expect(s.rivals[id].cash).toBe(cash - bill);
+    budgetOf(s, id).guard = Math.floor(bill / 2);
+    const left = payWages(s, id);
+    expect(left).toBeGreaterThan(0);
+    expect(crew()).toBe(all - left);
+    expect(budgetOf(s, id).guard).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a chopped rival fence is patched only with Guard money, at your repair price', () => {
+    const s = newGame(23);
+    const p = ownedPlots(s, 'sourwood').find((q) => s.plots[q.id].defense.tier > 0)!;
+    const ps = s.plots[p.id];
+    ps.defense.fenceHp = 1;
+    budgetOf(s, 'sourwood').guard = 0;
+    rivalGuardSpend(s, 'sourwood', { seed: 1 });
+    expect(ps.defense.fenceHp).toBe(1);
+    const cost = fenceRepairCost(ps);
+    budgetOf(s, 'sourwood').guard = cost;
+    rivalGuardSpend(s, 'sourwood', { seed: 1 });
+    expect(ps.defense.fenceHp).toBe(PERIMETERS[ps.defense.tier - 1].hp);
+    expect(budgetOf(s, 'sourwood').guard).toBe(0);
   });
 });

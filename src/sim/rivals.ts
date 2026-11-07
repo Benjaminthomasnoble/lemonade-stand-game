@@ -40,6 +40,8 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
 export const RIVAL_RESERVE_DAYS = 2;
 /** A rival hires a garrison henchman for this (the spec gives no rival hire fee: the build's own number). */
 export const RIVAL_HIRE_FEE = 300;
+/** ...and only with this many days of the new hire's wage also in the Guard bucket, which pays henchmen's wages (placeholder). */
+export const RIVAL_WAGE_RUNWAY = 7;
 /** On this share of dawns after Day 3 a rival with the Grow money buys a plot near its turf (the build's own pacing). */
 export const RIVAL_LAND_CHANCE = 0.25;
 /** Every this many days each rival stand is owed one level, up to the faction's cap (balance tables: every 30 days). */

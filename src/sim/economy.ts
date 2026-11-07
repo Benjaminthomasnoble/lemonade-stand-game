@@ -15,7 +15,7 @@ import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
-import { migrateRivals, openBooks, rivalDawn, type Budget } from './rivalAi.ts';
+import { migrateRivals, openBooks, rivalDawn, stockCups, type Budget } from './rivalAi.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -551,6 +551,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
   const isPlayer = ps.owner === 'player';
   if (nextRandom(rng) >= a.stopChance) return { buys: false, reason: a.priceFit < 0.6 ? 'pricey' : 'notThirsty' };
   if (st.servedThisHour >= standLevel(st).capacityPerHour) return { buys: false, reason: 'line' };
+  if (!isPlayer && st.day.customers >= stockCups(st)) return { buys: false, reason: 'soldOut' }; // a rival sells one full stock a day
   if (isPlayer) {
     if (st.pitcherCups === 0) {
       const n = pitcherNeeds(st);

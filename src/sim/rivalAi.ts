@@ -4,15 +4,15 @@
 // for raids. Each rival also keeps a Grudge toward every other faction.
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
-import { FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, STAND_LEVELS, type RivalId } from './balance.ts';
+import { CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, STAND_LEVELS, type RivalId } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { GameState } from './economy.ts';
-import { hasFoothold, newStand, ownedPlots, rivalPrice } from './economy.ts';
+import type { GameState, PlotState, Stand } from './economy.ts';
+import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice } from './economy.ts';
 import {
-  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS,
+  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_UPGRADE_DAYS, RIVAL_WAGE_RUNWAY,
 } from './rivals.ts';
-import { hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
+import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -29,7 +29,7 @@ export function budgetOf(s: GameState, id: RivalId): Budget {
   return (s.rivals[id].budget ??= { grow: 0, guard: 0, strike: 0 });
 }
 
-/** What the rival's plots cost to run each day: stand upkeep. */
+/** What the rival's stands cost to run each day: upkeep, charged at closing (henchmen's wages come out of Guard). */
 export function runningCosts(s: GameState, id: RivalId): number {
   let total = 0;
   for (const p of PLOTS) {
@@ -53,14 +53,13 @@ export function fitBudget(s: GameState, id: RivalId, topUp = false): void {
   }
 }
 
-/** A new rival's books: its whole starting cash, split by personality. */
+/** A new rival's books: its whole starting cash, split by personality (the first dawn sets the reserve aside). */
 export function openBooks(s: GameState, id: RivalId): void {
   const r = s.rivals[id];
   const f = FACTIONS[id];
   r.budget = { grow: round2(r.cash * f.grow), guard: round2(r.cash * f.guard), strike: round2(r.cash * f.strike) };
   r.cashSeen = r.cash;
   r.held = ownedPlots(s, id).map((p) => p.id);
-  fitBudget(s, id);
 }
 
 /** Dawn: everything that moved the rival's cash since the last dawn, other than bucket spending (trade, upkeep, loot, rebuilds, sales), goes into the buckets by the split. */
@@ -235,39 +234,83 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 
-/** One rival's dawn (rivalsAtDawn): grudges from the night, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
+/** One rival's dawn (rivalsAtDawn): grudges from the night, wages, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
 export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   const r = s.rivals[id];
   noteSmashes(s, id);
   noteLandTaken(s, id);
   coolGrudges(s, id);
   bankTakings(s, id);
+  payWages(s, id);
   growUpgrades(s, id);
   growLand(s, id, rng);
   r.held = ownedPlots(s, id).map((p) => p.id);
   r.attention = attentionOf(s, id);
 }
 
+// ---------- same costs as yours: wages, repairs, stock ----------
+
+/** The strength of the henchmen guarding a rival plot (the tier garrisonFighters fields there). */
+export const garrisonTier = (ps: PlotState) => Math.min(5, Math.max(1, Math.ceil((ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1)) / 1.2)));
+/** A rival henchman's daily wage: what you'd pay a guard of the same level. */
+export const henchWage = (ps: PlotState) => GUARD_WAGE[HENCHMEN[garrisonTier(ps) - 1].level - 1];
+
+/** Dawn: a rival pays its henchmen the wages you pay your guards, out of its Guard bucket, best plots first. Anyone it can't pay walks off the job. Returns how many left. */
+export function payWages(s: GameState, id: RivalId): number {
+  const value = (plotId: string) => s.plots[plotId].invested + s.plots[plotId].landValue;
+  const posts = ownedPlots(s, id).filter((p) => (s.plots[p.id].garrison ?? 0) > 0).sort((a, b) => value(b.id) - value(a.id));
+  let left = 0;
+  for (const p of posts) {
+    const ps = s.plots[p.id];
+    const wage = henchWage(ps);
+    let kept = 0;
+    for (let i = 0; i < (ps.garrison ?? 0); i++) {
+      if (canSpend(s, id, 'guard', wage)) { spend(s, id, 'guard', wage); kept++; } else left++;
+    }
+    ps.garrison = kept;
+  }
+  return left;
+}
+
+/** Cups a rival stand can sell in a day: one full stock of lemons and sugar, as its storage holds (it restocks each morning). */
+export function stockCups(st: Stand): number {
+  const n = pitcherNeeds(st);
+  const room = STAND_LEVELS[st.level - 1].storage;
+  const pitchers = Math.min(Math.floor(room.lemons / n.lemons), n.sugar > 0 ? Math.floor(room.sugar / n.sugar) : Infinity);
+  return pitchers * CUPS_PER_PITCHER;
+}
+
 // ---------- Guard: defenses and crew ----------
 
-/** Guard spending at dawn (crewAtDawn): fences and henchmen on the three best stands, paid from the Guard bucket. */
+/**
+ * Guard spending at dawn (crewAtDawn), all from the Guard bucket: first patch chopped fences (the same repair price
+ * as yours), then fences and henchmen on the three best stands. A henchman is hired only with a week of his wages
+ * still in the bucket after the fee.
+ */
 export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   void rng;
-  if (!s.rivals[id].alive) return;
+  const r = s.rivals[id];
+  if (!r.alive) return;
   fitBudget(s, id);
-  const plots = ownedPlots(s, id).filter((p) => s.plots[p.id].stand).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
-  for (const p of plots.slice(0, 3)) {
+  const plots = ownedPlots(s, id).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
+  for (const p of plots) {
+    const ps = s.plots[p.id];
+    const cost = fenceRepairCost(ps);
+    if (cost > 0 && canSpend(s, id, 'guard', cost)) {
+      spend(s, id, 'guard', cost);
+      ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
+    }
+  }
+  for (const p of plots.filter((q) => s.plots[q.id].stand).slice(0, 3)) {
     const ps = s.plots[p.id];
     const next = PERIMETERS[ps.defense.tier];
     if (next && next.tier <= Math.ceil(ps.stand!.level / 1.5) + 1 && canSpend(s, id, 'guard', next.cost)) {
       spend(s, id, 'guard', next.cost);
       ps.invested += next.cost; // a fence counts in Net Worth at 75%, like yours
       ps.defense = { ...ps.defense, tier: next.tier, fenceHp: next.hp };
-    } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE)) {
+    } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE + RIVAL_WAGE_RUNWAY * henchWage(ps))) {
       spend(s, id, 'guard', RIVAL_HIRE_FEE);
       ps.garrison = (ps.garrison ?? 0) + 1;
-    } else if (ps.defense.tier) {
-      ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
     }
   }
 }

@@ -142,7 +142,8 @@ try {
   const built = await page.evaluate((x) => [window.__game.state.plots[x.field].facility?.kind, window.__game.state.plots[x.dock].facility?.kind].join(','), sites);
   if (built !== 'helipad,pier') fail(`facilities not built: ${built}`);
   for (const [tier, plot, minute, shot] of [['heli', sites.field, 14 * 60, '12-helicopter'], ['ship', sites.dock, 10 * 60, '13-ship']]) {
-    await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 30000 });
+    // VIP scenes advance per rendered frame, and SwiftShader can drop under 1 fps on a busy container.
+    await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 90000 });
     await page.evaluate(([tier, plot]) => {
       const g = window.__game, st = g.state;
       if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
@@ -155,14 +156,15 @@ try {
     }, [tier, plot]);
     await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
-    await page.waitForFunction(() => window.__game.vip(), null, { timeout: 15000 });
+    // The last game minute ticks in real frames; SwiftShader can drop under 1 fps on a busy container.
+    await page.waitForFunction(() => window.__game.vip(), null, { timeout: 45000 });
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 0 }));
-    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 60000 });
+    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 90000 });
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
 
   // Rival endgame: buy a plot at a sit-down, then storm the weakened Blend Shack with a full squad.
-  await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 30000 });
+  await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 90000 });
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
     if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }

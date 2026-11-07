@@ -110,6 +110,7 @@ export interface RivalState {
   taken?: { day: number; n: number }; // passers-by at its stands who bought from you instead, that day (Attention)
   held?: string[]; // plots held at the last dawn
   lost?: string[]; // plots taken from them that went For Sale: whoever buys one takes their land
+  rush?: number; // the Blenders: the night of their last Blender Rush on you (Brock phones first)
 }
 
 export interface DayStats {

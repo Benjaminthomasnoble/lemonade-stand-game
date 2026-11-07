@@ -66,9 +66,16 @@ export const GRUDGE = { raided: 10, smashed: 10, land: 15, outbid: 10, cool: 1, 
 /**
  * A boss's Attention on you: Threat (per lemon), shared borders (per district of yours on or beside their turf),
  * the customers you take (your share of the cups sold on their turf today) and Grudge (per point). The keenest
- * boss who can pay sends the raid; `jitter` lets near-ties go either way (placeholders: the spec gives no weights).
+ * boss who can pay sends the raid: its Attention plus `strike` times its Strike share (so the Blenders, at 60%,
+ * send the most); `jitter` lets near-ties go either way (placeholders: the spec gives no weights).
  */
-export const ATTENTION = { threat: 1, border: 0.5, customers: 10, grudge: 0.1, jitter: 1 };
+export const ATTENTION = { threat: 1, border: 0.5, customers: 10, grudge: 0.1, strike: 1, jitter: 1 };
+/**
+ * Blender Rush, the Blenders' signature move: frequent cheap raids with lots of fists (spec, no numbers given, so
+ * these are placeholders). Their party comes at the top of its Threat range with every weapon one tier toward fists
+ * (hatchets become clubs, clubs become fists), and costs them `cost` of the usual raid wages. Brock phones first.
+ */
+export const BLENDER_RUSH = { cost: 0.5, taunt: 'Bro. Tonight we blend your stand. Smoothie or chunky, your call.' };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

@@ -5,16 +5,17 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, SEASON_DEMAND, SEASON_WEATHER, SEASONS, STAND_LEVELS, WEATHER,
-  type RivalId, type Season, type WeatherKind,
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, SEASON_DEMAND, SEASON_WEATHER, SEASONS, STAND_LEVELS,
+  WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  ATTENTION, BLENDER_RUSH, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
+import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
@@ -509,36 +510,65 @@ export function attentionOf(s: GameState, id: RivalId): number {
 
 // ---------- Strike: who raids, and what it costs ----------
 
-/** A raid costs the rival a night's wages for each henchman it sends, at the strength it sends them. */
+/** A raid costs the rival a night's wages for each henchman it sends, at the strength it sends them (a Blender Rush comes cheap). */
 export function raidCost(s: GameState, id: RivalId, size: number, tier = threatLevel(s)): number {
-  void s; void id;
-  return Math.round(size * GUARD_WAGE[HENCHMEN[tier - 1].level - 1] * RAID_WAGE_NIGHTS);
+  void s;
+  return Math.round(size * GUARD_WAGE[HENCHMEN[tier - 1].level - 1] * RAID_WAGE_NIGHTS * (id === 'blenders' ? BLENDER_RUSH.cost : 1));
 }
 
-/** How keen a boss is to raid the player tonight: 0 when they can't (out, backing off after a beaten raid, or in a Truce). */
+/** How many henchmen a boss sends on a raid planned with `size`: the Blenders always come at the top of the Threat range. */
+export const raidSize = (id: RivalId, size: number, tier: number) => (id === 'blenders' ? Math.max(size, RAID_PARTY[tier - 1].size[1]) : size);
+
+/**
+ * How keen a boss is to raid the player tonight: its Attention plus its Strike share (the Blenders raid most often).
+ * 0 when they can't: out, backing off after a beaten raid, or in a Truce.
+ */
 export function raidWeight(s: GameState, id: RivalId): number {
   const r = s.rivals[id];
   if (!r.alive || r.respectUntil > s.day + 1 || inTruce(s, id)) return 0;
-  return Math.max(0.1, r.attention);
+  return Math.max(0.1, r.attention + ATTENTION.strike * FACTIONS[id].strike);
 }
 
 /** The boss who sends tonight's raid on the player: the one with the most Attention whose Strike can pay for it. A broke boss is skipped and the next-angriest goes. */
 export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null {
+  const tier = threatLevel(s);
   let best: RivalId | null = null;
   let top = -Infinity;
   for (const id of RIVALS) {
     const keen = raidWeight(s, id) + nextRandom(rng) * ATTENTION.jitter; // near-ties go either way
-    if (raidWeight(s, id) <= 0 || !canSpend(s, id, 'strike', raidCost(s, id, size))) continue;
+    if (raidWeight(s, id) <= 0 || !canSpend(s, id, 'strike', raidCost(s, id, raidSize(id, size, tier), tier))) continue;
     if (keen > top) { top = keen; best = id; }
   }
   return best;
 }
 
+const FISTWARD: Record<WeaponId, WeaponId> = { hatchets: 'clubs', clubs: 'fists', fists: 'fists' };
+
 /**
- * planNight's last line: settle tonight's rival raids. Each boss's Attention is updated from today's trade, and
- * the raid on the player goes to the keenest boss who can pay for it, and every rival raid is paid from its Strike bucket; one nobody can pay for is called off. The
- * tutorial raid is on the house. A raid on another rival goes where the attacker's Grudge points, and the
- * target's Grudge toward the attacker rises. Returns any extra raids to add (none yet).
+ * Blender Rush: the Blenders' party for a raid at Threat tier `tier`, filled to the top of the tier's range with
+ * Smoothie Bros like the ones planned, and every weapon one tier toward fists (their strength stays the tier's).
+ */
+export function blenderRush(s: GameState, party: Fighter[], tier: number): Fighter[] {
+  if (!party.length) return party;
+  const size = raidSize('blenders', party.length, tier);
+  return Array.from({ length: size }, (_, i) => {
+    const f = party[i % party.length];
+    const weapon = FISTWARD[f.weapon];
+    const m = f.hit / WEAPONS[f.weapon].hit; // the henchman's level bonus
+    return {
+      ...f, id: i < party.length ? f.id : `blenders-att-${s.nextId++}`, name: f.name.replace(/#\d+$/, `#${i + 1}`),
+      weapon, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
+    };
+  });
+}
+
+/**
+ * planNight's last line: settle tonight's rival raids. Each boss's Attention is updated from today's trade, the
+ * raid on the player goes to the keenest boss who can pay for it, and every rival raid is paid from its Strike
+ * bucket; one nobody can pay for is called off. The tutorial raid is on the house. A Blenders raid is a Blender
+ * Rush (a big, cheap, fist-heavy party), and Brock phones before one on you. A raid on another rival goes where
+ * the attacker's Grudge points, and the target's Grudge toward the attacker rises. Returns any extra raids to add
+ * (none yet).
  */
 export function signatureRaids(s: GameState): Raid[] {
   const rng = { seed: s.seed };
@@ -560,10 +590,17 @@ export function signatureRaids(s: GameState): Raid[] {
         rng.seed = s.seed;
         raid.attacker = raider;
       }
+      if (raider === 'blenders') {
+        raid.party = blenderRush(s, raid.party, threat);
+        s.rivals.blenders.rush = s.day;
+        s.news.push(`Brock: "${BLENDER_RUSH.taunt}"`);
+      }
       spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, threat));
       kept.push(raid);
     } else {
-      const cost = raidCost(s, attacker, raid.party.length, Math.min(3, threat + 1));
+      const tier = Math.min(3, threat + 1);
+      if (attacker === 'blenders') raid.party = blenderRush(s, raid.party, tier);
+      const cost = raidCost(s, attacker, raid.party.length, tier);
       if (!s.rivals[attacker]?.alive || !canSpend(s, attacker, 'strike', cost)) continue;
       const target = rivalTarget(s, attacker);
       if (!target) continue;

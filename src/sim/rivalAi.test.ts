@@ -5,7 +5,8 @@ import {
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
-  WEATHER, type BattleReport, type GameState, type RivalId,
+  WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids,
+  type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -280,6 +281,93 @@ describe('rival attention', () => {
     raiders.clear();
     for (let i = 0; i < 6; i++) { const raid = nightsUntilRaid(s); if (raid) raiders.add(raid.attacker); }
     expect([...raiders]).toEqual(['coldbrew']);
+  });
+});
+
+describe('Blender Rush', () => {
+  const tierAt = (s: GameState) => Math.min(5, Math.max(1, Math.ceil(s.rank / 2)));
+
+  it('the Blenders send the most raids on you: a boss\'s Strike share adds to its Attention', () => {
+    const s = newGame(40);
+    s.day = 20;
+    for (const id of RIVALS) { s.rivals[id].attention = 1.5; budgetOf(s, id).strike = 1e6; s.rivals[id].cash = Math.max(s.rivals[id].cash, 1e6); }
+    expect(raidWeight(s, 'blenders') - raidWeight(s, 'hollis')).toBeCloseTo(ATTENTION.strike * (FACTIONS.blenders.strike - FACTIONS.hollis.strike), 5);
+    const sent: Record<string, number> = {};
+    for (let seed = 1; seed <= 400; seed++) { const id = pickRaider(s, { seed }, 3)!; sent[id] = (sent[id] ?? 0) + 1; }
+    for (const id of RIVALS.filter((r) => r !== 'blenders')) expect(sent.blenders).toBeGreaterThan(sent[id] ?? 0);
+    expect(sent.blenders / 400).toBeGreaterThan(0.3);
+  });
+
+  it('a Blender Rush comes at the top of the Threat range, every weapon one tier toward fists, at half the wages', () => {
+    const s = newGame(41);
+    for (const rank of [1, 5, 7, 9]) {
+      s.rank = rank;
+      const tier = tierAt(s);
+      const planned = raidPartyFor(s, 'blenders');
+      const rush = blenderRush(s, planned, tier);
+      expect(rush.length).toBe(RAID_PARTY[tier - 1].size[1]);
+      expect(new Set(rush.map((f) => f.id)).size).toBe(rush.length);
+      expect(rush.some((f) => f.weapon === 'hatchets')).toBe(false);
+      rush.forEach((f, i) => {
+        const was = planned[i % planned.length];
+        expect(f.weapon).toBe(({ hatchets: 'clubs', clubs: 'fists', fists: 'fists' } as const)[was.weapon]);
+        expect(f.hit / WEAPONS[f.weapon].hit).toBeCloseTo(was.hit / WEAPONS[was.weapon].hit, 5); // same henchman, lesser weapon
+        expect(f.hp).toBe(was.hp);
+      });
+      if (tier <= 3) expect(rush.every((f) => f.weapon === 'fists')).toBe(true);
+      expect(raidCost(s, 'blenders', 10, tier)).toBe(Math.round(raidCost(s, 'hollis', 10, tier) * BLENDER_RUSH.cost));
+    }
+  });
+
+  it('Brock phones before each Blender Rush on you', () => {
+    const s = newGame(42);
+    s.day = 20;
+    s.rank = 5;
+    pastTutorial(s);
+    for (const id of RIVALS) budgetOf(s, id).strike = 0;
+    budgetOf(s, 'blenders').strike = 1e5;
+    const raid = nightsUntilRaid(s)!;
+    expect(raid.attacker).toBe('blenders');
+    expect(raid.party!.length).toBe(RAID_PARTY[tierAt(s) - 1].size[1]);
+    expect(raid.party!.every((f) => f.weapon === 'fists')).toBe(true);
+    expect(s.rivals.blenders.rush).toBe(s.day);
+    expect(s.news).toContain(`Brock: "${BLENDER_RUSH.taunt}"`);
+    expect(budgetOf(s, 'blenders').strike).toBeCloseTo(1e5 - raidCost(s, 'blenders', raid.party!.length), 2);
+  });
+
+  it('changes who raids and how the party looks, not how many raids come', () => {
+    const s = newGame(43);
+    s.day = 20;
+    s.rank = 5;
+    pastTutorial(s);
+    for (let i = 0; i < 300; i++) {
+      const night = JSON.parse(JSON.stringify(s)) as GameState;
+      s.raids = [];
+      planNight(s);
+      const onYou = (g: GameState) => g.raids.filter((r) => r.attacker !== 'player' && g.plots[r.target].owner === 'player');
+      if (!onYou(s).length || onYou(s)[0].attacker !== 'blenders') continue;
+      budgetOf(night, 'blenders').strike = 0; // the same night with the Blenders broke: someone else comes
+      night.raids = [];
+      planNight(night);
+      expect(onYou(night).length).toBe(onYou(s).length);
+      expect(onYou(night)[0].attacker).not.toBe('blenders');
+      return;
+    }
+    throw new Error('no Blender Rush in 300 nights');
+  });
+
+  it('the Blenders raid other rivals the same way', () => {
+    const s = newGame(44);
+    s.rank = 3;
+    const target = ownedPlots(s, 'hollis').find((p) => s.plots[p.id].stand)!;
+    budgetOf(s, 'blenders').strike = 1e5;
+    s.raids = [{ id: 'r1', attacker: 'blenders', target: target.id, objective: 'smash', party: raidPartyFor(s, 'blenders').slice(0, 2), detected: true, eta: '02:00' }];
+    signatureRaids(s);
+    const tier = Math.min(3, tierAt(s) + 1);
+    expect(s.raids.length).toBe(1);
+    expect(s.raids[0].party!.length).toBe(RAID_PARTY[tier - 1].size[1]);
+    expect(s.raids[0].party!.every((f) => f.weapon === 'fists')).toBe(true);
+    expect(s.news.some((n) => n.startsWith('Brock:'))).toBe(false); // he only phones you
   });
 });
 

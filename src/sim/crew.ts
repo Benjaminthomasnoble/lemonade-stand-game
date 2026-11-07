@@ -5,7 +5,8 @@
 import {
   CLUBHOUSE, COMBAT, DETECTION_BASE, DETECTION_CAP, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
-  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RAID_LEAVE,
+  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
+  RAID_PARTY, RAID_RANK, RAID_LEAVE,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
   SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
@@ -27,6 +28,7 @@ import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
+import { scoutingAtDawn, scoutingToday } from './scouting.ts';
 
 export interface Guard {
   id: string;
@@ -42,6 +44,7 @@ export interface Guard {
   fee: number; // hire fee (recruits)
   face?: number; // portrait seed (guards from before it existed draw their face from the id)
   specialty?: Specialty; // Lookout, Wrecker or Captain: taken from Level 3, for good
+  scoutDay?: number; // a Lookout scouting a rival plot is off their post (and out of raids) this day
 }
 
 export interface Raid {
@@ -441,10 +444,10 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   };
 }
 
-/** Who is really on a plot of yours right now: posted there, not Out, not away on tonight's raid. */
+/** Who is really on a plot of yours right now: posted there, not Out, not away on tonight's raid or out scouting. */
 export function presentGuards(s: GameState, plotId: string): Guard[] {
   const away = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
-  return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id));
+  return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 
 /** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights). Never below 0%. */
@@ -453,6 +456,7 @@ export function detectionChance(s: GameState, plotId: string, night: boolean): n
   const here = ps.owner === 'player' ? presentGuards(s, plotId) : [];
   let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].detection, 0);
   if (here.some((g) => g.trait === 'Eagle Eye')) d += EAGLE_EYE_DETECTION;
+  if (here.some((g) => g.specialty === 'lookout')) d += LOOKOUT_DETECTION;
   d = Math.min(DETECTION_CAP, d);
   if (night && !ps.defense.gadgets.includes('floodlights')) d -= NIGHT_STEALTH;
   return Math.max(0, Math.round(d * 1000) / 1000);
@@ -469,7 +473,7 @@ export function raidTargets(s: GameState): Plot[] {
 
 export function availableRaiders(s: GameState): Guard[] {
   const busy = awayOnRaid(s); // planned, out, walking home, or in the fight playing live
-  return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id));
+  return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id) && g.scoutDay !== s.day);
 }
 
 export function canRaid(s: GameState, plotId: string, guardIds: string[]): Blocker {
@@ -690,6 +694,7 @@ export function crewAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
   payCrew(s);
   dutyXp(s);
+  scoutingAtDawn(s);
   if (s.day >= 6) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);

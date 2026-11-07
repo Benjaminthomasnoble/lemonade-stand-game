@@ -5,6 +5,8 @@ import {
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
   PLOTS,
 } from './economy.ts';
+import { availableRaiders } from './crew.ts';
+import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
@@ -247,5 +249,47 @@ describe('detection', () => {
     g.outUntil = 0;
     s.raids.push({ id: 'r1', attacker: 'player', target: 'oldtown-0n', objective: 'smash', guards: [g.id], detected: false, eta: '01:00' });
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+  });
+});
+
+describe('the Lookout', () => {
+  const setup = (seed: number) => {
+    const s = newGame(seed);
+    s.rank = 4;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    dex.level = 3;
+    promote(s, dex.id, 'lookout');
+    return { s, dex };
+  };
+
+  it('adds 25% detection while on the plot, and two Lookouts do not stack', () => {
+    const { s, dex } = setup(61);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.75);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.5);
+    s.guards.push({ ...dex, id: 'g2', name: 'Two Eyes' });
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.75);
+  });
+
+  it('scouts a rival plot: its defenses show for 3 days, and the Lookout is off their post that day', () => {
+    const { s, dex } = setup(62);
+    const target = raidTargets(s)[0].id;
+    s.plots[target].defense.gadgets = ['alarm'];
+    expect(canScout(s, 'nobody', target).ok).toBe(false);
+    expect(canScout(s, dex.id, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Scout a rival plot' });
+    expect(scoutWithLookout(s, dex.id, target)).toBe(true);
+    expect(scoutedSnapshot(s, target)?.gadgets).toEqual(['alarm']);
+    expect(canScout(s, dex.id, target)).toEqual({ ok: false, why: 'Dex scouted today' });
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5); // away watching
+    expect(availableRaiders(s).some((g) => g.id === dex.id)).toBe(false);
+    s.cash = 5000;
+    playDay(s);
+    expect(availableRaiders(s).some((g) => g.id === dex.id)).toBe(true);
+    expect(isScouted(s, target)).toBe(true);
+    playDay(s);
+    expect(isScouted(s, target)).toBe(true);
+    playDay(s);
+    expect(isScouted(s, target)).toBe(false);
+    expect(s.scouting?.[target]).toBeUndefined();
   });
 });

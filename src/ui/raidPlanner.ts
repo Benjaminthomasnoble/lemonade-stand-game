@@ -2,9 +2,10 @@
 // odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
 // panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canRaid, inTruce, raidOdds, RAID_RANK, rebuildChance, WEAPONS,
+  availableRaiders, canRaid, GADGETS, inTruce, PERIMETERS, raidOdds, RAID_RANK, rebuildChance, WEAPONS,
   type GameState, type Objective, type RivalId,
 } from '../sim/economy.ts';
+import { canScout, freeLookout, scoutedSnapshot } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
 import { guardFace } from './crew.ts';
 import { tripNote } from './trips.ts';
@@ -37,6 +38,22 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${crew.length > 1 ? `<button class="cl-b ghost tiny" data-action="squadAll" data-ids="${ids}">${crew.every((g) => squad.has(g.id)) ? 'None' : 'Take all'}</button>` : ''}</div>`;
   }
 
+  /** What a Lookout saw (fence, gadgets, henchmen), or the button to send one. */
+  function intel(s: GameState, id: string) {
+    const sc = scoutedSnapshot(s, id);
+    if (sc) {
+      const left = sc.until - s.day + 1;
+      const tip = `Scouted: ${sc.tier ? PERIMETERS[sc.tier - 1].name : 'no fence'}, ${sc.gadgets.map((g) => GADGETS[g].name).join(', ') || 'no gadgets'}, ${sc.garrison} henchmen. Good for ${left} more day${left === 1 ? '' : 's'}.`;
+      return `<div class="cl-slots" title="${k.esc(tip)}">${sc.tier ? `<span class="cl-slot full">${k.ART.fence(sc.tier)}</span>` : ''}${sc.gadgets.map((g) => `<span class="cl-slot full">${k.GADGET_ART[g]()}</span>`).join('')}<span class="cl-slot full">${k.ART.head(2)}</span>${k.tape(`×${sc.garrison}`)}</div>`;
+    }
+    const lookouts = s.guards.filter((g) => g.specialty === 'lookout');
+    if (!lookouts.length) return '';
+    const free = freeLookout(s, id);
+    const b = free ? canScout(s, free.id, id) : canScout(s, lookouts[0].id, id);
+    const who = (free ?? lookouts[0]).name.split(' ')[0];
+    return k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}" title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"`, 'ghost');
+  }
+
   function panel(s: GameState, id: string) {
     if (s.rank < RAID_RANK) return '';
     const crew = availableRaiders(s);
@@ -55,6 +72,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     const obj = (v: Objective, art: string, label: string, tip: string) => `<button class="cl-b ${objective === v ? 'go' : 'ghost'}" data-action="objective" data-value="${v}" title="${tip}">${art}${label}</button>`;
     return `<div class="cl-planner" data-testid="raid-planner">
       <div class="cl-acts">${obj('smash', k.ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', k.ART.moneyBag(), `Shakedown ${k.whole(shakedownLoot(s, id))}`, 'Grab the till: about a day of its profit')}</div>
+      ${intel(s, id)}
       ${picker(s)}
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
       ${tripNote(s, id, ids)}
@@ -69,6 +87,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); return true; }
       case 'objective': objective = d.value as Objective; redraw(); return true;
       case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); return true;
+      case 'scout': squad.delete(d.id!); onAction({ type: 'scout', id: d.id!, plot: d.plot! }); return true;
     }
     return false;
   }

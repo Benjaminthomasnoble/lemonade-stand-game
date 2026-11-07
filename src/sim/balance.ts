@@ -374,6 +374,9 @@ export const SPECIALTIES: Record<Specialty, { name: string; rank: number; text: 
   captain: { name: 'Captain', rank: 6, text: 'Leads the squad: everyone on the side gets +20 Nerve and +10% Hit' },
 };
 export const PROMOTE_LEVEL = 3;
+/** A Lookout on the plot adds this to detection (several don't stack); what they scout stays fresh this many days. */
+export const LOOKOUT_DETECTION = 0.25;
+export const SCOUT_DAYS = 3;
 /** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
 export const CLUBHOUSE = [
   { level: 1, cost: 2000, beds: 6, rank: 2 },

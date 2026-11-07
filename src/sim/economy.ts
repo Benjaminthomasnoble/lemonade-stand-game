@@ -21,6 +21,7 @@ import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budg
 import { adBlitzBoost, ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
+import type { Scouted } from './scouting.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
@@ -185,6 +186,7 @@ export interface GameState {
   guards: Guard[];
   recruits: Guard[];
   recruitDay?: number; // the Hiring Hall last refreshed its recruits (crew)
+  scouting?: Record<string, Scouted>; // rival plots a Lookout or Gull Flight has scouted, fresh for 3 days (crew)
   clubhouse?: number; // old saves: one Clubhouse level for the whole crew (clubhouse.ts moves it onto a Street plot)
   nextId: number;
   raids: Raid[]; // planned for tonight (theirs and yours)

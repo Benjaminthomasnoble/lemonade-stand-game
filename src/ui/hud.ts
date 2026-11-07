@@ -83,6 +83,7 @@ export type Action =
   | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
   | { type: 'bell'; raid: string } // Ring the Bell: the Clubhouse reserve in range sets out (warning card, fight bar)
   | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
+  | { type: 'scout'; id: string; plot: string }
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
   | { type: 'mute' }
@@ -365,7 +366,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;
       case 'bell': onAction({ type: 'bell', raid: d.raid! }); break;
-      case 'squad': case 'squadAll': case 'objective': case 'raid': planner.click(d); break;
+      case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': planner.click(d); break;
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;

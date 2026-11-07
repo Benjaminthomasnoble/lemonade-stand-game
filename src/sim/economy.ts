@@ -42,7 +42,7 @@ import { closeTills } from './loot.ts';
 import {
   announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
 } from './land.ts';
-import type { Auction } from './auction.ts';
+import type { Auction, Lavender } from './auction.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -235,6 +235,7 @@ export interface GameState {
   fight?: LiveFight; // the fight playing live right now (fight.ts)
   control?: Partial<Record<DistrictId, ControlTier>>; // each district's control tier at the last check (for the headlines)
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
+  lavender?: Lavender; // the Lavender page auction (Rank 8) and who holds the page
 }
 
 export type SimEvent =

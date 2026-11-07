@@ -3,13 +3,14 @@
 // at the next dawn), sealed, open to Lottie and every rival still in the game.
 // Bids start at the plot's land value when it opens; the highest bid wins and
 // pays what it bid, and the plot changes hands with whatever stands on it.
-// Pure functions over GameState, seeded like the rest of the sim.
-import { AUCTION, BUILDING_VALUE_SHARE, FACTIONS, type RivalId } from './balance.ts';
+// The Lavender page (Rank 8) goes through the same sealed bids as a lot of its
+// own. Pure functions over GameState, seeded like the rest of the sim.
+import { AUCTION, BUILDING_VALUE_SHARE, FACTIONS, LAVENDER, type RivalId } from './balance.ts';
 import { BORDERS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
-import { FIRE_SALE, familySilver, HQS } from './rivals.ts';
+import { FIRE_SALE, familySilver, hqPlot, HQS } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
@@ -18,14 +19,26 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
-export type AuctionKind = 'sale' | 'fire' | 'listing';
+export type AuctionKind = 'sale' | 'fire' | 'listing' | 'page';
 export interface Auction {
-  kind: AuctionKind; // For Sale after a Smash's First Dibs, a Fire Sale plot after its First Dibs, or a plot Lottie listed
+  kind: AuctionKind; // For Sale after a Smash's First Dibs, a Fire Sale plot after its First Dibs, a plot Lottie listed, or the Lavender page
   closes: number; // it closes at this day's dawn
   min: number; // the opening bid: land value when it opened
   bid?: number; // Lottie's sealed bid, paid only if it wins
 }
 interface Bid { who: FactionId; amount: number }
+
+/** The Lavender page auction: its sealed bids while they run, then who holds the page. */
+export interface Lavender {
+  auction?: Auction; // open: sealed bids close at that dawn
+  holder?: FactionId; // who won it; Lottie's once it comes home from the winner's HQ
+  paid?: number; // the winning bid
+}
+/** The Lavender page is bid on like a plot, under this lot id. */
+export const LAVENDER_LOT = 'lavender';
+/** The auction running on a lot: a plot id, or the Lavender page. */
+export const auctionOf = (s: GameState, lot: string): Auction | undefined => (lot === LAVENDER_LOT ? s.lavender?.auction : s.plots[lot]?.auction);
+const lotName = (lot: string) => (lot === LAVENDER_LOT ? 'the Lavender page' : PLOT_BY_ID[lot].name);
 
 /** How hard a rival pushes its bids (FizzCo's Hostile Takeover outbids at auctions). The seam for rivals' per-faction bid strength. */
 export const bidStrength = (id: RivalId) => AUCTION.push[id];
@@ -99,8 +112,8 @@ function roundUp(n: number): number {
 /** The bid buttons: the opening bid, then round steps above it. */
 export const bidSteps = (a: Auction) => [...new Set([a.min, ...AUCTION.steps.slice(1).map((m) => Math.max(a.min, roundUp(a.min * m)))])];
 
-export function canBid(s: GameState, plotId: string, amount: number): Blocker {
-  const a = s.plots[plotId]?.auction;
+export function canBid(s: GameState, lot: string, amount: number): Blocker {
+  const a = auctionOf(s, lot);
   if (!a) return { ok: false, why: 'No auction here' };
   if (a.kind === 'listing') return { ok: false, why: "It's your plot on the block" };
   if (!(amount >= a.min)) return { ok: false, why: `Bids start at ${money(a.min)}` };
@@ -108,11 +121,11 @@ export function canBid(s: GameState, plotId: string, amount: number): Blocker {
   return { ok: true };
 }
 
-/** Seal a bid (or change it). Nothing is paid unless it wins at dawn. */
-export function placeBid(s: GameState, plotId: string, amount: number): boolean {
-  if (!canBid(s, plotId, amount).ok) return false;
-  s.plots[plotId].auction!.bid = amount;
-  s.news.push(`Skip Larkin: "Sealed and sent: ${money(amount)} on ${PLOT_BY_ID[plotId].name}. We'll know at dawn."`);
+/** Seal a bid (or change it) on a plot or the Lavender page. Nothing is paid unless it wins at dawn. */
+export function placeBid(s: GameState, lot: string, amount: number): boolean {
+  if (!canBid(s, lot, amount).ok) return false;
+  auctionOf(s, lot)!.bid = amount;
+  s.news.push(`Skip Larkin: "Sealed and sent: ${money(amount)} on ${lotName(lot)}. We'll know at dawn."`);
   return true;
 }
 
@@ -146,8 +159,8 @@ export function unlistPlot(s: GameState, plotId: string): boolean {
   return true;
 }
 
-export function withdrawBid(s: GameState, plotId: string): boolean {
-  const a = s.plots[plotId]?.auction;
+export function withdrawBid(s: GameState, lot: string): boolean {
+  const a = auctionOf(s, lot);
   if (a?.bid === undefined) return false;
   delete a.bid;
   return true;
@@ -180,8 +193,9 @@ function rivalBid(s: GameState, id: RivalId, plotId: string, a: Auction, rng: Rn
 
 /** Skip Larkin's read on the room: about what the keenest rival that can afford it would bid (0 if none can). */
 export function bidGuess(s: GameState, plotId: string): number {
-  const a = s.plots[plotId].auction;
+  const a = auctionOf(s, plotId);
   if (!a) return 0;
+  if (a.kind === 'page') return pageGuess(s, a);
   let best = 0;
   for (const id of RIVALS) {
     const budget = growBudget(s, id);
@@ -203,13 +217,15 @@ function topBid(bids: Bid[]): Bid | null {
 /** What the gavel did with the lots Lottie didn't bid on, for one line in the Bugle. */
 interface Results { taken: string[]; unsold: string[] }
 
-/** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget. */
+/** Dawn: every auction due closes. Rivals seal their bids now, from their Grow budget (and, for the Lavender page, their cash). */
 export function closeAuctions(s: GameState): void {
   const due = PLOTS.filter((p) => (s.plots[p.id].auction?.closes ?? Infinity) <= s.day);
-  if (!due.length) return;
+  const page = (s.lavender?.auction?.closes ?? Infinity) <= s.day;
+  if (!due.length && !page) return;
   const rng = { seed: s.seed };
   const res: Results = { taken: [], unsold: [] };
   for (const p of due) settle(s, p.id, rng, res);
+  if (page) settlePage(s, rng);
   s.seed = rng.seed;
   const taken = res.taken.length > 2 ? `${res.taken.length} plots go to rivals` : res.taken.join('; ');
   const unsold = res.unsold.length ? `No bids on ${res.unsold.length > 2 ? `${res.unsold.length} plots` : res.unsold.join(' or ')}: back For Sale at land value` : '';
@@ -282,4 +298,83 @@ function sell(s: GameState, plotId: string, a: Auction, rng: Rng): void {
   ps.garrison = 0;
   if (ps.stand) { ps.stand.price = rivalPrice(id, ps.stand.level, p); ps.stand.autoRestock = false; ps.stand.campaigns = {}; }
   s.news.push(`Skip Larkin: "SOLD! ${FACTIONS[id].name} pay ${money(win.amount)} for ${p.name}."`);
+}
+
+// ---------- the Lavender page (spec: Recipe pages; the Big Squeeze opens) ----------
+
+/** What a rival can put into the page: its cash above a reserve. A once-a-game prize, so bosses dig past their Grow budget. */
+const pageSpend = (s: GameState, id: RivalId) => Math.max(0, s.rivals[id].cash - LAVENDER.reserve);
+/** A rival's push next to the hardest bidder's (FizzCo's): how close to the going rate it bids. */
+const pagePush = (id: RivalId) => bidStrength(id) / Math.max(...RIVALS.map(bidStrength));
+
+function rivalPageBid(s: GameState, id: RivalId, a: Auction, rng: Rng): number {
+  const want = LAVENDER.value * pagePush(id) * randomRange(rng, LAVENDER.spread[0], LAVENDER.spread[1]);
+  const spend = pageSpend(s, id);
+  return spend < a.min ? 0 : Math.min(spend, Math.round(want / 1000) * 1000);
+}
+
+function pageGuess(s: GameState, a: Auction): number {
+  let best = 0;
+  for (const id of RIVALS) {
+    if (s.rivals[id].alive && pageSpend(s, id) >= a.min) best = Math.max(best, Math.min(pageSpend(s, id), LAVENDER.value * pagePush(id)));
+  }
+  return best ? roundUp(best) : 0;
+}
+
+/**
+ * From the first dawn at Rank 8: Vera's old harp teacher swaps her Hilltop
+ * estate for a houseboat and auctions the Lavender page, once a game. Sealed
+ * bids for 24 game hours, open to every faction; with no bids it runs again
+ * the next day. Seam: after world's recipe book merges, skip it once the page
+ * is already in the book (ownsRecipe(s, 'lavender')).
+ */
+export function openLavender(s: GameState): void {
+  if (s.rank < LAVENDER.rank || s.lavender?.holder || s.lavender?.auction) return;
+  const first = !s.lavender;
+  (s.lavender ??= {}).auction = { kind: 'page', closes: s.day + 1, min: LAVENDER.open };
+  if (first) s.news.push(`Skip Larkin: "Vera's old harp teacher is swapping her Hilltop estate for a houseboat, and she's auctioning the Lavender page! Sealed bids from ${money(LAVENDER.open)} close at dawn."`);
+}
+
+function settlePage(s: GameState, rng: Rng): void {
+  const lv = s.lavender!;
+  const a = lv.auction!;
+  delete lv.auction;
+  const bids: Bid[] = [];
+  if (a.bid !== undefined) {
+    if (s.cash >= bidCost(s, a.bid)) bids.push({ who: 'player', amount: a.bid });
+    else s.news.push(`Skip Larkin: "Your ${money(a.bid)} bid on the Lavender page bounced, kid. Keep the cash on hand till dawn."`);
+  }
+  for (const id of RIVALS) {
+    if (!s.rivals[id].alive) continue;
+    const amount = rivalPageBid(s, id, a, rng);
+    if (amount >= a.min) bids.push({ who: id, amount });
+  }
+  const win = topBid(bids);
+  if (!win) { s.news.push('Skip Larkin: "No bids on the Lavender page. The harp teacher tries again: sealed bids till dawn."'); return; }
+  for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
+  if (win.who === 'player') {
+    const cost = bidCost(s, win.amount);
+    s.cash = round2(s.cash - cost); // ledger: the Lavender auction (the Ledger's Other line, once it has one)
+    s.today.land = round2(s.today.land + cost);
+    lv.holder = 'player'; // seam: world's grantPage(s, 'lavender') after merge
+    lv.paid = cost;
+    s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! The Lavender page is yours for ${money(cost)}."`);
+    return;
+  }
+  const id = win.who as RivalId;
+  s.rivals[id].cash -= win.amount;
+  lv.holder = id; // seam: world's movePage(s, 'lavender', id) after merge
+  lv.paid = win.amount;
+  const hangs = `It hangs in ${hqPlot(id).name} till they fall.`;
+  if (bids.some((b) => b.who === 'player')) {
+    s.news.push(`Skip Larkin: "Outbid on the Lavender page. ${FACTIONS[id].name} went to ${money(win.amount)}. ${hangs}"`);
+    if (id === 'fizzco') bossCall(s, 'fizzco', PRESTON_OUTBID);
+  } else s.news.push(`Skip Larkin: "Gavel's down: ${FACTIONS[id].name} take the Lavender page for ${money(win.amount)}. ${hangs}"`);
+}
+
+/** eliminate(), on every route: a rival that won the Lavender page hands it back. Seam: world's recoverPage(s, id) does this after merge. */
+export function lavenderHome(s: GameState, id: RivalId): void {
+  if (s.lavender?.holder !== id) return;
+  s.lavender.holder = 'player';
+  s.news.push(`The Lavender page comes home from ${hqPlot(id).name}!`);
 }

@@ -320,6 +320,20 @@ export const AUCTION = {
   steps: [1, 1.25, 1.5, 2, 3, 5], // the bid buttons, as multiples of the opening bid
 };
 
+/**
+ * The Lavender page auction at the Hilltop estate (balance-tables: opens when
+ * you reach Rank 8; expect the winning bid to be about $1,500,000, about a day
+ * of income at that rank). Each rival still in bids about `value` × its push
+ * next to FizzCo's × a `spread` roll, from its cash above `reserve`.
+ */
+export const LAVENDER = {
+  rank: 8,
+  value: 1_500_000, // the winning bid runs about this
+  open: 1_000_000, // placeholder: spec gap. The opening bid
+  spread: [0.85, 1.15] as [number, number], // placeholder: spec gap
+  reserve: 50_000, // placeholder: spec gap. Cash a rival keeps back from its bid
+};
+
 // ---------- defenses, crew and raids (canon sections 11–14) ----------
 /** hp: the chopping a breach takes. breachDps: damage a second to every raider at the fence line while it stands. slow: raiders' movement while it stands. */
 export interface PerimeterTier { tier: number; name: string; rank: number; cost: number; hp: number; breachDps: number; slow: number; repair: number }

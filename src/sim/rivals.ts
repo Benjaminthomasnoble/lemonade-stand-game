@@ -14,7 +14,7 @@ import { bossExit } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
-import { startFireSale } from './auction.ts';
+import { lavenderHome, startFireSale } from './auction.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -347,6 +347,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   retireJingle(s, id); // world: 101.5 retires their jingle with a second of silence
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)
   startFireSale(s, id);
+  lavenderHome(s, id);
   checkVictory(s);
 }
 

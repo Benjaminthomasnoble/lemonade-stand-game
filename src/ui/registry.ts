@@ -5,8 +5,8 @@
 // plots you could buy out. Plain markup with the shared clay classes; hud.ts
 // mounts it and every button goes through hud's one click listener.
 import {
-  auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
-  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
+  auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
+  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
   plotPrice, PLOTS, purchasablePlots, reachBlocker, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
   type Blocker, type DistrictId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
@@ -77,9 +77,9 @@ export function priceTip(s: GameState, plotId: string): string {
   return parts.length > 1 || dibs ? parts.join(', ') : '';
 }
 
-/** A plot on the block: sealed bids until dawn, Skip's read on the rivals, and your bid buttons. */
+/** A plot (or the Lavender page) on the block: sealed bids until dawn, Skip's read on the rivals, and your bid buttons. */
 export function auctionControls(s: GameState, plotId: string): string {
-  const a = s.plots[plotId].auction;
+  const a = auctionOf(s, plotId);
   if (!a || a.kind === 'listing') return '';
   const guess = bidGuess(s, plotId);
   const tip = `Sealed bids: nobody sees anyone else's. Bids open at ${whole(a.min)}; the top bid wins and pays at dawn${familySilver(s) < 1 ? ', 10% off with Family Silver' : ''}. Keep the cash on hand.`;
@@ -130,7 +130,7 @@ export const registryOpen = (s: GameState) => taught(s, 'land');
 export function registryTabs(s: GameState): RegistryTab[] {
   return [
     'buy',
-    ...(auctionPlots(s).length ? ['auctions' as const] : []),
+    ...(auctionPlots(s).length || s.lavender?.auction ? ['auctions' as const] : []),
     'mine',
     ...(s.rank >= SITDOWN_RANK ? ['rivals' as const] : []),
   ];
@@ -190,13 +190,19 @@ function buyTab(s: GameState): string {
   return rows.length ? table(rows) : '<span class="cl-note">Nothing for sale right now</span>';
 }
 
-/** Auctions: each plot under sealed bids, with the plot card's bid buttons; your own listings with Take it back. */
+/** What the Lavender page is, for its lot's tooltip (spec: Recipe pages; Lavender Lemonade). */
+const LAVENDER_TIP = ["Lottie's Lavender page, sold by Vera's harp teacher", 'Lavender Lemonade: $0.40 a cup, +25% price', 'High rollers love it in Hilltop Estates', "Outbid: it hangs in the winner's HQ"].join('\n');
+
+/** Auctions: the Lavender page while it runs, each plot under sealed bids with the plot card's bid buttons, and your own listings with Take it back. */
 function auctionsTab(s: GameState): string {
+  const page = s.lavender?.auction
+    ? `<div class="cl-planner" data-testid="registry-lot"><b title="${esc(LAVENDER_TIP)}">The Lavender page</b><span class="cl-note">The Hilltop estate</span>${auctionControls(s, LAVENDER_LOT)}</div>`
+    : '';
   const lots = auctionPlots(s).map((p) => {
     const mine = s.plots[p.id].auction!.kind === 'listing';
     return `<div class="cl-planner" data-testid="registry-lot">${goTo(s, p.id)}<span class="cl-note">${esc(DISTRICT_BY_ID[p.district].name)}</span>${mine ? listingControls(s, p.id) : auctionControls(s, p.id)}</div>`;
   });
-  return lots.join('') || '<span class="cl-note">No auctions today</span>';
+  return page + lots.join('') || '<span class="cl-note">No auctions today</span>';
 }
 
 /** What a deed of yours holds, in a word or two. */
@@ -276,6 +282,8 @@ export const sellPlotButton = (s: GameState) =>
 export function landTickets(s: GameState): string[] {
   if (!registryOpen(s)) return [];
   const t: string[] = [];
+  const page = s.lavender?.auction;
+  if (page) t.push(`<div class="cl-ticket good" data-testid="lavender-ticket" title="Sealed bids close at dawn${page.bid !== undefined ? `. Your bid: ${whole(page.bid)}` : ''}">${ICON.board()}<b>Lavender page auction</b>${btn('registry', 'See bids', { ok: true }, 'data-tab="auctions"')}</div>`);
   const lots = auctionPlots(s).filter((p) => s.plots[p.id].auction!.kind !== 'listing');
   if (lots.length) {
     const bid = lots.filter((p) => s.plots[p.id].auction!.bid !== undefined).length;

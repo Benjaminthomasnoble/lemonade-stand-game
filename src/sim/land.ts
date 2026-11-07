@@ -6,7 +6,7 @@ import { BORDERS, DISTRICTS, PLOTS, type DistrictId, type Plot } from './map.ts'
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold } from './economy.ts';
 import { districtControl } from './modes.ts';
-import { closeAuctions } from './auction.ts';
+import { closeAuctions, openLavender } from './auction.ts';
 
 /** Civic buildings and HQs are never bought, so they count toward neither control nor development. */
 export const isPurchasable = (p: Plot) => p.type !== 'civic' && p.type !== 'hq';
@@ -150,6 +150,7 @@ export function announceControl(s: GameState): void {
 /** At dawn, after the day's stats reset: auctions due close, then any control change gets its headline. */
 export function landAtDawn(s: GameState): void {
   closeAuctions(s);
+  openLavender(s);
   announceControl(s);
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, PLOT_BY_ID, plotBuyoutPrice, plotPrice, PLOTS, purchasablePlots, type DistrictId, type GameState,
+  LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice, PLOTS,
+  purchasablePlots, type DistrictId, type GameState,
 } from '../sim/economy.ts';
 import {
   controlNote, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, vacantNote,
@@ -137,6 +138,23 @@ describe('the Land Registry', () => {
     delete s.plots[mine.id].auction;
     expect(onTab(registryScreen(s, 'auctions'), 'buy')).toBe(true); // all closed: back to For Sale
     expect(landTickets(s)).toEqual([]);
+  });
+
+  it('shows the Lavender page on Auctions with its bid buttons, and a morning ticket while it runs', () => {
+    const s = week2(57, 8);
+    s.cash = 1e7;
+    expect(registryTabs(s)).not.toContain('auctions');
+    openLavender(s);
+    expect(registryTabs(s)).toContain('auctions');
+    const html = registryScreen(s, 'auctions');
+    expect(text(html)).toContain('The Lavender page The Hilltop estate Auction: closes at dawn Skip: rivals bid ~$');
+    expect(html).toContain('Lavender Lemonade: $0.40 a cup, +25% price');
+    expect(buttons(html, 'bid').map(plotOf)).toEqual([LAVENDER_LOT, LAVENDER_LOT, LAVENDER_LOT]);
+    expect(text(landTickets(s).join(''))).toContain('Lavender page auction See bids');
+    placeBid(s, LAVENDER_LOT, 1_250_000);
+    expect(text(registryScreen(s, 'auctions'))).toContain('Your bid: $1,250,000');
+    delete s.lavender!.auction;
+    expect(registryTabs(s)).not.toContain('auctions');
   });
 
   it('Yours lists your deeds by district with control, Vacant Lots and Sell buttons', () => {

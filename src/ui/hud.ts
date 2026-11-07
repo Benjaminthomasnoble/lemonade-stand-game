@@ -9,7 +9,7 @@ import {
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   PERIMETERS, SQUAD_CAP, threatLevel,
-  type GadgetId, type GearId, type Objective, type WeaponId,
+  type GadgetId, type GearId, type Objective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
@@ -77,6 +77,7 @@ export type Action =
   | { type: 'fire'; id: string }
   | { type: 'post'; id: string; plot: string | null }
   | { type: 'equip'; id: string; item: WeaponId | GearId }
+  | { type: 'promote'; id: string; specialty: Specialty }
   | { type: 'clubhouse'; plot?: string } // the next beds: a new Clubhouse, or a level on this one
   | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
   | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
@@ -359,6 +360,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'hire': case 'fire': onAction({ type: d.action, id: d.id! }); break;
       case 'post': onAction({ type: 'post', id: d.id!, plot: d.plot || null }); break;
       case 'equip': onAction({ type: 'equip', id: d.id!, item: d.item as WeaponId | GearId }); break;
+      case 'promote': onAction({ type: 'promote', id: d.id!, specialty: d.value as Specialty }); break;
       case 'clubhouse': onAction({ type: 'clubhouse', plot: d.plot }); break;
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
       case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;

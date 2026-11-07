@@ -366,6 +366,14 @@ export const RECRUIT_LEVELS: number[][] = [
   [0.05, 0.15, 0.3, 0.25, 0.25], // Rank 10
 ];
 export const ROSTER_BASE = 2;
+/** Specialists: from Level 3 a guard can take one specialty, for good (promotion is free: placeholder, spec gap). */
+export type Specialty = 'lookout' | 'wrecker' | 'captain';
+export const SPECIALTIES: Record<Specialty, { name: string; rank: number; text: string }> = {
+  lookout: { name: 'Lookout', rank: 4, text: '+25% detection where posted, scouts raid targets, can lead a Sabotage' },
+  wrecker: { name: 'Wrecker', rank: 4, text: '+50% Chop, on top of Lumberjack' },
+  captain: { name: 'Captain', rank: 6, text: 'Leads the squad: everyone on the side gets +20 Nerve and +10% Hit' },
+};
+export const PROMOTE_LEVEL = 3;
 /** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
 export const CLUBHOUSE = [
   { level: 1, cost: 2000, beds: 6, rank: 2 },

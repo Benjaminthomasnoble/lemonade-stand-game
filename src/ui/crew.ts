@@ -4,17 +4,29 @@
 import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, fenceRepairCost, GADGET_SLOTS,
   GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
-  type GadgetId, type GameState, type GearId, type Guard, type WeaponId,
+  canPromote, PROMOTE_LEVEL, SPECIALTIES,
+  type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import { damageCard } from './damage.ts';
 import type { Kit } from './hud.ts';
 import { nextClubhouse, type ClubKit } from './clubhouse.ts';
 
-/** A guard's face: their weapon in hand, a bandage while they're Out. */
+/** Each specialty's badge: a watchtower for the Lookout, a boom for the Wrecker, a star for the Captain. */
+const SPECIALTY_ART: Record<Specialty, (k: Kit) => string> = { lookout: (k) => k.ART.tower(), wrecker: (k) => k.ART.boom(), captain: (k) => k.ART.star(true) };
+
+/** A guard's face: their weapon in hand, their specialty's badge, a bandage while they're Out. */
 export function guardFace(k: Kit, s: GameState, g: Guard): string {
   const out = !guardReady(s, g);
-  return `<span class="cl-face${out ? ' out' : ''}">${k.ART.face(g.face === undefined ? g.id : `f${g.face}`)}${out ? `<span class="cl-band">${k.ART.bandage()}</span>` : ''}<span class="cl-wpn">${k.WEAPON_ART[g.weapon]()}</span></span>`;
+  const badge = out ? k.ART.bandage() : g.specialty ? SPECIALTY_ART[g.specialty](k) : '';
+  return `<span class="cl-face${out ? ' out' : ''}">${k.ART.face(g.face === undefined ? g.id : `f${g.face}`)}${badge ? `<span class="cl-band">${badge}</span>` : ''}<span class="cl-wpn">${k.WEAPON_ART[g.weapon]()}</span></span>`;
+}
+
+/** Promotion buttons for a Level 3+ guard without a specialty (Rank-locked ones stay hidden). */
+function promoteButtons(k: Kit, s: GameState, g: Guard): string {
+  if (g.specialty || g.level < PROMOTE_LEVEL) return '';
+  return (Object.keys(SPECIALTIES) as Specialty[]).map((sp) => ({ sp, b: canPromote(s, g.id, sp) })).filter(({ b }) => !k.locked(b))
+    .map(({ sp, b }) => `<button class="cl-b tiny" data-action="promote" data-id="${g.id}" data-value="${sp}" ${b.ok ? '' : 'disabled'} title="Make ${k.esc(g.name.split(' ')[0])} the ${SPECIALTIES[sp].name}: ${k.esc(SPECIALTIES[sp].text)}${b.ok ? '' : ` (${k.esc(b.why)})`}">${SPECIALTY_ART[sp](k)}</button>`).join('');
 }
 
 /** The clay kit as the Clubhouse panels (src/ui/clubhouse.ts) take it: with the guards' faces. */
@@ -48,13 +60,14 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
   const wb = nextWeapon ? canEquip(s, g.id, nextWeapon) : null, gb = nextGear ? canEquip(s, g.id, nextGear) : null;
   const xp = xpToNext(g);
-  const tip = `${g.name}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}${g.level < 5 ? `. ${Math.round(xp.progress * 100)}% of the way to ${GUARD_LEVEL_TITLES[g.level]}` : ''}`;
+  const tip = `${g.name}: L${g.level} ${guardTitle(g)}${g.specialty ? ` ${SPECIALTIES[g.specialty].name}` : ''}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}${g.level < 5 ? `. ${Math.round(xp.progress * 100)}% of the way to ${GUARD_LEVEL_TITLES[g.level]}` : ''}`;
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">
         <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Posted at ${g.post ? k.esc(PLOT_BY_ID[g.post].name) : 'the Clubhouse'}: tap to move">📍</button>
         ${nextWeapon && wb && !k.locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${k.whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${k.esc(wb.why)})`}">${k.WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !k.locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${k.whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${k.esc(gb.why)})`}">${k.ART.shield()}</button>` : ''}
+        ${promoteButtons(k, s, g)}
         ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${k.esc(g.name)} go">✕</button>`}
       </span></div>`;
 }

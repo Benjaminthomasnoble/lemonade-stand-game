@@ -506,7 +506,7 @@ export function createBay(scene: THREE.Scene): Bay {
         // Your guards wear what they carry: gear, level chevrons, taped fists or a weapon by the leg, arms crossed.
         // Dex Moody is drawn as himself: lanky, in his lemon guard vest.
         const gd = posted[i];
-        const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, onGuard: true, seed: i + 1 } : { weapon: 'clubs' as const, seed: i + 1 };
+        const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, role: gd.specialty, onGuard: true, seed: i + 1 } : { weapon: 'clubs' as const, seed: i + 1 };
         const dex = gd?.name === 'Dex Moody';
         const fig = dex ? makeDex(look, K.fig, { scale: 0.95, detail: crowdDetail() }) : makeCrew((ps.owner ?? 'player') as Side, look, K.fig, { scale: 0.95, detail: crowdDetail() });
         const g = fig.root;
@@ -590,7 +590,7 @@ export function createBay(scene: THREE.Scene): Bay {
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, buyGadget, buyPerimeter, canHire, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand, payCrew, planRaid,
+  buildClubhouse, buyGadget, buyPerimeter, canHire, canPromote, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
+  payCrew, planRaid, promote,
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
   PLOTS,
 } from './economy.ts';
@@ -189,5 +190,25 @@ describe('wages and duty', () => {
     payCrew(s);
     expect(s.guards.map((g) => g.name)).toEqual(['Dex Moody']);
     expect(s.cash).toBe(0);
+  });
+});
+
+describe('specialists', () => {
+  it('a Level 3 guard takes one specialty for good: Lookout and Wrecker at Rank 4, Captain at Rank 6', () => {
+    const s = newGame(41);
+    s.rank = 3;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    expect(canPromote(s, dex.id, 'lookout')).toEqual({ ok: false, why: 'Needs Rank 4, Neighborhood Name' });
+    s.rank = 4;
+    expect(canPromote(s, dex.id, 'lookout')).toEqual({ ok: false, why: 'Needs a Level 3 Veteran' });
+    dex.level = 3;
+    expect(canPromote(s, dex.id, 'captain').ok).toBe(false);
+    expect(promote(s, dex.id, 'lookout')).toBe(true);
+    expect(dex.specialty).toBe('lookout');
+    s.rank = 6;
+    expect(canPromote(s, dex.id, 'captain')).toEqual({ ok: false, why: 'Already a Lookout' });
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.guards[0].specialty).toBe('lookout');
   });
 });

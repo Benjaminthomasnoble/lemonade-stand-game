@@ -4,10 +4,10 @@
 // its arrival minute, after a warning.
 import {
   CLUBHOUSE, COMBAT, DETECTION_BASE, DUTY_DAYS_PER_LEVEL, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
-  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
-  RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
-  SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
-  type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
+  GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RAID_LEAVE,
+  RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
+  SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
+  type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
 import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
@@ -40,6 +40,7 @@ export interface Guard {
   outUntil: number; // knocked out: back on this day
   fee: number; // hire fee (recruits)
   face?: number; // portrait seed (guards from before it existed draw their face from the id)
+  specialty?: Specialty; // Lookout, Wrecker or Captain: taken from Level 3, for good
 }
 
 export interface Raid {
@@ -342,6 +343,24 @@ export function buildClubhouse(s: GameState, plotId: string | null = clubhouseSi
 }
 
 export const guardTitle = (g: Guard) => GUARD_LEVEL_TITLES[g.level - 1];
+
+/** Promote a Level 3+ guard to one specialty: Lookout or Wrecker from Rank 4, Captain from Rank 6. */
+export function canPromote(s: GameState, id: string, sp: Specialty): Blocker {
+  const g = s.guards.find((x) => x.id === id);
+  if (!g) return { ok: false, why: 'No such guard' };
+  if (g.specialty) return { ok: false, why: `Already a ${SPECIALTIES[g.specialty].name}` };
+  if (s.rank < SPECIALTIES[sp].rank) return { ok: false, why: `Needs Rank ${SPECIALTIES[sp].rank}, ${RANKS[SPECIALTIES[sp].rank - 1].title}` };
+  if (g.level < PROMOTE_LEVEL) return { ok: false, why: `Needs a Level ${PROMOTE_LEVEL} ${GUARD_LEVEL_TITLES[PROMOTE_LEVEL - 1]}` };
+  return { ok: true };
+}
+
+export function promote(s: GameState, id: string, sp: Specialty): boolean {
+  if (!canPromote(s, id, sp).ok) return false;
+  const g = s.guards.find((x) => x.id === id)!;
+  g.specialty = sp;
+  s.news.push(`${g.name} steps up as the crew's ${SPECIALTIES[sp].name}!`);
+  return true;
+}
 export const guardReady = (s: GameState, g: Guard) => g.outUntil <= s.day;
 
 export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fighter {

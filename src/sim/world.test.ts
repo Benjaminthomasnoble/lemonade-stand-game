@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   actOf, appealFor, boothCeiling, buySupply, calendarTraffic, maxPacks, pitcherNeeds, priceCeiling, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
-  expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
+  eventsOf, expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
   simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
@@ -98,6 +98,7 @@ describe('recipe cards', () => {
   it('the card never moves Reputation: a Classic L1 stand with no walk-aways ends 14 days at 3.0 stars or more', () => {
     for (const recipe of ['classic', 'pink'] as RecipeId[]) {
       const s = game(5);
+      eventsOf(s).next = Infinity; // no random events: a Tourist Bus or a Viral Video would crowd the quiet street
       // A quiet Maple Row street, so the line never runs past anyone's patience; the Corner's table is packed away.
       const quiet = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).sort((a, b) => a.baseTraffic - b.baseTraffic)[0].id;
       s.plots[LOTTIES_CORNER].stand = null;

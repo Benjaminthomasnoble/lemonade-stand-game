@@ -12,7 +12,8 @@ import { costPerCup, playerStands, seasonDay, seasonOf } from './economy.ts';
 import { battleHeadline, type BattleReport } from './crew.ts';
 import { pagesInTheBugle, worldOf } from './recipes.ts';
 import { festivalDays, festivalsOn, storyFairs, tasteOffResult, tasteOffToday, upcomingFestivals } from './calendar.ts';
-import { daysLeft, eventDef, liveEvents, plannedWeather, type WorldEvent } from './events.ts';
+import { daysLeft, eventDef, liveEvents, type WorldEvent } from './events.ts';
+import { forecastAhead } from './weather.ts'; // demand: the 2-day look-ahead off the weather queue
 import { storyHeadline } from './story.ts';
 import { pactNews } from './squeeze.ts';
 
@@ -284,12 +285,12 @@ function outlook(day: number): string {
   return `${top[0]} or ${top[1].toLowerCase()}`;
 }
 
-/** The Radio Jingle's 2-day look-ahead (seam: demand's forecastDays(s, 2) once it merges). A planned Heat Wave shows. */
+/** The Radio Jingle's 2-day look-ahead: the forecasts those days will wake to (demand's weather queue). A planned Heat Wave shows. */
 export function lookAhead(s: GameState, days = 2): FrontPage['ahead'] {
   if (s.brandTier < BRAND_TIERS[2].tier) return [];
   return Array.from({ length: days }, (_, i) => {
     const day = s.day + 1 + i;
-    const w = plannedWeather(s, day);
+    const w = forecastAhead(s, day); // demand: the day's rolled forecast, a planned Heat Wave's Scorcher on top (weather.ts)
     return { day, weather: w, text: w ? `${s.world?.events?.on.some((e) => e.id === 'heatWave' && e.from <= day && e.to >= day) ? 'Heat Wave! ' : ''}${weatherText(w)}` : outlook(day) };
   });
 }

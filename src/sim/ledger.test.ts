@@ -90,6 +90,7 @@ describe('the Ledger', () => {
     const s = newGame(22);
     playTo(s, 3);
     s.cash = 2000;
+    s.plots[LOTTIES_CORNER].stand!.price = Math.round(priceCeiling(s, LOTTIES_CORNER) * 115) / 100; // 15% over: the day sells less than Auto-Restock stocked, so ice is left to melt
     const deep = structuredClone(s);
     const st = deep.plots[LOTTIES_CORNER].stand!;
     while (buySupply(deep, 'sugar', 1, st)); // a cellar of sugar keeps: no cost of the day

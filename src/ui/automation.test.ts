@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, LOTTIES_CORNER, newGame, openStands, setByHand, setRecipe, setStockTarget, simulateRestOfDay, sleepUntilDawn,
-  stockTarget, suggestedTarget, toggleAutoPrice, toggleAutoRestock, type GameState,
+  stockTarget, suggestedTarget, toggleAutoPrice, toggleAutoRestock, type GameState, type Weather,
 } from '../sim/economy.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 
-function dawnOfDay3(): GameState {
+/** Day 3's Morning Prep, the stands stocked at dawn; `sky` is the day's weather and forecast if given (set on the weather queue the night before). */
+function dawnOfDay3(sky?: Weather): GameState {
   const s = newGame(21);
   while (s.day < AUTO_RESTOCK_DAY) {
     s.cash = Math.max(s.cash, 400);
     openStands(s);
     simulateRestOfDay(s);
+    if (sky && s.day === AUTO_RESTOCK_DAY - 1) s.weatherQueue = [{ day: AUTO_RESTOCK_DAY, weather: sky, forecast: sky }];
     sleepUntilDawn(s);
   }
   return s;
@@ -39,7 +41,7 @@ describe('Auto-Restock on screen', () => {
   });
 
   it('Morning Prep shows what Lottie spent at dawn and what Open adds; the Ledger reports it in one line', () => {
-    const s = dawnOfDay3();
+    const s = dawnOfDay3({ kind: 'warm', temp: 80 }); // a Warm day: a Scorcher fills an L1's 200-cup pour at dawn, leaving a new card nothing to add
     const spent = s.today.auto!.restock!.spent;
     const [ticket] = autoTickets(s);
     expect(ticket).toContain('data-testid="auto-restock"');

@@ -5,8 +5,8 @@
 import { nextRandom, randomRange } from './rng.ts';
 import {
   BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  DAWN, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
-  RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
+  DAWN, FACTIONS, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
+  RANKS, RECIPES, repMultiplier, SEASON_DAYS,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type LocalCampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
@@ -14,6 +14,7 @@ import {
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
+import { forecastAtDawn, seasonWeather, weatherAtOpen, type DayWeather } from './weather.ts';
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
@@ -78,6 +79,7 @@ export * from './automation.ts';
 export * from './ledger.ts';
 export * from './marketing.ts';
 export * from './specializations.ts';
+export * from './weather.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -274,6 +276,7 @@ export interface GameState {
   autoDefend?: boolean; // Dex's Auto-Defend switch, from Rank 4 (autodefend.ts)
   captives?: Captive[]; // the Nabbed: raiders you hold, and your guards a rival holds (captives.ts)
   marketing?: MarketingState; // Sunny's walks and Coupon Blitzes by district and day, and campaigns booked for tomorrow (marketing.ts)
+  weatherQueue?: DayWeather[]; // today's weather and the next 2 days', rolled ahead with their dawn forecasts (weather.ts)
 }
 
 export type SimEvent =
@@ -289,25 +292,11 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 type Rng = { seed: number };
 const RIVAL_IDS = Object.keys(FACTIONS) as RivalId[];
 
-function pick<T extends string>(rng: Rng, weights: Partial<Record<T, number>>): T {
-  const entries = Object.entries(weights) as [T, number][];
-  let r = nextRandom(rng) * entries.reduce((a, [, w]) => a + w, 0);
-  for (const [k, w] of entries) { r -= w; if (r <= 0) return k; }
-  return entries[entries.length - 1][0];
-}
-
 export function seasonOf(day: number): Season {
   return SEASONS[Math.floor((day - 1) / SEASON_DAYS) % SEASONS.length];
 }
 export function seasonDay(day: number): number {
   return ((day - 1) % SEASON_DAYS) + 1;
-}
-
-function rollWeather(rng: Rng, season: Season): Weather {
-  const kind = pick(rng, SEASON_WEATHER[season]);
-  const [lo, hi] = WEATHER[kind].temp;
-  const shift = kind === 'scorcher' || kind === 'hot' ? 0 : SEASON_TEMP_SHIFT[season];
-  return { kind, temp: Math.round(randomRange(rng, lo, hi)) + shift };
 }
 
 function rollMarket(rng: Rng): Record<SupplyId, number> {
@@ -388,11 +377,11 @@ export function rivalPrice(id: RivalId, level: number, p: Plot): number {
 
 export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settings> = {}): GameState {
   const rng = { seed };
-  const forecast = rollWeather(rng, 'summer');
+  const forecast = seasonWeather(rng, seasonOf(1)); // Day 1 runs off its forecast; the weather queue starts at the first dawn (weather.ts)
   const market = rollMarket(rng);
   const s: GameState = {
     version: SAVE_VERSION, seed: 0, day: 1, minute: DAWN, phase: 'prep',
-    cash: START.cash, reputation: START.reputation, rank: 1, brandTier: 0, market, forecast, weather: forecast,
+    cash: START.cash, reputation: START.reputation, rank: 1, brandTier: 0, market, forecast, weather: forecast, weatherQueue: [],
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
     guards: [], recruits: [], nextId: 1, raids: [], battles: [], respectFromPlayer: {},
@@ -595,12 +584,7 @@ export function openStands(s: GameState): boolean {
   restockAtOpen(s);
   startBookings(s); // campaigns booked yesterday start now; a booked Free Sample Day hands out its cups (marketing.ts)
   const rng = { seed: s.seed };
-  let weather: Weather;
-  if (nextRandom(rng) < FORECAST_ACCURACY) {
-    weather = { kind: s.forecast.kind, temp: s.forecast.temp + Math.round(randomRange(rng, -2, 2)) };
-  } else {
-    weather = rollWeather(rng, seasonOf(s.day));
-  }
+  let weather = weatherAtOpen(s, rng); // the day as rolled, or one step from its forecast (Day 1, or a forecast changed since dawn: weather.ts)
   s.seed = rng.seed;
   weather = eventWeather(s, weather); // world: a Heat Wave day is a Scorcher whatever the roll
   s.weather = weather;
@@ -874,7 +858,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
       if (left > 0) st.campaigns[id] = left; else delete st.campaigns[id];
     }
   }
-  s.forecast = rollWeather(rng, seasonOf(s.day));
+  s.forecast = forecastAtDawn(s, rng); // today's off the weather queue, and a new day rolled onto its end (weather.ts)
   s.market = rollMarket(rng);
   s.seed = rng.seed;
   updateLandValues(s);

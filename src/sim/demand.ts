@@ -26,6 +26,7 @@ import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
 import { billboardCurb, billboardTerms, campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
 import { expressWindow, fancyMenu, migrateSpecs, roofTerms } from './specializations.ts';
+import { migrateWeather } from './weather.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -610,6 +611,7 @@ export function migrateDemand(s: GameState): void {
   migrateLedger(s); // the Ledger's score log, from what the history still knows
   migrateMarketing(s); // district campaigns and bookings (marketing.ts)
   migrateSpecs(s); // stand specializations: empty slots on older saves (specializations.ts)
+  migrateWeather(s); // the weather queue, checked; a save from before it gets one at its next dawn (weather.ts)
   for (const r of Object.values(s.rivals ?? {})) r.reputation ??= REP_DRIFT.base; // rivals' own stars start at 3.0
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;

@@ -54,9 +54,16 @@ export const SEASON_WEATHER: Record<Season, Partial<Record<WeatherKind, number>>
   winter: { hot: 0.05, warm: 0.25, cloudy: 0.4, rainy: 0.22, storm: 0.08 },
   spring: { scorcher: 0.02, hot: 0.13, warm: 0.4, cloudy: 0.25, rainy: 0.15, storm: 0.05 },
 };
-/** Cool seasons shift temperatures down. */
+/** Cool seasons shift the unbanded kinds' temperatures down: Cloudy, Rainy and Storm (TEMP_BANDS keep the rest). */
 export const SEASON_TEMP_SHIFT: Record<Season, number> = { summer: 0, fall: -8, winter: -22, spring: -5 };
+/** The dawn forecast is right this often; a miss is one step off on WEATHER_STEPS (weather.ts). */
 export const FORECAST_ACCURACY = 0.8;
+/** The weather scale, sunniest first: a forecast miss is one step along it, Warm for Hot and never Storm for Hot. */
+export const WEATHER_STEPS: WeatherKind[] = ['scorcher', 'hot', 'warm', 'cloudy', 'rainy', 'storm'];
+/** Temperatures that hold in every season (spec: Weather table): Scorcher 95°F+, Hot 85–94°F, Warm 72–84°F. Cloudy, Rainy and Storm have no band. */
+export const TEMP_BANDS: Partial<Record<WeatherKind, [number, number]>> = { scorcher: [95, Infinity], hot: [85, 94], warm: [72, 84] };
+/** The Radio Jingle's (M3) look-ahead: the next 2 days' forecasts on the Bugle and the radio. */
+export const LOOK_AHEAD_DAYS = 2;
 
 // ---------- supplies ----------
 export type SupplyId = 'lemons' | 'sugar' | 'ice';

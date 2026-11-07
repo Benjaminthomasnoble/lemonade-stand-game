@@ -4,14 +4,23 @@
 // are. figure.ts holds the rig; this file holds the looks and the props.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { Baker, GLOSS, PAPER, box, cap, cyl, lathe, lumpy, shade, snake, sph, tor } from './core.ts';
-import { CREWS, Figure, SPECS, type BodyKind, type FigureOptions, type FigureSpec, type Hat } from './figure.ts';
+import { Baker, GLOSS, PAPER, box, cap as cap0, cyl as cyl0, lathe as lathe0, lumpy, shade, snake as snake0, sph as sph0, tor as tor0, type V3 } from './core.ts';
+import { CREWS, CROWD_DETAIL, Figure, SPECS, type BodyKind, type FigureOptions, type FigureSpec, type Hat } from './figure.ts';
 import { P, SKINS } from './palette.ts';
 
 export type Side = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
 export type SegmentLook = 'kids' | 'families' | 'seniors' | 'students' | 'office' | 'tourists' | 'workers' | 'highRollers';
 
 // ---------- props ----------
+// Props baked for crowd-detail figures use about a third of the segments.
+let PD = 1;
+const k = (s: number, min: number) => Math.max(min, Math.round(s * PD));
+const sph = (r: number, w = 20, h = 14) => sph0(r, k(w, 4), k(h, 3));
+const cap = (r: number, l: number, cs = 4, rs = 10) => cap0(r, l, k(cs, 1), k(rs, 4));
+const cyl = (rt: number, rb: number, h: number, s = 16, open = false) => cyl0(rt, rb, h, k(s, 4), open);
+const tor = (r: number, t: number, rs = 8, ts = 20, arc = Math.PI * 2) => tor0(r, t, k(rs, 3), k(ts, 5), arc);
+const lathe = (pts: [number, number][], seg = 22) => lathe0(pts, k(seg, 5));
+const snake = (pts: V3[], r: number, seg = 24, rs = 7) => snake0(pts, r, k(seg, 3), k(rs, 3));
 // Every prop is baked once into vertex-coloured clay and shared. Props held in a
 // mitten hang from the hand (the grip at the origin, the business end along -y),
 // so they swing with the arm; props worn on the body sit in the rig's space.
@@ -117,22 +126,25 @@ export const PROP: Record<string, Build> = {
     B.add(cyl(0.012, 0.012, 0.75, 5), P.walnut, { p: [0, 0.32, 0.05] });
     const can = new THREE.ConeGeometry(0.55, 0.26, 8, 1, true);
     B.add(can, P.teal, { p: [0, 0.75, 0.05] });
-    for (let i = 0; i < 8; i += 2) B.add(new THREE.ConeGeometry(0.556, 0.262, 8, 1, true, (i * Math.PI) / 4, Math.PI / 4), P.lemon, { p: [0, 0.751, 0.05] });
+    for (let i = 0; i < 8; i += 2) B.add(new THREE.ConeGeometry(0.556, 0.262, 8, 1, true, (i * Math.PI) / 4, Math.PI / 4), P.cream, { p: [0, 0.751, 0.05] });
     B.add(sph(0.03, 6, 4), P.walnut, { p: [0, 0.9, 0.05] });
   },
 };
 const PROP_GEO = new Map<string, THREE.BufferGeometry>();
-export function propGeometry(name: string): THREE.BufferGeometry {
-  let g = PROP_GEO.get(name);
-  if (!g) { const B = new Baker(); PROP[name](B); g = B.build(); PROP_GEO.set(name, g); }
+/** A prop's shared geometry; `crowd` bakes the low-segment one for crowd-detail figures. */
+export function propGeometry(name: string, crowd = false): THREE.BufferGeometry {
+  const key = crowd ? name + '@crowd' : name;
+  let g = PROP_GEO.get(key);
+  if (!g) { PD = crowd ? 0.35 : 1; try { const B = new Baker(); PROP[name](B); g = B.build(); } finally { PD = 1; } PROP_GEO.set(key, g); }
   return g;
 }
-export function prop(name: string, mat: THREE.Material): THREE.Mesh {
-  const m = new THREE.Mesh(propGeometry(name), mat); m.castShadow = true; m.name = name; return m;
+export function prop(name: string, mat: THREE.Material, crowd = false): THREE.Mesh {
+  const m = new THREE.Mesh(propGeometry(name, crowd), mat); m.castShadow = true; m.name = name; return m;
 }
-/** Put a prop in a mitten (right by default). */
+const crowdOf = (fig: Figure) => fig.detail <= CROWD_DETAIL + 1e-6;
+/** Put a prop in a mitten (right by default). Crowd-detail figures get the low-segment prop. */
 export function holdProp(fig: Figure, name: string, left = false): THREE.Mesh {
-  const m = prop(name, fig.mat); (left ? fig.handL : fig.hand).add(m); return m;
+  const m = prop(name, fig.mat, crowdOf(fig)); (left ? fig.handL : fig.hand).add(m); return m;
 }
 
 // Body-worn props (attached to the rig, not a mitten).
@@ -161,9 +173,10 @@ function tinyDog(): Build { // high rollers walk a tiny dog
   };
 }
 const WORN = new Map<string, THREE.BufferGeometry>();
-function worn(name: string, build: Build) {
-  let g = WORN.get(name);
-  if (!g) { const B = new Baker(); build(B); g = B.build(); WORN.set(name, g); }
+function worn(name: string, build: Build, crowd = false) {
+  const key = crowd ? name + '@crowd' : name;
+  let g = WORN.get(key);
+  if (!g) { PD = crowd ? 0.35 : 1; try { const B = new Baker(); build(B); g = B.build(); } finally { PD = 1; } WORN.set(key, g); }
   return g;
 }
 
@@ -176,9 +189,9 @@ export const BOSSES = {
   /** A wedge-shaped block; slick hair, brick car phone. */
   preston: { kind: 'block', headShape: 'block', girth: 1.18, skin: '#EDC3A0', shirt: P.cola, sleeve: P.cola, pants: '#2b2b38', shoes: '#1d1d26', hairColor: '#1d1d26', hat: 'slick', eyes: 'bead', brows: 'proud', mouth: 'smirk', nose: 'square', lapelPin: P.gold },
   /** The deepest slouch; beanie low, iced coffee, coasting on her board. */
-  juni: { kind: 'bean', skin: '#8A5638', shirt: P.esp, pants: P.oat, shoes: P.neon, hairColor: '#1e1612', hat: 'beanie', hatColor: P.neon, eyes: 'sleepy', brows: 'flat', mouth: 'smirk', nose: 'button', zigzag: P.neon, hood: true, apron: P.oat },
+  juni: { kind: 'bean', skin: '#8A5638', shirt: P.esp, pants: P.oat, shoes: P.neon, hairColor: '#1e1612', hat: 'beanie', hatColor: P.neon, eyes: 'sleepy', brows: 'flat', mouth: 'smirk', nose: 'button', zigzag: P.neon, hood: true, apron: P.oat, apronMark: 'bean' },
   /** The widest V on the tiniest head; visor, zinc nose, a double-bicep flex. */
-  brock: { kind: 'vee', R: 0.25, girth: 1.25, skin: '#E7A16E', shirt: P.mango, sleeve: '#E7A16E', pants: P.lagoon, shoes: P.lagoon, hairColor: '#FBE29A', hat: 'visor', hatColor: P.lagoon, eyes: 'bead', brows: 'up', mouth: 'grin', nose: 'zinc', waves: P.lagoon, tank: true },
+  brock: { kind: 'vee', R: 0.25, girth: 1.25, skin: '#E7A16E', shirt: P.mango, pants: P.lagoon, shoes: P.lagoon, hairColor: '#FBE29A', hat: 'visor', hatColor: P.lagoon, eyes: 'bead', brows: 'up', mouth: 'grin', nose: 'zinc', waves: P.lagoon, tank: true, trim: P.lagoon },
 } satisfies Record<string, FigureSpec>;
 export type BossId = keyof typeof BOSSES;
 export const BOSS_OF: Record<Exclude<Side, 'player'>, BossId> = { sourwood: 'vera', hollis: 'tilly', fizzco: 'preston', coldbrew: 'juni', blenders: 'brock' };
@@ -200,7 +213,7 @@ export const TOWNSFOLK = {
   /** Mayor Fontaine wears a tiny plum lapel pin. */
   fontaine: { kind: 'pear', skin: '#F8D3B0', shirt: '#3b3f52', sleeve: '#3b3f52', pants: '#3b3f52', shoes: P.plum, hairColor: '#F4EEE6', hat: 'bald', eyes: 'bead', brows: 'proud', mouth: 'smile', nose: 'button', lapelPin: P.plum },
   /** Lanky Dex: 3 heads tall in a lemon guard vest, arms crossed. */
-  dex: { ...SPECS.dex, kind: 'lanky', hat: 'none', hairColor: '#241a14' },
+  dex: { ...SPECS.dex, kind: 'lanky', hairColor: '#241a14' }, // his green beret over dark hair
   /** A Sourwood Steward: stilt-thin, high white collar, white gloves and a bowler. */
   steward: { ...SPECS.sourwood, mustache: undefined, damask: false },
 } satisfies Record<string, FigureSpec>;
@@ -212,7 +225,8 @@ const TOWN_PROP: Partial<Record<TownsfolkId, { prop: string; left?: boolean; hug
 /** Build a boss, ready to stand on their turf. */
 export function makeBoss(id: BossId, mat: THREE.Material, opts: FigureOptions = {}): Figure {
   const x = BOSS_EXTRA[id];
-  const fig = new Figure(BOSSES[id], mat, { scale: x.scale, ...opts });
+  // a fixed seed per boss, so every copy shares one baked set of parts
+  const fig = new Figure({ seed: 31_000 + Object.keys(BOSSES).indexOf(id), ...BOSSES[id] }, mat, { scale: x.scale, ...opts });
   if (x.prop) holdProp(fig, x.prop, x.left);
   if (id === 'tilly') { const l = fig.hand.children[0]; l.rotation.set(Math.PI * 0.95, 0, -0.3); l.position.set(0, 0.05, -0.1); }
   if (id === 'juni') fig.root.add(prop('skateboardRide', mat));
@@ -221,7 +235,7 @@ export function makeBoss(id: BossId, mat: THREE.Material, opts: FigureOptions = 
 }
 /** Build a named townsperson (Marisol, Skip Larkin, Benny Buzz, Sheriff Budd, Mayor Fontaine, Dex, a Steward). */
 export function makeTownsfolk(id: TownsfolkId, mat: THREE.Material, opts: FigureOptions = {}): Figure {
-  const fig = new Figure(TOWNSFOLK[id], mat, opts);
+  const fig = new Figure({ ...TOWNSFOLK[id], seed: 32_000 + Object.keys(TOWNSFOLK).indexOf(id) }, mat, opts);
   const p = TOWN_PROP[id];
   if (p) {
     const m = holdProp(fig, p.prop, p.left);
@@ -264,12 +278,13 @@ const HATCHET: Record<Side, string> = { player: 'hatchetPlayer', sourwood: 'hatc
 const TAPE: Record<Side, string> = { player: P.lemon, sourwood: '#ffffff', hollis: P.ging, fizzco: '#ffffff', coldbrew: P.neon, blenders: P.lagoon };
 /** The six crew looks (spec's crew table): body, gait and hat per side. */
 export const CREW_LOOK: Record<Side, FigureSpec> = {
-  player: { kind: 'pear', shirt: P.lemon, pants: P.denim, shoes: P.terra, hat: 'leafcap', hatColor: P.lemon, hatColor2: P.green, brows: 'angry', mouth: 'flat', bib: P.lemon },
+  // Lemon and White: a white tee under the striped lemon bib, so the lemon cap still reads as the lemon
+  player: { kind: 'pear', shirt: P.white, pants: P.denim, shoes: P.plum, hat: 'leafcap', hatColor: P.lemon, hatColor2: P.green, brows: 'angry', mouth: 'flat', bib: P.lemon },
   sourwood: { ...TOWNSFOLK.steward, brows: 'angry' },
   hollis: { ...CREWS.hollis, gingham: true },
   fizzco: { ...CREWS.fizzco },
-  coldbrew: { ...SPECS.henchman, apron: P.oat },
-  blenders: { ...CREWS.blenders, tank: true },
+  coldbrew: { ...SPECS.henchman, apron: P.oat, apronMark: 'bean' },
+  blenders: { ...CREWS.blenders },
 };
 /** A crew member's spec: their side's look plus gear, level chevrons and role kit. */
 export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
@@ -280,33 +295,68 @@ export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
     sp.seed = 10_000 + (seed % 7);
   }
   if ((look.weapon ?? 'fists') === 'fists') sp.tape = TAPE[side];
-  if (look.gear === 'vest') sp.padded = side === 'player' ? P.terra : shade(sp.shirt ?? P.terra, -0.1);
-  if (look.gear === 'pro') { sp.padded = side === 'player' ? P.terra : shade(sp.shirt ?? P.terra, -0.1); sp.pads = side === 'player' ? P.teal : P.plum; sp.hat = 'helmet'; sp.hatColor = side === 'player' ? P.lemon : sp.shirt; sp.hatColor2 = side === 'player' ? P.green : '#ffffff'; }
-  if (side === 'player' && look.level) { sp.chevrons = look.level; sp.chevronColor = P.terra; }
+  // Padded Vest: lemon with white quilting for your crew, a darker shade of the side's colour for rivals
+  if (look.gear === 'vest' || look.gear === 'pro') {
+    sp.padded = side === 'player' ? P.lemon : shade(sp.shirt ?? P.terra, -0.1);
+    if (side === 'player') sp.quilt = P.white;
+  }
+  // Pro Gear adds shoulder pads; only your crew swaps the cap for a helmet (it keeps the leaf).
+  // Rivals keep their iconic hats, so a side still reads from body, hat and tool.
+  if (look.gear === 'pro') {
+    sp.pads = side === 'player' ? P.white : P.plum;
+    if (side === 'player') { sp.hat = 'helmet'; sp.hatColor = P.lemon; sp.hatColor2 = P.white; }
+  }
+  if (side === 'player' && look.level) { sp.chevrons = look.level; sp.chevronColor = P.plum; }
   if (look.role === 'lookout') sp.binoculars = true;
   if (look.role === 'wrecker') sp.toolbelt = true;
   if (look.role === 'captain') sp.whistle = true;
   if (look.onGuard && side === 'player') sp.crossed = true;
   return sp;
 }
-/** Build a crew member with their weapon in hand. */
+/** Put the crew member's weapon in hand, or, arms crossed on guard, leaning against a leg. */
+function arm(fig: Figure, side: Side, look: CrewLook) {
+  const w = look.weapon ?? 'fists';
+  if (w === 'fists') return;
+  const name = w === 'clubs' ? CLUB[side] : HATCHET[side];
+  if (fig.sp.crossed) {
+    const m = prop(name, fig.mat, crowdOf(fig));
+    m.name = 'weapon';
+    // grip at the hip, business end resting by the right foot
+    m.position.set(fig.K.shx * (fig.sp.girth ?? 1) + 0.12, fig.K.leg + 0.38, 0.1);
+    m.rotation.set(0.15, 0, 0.22);
+    fig.rig.add(m);
+    return;
+  }
+  const m = holdProp(fig, name);
+  m.name = 'weapon';
+  // ready to swing: up and forward from the mitten (Stewards walk their long canes)
+  if (!(side === 'sourwood' && w === 'clubs')) m.rotation.x = -2.3;
+}
+/** Build a crew member with their weapon in hand (or leaning by them on guard). */
 export function makeCrew(side: Side, look: CrewLook, mat: THREE.Material, opts: FigureOptions = {}): Figure {
   const fig = new Figure(crewSpec(side, look), mat, opts);
-  const w = look.weapon ?? 'fists';
-  if (w !== 'fists' && !look.onGuard) {
-    const m = holdProp(fig, w === 'clubs' ? CLUB[side] : HATCHET[side]);
-    m.name = 'weapon';
-    // ready to swing: up and forward from the mitten (Stewards walk their long canes)
-    if (!(side === 'sourwood' && w === 'clubs')) m.rotation.x = -2.3;
-  }
-  if (side === 'coldbrew' && !look.onGuard) fig.root.add(prop('skateboardRide', mat));
+  arm(fig, side, look);
+  if (side === 'coldbrew' && !look.onGuard) fig.root.add(prop('skateboardRide', mat, crowdOf(fig)));
   fig.root.userData.speckColor = side === 'player' ? P.lemon : CREW_LOOK[side].shirt;
+  return fig;
+}
+/** Lanky Dex at his post: his own body and lemon guard vest, with his guard gear, level and weapon. */
+export function makeDex(look: CrewLook, mat: THREE.Material, opts: FigureOptions = {}): Figure {
+  const g = crewSpec('player', { ...look, onGuard: true });
+  const sp: FigureSpec = { ...TOWNSFOLK.dex, seed: 32_100, crossed: true, tape: g.tape, chevrons: g.chevrons, chevronColor: g.chevronColor, padded: g.padded, quilt: g.quilt, pads: g.pads, binoculars: g.binoculars, toolbelt: g.toolbelt, whistle: g.whistle };
+  if (g.hat === 'helmet') Object.assign(sp, { hat: 'helmet', hatColor: g.hatColor, hatColor2: g.hatColor2 });
+  if (sp.padded) sp.vest = undefined; // the Padded Vest goes on over the guard vest
+  const fig = new Figure(sp, mat, opts);
+  arm(fig, 'player', { ...look, onGuard: true });
+  fig.root.userData.speckColor = P.lemon;
   return fig;
 }
 
 // ---------- customers (spec: softer bodies, soft hats or none, props say who they are) ----------
-const SHIRTS = [P.terra, P.teal, P.green, P.blush, P.denim, '#9C8AD0', P.mango, P.cream, '#f2a65a'];
-const PANTS = [P.denim, P.plum, P.walnut, '#3b3f52', P.oat, P.teal];
+// Customers wear the world's softer brights: never Lemon (reserved for lemons, coins and
+// your property) and never an owner's colours.
+const SHIRTS = [P.terra, P.teal, P.green, P.blush, P.denim, '#9C8AD0', P.cream, '#E59AB0'];
+const PANTS = [P.denim, P.plum, P.walnut, '#3b3f52', '#c7b79a', P.teal];
 const HAIRS = [P.walnut, '#241a14', '#C7652E', '#FBE29A', '#7A4A2A', '#3a2a22'];
 const GREYS = ['#F4EEE6', '#d8d0c8', '#E6DDD2'];
 const SEG: Record<SegmentLook, { kind: BodyKind[]; hats: Hat[]; extra?: Partial<FigureSpec>; scale?: number }> = {
@@ -327,18 +377,18 @@ export function segmentSpec(seg: SegmentLook, i: number): FigureSpec {
   const sp: FigureSpec = {
     kind: S.kind[i % S.kind.length], seed: 20_000 + i * 13 + seg.length,
     skin: at(SKINS, 1), shirt: at(SHIRTS, 2), pants: at(PANTS, 3), shoes: at([P.plum, P.terra, P.walnut, '#ffffff'], 4),
-    hat: S.hats[i % S.hats.length], hatColor: at([P.terra, P.teal, P.lemon, P.blush, P.cream], 6),
+    hat: S.hats[i % S.hats.length], hatColor: at([P.terra, P.teal, P.green, P.blush, P.cream], 6),
     hairColor: seg === 'seniors' ? at(GREYS, 7) : at(HAIRS, 7),
     mouth: at(['smile', 'smile', 'grin', 'o'] as const, 8), freckles: seg === 'kids' ? r(9) < 0.6 : r(9) < 0.2,
     brows: at(['up', 'up', 'flat', 'worried'] as const, 10),
     ...S.extra,
   };
-  if (seg === 'office') { sp.lanyard = at([P.teal, P.terra, P.lagoon], 11); sp.sleeve = sp.shirt; sp.shirt = at(['#3b3f52', P.denim, '#9C8AD0'], 12); }
-  if (seg === 'students') sp.backpack = at([P.terra, P.teal, P.lemon, P.green], 11);
-  if (seg === 'tourists') { sp.camera = true; sp.shirt = at([P.mango, P.teal, P.blush, P.lemon], 12); }
+  if (seg === 'office') { sp.lanyard = at([P.teal, P.terra, P.green], 11); sp.sleeve = sp.shirt; sp.shirt = at(['#3b3f52', P.denim, '#9C8AD0'], 12); }
+  if (seg === 'students') sp.backpack = at([P.terra, P.teal, '#9C8AD0', P.green], 11);
+  if (seg === 'tourists') { sp.camera = true; sp.shirt = at([P.terra, P.teal, P.blush, P.green], 12); }
   if (seg === 'workers') { sp.shirt = at([P.denim, P.terra, '#7a8aa8'], 12); sp.shortSleeve = true; }
   if (seg === 'seniors' && r(13) < 0.4) sp.mustache = 'bushy';
-  if (seg === 'kids' && sp.hat === 'pigtails') sp.hatColor = at([P.terra, P.teal, P.lemon], 14);
+  if (seg === 'kids' && sp.hat === 'pigtails') sp.hatColor = at([P.terra, P.teal, P.blush], 14);
   return sp;
 }
 /** Build a customer with their segment's prop. Returns the figure and the prop (if any). */
@@ -348,14 +398,14 @@ export function makeCustomer(seg: SegmentLook, i: number, mat: THREE.Material, o
   if (seg === 'kids' && i % 2 === 0) p = holdProp(fig, 'balloon', true);
   if (seg === 'workers') p = holdProp(fig, 'lunchpail', true);
   if (seg === 'families') {
-    const m = new THREE.Mesh(worn('stroller', stroller()), mat); m.castShadow = true;
+    const m = new THREE.Mesh(worn('stroller', stroller(), crowdOf(fig)), mat); m.castShadow = true;
     m.position.set(0, 0, 0.42); fig.root.add(m); p = m;
   }
   if (seg === 'highRollers') {
-    const m = new THREE.Mesh(worn('tinydog', tinyDog()), mat); m.castShadow = true;
+    const m = new THREE.Mesh(worn('tinydog', tinyDog(), crowdOf(fig)), mat); m.castShadow = true;
     m.position.set(-0.55, 0, 0.25); fig.root.add(m); p = m;
     // the leash, from the left mitten down to the collar
-    const leash = new THREE.Mesh(worn('leash', (B) => B.add(snake([[0, 0, 0], [-0.12, -0.35, 0.12], [-0.25, -0.5, 0.3]], 0.008, 8, 3), P.neon, {})), mat);
+    const leash = new THREE.Mesh(worn('leash', (B) => B.add(snake([[0, 0, 0], [-0.12, -0.35, 0.12], [-0.25, -0.5, 0.3]], 0.008, 8, 3), P.neon, {}), crowdOf(fig)), mat);
     fig.handL.add(leash);
   }
   return { fig, prop: p };

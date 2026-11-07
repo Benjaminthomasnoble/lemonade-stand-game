@@ -14,6 +14,8 @@ import { buildDiorama, DESK_LAMP, PLINTH } from './diorama.ts';
 import { cloneLook, hourOf, lookAt, LOOKS, mixLook, weatherOn } from './lighting.ts';
 import { createWeather } from './weather.ts';
 
+const stillClay = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
 export type Detail = 0 | 1 | 2;
@@ -330,7 +332,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       if (f !== lastF) {
         lastF = f;
         K.twos.f = f; K.twos.t = f / 12;
-        K.U.fig.boil.value.set(hash(f, 1) * 0.035, hash(f, 2) * 0.035, hash(f, 3) * 0.035);
+        // Reduced motion stops the boil (spec "Stop motion").
+        if (!stillClay) K.U.fig.boil.value.set(hash(f, 1) * 0.035, hash(f, 2) * 0.035, hash(f, 3) * 0.035);
       }
 
       // Tilt-shift: strongest in Street View, thinnest at Bay View.

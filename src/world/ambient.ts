@@ -8,10 +8,12 @@ import type { RivalId } from '../sim/balance.ts';
 import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import { threatLevel } from '../sim/crew.ts';
 import type { PlotView } from './bay.ts';
-import { hopPose, idlePose, MOTION } from './people.ts';
+import { MOTION } from './people.ts';
 import { gull, dog } from './clay/creatures.ts';
 import { clayFrom, kit } from './clay/kit.ts';
 import { makeCrew } from './clay/cast.ts';
+import { CROWD_DETAIL, GAIT_OF, gait, type Figure } from './clay/figure.ts';
+import { createFigureBatch } from './clay/figureBatch.ts';
 
 const mat = (color: number, roughness = 0.8) => clayFrom(color, roughness);
 
@@ -39,17 +41,25 @@ function flap(g: THREE.Object3D, t: number, speed = 9) {
 }
 
 export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): Ambient {
+  // Henchmen and the jogging Bros are crowd-detail figures drawn through one batch, posed on twos.
+  const batch = createFigureBatch(kit().fig, { instances: 256, vertices: 60_000, indices: 180_000 });
+  batch.mesh.name = 'ambient-figures';
+  scene.add(batch.mesh);
+  let lastF = -1;
+
   // ---- henchmen loitering at rival stands ----
-  const hench = Array.from({ length: HENCH_POOL }, () => ({ obj: null as THREE.Group | null, rival: null as RivalId | null, plot: '', slot: 0, glare: 0 }));
+  const hench = Array.from({ length: HENCH_POOL }, () => ({ obj: null as THREE.Group | null, fig: null as Figure | null, rival: null as RivalId | null, plot: '', slot: 0, glare: 0 }));
   let assignT = 0;
 
   // ---- Smoothie Bros jogging in formation on the Boardwalk ----
-  const bros = [0, 1, 2].map(() => {
-    const p = makeCrew('blenders', { weapon: 'fists', seed: 3 }, kit().fig).root; // V-shaped bros on tiny legs
-    p.visible = false;
-    scene.add(p);
-    return p;
+  const broFigs = [1, 2, 3].map((seed) => {
+    const fig = makeCrew('blenders', { weapon: 'fists', seed }, kit().fig, { detail: CROWD_DETAIL }); // V-shaped bros on tiny legs
+    fig.root.visible = false;
+    scene.add(fig.root);
+    batch.track(fig.root);
+    return fig;
   });
+  const bros = broFigs.map((f) => f.root);
   const boardwalk = PLOTS.filter((p) => p.district === 'boardwalk' && p.side === 0);
   const bwX0 = Math.min(...boardwalk.map((p) => p.x)), bwX1 = Math.max(...boardwalk.map((p) => p.x));
   const bwZ = boardwalk.length ? boardwalk[0].streetZ - 5.6 : 0;
@@ -102,12 +112,13 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         for (const h of hench) {
           const i = want.findIndex((w) => w.plot === h.plot && w.slot === h.slot && w.rival === h.rival);
           if (i >= 0) { want.splice(i, 1); continue; }
-          if (h.obj) { scene.remove(h.obj); h.obj = null; h.rival = null; h.plot = ''; }
+          if (h.obj) { batch.untrack(h.obj); scene.remove(h.obj); h.obj = null; h.fig = null; h.rival = null; h.plot = ''; }
         }
         for (const h of hench) {
           if (h.obj || !want.length) continue;
           const w = want.shift()!;
-          h.obj = makeCrew(w.rival, { weapon: 'clubs', seed: w.slot + 1 }, kit().fig).root;
+          h.fig = makeCrew(w.rival, { weapon: 'clubs', seed: w.slot + 1 }, kit().fig, { detail: CROWD_DETAIL });
+          h.obj = h.fig.root;
           h.rival = w.rival; h.plot = w.plot; h.slot = w.slot; h.glare = 3 + Math.random() * 8;
           const v = views[w.plot];
           if (v) {
@@ -117,15 +128,15 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
             h.obj.position.y = 0.12;
           }
           scene.add(h.obj);
+          batch.track(h.obj);
         }
       }
+      const f = Math.floor(time * 12), step = f !== lastF;
+      lastF = f;
       for (const h of hench) {
         if (!h.obj || !h.rival) continue;
-        // Arms folded, a bored sway, and now and then a long hard look at your nearest stand.
-        const limbs = h.obj.userData.limbs as THREE.Mesh[];
-        limbs[2].rotation.x = limbs[3].rotation.x = -1.2;
-        limbs[2].rotation.z = 0.5; limbs[3].rotation.z = -0.5;
-        idlePose(h.obj, time + h.slot, 1);
+        // Arms folded, a bored sway on twos, and now and then a long hard look at your nearest stand.
+        if (step && h.fig) { const b = Math.sin(f / 12 * 2.4 + h.slot * 2); h.fig.pose({ sq: (b * 0.5 + 0.5) * 0.04 * MOTION, sway: b * 0.04 * MOTION, aL: [-1.2, 0.5], aR: [-1.2, -0.5], headTilt: 0.06 }, f); }
         h.glare -= dt;
         let mine: { x: number; z: number } | null = null, best = 30;
         for (const p of PLOTS) {
@@ -152,12 +163,10 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         const x = bwX0 + (u < 1 ? u : 2 - u) * span - dir * i * 1.1;
         b.position.set(x, 0.12, bwZ + (i % 2 ? 0.5 : -0.5));
         b.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-        const ph = jog * 11 + i * 0.4; // in step, more or less
-        const limbs = b.userData.limbs as THREE.Mesh[];
-        limbs[0].rotation.x = Math.sin(ph) * 0.8; limbs[1].rotation.x = -Math.sin(ph) * 0.8;
-        limbs[2].rotation.x = -1.2 - Math.sin(ph) * 0.5; limbs[3].rotation.x = -1.2 + Math.sin(ph) * 0.5;
-        hopPose(b, ph, 1, 0.12, 1.3);
+        // their own hop gait, on twos, in step more or less
+        if (step) gait(broFigs[i], GAIT_OF.vee, (Math.floor(jog * 12) / 12) * 11 + i * 0.4, f, f / 12);
       });
+      if (step) batch.sync();
 
       // Captain Squawk circles the Corner; every so often he dives for a lemon.
       const cv = views[LOTTIES_CORNER];

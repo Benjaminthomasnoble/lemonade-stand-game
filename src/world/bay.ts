@@ -20,8 +20,10 @@ import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
 import { lemonsExpiringTomorrow, seasonOf, stock } from '../sim/economy.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
-import { makeCrew, type Side } from './clay/cast.ts';
-import { freezeFigures } from './clay/figureBatch.ts';
+import { makeCrew, makeDex, type Side } from './clay/cast.ts';
+import { createFigureBatch } from './clay/figureBatch.ts';
+import { CROWD_DETAIL, type Figure } from './clay/figure.ts';
+import { reducedMotion } from './clay/fx.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
 import { clayPlain, kit, reflective } from './clay/kit.ts';
@@ -362,6 +364,14 @@ export function createBay(scene: THREE.Scene): Bay {
   let synced = false;
   const movers = new Map<PlotView, THREE.Object3D[]>();
   let moverF = -1;
+  // Posted guards stay alive: every watch in town draws through one batch and poses on twos
+  // (a bouncy bob, blinks, a look up and down the street; Dex scans in held beats).
+  const sentries = createFigureBatch(K.fig, { instances: 256, vertices: 80_000, indices: 240_000 });
+  sentries.mesh.name = 'sentry-batch';
+  scene.add(sentries.mesh);
+  interface Posted { fig: Figure; i: number; dex: boolean; goose: boolean; crossed: boolean; x: number }
+  const watches = new Map<PlotView, Posted[]>();
+  const calm = reducedMotion() ? 0.25 : 1;
   /** How long a pier from this plot must be to reach past the shore (12 if the water isn't behind it). */
   function reachOf(v: PlotView) {
     const back = v.plot.side === 0 ? -1 : 1; // the plot's back points away from its street
@@ -382,6 +392,8 @@ export function createBay(scene: THREE.Scene): Bay {
       if (o.userData.ownFar) (o.userData.far as THREE.BufferGeometry).dispose();
     });
     movers.delete(v);
+    for (const g of watches.get(v) ?? []) sentries.untrack(g.fig.root);
+    watches.delete(v);
     v.root.clear();
     if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
     v.stand = undefined;
@@ -420,25 +432,32 @@ export function createBay(scene: THREE.Scene): Bay {
       if (ps.defense.tier && ps.defense.fenceHp > 0) { const f = fenceModel(ps.defense.tier, fenceShare(ps), (ps.owner ?? 'player') as Owner); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
       if (ps.defense.gadgets.length) { const g = gadgetModels(ps.defense.gadgets, (ps.owner ?? 'player') as Owner); v.root.add(g); v.root.updateMatrixWorld(true); bakeGroup(g); }
     }
-    // Whoever stands guard here waits by the gate.
-    // They stand still, so the whole watch bakes into one draw (battle.ts hides it by name during a fight).
+    // Whoever stands guard here waits by the gate (battle.ts hides the watch by name during a fight).
     const guards = Math.min(guardsAt(s, p.id), ps.owner === 'player' ? 6 : 2);
     if (guards > 0) {
       const watch = new THREE.Group();
       watch.name = 'sentry';
       const posted = ps.owner === 'player' ? s.guards.filter((g) => g.post === p.id && g.outUntil <= s.day) : [];
+      const goose = ps.defense.gadgets.includes('goose');
+      const list: Posted[] = [];
       for (let i = 0; i < guards; i++) {
-        // Your guards wear what they carry: gear, level chevrons, and arms crossed on guard.
+        // Your guards wear what they carry: gear, level chevrons, taped fists or a weapon by the leg, arms crossed.
+        // Dex Moody is drawn as himself: lanky, in his lemon guard vest.
         const gd = posted[i];
-        const fig = makeCrew((ps.owner ?? 'player') as Side, gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, onGuard: true, seed: i + 1 } : { weapon: 'clubs', seed: i + 1 }, kit().fig, { scale: 0.95 });
-        fig.pose({}, i * 3);
+        const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, onGuard: true, seed: i + 1 } : { weapon: 'clubs' as const, seed: i + 1 };
+        const dex = gd?.name === 'Dex Moody';
+        const fig = dex ? makeDex(look, K.fig, { scale: 0.95, detail: CROWD_DETAIL }) : makeCrew((ps.owner ?? 'player') as Side, look, K.fig, { scale: 0.95, detail: CROWD_DETAIL });
         const g = fig.root;
-        g.position.set((i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.12, 1.5);
+        const x = (i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7);
+        g.position.set(x, 0.12, 1.5);
         g.rotation.y = 0;
+        fig.pose({}, i * 3);
         watch.add(g);
+        list.push({ fig, i, dex, goose, crossed: !!fig.sp.crossed, x });
       }
       v.root.add(watch);
-      freezeFigures(watch, kit().fig);
+      for (const g of list) sentries.track(g.fig.root);
+      watches.set(v, list);
       // Bay View: each guard is a dab of clay in the owner's colour (the full figures cost ~11k triangles a plot).
       const FB = new Baker();
       for (let i = 0; i < guards; i++) FB.add(cap(0.42, 0.9, 2, 6), ownerColor(ps.owner), { p: [(i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.95, 1.5] });
@@ -533,10 +552,30 @@ export function createBay(scene: THREE.Scene): Bay {
       }
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day));
       const mf = Math.floor(time * 12);
+      sentries.setVisible(level < 2);
       if (mf !== moverF && level < 2) {
         moverF = mf;
         const minute = s.phase === 'prep' ? 7 * 60 : s.minute;
         for (const parts of movers.values()) for (const o of parts) animatePart(o, mf / 12, minute);
+        for (const list of watches.values()) for (const g of list) {
+          const t = mf / 12 + g.i * 0.73, root = g.fig.root;
+          if (g.dex) {
+            // Dex scans the street in held beats, and hops sideways when the goose waddles by.
+            const beat = Math.floor(t / 1.6);
+            const yaw = [-0.6, 0, 0.6, 0, 0.35, -0.35][Math.floor(hash(beat, 5) * 6)] * calm;
+            // the goose waddles past every few seconds: a sideways hop out of its way, and later back
+            const c = t % 9, out = c < 4.5;
+            const u = Math.min(1, (out ? c : c - 4.5) / 0.6);
+            const k = g.goose && u < 1 ? Math.sin(u * Math.PI) : 0;
+            const side = g.goose ? (out ? u : 1 - u) * 0.35 * calm : 0;
+            root.position.x = g.x + (g.x < 0 ? -side : side);
+            g.fig.pose({ lift: k * 0.22 * calm, headYaw: k > 0 ? 0 : yaw, headTilt: -k * 0.1 }, mf);
+          } else {
+            const b = Math.abs(Math.sin(t * 3));
+            g.fig.pose({ lift: b * 0.03 * calm, sq: (1 - b) * 0.04 * calm, headYaw: Math.sin(t * 0.45) * 0.3 * calm, aR: g.crossed ? undefined : [-0.35, -0.12] }, mf);
+          }
+        }
+        sentries.sync();
       }
       let merges = 2;
       for (const [id, f] of farList) {

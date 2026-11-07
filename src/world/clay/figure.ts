@@ -47,10 +47,13 @@ export interface FigureSpec {
   /** Mayor Fontaine's tiny lapel pin */ lapelPin?: C;
   /** crew gear: padded vest (15% rounder), Pro Gear shoulder pads, clay-snake sleeve chevrons (0 Rookie to 4 Legend) */
   padded?: C; pads?: C; chevrons?: number; chevronColor?: C;
+  /** the padded vest's quilting lines (defaults to a darker shade of the vest) */ quilt?: C;
   /** taped fists: tape colour over the mittens */ tape?: C;
   /** worn over the shoulders: lanyard (office), camera strap (tourists), backpack (students), tool belt (Wreckers), binoculars (Lookouts), whistle (Captains) */
   lanyard?: C; camera?: boolean; backpack?: C; toolbelt?: boolean; binoculars?: boolean; whistle?: boolean;
   /** Dex's lemon guard vest is `vest`; this adds a striped guard bib for the player's crew */ bib?: C;
+  /** the mark on an apron: the grandkid's lemon, or Cold Brew's coffee bean (default none) */ apronMark?: 'lemon' | 'bean';
+  /** tank-top trim at the arm holes and neck (Smoothie Bros) */ trim?: C;
 }
 
 /** Whole-face swaps (spec "Characters": never X eyes). */
@@ -66,9 +69,16 @@ export const FACES: Record<Face, Partial<FigureSpec>> = {
 type Spec = FigureSpec & { glassesToo?: boolean } & Required<Pick<FigureSpec, 'kind' | 'skin' | 'shirt' | 'pants' | 'shoes' | 'hairColor' | 'eyes' | 'brows' | 'mouth' | 'nose' | 'seed' | 'R' | 'skin2'>>;
 
 // Level of detail: segment counts scale by DETAIL while a figure is being built
-// (1 is the mockup; crowds can use about 0.5 to keep phones inside the triangle budget).
+// (1 is the mockup). At crowd detail (CROWD_DETAIL and below) the segment floors drop
+// too and the smallest bits (ears, freckles, the second glint) are left off, so a
+// crowd person costs about 900 triangles, as the spec budgets.
 let DETAIL = 1;
-const n = (k: number, min = 3) => Math.max(min, Math.round(k * DETAIL));
+/** The detail the street crowd, posted guards and loiterers are built at. */
+export const CROWD_DETAIL = 0.3;
+const low = () => DETAIL <= CROWD_DETAIL + 1e-6;
+const n = (k: number, min = 3) => Math.max(low() ? Math.min(min, 3) : min, Math.round(k * DETAIL));
+/** Reduced motion stops the boil (spec "Stop motion"). */
+const BOIL = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1;
 const sph = (r: number, w = 20, h = 14) => sph0(r, n(w, 5), n(h, 4));
 const cap = (r: number, l: number, cs = 4, rs = 10) => cap0(r, l, n(cs, 2), n(rs, 5));
 const cyl = (rt: number, rb: number, h: number, s = 16, open = false) => cyl0(rt, rb, h, n(s, 5), open);
@@ -132,7 +142,7 @@ function eyes(B: Baker, R: number, sp: Spec, closed: false | 'down') {
     }
     B.add(sph(er, 14, 10), P.plum, { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 0.15] }) });
     B.add(sph(er * 0.32, 8, 6), '#ffffff', { fx: GLOSS + 1, m: inFrame(f, { p: [-er * 0.38, er * 0.4, er * 0.92] }) });
-    B.add(sph(er * 0.13, 6, 4), '#ffffff', { fx: GLOSS + 1, m: inFrame(f, { p: [er * 0.38, -er * 0.35, er * 0.95] }) });
+    if (!low()) B.add(sph(er * 0.13, 6, 4), '#ffffff', { fx: GLOSS + 1, m: inFrame(f, { p: [er * 0.38, -er * 0.35, er * 0.95] }) });
     if (sp.eyes === 'lids' || sp.eyes === 'sleepy') {
       const lid = new THREE.SphereGeometry(er * 1.22, n(14, 5), n(8, 4), 0, Math.PI * 2, 0, Math.PI * 0.5);
       B.add(lid, sp.skin, { m: inFrame(f, { p: [0, 0, er * 0.12], r: [sp.eyes === 'sleepy' ? 0.95 : 0.55, 0, side * (sp.lidTilt ?? 0.28)] }) });
@@ -197,11 +207,11 @@ function cheeks(B: Baker, R: number, sp: Spec) {
   for (const side of [-1, 1]) {
     const f = onHead(R, side * 0.6, -0.2, -R * 0.06);
     B.add(sph(R * 0.17, 12, 8), sp.blush || P.blush, { m: inFrame(f, { s: [1, 0.8, 0.45] }) });
-    if (sp.freckles) for (let i = 0; i < 3; i++) B.add(sph(R * 0.025, 5, 4), '#b8643c', { m: inFrame(onHead(R, side * (0.48 + i * 0.07), -0.08 - (i % 2) * 0.05, 0), {}) });
+    if (sp.freckles && !low()) for (let i = 0; i < 3; i++) B.add(sph(R * 0.025, 5, 4), '#b8643c', { m: inFrame(onHead(R, side * (0.48 + i * 0.07), -0.08 - (i % 2) * 0.05, 0), {}) });
     if (sp.nose === 'zinc') B.add(cap(R * 0.035, R * 0.18, 2, 6), '#ffffff', { m: inFrame(onHead(R, side * 0.55, -0.08, 0), { r: [0, 0, 0.3 * side + Math.PI / 2] }) });
   }
   // ears
-  for (const side of [-1, 1]) { const f = onHead(R, side * 1.55, -0.02, -R * 0.1); B.add(sph(R * 0.15, 10, 8), sp.skin, { m: inFrame(f, { s: [0.8, 1, 0.55] }) }); }
+  if (!low()) for (const side of [-1, 1]) { const f = onHead(R, side * 1.55, -0.02, -R * 0.1); B.add(sph(R * 0.15, 10, 8), sp.skin, { m: inFrame(f, { s: [0.8, 1, 0.55] }) }); }
 }
 
 // ---------- hats and hair ----------
@@ -321,13 +331,17 @@ function headwear(B: Baker, R: number, sp: Spec) {
       B.add(new THREE.SphereGeometry(R * 1.1, n(20, 6), n(10, 4), 0, Math.PI * 2, 0, Math.PI * 0.52), H, { p: [0, R * 0.05, 0], fx: GLOSS });
       B.add(new THREE.SphereGeometry(R * 1.12, n(6, 4), n(10, 4), -0.18, 0.36, 0, Math.PI * 0.52), H2, { p: [0, R * 0.05, 0], fx: GLOSS });
       B.add(cyl(R * 1.12, R * 1.14, R * 0.08, 24, true), shade(H, -0.12), { p: [0, R * 0.08, 0] });
+      // the Peel Patrol helmet still reads as a lemon: a stalk and a leaf on top
+      B.add(lumpy(sph(R * 0.12, 8, 6), R * 0.02, 8, 2), H, { p: [0, R * 1.18, -R * 0.06], s: [1, 1.3, 1] });
+      B.add(new THREE.SphereGeometry(R * 0.28, n(10, 5), n(6, 4)), P.green, { p: [R * 0.17, R * 1.26, -R * 0.06], s: [1.4, 0.25, 0.6], r: [0, 0.4, 0.35] });
       break;
     }
     case 'leafcap': {
       // Peel Patrol: a yellow cap with a green leaf on top, so every head reads as a lemon
-      B.add(new THREE.SphereGeometry(R * 1.04, n(22, 6), n(12, 4), 0, Math.PI * 2, 0, Math.PI * 0.5), H, { p: [0, R * 0.12, 0], r: [-0.12, 0, 0] });
-      const brim = new THREE.CylinderGeometry(R * 0.72, R * 0.72, R * 0.07, n(20, 6), 1, false, -Math.PI / 2, Math.PI);
-      B.add(brim, H, { p: [0, R * 0.2, R * 0.72], r: [0.1, 0, 0], s: [1, 1, 0.9] });
+      // the brim is short and tipped up, so the bead eyes show from the Street View camera
+      B.add(new THREE.SphereGeometry(R * 1.04, n(22, 6), n(12, 4), 0, Math.PI * 2, 0, Math.PI * 0.5), H, { p: [0, R * 0.24, -R * 0.04], r: [-0.18, 0, 0] });
+      const brim = new THREE.CylinderGeometry(R * 0.58, R * 0.58, R * 0.07, n(20, 6), 1, false, -Math.PI / 2, Math.PI);
+      B.add(brim, H, { p: [0, R * 0.4, R * 0.74], r: [-0.32, 0, 0], s: [1, 1, 0.75] });
       B.add(lumpy(sph(R * 0.12, 8, 6), R * 0.02, 8, 2), H, { p: [0, R * 1.14, -R * 0.12], s: [1, 1.3, 1] });
       B.add(new THREE.SphereGeometry(R * 0.26, n(10, 5), n(6, 4)), H2, { p: [R * 0.16, R * 1.22, -R * 0.12], s: [1.4, 0.25, 0.6], r: [0, 0.4, 0.35] });
       for (const s2 of [-1, 1]) back(s2 * 1.35, -0.25, 0.22);
@@ -406,12 +420,30 @@ function gear(B: Baker, sp: Spec, K: Kind) {
     let g = lumpy(lathe(pts, 22), 0.008, 6, 9);
     if (sp.kind === 'bean') g = bend(g, (y) => Math.sin(y * 3.6) * 0.07 - y * 0.06);
     B.add(g, sp.padded);
-    for (const k of [0.35, 0.68]) { const y = y0 + (y1 - y0) * k; B.add(tor(radiusAt(sp, K, y) * 1.16 + 0.012, 0.012, 4, 22), shade(sp.padded, -0.15), { p: [beanX(sp, y), y, 0], r: [Math.PI / 2, 0, 0] }); }
+    for (const k of [0.35, 0.68]) { const y = y0 + (y1 - y0) * k; B.add(tor(radiusAt(sp, K, y) * 1.16 + 0.012, 0.012, 4, 22), sp.quilt || shade(sp.padded, -0.15), { p: [beanX(sp, y), y, 0], r: [Math.PI / 2, 0, 0] }); }
   }
   if (sp.pads) for (const s2 of [-1, 1]) B.add(new THREE.SphereGeometry(K.arm[0] * 2.1, n(12, 5), n(6, 3), 0, Math.PI * 2, 0, Math.PI * 0.5), sp.pads, { fx: GLOSS, p: [s2 * K.shx * (sp.girth ?? 1) + beanX(sp, K.sh), K.sh - 0.02, 0], s: [1.1, 0.8, 1.1] });
-  if (sp.bib) {
-    B.add(new THREE.CylinderGeometry(rc * 1.04, rw * 1.06, chest - waist + 0.08, n(18, 5), 1, true, -0.9, 1.8), sp.bib, { p: [beanX(sp, chest), (chest + waist) / 2, 0], fx: PAPER });
-    for (const yy of [0.35, 0.65]) { const y = waist + (chest - waist) * yy; B.add(box(radiusAt(sp, K, y) * 1.3, 0.03, 0.02), P.plum, { p: [beanX(sp, y), y, radiusAt(sp, K, y) * 1.02 + 0.01] }); }
+  if (sp.bib && !sp.padded) {
+    // the Player's pattern: a lemon bib with wide white vertical stripes, edged in plum ink
+    const h = chest - waist + 0.08, ym = (chest + waist) / 2;
+    B.add(new THREE.CylinderGeometry(rc * 1.04, rw * 1.06, h, n(18, 5), 1, true, -0.9, 1.8), sp.bib, { p: [beanX(sp, chest), ym, 0], fx: PAPER });
+    for (const a of [-0.45, 0.45]) B.add(new THREE.CylinderGeometry(rc * 1.055, rw * 1.075, h, n(4, 2), 1, true, a - 0.14, 0.28), '#ffffff', { p: [beanX(sp, chest), ym, 0], fx: PAPER });
+    for (const a of [-0.9, 0.9]) B.add(new THREE.CylinderGeometry(rc * 1.065, rw * 1.085, h, 1, 1, true, a - 0.03, 0.06), P.plum, { p: [beanX(sp, chest), ym, 0] });
+  }
+  if (sp.vest) {
+    // Dex's lemon guard vest: chest-high on any body, white reflective stripes, a badge and a radio
+    const y0 = K.leg + (K.sh - K.leg) * 0.26, y1 = K.sh + 0.02, h = y1 - y0, ym = (y0 + y1) / 2;
+    const rt = radiusAt(sp, K, y1 - 0.04) * 1.08 + 0.01, rb = radiusAt(sp, K, y0 + 0.02) * 1.08 + 0.01;
+    B.add(new THREE.CylinderGeometry(rt, rb, h, n(18, 5), 1, true, -1.1, 2.2), sp.vest, { p: [beanX(sp, ym), ym, 0] });
+    for (const k of [0.3, 0.55]) { const y = y0 + h * k, r = radiusAt(sp, K, y) * 1.08 + 0.02; B.add(box(r * 1.15, 0.035, 0.02), '#ffffff', { fx: 0.3, p: [beanX(sp, y), y, r * 0.98] }); }
+    const yb = y0 + h * 0.8, rbd = radiusAt(sp, K, yb) * 1.08;
+    B.add(sph(0.045, 8, 6), P.gold, { fx: GLOSS, p: [-rbd * 0.4, yb, rbd * 0.92] });
+    B.add(cyl(0.015, 0.015, 0.12, 5), P.plum, { p: [rbd * 0.4, yb + 0.04, rbd * 0.88], r: [0.3, 0, 0] });
+  }
+  if (sp.trim) {
+    // tank top: a contrasting snake round each arm hole and the neckline
+    for (const s2 of [-1, 1]) B.add(tor(K.arm[0] * 1.35, 0.016, 4, 14), sp.trim, { p: [s2 * K.shx * (sp.girth ?? 1) + beanX(sp, K.sh), K.sh - 0.03, 0], r: [0, 0, s2 * 0.35] });
+    const yn = K.neck - 0.04; B.add(tor(Math.max(0.08, radiusAt(sp, K, yn) * 0.9), 0.016, 4, 18), sp.trim, { p: [beanX(sp, yn), yn, 0], r: [Math.PI / 2, 0, 0] });
   }
   if (sp.houses) {
     // Skip Larkin: tiny houses printed all over the blazer
@@ -486,24 +518,52 @@ function buildBody(sp: Spec, K: Kind) {
     B.add(new THREE.CylinderGeometry(r * 1.03, r * 1.1, kid ? 0.26 : 0.34, n(18, 5), 1, true, -0.95, 1.9), sp.apron, { p: [beanX(sp, y0), y0, 0], fx: PAPER });
     B.add(new RoundedBoxGeometry(r * 0.95, kid ? 0.16 : 0.2, 0.04, 2, 0.02), sp.apron, { p: [0, y0 + (kid ? 0.2 : 0.26), r * 0.86], r: [-0.25, 0, 0] });
     for (const s2 of [-1, 1]) B.add(box(0.03, 0.2, 0.02), sp.apron, { p: [s2 * r * 0.42, y0 + (kid ? 0.3 : 0.38), r * 0.7], r: [-0.5, 0, s2 * 0.2] });
-    B.add(lumpy(sph(0.05, 8, 6), 0.004, 20, 1), P.lemon, { p: [0, y0 - 0.02, r * 1.08], s: [1.3, 1, 0.5] });
-    B.add(sph(0.018, 5, 4), P.green, { p: [0.04, y0 + 0.03, r * 1.1] });
+    if (sp.apronMark === 'lemon') {
+      B.add(lumpy(sph(0.05, 8, 6), 0.004, 20, 1), P.lemon, { p: [0, y0 - 0.02, r * 1.08], s: [1.3, 1, 0.5] });
+      B.add(sph(0.018, 5, 4), P.green, { p: [0.04, y0 + 0.03, r * 1.1] });
+    } else if (sp.apronMark === 'bean') {
+      // Cold Brew: a coffee bean with its crease
+      B.add(sph(0.05, 8, 6), P.esp, { p: [0, y0 - 0.02, r * 1.08], s: [0.8, 1.15, 0.45] });
+      B.add(box(0.008, 0.07, 0.01), P.neon, { p: [0, y0 - 0.02, r * 1.08 + 0.022], r: [0, 0, 0.2] });
+    }
   }
-  if (sp.overalls) { for (const s of [-1, 1]) B.add(box(0.06, 0.36, 0.04), sp.pants, { p: [s * 0.16, 0.66, 0.29], r: [0.45, 0, s * 0.15] }); B.add(new RoundedBoxGeometry(0.34, 0.22, 0.06, 2, 0.03), sp.pants, { p: [0, 0.56, 0.38], r: [0.25, 0, 0] }); for (const s of [-1, 1]) B.add(sph(0.025, 6, 4), P.gold, { fx: GLOSS, p: [s * 0.13, 0.63, 0.37] }); }
-  if (sp.gingham) { for (let i = 0; i < 10; i++) { const a = -1.3 + (i % 5) * 0.65, yy = 0.64 + Math.floor(i / 5) * 0.08; B.add(box(0.05, 0.05, 0.02), i % 2 ? P.ging : '#ffffff', { p: [Math.sin(a) * 0.37, yy, Math.cos(a) * 0.37], r: [0, a, 0] }); } }
-  if (sp.damask) { for (const [a, y] of [[-0.35, 0.8], [0.35, 0.8], [0, 0.95], [-0.35, 1.1], [0.35, 1.1], [0, 0.66]]) B.add(new THREE.OctahedronGeometry(0.03), P.gold, { fx: GLOSS, p: [Math.sin(a) * 0.19, y, Math.cos(a) * 0.19], s: [1, 1.5, 0.5] }); B.add(cap(0.01, 0.1, 2, 4), P.gold, { p: [0.1, 1.05, 0.15], r: [0, 0, 1.2] }); }
-  if (sp.waves) { const pts: V3[] = []; for (let i = 0; i <= 12; i++) { const a = -1.4 + (i / 12) * 2.8; pts.push([Math.sin(a) * 0.395, 0.56 + Math.sin(i * 1.6) * 0.03, Math.cos(a) * 0.395]); } B.add(snake(pts, 0.025, 40, 5), sp.waves); }
+  const gx = sp.girth ?? 1, rAt = (y: number) => radiusAt(sp, K, y);
+  if (sp.overalls) { const rf = rAt(0.56); for (const s of [-1, 1]) B.add(box(0.06, 0.36, 0.04), sp.pants, { p: [s * 0.16 * gx, 0.66, rf * 0.7], r: [0.45, 0, s * 0.15] }); B.add(new RoundedBoxGeometry(0.34 * gx, 0.22, 0.06, 2, 0.03), sp.pants, { p: [0, 0.56, rf * 0.9], r: [0.25, 0, 0] }); for (const s of [-1, 1]) B.add(sph(0.025, 6, 4), P.gold, { fx: GLOSS, p: [s * 0.13 * gx, 0.63, rf * 0.88] }); }
+  if (sp.gingham) {
+    // a pressed gingham check band round the chest: two rows of alternating squares, sized to the body
+    for (let row = 0; row < 2; row++) { const yy = 0.62 + row * 0.07, r = rAt(yy) + 0.006, cnt = Math.max(6, Math.round(r * 30)); for (let i = 0; i < cnt; i++) { const a = -1.5 + (i / (cnt - 1)) * 3.0; B.add(box(0.06, 0.06, 0.02), (i + row) % 2 ? P.ging : '#ffffff', { p: [Math.sin(a) * r, yy, Math.cos(a) * r], r: [0, a, 0] }); } }
+  }
+  if (sp.damask) { for (const [a, y] of [[-0.35, 0.8], [0.35, 0.8], [0, 0.95], [-0.35, 1.1], [0.35, 1.1], [0, 0.66]]) { const r = rAt(y) + 0.005; B.add(new THREE.OctahedronGeometry(0.03), P.gold, { fx: GLOSS, p: [Math.sin(a) * r, y, Math.cos(a) * r], s: [1, 1.5, 0.5] }); } B.add(cap(0.01, 0.1, 2, 4), P.gold, { p: [0.1, 1.05, rAt(1.05) * 0.8], r: [0, 0, 1.2] }); }
+  if (sp.waves) { const pts: V3[] = []; const r = rAt(0.56) + 0.012; for (let i = 0; i <= 12; i++) { const a = -1.4 + (i / 12) * 2.8; pts.push([Math.sin(a) * r, 0.56 + Math.sin(i * 1.6) * 0.03, Math.cos(a) * r]); } B.add(snake(pts, 0.025, 40, 5), sp.waves); }
   if (sp.zigzag) { const pts: V3[] = []; for (let i = 0; i <= 10; i++) { const a = -1.2 + (i / 10) * 2.4; pts.push([Math.sin(a) * 0.27 + Math.sin(0.6 * 3.6) * 0.07 - 0.036, 0.6 + (i % 2 ? 0.05 : -0.05), Math.cos(a) * 0.27]); } B.add(snake(pts, 0.022, 40, 5), sp.zigzag, { fx: 0.5 }); }
-  if (sp.vest) { B.add(new THREE.CylinderGeometry(0.27, 0.32, 0.36, n(18, 5), 1, true, -1.1, 2.2), sp.vest, { p: [0, 0.5, 0], s: [1.04, 1, 1.04] }); for (const yy of [0.42, 0.52]) B.add(box(0.36, 0.035, 0.02), '#ffffff', { fx: 0.3, p: [0, yy, 0.31] }); B.add(sph(0.045, 8, 6), P.gold, { fx: GLOSS, p: [-0.12, 0.62, 0.27] }); B.add(cyl(0.015, 0.015, 0.12, 5), P.plum, { p: [0.12, 0.66, 0.25], r: [0.3, 0, 0] }); }
   if (sp.pearls) for (let i = 0; i < 11; i++) { const a = -1.2 + (i / 10) * 2.4; B.add(sph(0.028, 6, 5), '#ffffff', { fx: GLOSS, p: [Math.sin(a) * 0.2, 0.62 - Math.cos(a * 0.5) * 0.04, Math.cos(a) * 0.2 + 0.02] }); }
   if (sp.cardigan) { for (const s of [-1, 1]) B.add(new THREE.CylinderGeometry(0.33, 0.39, 0.34, n(16, 5), 1, true, s > 0 ? 0.15 : -1.45, 1.3), sp.cardigan, { p: [0, 0.42, 0], s: [1.03, 1, 1.03] }); for (const yy of [0.32, 0.42, 0.5]) B.add(sph(0.022, 6, 4), P.cream, { p: [0.07, yy, 0.38] }); }
   if (sp.hood) B.add(tor(0.17, 0.07, 8, 16), sp.shirt, { p: [-0.08, 0.98, -0.05], r: [Math.PI / 2 + 0.3, 0, 0] });
   if (sp.tails) B.add(new THREE.CylinderGeometry(0.17, 0.24, 0.42, n(14, 5), 1, true, Math.PI - 0.8, 1.6), sp.shirt, { p: [0, 0.56, -0.01] });
   if (sp.crossed) {
-    const ar = K.arm[0];
-    B.add(cap(ar * 1.05, 0.36, 4, 8), sp.sleeve || sp.shirt, { p: [0, K.sh - 0.13, 0.27], r: [0.05, 0, Math.PI / 2 + 0.12] });
-    B.add(cap(ar * 1.05, 0.36, 4, 8), sp.sleeve || sp.shirt, { p: [0, K.sh - 0.17, 0.3], r: [-0.05, 0, Math.PI / 2 - 0.15] });
-    for (const s of [-1, 1]) B.add(sph(ar * 1.1, 10, 8), sp.glove || sp.skin, { p: [s * 0.2, K.sh - 0.14 + s * 0.02, 0.3] });
+    // Arms crossed on guard, built whole: upper arms hang from the shoulders (carrying the
+    // level chevrons), forearms fold across the chest, taped fists tuck in at the elbows.
+    const ar = K.arm[0], sleeve = sp.sleeve || sp.shirt, gx = sp.girth ?? 1;
+    const yc = K.sh - 0.15, zc = radiusAt(sp, K, yc) + ar * 0.9;
+    for (const s of [-1, 1]) {
+      const sx = s * K.shx * gx + beanX(sp, K.sh), ex = s * (K.shx * gx + ar * 0.3) + beanX(sp, yc);
+      const up = new THREE.Vector3(ex - sx, yc - K.sh, zc * 0.55), len = up.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), up.clone().normalize());
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(sx + up.x / 2, K.sh + up.y / 2, up.z / 2), q, new THREE.Vector3(1, 1, 1));
+      B.add(cap(ar, len, 4, 8), sleeve, { m });
+      for (let i = 0; i < Math.min(4, sp.chevrons ?? 0); i++) {
+        const t = 0.2 + i * 0.17, r = ar * 1.08, c = new THREE.Vector3(sx + up.x * t, K.sh + up.y * t, up.z * t);
+        const mm = new THREE.Matrix4().compose(c, q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s * Math.PI / 2)), new THREE.Vector3(1, 1, 1));
+        B.add(snake([[-r, ar * 0.35, 0], [0, 0, r], [r, ar * 0.35, 0]], ar * 0.2, 8, 4), sp.chevronColor || P.lemon, { m: mm, fx: 0.3 });
+      }
+    }
+    B.add(cap(ar * 1.05, 0.36, 4, 8), sleeve, { p: [beanX(sp, yc), yc + 0.02, zc], r: [0.05, 0, Math.PI / 2 + 0.12] });
+    B.add(cap(ar * 1.05, 0.36, 4, 8), sleeve, { p: [beanX(sp, yc), yc - 0.02, zc + 0.03], r: [-0.05, 0, Math.PI / 2 - 0.15] });
+    for (const s of [-1, 1]) {
+      const p: V3 = [s * 0.2 * gx + beanX(sp, yc), yc + 0.01 + s * 0.02, zc + 0.02];
+      B.add(sph(ar * 1.1, 10, 8), sp.glove || sp.skin, { p });
+      if (sp.tape) for (let i = 0; i < 2; i++) B.add(tor(ar * 1.12, ar * 0.17, 4, 12), sp.tape, { fx: PAPER, p: [p[0] - s * ar * (0.2 + i * 0.4), p[1], p[2]], r: [0, Math.PI / 2, 0] });
+    }
   }
   return B.build();
 }
@@ -615,6 +675,7 @@ export class Figure {
     sp.seed = spec.seed ?? SEED++;
     sp.R = spec.R || K.R;
     sp.skin2 = spec.skin2 || shade(sp.skin, -0.07);
+    if (sp.tank) sp.sleeve = sp.skin; // bare arms in the face's own skin
     this.sp = sp; this.K = K; this.mat = mat;
     const detail = opts.detail ?? 1;
     const key = JSON.stringify(sp) + detail;
@@ -666,7 +727,7 @@ export class Figure {
   /** Pose on twos: f is the twos frame (floor(seconds * 12)); the boil jitter changes only when f does. */
   pose(o: Pose, f: number) {
     const b = this.id * 7.3 + f * 1.7;
-    const j = (k: number) => (hash(b, k) - 0.5);
+    const j = (k: number) => (hash(b, k) - 0.5) * BOIL;
     const sq = o.sq || 0;
     this.rig.position.set(j(1) * 0.008, (o.lift || 0), j(2) * 0.008);
     this.rig.scale.set(1 + sq * 0.5 + j(3) * 0.016, 1 - sq + j(4) * 0.016, 1 + sq * 0.5 + j(5) * 0.016);
@@ -709,6 +770,8 @@ export class Figure {
     if (t > this.blinkAt + 0.17) this.blinkAt = t + 2.5 + hash(this.id, f) * 4;
     this.head.geometry = closed ? this.parts.headShut : this.parts.headOpen;
   }
+  /** The segment detail this figure was baked at (1 = the mockup). */
+  get detail() { return this.parts.detail; }
   /** Triangles drawn for this figure (open head). */
   triangles() {
     const tri = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;
@@ -740,8 +803,8 @@ export const onTwos = (seconds: number): [number, number] => { const f = Math.fl
 
 // ---------- the cast (the mockup's specs; bosses double as the crews' looks) ----------
 export const SPECS = {
-  lottie: { kind: 'round', skin: '#F8D3B0', shirt: '#9C8AD0', cardigan: P.lemon, pants: '#9C8AD0', shoes: P.terra, hairColor: '#F4EEE6', browColor: '#E6DDD2', hat: 'sunhat', hatColor: P.straw, bandColor: P.terra, eyes: 'glasses', brows: 'worried', mouth: 'smile', nose: 'button', noseR: 0.15, pearls: true, browUp: 0.42 },
-  kid: { kind: 'kid', skin: '#F2C29A', shirt: P.teal, pants: P.denim, shoes: P.terra, hairColor: '#7A4A2A', hat: 'cap', hatColor: P.lemon, hatColor2: P.white, apron: P.white, eyes: 'bead', eyeR: 0.15, brows: 'up', mouth: 'gap', freckles: true },
+  lottie: { kind: 'round', seed: 9001, skin: '#F8D3B0', shirt: '#9C8AD0', cardigan: P.lemon, pants: '#9C8AD0', shoes: P.terra, hairColor: '#F4EEE6', browColor: '#E6DDD2', hat: 'sunhat', hatColor: P.straw, bandColor: P.terra, eyes: 'glasses', brows: 'worried', mouth: 'smile', nose: 'button', noseR: 0.15, pearls: true, browUp: 0.42 },
+  kid: { kind: 'kid', seed: 9002, apronMark: 'lemon', skin: '#F2C29A', shirt: P.teal, pants: P.denim, shoes: P.terra, hairColor: '#7A4A2A', hat: 'cap', hatColor: P.lemon, hatColor2: P.white, apron: P.white, eyes: 'bead', eyeR: 0.15, brows: 'up', mouth: 'gap', freckles: true },
   sourwood: { kind: 'stilt', skin: '#F3D9C4', shirt: P.sw, pants: '#3a1d47', collar: '#ffffff', shoes: '#22202e', hairColor: '#2a2030', hat: 'bowler', hatColor: '#2a1f3a', glove: '#ffffff', eyes: 'lids', lidTilt: -0.15, brows: 'proud', mouth: 'smirk', nose: 'long', mustache: 'curl', damask: true, tails: true, cuff: '#ffffff' },
   hollis: { kind: 'barrel', skin: '#E9B48A', shirt: P.ging, pants: P.tea, shoes: P.walnut, hairColor: '#C7652E', hat: 'straw', hatColor: P.straw, eyes: 'bead', brows: 'up', mouth: 'smile', nose: 'potato', mustache: 'bushy', overalls: true, gingham: true, straw: true, shortSleeve: false },
   fizzco: { kind: 'block', headShape: 'block', skin: '#EDC3A0', shirt: P.cola, pants: '#2b2b38', shoes: '#1d1d26', hairColor: '#2b2b38', hat: 'flattop', eyes: 'shades', brows: 'flat', browUp: 0.5, mouth: 'flat', nose: 'square', earpiece: true, sleeve: P.cola },
@@ -760,22 +823,22 @@ export type CastId = keyof typeof SPECS;
 export const CREWS: Record<'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders', FigureSpec> = {
   player: { kind: 'pear', shirt: P.lemon, pants: P.denim, shoes: P.terra, hat: 'cap', hatColor: P.lemon, hatColor2: P.green, brows: 'angry', mouth: 'flat' },
   sourwood: { kind: 'stilt', shirt: P.sw, pants: '#3a1d47', collar: '#ffffff', shoes: '#22202e', hat: 'bowler', hatColor: '#2a1f3a', glove: '#ffffff', cuff: '#ffffff', brows: 'angry', mouth: 'smirk', eyes: 'lids', nose: 'long' },
-  hollis: { kind: 'barrel', shirt: P.ging, pants: P.tea, shoes: P.walnut, hat: 'straw', hatColor: P.straw, overalls: true, brows: 'angry', mouth: 'frown' },
+  hollis: { kind: 'barrel', shirt: P.ging, pants: P.tea, shoes: P.walnut, hairColor: '#C7652E', hat: 'straw', hatColor: P.straw, overalls: true, brows: 'angry', mouth: 'frown', nose: 'potato', mustache: 'bushy' },
   fizzco: { kind: 'block', headShape: 'block', shirt: P.cola, sleeve: P.cola, pants: '#2b2b38', shoes: '#1d1d26', hairColor: '#2b2b38', hat: 'flattop', eyes: 'shades', brows: 'flat', mouth: 'flat', nose: 'square', earpiece: true },
   coldbrew: SPECS.henchman,
-  blenders: { kind: 'vee', shirt: P.mango, sleeve: '#E7A16E', pants: P.lagoon, shoes: P.lagoon, hat: 'visor', hatColor: P.lagoon, brows: 'angry', mouth: 'grin', nose: 'zinc', waves: P.lagoon },
+  blenders: { kind: 'vee', shirt: P.mango, pants: P.lagoon, shoes: P.lagoon, hat: 'visor', hatColor: P.lagoon, brows: 'angry', mouth: 'grin', nose: 'zinc', waves: P.lagoon, tank: true, trim: P.lagoon },
 };
 
 /** A customer: soft hats or none, any skin from the ramp. `pick` is 0..1 noise for the choices. */
 export function customerSpec(pick: (k: number) => number, kind: BodyKind = 'pear'): FigureSpec {
-  const shirts = [P.terra, P.teal, P.green, P.blush, P.lemon, P.denim, '#9C8AD0', P.mango, P.cream];
+  const shirts = [P.terra, P.teal, P.green, P.blush, P.denim, '#9C8AD0', P.cream];
   const pants = [P.denim, P.plum, P.walnut, '#3b3f52', P.oat, P.teal];
   const hats: Hat[] = ['none', 'curly', 'bun', 'ponytail', 'bucket', 'bald', 'pigtails', 'propeller', 'cap'];
   const hairs = [P.walnut, '#241a14', '#C7652E', '#FBE29A', '#7A4A2A', '#F4EEE6'];
   const at = <T,>(a: readonly T[], k: number) => a[Math.floor(pick(k) * a.length) % a.length];
   return {
     kind, skin: at(SKINS, 1), shirt: at(shirts, 2), pants: at(pants, 3), shoes: at([P.plum, P.terra, P.walnut, '#ffffff'], 4),
-    hat: at(hats, 5), hatColor: at([P.terra, P.teal, P.lemon, P.blush], 6), hairColor: at(hairs, 7),
+    hat: at(hats, 5), hatColor: at([P.terra, P.teal, P.blush, P.cream], 6), hairColor: at(hairs, 7),
     mouth: at(['smile', 'smile', 'grin', 'o'] as const, 8), freckles: pick(9) < 0.3,
   };
 }

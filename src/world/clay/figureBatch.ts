@@ -19,6 +19,8 @@ export interface FigureBatch {
   readonly mesh: THREE.BatchedMesh;
   /** Draw every mesh under `root` that uses the batch's material through the batch. */
   track(root: THREE.Object3D): void;
+  /** Stop drawing a tracked figure (its instances are freed for the next one). */
+  untrack(root: THREE.Object3D): void;
   /** Copy poses into the batch. Call after the rigs are posed (on twos is enough). */
   sync(): void;
   /** Hide the whole batch (Bay View draws specks instead). */
@@ -76,6 +78,12 @@ export function createFigureBatch(material: THREE.Material, opts: { instances?: 
         parts.push({ mesh: m, id, geo: m.geometry });
       });
       tracked.push({ root, parts });
+    },
+    untrack(root) {
+      const i = tracked.findIndex((t) => t.root === root);
+      if (i < 0) return;
+      for (const p of tracked[i].parts) { mesh.deleteInstance(p.id); p.mesh.layers.set(0); instances--; }
+      tracked.splice(i, 1);
     },
     sync() {
       for (const t of tracked) {

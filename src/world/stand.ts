@@ -286,8 +286,10 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     time = f / 12;
     const { left, right } = lottieArms;
     const legs = [limbs[0], limbs[1]];
+    // the face first, so blinks and her dozing shut eyes get the last word
+    const want = reaction?.kind === 'cheer' ? 'yum' : 'neutral';
+    if (lottieFig.current !== want) lottieFig.face(want);
     lottieFig.pose({ lL: -1.4, lR: -1.4, headYaw: Math.sin(time * 0.5) * 0.2, shut: !awake }, f);
-    lottieFig.face(reaction?.kind === 'cheer' ? 'yum' : 'neutral');
     lottie.rotation.x = 0;
     lottie.position.y = SEAT_Y;
     fan.visible = false;
@@ -470,7 +472,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       animateReveal(dt);
       animateKnock(dt);
       lastTime = time;
-      animateLottie(time, !night, hot ?? false);
+      if (opts.lottie !== false) animateLottie(time, !night, hot ?? false);
       // Ringing: the handset hops on its cradle.
       const r = ringing ? Math.abs(Math.sin(time * 40)) * 0.05 * MOTION + 0.02 : 0;
       handset.position.y = 0.21 + r;

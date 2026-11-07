@@ -2,8 +2,9 @@
 // rig the world code expects, faces swap whole, and the crowd batch mirrors poses.
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeTownsfolk, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
-import { Figure, SPECS, type Face } from './figure.ts';
+import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
+import { CREWS, CROWD_DETAIL, Figure, SPECS, type Face } from './figure.ts';
+import { P } from './palette.ts';
 import { createFigureBatch, freezeFigures, PROXY_LAYER } from './figureBatch.ts';
 
 const mat = new THREE.MeshStandardMaterial();
@@ -41,6 +42,8 @@ describe('clay cast', () => {
       rigOk(f);
       const held = f.hand.children.length;
       expect(held, `${side} ${weapon}`).toBe(weapon === 'fists' ? 0 : 1);
+      // Pro Gear never costs a rival their iconic hat
+      if (side !== 'player') expect(crewSpec(side, { gear }).hat).toBe(crewSpec(side).hat);
     }
     expect(crewSpec('player', { gear: 'pro' }).hat).toBe('helmet');
     expect(crewSpec('player', { level: 4 }).chevrons).toBe(4);
@@ -49,13 +52,49 @@ describe('clay cast', () => {
     expect(crewSpec('player', { onGuard: true }).crossed).toBe(true);
   });
 
-  it('builds every customer segment within the crowd budget', () => {
+  it('builds every customer segment within the crowd budget (about 900 triangles a person)', () => {
+    let sum = 0;
     for (const seg of SEGS) for (let i = 0; i < 5; i++) {
-      const { fig } = makeCustomer(seg, i, mat, { detail: 0.5 });
+      const { fig } = makeCustomer(seg, i, mat, { detail: CROWD_DETAIL });
       rigOk(fig);
-      expect(fig.triangles(), seg).toBeLessThan(3500);
+      expect(fig.triangles(), seg).toBeLessThan(1600);
+      sum += fig.triangles();
     }
+    expect(sum / 40).toBeLessThan(1100);
     expect(makeCustomer('kids', 0, mat).fig.sp.kind).toBe('kid');
+  });
+
+  it('keeps customers out of lemon and the owners\' colours', () => {
+    const OWNER = [P.lemon, P.mango, P.lagoon, P.sw, P.ging, P.tea, P.cola, P.esp, P.oat, P.neon].map((c) => c.toLowerCase());
+    for (const seg of SEGS) for (let i = 0; i < 5; i++) {
+      const sp = segmentSpec(seg, i);
+      for (const c of [sp.shirt, sp.sleeve, sp.pants, sp.hatColor, sp.backpack, sp.lanyard]) if (c) expect(OWNER, `${seg} ${i}`).not.toContain(c.toLowerCase());
+    }
+  });
+
+  it('gives each crew family its parts', () => {
+    expect(CREWS.hollis).toMatchObject({ nose: 'potato', mustache: 'bushy' });
+    expect(crewSpec('sourwood')).toMatchObject({ eyes: 'lids', nose: 'long' });
+    expect(crewSpec('fizzco')).toMatchObject({ eyes: 'shades', nose: 'square' });
+    expect(crewSpec('coldbrew').eyes).toBe('lids');
+    expect(crewSpec('blenders')).toMatchObject({ nose: 'zinc', tank: true });
+    // tank tops: bare arms in the bro's own skin
+    const bro = makeCrew('blenders', { seed: 3 }, mat);
+    expect(bro.sp.sleeve).toBe(bro.sp.skin);
+  });
+
+  it('shows chevrons, tape and the weapon on a guard with arms crossed', () => {
+    const tri = (f: Figure) => f.body.geometry.index!.count;
+    const rookie = makeCrew('player', { onGuard: true, level: 0, weapon: 'fists' }, mat);
+    const legend = makeCrew('player', { onGuard: true, level: 4, weapon: 'fists' }, mat);
+    expect(tri(legend)).toBeGreaterThan(tri(rookie)); // four sleeve chevrons on the crossed arms
+    const bare = makeCrew('player', { onGuard: true, level: 0, weapon: 'clubs' }, mat);
+    expect(tri(rookie)).toBeGreaterThan(tri(bare)); // taped fists
+    expect(bare.rig.getObjectByName('weapon')).toBeTruthy(); // the bat leans by the leg
+    const dex = makeDex({ weapon: 'hatchets', gear: 'none', level: 2 }, mat);
+    expect(dex.sp.kind).toBe('lanky');
+    expect(dex.sp.vest).toBe(P.lemon);
+    expect(dex.rig.getObjectByName('weapon')).toBeTruthy();
   });
 
   it('swaps whole faces, keeps them through blinks, and shares them', () => {
@@ -97,6 +136,10 @@ describe('clay cast', () => {
     figs[0].face('yum');
     batch.sync();
     expect(batch.stats().geometries).toBe(before + 1);
+    // a figure that leaves stops drawing
+    batch.untrack(figs[0].root);
+    expect(batch.stats().instances).toBe(st.instances - st.instances / 3);
+    figs[0].root.traverse((o) => { if ((o as THREE.Mesh).isMesh) expect(o.layers.isEnabled(0)).toBe(true); });
   });
 
   it('freezes a posted watch into one draw', () => {

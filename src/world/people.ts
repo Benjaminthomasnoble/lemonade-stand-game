@@ -8,7 +8,7 @@
 // A buyer leaves with a cup, sips a few steps later and pulls a face.
 import * as THREE from 'three';
 import { kit } from './clay/kit.ts';
-import { Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
+import { CROWD_DETAIL, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
 import { holdProp, makeCustomer, segmentSpec, type SegmentLook } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
@@ -143,7 +143,7 @@ export function createCrowd(
   let weather: StreetWeather = 'warm';
   for (let i = 0; i < pool; i++) {
     const segment = SEGMENTS[i % SEGMENTS.length];
-    const { fig, prop } = makeCustomer(segment, Math.floor(i / SEGMENTS.length) % VARIANTS, K.fig, { detail: 0.5 });
+    const { fig, prop } = makeCustomer(segment, Math.floor(i / SEGMENTS.length) % VARIANTS, K.fig, { detail: CROWD_DETAIL });
     const obj = fig.root;
     obj.visible = false;
     obj.name = 'walker';
@@ -158,7 +158,7 @@ export function createCrowd(
     walkers.push({ obj, fig, segment, body, prop, umbrella, face: 'neutral', faceT: 0, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0, clap: 0 });
   }
   let queueSlot = 0;
-  let clock = 0, lastT = 0, lastF = -1;
+  let clock = 0, lastT = 0, lastF = -1, lastDetail = -1;
   const headY = (w: Walker) => (w.fig.height + 0.4) * w.base;
   const setFace = (w: Walker, face: Face, secs: number) => { w.face = face; w.faceT = secs; w.fig.face(face); };
 
@@ -249,11 +249,10 @@ export function createCrowd(
       if (w.photo > 0) w.photo = -1;
       w.phase += dt * w.speed * 3.2 * g.cadence;
       // The body's own walk on the rig, the world's hop on the root.
+      // The body's gait owns the stride; the segment's gait only adds its hop (kids, a huff).
       figureGait(fig, w.body, w.phase, f, tq);
       hopPose(w.obj, w.phase, w.base, 0.12, (w.huff ? 1.4 : g.hop) * 0.45);
-      const swing = Math.sin(w.phase) * g.swing;
-      limbs[0].rotation.x = swing;
-      limbs[1].rotation.x = -swing;
+      if (g.swing !== GAIT.stroll.swing) { const k = g.swing / GAIT.stroll.swing; limbs[0].rotation.x *= k; limbs[1].rotation.x *= k; }
       if (wet) { limbs[2].rotation.x = -2.6; limbs[2].rotation.z = 0.2; }
       if (w.segment === 'families') limbs[2].rotation.x = limbs[3].rotation.x = -0.9; // pushing the stroller
       w.obj.rotation.x = w.huff ? 0.12 : w.gait === 'shuffle' ? 0.08 : 0;
@@ -320,12 +319,14 @@ export function createCrowd(
     update(dt, speedScale) {
       clock += dt * Math.min(speedScale, 4);
       const f = Math.floor(clock * 12);
+      // Zoom works while paused too: the batch follows the detail level even when the clock stands still.
+      const detail = (scene.userData.detail as number | undefined) ?? 0;
+      if (detail !== lastDetail) { lastDetail = detail; batch.setVisible(detail < 2); batch.sync(); }
       if (f === lastF) return;
       lastF = f;
       step(clock - lastT, f);
       lastT = clock;
-      batch.setVisible((scene.userData.detail ?? 0) < 2);
-      batch.sync();
+      if (detail < 2) batch.sync();
     },
     clear() {
       for (const w of walkers) { w.active = false; w.obj.visible = false; }

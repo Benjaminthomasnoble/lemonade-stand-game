@@ -16,7 +16,7 @@ import { Baker, sph, cap, cyl, cone, lumpy, canvasTex } from './clay/core.ts';
 import { P } from './clay/palette.ts';
 import { kit } from './clay/kit.ts';
 import { Figure, GAIT_OF, gait } from './clay/figure.ts';
-import { makeCrew } from './clay/cast.ts';
+import { BOSS_OF, makeBoss, makeCrew } from './clay/cast.ts';
 import { createFigureBatch, type FigureBatch } from './clay/figureBatch.ts';
 import { createFx, starGeometry, reducedMotion, onPhone } from './clay/fx.ts';
 import { goose } from './clay/creatures.ts';
@@ -403,6 +403,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         }
         o.rotation.y = Math.atan2(d.x, d.z) + (u.state === 'home' ? Math.sin(u.zig * 6) * 0.4 : 0);
         u.phase += dt * (u.state === 'fled' ? 14 : 9);
+        if (fig.flexing) fig.flex(false);
         if (u.state === 'home') fig.pose({ lift: Math.abs(Math.sin(u.phase)) * 0.04, sway: Math.sin(u.phase) * 0.25, lL: Math.sin(u.phase) * 0.5, lR: -Math.sin(u.phase) * 0.5, aL: [-0.4, 0.8], aR: [-0.4, -0.8], headRoll: Math.sin(u.phase * 0.8) * 0.3 }, f);
         else gait(fig, GAIT_OF[fig.sp?.kind ?? 'pear'] ?? 'bob', u.phase, f, tq);
       } else if (homeward) {
@@ -421,8 +422,15 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         if (Math.random() < 0.04) fx.dust(o.position.clone().setY(0.6), 1, 0.3);
       } else if (u.swing > 0) {
         u.swing -= dt;
+        if (fig.flexing) fig.flex(false);
         const k = Math.sin(Math.PI * (1 - u.swing / 0.35));
         fig.pose({ sq: k * 0.06, lean: k * 0.15, aR: [-2.2 * k, -0.2], aL: [-0.6, 0.3] }, f);
+      } else if (o.userData.boss === 'brock') {
+        fig.pose({ sq: Math.sin(tq * 6) > 0.6 ? 0.05 : 0, headTilt: -0.1 }, f);
+        fig.flex(true); // the double-bicep flex
+      } else if (o.userData.boss === 'vera') {
+        const tap = f % 12 < 3; // the silver-tipped cane taps on every beat
+        fig.pose({ aR: [tap ? 0.3 : 0.12, -0.1], lift: tap ? 0.01 : 0, headTilt: -0.08 }, f);
       } else {
         fig.pose({ sq: Math.sin(tq * 6 + u.phase) > 0.6 ? 0.04 : 0, lean: 0.08, aL: [-1.2, 0.35], aR: [-1.2, -0.35] }, f);
       }
@@ -475,8 +483,11 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         const isAtt = f.side === 'att';
         const owner = (isAtt ? r.attacker : r.defender) as Owner;
         // the crew's own look and tier weapon; Pro Gear (the only armour) shows as helmet and pads
-        const fig = makeCrew(owner, { weapon: f.weapon, gear: f.armor > 0 ? 'pro' : 'none', seed: i + 1 }, kit().fig, { detail: lowDetail ? 0.5 : 1 });
+        // The HQ Boss Room's boss fights as themselves: Vera taps her cane, Brock flexes.
+        const boss = owner !== 'player' && f.id.includes('-boss-') ? BOSS_OF[owner as keyof typeof BOSS_OF] : undefined;
+        const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? 0.5 : 1 }) : makeCrew(owner, { weapon: f.weapon, gear: f.armor > 0 ? 'pro' : 'none', seed: i + 1 }, kit().fig, { detail: lowDetail ? 0.5 : 1 });
         const obj = fig.root;
+        obj.userData.boss = boss;
         const spread = (i - (n - 1) / 2) * Math.min(1.1, 9 / Math.max(1, n));
         obj.position.copy(isAtt ? local(spread, 10 + Math.random() * 2) : local(spread * 0.8, 0.9 + (i % 2) * 0.6));
         const target = isAtt ? local(spread, fenced ? 3.1 : 1.8) : obj.position.clone();

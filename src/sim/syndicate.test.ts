@@ -155,6 +155,23 @@ describe("the Syndicate's strikes", () => {
     }
   });
 
+  it("before it stands, Threat 5's raids on you are all Smash as well: none is a Sabotage, where Threat 4's can be", () => {
+    const rates = { ...RIVAL_SABOTAGE };
+    for (const r of Object.keys(RIVAL_SABOTAGE) as RivalId[]) RIVAL_SABOTAGE[r] = 1; // any raid that can be a Sabotage is one
+    try {
+      const base = pactEvening('classic', 15);
+      delete base.syndicate; // Rank 9 tonight; the Pact forms at dawn (or, in the campaign, two weeks into Act 5)
+      expect([threatLevel(base), syndicateFormed(base)]).toEqual([5, false]);
+      const sent = strikes(base, 40).flat();
+      expect(sent.length).toBeGreaterThan(20);
+      expect(sent.every((r) => !r.syndicate && r.objective === 'smash' && !r.sabotage)).toBe(true);
+      base.rank = 8; // Threat 4: 30% Shakedown, and crew's Sabotage
+      expect(strikes(base, 40).flat().some((r) => r.sabotage)).toBe(true);
+    } finally {
+      Object.assign(RIVAL_SABOTAGE, rates);
+    }
+  });
+
   it('the first one comes the night it forms', () => {
     const base = pactEvening('laidback', 9);
     base.syndicate = { formed: base.day };

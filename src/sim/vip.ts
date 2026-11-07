@@ -67,8 +67,8 @@ export const VIP_MAX_GAP = 10;
 export const DEAL_LOADS = 4;
 export const GROVE_TRAFFIC = 0.05;
 export const MAX_GROVES = 2;
-/** Pickup minute: choppers at 2 pm, ships at 10 am. */
-export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 20 * 60, caterer: 20 * 60, heli: 14 * 60, ship: 10 * 60, deal: 10 * 60 };
+/** Pickup minute: choppers at 5:30 pm, in the golden hour (spec mood scene "The first helicopter"), ships at 10 am. */
+export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 20 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60 };
 
 const CLIENTS: Record<OrderTier, string[]> = {
   local: ['the Maple Row Block Party', 'Little League Opening Day', 'the Old Town Bake Sale', 'the Campus Book Fair', 'a Fire Station Open House'],

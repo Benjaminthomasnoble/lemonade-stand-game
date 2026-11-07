@@ -62,6 +62,13 @@ export interface Bay {
   update(s: GameState, time: number, ringing?: boolean, focus?: THREE.Vector3): void;
   pick(ndc: THREE.Vector2, camera: THREE.Camera): string | null;
   select(id: string | null): void;
+  /**
+   * Hold a plot as it looked before a fight (`before` is its plot state then): sync leaves it alone until
+   * release, so a brawl or a replay never shows its outcome (a wreck, a captured HQ) from the first frame.
+   */
+  stage(s: GameState, id: string, before: GameState['plots'][string]): void;
+  /** Let a staged plot follow the game again (the next sync rebuilds it as it is now). */
+  release(id?: string): void;
 }
 
 const ownerColor = (owner: string | null) =>
@@ -382,6 +389,7 @@ export function createBay(scene: THREE.Scene): Bay {
   /** A stand's HP share as the damage step it shows: torn at 75%, sign down at 50%, slumped at 25%. */
   const hpStep = (ps: GameState['plots'][string]) => { const h = hpShare(ps); return h > 0.75 ? 1 : h > 0.5 ? 0.75 : h > 0.25 ? 0.5 : 0.25; };
   let synced = false;
+  const held = new Set<string>(); // plots staged as they were before the fight on screen
   const movers = new Map<PlotView, THREE.Object3D[]>();
   let moverF = -1;
   // Posted guards stay alive: every watch in town draws through one batch and poses on twos
@@ -568,8 +576,18 @@ export function createBay(scene: THREE.Scene): Bay {
 
   return {
     views,
+    stage(s, id, before) {
+      const v = views[id];
+      if (!v) return;
+      held.add(id);
+      v.key = 'staged';
+      v.root.updateMatrixWorld(true);
+      rebuild(v, { ...s, plots: { ...s.plots, [id]: before } });
+    },
+    release(id) { if (id) held.delete(id); else held.clear(); },
     sync(s) {
       for (const v of viewList) {
+        if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
         const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }

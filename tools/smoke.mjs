@@ -156,7 +156,7 @@ try {
   if (built !== 'helipad,pier') fail(`facilities not built: ${built}`);
   // These waits run on game time, which advances per rendered frame: when other headless runs share the
   // container, software WebGL can drop well under 1 fps, so they get minutes, not seconds.
-  for (const [tier, plot, minute, shot] of [['heli', sites.field, 14 * 60, '12-helicopter'], ['ship', sites.dock, 10 * 60, '13-ship']]) {
+  for (const [tier, plot, minute, shot] of [['heli', sites.field, 17 * 60 + 30, '12-helicopter'], ['ship', sites.dock, 10 * 60, '13-ship']]) {
     await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
     await page.evaluate(([tier, plot]) => {
       const g = window.__game, st = g.state;
@@ -175,7 +175,8 @@ try {
     await page.click('[data-testid="vip-watch"] >> nth=0');
     await page.waitForFunction(() => window.__game.vip(), null, { timeout: 90000 });
     // Pause holds the scene too, so the clock runs on (a client's first visit holds it by itself for the show).
-    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 180000 });
+    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, 3.5, // the loading beat (the shows run 6 s)
+      { timeout: 180000 });
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
 

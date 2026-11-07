@@ -277,6 +277,43 @@ const buttonWheel = (r: number) => {
   for (let k = 0; k < 4; k++) W.add(cyl(r * 0.13, r * 0.13, r * 0.58, 8), '#151325', { p: [0, Math.cos(k * 1.571 + 0.78) * r * 0.29, Math.sin(k * 1.571 + 0.78) * r * 0.29], r: [0, 0, Math.PI / 2] });
   return W.build();
 };
+/** Popsicle-stick crate tints: no two neighbours quite the same. */
+export const CRATE_TINTS = ['#C79A62', '#D9AE72', '#B88A55', '#E0B886'];
+/**
+ * A popsicle-stick citrus crate (centre of its base at x, y, z): pressed slat seams and corner battens, a
+ * masking-tape label, and 3 to 6 lemons of mixed sizes heaped unevenly on top. `pink` fills it with
+ * pink-lemonade bottles instead (the VIP order).
+ */
+export function citrusCrate(B: Baker, x: number, y: number, z: number, w: number, h: number, d: number, seed: number, pink = false) {
+  const tint = CRATE_TINTS[Math.floor(hash(seed, 3) * CRATE_TINTS.length)];
+  const seam = '#9C7444', yaw = (hash(seed, 5) - 0.5) * 0.14;
+  const at = (dx: number, dz: number): [number, number] => [x + dx * Math.cos(yaw) + dz * Math.sin(yaw), z - dx * Math.sin(yaw) + dz * Math.cos(yaw)];
+  const put = (geo: THREE.BufferGeometry, c: string, dx: number, dy: number, dz: number, fx = PAPER) => { const [px, pz] = at(dx, dz); B.add(geo, c, { p: [px, y + dy, pz], r: [0, yaw, 0], fx }); };
+  put(rbox(w, h, d, 0.04, 2), tint, 0, h / 2, 0);
+  for (const k of [1, 2]) put(box(w + 0.02, h * 0.035, d + 0.02), seam, 0, (h * k) / 3, 0); // slat seams pressed into the sides
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(box(w * 0.08, h * 1.02, d * 0.08), shade(tint), sx * (w / 2 - w * 0.03), h / 2, sz * (d / 2 - d * 0.03));
+  put(rbox(w * 0.46, h * 0.3, 0.02, 0.02, 1), P.cream, (hash(seed, 7) - 0.5) * w * 0.2, h * 0.52, d / 2 + 0.012); // a tape label
+  put(sph(h * 0.07, 8, 6), pink ? '#F27FA0' : P.lemon, (hash(seed, 7) - 0.5) * w * 0.2, h * 0.52, d / 2 + 0.03);
+  if (pink) {
+    put(box(w + 0.03, h * 0.12, d + 0.03), '#F27FA0', 0, h * 0.82, 0); // pink tape round the top: the VIP order
+    for (let k = 0; k < 6; k++) {
+      const bx = ((k % 3) - 1) * w * 0.28, bz = (Math.floor(k / 3) - 0.5) * d * 0.4;
+      put(cyl(w * 0.09, w * 0.1, h * 0.5, 10), '#F7A8C0', bx, h * 0.95, bz, GLOSS);
+      put(cyl(w * 0.06, w * 0.06, h * 0.08, 8), P.cream, bx, h * 1.24, bz);
+    }
+    return;
+  }
+  const n = 3 + Math.floor(hash(seed, 11) * 4);
+  for (let k = 0; k < n; k++) {
+    const r = Math.min(w, d) * (0.15 + hash(seed, 20 + k) * 0.08);
+    const lx = (hash(seed, 40 + k) - 0.5) * (w - r * 2), lz = (hash(seed, 60 + k) - 0.5) * (d - r * 2);
+    const ly = h + r * (0.4 + (k >= 3 ? 1.1 : 0) + hash(seed, 80 + k) * 0.25); // a few ride up on the first layer
+    const [px, pz] = at(lx, lz);
+    B.add(lumpy(sph(r, 9, 7), 0.012, 10, seed + k), P.lemon, { p: [px, y + ly, pz], s: [1.25, 1, 1], r: [0, hash(seed, 90 + k) * 3, 0.3] });
+  }
+}
+const shade = (hex: string) => { const c = new THREE.Color(hex).multiplyScalar(0.82); return '#' + c.getHexString(); };
+
 export interface Truck { group: THREE.Group; body: THREE.Object3D; wheels: THREE.Object3D[] }
 /** A clay box truck stacked with lemon crates, on button wheels. */
 export function truck(cab: string = P.terra, skin: string = P.skin): Truck {
@@ -299,10 +336,9 @@ export function truck(cab: string = P.terra, skin: string = P.skin): Truck {
   }
   B.add(rbox(1.75, 0.18, 0.2, 0.08, 2), ROAD_GREY, { p: [0, 0.48, 2.55], fx: GLOSS });
   B.add(rbox(1.8, 0.2, 2.2, 0.06, 2), P.walnut, { p: [0, 0.55, -0.9], fx: PAPER });
-  for (const [x, yy, z] of [[-0.42, 0.95, -0.4], [0.42, 0.95, -0.4], [-0.42, 0.95, -1.4], [0.42, 0.95, -1.4], [0, 1.6, -0.9]]) {
-    B.add(rbox(0.78, 0.6, 0.86, 0.04, 2), '#C79A62', { p: [x, yy, z], r: [0, (hash(x, z) - 0.5) * 0.15, 0], fx: PAPER });
-    for (let k = 0; k < 4; k++) B.add(lumpy(sph(0.13, 8, 6), 0.01, 10, k), P.lemon, { p: [x - 0.18 + (k % 2) * 0.36, yy + 0.32, z - 0.18 + Math.floor(k / 2) * 0.36], s: [1.3, 1, 1] });
-  }
+  // popsicle-stick citrus crates, four on the bed and one riding on top, lemons heaped every which way
+  [[-0.42, 0.65, -0.4], [0.42, 0.65, -0.4], [-0.42, 0.65, -1.4], [0.42, 0.65, -1.4], [0.05, 1.27, -0.9]].forEach(([x, yy, z], k) =>
+    citrusCrate(B, x, yy, z, 0.78, 0.6, 0.86, Math.round(hash(cab.length + k, skin.length) * 97) + k * 13));
   body.add(mesh(B.build()));
   const wg = buttonWheel(0.45);
   const wheels: THREE.Object3D[] = [];

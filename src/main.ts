@@ -23,7 +23,7 @@ import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
-import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
+import { approveRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
   saveUnreadable, slotList,
@@ -39,7 +39,7 @@ import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
 import { createBubbles } from './world/bubbles.ts';
-import { FACTIONS } from './sim/balance.ts';
+import { FACTIONS, PERIMETERS } from './sim/balance.ts';
 import type { Emote } from './ui/emotes.ts';
 import { createPhone } from './ui/phone.ts';
 import { createBugle } from './ui/bugle.ts';
@@ -150,7 +150,7 @@ async function main() {
     cutScene(); // the show takes the screen: a story scene stops
     crowd.clear();
     focusPlot(a.plot, a.scene.kind === 'ship' ? 60 : 45);
-    vip.play(a.scene.kind, bay.views[a.plot], a.scene.big, state.plots[a.plot].facility?.level ?? 1, a.scene.client);
+    playVip(a.scene.kind, a.plot, a.scene.big, a.scene.client ?? '', a.kind === 'vip');
     stinger('raid-won');
     if (a.kind === 'vip' && autoPauses(options, state, 'vip')) vipResume = 1;
     if (vipPaused === a.id) resume();
@@ -164,7 +164,7 @@ async function main() {
     if (i >= 0) state.news.splice(i, 1);
     if (state.fight || (battle.active() && liveFight)) fightQueue.push(b); else playBattle(b, true);
   };
-  const stopFights = () => { battle.stop(); fightQueue.length = 0; liveFight = false; };
+  const stopFights = () => { battle.stop(); bay.release(); fightQueue.length = 0; liveFight = false; };
   /** Swap in a loaded run (a dawn, a slot): whatever was on screen goes, and a mid-day save waits paused. */
   const restore = (s: GameState, line: string) => {
     state = s;
@@ -328,7 +328,13 @@ async function main() {
   const resetScene = () => { scenes.stop(); sceneT = 0; sceneWorld = false; };
   let callsQuietUntil = 0; // a rank-up's fanfare outranks a boss's call
 
-  const vip = createVip(world.scene, { onHorn: () => audio.horn() });
+  let vipHeadline = '';
+  const vip = createVip(world.scene, { onHorn: () => audio.horn(), onPhoto: () => snap(vipHeadline, 5) });
+  /** A VIP show; a client's first visit gets the Bugle's photo of the loading (spec mood scene "The first helicopter"). */
+  const playVip = (kind: 'heli' | 'ship', plot: string, big: boolean, client: string, first: boolean) => {
+    vipHeadline = (kind === 'heli' ? `Chopper lands at Lottie's pad for ${client || 'a VIP'}` : `Lottie's Lemonade ships out for ${client || 'a VIP'}`).toUpperCase();
+    vip.play(kind, bay.views[plot], big, state.plots[plot].facility?.level ?? 1, client, first);
+  };
   const traffic = createTraffic(world.scene);
   /** What the clock did, on screen. Skips (Finish the day, Sleep till dawn) pass live = false: no scenes, except a
    * VIP client's first visit, which stops the skip (a major alert). A first visit that paused waits for Watch;
@@ -344,7 +350,7 @@ async function main() {
       if (!e.ok || !o.plot || !isVip(o.tier) || (!live && !first)) continue;
       flushNews();
       if (first && autoPauses(options, state, 'vip')) continue; // the show waits for its card's Watch
-      vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1, o.client);
+      playVip(bySea(o.tier) ? 'ship' : 'heli', o.plot, o.qty > 20000, o.client ?? '', first);
       stinger('raid-won');
     }
     const t = world.controls.target;
@@ -381,8 +387,18 @@ async function main() {
       audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
     },
   }, { phone: world.quality === 'phone' });
+  /** A plot as it stood before a settled fight: the defender's, standing, at the report's level, fence and gadgets. */
+  const beforeFight = (ps: PlotState, b: BattleReport): PlotState => ({
+    ...ps,
+    owner: b.defender,
+    busted: false,
+    stand: ps.stand ? { ...ps.stand, wrecked: false, level: b.standLevel || ps.stand.level, hp: ps.stand.wrecked || ps.stand.hp === undefined ? undefined : ps.stand.hp + (b.hpLost ?? 0) } : ps.stand,
+    facility: ps.facility ? { ...ps.facility, wrecked: false } : ps.facility,
+    defense: { ...ps.defense, tier: b.perimeter || ps.defense.tier, fenceHp: ps.defense.fenceHp > 0 || !b.perimeter ? ps.defense.fenceHp : PERIMETERS[b.perimeter - 1]?.hp ?? 0, gadgets: b.gadgets ?? ps.defense.gadgets },
+  });
   /** A fight is over on screen: the headline, the stinger and Lottie (the boss's call rings from the sim's phone queue). */
   const fanfare = (b: BattleReport) => {
+    bay.release(b.target); // the dust settles: the plot shows how it came out
     hud.toast(battleHeadline(b)); stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
     snap(battleHeadline(b).toUpperCase(), 5);
     if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
@@ -395,6 +411,10 @@ async function main() {
     focusPlot(b.target, 20);
     liveFight = live;
     onScreen = undefined;
+    // The sim has already settled this one (a replay, a queued brawl, a stormed HQ): stage the plot as it stood
+    // before the fight, so the wreck or the captured HQ only shows when the dust settles.
+    bay.release();
+    if (state.plots[b.target]) bay.stage(state, b.target, beforeFight(state.plots[b.target], b));
     battle.play(b, bay.views[b.target], () => {
       liveFight = !!state.fight;
       nextOnScreen();
@@ -416,6 +436,7 @@ async function main() {
     focusPlot(r.target, 20);
     liveFight = true;
     onScreen = f;
+    bay.release(); // a live fight settles as it plays: its plot follows the game
     battle.play(r, bay.views[r.target], () => {
       const stage = !!f.hq && state.fight?.hq?.reports === f.hq.reports; // the next door of the same assault
       liveFight = !!state.fight;
@@ -784,7 +805,8 @@ async function main() {
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
-    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '') => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client); },
+    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '', first = false) => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client, first); },
+    vipSkip: () => vip.skip(),
     dex: () => welcomeDex(state),
     coach: () => ({ step: coach.current(), seen: [...coach.memory().seen], off: coach.memory().off }),
     focus: (id: string) => focusPlot(id, 18),

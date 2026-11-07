@@ -289,7 +289,7 @@ Fights run in every mode at 1 game minute per real second. In the campaign, the 
 | Supply Deals (recurring) | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles in 4 weekly loads of 50,000 | 28 days | 30 ($1.5M a load, $6M a deal) | The first as soon as the Cargo Terminal stands, then about 1 per 7 days; never more than 10 days apart; several can run at once if your bottling keeps up |
 | Mega Contracts (stretch goal) | Rank 9, 4.5 stars | Heliport + Cargo Terminal + 2 premium recipes | 100,000–150,000 bottles | 14 days | 100 ($10M–$15M a contract) | About 1 per 20 days |
 
-A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry. Pay arrives with each pickup. Once a facility tier stands, its client type offers at least one job every 10 days; you may still turn any offer down. In the simulation, VIP clients (helicopters, ships and Supply Deals) earn about 11% of revenue on Days 52–96, 18% on Days 97–136 and 20% after that.
+A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry. Pay arrives with each pickup. Choppers land at 17:30, in the golden hour (the mood scene "The first helicopter"); ships and Supply Deal loads come in at 10:00. Once a facility tier stands, its client type offers at least one job every 10 days; you may still turn any offer down. In the simulation, VIP clients (helicopters, ships and Supply Deals) earn about 11% of revenue on Days 52–96, 18% on Days 97–136 and 20% after that.
 
 ### VIP facilities
 

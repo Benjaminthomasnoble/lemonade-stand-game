@@ -127,7 +127,7 @@ try {
   await page.waitForTimeout(6000);
   await page.screenshot({ path: 'test-results/11-night-replay.png' });
 
-  // Milestone 5: build a helipad and a pier through the plot card, then watch a chopper and a ship pick up.
+  // Milestone 5: build a Pad and a pier through the plot card, then watch a chopper and a ship pick up.
   const sites = await page.evaluate(() => {
     const g = window.__game, st = g.state;
     for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
@@ -135,6 +135,7 @@ try {
     const field = Object.keys(st.plots).find((id) => id.startsWith('groves') && st.plots[id].owner === 'hollis' && !st.plots[id].stand);
     const dock = Object.keys(st.plots).find((id) => id.startsWith('harbor') && st.plots[id].owner === 'fizzco' && !st.plots[id].stand);
     for (const id of [field, dock]) st.plots[id].owner = 'player';
+    delete st.plots[field].facility; st.plots[field].invested = 0; // Hollis's Fields start with Lemon Groves: clear one for the Pad
     g.act({ type: 'refresh' });
     return { field, dock };
   });

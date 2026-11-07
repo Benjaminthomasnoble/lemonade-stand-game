@@ -14,7 +14,7 @@ import {
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
-import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
+import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
@@ -266,11 +266,11 @@ function seedRivals(s: GameState, rng: Rng): void {
     }
   }
   // Field and Dock land starts in rival hands (spec section 14): Hollis holds the
-  // Groves fields, FizzCo the Harbor docks, Sourwood Hilltop's polo lawn and marina.
+  // Groves fields, FizzCo the Harbor docks and bottling plant, Sourwood Hilltop's polo lawn and marina.
   const holder: Partial<Record<string, RivalId>> = { groves: 'hollis', harbor: 'fizzco', hilltop: 'sourwood' };
   for (const p of PLOTS) {
     const owner = holder[p.district];
-    if (owner && (p.type === 'field' || p.type === 'dock') && !s.plots[p.id].owner) {
+    if (owner && (p.type === 'field' || p.type === 'dock' || p.id === FIZZCO_PLANT) && !s.plots[p.id].owner) {
       s.plots[p.id] = { owner, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
     }
   }

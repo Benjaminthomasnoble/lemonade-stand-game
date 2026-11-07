@@ -3,7 +3,8 @@ import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
-  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, type BattleReport, type GameState, type RivalId,
+  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
+  GROVE_TRAFFIC, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -401,5 +402,41 @@ describe('rival cash growth', () => {
       }
     }
     expect(RIVALS.filter((id) => s.rivals[id].trade!.scale < 1).length).toBeGreaterThanOrEqual(2); // the small gangs carry overheads
+  });
+});
+
+describe('rival start holdings', () => {
+  it('FizzCo starts with the Harbor bottling plant and its Bottling Works; the Old Cannery is open', () => {
+    const s = newGame(25);
+    const plant = PLOTS.find((p) => p.id === FIZZCO_PLANT)!;
+    expect(plant.name).toBe('FizzCo Bottling Plant');
+    expect(s.plots[plant.id].owner).toBe('fizzco');
+    expect(s.plots[plant.id].facility).toEqual({ kind: 'bottling', level: 1 });
+    expect(s.plots[plant.id].invested).toBe(FACILITIES.bottling.costs[0]);
+    expect(s.rivals.fizzco.peakPlots).toBe(ownedPlots(s, 'fizzco').length); // counted for Weakened
+    expect(ownedPlots(s, 'fizzco').map((p) => p.id)).toContain(plant.id);
+    const cannery = PLOTS.find((p) => p.name === 'Old Cannery')!;
+    expect(s.plots[cannery.id].owner).toBeNull();
+    for (const p of PLOTS.filter((q) => q.district === 'harbor' && q.type === 'dock')) expect(s.plots[p.id].owner).toBe('fizzco');
+  });
+
+  it('every one of Hollis\'s six Fields holds a Lemon Grove you can smash', () => {
+    const s = newGame(26);
+    s.rank = 9;
+    const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field');
+    expect(fields.length).toBe(6);
+    for (const p of fields) {
+      expect(s.plots[p.id].owner).toBe('hollis');
+      expect(s.plots[p.id].facility).toEqual({ kind: 'grove', level: 1 });
+      expect(s.plots[p.id].invested).toBe(FACILITIES.grove.costs[0]);
+      expect(canRaid(s, p.id, [s.guards[0]?.id ?? 'g1'])).not.toEqual({ ok: false, why: 'Pick a rival stand or facility' });
+    }
+  });
+
+  it('only two Lemon Groves add traffic, even when you take more from Hollis', () => {
+    const s = newGame(27);
+    const fields = PLOTS.filter((p) => p.district === 'groves' && p.type === 'field').slice(0, 3);
+    for (const p of fields) s.plots[p.id].owner = 'player';
+    expect(groveTraffic(s)).toBeCloseTo(MAX_GROVES * GROVE_TRAFFIC, 5);
   });
 });

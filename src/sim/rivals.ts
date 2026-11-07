@@ -69,15 +69,28 @@ export const ATTENTION = { threat: 1, border: 0.5, customers: 10, grudge: 0.1, j
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 
-/** Rivals hold a few VIP facilities on their Fields and Docks: worth knocking down. */
+/** FizzCo's Harbor plot (spec: The Harbor is FizzCo's bottling plant and Docks; the rest open lots). */
+export const FIZZCO_PLANT = 'harbor-3n';
+/** Level of the plant's Bottling Works at the start (placeholder: the spec gives none). */
+export const FIZZCO_PLANT_LEVEL = 1;
+
+/**
+ * Rivals hold VIP facilities on their land, worth knocking down: FizzCo's Bottling Works at the Harbor plant and a
+ * Jetty, Sourwood's Helipad and marina Jetty, and a Lemon Grove on each of Hollis's Fields.
+ */
 export function seedRivalFacilities(s: GameState): void {
-  const want: [RivalId, string, FacilityKind, number][] = [['hollis', 'groves', 'helipad', 1], ['fizzco', 'harbor', 'pier', 1], ['sourwood', 'hilltop', 'helipad', 2], ['sourwood', 'hilltop', 'pier', 1]];
+  const put = (plotId: string, kind: FacilityKind, level: number) => {
+    s.plots[plotId].facility = { kind, level };
+    s.plots[plotId].invested = FACILITIES[kind].costs.slice(0, level).reduce((a, b) => a + b, 0);
+  };
+  if (s.plots[FIZZCO_PLANT].owner === 'fizzco') put(FIZZCO_PLANT, 'bottling', FIZZCO_PLANT_LEVEL);
+  const want: [RivalId, string, FacilityKind, number][] = [['fizzco', 'harbor', 'pier', 1], ['sourwood', 'hilltop', 'helipad', 2], ['sourwood', 'hilltop', 'pier', 1]];
   for (const [id, district, kind, level] of want) {
     const p = PLOTS.find((q) => q.district === district && s.plots[q.id].owner === id && FACILITIES[kind].on.includes(q.type) && !s.plots[q.id].facility);
-    if (!p) continue;
-    s.plots[p.id].facility = { kind, level };
-    s.plots[p.id].invested = FACILITIES[kind].costs.slice(0, level).reduce((a, b) => a + b, 0);
+    if (p) put(p.id, kind, level);
   }
+  // canon: "Hollis's 6 starting Fields hold Lemon Groves."
+  for (const p of PLOTS) if (p.district === 'groves' && p.type === 'field' && s.plots[p.id].owner === 'hollis' && !s.plots[p.id].facility) put(p.id, 'grove', 1);
 }
 
 // ---------- Weakened ----------

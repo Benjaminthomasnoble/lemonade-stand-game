@@ -11,11 +11,11 @@ function vipGame(seed: number) {
   s.rank = 7;
   s.reputation = 4.5;
   s.cash = 3_000_000;
-  // Hand the player a field, a dock and an industrial lot.
-  const field = PLOTS.find((p) => p.type === 'field' && !s.plots[p.id].facility)!;
+  // Hand the player a field (cleared of Hollis's Lemon Grove), a dock and an industrial lot.
+  const field = PLOTS.find((p) => p.type === 'field')!;
   const dock = PLOTS.find((p) => p.type === 'dock' && !s.plots[p.id].facility)!;
   const lot = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
-  for (const p of [field, dock, lot]) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null };
+  for (const p of [field, dock, lot]) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null, facility: undefined, invested: 0 };
   return { s, field, dock, lot };
 }
 

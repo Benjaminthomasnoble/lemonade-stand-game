@@ -93,7 +93,7 @@ export const facilitiesFor = (type: PlotType) => (Object.keys(FACILITIES) as Fac
 
 /** Lemon Groves add foot traffic at all your stands: +5% each, +10% with the Hollis Orchards trophy. */
 export function groveTraffic(s: GameState): number {
-  return facilityPlots(s, 'grove').length * GROVE_TRAFFIC * (hasTrophy(s, 'hollis') ? 2 : 1);
+  return Math.min(MAX_GROVES, facilityPlots(s, 'grove').length) * GROVE_TRAFFIC * (hasTrophy(s, 'hollis') ? 2 : 1); // up to 2 count, even taken from Hollis
 }
 
 export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKind): Blocker {

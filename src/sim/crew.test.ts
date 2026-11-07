@@ -13,6 +13,8 @@ import {
 import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
+import { reserveMinutes } from './reinforce.ts';
+import { BORDERS } from './map.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
@@ -485,10 +487,14 @@ describe('district control on defense', () => {
     expect(holdsStronghold(s, 'maple')).toBe(false);
     expect(strongholdTravelMult(s, 'maple')).toBe(1);
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    const club = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && p.id !== LOTTIES_CORNER)!.id;
+    const over = PLOTS.find((p) => p.district === BORDERS.maple[0] && p.type === 'street')!.id;
+    expect([reserveMinutes(s, club, LOTTIES_CORNER), reserveMinutes(s, over, LOTTIES_CORNER)]).toEqual([30, 60]);
     own(s, 'maple', 9); // 9 of 12 = 75%
     expect(holdsStronghold(s, 'maple')).toBe(true);
     expect(strongholdTravelMult(s, 'maple')).toBe(0.5);
     expect(strongholdTravelMult(s, 'harbor')).toBe(1);
+    expect([reserveMinutes(s, club, LOTTIES_CORNER), reserveMinutes(s, over, LOTTIES_CORNER)]).toEqual([15, 30]); // Ring the Bell gets there in half the time
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6);
     expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.35);
     s.plots['harbor-1n'].owner = 'player';

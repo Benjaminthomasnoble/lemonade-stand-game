@@ -10,17 +10,15 @@
 // head count for the Nerve check, and when the raid is done they're back at
 // their Clubhouse. Pure, like the rest of the sim.
 import { FIGHT_SECONDS_PER_GAME_MINUTE, RESERVE_MINUTES } from './balance.ts';
-import { BORDERS, PLOT_BY_ID, type DistrictId } from './map.ts';
+import { BORDERS, PLOT_BY_ID } from './map.ts';
 import type { BattleInput, Fighter } from './combat.ts';
 import { clubhouses, reserveAt } from './clubhouse.ts';
-import { guardFighter, guardReady, type Guard, type Raid } from './crew.ts';
+import { guardFighter, guardReady, strongholdTravelMult, type Guard, type Raid } from './crew.ts';
 import { joinFight } from './fight.ts';
 import type { GameState } from './economy.ts';
 
-/** crew's strongholdTravelMult(s, districtId) once stronghold-effects merges (0.5 while you hold a Stronghold). */
-const strongholdTravelMult = (_s: GameState, _district: DistrictId): number => 1;
-
-/** Game minutes from a Clubhouse to a plot: 30 within its district, 60 from a bordering one, null out of range. */
+/** Game minutes from a Clubhouse to a plot: 30 within its district, 60 from a bordering one, null out of range
+ * (crew's strongholdTravelMult: half that into a district where you hold a Stronghold). */
 export function reserveMinutes(s: GameState, clubId: string, plotId: string): number | null {
   const from = PLOT_BY_ID[clubId]?.district, to = PLOT_BY_ID[plotId]?.district;
   if (!from || !to) return null;

@@ -10,6 +10,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
+import { announceControl } from './land.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -227,6 +228,7 @@ function loanAtDawn(s: GameState): void {
   s.plots[plot.id] = { owner: null, stand: null, invested: 0, landValue: value, defense: NO_DEFENSE() };
   l.principal = round2(Math.max(0, l.principal - value));
   s.news.push(`REPOSSESSED! The First Bank of Citrine Bay takes ${plot.name} to cover ${money(value)} of the loan.`);
+  announceControl(s);
   if (l.principal < 0.01) delete s.loan;
 }
 

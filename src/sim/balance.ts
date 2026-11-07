@@ -545,6 +545,8 @@ export const BUSTED_REPAIR_SHARE = 0.1;
 export const IN_THE_RED_DAYS = 3;
 /** Domination: every rival eliminated and at least this share of every district's purchasable plots. */
 export const MAJORITY = 0.51;
+/** District control tiers by share of purchasable plots: Foothold (1 plot), Majority (51%), Stronghold (75%), Full Control (100%). */
+export const STRONGHOLD = 0.75;
 /** Sandbox's Economic win: a Success Score target picked from the rank thresholds (default Rank 8). */
 export const ECONOMIC_DEFAULT_RANK = 8;
 /** Peaceful (Sandbox): Vera finally sells, at this multiple of her cash and buildings, once Weakened. */

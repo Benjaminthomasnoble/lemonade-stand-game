@@ -39,7 +39,7 @@ import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
 import { closeTills } from './loot.ts';
-import { development, isPurchasable, reachBlocker } from './land.ts';
+import { announceControl, development, isPurchasable, landAtDawn, migrateLand, reachBlocker, type ControlTier, type PerkId } from './land.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -228,6 +228,8 @@ export interface GameState {
   phone?: PhoneState; // boss calls waiting, and the moods they watch
   goals?: GoalState; // what Lottie's goal card shows and has ticked off
   fight?: LiveFight; // the fight playing live right now (fight.ts)
+  control?: Partial<Record<DistrictId, ControlTier>>; // each district's control tier at the last check (for the headlines)
+  perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
 }
 
 export type SimEvent =
@@ -814,6 +816,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.phase = 'prep';
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
+  landAtDawn(s);
   crewAtDawn(s);
   rivalsBankrupt(s);
   worldAtDawn(s);
@@ -893,6 +896,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
   delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
+  announceControl(s);
   checkVictory(s);
   return true;
 }
@@ -1095,6 +1099,7 @@ export function migrateSave(x: unknown): GameState | null {
   if (!isGameState(s)) return null;
   migrateRivals(s);
   migrateCrew(s);
+  migrateLand(s);
   migrateWorld(s);
   migrateStory(s);
   return s;

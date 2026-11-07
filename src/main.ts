@@ -13,6 +13,7 @@ import {
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk,
+  announceControl,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { waitAt } from './sim/clubhouse.ts';
@@ -663,6 +664,7 @@ async function main() {
       case 'kidRaid': if (raidKidStand(state, a.plot)) lottieSays('raidLost', { react: 'fist', text: KIDS_RAID_LINE, ms: 4500 }); break;
       case 'refresh': break;
     }
+    announceControl(state); // any land that changed hands: Majority and Full Control headlines
     storyAfterAct(state); // a goal met by this tap ticks off now
     bay.sync(state);
     bay.select(hud.inspected);

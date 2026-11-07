@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, dealShortfallPerDay, buildFacility, canBuildFacility, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
+  acceptOrder, BOTTLE_CAP, bottleCost, dealShortfallPerDay, buildFacility, canBuildFacility, CUP_COST, recipeCost, vipAtDawn, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
   nextDue, openStand, owedBy, PICKUP_MINUTE, pickupsAt, pickupsAtClose, PLOTS, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes,
   VIP_STAR_BONUS, type GameState, type Order,
 } from './economy.ts';
@@ -30,6 +30,7 @@ function trips(s: GameState): void {
   s.day++;
   s.phase = 'prep';
 }
+const round = (n: number) => Math.round(n * 100) / 100;
 const order = (s: GameState, o: Partial<Order> & Pick<Order, 'id' | 'tier' | 'qty' | 'pay' | 'plot'>): Order => {
   const x: Order = { client: `Client ${o.id}`, due: s.day, expires: s.day, accepted: true, ...o };
   s.orders.push(x);
@@ -170,6 +171,22 @@ describe('VIP clients', () => {
     order(s, { id: 'chopper', tier: 'heli', qty: 2000, pay: 60000, due: s.day + 4, plot: field.id });
     trips(s);
     expect(s.reputation).toBeCloseTo(rep + VIP_STAR_BONUS);
+  });
+
+  it("a bottle costs the recipe's ingredients at today's Market plus a $0.15 bottle and cap, charged at dawn", () => {
+    const { s, lot } = vipGame(11);
+    s.market = { lemons: 0.20, sugar: 0.03, ice: 0.01 }; // the Market at normal
+    expect(round(bottleCost(s))).toBe(0.31); // spec: $0.16 of Classic ingredients plus $0.15
+    expect(bottleCost(s, 'pink')).toBeCloseTo(recipeCost(s, 'pink') - CUP_COST + BOTTLE_CAP);
+    buildFacility(s, lot.id, 'bottling');
+    order(s, { id: 'truck', tier: 'caterer', qty: 1000, pay: 6000, due: s.day + 3, plot: undefined });
+    const cash = s.cash;
+    s.market = { lemons: 0.24, sugar: 0.03, ice: 0.01 }; // lemons up 20% this morning
+    const each = bottleCost(s);
+    vipAtDawn(s);
+    expect(s.bottles).toBe(1000);
+    expect(s.cash).toBeCloseTo(cash - 1000 * each);
+    expect(s.today.supplies).toBeCloseTo(1000 * each);
   });
 
   it('an order with no bottles fails and costs a star', () => {

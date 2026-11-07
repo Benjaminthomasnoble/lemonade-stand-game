@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { CLUBHOUSE, CLUBHOUSE_HP, DELIVERY_WINDOW, RANKS } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, DELIVERY_WINDOW, RANKS, type RecipeId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
@@ -10,6 +10,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, playerStands } from './economy.ts';
 import { restoreHp } from './damage.ts';
+import { recipeCost } from './recipes.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -47,7 +48,10 @@ export const FACILITIES: Record<FacilityKind, { hp: number[]; names: string[]; c
   clubhouse: { hp: CLUBHOUSE_HP, names: ['Clubhouse', 'Clubhouse L2', 'Clubhouse L3'], costs: CLUBHOUSE.map((c) => c.cost), ranks: CLUBHOUSE.map((c) => c.rank), on: ['street'], blurb: CLUBHOUSE.map((c) => `${c.beds} beds for guards`) },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
-export const BOTTLE_COST = 0.21 + 0.15; // a Classic cup's ingredients plus the bottle and cap
+/** The bottle and cap that take the cup's place (balance-tables: Supplies). */
+export const BOTTLE_CAP = 0.15;
+/** A bottle: the recipe's ingredients at today's Market plus the bottle and cap (Classic about $0.31: $0.16 + $0.15). */
+export const bottleCost = (s: GameState, recipe: RecipeId = 'classic') => recipeCost(s, recipe) - CUP_COST + BOTTLE_CAP;
 /** Pay is per bottle (Local Orders: 1.5× that stand's cup price). Chance = offers per day. */
 export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size: [number, number]; pay: number; days: number; chance: number; label: string }> = {
   local: { rank: 3, stars: 0, size: [300, 1500], pay: 1.5, days: 2, chance: 0.5, label: 'Local Order' },
@@ -188,11 +192,12 @@ export function vipAtDawn(s: GameState): void {
   // Bottling runs only while an accepted order still needs bottles.
   const need = bottlesNeeded(s) - s.bottles;
   if (need > 0) {
-    const make = Math.min(need, bottlingCapacity(s), Math.floor(Math.max(0, s.cash) / BOTTLE_COST));
+    const cost = bottleCost(s);
+    const make = Math.min(need, bottlingCapacity(s), Math.floor(Math.max(0, s.cash) / cost));
     if (make > 0) {
       s.bottles += make;
-      s.cash = round2(s.cash - make * BOTTLE_COST);
-      s.today.supplies = round2(s.today.supplies + make * BOTTLE_COST);
+      s.cash = round2(s.cash - make * cost);
+      s.today.supplies = round2(s.today.supplies + make * cost);
     }
   }
   s.offers = s.offers.filter((o) => o.expires >= s.day);

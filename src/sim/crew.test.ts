@@ -14,8 +14,11 @@ import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, t
 import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { reserveMinutes } from './reinforce.ts';
-import { BORDERS } from './map.ts';
+import { BORDERS, PLOT_BY_ID } from './map.ts';
 import { rowAmount } from './ledger.ts';
+import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
+import { canAssault, makeTruce } from './rivals.ts';
+import { festivalDays } from './calendar.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
@@ -903,5 +906,112 @@ describe('Sabotage', () => {
     expect(servingsAvailable(st)).toBe(0);
     expect(st.spoiledDay).toBe(s.day + 1);
     expect(s.news.at(-1)).toContain('spoil the stock');
+  });
+});
+
+describe("Sheriff Budd's Citation", () => {
+  /** Rank 5, under the line, a week of sales averaging $500 and $2,000 in the till; the targets are rival stands, and
+   * the player holds a lot in the first one's district (raids need a Foothold). */
+  const cited = (seed: number, stars = 1.8) => {
+    const s = newGame(seed);
+    s.rank = 5;
+    s.reputation = stars;
+    welcomeDex(s);
+    s.guards.push({ ...s.guards[0], id: 'gb', name: 'Bea B', trait: 'Gentle Giant', post: null });
+    s.history = [400, 500, 600, 500, 450, 550, 500].map((revenue, i) => ({ ...s.today, day: i + 1, revenue }));
+    s.cash = 2000;
+    const [a, b] = raidTargets(s).map((p) => p.id);
+    const lot = PLOTS.find((p) => p.district === PLOT_BY_ID[a].district && !s.plots[p.id].owner)!;
+    s.plots[lot.id].owner = 'player';
+    return { s, a, b };
+  };
+
+  it('below 2.0 stars a daytime raid costs about a day of sales and bans raids for the rest of today and 2 more days', () => {
+    const { s, a, b } = cited(91);
+    openStand(s);
+    s.minute = 9 * 60; // the walk is 1-3 hours: it lands by day
+    expect(citationRisk(s, true)).toEqual({ fine: 500, banDays: 2, stars: 2 });
+    expect(planRaid(s, a, [s.guards[0].id], 'shakedown', 'now')).toBe(true);
+    expect(s.cash).toBe(1500);
+    const day = s.day;
+    expect(raidBanEnds(s)).toBe(day + 3);
+    expect(canRaid(s, b, ['gb'], 'smash')).toEqual({ ok: false, why: `Citation: no raids till Day ${day + 3}` });
+    expect(s.alerts?.at(-1)?.text).toBe(`Sheriff Budd's Citation: $500, no raids till Day ${day + 3}.`);
+    expect(rowAmount(s.today, 'citations')).toBe(-500); // on the Ledger's Citations row
+    expect(s.scenes?.queue.some((q) => q.id === 'budd')).toBe(true); // she brings the first one herself
+    expect(s.citations?.written).toEqual([{ day, fine: 500, target: a }]);
+    s.day = day + 2;
+    expect(canRaid(s, b, ['gb'], 'smash').ok).toBe(false);
+    s.day = day + 3;
+    expect(canRaid(s, b, ['gb'], 'smash')).toEqual({ ok: true });
+  });
+
+  it('night raids, raids that land after dark, and raids at 2.0 stars are never cited', () => {
+    const { s, a, b } = cited(92);
+    expect(planRaid(s, a, [s.guards[0].id], 'shakedown', 'tonight')).toBe(true);
+    openStand(s);
+    s.minute = CLOSE - 30; // sent now, it lands after 20:00
+    expect(planRaid(s, b, ['gb'], 'smash', 'now')).toBe(true);
+    expect(s.cash).toBe(2000);
+    expect(s.citations).toBeUndefined();
+    const { s: t, a: c } = cited(93, 2);
+    openStand(t);
+    t.minute = 9 * 60;
+    expect(citationRisk(t, true)).toBeNull();
+    expect(planRaid(t, c, [t.guards[0].id], 'smash', 'now')).toBe(true);
+    expect(t.cash).toBe(2000);
+  });
+
+  it('reads the stars before a broken truce costs one, never fines more than the till, and bans HQ assaults too', () => {
+    const { s, a } = cited(94, 2.4);
+    makeTruce(s, s.plots[a].owner as RivalId);
+    openStand(s);
+    s.minute = 9 * 60;
+    expect(planRaid(s, a, [s.guards[0].id], 'smash', 'now')).toBe(true);
+    expect(s.reputation).toBeLessThan(2); // the broken truce took a star, after Sheriff Budd looked
+    expect(s.citations).toBeUndefined();
+    const { s: t, a: c } = cited(95);
+    t.cash = 120;
+    openStand(t);
+    t.minute = 9 * 60;
+    expect(planRaid(t, c, [t.guards[0].id], 'smash', 'now')).toBe(true);
+    expect(t.cash).toBe(0);
+    t.rivals.blenders.outsoldDays = 99; // Weakened
+    t.phase = 'prep';
+    expect(canAssault(t, 'blenders', ['gb'])).toEqual({ ok: false, why: `Citation: no raids till Day ${t.day + 3}` });
+  });
+
+  it('Election Day can move the line for a year, and old saves load clean', () => {
+    const s = newGame(96);
+    const rules = (platform: Platform) => { s.citations = { election: { day: s.day, platform, until: s.day + 55 } }; return citationRules(s).stars; };
+    expect([rules('same'), rules('tough'), rules('soft')]).toEqual([2, 2.5, 1.5]);
+    s.citations!.election!.until = s.day - 1; // a year on, the base rule is back until the vote
+    expect(citationRules(s).stars).toBe(2);
+    const votes = { same: 0, tough: 0, soft: 0 };
+    for (let i = 0; i < 300; i++) votes[holdElection(newGame(i), { seed: i * 7919 + 1 })]++;
+    expect(votes.same).toBeGreaterThan(votes.tough); // 2 : 1 : 1
+    expect(votes.tough).toBeGreaterThan(30);
+    expect(votes.soft).toBeGreaterThan(30);
+    const t = newGame(97);
+    let tough = 0;
+    for (let i = 0; i < 300; i++) {
+      t.citations = { written: Array.from({ length: 6 }, (_, j) => ({ day: t.day, fine: 10, target: `x${j}` })) };
+      if (holdElection(t, { seed: i * 7919 + 1 }) === 'tough') tough++;
+    }
+    expect(tough / 300).toBeGreaterThan(0.6); // six Citations this year: 7 of 10 weights
+    const old = JSON.parse(JSON.stringify(newGame(98)));
+    old.citations = { banUntil: '3', written: 'lots', election: { day: 1, platform: 'anarchy', until: 9 } };
+    expect(migrateSave(old)?.citations).toEqual({ written: [] });
+  });
+
+  it('the vote happens at dawn on Election Day, and the Bugle prints it', () => {
+    const s = newGame(99);
+    const day = festivalDays('electionDay', 1).from;
+    s.day = day - 1;
+    s.phase = 'report';
+    sleepUntilDawn(s);
+    expect(s.day).toBe(day);
+    expect(s.citations?.election?.day).toBe(day);
+    expect(s.news.some((l) => l.startsWith('ELECTION DAY: Mayor Fontaine'))).toBe(true);
   });
 });

@@ -18,6 +18,7 @@ import { historicHedges, landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
 import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
+import { raidBan } from './citations.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -562,6 +563,7 @@ export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Block
   const tilly = tillyWaits(s, id, 'assault'); if (tilly) return tilly;
   const squeeze = squeezeAssault(s, id); // campaign: Sourwood Manor opens with the Big Squeeze, not once she's Weakened
   if (squeeze ? !squeeze.ok : !isWeakened(s, id)) return squeeze ?? { ok: false, why: 'Only once they are Weakened' };
+  const ban = raidBan(s); if (ban) return ban; // crew: Sheriff Budd's Citation
   if (s.phase !== 'prep') return { ok: false, why: 'Storm the HQ at Morning Prep' };
   if (!guardIds.length) return { ok: false, why: 'Pick your squad' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };

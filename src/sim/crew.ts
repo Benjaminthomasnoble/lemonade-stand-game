@@ -26,7 +26,7 @@ import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './capti
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
-import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, travelMinutes } from './night.ts';
+import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
@@ -34,6 +34,7 @@ import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
 import { raidsOnYou, rivalRaids, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
 import { fortifiedFrame } from './specializations.ts'; // demand: the Fortified Frame's max HP
+import { cite, citationRisk, citationsAtDawn, migrateCitations, raidBan } from './citations.ts';
 
 export interface Guard {
   id: string;
@@ -509,6 +510,7 @@ export function migrateCrew(s: GameState): void {
   s.guards ??= [];
   s.recruits ??= [];
   tidyPosts(s); // saves from before guard posts: the extra guards wait at the Clubhouse
+  migrateCitations(s);
   for (const ps of Object.values(s.plots)) {
     const per = ps.defense && PERIMETERS[ps.defense.tier - 1];
     if (per && ps.defense.fenceHp < per.hp && !ps.defense.repairs) ps.defense.repairs = 1; // chopped before overnight repairs: fixed at the next dawn
@@ -755,6 +757,7 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[], object
   const ps = s.plots[plotId];
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no raids in this Sandbox' };
   if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}, ${RANKS[RAID_RANK - 1].title}` };
+  const ban = raidBan(s); if (ban) return ban; // Sheriff Budd's Citation
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'Storm an HQ from the Rivals board' };
   if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
@@ -792,8 +795,12 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   if (!canRaid(s, plotId, guardIds, objective).ok) return false;
   const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, guards: guardIds, detected: false, eta: '' };
   if (objective === 'sabotage') raid.sabotage = true;
+  // Sheriff Budd reads your stars before the raid (or a broken truce) costs any; the fight's minute makes it a daytime raid.
+  const cited = !!citationRisk(s, !raidIsNightAt(squadTrip(s, plotId, when, guardIds).at));
   breakTruce(s, s.plots[plotId].owner as RivalId);
-  return sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
+  const sent = sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
+  if (cited) cite(s, plotId);
+  return sent;
 }
 
 // ---------- rival raids and the night ----------
@@ -976,6 +983,7 @@ export function crewAtDawn(s: GameState): void {
   overnightRepairs(s);
   dutyXp(s);
   scoutingAtDawn(s);
+  citationsAtDawn(s, rng); // a ban run out; Election Day's vote
   if (s.day >= LESSON_DAY.crew) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);

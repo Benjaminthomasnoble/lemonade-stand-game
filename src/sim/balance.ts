@@ -572,6 +572,17 @@ export const NEIGHBORHOOD_WATCH_DETECTION = 0.1;
 export const STRONGHOLD_DETECTION = 0.1;
 export const STRONGHOLD_TRAVEL = 0.5;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
+/** Sheriff Budd's Citation (canon: the Sheriff rule): below `stars`, each daytime raid you launch is fined about `fineDays`
+ * of income (the last week's average daily sales, never more than your cash) and bans your raids and HQ assaults for the
+ * rest of the day and the next `banDays`. placeholder: spec gap (it leaves "about a day's income" undefined). */
+export const CITATION = { stars: 2.0, fineDays: 1, banDays: 2 };
+/** Election Day (each Spring) can move the Citation line until the next one: the platform Mayor Fontaine wins on, drawn
+ * by weight, each Citation in the last year adding 1 to tough's. placeholder: spec gap (it says only that the rules can change). */
+export const ELECTION = {
+  same: { weight: 2, stars: 2.0, news: 'ELECTION DAY: Mayor Fontaine wins again. Sheriff Budd keeps the Citation line at 2 stars.' },
+  tough: { weight: 1, stars: 2.5, news: 'ELECTION DAY: Mayor Fontaine wins on "Order in the Bay": Citations below 2.5 stars for a year.' },
+  soft: { weight: 1, stars: 1.5, news: 'ELECTION DAY: Mayor Fontaine wins on "Let Kids Be Kids": Citations only below 1.5 stars for a year.' },
+};
 /** Sabotage (spoil a stand's stock: it can't sell its next day) opens at this Rank, for you and for rivals raiding you. */
 export const SABOTAGE_RANK = 4;
 /** Each rival's chance that a raid on one of your stands is a Sabotage: Cold Brew's Night Shift leans on it (placeholder: spec gap, no rates given). */

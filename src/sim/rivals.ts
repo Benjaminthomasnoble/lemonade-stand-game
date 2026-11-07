@@ -29,7 +29,7 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
   coldbrew: { rank: 6, gate: 2750, buyout: 1.8, tier: 2, yard: 6, boss: 'Juniper "Juni" Grind', move: 'Espresso Shot' },
   hollis: { rank: 7, gate: 3500, buyout: 1.5, tier: 3, yard: 6, boss: 'Tilly Hollis', move: 'Hay Bale Wall' },
   fizzco: { rank: 8, gate: 4250, buyout: 1.8, tier: 4, yard: 9, boss: 'Preston Fizzwell III', move: 'Hostile Takeover' },
-  sourwood: { rank: 9, gate: 5000, buyout: null, tier: 4, yard: 10, boss: 'Vera Sourwood', move: 'Old Money' },
+  sourwood: { rank: 9, gate: 5000, buyout: null, tier: 4, yard: 11, boss: 'Vera Sourwood', move: 'Old Money' },
 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });

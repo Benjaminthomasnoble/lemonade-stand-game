@@ -10,7 +10,7 @@ import {
   canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GUARD_BASE, PERIMETERS } from './balance.ts';
+import { CLOSE, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
@@ -81,7 +81,7 @@ describe('crew and raids', () => {
     expect(early).toBe(0);
     expect(later).toBeGreaterThan(1);
     expect(threatLevel(s)).toBeGreaterThanOrEqual(1);
-  });
+  }, 90_000); // 40 whole days: about 15 s alone, much longer while other checks share the machine
 
   it('a player raid can wreck a rival stand, and wrecked stands sell nothing', () => {
     const s = newGame(8);
@@ -778,25 +778,31 @@ describe('Sabotage', () => {
   });
 
   it('the tutorial raid is never a Sabotage, and Peaceful has none at all', () => {
-    const s = newGame(126);
-    s.rank = 4;
-    s.reputation = 4;
-    welcomeDex(s);
-    for (let d = 0; d < 30 && !s.battles.some((b) => b.defender === 'player'); d++) {
-      s.cash = Math.max(s.cash, 500);
-      openStand(s);
-      simulateRestOfDay(s);
-      for (const r of s.raids) if (r.attacker !== 'player' && s.plots[r.target].owner === 'player') expect(r.sabotage).toBeUndefined();
-      sleepUntilDawn(s);
+    const rates = { ...RIVAL_SABOTAGE };
+    for (const r of Object.keys(RIVAL_SABOTAGE) as RivalId[]) RIVAL_SABOTAGE[r] = 1; // any raid that can be a Sabotage is one
+    try {
+      const s = newGame(126);
+      s.rank = 4;
+      s.reputation = 4;
+      welcomeDex(s);
+      for (let d = 0; d < 30 && !s.battles.some((b) => b.defender === 'player'); d++) {
+        s.cash = Math.max(s.cash, 500);
+        openStand(s);
+        simulateRestOfDay(s);
+        for (const r of s.raids) if (r.attacker !== 'player' && s.plots[r.target].owner === 'player') expect(r.sabotage).toBeUndefined();
+        sleepUntilDawn(s);
+      }
+      expect(s.battles.some((b) => b.defender === 'player')).toBe(true);
+    } finally {
+      Object.assign(RIVAL_SABOTAGE, rates);
     }
-    expect(s.battles.some((b) => b.defender === 'player')).toBe(true);
     const calm = newGame(127);
     calm.settings.mode = 'sandbox';
     calm.settings.peaceful = true;
     calm.rank = 4;
     expect(canRaid(calm, PLOTS.find((p) => calm.plots[p.id].owner === 'blenders' && calm.plots[p.id].stand && p.type !== 'hq')!.id, ['x'], 'sabotage'))
       .toEqual({ ok: false, why: 'Peaceful: no raids in this Sandbox' });
-  });
+  }, 90_000); // up to 30 whole days
 
   it('rivals sabotage your stands from Rank 4, Cold Brew most of all', () => {
     const s = newGame(122);

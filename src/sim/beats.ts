@@ -136,8 +136,8 @@ const fizzcoCanHit = (s: GameState, o: Order) =>
 const firstTrip = (s: GameState, o: Order) => s.story?.vip?.heli === o.id && !o.loaded && !s.heldPickups?.includes(o.id);
 
 /**
- * Seam (nights lane, scheduleDeliveryRaid in src/sim/night.ts): the first trip of the campaign's first chopper is
- * FizzCo's to hit, with no roll. Until that's wired, the trip takes the usual Delivery Raid roll.
+ * The first trip of the campaign's first chopper is FizzCo's to hit, with no roll: the nights lane's
+ * scheduleDeliveryRaid (src/sim/night.ts) asks here before it rolls for a Delivery Raid.
  */
 export function scriptedRaider(s: GameState, o: Order): RivalId | null {
   return hasStory(s) && !!o.id && firstTrip(s, o) && fizzcoCanHit(s, o) ? 'fizzco' : null;

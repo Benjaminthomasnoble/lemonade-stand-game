@@ -409,7 +409,7 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
   const rival = scriptedRaider(s, o) ?? (roll < deliveryRaidChance(s, o) ? pick : undefined);
   if (!rival) return null;
-  // They set out as loading starts and hit inside the 2-hour window (world's loading windows: relative to PICKUP_MINUTE until then).
+  // They set out as the trip's loading window opens (world's tripMinutes: deliver() runs then) and hit inside its 2 hours.
   const leave = s.minute;
   const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, o.plot), o.plot));
   s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party: raidPartyFor(s, rival), detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });

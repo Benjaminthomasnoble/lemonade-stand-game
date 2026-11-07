@@ -265,6 +265,28 @@ describe('who gets the customers', () => {
     expect(rivalShare([weak], [])).toBe(0);
   });
 
+  it('follows the street through the day: a stand wrecked mid-day takes nobody after, a new one starts at once', () => {
+    const s = newGame(2);
+    playerStand(s, 'maple-5n');
+    rivalStand(s, 'oldtown-0n', 'fizzco');
+    s.forecast = { kind: 'warm', temp: 80 };
+    openStands(s);
+    s.weather = { kind: 'warm', temp: 80 };
+    const d = s.plots['maple-5n'].stand!.day;
+    for (let i = 0; i < 200; i++) tickMinute(s);
+    expect(d.walkedPast.rival).toBeGreaterThan(0);
+    for (const q of nearbyPlots(PLOT_BY_ID['maple-5n'])) {
+      const ps = s.plots[q.id];
+      if (ps.stand && ps.owner !== 'player') ps.stand.wrecked = true;
+    }
+    const before = d.walkedPast.rival;
+    for (let i = 0; i < 200; i++) tickMinute(s);
+    expect(d.walkedPast.rival).toBe(before);
+    rivalStand(s, 'oldtown-0s', 'blenders');
+    for (let i = 0; i < 150; i++) tickMinute(s);
+    expect(d.walkedPast.rival).toBeGreaterThan(before);
+  });
+
   it('never loses customers to your own stands', () => {
     const s = newGame(3);
     stockUp(s, LOTTIES_CORNER);

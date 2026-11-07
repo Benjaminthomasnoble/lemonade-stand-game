@@ -131,16 +131,17 @@ export function campaignCost(s: GameState, id: CampaignId): { cash: number; samp
 // ---------- who walks by, hour by hour ----------
 
 const inPeak = (seg: SegmentId, hour: number) => SEGMENTS[seg].peaks.some(([a, b]) => hour >= a && hour < b);
-const hourMixes = new Map<string, [SegmentId, number][]>();
+const hourMixes = new Map<DistrictId, [SegmentId, number][][]>();
 /** The crowd mix in one clock hour: the district's mix, with segments in their peak hours ×1.8. Shares sum to 1. */
 export function hourMix(d: DistrictId, hour: number): [SegmentId, number][] {
-  const key = d + hour;
-  let m = hourMixes.get(key);
+  let byHour = hourMixes.get(d);
+  if (!byHour) { byHour = []; hourMixes.set(d, byHour); }
+  let m = byHour[hour];
   if (!m) {
     const raw = (Object.entries(DISTRICT_BY_ID[d].mix) as [SegmentId, number][]).map(([seg, x]) => [seg, x * (inPeak(seg, hour) ? PEAK_BOOST : 1)] as [SegmentId, number]);
     const total = raw.reduce((a, [, x]) => a + x, 0);
     m = raw.map(([seg, x]) => [seg, x / total]);
-    hourMixes.set(key, m);
+    byHour[hour] = m;
   }
   return m;
 }
@@ -190,24 +191,34 @@ export function rivalShare(own: Option[], rivals: Option[]): number {
   return wo + wr > 0 ? Math.min(RIVAL_SHARE_CAP, wr / (wo + wr)) : 0;
 }
 
-/**
- * Where one passerby of plot p goes. Stands within 2 plots split passing customers by appeal, whoever owns them;
- * customers shared with the home owner's other stands stay with that owner, and rival stands take at most 35%.
- */
-export function chooseStand(s: GameState, p: Plot, rng: { seed: number }, appealOf: (plotId: string) => Appeal): Option {
+/** One plot's street worked out for a passerby: its stands, the rivals' share and each side's total appeal. */
+export interface Street { home: Option; own: Option[]; rivals: Option[]; share: number; ownTotal: number; rivalTotal: number }
+
+/** The street a passerby of plot p walks. It holds while the stands near it and their appeal do (economy.ts keeps one a day). */
+export function streetAt(s: GameState, p: Plot, appealOf: (plotId: string) => Appeal): Street {
   const { own, rivals } = standsNear(s, p, appealOf);
   const home = own.find((x) => x.id === p.id) ?? { id: p.id, a: appealOf(p.id) };
+  return { home, own, rivals, share: rivalShare(own, rivals), ownTotal: appealSum(own), rivalTotal: appealSum(rivals) };
+}
+
+/**
+ * Where one passerby goes. Stands within 2 plots split passing customers by appeal, whoever owns them;
+ * customers shared with the home owner's other stands stay with that owner, and rival stands take at most 35%.
+ */
+export function chooseOn(street: Street, rng: { seed: number }): Option {
+  const { home, own, rivals } = street;
   if (own.length + rivals.length <= 1) return home;
-  const pool = rivals.length && nextRandom(rng) < rivalShare(own, rivals) ? rivals : own;
+  const toRivals = rivals.length > 0 && nextRandom(rng) < street.share;
+  const pool = toRivals ? rivals : own;
   if (pool.length === 1) return pool[0];
-  const total = appealSum(pool);
+  const total = toRivals ? street.rivalTotal : street.ownTotal;
   if (total <= 0) return home; // nothing here appeals: they walk on past their own stand
   let r = nextRandom(rng) * total;
   for (const x of pool) { r -= x.a.appeal; if (r <= 0) return x; }
   return pool[pool.length - 1];
 }
 
-/** The expected share of plot q's passersby that end up at the stand on plot `to` (the same rule as chooseStand). */
+/** The expected share of plot q's passersby that end up at the stand on plot `to` (the same rule as chooseOn). */
 function shareTo(s: GameState, q: Plot, to: string, appealOf: (plotId: string) => Appeal): number {
   const { own, rivals } = standsNear(s, q, appealOf);
   if (own.length + rivals.length <= 1) return to === q.id ? 1 : 0;

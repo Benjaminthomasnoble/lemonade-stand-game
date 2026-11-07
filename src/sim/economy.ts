@@ -27,8 +27,8 @@ import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  campaignCost, ceilingFor, chooseStand, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
-  migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, touristPays,
+  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
+  migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 
 export * from './balance.ts';
@@ -516,7 +516,7 @@ export function openStands(s: GameState): boolean {
   s.phase = 'open';
   s.minute = OPEN;
   s.spawnCarry = {};
-  appealCache.delete(s);
+  dayCache.delete(s);
   for (const p of PLOTS) {
     const st = s.plots[p.id].stand;
     if (!st) continue;
@@ -541,15 +541,43 @@ export function autoRestock(s: GameState, plotId: string): void {
 }
 
 // Appeal only changes between days (price, level, reputation, weather), so
-// cache it for the open day. Cleared whenever the stand opens.
-const appealCache = new WeakMap<GameState, Map<string, Appeal>>();
+// cache it for the open day. Cleared whenever the stand opens. Each plot's street
+// (which stands a passerby can pick, demand.ts) is kept too, until a stand opens,
+// is wrecked or changes hands (checked once a minute).
+interface DayCache {
+  appeal: Map<string, Partial<Record<SegmentId, Appeal>>>;
+  streets: Map<string, Partial<Record<SegmentId, Street>>>;
+  town: { stand: Stand | null; wrecked: boolean; owner: FactionId | null }[];
+}
+const dayCache = new WeakMap<GameState, DayCache>();
+function cacheFor(s: GameState): DayCache {
+  let c = dayCache.get(s);
+  if (!c) { c = { appeal: new Map(), streets: new Map(), town: [] }; dayCache.set(s, c); }
+  return c;
+}
 function cachedAppeal(s: GameState, plotId: string, seg: SegmentId): Appeal {
-  let m = appealCache.get(s);
-  if (!m) { m = new Map(); appealCache.set(s, m); }
-  const k = plotId + '|' + seg;
-  let a = m.get(k);
-  if (!a) { a = appealFor(s, plotId, seg); m.set(k, a); }
-  return a;
+  const m = cacheFor(s).appeal;
+  let row = m.get(plotId);
+  if (!row) { row = {}; m.set(plotId, row); }
+  return (row[seg] ??= appealFor(s, plotId, seg));
+}
+function streetFor(s: GameState, p: Plot, seg: SegmentId): Street {
+  const m = cacheFor(s).streets;
+  let row = m.get(p.id);
+  if (!row) { row = {}; m.set(p.id, row); }
+  return (row[seg] ??= streetAt(s, p, (id) => cachedAppeal(s, id, seg)));
+}
+/** Drop the streets if any stand opened, was wrecked or changed hands since the last minute. */
+function holdStreets(s: GameState): void {
+  const c = cacheFor(s);
+  let moved = c.town.length !== PLOTS.length;
+  for (let i = 0; i < PLOTS.length && !moved; i++) {
+    const ps = s.plots[PLOTS[i].id], t = c.town[i];
+    moved = ps.stand !== t.stand || (ps.stand?.wrecked ?? false) !== t.wrecked || ps.owner !== t.owner;
+  }
+  if (!moved) return;
+  c.streets.clear();
+  c.town = PLOTS.map((p) => { const ps = s.plots[p.id]; return { stand: ps.stand, wrecked: ps.stand?.wrecked ?? false, owner: ps.owner }; });
 }
 
 function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: SegmentId): { buys: boolean; reason?: WalkReason; paid?: number } {
@@ -615,6 +643,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   const events: SimEvent[] = [];
   const rng = { seed: s.seed };
   const hourIdx = Math.floor((s.minute - OPEN) / 60);
+  holdStreets(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (!ps.stand || ps.stand.wrecked) continue;
@@ -643,7 +672,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   const seg = festivalCrowd(s, rng, p.district) ?? segmentAt(rng, p.district, 8 + hourIdx);
   const home = s.plots[p.id];
   home.stand!.day.passersby++;
-  const { id: chosen, a } = chooseStand(s, p, rng, (id) => cachedAppeal(s, id, seg));
+  const { id: chosen, a } = chooseOn(streetFor(s, p, seg), rng);
   const chosenOwner = s.plots[chosen].owner!;
   const result = serveAt(s, chosen, rng, a, seg);
   if (chosenOwner !== home.owner) home.stand!.day.walkedPast.rival++;

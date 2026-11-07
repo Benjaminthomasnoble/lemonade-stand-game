@@ -372,6 +372,21 @@ describe('VIP first arrivals', () => {
     expect(ev.some((e) => e.type === 'pickup' && e.order.id === 'heli2' && e.ok)).toBe(true);
   });
 
+  it('every VIP card carries the scene Watch plays; a regular lands with a small card that never pauses', () => {
+    const { s, field } = vipDay([{ id: 'heli1', tier: 'heli', client: 'a celebrity wedding' }]);
+    const scene = { kind: 'heli', big: false, client: 'a celebrity wedding' };
+    expect(vipCards(simulateRestOfDay(s))[0].scene).toEqual(scene);
+    sleepUntilDawn(s);
+    s.orders.push({ id: 'heli2', tier: 'heli', client: 'a celebrity wedding', qty: 2000, pay: 6000, due: s.day, expires: s.day, plot: field, accepted: true });
+    openStand(s);
+    const news = s.news.length;
+    const cards = simulateRestOfDay(s, true).flatMap((e) => (e.type === 'alert' && e.alert.kind === 'pickup' ? [e.alert] : []));
+    expect(s.phase).toBe('report'); // it never stops the skip
+    expect(cards).toEqual([expect.objectContaining({ plot: field, order: 'heli2', text: 'Chopper in: a celebrity wedding', scene })]);
+    expect(isMajor(cards[0])).toBe(false);
+    expect(s.news.slice(news).filter((n) => n.includes('Chopper in'))).toEqual([]); // the pickup's own news line tells it
+  });
+
   it("a Supply Deal's weekly loads are one client", () => {
     const { s } = vipDay([{ id: 'd-1', tier: 'ship', client: 'Gulfstream Grocers (load 1 of 4)' }]);
     expect(clientOf(s.orders[0])).toBe('Gulfstream Grocers');

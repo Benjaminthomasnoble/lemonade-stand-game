@@ -9,6 +9,7 @@ export type AlertKind =
   | 'raid' // a raid on you is coming (Ring the Bell)
   | 'delivery' // a Delivery Raid on a VIP pickup (Ring the Bell)
   | 'vip' // a VIP client's first arrival (Watch)
+  | 'pickup' // a regular VIP client lands and loads (Watch; never pauses)
   | 'red' // you went In the Red
   | 'perk' // a rank-up perk pick
   | 'soldout' // a stand sold out (Restock now)
@@ -21,12 +22,13 @@ export interface Alert {
   plot?: string; // where Go There goes
   raid?: string; // the raid a warning is about
   order?: string; // the VIP order a card is about
+  scene?: { kind: 'heli' | 'ship'; big: boolean; client: string }; // what Watch plays on a VIP card
   day: number;
   minute: number;
 }
 
 /** Major alerts auto-pause by default and stop Finish the day and Sleep till dawn. */
-export const MAJOR: Record<AlertKind, boolean> = { raid: true, delivery: true, vip: true, red: true, perk: true, soldout: false, note: false };
+export const MAJOR: Record<AlertKind, boolean> = { raid: true, delivery: true, vip: true, pickup: false, red: true, perk: true, soldout: false, note: false };
 /** The feed keeps this many cards; the oldest small ones go first. */
 export const MAX_ALERTS = 8;
 

@@ -155,12 +155,15 @@ try {
       st.bottles = 50000;
       st.raids = [];
       st.rank = 2; // keep Threat low so no delivery raid in the smoke test
-      st.orders.push({ id: 'smoke-' + tier, tier, client: 'Smoke Test', qty: tier === 'ship' ? 30000 : 4000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
+      st.orders.push({ id: 'smoke-' + tier, tier, client: `Smoke Test ${tier}`, qty: tier === 'ship' ? 30000 : 4000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
       g.act({ type: 'open' });
       g.act({ type: 'speed', value: 0 });
     }, [tier, plot]);
     await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
+    // A client's first visit pauses the game and posts a card; its Watch flies there and plays the arrival.
+    await page.waitForSelector('[data-testid="vip-watch"]', { timeout: 90000 });
+    await page.click('[data-testid="vip-watch"] >> nth=0');
     await page.waitForFunction(() => window.__game.vip(), null, { timeout: 90000 });
     // Pause holds the scene too, so the clock runs on (a client's first visit holds it by itself for the show).
     await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 180000 });

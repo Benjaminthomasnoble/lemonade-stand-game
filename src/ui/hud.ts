@@ -86,6 +86,7 @@ export type Action =
   | { type: 'goto'; plot: string } // an alert card's Go There
   | { type: 'dismiss'; id: string } // put an alert card away
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
+  | { type: 'watch'; id: string } // a VIP card's Watch: fly there and play the arrival
   | { type: 'options' } // open or close the Options screen
   | { type: 'option'; key: string; value?: string } // flip an option
   | { type: 'entry'; recipe?: RecipeId; sweetness?: Sweetness; delta?: number } // Taste-Off entry
@@ -322,7 +323,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'night': books = false; onAction({ type: 'night' }); break;
       case 'evening': case 'ledger': onAction({ type: d.action }); break;
       case 'goto': case 'restockNow': onAction({ type: d.action, plot: d.plot! }); break;
-      case 'dismiss': onAction({ type: 'dismiss', id: d.id! }); break;
+      case 'dismiss': case 'watch': onAction({ type: d.action, id: d.id! }); break;
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':

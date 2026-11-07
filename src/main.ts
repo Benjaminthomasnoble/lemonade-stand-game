@@ -74,7 +74,8 @@ async function main() {
   // alert: the clock, the brawl on screen and any VIP scene all hold still. Full-screen paper pauses too.
   let speed = 1;
   let resumeTo = 1; // the speed a resume goes back to
-  let vipResume = 0; // a VIP client's first visit holds the clock (not its scene) until the show is over
+  let vipResume = 0; // a watched first visit holds the clock (not its scene) until the show is over
+  let vipPaused = ''; // the first-arrival card that auto-paused the clock: Watch or dismiss resumes it
   let acc = 0;
   let options: Options = loadOptions();
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
@@ -83,11 +84,12 @@ async function main() {
   let eveningWait = 0; // the Evening's moment, off the Ledger
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
   const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
-  const resume = () => { if (!speed) speed = resumeTo || 1; };
+  const resume = () => { vipPaused = ''; if (!speed) speed = resumeTo || 1; };
   /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
   const quiet = () => options.quietNights && !quietOff;
   const setSpeed = (v: number) => {
     if (v <= 0) { pause(); return; }
+    vipPaused = ''; // you picked the speed: an old card no longer owns the pause
     if (quiet() && quietNight(state)) quietOff = true;
     speed = v;
   };
@@ -107,11 +109,24 @@ async function main() {
     lottieSays('raidComing', { react: 'fist' });
   };
   /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. A VIP client's first visit
-   * holds the clock instead (its show plays on; see drawEvents). */
+   * pauses and waits for its card's Watch (see watchVip); dismissing the card skips the show. */
   const onAlert = (a: Alert) => {
     if (a.kind === 'raid' || a.kind === 'delivery') raidWarned(a);
-    if (a.kind === 'vip') return;
-    if (isMajor(a) && autoPauses(options, state, a.kind)) pause();
+    if (isMajor(a) && autoPauses(options, state, a.kind)) { pause(); if (a.kind === 'vip') vipPaused = a.id; }
+  };
+  /** A VIP card's Watch: the camera flies to the pad or pier and the arrival plays. A first visit holds the clock
+   * for its show (its own switch); a regular's replays while the clock runs on. */
+  const watchVip = (a: Alert) => {
+    if (!a.plot || !a.scene || !bay.views[a.plot]) return;
+    if (flight.active()) { flight.stop(); gullBtn.classList.remove('on'); }
+    hud.ledger = false;
+    crowd.clear();
+    focusPlot(a.plot, a.scene.kind === 'ship' ? 60 : 45);
+    vip.play(a.scene.kind, bay.views[a.plot], a.scene.big, state.plots[a.plot].facility?.level ?? 1, a.scene.client);
+    audio.stinger('raid-won');
+    if (a.kind === 'vip' && autoPauses(options, state, 'vip')) vipResume = 1;
+    if (vipPaused === a.id) resume();
+    dismissAlert(state, a.id);
   };
   /** A raid hit at its minute. Live, the brawl plays (one at a time) and its headline waits for the end. */
   const onFight = (b: BattleReport, live: boolean) => {
@@ -249,7 +264,8 @@ async function main() {
   const vip = createVip(world.scene, { onHorn: () => audio.horn() });
   const traffic = createTraffic(world.scene);
   /** What the clock did, on screen. Skips (Finish the day, Sleep till dawn) pass live = false: no scenes, except a
-   * VIP client's first visit, which stops the skip (a major alert) so its show can play. */
+   * VIP client's first visit, which stops the skip (a major alert). A first visit that paused waits for Watch;
+   * otherwise the chopper or ship lands in the world while the camera stays put (its card's Watch flies there). */
   const drawEvents = (events: SimEvent[], live = true) => {
     const firsts = new Set(events.flatMap((e) => (e.type === 'alert' && e.alert.kind === 'vip' && e.alert.order ? [e.alert.order] : [])));
     for (const e of events) {
@@ -260,12 +276,7 @@ async function main() {
       const o = e.order, first = firsts.has(o.id);
       if (!e.ok || !o.plot || !isVip(o.tier) || (!live && !first)) continue;
       flushNews();
-      // Only a client's first visit stops the clock for the show (its own switch); regulars just land and load.
-      if (first) {
-        crowd.clear();
-        focusPlot(o.plot, bySea(o.tier) ? 60 : 45);
-        if (autoPauses(options, state, 'vip')) vipResume = 1;
-      }
+      if (first && autoPauses(options, state, 'vip')) continue; // the show waits for its card's Watch
       vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1, o.client);
       audio.stinger('raid-won');
     }
@@ -360,7 +371,11 @@ async function main() {
         hud.ledger = false; hud.inspected = a.plot; focusPlot(a.plot);
         break;
       }
-      case 'dismiss': dismissAlert(state, a.id); break;
+      case 'dismiss': // dismissing a first arrival's card skips its show, and the clock it paused runs again
+        dismissAlert(state, a.id);
+        if (vipPaused === a.id) resume();
+        break;
+      case 'watch': { const card = (state.alerts ?? []).find((x) => x.id === a.id); if (card) watchVip(card); break; }
       case 'restockNow': {
         const ps = state.plots[a.plot];
         if (ps?.owner === 'player' && ps.stand && !ps.stand.wrecked) {
@@ -378,14 +393,14 @@ async function main() {
         if (state.day > 1) recordScore(state); // the run being left keeps its row on the leaderboard
         clearSave();
         state = freshRun(a.settings);
-        hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; bubbles.clear();
+        hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; vipPaused = ''; bubbles.clear();
         crowd.clear(); stopFights(); bay.sync(state); focusPlot(state.selected);
         break;
       }
       case 'keepSqueezing': keepSqueezing(state); break;
       case 'reloadDawn': {
         const d = loadDawn(state.runId);
-        if (d) { state = d; hud.inspected = null; crowd.clear(); stopFights(); bubbles.clear(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
+        if (d) { state = d; hud.inspected = null; vipResume = 0; vipPaused = ''; crowd.clear(); stopFights(); bubbles.clear(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
         break;
       }
       case 'borrow': borrow(state, a.amount); break;

@@ -48,8 +48,11 @@ function warning(s: GameState, a: Alert, r: Raid): string {
 }
 
 function card(a: Alert): string {
-  const icon = a.kind === 'soldout' ? ICON.empty() : a.kind === 'vip' ? ICON.crate() : ICON.lemon();
-  const act = a.kind === 'soldout' && a.plot ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go') : '';
+  const vip = a.kind === 'vip' || a.kind === 'pickup';
+  const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
+  // The one action: Restock now on a sold-out stand; Watch on a VIP card (a first arrival's show waits for it).
+  const act = a.kind === 'soldout' && a.plot ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')
+    : vip && a.scene ? btn('watch', '▶ Watch', `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
   return `<div class="cl-ticket" title="${esc(a.text)}">${icon}<b>${esc(a.text.replace(/!$/, ''))}</b>
     <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', '✕', `data-id="${a.id}" title="Dismiss"`, 'tiny ghost')}</span></div>`;
 }

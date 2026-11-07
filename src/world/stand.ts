@@ -180,7 +180,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   let openNow = false, lastTq = -1;
 
   // The grandkid: lemon cap, white apron, freckled and gap-toothed (clay/figure.ts SPECS.kid).
-  const kidFig = new Figure(SPECS.kid, kit().fig);
+  // A touch taller than the clay kid body, so the grandkid's face clears every counter.
+  const KID_SCALE = 1.12;
+  const kidFig = new Figure(SPECS.kid, kit().fig, { scale: KID_SCALE });
   const kid = kidFig.root;
   kid.position.set(0, 0, -0.45);
   group.add(kid);
@@ -324,19 +326,19 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       const up = Math.sin((cheer / 0.9) * Math.PI);
       kidFig.pose({ lift: up * 0.18, sq: cheer < 0.1 ? 0.1 : 0, aL: [Math.PI * 0.9, 0.4 + Math.sin(time * 30) * 0.2 * MOTION], aR: [Math.PI * 0.9, -0.4 - Math.sin(time * 30) * 0.2 * MOTION], headTilt: -0.15 }, f);
       kidFig.face('yum');
-      kid.scale.setScalar(1);
+      kid.scale.setScalar(KID_SCALE);
       return;
     }
     kidFig.face('neutral');
     if (!open) {
       kidFig.pose({ lean: 0.25, aL: [-1.7, 0.5], aR: [-1.7, -0.5], headTilt: 0.15, headRoll: Math.sin(time * 0.6) * 0.15 }, f);
       kidFig.blink(f, Math.sin(time * 0.35) > 0.6);
-      idlePose(kid, time * 0.4, 1);
+      idlePose(kid, time * 0.4, KID_SCALE);
       return;
     }
     const b = Math.abs(Math.sin(time * 3));
     kidFig.pose({ lift: b * 0.05 * MOTION, sq: (1 - b) * 0.05 * MOTION, aL: [-0.3, 0.2], aR: [-0.3 - b * 0.3, -0.2], headYaw: Math.sin(time * 0.8) * 0.3 }, f);
-    idlePose(kid, time, 1);
+    idlePose(kid, time, KID_SCALE);
   }
 
   const stand: Stand = {

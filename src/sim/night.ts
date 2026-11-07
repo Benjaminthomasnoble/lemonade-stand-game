@@ -30,6 +30,7 @@ import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, t
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
 import { nightShiftStealth } from './rivalAi.ts';
+import { scriptedRaider } from './beats.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -402,9 +403,11 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
   const rivals = RIVALS.filter((r) => mayRaidYou(s, r)); // not backing off after a beaten raid, nor in a Truce
-  const rival = rivals[Math.floor(nextRandom(rng) * rivals.length)];
+  const pick = rivals[Math.floor(nextRandom(rng) * rivals.length)];
   s.seed = rng.seed;
-  if (roll >= deliveryRaidChance(s) || !rival) return null;
+  // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
+  const rival = scriptedRaider(s, o) ?? (roll < deliveryRaidChance(s) ? pick : undefined);
+  if (!rival) return null;
   // They set out as loading starts and hit inside the 2-hour window (world's loading windows: relative to PICKUP_MINUTE until then).
   const leave = s.minute;
   const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, o.plot), o.plot));

@@ -414,6 +414,21 @@ describe('Delivery Raids', () => {
     expect(s.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
   });
 
+  it("the campaign's first chopper: FizzCo hits its first trip with no roll, later trips take the usual one", () => {
+    let rolled = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const { s, field } = pickupGame(seed);
+      s.story = { act: 4, since: 1, ...s.story, vip: { heli: 'vip' } }; // the movie star's chopper (src/sim/beats.ts)
+      while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+      expect(s.raids.find((x) => x.delivery)).toMatchObject({ attacker: 'fizzco', target: field, order: 'vip' });
+      const plain = pickupGame(seed).s; // any other chopper: 30%, from any rival who may raid you
+      while (plain.minute <= PICKUP_MINUTE.heli) tickMinute(plain);
+      if (plain.raids.some((x) => x.delivery)) rolled++;
+    }
+    expect(rolled).toBeGreaterThan(0);
+    expect(rolled).toBeLessThan(12);
+  });
+
   it('held off, the load goes out and pays', () => {
     const { s, r, field } = raidedPickup();
     s.guards = crew(6, field);

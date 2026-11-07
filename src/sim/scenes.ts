@@ -150,8 +150,7 @@ export function sceneLine(sc: Scene, t: number): SceneLine | null {
   return line;
 }
 
-/** Dawn: queue the day's story scenes (campaign only; playScene drops the rest). */
+/** Dawn: queue the day's story scenes (campaign only; playScene drops the rest). The Steward's comes with story.ts's visit. */
 export function scenesAtDawn(s: GameState): void {
-  if (s.day === 5) playScene(s, 'steward'); // the Steward's "reminder" at Morning Prep (spec Act 1, Day 5)
   if (s.guards.some((g) => g.name === DEX)) playScene(s, 'dex'); // Dex turns up the day he joins
 }

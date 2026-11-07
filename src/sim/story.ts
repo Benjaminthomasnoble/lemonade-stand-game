@@ -15,7 +15,7 @@ import type { GameState, Stand } from './economy.ts';
 import { expectedCups, pitcherNeeds, playerStands, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
-import { migrateScenes, scenesAtDawn } from './scenes.ts';
+import { migrateScenes, playScene, scenesAtDawn } from './scenes.ts';
 
 export interface StoryState {
   act: number; // 1-5
@@ -146,6 +146,32 @@ function dexOnDuty(s: GameState): void {
   alert(s, { kind: 'note', text: `Dex: "Nobody posted me. I took ${home === LOTTIES_CORNER ? 'the Corner' : PLOT_BY_ID[home].name.replace(/ lot /, ' ')}."`, plot: home });
 }
 
+/**
+ * Day 5 at dawn (campaign): a Sourwood Steward kicks over the table at Lottie's Corner "as a reminder" (Vera phones
+ * once the scene is over). A scene, not a raid: no fight, no Threat or Reputation change, and the tutorial raid stays
+ * the first. It costs one spilled pitcher: the Corner's lemons and sugar for 10 cups (the ice melted overnight), or
+ * what's left of them. A fence doesn't stop him. Then the Picket Fence's lesson: "Fence the Corner".
+ */
+function stewardVisit(s: GameState): void {
+  if (s.day !== LESSON_DAY.defense) return;
+  const ps = s.plots[LOTTIES_CORNER];
+  const st = ps.owner === 'player' && ps.stand && !ps.stand.wrecked ? ps.stand : null;
+  const n = st && pitcherNeeds(st);
+  let lemons = st && n ? Math.min(n.lemons, stock(st, 'lemons')) : 0;
+  const sugar = st && n ? Math.min(n.sugar, st.inventory.sugar) : 0;
+  const spill = lemons + sugar > 0;
+  const recap = `A Sourwood Steward knocked over the table "as a reminder"${spill ? ': one pitcher spilled' : ''}. Lottie wants a fence.`;
+  if (!playScene(s, 'steward', { recap }) || !st) return; // once a run, campaign only
+  st.inventory.sugar -= sugar;
+  const batches = st.inventory.lemons; // the oldest go first, as when pouring
+  while (lemons > 0 && batches.length) {
+    const take = Math.min(batches[0].qty, lemons);
+    batches[0].qty -= take;
+    lemons -= take;
+    if (!batches[0].qty) batches.shift();
+  }
+}
+
 /** A new run's first Morning Prep (newGame): Lottie stocks the Corner, and the campaign opens on her scene. */
 export function storyAtStart(s: GameState): void {
   migrateStory(s);
@@ -160,6 +186,7 @@ export function storyAtDawn(s: GameState): void {
   lottieStocksStands(s);
   // Day 3's lesson: the Market opens, and Auto-Restock with it.
   if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today you buy your own. Or flip on Auto, and I\'ll do the market runs."');
+  stewardVisit(s);
   goalsAtDawn(s);
   scenesAtDawn(s);
   phoneCheck(s, true);

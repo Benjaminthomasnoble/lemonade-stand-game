@@ -9,7 +9,7 @@ import { startScheme } from './schemes.ts';
 import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTarget } from './goals.ts';
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
-import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady, SCENES } from './scenes.ts';
+import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
 import { actBegan, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
 import { LESSON_DAY } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
@@ -123,7 +123,8 @@ describe('story scenes', () => {
     expect(sceneReady(s)).toBe(false);
     s.news.length = 0;
     endScene(s, true);
-    expect(s.news).toEqual([SCENES.steward.recap]);
+    expect(s.news).toEqual([sc.recap]);
+    expect(sc.recap).toMatch(/^A Sourwood Steward knocked over the table/);
     expect(beginScene(s)).toBeNull(); // one scene a day
     expect(playScene(s, 'steward')).toBe(false); // each plays once a run
     openStand(s);

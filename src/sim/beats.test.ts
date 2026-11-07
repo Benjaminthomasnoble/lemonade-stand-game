@@ -3,9 +3,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStand, buyPlot, BUILDING_VALUE_SHARE, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame,
-  openStand, PLOT_BY_ID, PLOTS, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, type GameState,
+  openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, PLOTS, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock,
+  threatLevel, type GameState,
 } from './economy.ts';
-import { lottieStocks, storyAfterAct, taught } from './story.ts';
+import { goalsNow } from './goals.ts';
+import { beginScene, endScene } from './scenes.ts';
+import { lottieStocks, storyAfterAct, storyAtDawn, taught } from './story.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 function nextDawn(s: GameState) {
@@ -120,5 +123,52 @@ describe("Lottie's side lot (Day 3)", () => {
     expect(ps.landValue).toBeLessThanOrEqual(SIDE_LOT.land * 2);
     expect(ps.stand?.level).toBe(1); // her table goes up on it
     expect(ps.dibs).toBeUndefined();
+  });
+});
+
+describe('the Day 5 Steward', () => {
+  /** Day 4's stock (bought that morning, so nothing spoils overnight), then Day 5's dawn. */
+  const day5 = (s: GameState, lemons = 40, sugar = 100) => {
+    s.day = 4;
+    corner(s).inventory = { lemons: lemons ? [{ qty: lemons, day: 4, unitCost: 0.2 }] : [], sugar, ice: 0, sugarCost: 0.03, iceCost: 0 };
+    nextDawn(s);
+    expect(s.day).toBe(5);
+  };
+  it('kicks over the table at dawn: a scene, not a raid, that spills one pitcher', () => {
+    const s = newGame(48);
+    const st = corner(s);
+    const lemons = 40, sugar = 100;
+    const rep = s.reputation, threat = threatLevel(s), battles = s.battles.length;
+    day5(s);
+    expect(s.scenes!.queue.map((q) => q.id)).toContain('steward');
+    const n = pitcherNeeds(st);
+    expect(stock(st, 'lemons')).toBe(lemons - n.lemons); // 10 cups' worth: Classic's 5 lemons and 10 scoops
+    expect(st.inventory.sugar).toBe(sugar - n.sugar);
+    expect(s.battles.length).toBe(battles); // no fight...
+    expect(s.reputation).toBe(rep); // ...no Reputation or Threat change...
+    expect(threatLevel(s)).toBe(threat);
+    expect(s.raids.some((r) => s.plots[r.target].owner === 'player')).toBe(false); // ...and no raids on you yet
+    expect(goalsNow(s)[1].text).toBe('Fence the Corner');
+    storyAtDawn(s); // once a run
+    expect(stock(st, 'lemons')).toBe(lemons - n.lemons);
+    const sc = beginScene(s)!;
+    expect(sc.id).toBe('steward');
+    endScene(s, true);
+    expect(s.news).toContain('A Sourwood Steward knocked over the table "as a reminder": one pitcher spilled. Lottie wants a fence.');
+  });
+
+  it('spills what little is left, steps over a fence, and never comes in Sandbox', () => {
+    const s = newGame(49);
+    s.plots[LOTTIES_CORNER].defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] };
+    day5(s, 2, 0);
+    expect(stock(corner(s), 'lemons')).toBe(0);
+    expect(s.scenes!.queue.map((q) => q.id)).toContain('steward');
+    const bare = newGame(51);
+    day5(bare, 0, 0); // nothing on the table: the scene plays, and its recap spills nothing
+    expect(bare.scenes!.queue.find((q) => q.id === 'steward')?.data?.recap).toBe('A Sourwood Steward knocked over the table "as a reminder". Lottie wants a fence.');
+    const sb = newGame(50, { mode: 'sandbox' });
+    day5(sb);
+    expect(stock(corner(sb), 'lemons')).toBe(40);
+    expect(sb.scenes!.queue).toHaveLength(0);
   });
 });

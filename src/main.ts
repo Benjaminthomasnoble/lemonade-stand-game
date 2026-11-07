@@ -94,9 +94,11 @@ async function main() {
     if (boss && boss !== 'player' && boss in BOSS) phone.ring(boss as RivalId, pick(BOSS[boss as RivalId].warn));
     lottieSays('raidComing', { react: 'fist' });
   };
-  /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. */
+  /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. A VIP client's first visit
+   * holds the clock instead (its show plays on; see drawEvents). */
   const onAlert = (a: Alert) => {
     if (a.kind === 'raid' || a.kind === 'delivery') raidWarned(a);
+    if (a.kind === 'vip') return;
     if (isMajor(a) && autoPauses(options, state, a.kind)) pause();
   };
   /** A raid hit at its minute. Live, the brawl plays (one at a time) and its headline waits for the end. */
@@ -234,21 +236,20 @@ async function main() {
 
   const vip = createVip(world.scene, { onHorn: () => audio.horn() });
   const traffic = createTraffic(world.scene);
-  /** What the clock did, on screen. Skips (Finish the day, Sleep till dawn) pass live = false: no scenes. */
+  /** What the clock did, on screen. Skips (Finish the day, Sleep till dawn) pass live = false: no scenes, except a
+   * VIP client's first visit, which stops the skip (a major alert) so its show can play. */
   const drawEvents = (events: SimEvent[], live = true) => {
+    const firsts = new Set(events.flatMap((e) => (e.type === 'alert' && e.alert.kind === 'vip' && e.alert.order ? [e.alert.order] : [])));
     for (const e of events) {
       if (e.type === 'alert') { onAlert(e.alert); continue; }
       if (e.type === 'fight') { onFight(e.report, live); continue; }
       if (e.type === 'dawn') { atDawn(); continue; }
-      if (e.type !== 'pickup' || !live) continue;
+      if (e.type !== 'pickup') continue;
+      const o = e.order, first = firsts.has(o.id);
+      if (!e.ok || !o.plot || !isVip(o.tier) || (!live && !first)) continue;
       flushNews();
-      if (e.raid) { playBattle(e.raid); continue; }
-      const o = e.order;
-      if (!e.ok || !o.plot || !isVip(o.tier)) continue;
       // Only a client's first visit stops the clock for the show (its own switch); regulars just land and load.
-      const seen = (state.seenClients ??= []);
-      if (!seen.includes(o.client)) {
-        seen.push(o.client);
+      if (first) {
         crowd.clear();
         focusPlot(o.plot, bySea(o.tier) ? 60 : 45);
         if (autoPauses(options, state, 'vip')) vipResume = 1;

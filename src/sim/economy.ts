@@ -600,7 +600,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   s.seed = rng.seed;
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;
-  events.push(...onTheClock(s)); // daytime raids are warned and fought on the clock; small calls land in the feed
+  events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
   if (s.minute >= CLOSE) {
     closeDay(s);
     events.push({ type: 'close' });

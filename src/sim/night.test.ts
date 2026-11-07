@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alert, buildFacility, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
-  etaMinute, FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame,
+  alert, buildFacility, clientOf, clockText, CLOSE, DAWN, defaultSettings, DELIVERY_WINDOW, DIFFICULTY, dismissAlert, eliminate,
+  etaMinute, FIGHT_SECONDS_PER_GAME_MINUTE, hhmm, incomingRaids, isMajor, LOTTIES_CORNER, MAX_ALERTS, migrateSave, newGame,
   NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, nightStep, onYou, openStand, PICKUP_MINUTE, planNight, planRaid, PLOTS,
   QUIET_NIGHT_SPEED, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
@@ -242,8 +242,9 @@ describe('Delivery Raids', () => {
     r.party = r.party!.map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 }));
     const rep = s.reputation;
     const all = [...ev, ...play(s, r)];
-    const warning = all.flatMap((e) => (e.type === 'alert' ? [e.alert] : []));
-    expect(warning).toHaveLength(1);
+    const cards = all.flatMap((e) => (e.type === 'alert' ? [e.alert] : []));
+    expect(cards.map((a) => a.kind)).toEqual(['vip', 'delivery']); // the client's first chopper, then the raid's warning
+    const warning = cards.filter((a) => a.kind === 'delivery');
     expect(warning[0]).toMatchObject({ kind: 'delivery', raid: r.id, plot: field });
     expect(warning[0].text).toMatch(/^DELIVERY RAID! .+ are coming for the pickup at .+, ETA \d+:\d\d(am|pm)\.$/);
     expect(all.some((e) => e.type === 'fight' && e.raid === r && e.report.outcome === 'robbed')).toBe(true);
@@ -269,10 +270,11 @@ describe('Delivery Raids', () => {
   it('Finish the day stops at the warning', () => {
     const { seed, r } = raidedPickup();
     const { s } = pickupGame(seed);
+    s.seenClients = ['Test Star']; // a regular: the first-visit stop doesn't come first
     const ev = simulateRestOfDay(s, true);
     expect(s.phase).toBe('open');
     expect(ev.at(-1)).toMatchObject({ type: 'alert', alert: { kind: 'delivery' } });
-    expect(s.minute).toBe(r.warnAt);
+    expect(s.minute).toBe(Math.max(r.warnAt!, r.leave! + 1)); // it sets out with the chopper and warns on the clock
   });
 
   it('called off mid-loading (the rival went under), the load goes out at once and is not raided again', () => {
@@ -303,6 +305,62 @@ describe('Delivery Raids', () => {
     play(m, mr);
     expect(m.orders.some((o) => o.id === 'vip')).toBe(false);
     expect(m.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
+  });
+});
+
+describe('VIP first arrivals', () => {
+  /** Rank 7 with a helipad and a pier, and orders due today. */
+  function vipDay(orders: { id: string; tier: 'heli' | 'ship'; client: string }[]) {
+    const s = newGame(5);
+    s.rank = 7;
+    s.reputation = 4.5;
+    s.cash = 3_000_000;
+    s.rivals.blenders.respectUntil = s.rivals.coldbrew.respectUntil = s.rivals.fizzco.respectUntil = s.rivals.hollis.respectUntil = s.rivals.sourwood.respectUntil = 99;
+    const field = PLOTS.find((p) => p.type === 'field' && !s.plots[p.id].facility)!.id;
+    const dock = PLOTS.find((p) => p.type === 'dock' && !s.plots[p.id].facility)!.id;
+    for (const id of [field, dock]) s.plots[id] = { ...s.plots[id], owner: 'player', stand: null };
+    buildFacility(s, field, 'helipad');
+    buildFacility(s, dock, 'pier');
+    s.bottles = 100_000;
+    for (const o of orders) s.orders.push({ ...o, qty: 2000, pay: 6000, due: s.day, expires: s.day, plot: o.tier === 'heli' ? field : dock, accepted: true });
+    openStand(s);
+    return { s, field, dock };
+  }
+  const vipCards = (ev: SimEvent[]) => ev.flatMap((e) => (e.type === 'alert' && e.alert.kind === 'vip' ? [e.alert] : []));
+
+  it("is a major alert that stops Finish the day; the client is a regular after that, even after a skip", () => {
+    const { s, dock, field } = vipDay([{ id: 'ship1', tier: 'ship', client: 'the Bay Centennial flotilla' }, { id: 'heli1', tier: 'heli', client: 'a celebrity wedding' }]);
+    let ev = simulateRestOfDay(s, true);
+    expect(s.minute).toBe(PICKUP_MINUTE.ship + 1);
+    expect(vipCards(ev)).toEqual([expect.objectContaining({ kind: 'vip', plot: dock, order: 'ship1', text: 'First ship in: the Bay Centennial flotilla!' })]);
+    expect(isMajor(vipCards(ev)[0])).toBe(true);
+    ev = simulateRestOfDay(s, true);
+    expect(s.minute).toBe(PICKUP_MINUTE.heli + 1);
+    expect(vipCards(ev)).toEqual([expect.objectContaining({ plot: field, order: 'heli1', text: 'First chopper in: a celebrity wedding!' })]);
+    expect(s.seenClients).toEqual(['the Bay Centennial flotilla', 'a celebrity wedding']);
+    simulateRestOfDay(s, true);
+    expect(s.phase).toBe('report');
+    sleepUntilDawn(s);
+    // Tomorrow the wedding planners come back: a regular, no stop.
+    s.orders.push({ id: 'heli2', tier: 'heli', client: 'a celebrity wedding', qty: 2000, pay: 6000, due: s.day, expires: s.day, plot: field, accepted: true });
+    openStand(s);
+    ev = simulateRestOfDay(s, true);
+    expect(s.phase).toBe('report');
+    expect(vipCards(ev)).toEqual([]);
+    expect(ev.some((e) => e.type === 'pickup' && e.order.id === 'heli2' && e.ok)).toBe(true);
+  });
+
+  it("a Supply Deal's weekly loads are one client", () => {
+    const { s } = vipDay([{ id: 'd-1', tier: 'ship', client: 'Gulfstream Grocers (load 1 of 4)' }]);
+    expect(clientOf(s.orders[0])).toBe('Gulfstream Grocers');
+    const first = vipCards(simulateRestOfDay(s));
+    expect(first.map((a) => a.text)).toEqual(['First ship in: Gulfstream Grocers!']);
+    sleepUntilDawn(s);
+    s.orders.push({ id: 'd-2', tier: 'ship', client: 'Gulfstream Grocers (load 2 of 4)', qty: 2000, pay: 6000, due: s.day, expires: s.day, plot: first[0].plot, accepted: true });
+    openStand(s);
+    const ev = simulateRestOfDay(s);
+    expect(ev.some((e) => e.type === 'pickup' && e.order.id === 'd-2' && e.ok)).toBe(true);
+    expect(vipCards(ev)).toEqual([]);
   });
 });
 

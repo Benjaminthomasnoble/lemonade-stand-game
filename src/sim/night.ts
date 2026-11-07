@@ -151,9 +151,28 @@ function raidClock(s: GameState): SimEvent[] {
   return ev;
 }
 
-/** One business-hours minute (called from tickMinute after the clock moves): daytime raids, and small calls. */
-export function onTheClock(s: GameState): SimEvent[] {
-  const ev = raidClock(s);
+/** The client behind an order: a Supply Deal's weekly loads all come from one client. */
+export const clientOf = (o: Order) => o.client.replace(/ \(load \d+ of \d+\)$/, '');
+
+/** A VIP client's first arrival is a major alert: it auto-pauses by its own switch and stops the skips, so the
+ * show is never jumped past. Regulars just land and load. */
+function firstArrivals(s: GameState, events: SimEvent[]): SimEvent[] {
+  const ev: SimEvent[] = [];
+  for (const e of events) {
+    if (e.type !== 'pickup' || !e.ok || !isVip(e.order.tier) || !e.order.plot) continue;
+    const who = clientOf(e.order), seen = (s.seenClients ??= []);
+    if (seen.includes(who)) continue;
+    seen.push(who);
+    const text = `First ${e.order.tier === 'heli' ? 'chopper' : 'ship'} in: ${who}!`;
+    ev.push({ type: 'alert', alert: alert(s, { kind: 'vip', text, plot: e.order.plot, order: e.order.id }) });
+  }
+  return ev;
+}
+
+/** One business-hours minute (called from tickMinute after the clock moves, with that minute's events so far):
+ * daytime raids, VIP first arrivals, and small calls. */
+export function onTheClock(s: GameState, events: SimEvent[] = []): SimEvent[] {
+  const ev = [...firstArrivals(s, events), ...raidClock(s)];
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     const st = ps.stand;

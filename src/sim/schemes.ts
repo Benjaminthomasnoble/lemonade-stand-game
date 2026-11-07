@@ -3,28 +3,30 @@
 // "come more often with each lemon"). Each dawn a rival with no scheme running
 // may start one, paid from its Strike bucket: a price war at its stands that
 // share customers with yours, the Cold Brew Collective's smear posters on one
-// of your stands, a snipe at an auction you bid on, or FizzCo's
-// Cease-and-Desist on your marketing in one district. The Bugle reports each
-// one. Pure and seeded, like the rest of the sim.
+// of your stands, a snipe at an auction you bid on, or FizzCo's Hostile
+// Takeover: a Cease-and-Desist on your marketing in one district, or an offer
+// to buy one of your plots. The Bugle reports each one. Pure and seeded, like
+// the rest of the sim.
 import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
-import { DISTRICT_BY_ID, DISTRICTS, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
+import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, Stand } from './economy.ts';
-import { rivalPrice } from './economy.ts';
+import { ownedPlots, rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
-import { budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
-import { CEASE, inTruce, SCHEMES } from './rivals.ts';
+import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
+import { CEASE, inTruce, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 
-export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease';
+export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease' | 'buyout';
 export interface Scheme {
   kind: SchemeKind;
   by: RivalId;
   day: number; // the dawn it started
   until: number; // it runs through this day
-  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit
+  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot
   district?: DistrictId; // a Cease-and-Desist: the district it blocks
+  price?: number; // a buyout offer: what they'd pay you
   caught?: boolean; // posters: your night watch caught the crew
   cost?: number; // what Strike has paid for it so far
   done?: boolean; // over: it ran its days, Strike ran dry, or the snipe went off
@@ -33,6 +35,7 @@ export interface Scheme {
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const short = (id: RivalId) => FACTIONS[id].name;
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /**
  * The schemes each rival reaches for, most likely first (spec: Cold Brew's posters, FizzCo's auction outbids and
@@ -40,7 +43,7 @@ const short = (id: RivalId) => FACTIONS[id].name;
  */
 const PREFERS: Record<RivalId, SchemeKind[]> = {
   coldbrew: ['posters', 'priceWar', 'snipe'],
-  fizzco: ['snipe', 'cease', 'priceWar'],
+  fizzco: ['snipe', 'cease', 'buyout', 'priceWar'],
   sourwood: ['priceWar', 'snipe'],
   hollis: ['priceWar', 'snipe'],
   blenders: ['priceWar', 'snipe'],
@@ -224,6 +227,82 @@ export function ceaseAndDesist(s: GameState, district?: DistrictId): Scheme | nu
 /** For the HUD and tests: the Cease-and-Desist running in a district today, if any. */
 export const ceaseIn = (s: GameState, district: DistrictId) => (s.rivals.fizzco.alive ? runningSchemes(s).find((x) => x.kind === 'cease' && x.district === district) : undefined);
 
+// ---------- buyout offers ----------
+
+/** A pickup booked at this plot's Helipad or Pier: it can't change hands until the load goes. */
+const pickupBooked = (s: GameState, plotId: string) => s.orders.some((o) => o.plot === plotId);
+/** What FizzCo would offer for a plot of yours: its land and building value, marked up. */
+export const takeoverPrice = (s: GameState, plotId: string) => Math.round(TAKEOVER.price * (s.plots[plotId].landValue + s.plots[plotId].invested));
+
+/** The plot FizzCo wants: your most valuable one on or beside its turf (not Lottie's Corner, a trophy HQ, a wreck or a booked pad). */
+function takeoverTarget(s: GameState): string | null {
+  const id: RivalId = 'fizzco';
+  const turf = new Set<DistrictId>([FACTIONS[id].home as DistrictId, ...ownedPlots(s, id).map((p) => p.district)]);
+  const near = new Set([...turf, ...[...turf].flatMap((d) => BORDERS[d] ?? [])]);
+  const value = (plotId: string) => s.plots[plotId].landValue + s.plots[plotId].invested;
+  const wanted = PLOTS.filter((p) => {
+    const ps = s.plots[p.id];
+    const built = ps.stand ? !ps.stand.wrecked : ps.facility ? !ps.facility.wrecked : false;
+    return ps.owner === 'player' && built && near.has(p.district) && p.id !== LOTTIES_CORNER && p.type !== 'hq' && !pickupBooked(s, p.id);
+  });
+  return wanted.sort((a, b) => value(b.id) - value(a.id) || a.id.localeCompare(b.id))[0]?.id ?? null;
+}
+
+/** FizzCo offers to buy one of your plots (Hostile Takeover): from Rank 6, if its Grow can pay. The offer stands 2 days. */
+function startBuyout(s: GameState, id: RivalId): Scheme | null {
+  if (id !== 'fizzco' || s.rank < TAKEOVER.rank) return null;
+  const plot = takeoverTarget(s);
+  if (!plot) return null;
+  const price = takeoverPrice(s, plot);
+  if (!canSpend(s, id, 'grow', price)) return null;
+  const offer: Scheme = { kind: 'buyout', by: id, day: s.day, until: s.day + TAKEOVER.days - 1, plots: [plot], price };
+  s.schemes!.push(offer);
+  alert(s, { kind: 'note', text: `FizzCo offers ${money(price)} for ${PLOT_BY_ID[plot].name}. Sell, or say no.`, plot });
+  return offer;
+}
+
+/** The offer standing on a plot of yours today, if any. */
+export const offerOn = (s: GameState, plotId: string) => runningSchemes(s).find((x) => x.kind === 'buyout' && x.plots[0] === plotId && s.rivals[x.by].alive);
+
+/** Can you take FizzCo's offer now? At Morning Prep, while it stands and FizzCo's Grow can still pay. */
+export function canSellToFizzco(s: GameState, plotId: string): { ok: true } | { ok: false; why: string } {
+  const offer = offerOn(s, plotId);
+  if (!offer || s.plots[plotId].owner !== 'player') return { ok: false, why: 'No offer on this plot' };
+  if (s.phase !== 'prep') return { ok: false, why: 'Sell at Morning Prep' };
+  if (!canSpend(s, offer.by, 'grow', offer.price!)) return { ok: false, why: 'FizzCo can\'t pay any more' };
+  return { ok: true };
+}
+
+/**
+ * Your answer to a buyout offer. Sell: FizzCo's Grow pays you the price and the plot goes to FizzCo with what's built
+ * on it (your guards there come home). No: the offer is off, and Preston's Grudge rises. Returns whether it went.
+ */
+export function answerBuyout(s: GameState, plotId: string, sell: boolean): boolean {
+  const offer = offerOn(s, plotId);
+  if (!offer) return false;
+  const id = offer.by;
+  if (!sell) {
+    offer.done = true;
+    addGrudge(s, id, 'player', TAKEOVER.snub);
+    // story: phoneCall(s, 'fizzco', taunt) once the phone lands; until then the line runs in the news.
+    s.news.push(`Preston: "${TAKEOVER.taunt}"`);
+    return true;
+  }
+  if (!canSellToFizzco(s, plotId).ok) return false;
+  const price = offer.price!;
+  spend(s, id, 'grow', price);
+  s.cash = round2(s.cash + price); // ledger: land sale
+  const ps = s.plots[plotId];
+  ps.owner = id;
+  ps.garrison = 0;
+  delete ps.dibs;
+  if (ps.stand) ps.stand.price = rivalPrice(id, ps.stand.level, PLOT_BY_ID[plotId]);
+  for (const g of s.guards) if (g.post === plotId) g.post = null;
+  offer.done = true;
+  s.news.push(`Bugle: Lottie sells ${PLOT_BY_ID[plotId].name} to ${short(id)} for ${money(price)}`);
+  return true;
+}
+
 // ---------- auction snipe ----------
 
 /** An open auction on a plot, as land's auctions keep it (PlotState.auction once they land; none before). */
@@ -273,7 +352,7 @@ export function schemesAtDawn(s: GameState): void {
     if (x.done) continue;
     if (!s.rivals[x.by]?.alive) { x.done = true; continue; }
     if (x.kind === 'priceWar') runPriceWar(s, x);
-    else if (s.day > x.until) x.done = true; // a letter that ran its days, or a snipe whose lot closed without it
+    else if (s.day > x.until || (x.kind === 'buyout' && s.plots[x.plots[0]].owner !== 'player')) x.done = true; // ran its days, the lot closed, or the plot left you
   }
   s.schemes = s.schemes.filter((x) => !x.done || x.until >= s.day - SCHEMES.keep);
   if (s.day < SCHEMES.from) return;
@@ -293,7 +372,7 @@ export function startScheme(s: GameState, id: RivalId, kind: SchemeKind, rng?: R
   s.schemes ??= [];
   const r = rng ?? { seed: s.seed };
   const started = kind === 'priceWar' ? startPriceWar(s, id) : kind === 'posters' ? startPosters(s, id, r) : kind === 'snipe' ? startSnipe(s, id)
-    : id === 'fizzco' ? ceaseAndDesist(s) : null;
+    : kind === 'buyout' ? startBuyout(s, id) : id === 'fizzco' ? ceaseAndDesist(s) : null;
   if (!rng) s.seed = r.seed; // called on its own: write the draws back
   return started;
 }

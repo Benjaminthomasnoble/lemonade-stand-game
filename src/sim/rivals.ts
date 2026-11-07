@@ -112,6 +112,12 @@ export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2, taunt: "Bring all the 
  * The letters stop when FizzCo falls (placeholders for rank and cost; the 3 days are the spec's).
  */
 export const CEASE = { rank: 6, cost: 2000, days: 3, taunt: "I'm not threatening you. Legal says I can't. I'm forecasting." };
+/**
+ * FizzCo's buyout offers (Hostile Takeover): from Rank `rank`, FizzCo offers `price` times a plot's land and building
+ * value, out of its Grow, for your best plot on or beside its turf. The offer stands `days` days, and you answer at
+ * Morning Prep. Turning it down adds `snub` to Preston's Grudge (placeholders: the spec gives no numbers).
+ */
+export const TAKEOVER = { rank: 6, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

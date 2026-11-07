@@ -10,7 +10,7 @@ import {
   alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId,
+  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk,
 } from './sim/economy.ts';
@@ -604,6 +604,7 @@ async function main() {
       }
       case 'truce': makeTruce(state, a.rival); break;
       case 'plotBuyout': plotBuyout(state, a.plot); break;
+      case 'takeover': answerBuyout(state, a.plot, a.sell); break;
       case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
       case 'assault': {
         if (state.fight) { // one fight at a time: with one on, the assault is fought at once and shown after

@@ -89,6 +89,7 @@ export type Action =
   | { type: 'decline'; id: string }
   | { type: 'truce'; rival: RivalId }
   | { type: 'plotBuyout'; plot: string }
+  | { type: 'takeover'; plot: string; sell: boolean } // FizzCo's buyout offer: Sell or No
   | { type: 'factionBuyout'; rival: RivalId }
   | { type: 'assault'; rival: RivalId; guards: string[] }
   | { type: 'setup' } // open the New Game screen
@@ -363,6 +364,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
+      case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;

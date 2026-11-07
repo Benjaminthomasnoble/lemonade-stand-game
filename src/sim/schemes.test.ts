@@ -3,6 +3,7 @@ import {
   budgetOf, FACTIONS, keptShare, migrateSave, nearbyPlots, newGame, newStand, openStand, PLOT_BY_ID, PLOTS, priceWarCut, rivalPrice,
   runningSchemes, SCHEMES, schemesAtDawn, simulateRestOfDay, sleepUntilDawn, snipeBid, startScheme, warAt, warFront,
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
+  answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -390,5 +391,95 @@ describe('Cease-and-Desist', () => {
     expect(ticket).toContain(`data-action="goto" data-plot="${downtown}"`);
     expect(schemeNote(s, downtown)).toBe('<span class="cl-note bad">Ads blocked</span>');
     expect(schemeNote(s, LOTTIES_CORNER)).toBe('');
+  });
+});
+
+describe('FizzCo buyout offers', () => {
+  /** Rank 6 at Morning Prep, with a stand of Lottie's in Downtown, FizzCo's home turf. */
+  function wanted(seed: number, district = 'downtown') {
+    const s = newGame(seed);
+    s.rank = 6;
+    s.day = 60;
+    s.phase = 'prep';
+    const p = PLOTS.find((q) => q.district === district && !s.plots[q.id].owner && q.type === 'street')!;
+    s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2, 2), invested: 550 };
+    return { s, plot: p.id };
+  }
+  const guardAt = (post: string) => ({ id: 'g1', name: 'Test', trait: 'Loyal', level: 3, xp: 0, weapon: 'clubs', gear: 'none', post, outUntil: 0, fee: 0 }) as GameState['guards'][number];
+
+  it('offer 1.25x land and building for your best plot on its turf, out of Grow; Sell hands it over at Morning Prep', () => {
+    const { s, plot } = wanted(41);
+    s.guards.push(guardAt(plot));
+    const price = Math.round(TAKEOVER.price * (s.plots[plot].landValue + 550));
+    const offer = startScheme(s, 'fizzco', 'buyout')!;
+    expect(offer).toMatchObject({ kind: 'buyout', by: 'fizzco', plots: [plot], price, day: 60, until: 61 });
+    expect(s.alerts!.at(-1)!.text).toBe(`FizzCo offers $${price.toLocaleString('en-US')} for ${PLOT_BY_ID[plot].name}. Sell, or say no.`);
+    const grow = budgetOf(s, 'fizzco').grow, cash = s.cash;
+    s.phase = 'open';
+    expect(canSellToFizzco(s, plot)).toEqual({ ok: false, why: 'Sell at Morning Prep' });
+    expect(answerBuyout(s, plot, true)).toBe(false);
+    s.phase = 'prep';
+    expect(answerBuyout(s, plot, true)).toBe(true);
+    expect(s.plots[plot].owner).toBe('fizzco');
+    expect(s.plots[plot].stand!.price).toBe(rivalPrice('fizzco', 2, PLOT_BY_ID[plot]));
+    expect(s.cash).toBeCloseTo(cash + price, 2);
+    expect(grow - budgetOf(s, 'fizzco').grow).toBeCloseTo(price, 2);
+    expect(s.guards[0].post).toBeNull(); // your guard comes home
+    expect(offer.done).toBe(true);
+    expect(offerOn(s, plot)).toBeUndefined();
+    expect(s.news.at(-1)).toBe(`Bugle: Lottie sells ${PLOT_BY_ID[plot].name} to FizzCo Beverages for $${price.toLocaleString('en-US')}`);
+  });
+
+  it('No raises Preston\'s Grudge and ends it; an unanswered offer lapses after 2 days', () => {
+    const { s, plot } = wanted(42);
+    startScheme(s, 'fizzco', 'buyout');
+    const g = s.rivals.fizzco.grudge;
+    expect(answerBuyout(s, plot, false)).toBe(true);
+    expect(s.rivals.fizzco.grudge).toBe(g + TAKEOVER.snub);
+    expect(s.news.at(-1)).toBe(`Preston: "${TAKEOVER.taunt}"`);
+    expect(s.plots[plot].owner).toBe('player');
+    expect(offerOn(s, plot)).toBeUndefined();
+    const t = wanted(43);
+    const offer = startScheme(t.s, 'fizzco', 'buyout')!;
+    hush(t.s);
+    t.s.day = 61;
+    schemesAtDawn(t.s);
+    expect(offerOn(t.s, t.plot)).toBe(offer);
+    t.s.day = 62;
+    schemesAtDawn(t.s);
+    expect(offer.done).toBe(true);
+    expect(answerBuyout(t.s, t.plot, true)).toBe(false);
+    expect(t.s.plots[t.plot].owner).toBe('player');
+  });
+
+  it('never for Lottie\'s Corner or a plot away from FizzCo\'s turf, not before Rank 6, and not past what Grow holds', () => {
+    expect(startScheme(newGame(44), 'fizzco', 'buyout')).toBeNull(); // only the Corner, and Rank 1
+    const far = wanted(45, 'groves');
+    expect(startScheme(far.s, 'fizzco', 'buyout')).toBeNull();
+    const early = wanted(46);
+    early.s.rank = 5;
+    expect(startScheme(early.s, 'fizzco', 'buyout')).toBeNull();
+    const poor = wanted(47);
+    budgetOf(poor.s, 'fizzco').grow = 10;
+    expect(startScheme(poor.s, 'fizzco', 'buyout')).toBeNull();
+    expect(startScheme(wanted(48).s, 'sourwood', 'buyout')).toBeNull(); // a FizzCo move
+    const spent = wanted(49);
+    startScheme(spent.s, 'fizzco', 'buyout');
+    budgetOf(spent.s, 'fizzco').grow = 10; // spent elsewhere before you answered
+    expect(canSellToFizzco(spent.s, spent.plot)).toEqual({ ok: false, why: 'FizzCo can\'t pay any more' });
+  });
+
+  it('on the HUD: the price with Sell and No; Sell is locked outside Morning Prep; the plot card shows the bid', () => {
+    const { s, plot } = wanted(50);
+    const offer = startScheme(s, 'fizzco', 'buyout')!;
+    const ticket = () => schemeTickets(s).find((x) => x.includes('data-testid="takeover"'))!;
+    const bid = `FizzCo bids $${offer.price!.toLocaleString('en-US')}`;
+    expect(ticket()).toContain(bid);
+    expect(ticket()).toContain(`data-action="takeover" data-plot="${plot}" data-sell="1"`);
+    expect(ticket()).toContain(`data-action="takeover" data-plot="${plot}" data-sell="0"`);
+    expect(ticket()).not.toContain('disabled');
+    s.phase = 'night';
+    expect(ticket()).toContain('disabled title="Sell at Morning Prep"');
+    expect(schemeNote(s, plot)).toBe(`<span class="cl-note">${bid}</span>`);
   });
 });

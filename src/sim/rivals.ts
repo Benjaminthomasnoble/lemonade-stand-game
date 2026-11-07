@@ -13,7 +13,7 @@ import { recoverPage } from './recipes.ts';
 import { retireJingle } from './radio.ts';
 import { bossExit } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
-import type { Rng } from './rng.ts';
+import { nextRandom, type Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
 import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
@@ -42,6 +42,16 @@ export const TRUCE_TRIBUTE = { share: 0.02, floor: 500, grudge: 0.01 };
  */
 export const SMOOTH_TALKER = { trait: 'Smooth Talker' as Trait, cut: 0.15 };
 export const PLOT_BUYOUT = { home: 2.5, away: 2 };
+/**
+ * Juni and Preston haggle over a Faction Buyout (Brock and Tilly accept readily). You open at `offer` times their cash
+ * and buildings, what Brock and Tilly take; they counter at their own multiple (HQS: 1.8x). Shake on the counter, or
+ * hold firm: they take your offer with chance `cave` less `perGrudge` a point of Grudge toward you, else they walk out
+ * until tomorrow and their Grudge rises by `snub`. Placeholders: the spec names the haggle but not its mechanics.
+ */
+export const HAGGLE = {
+  offer: 1.5, cave: 0.5, perGrudge: 0.005, snub: 5,
+  lines: { coldbrew: 'in small bills, for authenticity', fizzco: 'after hard haggling' } as Partial<Record<RivalId, string>>,
+};
 export const FIRE_SALE = { share: 0.75, days: 2 };
 export const BANKRUPT_DAYS = 7;
 /** Per faction: HQ assault rank, Gate HP, Faction Buyout multiple (null = never sells), boss and HQ difficulty tier. */
@@ -344,32 +354,94 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
 
 // ---------- Faction Buyout ----------
 
-/** The business: their cash plus what's invested in their buildings. The land goes to the Fire Sale. */
+/** What a Faction Buyout buys: the rival's cash plus what's invested in their buildings (the land goes to the Fire Sale). */
+const businessOf = (s: GameState, id: RivalId) => Math.max(0, s.rivals[id].cash) + ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
+
+/** Their price for the business: its multiple (HQS) times cash and buildings, your negotiator's terms applied. */
 export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
   // Peaceful Sandbox: even Vera sells once Weakened (at 3x), so Domination can finish without a fight.
   const m = HQS[id].buyout ?? (peaceful(s) ? PEACEFUL_VERA_BUYOUT : null);
   if (m === null) return null;
-  const buildings = ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
-  return Math.round((Math.max(0, s.rivals[id].cash) + buildings) * m * sitDownTerms(s));
+  return Math.round(businessOf(s, id) * m * sitDownTerms(s));
 }
 
-export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
+/** Juni and Preston haggle; the others sign at their price. */
+export const haggles = (id: RivalId) => HAGGLE.lines[id] !== undefined;
+/** The counter-offer is on the table today: shake on it, or hold firm. */
+export const haggling = (s: GameState, id: RivalId) => s.rivals[id].haggle?.day === s.day && !s.rivals[id].haggle?.out;
+/** Your opening offer to a haggler, and what holding firm pays: what Brock and Tilly take. */
+export const haggleOffer = (s: GameState, id: RivalId) => Math.round(businessOf(s, id) * HAGGLE.offer * sitDownTerms(s));
+/** The chance a haggler takes your offer when you hold firm: less the more they hold against you. */
+export const caveChance = (s: GameState, id: RivalId) => Math.max(0, Math.min(1, HAGGLE.cave - Math.max(0, s.rivals[id].grudge) * HAGGLE.perGrudge));
+/** The bosses by first name, across the table. */
+export const BOSS_NAME: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera' };
+const bossName = (id: RivalId) => BOSS_NAME[id];
+
+/** Everything a Faction Buyout needs but the money: the rank, a Weakened rival who sells, Morning Prep, a boss at the table. */
+function buyoutTable(s: GameState, id: RivalId): Blocker {
   if (s.rank < Math.max(FACTION_BUYOUT_RANK, HQS[id].rank)) return rankNeed(Math.max(FACTION_BUYOUT_RANK, HQS[id].rank));
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   const tilly = tillyWaits(s, id, 'buyout'); if (tilly) return tilly;
-  const price = factionBuyoutPrice(s, id);
-  if (price === null) return { ok: false, why: `${HQS[id].boss} never sells` };
+  if (factionBuyoutPrice(s, id) === null) return { ok: false, why: `${HQS[id].boss} never sells` };
   if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
   if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
-  if (s.cash < price) return { ok: false, why: `They want ${money(price)}` };
+  if (s.rivals[id].haggle?.day === s.day && s.rivals[id].haggle?.out) return { ok: false, why: `${bossName(id)} walked out. Back tomorrow` };
   return { ok: true };
 }
 
+/** Can you buy them out now: at their price, or (a haggler, before the counter) at your opening offer. */
+export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
+  const table = buyoutTable(s, id);
+  if (!table.ok) return table;
+  const need = haggles(id) && !haggling(s, id) ? haggleOffer(s, id) : factionBuyoutPrice(s, id)!; // a haggler hears your offer first
+  if (s.cash < need) return { ok: false, why: `They want ${money(need)}` };
+  return { ok: true };
+}
+
+/** Holding firm at your offer, with a haggler's counter on the table. */
+export function canHoldFirm(s: GameState, id: RivalId): Blocker {
+  const table = buyoutTable(s, id);
+  if (!table.ok) return table;
+  if (!haggling(s, id)) return { ok: false, why: 'Make an offer first' };
+  if (s.cash < haggleOffer(s, id)) return { ok: false, why: `Your offer is ${money(haggleOffer(s, id))}` };
+  return { ok: true };
+}
+
+/** Sign at their price. A haggler signs only once their counter-offer is on the table (haggle first). */
 export function factionBuyout(s: GameState, id: RivalId): boolean {
-  if (!canFactionBuyout(s, id).ok) return false;
-  const price = factionBuyoutPrice(s, id)!;
+  if (!canFactionBuyout(s, id).ok || (haggles(id) && !haggling(s, id))) return false;
+  return signBuyout(s, id, factionBuyoutPrice(s, id)!);
+}
+
+/**
+ * Juni's and Preston's haggle. 'offer': you open at what Brock and Tilly take, and they counter at their price.
+ * 'firm': you hold at your offer, and they take it or walk out until tomorrow (sorer for it).
+ */
+export function haggle(s: GameState, id: RivalId, move: 'offer' | 'firm'): boolean {
+  if (!haggles(id)) return false;
+  const r = s.rivals[id];
+  if (move === 'offer') {
+    if (haggling(s, id) || !canFactionBuyout(s, id).ok) return false;
+    r.haggle = { day: s.day };
+    s.news.push(`${bossName(id)} counters your ${money(haggleOffer(s, id))} at Dot's Diner: ${money(factionBuyoutPrice(s, id)!)}, ${HAGGLE.lines[id]}.`);
+    return true;
+  }
+  if (!canHoldFirm(s, id).ok) return false;
+  const rng = { seed: s.seed };
+  const took = nextRandom(rng) < caveChance(s, id);
+  s.seed = rng.seed;
+  if (took) return signBuyout(s, id, haggleOffer(s, id));
+  r.haggle = { day: s.day, out: true };
+  r.grudge = Math.min(100, r.grudge + HAGGLE.snub);
+  s.news.push(`${bossName(id)} walks out of Dot's Diner. Try again tomorrow.`);
+  return false;
+}
+
+function signBuyout(s: GameState, id: RivalId, price: number): boolean {
   book(s, 'invested', -price);
-  s.news.push(`${HQS[id].boss} signs on the napkin at Dot's Diner: Lottie buys out ${FACTIONS[id].name} for ${money(price)}!`);
+  const line = HAGGLE.lines[id];
+  s.news.push(`${HQS[id].boss} signs on the napkin at Dot's Diner: Lottie buys out ${FACTIONS[id].name} for ${money(price)}${line ? `, ${line}` : ''}!`);
+  delete s.rivals[id].haggle;
   bump(s, 'buyouts');
   eliminate(s, id, 'buyout');
   return true;

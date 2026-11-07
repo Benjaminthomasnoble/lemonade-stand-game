@@ -116,6 +116,7 @@ export type Action =
   | { type: 'takeover'; plot: string; sell: boolean } // FizzCo's buyout offer: Sell or No
   | { type: 'factionBuyout'; rival: RivalId }
   | { type: 'negotiator'; id: string | null } // who you bring to Sit-downs (src/ui/sitdown.ts): a guard, or go alone
+  | { type: 'haggle'; rival: RivalId; move: 'offer' | 'firm' } // Juni's and Preston's buyout haggle: open, or hold firm
   | { type: 'assault'; rival: RivalId; guards: string[] }
   | { type: 'setup' } // open the New Game screen
   | { type: 'start'; settings: Settings }
@@ -439,7 +440,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'match': onAction({ type: 'accept', id: d.id!, match: true }); break; // world: bid the rival's price
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
-      case 'negotiator': onAction(sitdownAction(d)); break;
+      case 'negotiator': case 'haggle': onAction(sitdownAction(d)); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...planner.squad] }); planner.squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;

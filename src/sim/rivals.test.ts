@@ -4,6 +4,7 @@ import {
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
+  canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -17,7 +18,7 @@ function rich(seed = 1): GameState {
 }
 
 /** Strip a rival down to its HQ and one plot so it counts as Weakened. */
-function weaken(s: GameState, id: 'blenders' | 'sourwood') {
+function weaken(s: GameState, id: RivalId) {
   const plots = ownedPlots(s, id).filter((p) => p.type !== 'hq');
   for (const p of plots.slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
 }
@@ -80,6 +81,99 @@ describe('sit-downs and buyouts', () => {
     weaken(s, 'sourwood');
     s.rank = 9;
     expect(canFactionBuyout(s, 'sourwood')).toEqual({ ok: false, why: 'Vera Sourwood never sells' });
+  });
+});
+
+describe('Faction Buyout haggling', () => {
+  /** A rich game with Juni's Collective Weakened and her Grudge toward you set. */
+  function juni(seed = 1, grudge = 0) {
+    const s = rich(seed);
+    weaken(s, 'coldbrew');
+    s.rivals.coldbrew.grudge = grudge;
+    return s;
+  }
+
+  it('Brock signs at once; Juni hears your offer, counters at her price, and signs when you shake on it', () => {
+    const s = juni();
+    weaken(s, 'blenders');
+    expect(factionBuyout(s, 'blenders')).toBe(true); // Brock accepts readily
+    expect(factionBuyout(s, 'coldbrew')).toBe(false); // Juni haggles first
+    expect(s.rivals.coldbrew.alive).toBe(true);
+    const offer = haggleOffer(s, 'coldbrew'), ask = factionBuyoutPrice(s, 'coldbrew')!;
+    expect(ask / offer).toBeCloseTo(HQS.coldbrew.buyout! / HAGGLE.offer, 3); // 1.8x against your 1.5x
+    expect(haggle(s, 'coldbrew', 'offer')).toBe(true);
+    expect(haggling(s, 'coldbrew')).toBe(true);
+    expect(s.news.at(-1)).toContain('in small bills, for authenticity');
+    expect(haggle(s, 'coldbrew', 'offer')).toBe(false); // one counter a day
+    const cash = s.cash;
+    expect(factionBuyout(s, 'coldbrew')).toBe(true);
+    expect(s.cash).toBe(cash - ask);
+    expect(s.rivals.coldbrew.alive).toBe(false);
+    expect(s.news.some((n) => n.includes(`for $${ask.toLocaleString('en-US')}, in small bills, for authenticity!`))).toBe(true);
+    expect(haggle(s, 'blenders', 'offer')).toBe(false); // Brock doesn't haggle
+  });
+
+  it('holding firm: they take your offer with a chance their Grudge cuts, else walk out till tomorrow', () => {
+    const took = (grudge: number) => Array.from({ length: 40 }, (_, i) => {
+      const s = juni(i + 1, grudge);
+      s.seed = 1000 + i * 7919;
+      haggle(s, 'coldbrew', 'offer');
+      const offer = haggleOffer(s, 'coldbrew'), cash = s.cash;
+      const yes = haggle(s, 'coldbrew', 'firm');
+      if (yes) expect(s.cash).toBe(cash - offer);
+      return yes;
+    }).filter(Boolean).length;
+    const calm = took(0);
+    expect(calm).toBeGreaterThan(8); // 50%
+    expect(calm).toBeLessThan(32);
+    expect(took(100)).toBe(0); // a feud: they always walk
+    expect(caveChance(juni(1, 50), 'coldbrew')).toBeCloseTo(HAGGLE.cave - 50 * HAGGLE.perGrudge, 6);
+
+    const s = juni(2, 100);
+    expect(canHoldFirm(s, 'coldbrew')).toEqual({ ok: false, why: 'Make an offer first' });
+    haggle(s, 'coldbrew', 'offer');
+    expect(haggle(s, 'coldbrew', 'firm')).toBe(false);
+    expect(s.rivals.coldbrew.alive).toBe(true);
+    expect(s.rivals.coldbrew.grudge).toBe(100);
+    expect(canFactionBuyout(s, 'coldbrew')).toEqual({ ok: false, why: 'Juni walked out. Back tomorrow' });
+    expect(factionBuyout(s, 'coldbrew')).toBe(false);
+    s.day += 1;
+    expect(canFactionBuyout(s, 'coldbrew').ok).toBe(true);
+    s.rivals.coldbrew.grudge = 20;
+    haggle(s, 'coldbrew', 'firm'); // no counter on the table today
+    expect(s.rivals.coldbrew.grudge).toBe(20);
+    haggle(s, 'coldbrew', 'offer');
+    s.seed = 1;
+    while (s.rivals.coldbrew.alive && !(s.rivals.coldbrew.haggle?.out)) haggle(s, 'coldbrew', 'firm');
+    if (s.rivals.coldbrew.alive) expect(s.rivals.coldbrew.grudge).toBe(20 + HAGGLE.snub); // sorer for the snub
+  });
+
+  it('you can hold firm on your offer even when their counter is more than you have', () => {
+    const s = juni(3);
+    haggle(s, 'coldbrew', 'offer');
+    s.cash = haggleOffer(s, 'coldbrew') + 10;
+    expect(canFactionBuyout(s, 'coldbrew').ok).toBe(false); // can't pay the 1.8x
+    expect(canHoldFirm(s, 'coldbrew')).toEqual({ ok: true });
+  });
+
+  it('the HQ card: Brock\'s price, Juni\'s offer, then her counter to shake on or hold out against', () => {
+    const kit: SitKit = {
+      btn: (action, label, b = { ok: true }, extra = '') => `<button data-action="${action}" ${extra} ${b.ok ? '' : 'disabled'}>${label}</button>`,
+      tape: (inner) => `<span>${inner}</span>`, locked: (b) => !b.ok && /Rank \d/.test(b.why), esc: (x) => x,
+      whole: (n) => `$${Math.round(n).toLocaleString('en-US')}`, face: (_s, g: Guard) => `<i>${g.name}</i>`,
+    };
+    const s = juni(4);
+    weaken(s, 'blenders');
+    const $ = (n: number) => `$${n.toLocaleString('en-US')}`;
+    expect(sitDown(kit, s, 'blenders')).toContain(`Buy out ${$(factionBuyoutPrice(s, 'blenders')!)}`);
+    expect(sitDown(kit, s, 'coldbrew')).toContain('data-move="offer" data-testid="faction-buyout" title="Juni will counter"');
+    expect(sitDown(kit, s, 'coldbrew')).toContain(`>Offer ${$(haggleOffer(s, 'coldbrew'))}<`);
+    haggle(s, 'coldbrew', 'offer');
+    const card = sitDown(kit, s, 'coldbrew');
+    expect(card).toContain(`Shake on ${$(factionBuyoutPrice(s, 'coldbrew')!)}`);
+    expect(card).toContain(`data-testid="haggle-firm" title="50% Juni takes it, or walks out till tomorrow"`);
+    expect(sitdownAction({ action: 'haggle', rival: 'coldbrew', move: 'firm' })).toEqual({ type: 'haggle', rival: 'coldbrew', move: 'firm' });
+    expect(sitdownAction({ action: 'haggle', rival: 'fizzco' })).toEqual({ type: 'haggle', rival: 'fizzco', move: 'offer' });
   });
 });
 

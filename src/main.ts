@@ -11,7 +11,7 @@ import {
   alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, nothingTonight, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, makeTruce, plotBuyout, setNegotiator, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
+  factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk, nudgeStockTarget, setStockTarget, toggleAutoRestock, setByHand, toggleAutoPrice,
   announceControl, listPlot, placeBid, unlistPlot, withdrawBid,
@@ -677,6 +677,7 @@ async function main() {
       case 'takeover': answerBuyout(state, a.plot, a.sell); break;
       case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
       case 'negotiator': setNegotiator(state, a.id); break;
+      case 'haggle': if (haggle(state, a.rival, a.move) && a.move === 'firm') stinger('raid-won'); break;
       case 'assault': {
         if (state.fight) { // one fight at a time: with one on, the assault is fought at once and shown after
           const r = stormHQ(state, a.rival, a.guards);

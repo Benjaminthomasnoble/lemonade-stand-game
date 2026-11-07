@@ -179,6 +179,7 @@ export interface RivalState {
   held?: string[]; // plots held at the last dawn
   lost?: string[]; // plots taken from them that went For Sale: whoever buys one takes their land
   rush?: number; // the Blenders: the night of their last Blender Rush on you (Brock phones first)
+  haggle?: { day: number; out?: boolean }; // Juni and Preston: their buyout counter-offer stands this day; out: they walked out
 }
 
 export interface DayStats {

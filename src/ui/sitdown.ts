@@ -2,10 +2,12 @@
 // card offers the Truce and the Faction Buyout; a rival plot's card offers its
 // Plot Buyout. Under either, the Smooth Talkers on your crew: tap one to bring
 // them along as negotiator (every deal comes down), tap again to go alone.
-// Mounted from hud.ts, drawn with its clay kit.
+// Brock and Tilly sell at their price; Juni and Preston hear your offer, then
+// counter, and you shake on it or hold firm. Mounted from hud.ts, drawn with
+// its clay kit.
 import {
-  canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, guardReady, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, TRUCE_DAYS,
-  truceCost, type Blocker, type GameState, type Guard, type RivalId,
+  BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, factionBuyoutPrice, guardReady, haggleOffer, haggles, haggling,
+  plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard, type RivalId,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
 
@@ -32,13 +34,26 @@ export function negotiatorRow(k: SitKit, s: GameState): string {
   return `<div class="cl-squad" data-testid="negotiator">${k.tape('Negotiator')}${faces}</div>`;
 }
 
+/** The Faction Buyout: their price, or a haggler's round (your offer; then their counter, or holding firm). */
+function buyout(k: SitKit, s: GameState, id: RivalId): string {
+  const fb = canFactionBuyout(s, id);
+  if (k.locked(fb)) return '';
+  const price = factionBuyoutPrice(s, id);
+  const who = `data-rival="${id}"`;
+  if (price === null || !haggles(id)) return k.btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${k.whole(price)}`, fb, `${who} data-testid="faction-buyout"`);
+  const offer = haggleOffer(s, id);
+  if (!haggling(s, id)) return k.btn('haggle', `Offer ${k.whole(offer)}`, fb, `${who} data-move="offer" data-testid="faction-buyout" title="${BOSS_NAME[id]} will counter"`);
+  const odds = `${Math.round(caveChance(s, id) * 100)}% ${BOSS_NAME[id]} takes it, or walks out till tomorrow`;
+  return k.btn('factionBuyout', `Shake on ${k.whole(price)}`, fb, `${who} data-testid="faction-buyout"`, 'go')
+    + k.btn('haggle', `Hold ${k.whole(offer)}`, canHoldFirm(s, id), `${who} data-move="firm" data-testid="haggle-firm" title="${k.esc(odds)}"`);
+}
+
 /** A rival HQ's Sit-downs: a Truce, and the Faction Buyout once it opens. */
 export function sitDown(k: SitKit, s: GameState, id: RivalId): string {
   if (s.rank < SITDOWN_RANK) return '';
-  const tb = canTruce(s, id), fb = canFactionBuyout(s, id);
-  const price = factionBuyoutPrice(s, id);
+  const tb = canTruce(s, id);
   const truce = k.locked(tb) ? '' : k.btn('truce', `Truce ${k.whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="${TRUCE_DAYS} days of peace. Their Grudge sets the tribute"`);
-  const buy = k.locked(fb) ? '' : k.btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${k.whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`);
+  const buy = buyout(k, s, id);
   return truce || buy ? `<div class="cl-acts">${truce}${buy}</div>${negotiatorRow(k, s)}` : '';
 }
 
@@ -51,5 +66,6 @@ export function plotBuyoutRow(k: SitKit, s: GameState, plotId: string): string {
 
 /** The Sit-down buttons' actions, read off the clicked element's data attributes. */
 export function sitdownAction(d: DOMStringMap): Action {
+  if (d.action === 'haggle') return { type: 'haggle', rival: d.rival as RivalId, move: d.move === 'firm' ? 'firm' : 'offer' };
   return { type: 'negotiator', id: d.id || null };
 }

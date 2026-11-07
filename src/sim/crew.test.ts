@@ -121,7 +121,7 @@ describe('crew and raids', () => {
     const a = newGame(11), b = newGame(11);
     for (let d = 0; d < 12; d++) { playDay(a); playDay(b); }
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-  });
+  }, 90_000); // 12 whole days twice: about 15 s alone, much longer while other checks share the machine
 });
 
 describe('the Hiring Hall', () => {

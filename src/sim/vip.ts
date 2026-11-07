@@ -162,7 +162,17 @@ export function buildFacility(s: GameState, plotId: string, kind: FacilityKind):
   restoreHp(s, plotId); // the new tier comes up at full HP; a repair queued for the old one is paid back (damage.ts)
   ps.facility = { kind, level: lvl + 1 };
   s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
+  if (kind === 'pier') firstDeal(s);
   return true;
+}
+
+/** The first Supply Deal is offered the day the Cargo Terminal opens, not at the next dawn (later ones come about 1 in 7
+ * days, never more than 10 apart: vipAtDawn). */
+function firstDeal(s: GameState): void {
+  if (s.lastOffer?.deal !== undefined || !tierOpen(s, 'deal').ok) return;
+  const rng = { seed: s.seed };
+  makeOffer(s, 'deal', rng);
+  s.seed = rng.seed;
 }
 
 export const bottlingCapacity = (s: GameState) => Math.round(facilityPlots(s, 'bottling').reduce((a, p) => a + BOTTLES_PER_DAY[s.plots[p.id].facility!.level - 1], 0) * (hasTrophy(s, 'fizzco') ? 1.25 : 1));

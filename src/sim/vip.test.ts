@@ -267,6 +267,30 @@ describe('VIP clients', () => {
     expect(s.day - s.lastOffer!.ship!).toBeLessThan(VIP_MAX_GAP);
   });
 
+  it('the first Supply Deal comes the day the Cargo Terminal opens, then about 1 in 7 days, never more than 10 apart', () => {
+    const { s, dock } = vipGame(15);
+    s.rank = 8;
+    s.cash = 10_000_000;
+    s.phase = 'prep';
+    buildFacility(s, dock.id, 'pier');
+    buildFacility(s, dock.id, 'pier');
+    expect(s.offers.some((o) => o.tier === 'deal')).toBe(false);
+    buildFacility(s, dock.id, 'pier'); // the Cargo Terminal, at Morning Prep
+    expect(s.offers.filter((o) => o.tier === 'deal')).toHaveLength(1);
+    expect(s.lastOffer!.deal).toBe(s.day);
+    expect(s.news.at(-1)).toMatch(/^Supply Deal! .+ wants 200,000 bottles over 28 days for \$6,000,000, shipped weekly from your Cargo Terminal\.$/);
+    const days: number[] = [s.day];
+    for (let d = 0; d < 1400; d++) {
+      s.day++;
+      vipAtDawn(s);
+      if (s.lastOffer!.deal === s.day) days.push(s.day);
+    }
+    const gaps = days.slice(1).map((d, i) => d - days[i]);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(VIP_MAX_GAP);
+    expect(1400 / gaps.length).toBeGreaterThan(4.5); // 1 in 7 a day, and the floor at 10: about 5.5 days apart
+    expect(1400 / gaps.length).toBeLessThan(7);
+  });
+
   it('an order with no bottles fails and costs a star', () => {
     const { s, field } = vipGame(3);
     buildFacility(s, field.id, 'helipad');

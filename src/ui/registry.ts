@@ -99,7 +99,7 @@ export function auctionControls(s: GameState, plotId: string): string {
   }).join('');
   return `<span class="cl-note good" title="${esc(tip)}" data-testid="auction">${a.kind === 'fire' ? 'Fire Sale auction' : 'Auction'}: ${closing(s, plotId, 'closes')}</span>
     <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
-    <span class="cl-acts">${bids}${a.bid !== undefined ? btn('unbid', '✕', { ok: true }, `data-plot="${plotId}" title="Take your bid back"`, 'ghost tiny') : ''}</span>
+    <span class="cl-acts">${bids}${a.bid !== undefined ? btn('unbid', A.glyph('close'), { ok: true }, `data-plot="${plotId}" title="Take your bid back" aria-label="Take your bid back"`, 'ghost tiny') : ''}</span>
     ${a.bid !== undefined ? `<span class="cl-note">Your bid: ${whole(a.bid)}</span>` : ''}`;
 }
 

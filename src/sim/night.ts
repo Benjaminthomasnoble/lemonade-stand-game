@@ -243,8 +243,9 @@ function raidClock(s: GameState): SimEvent[] {
     const report = arrive(s, r);
     if (report) ev.push({ type: 'fight', raid: r, report });
   }
-  // A Delivery Raid called off mid-loading (a truce, or the rival went under): the load goes out now.
-  for (const id of [...(s.heldPickups ?? [])]) if (!s.raids.some((r) => r.delivery && r.order === id)) settle(s, id, null);
+  // A Delivery Raid called off mid-loading (a truce, or the rival went under): the load goes out now. One being fought
+  // live (combat's fight.ts) holds it till the fight ends.
+  for (const id of [...(s.heldPickups ?? [])]) if (!s.raids.some((r) => r.delivery && r.order === id) && s.fight?.raid.order !== id) settle(s, id, null);
   pruneAlerts(s);
   return ev;
 }

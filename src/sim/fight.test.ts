@@ -8,6 +8,7 @@ import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './
 import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
+  buildFacility, PICKUP_MINUTE, PLOTS,
 } from './economy.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
@@ -116,6 +117,38 @@ describe('a live fight', () => {
     expect(raid.back).toBe(start + Math.ceil(ended.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, target), target));
     expect(awayGuards(s).size).toBeGreaterThan(0); // walking home: their posts sit empty
     expect(s.reputation).toBe(Math.max(1, Math.round((rep - DAYTIME_RAID_REP.smash) * 100) / 100)); // customers saw it
+  });
+
+  it('a Delivery Raid fought live holds the load until the fight ends, then settles it', () => {
+    // Rank 7, a helipad and a 4,000-bottle chopper order due today: the first seed whose pickup draws a Delivery Raid.
+    let s: GameState | undefined;
+    for (let seed = 1; seed < 80 && !s?.raids.some((r) => r.delivery); seed++) {
+      s = newGame(seed);
+      s.rank = 7;
+      s.reputation = 4.5;
+      s.cash = 3_000_000;
+      const field = PLOTS.find((p) => p.type === 'field')!.id;
+      s.plots[field] = { ...s.plots[field], owner: 'player', stand: null, facility: undefined, invested: 0 };
+      buildFacility(s, field, 'helipad');
+      s.bottles = 6000;
+      s.orders.push({ id: 'vip', tier: 'heli', client: 'Test Star', qty: 4000, pay: 15000, due: s.day, expires: s.day, plot: field, accepted: true });
+      openStand(s);
+      while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+    }
+    const raid = s!.raids.find((r) => r.delivery)!;
+    raid.party = raid.party!.map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 })); // they overrun it
+    while (!s!.fight && s!.phase === 'open') tickMinute(s!);
+    expect(s!.fight?.raid.id).toBe(raid.id);
+    expect(s!.heldPickups).toEqual(['vip']); // still loading while they brawl
+    tickMinute(s!); // the fight moves the clock a minute at a time
+    expect(s!.heldPickups).toEqual(['vip']);
+    expect(s!.orders.some((o) => o.id === 'vip')).toBe(true);
+    const { ended } = play(s!);
+    expect(ended).toMatchObject({ delivery: true, outcome: 'robbed' });
+    expect(s!.heldPickups).toEqual([]);
+    expect(s!.orders.some((o) => o.id === 'vip')).toBe(false);
+    expect(s!.bottles).toBe(2000);
+    expect(s!.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
   });
 
   it('picks up mid-brawl after a reload, the same fight to the last swing', () => {

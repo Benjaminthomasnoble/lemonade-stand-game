@@ -83,6 +83,8 @@ interface Walker {
   huff: boolean;
   standZ: number;
   clap: number;
+  /** What the sim said about them (segment, reason), for a tap. */
+  info?: unknown;
 }
 
 /**
@@ -111,7 +113,7 @@ export interface Route { x0: number; x1: number; z: number; serve?: THREE.Vector
 
 export interface Crowd {
   /** sale/miss detour to the counter; grumble pops its text while walking past. */
-  spawn(kind: WalkerKind, route: Route, text?: string, opts?: { scale?: number; speed?: number; gait?: Gait; segment?: SegmentLook }): boolean;
+  spawn(kind: WalkerKind, route: Route, text?: string, opts?: { scale?: number; speed?: number; gait?: Gait; segment?: SegmentLook; info?: unknown }): boolean;
   update(dt: number, speedScale: number): void;
   clear(): void;
   activeCount(): number;
@@ -120,6 +122,8 @@ export interface Crowd {
   cheer(at: THREE.Vector3, radius: number): number;
   /** The crowd batch's size (instances, shared geometries, vertices). */
   stats(): { instances: number; geometries: number; vertices: number };
+  /** The walker nearest a click ray (within `reach` of their middle), with the info they were spawned with. */
+  pick(ray: THREE.Ray, reach?: number): { who: THREE.Object3D; info: unknown } | null;
 }
 
 /** Laptop cap from the spec (about 150 animated people in Street View). */
@@ -303,6 +307,7 @@ export function createCrowd(
       w.huff = false;
       w.standZ = route.serve?.z ?? z - 3;
       w.clap = 0;
+      w.info = opts.info;
       if (w.face !== 'neutral') setFace(w, 'neutral', 0);
       w.obj.rotation.x = 0;
       w.path.push(end);
@@ -352,5 +357,16 @@ export function createCrowd(
       for (const w of walkers) w.umbrella.visible = wet;
     },
     stats: () => batch.stats(),
+    pick(ray, reach = 0.7) {
+      let best: Walker | null = null, bestD = reach;
+      const mid = new THREE.Vector3();
+      for (const w of walkers) {
+        if (!w.active || !w.obj.visible) continue;
+        mid.copy(w.obj.position).setY(w.obj.position.y + headY(w) * 0.5);
+        const d = ray.distanceToPoint(mid);
+        if (d < bestD) { bestD = d; best = w; }
+      }
+      return best ? { who: best.obj, info: best.info } : null;
+    },
   };
 }

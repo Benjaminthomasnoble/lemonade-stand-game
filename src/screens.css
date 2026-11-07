@@ -361,3 +361,6 @@
 #ui.clay[data-text="150"] { --u: calc(clamp(6px, min(0.82vw, 1.35vh), 12px) * 1.5); }
 @media (max-width: 640px) { #ui.clay[data-text="125"] { --u: calc(clamp(5px, 1.55vw, 9px) * 1.25); } #ui.clay[data-text="150"] { --u: calc(clamp(5px, 1.55vw, 9px) * 1.5); } }
 .clay[data-calm] *, .clay[data-calm] *::before, .clay[data-calm] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+/* The price tag marks the stand's top price (red once the price is past it). */
+.clay .cl-chalk i { display: block; font: 400 calc(var(--u) * 1.4)/1 'Gochi Hand', cursive; color: #F7C948; }
+.clay .cl-chalk.over i { color: #ff9a8a; }

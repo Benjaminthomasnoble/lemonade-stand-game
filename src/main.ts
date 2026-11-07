@@ -3,7 +3,7 @@ import './screens.css';
 import * as THREE from 'three';
 import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
-  runCampaign, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
+  priceCeiling, runCampaign, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
@@ -29,6 +29,7 @@ import {
 } from './settings.ts';
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { createHud, type Action } from './ui/hud.ts';
+import { walkerLine } from './ui/stand.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
@@ -317,7 +318,7 @@ async function main() {
       if (Math.hypot(from.plot.x - t.x, from.plot.z - t.z) > STREET_VIEW_RADIUS) continue;
       const dir = Math.random() < 0.5 ? 1 : -1;
       const route = { x0: from.plot.x - dir * PLOT_SPACING * 2.5, x1: from.plot.x + dir * PLOT_SPACING * 2.5, z: from.sidewalkZ, serve: at.serve, grumbleX: at.plot.x };
-      const look = LOOK[e.segment];
+      const look = { ...LOOK[e.segment], info: { segment: e.segment, line: walkerLine(state, e) } }; // tap a walker to hear why
       const mine = e.owner === 'player';
       if (e.buys) crowd.spawn('sale', route, mine ? (e.price < 1 ? `+${Math.round(e.price * 100)}¢` : `+$${e.price.toFixed(2)}`) : '', look);
       else if (mine && (e.reason === 'soldOut' || e.reason === 'line')) crowd.spawn('miss', route, MISS_TEXT[e.reason], look);
@@ -376,6 +377,7 @@ async function main() {
       case 'recipe': pickRecipe(state, st, a.id); break;
       case 'sweet': setSweetness(st, a.value); break;
       case 'price': setPrice(st, st.price + a.delta); break;
+      case 'priceCeiling': setPrice(st, priceCeiling(state, state.selected)); break;
       case 'restock': st.autoRestock = !st.autoRestock; break;
       case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
       case 'speed': setSpeed(a.value); break;
@@ -559,13 +561,18 @@ async function main() {
     }
   };
 
-  // Click a plot to inspect it (a drag pans the camera instead).
+  // Click a walker to hear why they passed, or a plot to inspect it (a drag pans the camera instead).
   const canvas = world.renderer.domElement;
+  const raycaster = new THREE.Raycaster();
   let down: [number, number] | null = null;
   canvas.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
   canvas.addEventListener('pointerup', (e) => {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
     const ndc = new THREE.Vector2((e.clientX / canvas.clientWidth) * 2 - 1, -(e.clientY / canvas.clientHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, world.camera);
+    const walker = crowd.pick(raycaster.ray);
+    const info = walker?.info as { segment: SegmentId; line: string } | undefined;
+    if (walker && info) { bubbles.say(walker.who, info.line, { who: SEGMENTS[info.segment].label, ms: 2600 }); return; }
     act({ type: 'inspect', plot: bay.pick(ndc, world.camera) });
   });
 

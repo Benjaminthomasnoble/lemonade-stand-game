@@ -6,14 +6,15 @@
 // minute by minute and calls these; the forecast and the stand panel use the same rules.
 import { nextRandom } from './rng.ts';
 import {
-  BASE_STOP_CHANCE, CAMPAIGNS, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS, PRICE_FIT, PRICE_TOLERANCE, RECIPES,
-  RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, type CampaignId, type RecipeId, type RivalId, type SegmentId,
+  BASE_STOP_CHANCE, BOARDWALK_SEASON, CAMPAIGNS, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
+  PRICE_FIT, PRICE_TOLERANCE, RECIPES, repMultiplier, RIVAL_SHARE_CAP, SEASON_DEMAND, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
+  type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, GameState, Stand, Weather } from './economy.ts';
-import { appealFor, expectedPassersby, rivalPrice } from './economy.ts';
+import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, seasonOf, servingsAvailable } from './economy.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -256,9 +257,9 @@ export function drainQueue(s: GameState, plotId: string): void {
   st.queue = left > 1e-9 ? left : 0; // a finished line is exactly empty
 }
 
-// ---------- the forecast ----------
+// ---------- the forecast and the stand panel ----------
 
-/** Memoized appeal by plot and segment for one weather (one forecast). */
+/** Memoized appeal by plot and segment for one weather (one forecast or panel draw). */
 function appealMemo(s: GameState, w: Weather) {
   const m = new Map<string, Appeal>();
   return (plotId: string, seg: SegmentId) => {
@@ -315,6 +316,54 @@ export function expectedDemand(s: GameState, plotId: string, w: Weather = s.fore
   if (ownPeople > 0) out.kept = ownKept / ownPeople;
   if (out.visitors > 0) { out.recipe = recipe / out.visitors; out.sweet = sweet / out.visitors; out.priceFit = fit / out.visitors; }
   return out;
+}
+
+export type Binding = 'demand' | 'service' | 'stock';
+
+/** Every number in the three demand steps, for the stand panel (forecast at Morning Prep, today's weather while open). */
+export interface DemandChain {
+  // 1. Passersby
+  traffic: number; draw: number; marketing: number; season: number; weather: number; lunch: number; passersby: number;
+  kept: number; inflow: number; visitors: number;
+  // 2. Stop chance
+  base: number; thirst: number; curb: number; recipe: number; sweet: number; priceFit: number; reputation: number; stopChance: number;
+  price: number; ceiling: number;
+  // 3. Cups sold
+  demand: number; pourRate: number; service: number; stock: number; cups: number; binding: Binding;
+  /** Perks at work at this stand. */
+  perks: { townFavorite: boolean; orchardFresh: boolean; powerLunch: boolean; touristTrap: boolean; majority: boolean };
+}
+
+export function demandChain(s: GameState, plotId: string, w: Weather = s.phase === 'prep' ? s.forecast : s.weather): DemandChain | null {
+  const ps = s.plots[plotId];
+  const st = ps?.stand;
+  if (!st) return null;
+  const p = PLOT_BY_ID[plotId];
+  const owner = ps.owner!;
+  const f = expectedDemand(s, plotId, w);
+  const passersby = expectedPassersby(s, plotId, w);
+  const lunch = lunchRushDay(s, plotId);
+  const service = dailyService(s, plotId);
+  const stock = owner === 'player' ? servingsAvailable(st) : Infinity;
+  const demand = Math.round(f.demand);
+  const cups = Math.min(demand, service, stock);
+  const binding: Binding = cups === demand ? 'demand' : cups === service ? 'service' : 'stock';
+  return {
+    traffic: p.baseTraffic, draw: STAND_LEVELS[st.level - 1].draw, marketing: marketingMultiplier(s, owner, st, plotId),
+    season: (p.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND)[seasonOf(s.day)], weather: WEATHER[w.kind].traffic, lunch,
+    passersby: Math.round(passersby * lunch), kept: f.kept, inflow: Math.round(f.inflow), visitors: Math.round(f.visitors),
+    base: BASE_STOP_CHANCE, thirst: WEATHER[w.kind].thirst, curb: curbAppeal(s, plotId), recipe: f.recipe, sweet: f.sweet, priceFit: f.priceFit,
+    reputation: repMultiplier(owner === 'player' ? s.reputation : 3), stopChance: f.visitors > 0 ? f.demand / f.visitors : 0,
+    price: st.price, ceiling: priceCeiling(s, plotId, st),
+    demand, pourRate: pourRate(s, plotId), service, stock, cups, binding,
+    perks: {
+      townFavorite: owner === 'player' && (p.district === 'oldtown' || p.district === 'maple') && fullControl(s, 'oldtown'),
+      orchardFresh: owner === 'player' && fullControl(s, 'groves'),
+      powerLunch: lunch > 1,
+      touristTrap: owner === 'player' && fullControl(s, 'boardwalk'),
+      majority: majorityHeld(s, p.district),
+    },
+  };
 }
 
 // ---------- saves ----------

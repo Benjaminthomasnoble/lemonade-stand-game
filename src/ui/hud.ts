@@ -4,7 +4,7 @@
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
 import {
-  AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign,
+  AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, priceCeiling,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
@@ -39,6 +39,7 @@ import { keysPanel } from './keys.ts';
 import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
+import { standPanel } from './stand.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -104,6 +105,7 @@ export type Action =
   | { type: 'remap'; key: KeyAction } // Options: the next key pressed does this
   | { type: 'resetKeys' }
   | { type: 'turn'; dir: 1 | -1 } // the corner's quarter-turn buttons (Q and E)
+  | { type: 'priceCeiling' } // set the selected stand's price to its ceiling
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -196,7 +198,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   attachTips(root); // touch: long-press explains what hover explains
   const topEl = q('top'), dawnEl = q('dawn'), feedEl = q('feed'), phaseEl = q('phase'), plotEl = q('plotcard'), cornerEl = q('corner'), pops = q('pops');
   let tab: 'today' | 'grow' | 'crew' | WorldTab = 'today';
-  let books = false, moreOpts = false;
+  let books = false, moreOpts = false, standMath = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
   const squad = new Set<string>();
   let objective: Objective = 'smash';
@@ -334,6 +336,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'resetKeys': onAction({ type: 'resetKeys' }); break;
       case 'turn': onAction({ type: 'turn', dir: d.dir === '-1' ? -1 : 1 }); break;
       case 'books': books = !books; redraw(); break;
+      case 'standMath': standMath = !standMath; redraw(); break;
+      case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
       case 'more': moreOpts = !moreOpts; redraw(); break;
       case 'perimeter': case 'repairFence': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
       case 'gadget': onAction({ type: 'gadget', plot: d.plot!, id: d.id as GadgetId }); break;
@@ -359,7 +363,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'dismiss': case 'watch': onAction({ type: d.action, id: d.id! }); break;
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
-      case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
+      case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute': case 'priceCeiling':
       case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay':
         onAction({ type: d.action }); break;
       case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
@@ -550,6 +554,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const stop = averageStopChance(s, plotId, s.forecast);
     const people = expectedPassersby(s, plotId, s.forecast);
     const cost = costPerCup(s, st);
+    const ceiling = priceCeiling(s, plotId);
     const lit = Math.max(1, Math.min(5, Math.ceil((stop / 0.45) * 5)));
     const expiring = lemonsExpiringTomorrow(s, st);
     const short = (id: SupplyId) => {
@@ -574,9 +579,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<div class="cl-tray">
       <div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>
       <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
-        <div class="cl-chalk${st.price < cost ? ' loss' : ''}" title="Costs you ${cents(cost)} a cup"><b data-testid="price">${cents(st.price)}</b></div>
+        <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${cents(ceiling)}: past it, buyers walk off. Costs you ${cents(cost)} a cup. Tap to price at the top"><b data-testid="price">${cents(st.price)}</b><i data-testid="ceiling">top ${cents(ceiling)}</i></div>
         <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>
-        <div class="cl-row cl-crowd" title="About ${Math.round(stop * 100)}% of ~${Math.round(people)} walkers stop: ~${cups} cups">${[0, 1, 2, 3, 4].map((i) => `<i aria-pressed="${i < lit}">${ART.head(i)}</i>`).join('')}</div></div>
+        <div class="cl-row cl-crowd" data-action="inspect" data-plot="${plotId}" title="About ${Math.round(stop * 100)}% of ~${Math.round(people)} walkers stop: ~${cups} cups. Tap for the math">${[0, 1, 2, 3, 4].map((i) => `<i aria-pressed="${i < lit}">${ART.head(i)}</i>`).join('')}</div></div>
       <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div>${restock}</div>
       <button class="cl-open" data-action="open" data-testid="open" aria-label="Open ${n > 1 ? 'all stands' : 'the stand'}" title="Open at ${clock(OPEN)}"><span class="cl-btn"></span>${tape('OPEN', 'cl-t-open')}</button>
     </div>`;
@@ -599,7 +604,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     for (const id of Object.keys(CAMPAIGNS) as CampaignId[]) {
       const c = CAMPAIGNS[id], b = canRunCampaign(s, id);
       if (locked(b) || (!b.ok && /Only for/.test(b.why))) continue;
-      out.push(card(id === 'sandwichBoard' ? ART.board() : ART.sample(), c.name.replace('Sandwich-Board Kid', 'Sign kid').replace('Free Sample Day', 'Free samples'), c.costPerDay ? `${whole(c.costPerDay)} a day` : `${c.samples} cups`, btn('campaign', 'Run', b, `data-id="${id}"`), c.blurb));
+      const cost = campaignCost(s, id); // Word of Mouth halves it
+      out.push(card(id === 'sandwichBoard' ? ART.board() : ART.sample(), c.name.replace('Sandwich-Board Kid', 'Sign kid').replace('Free Sample Day', 'Free samples'), `${c.costPerDay ? `${whole(cost.cash)} a day` : `${cost.samples} cups`}${cost.half ? ' · half off' : ''}`, btn('campaign', 'Run', b, `data-id="${id}"`), `${c.blurb}${cost.half ? '. Word of Mouth: half price' : ''}`));
     }
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
     if (nb && !locked(bb)) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
@@ -676,7 +682,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const why = [['not thirsty', w.notThirsty], ['too pricey', w.pricey], ['line too long', w.line], ['sold out', w.soldOut], ['went to a rival', w.rival]]
       .filter(([, n]) => (n as number) > 0).map(([k, n]) => `${n} ${k}`).join(', ');
     const left = playerStands(s).reduce((a, p) => a + servingsAvailable(s.plots[p.id].stand!), 0);
-    return `<div class="cl-daybar" data-testid="daybar" title="${left} cups left${why ? ` · walked past: ${why}` : ''}">${ART.cup()}${tape(`<b>${s.today.customers}</b>`, 'cl-t-cash')}<span class="cl-sun" style="--v:${pct.toFixed(3)}"><i></i></span></div>`;
+    return `<div class="cl-daybar" data-testid="daybar" data-action="inspect" data-plot="${s.selected}" title="${left} cups left${why ? ` · walked past: ${why}` : ''} · tap for your stand">${ART.cup()}${tape(`<b>${s.today.customers}</b>`, 'cl-t-cash')}<span class="cl-sun" style="--v:${pct.toFixed(3)}"><i></i></span></div>`;
   }
 
   // ---------- day's end: one number, one tip, one button ----------
@@ -767,7 +773,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
       actions = stand + fac + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
-    else if (ps.owner === 'player' && st) actions = s.phase === 'report' || s.phase === 'night' ? fenceHere(s, id) : id === s.selected ? '' : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
+    // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel.
+    else if (ps.owner === 'player' && st) actions = s.phase === 'report' || s.phase === 'night' ? fenceHere(s, id)
+      : (id === s.selected ? '' : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`)) + standPanel(s, id, standMath);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       const pb = canPlotBuyout(s, id);

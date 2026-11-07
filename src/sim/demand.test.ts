@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, campaignCost, canRunCampaign, ceilingFor, curbAppeal, dailyService, drainQueue, expectedCups, expectedDemand,
+  appealFor, campaignCost, canRunCampaign, ceilingFor, curbAppeal, dailyService, demandChain, drainQueue, expectedCups, expectedDemand,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, priceCeiling, priceFit, rivalPrice, rivalShare,
   runCampaign, SEGMENTS, segmentPriceFit, serviceLeft, simulateRestOfDay, STAND_LEVELS, touristPays, withinTwo,
@@ -371,6 +371,44 @@ describe('district perks at Full Control', () => {
     expect(canRunCampaign(s, 'sandwichBoard').ok).toBe(true);
     expect(runCampaign(s, 'sandwichBoard')).toBe(true);
     expect(s.cash).toBe(5);
+  });
+});
+
+describe('the stand panel\'s demand chain', () => {
+  it('shows every number in the three steps', () => {
+    const s = workedExample(1);
+    s.forecast = { kind: 'hot', temp: 88 };
+    const c = demandChain(s, LOTTIES_CORNER)!;
+    expect(c.passersby).toBe(480); // 400 × 1.0 × 1.0 × 1.2 Summer × 1.0
+    expect([c.traffic, c.draw, c.marketing, c.season, c.weather, c.lunch]).toEqual([400, 1, 1, 1.2, 1, 1]);
+    expect([c.base, c.thirst, c.curb, c.reputation]).toEqual([0.25, 1.3, 1, 1]);
+    expect(c.priceFit).toBe(1);
+    expect(c.ceiling).toBe(1.57);
+    expect(c.kept).toBe(1);
+    expect(c.service).toBe(200);
+    expect(c.demand).toBe(Math.round(expectedDemand(s, LOTTIES_CORNER).demand));
+    expect(c.cups).toBe(Math.min(c.demand, c.service, c.stock));
+    expect(c.binding).toBe('demand');
+    s.forecast = { kind: 'scorcher', temp: 99 };
+    expect(demandChain(s, LOTTIES_CORNER)!.binding).toBe('service');
+    s.plots[LOTTIES_CORNER].stand!.inventory.lemons = [{ qty: 25, day: 3, unitCost: 0.1 }];
+    const low = demandChain(s, LOTTIES_CORNER)!;
+    expect(low.stock).toBe(50);
+    expect([low.cups, low.binding]).toEqual([50, 'stock']);
+  });
+
+  it('names the perks at work', () => {
+    const s = newGame(1);
+    playerStand(s, 'oldtown-2n');
+    expect(demandChain(s, LOTTIES_CORNER)!.perks).toEqual({ townFavorite: false, orchardFresh: false, powerLunch: false, touristTrap: false, majority: false });
+    for (const d of ['oldtown', 'groves', 'downtown', 'boardwalk'] as DistrictId[]) fullControl(s, d);
+    const corner = demandChain(s, LOTTIES_CORNER)!;
+    expect(corner.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: false, touristTrap: true, majority: false });
+    expect(corner.marketing).toBeCloseTo(1.2, 9);
+    const oldtown = demandChain(s, 'oldtown-2n')!;
+    expect(oldtown.perks).toEqual({ townFavorite: true, orchardFresh: true, powerLunch: true, touristTrap: true, majority: true });
+    expect(oldtown.lunch).toBeGreaterThan(1);
+    expect(oldtown.curb).toBe(1.1);
   });
 });
 

@@ -28,6 +28,8 @@ export interface Audio {
   ring(): void;
   /** A ship's horn: the theme's opening call, F-A-D. */
   horn(): void;
+  /** Beats into the theme while it plays (120 BPM, first beat 0.12 s in), else null: idle bobs keep its time. */
+  beat(): number | null;
 }
 
 export function createAudio(): Audio {
@@ -73,6 +75,7 @@ export function createAudio(): Audio {
       return muted;
     },
     muted: () => muted,
+    beat: () => (started && !muted && !bed.paused && !bed.ended ? (bed.currentTime - 0.12) * 2 : null),
     babble(text, voice = 1, mood = 'flat') {
       if (muted || !started) return;
       const now = performance.now();

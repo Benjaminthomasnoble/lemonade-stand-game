@@ -318,7 +318,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
         left.rotation.x = right.rotation.x = Math.PI * 0.95 * up;
         left.rotation.z = -0.3 - Math.sin(t * 14) * 0.25 * MOTION;
         right.rotation.z = 0.3 + Math.sin(t * 14) * 0.25 * MOTION;
-        idlePose(lottie, time * 3, 0.9);
+        idlePose(lottie, 0.9, 1);
       } else {
         // One fist up, shaking.
         for (const l of legs) l.rotation.x = -1.4;
@@ -326,7 +326,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
         right.rotation.z = 0.15 + Math.sin(t * 22) * 0.18 * MOTION;
         left.rotation.x = 0; left.rotation.z = 0;
         lottie.rotation.y = 0.2;
-        idlePose(lottie, time, 0.9);
+        idlePose(lottie, 0.9);
       }
       return;
     }
@@ -339,7 +339,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       lottie.rotation.y = 0.5;
       (lottie.userData.head as THREE.Object3D).rotation.x = 0.35;
       left.rotation.x = right.rotation.x = -0.4;
-      idlePose(lottie, time * 0.35, 0.9);
+      idlePose(lottie, 0.9, 0.125);
       return;
     }
     const beat = time % 20;
@@ -366,7 +366,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       left.rotation.x = -0.3;
       right.rotation.x = -0.3;
     }
-    idlePose(lottie, time, 0.9);
+    idlePose(lottie, 0.9);
   }
 
 
@@ -391,12 +391,12 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     if (!open) {
       kidFig.pose({ lean: 0.25, aL: [-1.7, 0.5], aR: [-1.7, -0.5], headTilt: 0.15, headRoll: Math.sin(time * 0.6) * 0.15 }, f);
       kidFig.blink(f, Math.sin(time * 0.35) > 0.6);
-      idlePose(kid, time * 0.4, KID_SCALE);
+      idlePose(kid, KID_SCALE, 0.25);
       return;
     }
     const b = Math.abs(Math.sin(time * 3));
     kidFig.pose({ lift: b * 0.05 * MOTION, sq: (1 - b) * 0.05 * MOTION, aL: [-0.3, 0.2], aR: [-0.3 - b * 0.3, -0.2], headYaw: Math.sin(time * 0.8) * 0.3 }, f);
-    idlePose(kid, time, KID_SCALE);
+    idlePose(kid, KID_SCALE);
   }
 
   const stand: Stand = {

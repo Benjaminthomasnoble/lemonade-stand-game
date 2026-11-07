@@ -3,6 +3,7 @@
 // circling Lottie's Corner (and stealing a lemon now and then), gulls over
 // the bay and a dog chasing a ball on Maple Row. All of it is presentation:
 // it reads the game state and never changes it.
+import { beatOffset, bob } from './beat.ts';
 import * as THREE from 'three';
 import type { RivalId } from '../sim/balance.ts';
 import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
@@ -135,8 +136,8 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
       lastF = f;
       for (const h of hench) {
         if (!h.obj || !h.rival) continue;
-        // Arms folded, a bored sway on twos, and now and then a long hard look at your nearest stand.
-        if (step && h.fig) { const b = Math.sin(f / 12 * 2.4 + h.slot * 2); h.fig.pose({ sq: (b * 0.5 + 0.5) * 0.04 * MOTION, sway: b * 0.04 * MOTION, aL: [-1.2, 0.5], aR: [-1.2, -0.5], headTilt: 0.06 }, f); }
+        // Arms folded, a bored sway on twos and on the music's beat (FizzCo all on the same one), and now and then a long hard look at your nearest stand.
+        if (step && h.fig) { const b = bob(beatOffset(h.obj.id, h.rival === 'fizzco')) * 2 - 1; /* on the beat; FizzCo in lockstep */ h.fig.pose({ sq: (b * 0.5 + 0.5) * 0.04 * MOTION, sway: b * 0.04 * MOTION, aL: [-1.2, 0.5], aR: [-1.2, -0.5], headTilt: 0.06 }, f); }
         h.glare -= dt;
         let mine: { x: number; z: number } | null = null, best = 30;
         for (const p of PLOTS) {

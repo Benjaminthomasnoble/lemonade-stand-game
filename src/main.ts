@@ -38,6 +38,8 @@ import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
+import { setBeatSource } from './world/beat.ts';
+import { createMarkers } from './world/markers.ts';
 import { createBubbles } from './world/bubbles.ts';
 import { FACTIONS, PERIMETERS } from './sim/balance.ts';
 import type { Emote } from './ui/emotes.ts';
@@ -228,6 +230,8 @@ async function main() {
 
   /** Ask for a photo of this frame for tomorrow's Bugle; the best moment of the day wins. */
   let snapReq: { headline: string; score: number } | null = null;
+  let snapBusy = false;
+  let rushSnapAt = 0; // a rush is photographed at most once a minute
   const snap = (headline: string, score: number, delay = 0) => {
     const go = () => { if (!snapReq || snapReq.score < score) snapReq = { headline, score }; };
     if (delay) setTimeout(go, delay); else go();
@@ -271,7 +275,7 @@ async function main() {
       for (const v of Object.values(bay.views)) { if (!v.stand) continue; const d = v.serve.distanceTo(pos.clone().setY(0.12)); if (!near || d < near.d) near = { d, v }; }
       if (near && near.d < 3) near.v.stand?.cheer();
       hud.coin(x, y, size, () => audio.ding(size > 1));
-      if (coinTimes.length >= RUSH_COINS) { lottieSays('rush', { react: 'cheer', cooldown: 25000 }); snap('LINE DOWN THE BLOCK AT LOTTIE\'S LEMONADE', 2, 400); }
+      if (coinTimes.length >= RUSH_COINS) { lottieSays('rush', { react: 'cheer', cooldown: 25000 }); if (performance.now() > rushSnapAt) { rushSnapAt = performance.now() + 60000; snap('LINE DOWN THE BLOCK AT LOTTIE\'S LEMONADE', 2, 400); } }
     } else if (kind === 'miss') {
       bubbles.say(who, '', { kind: 'thought', icon: text as Emote, ms: 1800 });
       if (text === MISS_TEXT.pricey && Math.random() < 0.3) audio.babble(pick(CUSTOMER.grumble), 1, 'grumpy');
@@ -670,6 +674,11 @@ async function main() {
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (boss, line) => { audio.ring(); setTimeout(() => { audio.babble(line, 0.9, 'flat'); twins?.caption(HQS[boss].boss, line); }, 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
+  // Tape queue counters, HP pills and raid snakes ride over the world, under the HUD (src/world/markers.ts).
+  const markerLayer = document.createElement('div');
+  document.getElementById('ui')!.prepend(markerLayer);
+  const markers = createMarkers(world.scene, markerLayer);
+  setBeatSource(() => audio.beat()); // idle bobs land on the theme's beat (src/world/beat.ts)
   // Lottie's tour: the first time you play she shows you the bay and points at each thing to tap (src/ui/coach.ts).
   // A pinned seed (tests, shared links) leaves it off unless the URL asks for it with coach=1.
   const projected = new THREE.Vector3();
@@ -794,6 +803,7 @@ async function main() {
     bubbles: () => bubbles.count(),
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
     bugle: () => { snap('TEST EDITION: LOTTIE\'S CORNER', 9); },
+    markers: () => markers.count(),
     showBugle: () => { const b = bugle.best(state.day); if (b) bugle.show(b); return !!b; },
     scene: (id: SceneId) => scenes.play(id),
     ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
@@ -901,6 +911,7 @@ async function main() {
     }
     if (state.phase === 'report' || state.phase === 'night') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
+    markers.update(state, world.camera, world.controls.target, bay.views, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) vipResume = 0;
     if (!flight.active()) world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
@@ -912,8 +923,29 @@ async function main() {
     world.render();
     hud.playing = battle.active() || vip.active(); // a brawl or a VIP show on screen: the pause knob stays at hand
     if (snapReq) {
-      try { bugle.offer({ url: canvas.toDataURL('image/jpeg', 0.7), ...snapReq, day: state.day }); } catch { /* tainted or lost canvas: no photo today */ }
+      // Only a moment that beats today's best is photographed, and never with a full-size
+      // toDataURL in the frame: grab a small bitmap now (right after render, before the
+      // buffer clears) and encode it when the browser is idle.
+      const req = snapReq, day = state.day;
       snapReq = null;
+      const best = bugle.best(day);
+      if (!snapBusy && (!best || req.score > best.score) && typeof createImageBitmap === 'function') {
+        snapBusy = true;
+        createImageBitmap(canvas, { resizeWidth: 360, resizeQuality: 'medium' }).then((bmp) => {
+          const encode = () => {
+            try {
+              const c = document.createElement('canvas');
+              c.width = bmp.width; c.height = bmp.height;
+              c.getContext('2d')?.drawImage(bmp, 0, 0);
+              bugle.offer({ url: c.toDataURL('image/jpeg', 0.75), ...req, day });
+            } catch { /* tainted or lost canvas: no photo today */ }
+            bmp.close();
+            snapBusy = false;
+          };
+          const idle = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+          if (idle) idle(encode, { timeout: 2000 }); else setTimeout(encode, 0);
+        }).catch(() => { snapBusy = false; });
+      }
     }
     hud.render(state, shownSpeed());
     coach.update(state, shownSpeed(), busy() || !!playingScene(state) || outcomeUp());

@@ -84,7 +84,7 @@ varying vec3 vClayP; varying vec3 vClayN; varying vec3 vClayM0; varying vec3 vCl
 const FCOLOR = `#if defined( USE_COLOR_ALPHA )
   diffuseColor.rgb *= vColor.rgb; float clayA = vColor.a;
 #elif defined( USE_COLOR )
-  diffuseColor.rgb *= vColor; float clayA = uClayA;
+  diffuseColor.rgb *= vColor.rgb; float clayA = uClayA; // .rgb: vColor is a vec4 with instance colours on a plain clay material
 #else
   float clayA = uClayA;
 #endif

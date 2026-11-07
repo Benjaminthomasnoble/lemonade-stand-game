@@ -160,3 +160,19 @@ body.gull-flight .cl-plot { display: none; } /* Lottie's goal card stays up, eve
   }
   #ui .gullbtn .lbl { display: none; }
 }
+
+/* In-world markers (src/world/markers.ts): tape queue counters, owner-coloured HP pills, the raid snake's egg-timer ETA. */
+#ui .markers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#ui .markers > div { position: absolute; left: 0; top: 0; will-change: transform; white-space: nowrap; }
+#ui .mk-tape { font: 400 20px/1 'Gochi Hand', 'Comic Sans MS', cursive; color: #2E2A4F; padding: 3px 9px 2px;
+  background: rgba(255, 241, 214, 0.92); border-left: 2px dashed rgba(46, 42, 79, 0.18); border-right: 2px dashed rgba(46, 42, 79, 0.18);
+  box-shadow: 0 2px 0 rgba(46, 42, 79, 0.25); font-variant-numeric: tabular-nums; rotate: -3deg; }
+#ui .mk-hp { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+#ui .mk-hp .pill { display: block; width: 46px; height: 9px; border-radius: 6px; background: #FFF1D6; border: 2px solid #2E2A4F; overflow: hidden; box-shadow: 0 2px 0 rgba(46, 42, 79, 0.3); }
+#ui .mk-hp .pill i { display: block; height: 100%; border-radius: 4px 0 0 4px; }
+#ui .mk-hp .pill.fence { width: 38px; height: 7px; background-image: repeating-linear-gradient(90deg, transparent 0 5px, rgba(46, 42, 79, 0.15) 5px 6px); }
+#ui .mk-eta { display: flex; align-items: center; gap: 4px; padding: 2px 9px 2px 4px; border-radius: 14px; background: #FFF1D6;
+  border: 2.5px solid var(--edge, #E8704F); box-shadow: 0 2px 0 rgba(46, 42, 79, 0.35); font: 400 20px/1 'Gochi Hand', 'Comic Sans MS', cursive; color: #2E2A4F;
+  font-variant-numeric: tabular-nums; animation: mk-tick 1s steps(2) infinite; }
+#ui .mk-eta img { width: 24px; height: 24px; }
+@keyframes mk-tick { 50% { rotate: -4deg; } }

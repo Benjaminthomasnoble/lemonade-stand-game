@@ -6,6 +6,7 @@
 // in their body's gait: pear adults bob, round folk roll, kids skip. Everyone
 // poses on twos, and the whole crowd draws as one batch (clay/figureBatch.ts).
 // A buyer leaves with a cup, sips a few steps later and pulls a face.
+import { beatOffset, bob } from './beat.ts';
 import * as THREE from 'three';
 import { kit } from './clay/kit.ts';
 import { crowdDetail, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
@@ -29,8 +30,9 @@ export function hopPose(obj: THREE.Object3D, phase: number, base: number, ground
 }
 
 /** Idle breathing bob for a standing figure. */
-export function idlePose(obj: THREE.Object3D, t: number, base: number) {
-  const b = Math.sin(t * 3.2) * 0.022 * MOTION;
+export function idlePose(obj: THREE.Object3D, base: number, perBeat = 0.5) {
+  // On the music's beat (src/world/beat.ts): each figure starts on its own beat, FizzCo in lockstep.
+  const b = (bob(beatOffset(obj.id, !!obj.userData.lockstep), perBeat) * 2 - 1) * 0.022 * MOTION;
   obj.scale.set(base * (1 - b * 0.5), base * (1 + b), base * (1 - b * 0.5));
 }
 
@@ -215,10 +217,10 @@ export function createCrowd(
           w.obj.scale.set(w.base * (1 + k), w.base * (1 - k), w.base * (1 + k));
           continue;
         } else if (w.huff) {
-          idlePose(w.obj, w.phase + w.wait * 2, w.base);
+          idlePose(w.obj, w.base);
           limbs[0].rotation.x = Math.sin(w.wait * 30) > 0.3 ? -0.3 * MOTION : 0; // tap tap tap
           limbs[2].rotation.z = 0.9; limbs[3].rotation.z = -0.9; // hands on hips
-        } else idlePose(w.obj, w.phase + w.wait * 2, w.base);
+        } else idlePose(w.obj, w.base);
         if (w.cup.visible) limbs[3].rotation.x = -0.9; // hold the cup up
         if (w.segment === 'families') limbs[2].rotation.x = limbs[3].rotation.x = -0.9; // on the stroller
         continue;

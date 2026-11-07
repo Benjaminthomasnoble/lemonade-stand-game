@@ -3,7 +3,7 @@
 // Mounted from hud.ts, drawn with its clay kit.
 import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, fenceRepairCost, GADGET_SLOTS,
-  GADGETS, GEAR, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS,
+  GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
   type GadgetId, type GameState, type GearId, type Guard, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -47,7 +47,8 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);
   const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
   const wb = nextWeapon ? canEquip(s, g.id, nextWeapon) : null, gb = nextGear ? canEquip(s, g.id, nextGear) : null;
-  const tip = `${g.name}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}`;
+  const xp = xpToNext(g);
+  const tip = `${g.name}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${WEAPONS[g.weapon].name}${g.gear !== 'none' ? ', ' + GEAR[g.gear].name : ''}, ${k.whole(guardWage(g))}/day${guardReady(s, g) ? '' : `, knocked out till day ${g.outUntil}`}${g.level < 5 ? `. ${Math.round(xp.progress * 100)}% of the way to ${GUARD_LEVEL_TITLES[g.level]}` : ''}`;
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">

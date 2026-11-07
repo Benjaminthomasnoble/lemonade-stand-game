@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CLUBHOUSE, COMBAT, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
+  CLUBHOUSE, COMBAT, DETECTION_BASE, DUTY_DAYS_PER_LEVEL, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
   RAID_LEAVE, RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
   SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
@@ -32,7 +32,7 @@ export interface Guard {
   name: string;
   trait: Trait;
   level: number; // 1..5
-  xp: number;
+  xp: number; // fights add whole points, each day on duty a fraction
   weapon: WeaponId;
   gear: GearId;
   post: string | null; // plot id where they stand guard
@@ -232,6 +232,47 @@ export function refreshRecruits(s: GameState, force = false): void {
 export const clubhouseBeds = (s: GameState) => allBeds(s);
 export const rosterCap = (s: GameState) => ROSTER_BASE + clubhouseBeds(s);
 export const guardWage = (g: Guard) => GUARD_WAGE[g.level - 1];
+
+/** Dawn payday, guard by guard in roster order with the Loyal paid last. Wages never take cash below $0: an unpaid guard quits, a Loyal one stays on unpaid. */
+export function payCrew(s: GameState): void {
+  const order = [...s.guards.filter((g) => g.trait !== 'Loyal'), ...s.guards.filter((g) => g.trait === 'Loyal')];
+  let paid = 0;
+  for (const g of order) {
+    const wage = guardWage(g);
+    if (s.cash >= wage) {
+      s.cash = round2(s.cash - wage);
+      paid += wage;
+    } else if (g.trait === 'Loyal') {
+      s.news.push(`${g.name} stays on without pay. "Loyal to the last drop, Miss Lottie."`);
+    } else {
+      fireGuard(s, g.id);
+      s.news.push(`${g.name} quits: "No pay, no play."`);
+    }
+  }
+  if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: wages
+}
+
+/** Level up once XP reaches the next threshold (duty adds fractions, so allow for rounding). The Training Yard can call this too. */
+export function levelUp(s: GameState, g: Guard): void {
+  while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level] - 1e-3) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
+}
+
+/** XP still needed for the next level, and the share of the way there. */
+export function xpToNext(g: Guard): { need: number; progress: number } {
+  if (g.level >= 5) return { need: 0, progress: 1 };
+  const lo = GUARD_XP_TO_LEVEL[g.level - 1], hi = GUARD_XP_TO_LEVEL[g.level];
+  return { need: Math.max(0, hi - g.xp), progress: Math.max(0, Math.min(1, (g.xp - lo) / (hi - lo))) };
+}
+
+/** Duty: each dawn, a guard who stood a post yesterday (and wasn't Out) earns 1/35 of the way to the next level. */
+export function dutyXp(s: GameState): void {
+  for (const g of s.guards) {
+    if (!g.post || s.plots[g.post]?.owner !== 'player' || g.outUntil > s.day - 1 || g.level >= 5) continue;
+    const step = (GUARD_XP_TO_LEVEL[g.level] - GUARD_XP_TO_LEVEL[g.level - 1]) / DUTY_DAYS_PER_LEVEL;
+    g.xp = Math.round((g.xp + step) * 1e6) / 1e6;
+    levelUp(s, g);
+  }
+}
 
 export function canHire(s: GameState, id: string): Blocker {
   const g = s.recruits.find((r) => r.id === id);
@@ -618,16 +659,8 @@ function headline(b: BattleReport): string {
 /** Wages, rival rebuilds, First Dibs expiry and the rivals' Guard/Strike spending. */
 export function crewAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
-  const wages = s.guards.reduce((a, g) => a + guardWage(g), 0);
-  if (wages) {
-    s.cash = round2(s.cash - wages);
-    s.today.upkeep = round2(s.today.upkeep + wages);
-  }
-  if (s.cash < 0 && s.guards.length) {
-    const quitter = s.guards.find((g) => g.trait !== 'Loyal') ?? s.guards[0];
-    fireGuard(s, quitter.id);
-    s.news.push(`${quitter.name} quits: "No pay, no play."`);
-  }
+  payCrew(s);
+  dutyXp(s);
   if (s.day >= 6) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);

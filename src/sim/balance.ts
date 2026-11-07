@@ -347,6 +347,8 @@ export const GUARD_LEVEL_TITLES = ['Rookie', 'Regular', 'Veteran', 'Elite', 'Leg
 export const GUARD_WAGE = [15, 25, 40, 60, 90];
 export const GUARD_FEE = [50, 150, 400, 1000, 2500];
 export const GUARD_XP_TO_LEVEL = [0, 3, 8, 15, 25];
+/** Duty: a posted guard climbs about one level per 35 days on duty (fights and the Training Yard add more). */
+export const DUTY_DAYS_PER_LEVEL = 35;
 /** The Hiring Hall lists 6 recruits and refreshes them every 7 days. */
 export const RECRUIT_POOL = 6;
 export const RECRUIT_DAYS = 7;

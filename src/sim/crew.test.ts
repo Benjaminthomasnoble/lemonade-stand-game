@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, buyGadget, buyPerimeter, canHire, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand, planRaid,
-  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex,
-  type BattleReport, type GameState, PLOTS,
+  buildClubhouse, buyGadget, buyPerimeter, canHire, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand, payCrew, planRaid,
+  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
+  PLOTS,
 } from './economy.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
@@ -148,5 +148,46 @@ describe('the Hiring Hall', () => {
     expect(loaded).not.toBeNull();
     playDay(loaded);
     expect(loaded.recruits).toHaveLength(6);
+  });
+});
+
+describe('wages and duty', () => {
+  it('a posted guard climbs about a level per 35 days on duty; the reserve and the Out do not', () => {
+    const s = newGame(31);
+    s.rank = 2;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    expect(dex.post).toBe(LOTTIES_CORNER);
+    const reserve = { ...dex, id: 'gr', name: 'Res Erve', trait: 'Hothead' as const, post: null };
+    const out = { ...dex, id: 'go', name: 'Out Cold', trait: 'Sprinter' as const, outUntil: 999 };
+    s.guards.push(reserve, out);
+    const dawn = () => { s.day++; dutyXp(s); };
+    for (let d = 0; d < 34; d++) dawn();
+    expect(dex.level).toBe(1);
+    dawn();
+    expect(dex.level).toBe(2);
+    expect(reserve.xp).toBe(0);
+    expect(out.xp).toBe(0);
+    for (let d = 0; d < 34; d++) dawn();
+    expect(dex.level).toBe(2);
+    dawn();
+    expect(dex.level).toBe(3);
+  });
+
+  it('pays wages guard by guard: the unpaid quit, Loyal guards stay on unpaid, cash never goes below $0', () => {
+    const s = newGame(32);
+    s.rank = 2;
+    welcomeDex(s);
+    const dex = s.guards[0]; // Loyal, $15 a day
+    s.guards.push({ ...dex, id: 'ga', name: 'Ann A', trait: 'Hothead', level: 1, post: null }, { ...dex, id: 'gb', name: 'Bob B', trait: 'Sprinter', level: 2, post: null });
+    s.cash = 20;
+    payCrew(s);
+    expect(s.cash).toBe(5); // Ann's $15 is paid; Bob's $25 isn't, and Dex waits his turn
+    expect(s.guards.map((g) => g.id)).toEqual([dex.id, 'ga']);
+    expect(s.today.upkeep).toBe(15);
+    s.cash = 0;
+    payCrew(s);
+    expect(s.guards.map((g) => g.name)).toEqual(['Dex Moody']);
+    expect(s.cash).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, buyGadget, buyPerimeter, canHire, canPromote, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
+  buildClubhouse, buyGadget, buyPerimeter, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
   payCrew, planRaid, promote,
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
   PLOTS,
@@ -210,5 +210,42 @@ describe('specialists', () => {
     expect(canPromote(s, dex.id, 'captain')).toEqual({ ok: false, why: 'Already a Lookout' });
     const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
     expect(loaded.guards[0].specialty).toBe('lookout');
+  });
+});
+
+describe('detection', () => {
+  it('cans and a goose spot 80% by day, 55% at night and 80% under Floodlights', () => {
+    const s = newGame(51);
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.defense.gadgets = ['alarm', 'goose'];
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.8);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.55);
+    ps.defense.gadgets = ['alarm', 'goose', 'floodlights'];
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.8);
+  });
+
+  it('caps at 95% before the night penalty, so 120% reads 70% at night', () => {
+    const s = newGame(52);
+    s.rank = 2;
+    welcomeDex(s);
+    s.guards[0].trait = 'Eagle Eye';
+    s.plots[LOTTIES_CORNER].defense.gadgets = ['alarm', 'goose', 'watchtower'];
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.95);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.7);
+  });
+
+  it('an Eagle Eye counts only while on the plot: not Out, not away raiding', () => {
+    const s = newGame(53);
+    s.rank = 2;
+    welcomeDex(s);
+    const g = s.guards[0];
+    g.trait = 'Eagle Eye';
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.35);
+    g.outUntil = s.day + 1;
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    g.outUntil = 0;
+    s.raids.push({ id: 'r1', attacker: 'player', target: 'oldtown-0n', objective: 'smash', guards: [g.id], detected: false, eta: '01:00' });
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
   });
 });

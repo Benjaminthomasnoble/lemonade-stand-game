@@ -3,7 +3,8 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CLUBHOUSE, COMBAT, DETECTION_BASE, DUTY_DAYS_PER_LEVEL, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
+  CLUBHOUSE, COMBAT, DETECTION_BASE, DETECTION_CAP, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RAID_LEAVE,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
   SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
@@ -440,12 +441,21 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   };
 }
 
+/** Who is really on a plot of yours right now: posted there, not Out, not away on tonight's raid. */
+export function presentGuards(s: GameState, plotId: string): Guard[] {
+  const away = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
+  return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id));
+}
+
+/** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights). Never below 0%. */
 export function detectionChance(s: GameState, plotId: string, night: boolean): number {
   const ps = s.plots[plotId];
+  const here = ps.owner === 'player' ? presentGuards(s, plotId) : [];
   let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].detection, 0);
-  if (s.guards.some((g) => g.post === plotId && g.trait === 'Eagle Eye')) d += 0.1;
+  if (here.some((g) => g.trait === 'Eagle Eye')) d += EAGLE_EYE_DETECTION;
+  d = Math.min(DETECTION_CAP, d);
   if (night && !ps.defense.gadgets.includes('floodlights')) d -= NIGHT_STEALTH;
-  return Math.max(0.05, Math.min(0.95, d));
+  return Math.max(0, Math.round(d * 1000) / 1000);
 }
 
 // ---------- player raids ----------

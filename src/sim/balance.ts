@@ -412,7 +412,10 @@ export const RAID_PARTY: { size: [number, number]; weapons: [number, number, num
   { size: [8, 12], weapons: [0.1, 0.6, 0.3] },
   { size: [12, 20], weapons: [0, 0.5, 0.5] },
 ];
+/** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off (floor 0%: placeholder, spec gap). */
 export const DETECTION_BASE = 0.5;
+export const DETECTION_CAP = 0.95;
+export const EAGLE_EYE_DETECTION = 0.1;
 export const NIGHT_STEALTH = 0.25;
 /** Raids travel 1–3 game hours by distance (canon). The build maps straight-line plot distance onto that range:
  * across the whole bay (about 350 map units) is 3 hours, so Maple Row to the Boardwalk (about 100) is 1.5 hours. */

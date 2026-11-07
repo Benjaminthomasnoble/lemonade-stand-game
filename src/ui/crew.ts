@@ -4,7 +4,7 @@
 import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, fenceRepairCost, GADGET_SLOTS,
   GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
-  canPromote, PROMOTE_LEVEL, SPECIALTIES,
+  canPromote, detectionChance, PROMOTE_LEVEL, SPECIALTIES,
   type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -49,7 +49,10 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
   const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
   const shop = (Object.keys(GADGETS) as GadgetId[]).filter((g) => !ps.defense.gadgets.includes(g)).map((g) => ({ g, b: canBuyGadget(s, id, g) })).filter(({ b }) => !k.locked(b))
     .map(({ g, b }) => `<button class="cl-gadget" data-action="gadget" data-plot="${id}" data-id="${g}" ${b.ok ? '' : `disabled`} title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}${b.ok ? '' : ` (${k.esc(b.why)})`}">${k.GADGET_ART[g]()}${k.tape(k.whole(GADGETS[g].cost))}</button>`).join('');
-  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const night = detectionChance(s, id, true), day = detectionChance(s, id, false);
+  const seen = `<span title="Spots ${pct(night)} of night raids here, ${pct(day)} by day">${k.meter(night)}</span>`;
+  return `<div class="cl-cards">${out.join('')}</div><div class="cl-slots"><span class="cl-label">Gadgets</span>${seen}${installed}${free}${ps.defense.gadgets.length < slots ? `<span class="cl-shop">${shop}</span>` : ''}</div>`;
 }
 
 function guardRow(k: Kit, s: GameState, g: Guard): string {

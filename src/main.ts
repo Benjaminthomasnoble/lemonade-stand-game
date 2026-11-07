@@ -7,7 +7,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, SYNDICATE_CALL, syndicateLeader, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
@@ -193,6 +193,8 @@ async function main() {
     prepWait = 0;
     const shot = bugle.best(state.day - 1);
     if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state), options.celsius); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
+    const pact = state.syndicate?.formed === state.day ? syndicateLeader(state) : null; // the Syndicate formed this morning
+    if (pact) phone.ring(pact, pact === 'sourwood' ? SYNDICATE_CALL : pick(BOSS[pact].warn));
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);

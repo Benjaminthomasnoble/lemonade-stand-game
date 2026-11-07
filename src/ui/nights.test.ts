@@ -14,7 +14,7 @@ import type { SlotInfo } from '../save.ts';
 import { isFullMenu, menuScreen, menuUnlocked } from './menus.ts';
 import { keyName, keysPanel } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
-import { openStands, simulateRestOfDay, sleepUntilDawn, successScore } from '../sim/economy.ts';
+import { eliminate, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
 import { scoreParts, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
@@ -262,6 +262,16 @@ describe('the top bar explains itself', () => {
     const easy = newGame(5, { difficulty: 'laidback' });
     easy.rank = 5;
     expect(threatTip(easy)).toMatch(/^Threat 2: set by Rank 5, District Big Shot; Laid Back −1\n/);
+  });
+
+  it('once the Syndicate stands, Threat counts the bosses in it, one fewer for each you eliminate', () => {
+    const s = newGame(5, { mode: 'sandbox' });
+    s.rank = 9;
+    expect(threatTip(s)).not.toContain('Syndicate');
+    syndicateAtDawn(s);
+    expect(threatTip(s).split('\n').at(-1)).toBe('Syndicate: 5 bosses against you');
+    for (const id of ['blenders', 'coldbrew', 'hollis', 'fizzco'] as const) eliminate(s, id, 'bankrupt');
+    expect(threatTip(s).split('\n').at(-1)).toBe('Syndicate: one boss against you');
   });
 });
 

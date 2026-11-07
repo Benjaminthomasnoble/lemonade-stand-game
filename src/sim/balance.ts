@@ -461,6 +461,10 @@ export const RIVAL_VS_RIVAL = [0.3, 0.3, 0.3, 0.15, 0.15];
 export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2 };
 /** The Syndicate's raids on you per week, Classic (Laid Back ×0.5 = 3, Cutthroat ×1.5 = 9). */
 export const SYNDICATE_RAIDS_PER_WEEK = 6;
+/** When the Syndicate forms: in the campaign two weeks into Act 5 on every difficulty; in Sandbox and Endless at
+ * Threat 5, or Threat 4 on Cutthroat. Laid Back's Threat stops at 4, so there it forms at Rank 9, where Classic reaches
+ * Threat 5 (placeholder: spec gap); Custom follows Classic. */
+export const SYNDICATE_FORMS = { act5Days: 14, threat: 5, cutthroatThreat: 4, laidBackRank: 9 };
 /** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off, down to 0% (the floor is a placeholder: spec gap). */
 export const DETECTION_BASE = 0.5;
 export const DETECTION_CAP = 0.95;

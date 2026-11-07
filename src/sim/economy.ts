@@ -43,6 +43,7 @@ import {
   announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
 } from './land.ts';
 import type { Auction, Lavender } from './auction.ts';
+import type { SyndicateState } from './syndicate.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -52,6 +53,7 @@ export * from './rivals.ts';
 export * from './modes.ts';
 export * from './night.ts';
 export * from './threat.ts';
+export * from './syndicate.ts';
 export * from './damage.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
@@ -238,6 +240,7 @@ export interface GameState {
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
+  syndicate?: SyndicateState; // the rivals' Pact against you: Act 5's first day and the day it formed (syndicate.ts)
 }
 
 export type SimEvent =

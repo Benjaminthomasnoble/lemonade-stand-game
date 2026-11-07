@@ -3,8 +3,8 @@
 // that set it"; the Success Score gives its breakdown, today's change and the
 // Peak). Plain text with line breaks, for title attributes.
 import {
-  BUILDING_VALUE_SHARE, assetValue, difficulty, PLOTS, RANKS, redDaysLeft, seasonDay, seasonOf, successScore, threatLevel,
-  type GameState,
+  BUILDING_VALUE_SHARE, assetValue, difficulty, PLOTS, RANKS, redDaysLeft, seasonDay, seasonOf, successScore, syndicateFormed,
+  syndicateMembers, threatLevel, type GameState,
 } from '../sim/economy.ts';
 
 const whole = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
@@ -38,10 +38,12 @@ export function scoreTip(s: GameState): string {
   ].join('\n');
 }
 
-/** Threat moves only at a rank-up: name the rank that set it, and the difficulty's nudge. */
+/** Threat moves only at a rank-up: name the rank that set it, and the difficulty's nudge; and once the Syndicate
+ * stands, how many bosses are in it (each one you eliminate shrinks it). */
 export function threatTip(s: GameState): string {
   const t = threatLevel(s), base = Math.min(5, Math.ceil(s.rank / 2)), by = 2 * base - 1, nudge = difficulty(s).threat;
-  return `Threat ${t}: set by Rank ${by}, ${RANKS[by - 1].title}${nudge ? `; ${difficulty(s).label} ${nudge > 0 ? '+' : '−'}${Math.abs(nudge)}` : ''}\nMore lemons, more raids on you`;
+  const pact = syndicateFormed(s) ? syndicateMembers(s).length : 0;
+  return `Threat ${t}: set by Rank ${by}, ${RANKS[by - 1].title}${nudge ? `; ${difficulty(s).label} ${nudge > 0 ? '+' : '−'}${Math.abs(nudge)}` : ''}\nMore lemons, more raids on you${pact ? `\nSyndicate: ${pact === 1 ? 'one boss' : `${pact} bosses`} against you` : ''}`;
 }
 
 export function cashTip(s: GameState): string {

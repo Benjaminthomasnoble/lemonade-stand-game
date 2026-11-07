@@ -22,6 +22,7 @@ import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, th
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
+import { syndicateAtDawn } from './syndicate.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
@@ -346,6 +347,7 @@ export const onTheRoad = (r: Raid) => r.attacker === 'player' && (r.back !== und
  * carries on this morning (the clock starts a new day): it gets home, or gets there and fights in daylight. */
 export function nightsAtDawn(s: GameState): void {
   threatAtDawn(s);
+  syndicateAtDawn(s);
   s.alerts = (s.alerts ?? []).filter((a) => a.day >= s.day);
   for (const r of s.raids) {
     if (!onTheRoad(r)) continue;

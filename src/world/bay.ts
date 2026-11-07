@@ -18,7 +18,7 @@ import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './bu
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
 import { lemonsExpiringTomorrow, stock } from '../sim/economy.ts';
-import { civicBuilding, facilityModel, fieldRows, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
+import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
 import { makeCrew, type Side } from './clay/cast.ts';
 import { freezeFigures } from './clay/figureBatch.ts';
@@ -351,6 +351,15 @@ export function createBay(scene: THREE.Scene): Bay {
   }
 
   let synced = false;
+  const movers = new Map<PlotView, THREE.Object3D[]>();
+  let moverF = -1;
+  /** How long a pier from this plot must be to reach past the shore (12 if the water isn't behind it). */
+  function reachOf(v: PlotView) {
+    const back = v.plot.side === 0 ? -1 : 1; // the plot's back points away from its street
+    const z = v.root.position.z;
+    const toShore = back > 0 ? SEA_Z + 5 - z : -Infinity;
+    return toShore > 0 && toShore < 30 ? toShore : 12;
+  }
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
     // The player's stand lives on across rebuilds (guards, fences and gadgets change far more often than the stand).
@@ -359,7 +368,8 @@ export function createBay(scene: THREE.Scene): Bay {
     keepStand?.group.removeFromParent();
     if (v.stand && !keepStand) v.stand.dispose();
     // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
-    v.root.traverse((o) => { if (o.name === 'baked') (o as THREE.Mesh).geometry.dispose(); });
+    v.root.traverse((o) => { if (o.name === 'baked' || o.userData.disposable) (o as THREE.Mesh).geometry.dispose(); });
+    movers.delete(v);
     v.root.clear();
     if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
     v.stand = undefined;
@@ -369,9 +379,9 @@ export function createBay(scene: THREE.Scene): Bay {
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
     else if (p.type === 'hq') building = hqBuilding(ps.owner as RivalId | 'player' | null, p.name);
-    else if (ps.facility) building = facilityModel(ps.facility.kind, ps.facility.level);
+    else if (ps.facility) building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, reachOf(v));
     else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v); }
-    else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel())); if (!ps.owner) forSale(v); }
+    else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel(reachOf(v)))); if (!ps.owner) forSale(v); }
     else if (ps.stand && ps.owner === 'player') {
       const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
@@ -418,6 +428,10 @@ export function createBay(scene: THREE.Scene): Bay {
       v.root.add(watch);
       freezeFigures(watch, kit().fig);
     }
+    // Moving parts (clock hands, windmill sails, windsocks, cranes) pose on twos in update().
+    const parts: THREE.Object3D[] = [];
+    v.root.traverse((o) => { if (/^(spin|sway):/.test(o.name)) parts.push(o); });
+    if (parts.length) movers.set(v, parts);
     // A blob shadow the size of whatever stands here, and Bay View's block for this district needs redoing.
     box.setFromObject(v.root);
     if (box.isEmpty()) blobs.setMatrixAt(blobAt.length + v.tile, zero);
@@ -434,7 +448,9 @@ export function createBay(scene: THREE.Scene): Bay {
     const facing = p.side === 0 ? 1 : -1;
     ground.set(GROUND[p.district]);
     // Owned tiles take their owner's main colour (the pattern carries the accent); unowned land stays bare Clay cream.
-    tint.copy(ground).lerp(new THREE.Color(ps.owner ? TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main : P.cream), ps.owner ? 0.82 : 0.7);
+    // Owners' tiles take their main colour outright; Sourwood's plum is lifted so it never reads as road.
+    if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#7A3496' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
+    else tint.copy(ground).lerp(new THREE.Color(P.cream), 0.7);
     tiles.setColorAt(v.tile, tint);
     ownerAt[v.tile] = ps.owner;
     patternsDirty = true;
@@ -495,6 +511,12 @@ export function createBay(scene: THREE.Scene): Bay {
       blobs.visible = scene.userData.shadows === false;
       wet.visible = s.weather.kind === 'rainy' || s.weather.kind === 'storm';
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
+      const mf = Math.floor(time * 12);
+      if (mf !== moverF && level < 2) {
+        moverF = mf;
+        const minute = s.phase === 'prep' ? 7 * 60 : s.minute;
+        for (const parts of movers.values()) for (const o of parts) animatePart(o, mf / 12, minute);
+      }
       let merges = 2;
       for (const [id, f] of farList) {
         if (level >= 2 && f.dirty && merges > 0) { buildFar(id, f); merges--; }

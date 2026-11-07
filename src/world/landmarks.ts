@@ -30,6 +30,7 @@ class Model {
     const m = new THREE.Mesh(b.build(), kit().world);
     m.position.set(...at);
     m.name = name;
+    m.userData.disposable = true;
     m.castShadow = true;
     this.extras.push(m);
     return m;
@@ -39,11 +40,13 @@ class Model {
     g.name = name;
     const body = new THREE.Mesh(this.B.build(), kit().world);
     body.castShadow = body.receiveShadow = true;
+    body.userData.disposable = true;
     g.add(body);
     if (this.W.list.length) {
       const w = new THREE.Mesh(this.W.build(), kit().window);
       w.receiveShadow = true;
       w.userData.noBake = true; // keeps the window glass material (it glows at night)
+      w.userData.disposable = true;
       g.add(w);
     }
     for (const e of this.extras) g.add(e);
@@ -147,6 +150,7 @@ export function tapeLabel(text: string, width: number, ink: string = P.plum, tap
   if (!mat) { mat = new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.95 }); labelMats.set(k, mat); }
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width * 112 / 512), mat);
   mesh.name = 'label';
+  mesh.userData.disposable = true; // its plane is made per label; the texture and material are shared
   return mesh;
 }
 /** A tape label that fades out beyond `far` (it sits in its own LOD, so bakeGroup leaves it be). */
@@ -267,7 +271,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   }
   if (name === 'Sourwood Manor') {
     // a cream mansion with a plum dome studded in gold diamonds, columns and topiaries
-    block(M, 10, 5.2, 6.5, tint('#F6EEDF'), 0, 0, fz - 3.5, 4);
+    block(M, 10, 5.2, 6, tint('#F6EEDF'), 0, 0, fz - 3.5, 4);
     M.add(rbox(10.6, 0.4, 7, 0.12), own.main, { p: [0, 5.3, fz - 3.5] });
     M.add(sph(2.6, 18, 10, ), own.main, { p: [0, 5.5, fz - 3.5], s: [1, 0.85, 1] });
     for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; M.add(new THREE.OctahedronGeometry(0.18, 0), own.accent, { p: [Math.cos(a) * 2.2, 6.6 + (k % 2) * 0.5, fz - 3.5 + Math.sin(a) * 2.2], s: [1, 1.3, 0.6], fx: GLOSS }); }
@@ -310,7 +314,7 @@ export function hqBuilding(owner: RivalId | 'player' | null, name: string): THRE
   }
   if (name === 'The Grindhouse') {
     // an espresso warehouse with a sawtooth roof, a neon-pink zigzag snake and a giant cup
-    block(M, 9, 5, 6.5, tint('#3B2A20'), 0, 0, fz - 3.5, 8);
+    block(M, 9, 5, 6, tint('#3B2A20'), 0, 0, fz - 3.5, 8);
     for (let i = 0; i < 4; i++) {
       const x = -3.4 + i * 2.25;
       M.add(rbox(2.3, 0.25, 6.8, 0.08), tint('#5A4334'), { p: [x, 5.7, fz - 3.5], r: [0, 0, -0.55] });
@@ -360,7 +364,7 @@ function ownerCols(id: RivalId) {
 export function fieldRows(name = ''): THREE.Group {
   const M = new Model();
   // tilled soil bed
-  M.add(lumpy(rbox(10.4, 0.25, 9.6, 0.12), 0.03, 1, 3), '#A7744F', { p: [0, 0.08, -2.5] });
+  M.add(lumpy(rbox(8.8, 0.25, 8.0, 0.12), 0.03, 1, 3), '#A7744F', { p: [0, 0.08, -2.5] }); // inset: the owner's tile shows round it
   if (name === 'Polo Lawn') {
     for (let i = 0; i < 8; i++) M.add(rbox(1.25, 0.08, 9.4, 0.04), i % 2 ? '#6FB257' : '#8CCB6E', { p: [-4.4 + i * 1.26, 0.24, -2.5] });
     for (const x of [-4.6, 4.6]) { stick(M, x - 0.4, 0, 1.6, -2.5, 0.1, '#FFFDF6'); stick(M, x + 0.4, 0, 1.6, -2.5, 0.1, '#FFFDF6'); M.add(box(0.9, 0.08, 0.08), '#FFFDF6', { p: [x, 1.55, -2.5] }); }
@@ -392,12 +396,13 @@ export function fieldRows(name = ''): THREE.Group {
   return M.done('field');
 }
 
-/** An unbuilt Dock plot: a popsicle-stick pier toward the water behind the plot. */
-export function pierModel(): THREE.Group {
+/** An unbuilt Dock plot: a popsicle-stick pier `len` long, out over the water behind the plot. */
+export function pierModel(len = 12): THREE.Group {
   const M = new Model();
-  for (let k = 0; k < 24; k++) M.add(rbox(3.6, 0.1, 0.42, 0.03), P.stick, { p: [0, 0.4, -k * 0.5], r: [0, (hash(k, 3) - 0.5) * 0.05, 0], fx: PAPER });
-  for (let k = 0; k < 4; k++) for (const s of [-1, 1]) M.add(cyl(0.14, 0.14, 1.6, 7), P.walnut, { p: [s * 1.6, -0.3, -1 - k * 3.4], fx: PAPER });
-  M.add(lumpy(sph(0.35, 10, 8), 0.03, 4, 2), P.terra, { p: [2.4, 0.15, -10], s: [1, 1.2, 1] });
+  const n = Math.round(len / 0.5);
+  for (let k = 0; k < n; k++) M.add(rbox(3.6, 0.1, 0.42, 0.03), P.stick, { p: [0, 0.4, -k * 0.5], r: [0, (hash(k, 3) - 0.5) * 0.05, 0], fx: PAPER });
+  for (let z = -1; z > -len; z -= 3.4) for (const s of [-1, 1]) M.add(cyl(0.14, 0.14, 1.8, 7), P.walnut, { p: [s * 1.6, -0.4, z], fx: PAPER });
+  M.add(lumpy(sph(0.35, 10, 8), 0.03, 4, 2), P.terra, { p: [2.4, 0.15, -len + 1], s: [1, 1.2, 1] });
   return M.done('pier');
 }
 
@@ -417,9 +422,11 @@ export function forSaleLabel(): THREE.Group {
 }
 
 // ---------------------------------------------------------------- the player's VIP facilities
-export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', level: number): THREE.Group {
+/** VIP facilities, in their owner's colours (lemon yellow and Lottie's name only for the player). `reach` sizes a pier to the water. */
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
   const M = new Model();
-  const Y = '#F6D33C';
+  const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
+  const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
   if (kind === 'grove') {
     // flowering lemon trees on clay mounds, three rows
     for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
@@ -434,7 +441,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
   if (kind === 'bottling') {
     const w = 6 + level, h = 3 + level;
     block(M, w, h, 5.5, '#F3E9D6', 0, 0, -4, 21);
-    for (let i = 0; i < Math.ceil(w / 1.1); i++) M.add(rbox(1.0, 0.25, 6, 0.06), i % 2 ? Y : '#FFFFFF', { p: [-w / 2 + 0.55 + i * 1.1, h + 0.1, -4] });
+    for (let i = 0; i < Math.ceil(w / 1.1); i++) M.add(rbox(1.0, 0.25, 6, 0.06), i % 2 ? Y : ACC, { p: [-w / 2 + 0.55 + i * 1.1, h + 0.1, -4] });
     M.add(lumpy(cyl(0.45, 0.6, 3 + level, 12), 0.03, 2, 4), P.terra, { p: [w / 2 - 1, h + (3 + level) / 2, -5.5] });
     M.add(tor(0.48, 0.1, 6, 14), '#FFFDF6', { p: [w / 2 - 1, h + 2.6 + level, -5.5], r: [Math.PI / 2, 0, 0] });
     for (let i = 0; i < 3; i++) window_(M, -w / 2 + 1.4 + i * 1.6, h * 0.6, -1.22, 1, 1);
@@ -447,7 +454,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
       M.add(cyl(0.065, 0.065, 0.06, 8), P.terra, { p: [x, 1.3, 0.4] });
     }
     const g = M.done('facility');
-    label(g, "LOTTIE'S BOTTLING", 4, -0.6, h - 0.7, -1.18, -0.02);
+    if (owner === 'player') label(g, "LOTTIE'S BOTTLING", 4, -0.6, h - 0.7, -1.18, -0.02);
     return g;
   }
   if (kind === 'helipad') {
@@ -469,12 +476,12 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
     }
     stick(M, -4.6, 0, 2.4, 0.8, 0.1);
     M.part('sway:windsock', [-4.6, 2.3, 0.8], (b) => {
-      for (let k = 0; k < 4; k++) b.add(cyl(0.22 - k * 0.04, 0.18 - k * 0.04, 0.3, 10, true), k % 2 ? '#FFFDF6' : '#FF9F1C', { p: [0.2 + k * 0.3, 0, 0], r: [0, 0, Math.PI / 2], fx: PAPER });
+      for (let k = 0; k < 4; k++) b.add(cyl(0.22 - k * 0.04, 0.18 - k * 0.04, 0.3, 10, true), k % 2 ? ACC : Y, { p: [0.2 + k * 0.3, 0, 0], r: [0, 0, Math.PI / 2], fx: PAPER });
     });
     return M.done('facility');
   }
   // Jetty (1), Pier (2), Cargo Terminal (3): a popsicle-stick deck reaching back to the water
-  const len = 12 + level * 6, w = 3 + level;
+  const len = Math.max(12 + level * 6, reach), w = 3 + level;
   for (let k = 0; k < Math.round(len / 0.5); k++) M.add(rbox(w, 0.1, 0.44, 0.03), P.stick, { p: [0, 0.4, -k * 0.5], r: [0, (hash(k, 7) - 0.5) * 0.04, 0], fx: PAPER });
   for (let z = -2; z > -len; z -= 3.6) for (const s of [-1, 1]) M.add(cyl(0.16, 0.16, 1.8, 7), P.walnut, { p: [s * (w / 2 - 0.2), -0.4, z], fx: PAPER });
   for (let i = 0; i < level * 2; i++) {
@@ -561,4 +568,20 @@ export function tapeBorder(W: number, D: number, top: number): THREE.BufferGeome
   for (const [x, z, w, d] of [[0, -D / 2 + 0.4, W - 0.5, 0.55], [0, D / 2 - 0.4, W - 0.5, 0.55], [-W / 2 + 0.4, 0, 0.55, D - 0.5], [W / 2 - 0.4, 0, 0.55, D - 0.5]] as const)
     B.add(box(w, 0.025, d), '#F3E6C4', { p: [x + (hash(x, z) - 0.5) * 0.1, top + 0.012, z], r: [0, (hash(z, x) - 0.5) * 0.03, 0], fx: PAPER });
   return B.build();
+}
+
+// ---------------------------------------------------------------- moving parts
+/**
+ * Pose a plot model's moving part on twos: `t` is twos time in seconds and
+ * `minute` the game clock (minutes since midnight), so the Town Hall clock
+ * tells the time. Parts are meshes named 'spin:*' or 'sway:*'.
+ */
+export function animatePart(o: THREE.Object3D, t: number, minute: number) {
+  switch (o.name) {
+    case 'spin:clock-hour': o.rotation.z = -((minute / 60) % 12) / 12 * Math.PI * 2; break;
+    case 'spin:clock-min': o.rotation.z = -(minute % 60) / 60 * Math.PI * 2; break;
+    case 'spin:windmill': o.rotation.z = -t * 0.9; break;
+    case 'sway:windsock': o.rotation.y = Math.sin(t * 0.7) * 0.5; o.rotation.z = Math.sin(t * 2.3) * 0.08; break;
+    case 'sway:crane': o.rotation.y = Math.sin(t * 0.25) * 0.6; break;
+  }
 }

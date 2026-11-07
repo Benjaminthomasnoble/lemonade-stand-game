@@ -232,8 +232,8 @@ const GREENS: Record<string, Col[]> = {
 };
 
 // ---------------------------------------------------------------- landmarks behind their plots, at 1.5x
-function ferrisWheel(x: number, z: number, parts: THREE.Object3D[], C: Chunk) {
-  const R = 7, cy = R + 1.5;
+function ferrisWheel(x: number, z: number, parts: THREE.Object3D[], C: Chunk, y0 = 0) {
+  const R = 7, cy = R + 1.5 + y0;
   for (const s of [-1, 1]) {
     add(C.full, rbox(0.3, cy + 0.5, 0.2, 0.08), P.stick, { p: [x - 2.6, cy / 2, z + s * 0.9], r: [0, 0, -0.3], fx: PAPER });
     add(C.full, rbox(0.3, cy + 0.5, 0.2, 0.08), P.stick, { p: [x + 2.6, cy / 2, z + s * 0.9], r: [0, 0, 0.3], fx: PAPER });
@@ -252,7 +252,20 @@ function ferrisWheel(x: number, z: number, parts: THREE.Object3D[], C: Chunk) {
   m.name = 'spin:wheel';
   m.castShadow = true;
   parts.push(m);
-  ball(C.block, R, '#FFE2A8', x, cy, z, 3, 8);
+  // Bay View: the wheel's ring and spokes, so it still reads as a wheel
+  add(C.block, tor(R, 0.5, 5, 24), P.stick, { p: [x, cy, z] });
+  for (let k = 0; k < 5; k++) add(C.block, rbox(0.4, R * 2, 0.4, 0.1), P.stick, { p: [x, cy, z], r: [0, 0, (k / 5) * Math.PI] });
+  for (const s of [-1, 1]) add(C.block, rbox(0.6, cy, 0.6, 0.1), P.stick, { p: [x + s * 2.6, cy / 2, z], r: [0, 0, s * 0.3] });
+}
+/** The Pier: a popsicle-stick deck from the beach out over the resin, with the Ferris wheel on its end. */
+function pierWheel(x: number, C: Chunk, parts: THREE.Object3D[]) {
+  const z0 = SEA_Z - 5, z1 = SEA_Z + 18;
+  for (let z = z0; z < z1; z += 0.6) add(C.full, rbox(7, 0.12, 0.52, 0.04), P.stick, { p: [x, 0.5, z], r: [0, (hash(z) - 0.5) * 0.04, 0], fx: PAPER });
+  for (let z = z0 + 1; z < z1; z += 3.2) for (const s of [-1, 1]) add(C.full, cyl(0.2, 0.2, 2.4, 7), P.walnut, { p: [x + s * 3.2, -0.6, z], fx: PAPER });
+  for (const s of [-1, 1]) for (let z = z0; z < z1; z += 1.2) add(C.full, rbox(0.12, 0.9, 0.12, 0.03), '#FFFDF6', { p: [x + s * 3.4, 1, z], fx: PAPER });
+  for (const s of [-1, 1]) add(C.full, rbox(0.1, 0.1, z1 - z0, 0.03), '#FFFDF6', { p: [x + s * 3.4, 1.4, (z0 + z1) / 2], fx: PAPER });
+  ferrisWheel(x, SEA_Z + 11, parts, C, 0.55);
+  add(C.block, rbox(7, 0.6, z1 - z0, 0.2), P.stick, { p: [x, 0.3, (z0 + z1) / 2] });
 }
 function bandstand(x: number, z: number, C: Chunk) {
   add(C.full, cyl(4, 4.2, 0.8, 12), P.cream, { p: [x, 0.4, z] });
@@ -368,8 +381,9 @@ export function townFootprints(): [number, number, number][] {
   const out: [number, number, number][] = [];
   for (const d of DISTRICTS) for (let col = 0; col < d.cols; col++) for (const side of [0, 1] as const) {
     const x = d.origin[0] + col * PLOT_SPACING + PLOT_SPACING / 2, f = side === 0 ? 1 : -1, bz = d.origin[1] - f * BACK;
-    if (bz > SEA_Z - 6 || x > SEA_X - 6) continue;
     const sp = d.special.find((p) => p.col === col && p.side === side);
+    if (sp?.name === 'The Pier') { out.push([x, SEA_Z, 6]); continue; }
+    if (bz > SEA_Z - 6 || x > SEA_X - 6) continue;
     out.push([x, bz, sp?.type === 'landmark' ? 8 : 6.2]);
   }
   for (const d of DISTRICTS) if (d.id === 'boardwalk') for (let k = 0; k < d.cols; k++) out.push([d.origin[0] + k * PLOT_SPACING + 6, SEA_Z - 3, 2]);
@@ -392,9 +406,10 @@ export function createTown(scene: THREE.Scene): Town {
       const x = d.origin[0] + col * PLOT_SPACING + PLOT_SPACING / 2;
       for (const side of [0, 1] as const) {
         const f = side === 0 ? 1 : -1; // fronts face the street
+        const sp = d.special.find((p) => p.col === col && p.side === side);
+        if (sp?.name === 'The Pier') { pierWheel(x, C, parts); continue; }
         const bz = z - f * BACK;
         if (bz > SEA_Z - 6 || x > SEA_X - 6) continue;
-        const sp = d.special.find((p) => p.col === col && p.side === side);
         const sd = Math.abs((col * 2 + side + 1) * 7 + d.origin[0]);
         if (sp?.type === 'landmark') landmark(sp.name, x, bz, f, C, parts, greens);
         else if (d.id === 'groves' && col % 3 === 2) windmill(x, bz, parts, C, f);
@@ -514,6 +529,7 @@ function beach(C: Chunk, d: District) {
   const zb = SEA_Z - 3;
   for (let k = 0; k < d.cols; k++) {
     const x = d.origin[0] + k * PLOT_SPACING + 6;
+    if (d.special.some((p) => p.col === k && p.name === 'The Pier')) continue; // the Pier runs out from here
     if (k % 3 === 1) {
       // lifeguard tower on popsicle-stick legs
       for (const s of [-1, 1]) for (const t of [-1, 1]) add(C.full, rbox(0.15, 2.6, 0.15, 0.05), P.stick, { p: [x + s * 0.7, 1.3, zb + t * 0.7], fx: PAPER });

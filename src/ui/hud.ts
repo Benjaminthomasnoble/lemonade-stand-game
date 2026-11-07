@@ -47,7 +47,7 @@ import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
 import { createRaidPlanner } from './raidPlanner.ts';
-import { landNotes, priceTip } from './registry.ts';
+import { auctionControls, landNotes, priceTip } from './registry.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -126,6 +126,8 @@ export type Action =
   | { type: 'forgive'; plot: string } // Captain Squawk's card: let it go
   | { type: 'kidRaid'; plot: string } // Kids' Lemonade Day: raid a kid stand (0.5 star, a front page, Lottie's respect)
   | { type: 'storyOffer'; accept: boolean } // Act 3: Preston's Truce offer at Dot's
+  | { type: 'bid'; plot: string; amount: number }
+  | { type: 'unbid'; plot: string }
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -394,6 +396,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'skipScene': onAction({ type: 'skipScene' }); break;
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'storyOffer': onAction({ type: 'storyOffer', accept: d.accept === '1' }); break;
+      case 'bid': onAction({ type: 'bid', plot: d.plot!, amount: Number(d.amount) }); break;
+      case 'unbid': onAction({ type: 'unbid', plot: d.plot! }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
       case 'pick': { // New Game screen choices
         const st = hud.setup?.settings;
@@ -718,7 +722,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${ps.garrison} henchmen` : ''}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : ''].filter(Boolean).join('\n');
     let actions = '';
-    if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
+    if (!ps.owner && ps.auction && (p.district === 'maple' || taught(s, 'land'))) actions = auctionControls(s, id); // bids follow Week 2's land lesson, like Buy
+    else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
     else if (ps.owner === 'player' && isWrecked(ps)) actions = rebuildButton(s, id, 'cl-b go'); // overnight, or tonight's booking (src/ui/damage.ts)
     else if (ps.owner === 'player' && !st) {
       const lvl = ps.facility?.level ?? 0;

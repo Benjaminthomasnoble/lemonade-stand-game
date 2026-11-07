@@ -42,6 +42,7 @@ import { closeTills } from './loot.ts';
 import {
   announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
 } from './land.ts';
+import type { Auction } from './auction.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -62,6 +63,7 @@ export * from './media.ts';
 export * from './happenings.ts';
 export * from './radio.ts';
 export * from './land.ts';
+export * from './auction.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -116,6 +118,7 @@ export interface PlotState {
   smashedBy?: FactionId;
   smashes?: number[]; // days this plot was smashed (rebuild chance drops for each in the last 7 days)
   busted?: boolean; // Laid Back: the player's building is closed until a repair, never lost
+  auction?: Auction; // a 24-hour sealed-bid auction is open on this plot
 }
 
 export interface Defense {
@@ -871,6 +874,7 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (ps.owner === 'player') return { ok: false, why: 'You own it' };
   if (ps.owner) return { ok: false, why: `Owned by ${FACTIONS[ps.owner as RivalId].name}` };
   if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' }; // Sourwood's Old Money
+  if (ps.auction) return { ok: false, why: 'Up for auction: bid instead' };
   if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
   if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
   const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;

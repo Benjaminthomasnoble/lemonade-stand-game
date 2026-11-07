@@ -1,15 +1,18 @@
 // Land in the clay HUD (spec: Land and territory): the plot card's district
-// line (control tier, the next one, what it does, the perk) and the Vacant Lot
-// label. Plain markup with the shared clay classes; hud.ts mounts it and every
-// button goes through hud's one click listener.
+// line (control tier, the next one, what it does, the perk), the Vacant Lot
+// label and the sealed-bid controls. Plain markup with the shared clay classes;
+// hud.ts mounts it and every button goes through hud's one click listener.
 import {
-  controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, familySilver, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID,
-  TIER_EFFECTS, TIER_NAMES, tierAtLeast, type GameState,
+  bidCost, bidGuess, bidSteps, canBid, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, districtControl, familySilver, majorityDiscount,
+  missingPlots, nextTier, PLOT_BY_ID, TIER_EFFECTS, TIER_NAMES, tierAtLeast, type Blocker, type GameState,
 } from '../sim/economy.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const meter = (v: number) => `<span class="cl-snake" style="--v:${Math.max(0, Math.min(1, v)).toFixed(3)}"><i></i></span>`;
 const whole = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+/** A clay button like hud's: one verb, disabled with its reason as a tooltip. */
+const btn = (action: string, label: string, b: Blocker, extra = '', cls = '') =>
+  `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${b.ok ? '' : `disabled title="${esc(b.why)}"`}>${label}</button>`;
 const named = (list: { name: string }[]) => (list.length <= 2 ? list.map((p) => p.name).join(' and ') : `${list.length} plots`);
 
 /** The district line on a plot card: tier and plots held, the next tier, the effects and the perk (details in the tooltip). */
@@ -57,4 +60,23 @@ export function priceTip(s: GameState, plotId: string): string {
     familySilver(s) < 1 ? '−10% Family Silver' : '',
   ].filter(Boolean);
   return parts.length > 1 || dibs ? parts.join(', ') : '';
+}
+
+/** A plot on the block: sealed bids until dawn, Skip's read on the rivals, and your bid buttons. */
+export function auctionControls(s: GameState, plotId: string): string {
+  const a = s.plots[plotId].auction;
+  if (!a || a.kind === 'listing') return '';
+  const guess = bidGuess(s, plotId);
+  const tip = `Sealed bids: nobody sees anyone else's. Bids open at ${whole(a.min)}; the top bid wins and pays at dawn${familySilver(s) < 1 ? ', 10% off with Family Silver' : ''}. Keep the cash on hand.`;
+  const steps = bidSteps(a);
+  const from = a.bid === undefined ? 0 : Math.max(0, steps.findIndex((v) => v >= a.bid!));
+  const bids = steps.slice(from, from + 3).map((v) => {
+    const b = canBid(s, plotId, v);
+    const cost = bidCost(s, v);
+    return btn('bid', `Bid ${whole(v)}`, b, `data-plot="${plotId}" data-amount="${v}"${b.ok && cost !== v ? ` title="You'd pay ${whole(cost)}"` : ''} data-testid="bid"`, a.bid === v ? 'go' : 'ghost');
+  }).join('');
+  return `<span class="cl-note good" title="${esc(tip)}" data-testid="auction">${a.kind === 'fire' ? 'Fire Sale auction' : 'Auction'}: closes at dawn</span>
+    <span class="cl-note" title="Skip Larkin's guess at the top rival bid">${guess ? `Skip: rivals bid ~${whole(guess)}` : 'Skip: no rival can afford it'}</span>
+    <span class="cl-acts">${bids}${a.bid !== undefined ? btn('unbid', '✕', { ok: true }, `data-plot="${plotId}" title="Take your bid back"`, 'ghost tiny') : ''}</span>
+    ${a.bid !== undefined ? `<span class="cl-note">Your bid: ${whole(a.bid)}</span>` : ''}`;
 }

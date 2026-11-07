@@ -306,6 +306,19 @@ export const FACTIONS: Record<RivalId, Faction> = {
 export const PLAYER_COLOR = 0xf6d33c;
 /** Rank needed to buy land in a district: Maple Row from the start, Old Town at Rank 2, every other district at Rank 3 (spec: Where you can buy). */
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
+/**
+ * Sealed-bid land auctions (spec: Knock it down, buy it up). The spec sets the 24
+ * game hours, the opening bid at land value, first price and Family Silver's −10%.
+ * How rivals bid is placeholder tuning: from their Grow budget, by interest (home
+ * turf, a Foothold, next door, anywhere else) and push (FizzCo outbids hardest).
+ */
+export const AUCTION = {
+  interest: { home: 1, foothold: 0.7, border: 0.4, away: 0.15 }, // placeholder: spec gap. Chance a rival bids, and how keen
+  markup: 0.4, // placeholder: spec gap. At full interest up to +40% over what the plot is worth, × push × a 0.5-1.5 roll
+  push: { blenders: 0.85, coldbrew: 0.9, hollis: 1, sourwood: 1.2, fizzco: 1.35 } as Record<RivalId, number>, // placeholder: spec gap
+  outbidGrudge: 10, // placeholder: spec gap. Grudge a rival takes when Lottie outbids it
+  steps: [1, 1.25, 1.5, 2, 3, 5], // the bid buttons, as multiples of the opening bid
+};
 
 // ---------- defenses, crew and raids (canon sections 11–14) ----------
 /** hp: the chopping a breach takes. breachDps: damage a second to every raider at the fence line while it stands. slow: raiders' movement while it stands. */

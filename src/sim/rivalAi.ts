@@ -427,7 +427,7 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   const f = FACTIONS[id];
   const open = (plotId: string) => {
     const ps = s.plots[plotId];
-    return !ps.owner && !(ps.dibs && ps.dibs.who !== id && ps.dibs.until >= s.day) && !landFrozen(s, plotId);
+    return !ps.owner && !ps.auction && !(ps.dibs && ps.dibs.who !== id && ps.dibs.until >= s.day) && !landFrozen(s, plotId); // land: a plot on the block takes sealed bids only
   };
   const targets = PLOTS.filter((p) => open(p.id) && (p.type === 'street' || p.type === 'prime')
     && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');

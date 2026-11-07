@@ -837,7 +837,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   const res = fought?.res ?? runBattle(input, rng);
   s.seed = rng.seed;
   let loot = 0;
-  if (raid.tutorial) tutorialBounce(input, res); // the first raid on you always bounces off the fence and Dex (threat.ts)
+  if (raid.tutorial) tutorialBounce(s, input, res); // the first raid on you always bounces off the fence and Dex (threat.ts)
 
   ps.defense.fenceHp = res.fenceHpLeft;
   if (input.attackers.length) defensesAfterRaid(ps); // won or lost: the fence needs its overnight repair, a Slick its reset

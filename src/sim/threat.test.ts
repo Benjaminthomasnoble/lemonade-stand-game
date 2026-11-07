@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLOSE, HQS, LOTTIES_CORNER, NIGHT_END, newGame, nightStep, onYou, planNight, PLOTS, RAID_PARTY, RAIDS_PER_WEEK, raidCount, raidsCounted,
-  newStand, startNight, threatLevel, weeklyRaids, spotChance,
+  newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 
@@ -184,5 +184,63 @@ describe('who rides with a raid', () => {
     for (const r of nights(evening(4, 'cutthroat', 31), 100).flat()) {
       expect(r.party!.some((f) => f.name === HQS[r.attacker as RivalId].boss)).toBe(false);
     }
+  });
+});
+
+describe('the tutorial raid comes once a run', () => {
+  /** Day 15's Evening on a fresh run: the tutorial raid's night. */
+  function fair(seed: number): GameState {
+    const s = newGame(seed);
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.raids = [];
+    s.day = TUTORIAL_RAID_DAY;
+    welcomeDex(s);
+    return s;
+  }
+  const scripted = (r: Raid) => r.tutorial || (r.party?.length === 2 && r.party.every((f) => f.hp === 30));
+
+  it('once fought, it never comes back, even after six of your own fights roll it off the log', () => {
+    const s = fair(41);
+    planNight(s);
+    expect(s.raids.filter((r) => onYou(s, r) && r.tutorial)).toHaveLength(1);
+    expect(s.tutorialRaidDone).toBeUndefined();
+    sleepUntilDawn(s);
+    expect(s.tutorialRaidDone).toBe(true);
+    const theirs = raidTargets(s)[0].id;
+    s.battles = Array.from({ length: 6 }, () => ({ day: s.day, attacker: 'player', defender: 'hollis', target: theirs, outcome: 'smashed' }) as BattleReport);
+    expect(s.battles.some((b) => b.defender === 'player')).toBe(false);
+    s.phase = 'report';
+    s.minute = CLOSE;
+    let raided = 0;
+    for (const raids of nights(s, 150)) {
+      raided += raids.length;
+      expect(raids.some(scripted)).toBe(false);
+    }
+    expect(raided).toBeGreaterThan(5); // the ordinary raids come instead
+  });
+
+  it('nothing raids you before it', () => {
+    const s = fair(43);
+    s.day = TUTORIAL_RAID_DAY - 1; // Day 14, no Kiosk yet: not its night
+    expect(nights(s, 60).every((raids) => !raids.length)).toBe(true);
+  });
+
+  it('the flag survives a save; an older save takes it from its log or its day, and a planned one still bounces', () => {
+    const s = fair(45);
+    planNight(s);
+    sleepUntilDawn(s);
+    expect(migrateSave(JSON.parse(JSON.stringify(s)))!.tutorialRaidDone).toBe(true);
+    const old = (day: number) => { const t = JSON.parse(JSON.stringify(fair(47))); delete t.tutorialRaidDone; t.day = day; return t; };
+    expect(migrateSave(old(20))!.tutorialRaidDone).toBe(true); // past Day 15: it has been
+    expect(migrateSave(old(9))!.tutorialRaidDone).toBe(false);
+    const evening15 = fair(49);
+    planNight(evening15);
+    const raw = JSON.parse(JSON.stringify(evening15));
+    delete raw.tutorialRaidDone;
+    for (const r of raw.raids) delete r.tutorial; // planned before the flag existed
+    const back = migrateSave(raw)!;
+    expect(back.tutorialRaidDone).toBe(false);
+    expect(back.raids.filter((r) => r.tutorial)).toHaveLength(1);
   });
 });

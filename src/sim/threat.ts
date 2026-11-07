@@ -42,8 +42,9 @@ export function raidCount(mean: number, u: number): number {
   return k;
 }
 
-/** The tutorial raid has been fought. */
-export const tutorialDone = (s: GameState) => s.battles.some((b) => b.defender === 'player');
+/** The tutorial raid has been fought: a saved flag, so it never comes back once the six-fight log rolls over (a raid
+ * on you still on record counts too, for hand-built and old states). */
+export const tutorialDone = (s: GameState) => !!s.tutorialRaidDone || s.battles.some((b) => b.defender === 'player');
 /** The first raid's night: the night your first Kiosk (Level 3) opens, or Day 15's (after the Summer Fair). */
 export const tutorialNight = (s: GameState) => s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3);
 
@@ -187,6 +188,21 @@ export const raidsCounted = (raids: Raid[]) => new Set(raids.map((r) => r.group 
 
 // ---------- the tutorial raid ----------
 
+/** Saves: the tutorial flag for an older save (the battle log or the day says whether the first raid has been), and a
+ * tutorial raid it had planned tonight is marked so it still bounces. Safe to run on every load. */
+export function migrateThreat(s: GameState): void {
+  if (s.tutorialRaidDone !== undefined) return;
+  s.tutorialRaidDone = tutorialDone(s) || s.day > TUTORIAL_RAID_DAY;
+  if (s.tutorialRaidDone) return;
+  const old = s.raids.find((r) => onYou(s, r) && r.party?.length === 2 && r.party.every((f) => f.hp === 30 && f.weapon === 'fists'));
+  if (old) old.tutorial = true;
+}
+
+/** Dawn: any raid on you now on record means the tutorial is behind you, before the log can roll it off. */
+export function threatAtDawn(s: GameState): void {
+  if (!s.tutorialRaidDone && tutorialDone(s)) s.tutorialRaidDone = true;
+}
+
 /** Dex as he fights for the tutorial raid: himself, or (let go since) the lanky teen in his first-day kit. */
 function dexFighter(s: GameState, raid: Raid, night: boolean): Fighter {
   const dex = s.guards.find((g) => g.name === DEX);
@@ -204,8 +220,9 @@ export function withDex(s: GameState, raid: Raid, defenders: Fighter[], night: b
 }
 
 /** fightRaid's tutorial branch: the first raid on you ends repelled whatever the dice did (with Dex there it all but
- * always does on its own), the stand untouched. */
-export function tutorialBounce(input: BattleInput, res: BattleResult): void {
+ * always does on its own), the stand untouched; and the run's tutorial is done. */
+export function tutorialBounce(s: GameState, input: BattleInput, res: BattleResult): void {
+  s.tutorialRaidDone = true;
   if (res.outcome === 'repelled') return;
   res.winner = 'def';
   res.outcome = 'repelled';

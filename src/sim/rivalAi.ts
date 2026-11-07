@@ -698,14 +698,13 @@ export function blenderRush(s: GameState, party: Fighter[], tier: number): Fight
 export function signatureRaids(s: GameState): Raid[] {
   const rng = { seed: s.seed };
   const threat = threatLevel(s);
-  const tutorial = !s.battles.some((b) => b.defender === 'player');
   for (const id of RIVALS) s.rivals[id].attention = attentionOf(s, id);
   const kept: Raid[] = [];
   for (const raid of s.raids) {
     const attacker = raid.attacker as RivalId;
     if (raid.attacker === 'player' || raid.delivery || !raid.party) { kept.push(raid); continue; }
     if (s.plots[raid.target].owner === 'player') {
-      if (tutorial) { kept.push(raid); continue; }
+      if (raid.tutorial) { kept.push(raid); continue; } // the scripted first raid (threat.ts)
       const size = raid.party.length;
       const raider = pickRaider(s, rng, size);
       if (!raider) continue; // every boss is broke tonight

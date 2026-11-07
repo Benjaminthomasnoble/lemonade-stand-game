@@ -21,7 +21,7 @@ import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
-import { lookoutStealth } from './threat.ts';
+import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
@@ -345,6 +345,7 @@ export const onTheRoad = (r: Raid) => r.attacker === 'player' && (r.back !== und
 /** Dawn: last night's cards have had their moment (the morning feed lists the fights). A squad still on the road
  * carries on this morning (the clock starts a new day): it gets home, or gets there and fights in daylight. */
 export function nightsAtDawn(s: GameState): void {
+  threatAtDawn(s);
   s.alerts = (s.alerts ?? []).filter((a) => a.day >= s.day);
   for (const r of s.raids) {
     if (!onTheRoad(r)) continue;
@@ -412,6 +413,7 @@ export const deliveryRaidRisk = (s: GameState, o: Order) => isVip(o.tier) && thr
 /** Older saves: alert feed defaults, and tonight's raids get their minutes (detection was already rolled). A pickup
  * a Delivery Raid is out for keeps loading. Safe to run on every load. */
 export function migrateNights(s: GameState): void {
+  migrateThreat(s);
   s.alerts ??= [];
   s.alertSeq ??= s.alerts.length;
   for (const r of s.raids ?? []) {

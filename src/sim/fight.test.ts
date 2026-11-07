@@ -225,8 +225,10 @@ describe('the fight buttons', () => {
 
   it('Rally is every 30 seconds, Fall Back once a fight', () => {
     const s = crew(31);
-    s.plots[raidTargets(s)[0].id].defense = { tier: 5, fenceHp: 5000, gadgets: [] }; // a long fight
-    startFight(s, raidOn(s, raidTargets(s)[0].id), false);
+    const target = raidTargets(s)[0].id;
+    s.plots[target].defense = { tier: 5, fenceHp: 5000, gadgets: [] }; // a long fight,
+    s.plots[target].garrison = 0; // with nobody behind the fence to drop two guards and rout the rest, whatever the dice
+    startFight(s, raidOn(s, target), false);
     expect(canRally(s)).toBe(true);
     expect(fightCommand(s, 'rally')).toBe(true);
     expect(canRally(s)).toBe(false);

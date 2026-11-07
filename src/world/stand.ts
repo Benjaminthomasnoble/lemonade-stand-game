@@ -4,9 +4,11 @@
 // upgrade crate reveal, the damage steps and the smashed pile. The grandkid
 // works the counter and Grandma Lottie sits in her lawn chair by the phone.
 import * as THREE from 'three';
-import { idlePose, MOTION, makePerson } from './people.ts';
+import { idlePose, MOTION } from './people.ts';
+import { Figure, SPECS } from './clay/figure.ts';
+import { holdProp } from './clay/cast.ts';
 import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
-import { clayFrom, kit } from './clay/kit.ts';
+import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.ts';
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
@@ -34,6 +36,8 @@ export interface Stand {
   lottie?: THREE.Object3D;
   /** The dashboard props on the stand (stock, pitcher, chalkboard, stars). */
   props: StandProps;
+  /** The grandkid cheers a sale. */
+  cheer(): void;
   /** Lottie reacts: cheers a rush or a rank-up, shakes her fist at trouble. */
   react(kind: LottieReaction): void;
   /** The upgrade crate reveal: a crate drops, rattles, its slats fall open and the new stand rises like dough. */
@@ -49,8 +53,6 @@ export interface Stand {
 }
 
 export type LottieReaction = 'cheer' | 'fist';
-
-const mat = (color: number, roughness = 0.85) => clayFrom(color, roughness);
 
 /** Lottie's striped lawn chair: chrome tubes and green and cream webbing. */
 function clayLawnChair(): THREE.Group {
@@ -177,34 +179,31 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   }
   let openNow = false, lastTq = -1;
 
-  const kid = makePerson(0xf6d33c, 0x3c5aa6, undefined, 0.8);
+  // The grandkid: lemon cap, white apron, freckled and gap-toothed (clay/figure.ts SPECS.kid).
+  const kidFig = new Figure(SPECS.kid, kit().fig);
+  const kid = kidFig.root;
   kid.position.set(0, 0, -0.45);
   group.add(kid);
+  let kidCheerAt = -9;
 
-  // Grandma Lottie: lavender dress, white bun, in a lawn chair.
+  // Grandma Lottie: lemon cardigan, glasses and pearls, straw sun hat with a lemon on the band, in a lawn chair.
   const chair = clayLawnChair();
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
   if (opts.lottie !== false) group.add(chair);
-  const lottie = makePerson(0xb48ee0, 0xb48ee0, 0xf1c9a5, 0.9);
+  const lottieFig = new Figure(SPECS.lottie, kit().fig, { scale: 0.9 });
+  const lottie = lottieFig.root;
   lottie.position.set(-2.0, 0.05, -0.15);
   lottie.rotation.y = 0.5;
-  const limbs = lottie.userData.limbs as THREE.Mesh[];
+  const limbs = lottie.userData.limbs as THREE.Object3D[];
   limbs[0].rotation.x = limbs[1].rotation.x = -1.4; // sitting
-  lottie.position.y = -0.3;
-  const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xf4f4f4));
-  bun.position.set(0, 1.6, -0.12);
-  lottie.add(bun);
-  // A paper fan in her right hand and a glass of lemonade on the chair arm.
-  const fan = new THREE.Mesh(new THREE.CircleGeometry(0.2, 10, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xf6d33c, roughness: 0.7, side: THREE.DoubleSide }));
-  fan.position.set(0, -0.5, 0.02);
-  fan.rotation.set(0, 0, -Math.PI / 2);
+  lottie.position.y = 0.3;
+  // A paper fan in her right hand, her knitting, and a glass of lemonade.
+  const fan = holdProp(lottieFig, 'fan');
+  const knitting = holdProp(lottieFig, 'knitting');
   const lottieArms = { left: limbs[2], right: limbs[3] };
-  lottieArms.right.add(fan);
-  const lottieGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.16, 10), mat(0xfff3a6, 0.4));
-  lottieGlass.position.set(0, -0.5, 0.05);
+  const lottieGlass = holdProp(lottieFig, 'glassLemon', true);
   lottieGlass.visible = false;
-  lottieArms.left.add(lottieGlass);
   // The rotary phone by Lottie's chair: the bosses call it to taunt you.
   // The rotary phone by Lottie's chair, on a crate: the bosses call it to taunt you.
   const phone = new THREE.Group();
@@ -234,14 +233,20 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
    * otherwise), sips her lemonade now and then, looks around, and nods off
    * once the stand shuts. Reactions interrupt for a couple of seconds.
    */
-  const SEAT_Y = -0.3;
+  const SEAT_Y = 0.3;
   function animateLottie(time: number, awake: boolean, hot: boolean) {
     if (pendingReaction) { reaction = { kind: pendingReaction, start: time }; pendingReaction = null; }
+    // Clay poses on twos: 12 new poses a second, with the figure's little boil.
+    const f = Math.floor(time * 12);
+    time = f / 12;
     const { left, right } = lottieArms;
     const legs = [limbs[0], limbs[1]];
+    lottieFig.pose({ lL: -1.4, lR: -1.4, headYaw: Math.sin(time * 0.5) * 0.2, shut: !awake }, f);
+    lottieFig.face(reaction?.kind === 'cheer' ? 'yum' : 'neutral');
     lottie.rotation.x = 0;
     lottie.position.y = SEAT_Y;
     fan.visible = false;
+    knitting.visible = false;
     lottieGlass.visible = false;
     if (reaction && time - reaction.start < 2.2) {
       const t = time - reaction.start;
@@ -270,8 +275,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     left.rotation.z = right.rotation.z = 0;
     if (!awake) {
       // Dozing: head drooped forward, slow breathing.
-      lottie.rotation.x = 0.22;
+      lottie.rotation.x = 0.1;
       lottie.rotation.y = 0.5;
+      (lottie.userData.head as THREE.Object3D).rotation.x = 0.35;
       left.rotation.x = right.rotation.x = -0.4;
       idlePose(lottie, time * 0.35, 0.9);
       return;
@@ -285,6 +291,8 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
         right.rotation.z = 0.5 + Math.sin(time * 16) * 0.35 * MOTION;
       } else {
         // Knitting: both mittens forward, needles clicking.
+        knitting.visible = true;
+        right.rotation.z = -0.35; left.rotation.z = 0.35;
         right.rotation.x = -1.1 + Math.sin(time * 9) * 0.12 * MOTION;
         left.rotation.x = -1.1 - Math.sin(time * 9) * 0.12 * MOTION;
       }
@@ -302,9 +310,39 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   }
 
 
+  /**
+   * The grandkid: bored on the counter when closed (chin in hands, sleepy),
+   * bouncy when open, and cheering every sale. Poses on twos.
+   */
+  function animateKid(time: number, open: boolean) {
+    const f = Math.floor(time * 12);
+    time = f / 12;
+    const baseY = (kid.userData.baseY as number | undefined) ?? 0;
+    kid.position.y = baseY;
+    const cheer = time - kidCheerAt;
+    if (cheer >= 0 && cheer < 0.9) {
+      const up = Math.sin((cheer / 0.9) * Math.PI);
+      kidFig.pose({ lift: up * 0.18, sq: cheer < 0.1 ? 0.1 : 0, aL: [Math.PI * 0.9, 0.4 + Math.sin(time * 30) * 0.2 * MOTION], aR: [Math.PI * 0.9, -0.4 - Math.sin(time * 30) * 0.2 * MOTION], headTilt: -0.15 }, f);
+      kidFig.face('yum');
+      kid.scale.setScalar(1);
+      return;
+    }
+    kidFig.face('neutral');
+    if (!open) {
+      kidFig.pose({ lean: 0.25, aL: [-1.7, 0.5], aR: [-1.7, -0.5], headTilt: 0.15, headRoll: Math.sin(time * 0.6) * 0.15 }, f);
+      kidFig.blink(f, Math.sin(time * 0.35) > 0.6);
+      idlePose(kid, time * 0.4, 1);
+      return;
+    }
+    const b = Math.abs(Math.sin(time * 3));
+    kidFig.pose({ lift: b * 0.05 * MOTION, sq: (1 - b) * 0.05 * MOTION, aL: [-0.3, 0.2], aR: [-0.3 - b * 0.3, -0.2], headYaw: Math.sin(time * 0.8) * 0.3 }, f);
+    idlePose(kid, time, 1);
+  }
+
   const stand: Stand = {
     group,
     kid,
+    cheer() { kidCheerAt = lastTime; },
     props,
     lottie: opts.lottie !== false ? lottie : undefined,
     react(kind) { pendingReaction = kind; },
@@ -370,8 +408,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
         if (revealT < 0 && knockT < 0) levelRoot.scale.set(b.sx, b.sy, b.sx);
         if (spin) spin.rotation.y = tq * 0.8;
       }
-      kid.position.y = (kid.userData.baseY ?? 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
-      idlePose(kid, time, 0.8);
+      animateKid(time, open);
       const dt = Math.min(0.25, Math.max(0, time - lastTime));
       animateReveal(dt);
       animateKnock(dt);

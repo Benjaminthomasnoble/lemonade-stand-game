@@ -1,9 +1,11 @@
-// Fighter builders for the fight tests and tools/combat-check.ts: guards as
-// the crew fields them, henchmen as a rival fields them at a Threat, and a
-// bare battle input to put them in.
+// Fighter builders for the fight tests, the walkthrough tests and
+// tools/combat-check.ts: guards as the crew fields them, henchmen as a rival
+// fields them at a Threat, real raiding parties, and a bare battle input to
+// put them in.
 import { GEAR, GUARD_BASE, HENCHMEN, PERIMETERS, WEAPONS, type GearId, type Trait, type WeaponId } from './balance.ts';
 import type { BattleInput, Fighter, Side } from './combat.ts';
-import { guardFighter, type Guard } from './crew.ts';
+import { guardFighter, raidPartyFor, type Guard } from './crew.ts';
+import { newGame } from './economy.ts';
 
 let n = 0;
 
@@ -25,6 +27,13 @@ export const henchmenOf = (k: number, threat: number, weapon: WeaponId, side: Si
   const h = HENCHMEN[threat - 1], m = 1 + 0.1 * (h.level - 1);
   return { id: `h${n++}`, name: '', side, hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m, nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon };
 });
+
+/** A real raiding party at this Threat, as the rivals field them (sizes and weapons by Threat), rolled for this seed. */
+export function partyOf(threat: number, seed: number): Fighter[] {
+  const s = newGame(seed);
+  s.rank = threat * 2 - 1;
+  return raidPartyFor(s, 'blenders');
+}
 
 /** A fight with nothing in it but what you give it: no fence, no stand, a Smash, detected. */
 export const battleOf = (o: Partial<BattleInput> & Pick<BattleInput, 'attackers'>): BattleInput =>

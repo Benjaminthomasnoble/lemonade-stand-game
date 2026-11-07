@@ -2,32 +2,12 @@
 // 1. The canon combat anchors (canon section 12): T1 raids against L1 plots, T4 raids against a kitted L5 plot.
 // 2. The weapon checks (spec "Weapons and padding"): breach and Smash times for clubs and hatchets.
 // 3. The HQ assault win rates in docs/HANDOFF.md, over 40 seeds with the model squads.
-import { runBattle, winChance, type BattleInput, type Fighter } from '../src/sim/combat.ts';
-import {
-  guardFighter, newGame, ownedPlots, raidPartyFor, stormHQ, GEAR, GUARD_BASE, HENCHMEN, PERIMETERS, STAND_HP, TRAITS, WEAPONS,
-  type GadgetId, type GameState, type GearId, type Guard, type RivalId, type Trait, type WeaponId,
-} from '../src/sim/economy.ts';
+// The fighters come from src/sim/fighters.ts, the same builders the walkthrough tests (src/sim/walkthrough.test.ts) use.
+import { runBattle, winChance } from '../src/sim/combat.ts';
+import { newGame, ownedPlots, stormHQ, STAND_HP, TRAITS, type GadgetId, type GameState, type GearId, type RivalId, type WeaponId } from '../src/sim/economy.ts';
+import { battleOf as fight, fencedOf as fenced, guardOf as guard, guardsOf as guards, henchmenOf as henchmen, partyOf as party } from '../src/sim/fighters.ts';
 
-let n = 0;
-const guard = (weapon: WeaponId, gear: GearId = 'none', level = 1, trait: Trait = 'Smooth Talker'): Guard =>
-  ({ id: `g${n++}`, name: '', trait, level, xp: 0, weapon, gear, post: null, outUntil: 0, fee: 0 });
-const guards = (k: number, side: 'att' | 'def', weapon: WeaponId, gear: GearId = 'none', level = 1) =>
-  Array.from({ length: k }, () => guardFighter(guard(weapon, gear, level), side, false));
-/** Henchmen as a rival fields them at this Threat (crew.ts henchman()), with a fixed weapon. */
-const henchmen = (k: number, threat: number, weapon: WeaponId): Fighter[] => Array.from({ length: k }, () => {
-  const h = HENCHMEN[threat - 1], m = 1 + 0.1 * (h.level - 1);
-  return { id: `h${n++}`, name: '', side: 'att', hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m, nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon };
-});
-/** A real raiding party at this Threat, as the rivals field them (sizes and weapons by Threat). */
-const party = (threat: number, seed: number): Fighter[] => {
-  const s = newGame(seed);
-  s.rank = threat * 2 - 1;
-  return raidPartyFor(s, 'blenders');
-};
 const pct = (x: number) => `${Math.round(x * 100)}%`;
-const fight = (o: Partial<BattleInput> & Pick<BattleInput, 'attackers'>): BattleInput =>
-  ({ defenders: [], perimeter: 0, fenceHp: 0, gadgets: [], standHp: 0, objective: 'smash', detected: true, ...o });
-const fenced = (tier: number) => ({ perimeter: tier, fenceHp: PERIMETERS[tier - 1].hp });
 
 console.log('Canon anchors');
 const fists3 = () => henchmen(3, 1, 'fists');

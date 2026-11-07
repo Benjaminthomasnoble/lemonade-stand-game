@@ -8,7 +8,7 @@ import {
   type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
-import { exitScene, INVOICE } from './exits.ts';
+import { exitScene, FINALE, INVOICE } from './exits.ts';
 import { movePage } from './recipes.ts';
 import { ceaseAndDesist } from './schemes.ts';
 import { goalsNow } from './goals.ts';
@@ -734,7 +734,7 @@ describe("Juni's tips, the first chopper and the first ship", () => {
   });
 });
 
-describe('Acts 4 and 5: FizzCo falls, tea at the Manor', () => {
+describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {
   const exitOf = (s: GameState, id: string) => s.scenes!.queue.find((q) => q.id === `exit-${id}`);
   /** A campaign in Act 4 or 5: the earlier climaxes behind it, at the rank its HQ assault needs. */
   const lateAct = (seed: number, act: 4 | 5) => {
@@ -791,5 +791,28 @@ describe('Acts 4 and 5: FizzCo falls, tea at the Manor', () => {
     movePage(t, 'lavender', 'sourwood');
     nextDawn(t);
     expect(tea(t)).toBe(true);
+  });
+
+  it("the finale: Vera's cane clatters down, she and Lottie open the last page together, and the Secret Reserve is yours", () => {
+    const s = lateAct(114, 5);
+    eliminate(s, 'hollis', 'buyout');
+    s.scenes!.queue = [];
+    eliminate(s, 'sourwood', 'hq');
+    const sc = exitOf(s, 'sourwood')!.data!;
+    const lines = sc.lines!.map((l) => l.text);
+    expect(lines[0]).toBe('There goes my cane. Well played, dear.');
+    expect(lines).toEqual(expect.arrayContaining(['It said open together.', '...and a friend to share it with.', 'My Secret Reserve. Pour her a glass, kid.']));
+    expect(lines[lines.length - 1]).toBe(FINALE.notYet[1]); // Domination isn't complete: the ending waits for the rest of the Bay
+    expect(sc.replies).toEqual(FINALE.replies);
+    expect(sc.seconds).toBeLessThan(60);
+    expect(s.world!.pages).toContain('secretReserve');
+    expect(s.news.some((n) => n.includes('Family Silver'))).toBe(true);
+    expect(s.news.some((n) => n.startsWith('FIRE SALE'))).toBe(true);
+    expect(s.outcome).toBeUndefined();
+    // Another route plays the same finale after Vera's own first line; outside the campaign it's her plain exit.
+    expect(exitScene(lateAct(115, 5), 'sourwood', 'bankrupt').lines[0].text).toBe('They took the silver, dear. Not the teapot.');
+    const t = newGame(116, { mode: 'sandbox' });
+    eliminate(t, 'sourwood', 'hq');
+    expect(exitOf(t, 'sourwood')!.data!.lines![0].text).toBe('Well played, dear.');
   });
 });

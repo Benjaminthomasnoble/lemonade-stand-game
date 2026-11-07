@@ -3,10 +3,12 @@
 // boss's exit plays as a short, skippable scene at the next lull, in the
 // campaign, Sandbox and Endless alike (one scene a day: a second exit waits a
 // day). In the campaign, Juni's exit is Act 3's climax: she slides over
-// FizzCo's invoice, with any Truce tribute you paid Preston on it too. Pure,
-// like the rest of the sim.
+// FizzCo's invoice, with any Truce tribute you paid Preston on it too; and
+// Vera's is the finale: her cane clatters down, Lottie walks in, and they open
+// the last page together (Lottie's Secret Reserve). Pure, like the rest of the sim.
 import { RECIPES, type RecipeId, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
+import { dominationProgress } from './modes.ts';
 import { playScene, type SceneLine } from './scenes.ts';
 import { hasStory } from './story.ts';
 
@@ -39,7 +41,7 @@ const EXITS: Record<RivalId, { who: string; first: Record<ExitRoute, string>; re
     rest: [['Preston', "Yes, I'm in a tow truck. It's a strategic pivot."], ['Preston', "Let's circle back!"], ['Lottie', "Circle the whole Bay, Preston. It's ours now."]],
     recap: 'Preston Fizzwell leaves the Tower in a tow truck, still on his car phone: "Let\'s circle back!"',
   },
-  // The campaign's finale (the Secret Reserve, act5-finale-secret-reserve) will take this one's place there.
+  // Sandbox and Endless: the campaign plays the finale in its place (FINALE, below).
   sourwood: {
     who: 'Vera',
     first: { hq: 'Well played, dear.', buyout: 'Well played, dear.', bankrupt: 'Well played, dear.' },
@@ -52,8 +54,46 @@ const EXITS: Record<RivalId, { who: string; first: Record<ExitRoute, string>; re
 export const INVOICE = "Curated decline, Lottie's Lemonade, 12 nights.";
 const STEP = 4.2;
 
+/**
+ * The campaign's finale (spec Act 5 climax): Vera's cane clatters down in the Boss Room, Lottie walks in, and they face
+ * off across the tea table. Vera produces the last page, still sealed: "It said open together." Inside: a pinch of salt
+ * and "a friend to share it with." They make up over a glass, and the Secret Reserve is yours. The Manor falls to an
+ * HQ assault (the Big Squeeze ends in one too); on another route Vera's first line follows it, and the rest plays the same.
+ */
+export const FINALE = {
+  first: { hq: 'There goes my cane. Well played, dear.', buyout: 'Sold, dear. Even the teapot.', bankrupt: 'They took the silver, dear. Not the teapot.' } as Record<ExitRoute, string>,
+  rest: [
+    ['Lottie', 'Forty years, Vera. Pour two cups.'],
+    ['Vera', 'The last page. Still sealed.'],
+    ['Vera', 'It said open together.'],
+    ['Lottie', 'A pinch of salt...'],
+    ['Vera', '...and a friend to share it with.'],
+    ['Lottie', 'My Secret Reserve. Pour her a glass, kid.'],
+    ['Vera', 'To friends, Lottie.'],
+  ] as [string, string][],
+  /** Domination isn't complete yet: the ending waits for the rest of the Bay. */
+  notYet: ['Lottie', 'Now go paint the rest of the Bay, kid.'] as [string, string],
+  replies: ['To friends!', 'Can I try it?'],
+  recap: "Vera's cane clattered down, and she and Lottie opened the last page together: a pinch of salt and a friend to share it with. Lottie's Secret Reserve is yours.",
+};
+
+const timed = (lines: [string, string][]) => lines.map(([who, text], i) => ({ who, text, at: 0.5 + i * STEP }));
+
+/** Lottie names the pages that came home just now (recipes.ts, on every route), but for `except`. */
+function homeLine(s: GameState, except?: RecipeId): [string, string][] {
+  const home = (Object.keys(s.world?.homed ?? {}) as RecipeId[]).filter((r) => r !== except && s.world!.homed![r] === s.day + 1).map((r) => RECIPES[r].label.replace(/^Lottie's /, ''));
+  return home.length ? [['Lottie', `And my ${home.join(' and ')} page${home.length > 1 ? 's come' : ' comes'} home.`]] : [];
+}
+
+/** The campaign's finale for Vera's fall this way (the Secret Reserve page came home in eliminate(), with any other she held). */
+export function finaleScene(s: GameState, how: ExitRoute): { lines: SceneLine[]; recap: string; replies: string[] } {
+  const lines: [string, string][] = [['Vera', FINALE.first[how]], ...FINALE.rest, ...homeLine(s, 'secretReserve'), ...(dominationProgress(s).done ? [] : [FINALE.notYet])];
+  return { lines: timed(lines), recap: FINALE.recap, replies: FINALE.replies };
+}
+
 /** The exit scene's lines and recap for a boss who just fell this way. */
-export function exitScene(s: GameState, id: RivalId, how: ExitRoute): { lines: SceneLine[]; recap: string } {
+export function exitScene(s: GameState, id: RivalId, how: ExitRoute): { lines: SceneLine[]; recap: string; replies?: string[] } {
+  if (id === 'sourwood' && hasStory(s)) return finaleScene(s, how);
   const e = EXITS[id];
   let rest = e.rest, recap = e.recap;
   if (id === 'coldbrew' && hasStory(s) && s.rivals.fizzco.alive) {
@@ -68,15 +108,11 @@ export function exitScene(s: GameState, id: RivalId, how: ExitRoute): { lines: S
     ];
     recap = `Juni Grind slid over FizzCo's invoice: "${INVOICE}"${tribute ? ` Your ${money(tribute)} Truce tribute to Preston is on it too.` : ''} She'll call with tips on FizzCo.`;
   }
-  // Their pages came home just now (recipes.ts, on every route): Lottie names them.
-  const home = (Object.keys(s.world?.homed ?? {}) as RecipeId[]).filter((r) => s.world!.homed![r] === s.day + 1).map((r) => RECIPES[r].label.replace(/^Lottie's /, ''));
-  if (home.length) rest = [...rest, ['Lottie', `And my ${home.join(' and ')} page${home.length > 1 ? 's come' : ' comes'} home.`]];
-  const lines = [[e.who, e.first[how]] as [string, string], ...rest].map(([who, text], i) => ({ who, text, at: 0.5 + i * STEP }));
-  return { lines, recap };
+  return { lines: timed([[e.who, e.first[how]], ...rest, ...homeLine(s)]), recap };
 }
 
 /** A boss is out (one line in rivals.ts eliminate()): their exit scene waits for the next lull, in every mode. */
 export function bossExit(s: GameState, id: RivalId, how: ExitRoute): void {
-  const { lines, recap } = exitScene(s, id, how);
-  playScene(s, `exit-${id}`, { exit: true, lines, recap, seconds: lines[lines.length - 1].at + 4 });
+  const { lines, recap, replies } = exitScene(s, id, how);
+  playScene(s, `exit-${id}`, { exit: true, lines, recap, seconds: lines[lines.length - 1].at + 4, ...(replies ? { replies } : {}) });
 }

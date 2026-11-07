@@ -320,20 +320,20 @@ describe('VIP clients', () => {
     buildFacility(s, field.id, 'helipad');
     buildFacility(s, dock.id, 'pier');
     buildFacility(s, lot.id, 'bottling');
-    const days = 600;
-    const calls: Record<string, Set<string>> = { caterer: new Set(), heli: new Set(), ship: new Set() };
-    for (let d = 0; d < days; d++) {
-      s.day++;
-      vipAtDawn(s); // nobody answers: the offers sit there until they lapse
-      for (const o of s.offers) calls[o.tier]?.add(o.id);
+    const days = 3000;
+    const caterers = new Set<string>();
+    const c = cadence(s, days, () => { // nobody answers: the offers sit there until they lapse
+      for (const o of s.offers) if (o.tier === 'caterer') caterers.add(o.id);
       expect(s.offers.length).toBeLessThanOrEqual(MAX_OFFERS);
-    }
-    const per = (t: string) => calls[t].size / days;
-    expect(per('caterer')).toBeCloseTo(ORDER_TIERS.caterer.chance, 1); // about 2 per 5 days
-    expect(per('heli')).toBeGreaterThan(0.3); // about 1 per 3 days
-    expect(per('ship')).toBeGreaterThan(0.2); // about 1 per 5 days, with the 10-day floor on top
-    expect(s.day - s.lastOffer!.ship!).toBeLessThan(VIP_MAX_GAP);
-  });
+    });
+    expect(caterers.size / days).toBeCloseTo(ORDER_TIERS.caterer.chance, 1); // about 2 per 5 days
+    expect(c.gap('heli')).toBeGreaterThan(2.7); // about 1 per 3 days, the 10-day floor and all
+    expect(c.gap('heli')).toBeLessThan(3.2);
+    expect(c.gap('ship')).toBeGreaterThan(4.6); // about 1 per 5 days, the floor and all
+    expect(c.gap('ship')).toBeLessThan(5.4);
+    expect(c.longest.heli).toBeLessThanOrEqual(VIP_MAX_GAP);
+    expect(c.longest.ship).toBeLessThanOrEqual(VIP_MAX_GAP);
+  }, 120_000);
 
   it('the first Supply Deal comes the day the Cargo Terminal opens, then about 1 in 7 days, never more than 10 apart', () => {
     const { s, dock } = vipGame(15);
@@ -348,16 +348,18 @@ describe('VIP clients', () => {
     expect(s.lastOffer!.deal).toBe(s.day);
     expect(s.news.at(-1)).toMatch(/^Supply Deal! .+ wants 200,000 bottles over 28 days for \$6,000,000, shipped weekly from your Cargo Terminal\.( .+ bids \$[\d,]+\.)?$/);
     const days: number[] = [s.day];
-    for (let d = 0; d < 1400; d++) {
+    for (let d = 0; d < 2800; d++) {
       s.day++;
       vipAtDawn(s);
       if (s.lastOffer!.deal === s.day) days.push(s.day);
+      if (s.news.length > 100) s.news = [];
     }
     const gaps = days.slice(1).map((d, i) => d - days[i]);
     expect(Math.max(...gaps)).toBeLessThanOrEqual(VIP_MAX_GAP);
-    expect(1400 / gaps.length).toBeGreaterThan(4.5); // 1 in 7 a day, and the floor at 10: about 5.5 days apart
-    expect(1400 / gaps.length).toBeLessThan(7);
-  });
+    const mean = (days.at(-1)! - days[0]) / gaps.length;
+    expect(mean).toBeGreaterThan(6.4); // about 7 days apart, the floor and all
+    expect(mean).toBeLessThan(7.6);
+  }, 120_000);
 
   it("a Local Order goes to one of your L3+ stands, pays 1.5x that stand's price, and pours its card", () => {
     const { s } = vipGame(23);
@@ -757,6 +759,31 @@ function megaGame(seed: number) {
   grantPage(s, 'lavender', true);
   s.offers = []; // the Cargo Terminal's first Supply Deal
   return g;
+}
+type VipTier = 'heli' | 'ship' | 'deal' | 'mega';
+/** Run `days` dawns with nobody answering: each VIP tier's mean gap between calls on the days Harbor Fest isn't on (its
+ * rush is its own test), and the longest gap seen. */
+function cadence(s: GameState, days: number, each?: () => void) {
+  const tiers: VipTier[] = ['heli', 'ship', 'deal', 'mega'];
+  const calls = { heli: 0, ship: 0, deal: 0, mega: 0 };
+  const longest = { heli: 0, ship: 0, deal: 0, mega: 0 };
+  const prev: Partial<Record<VipTier, number>> = {};
+  let quiet = 0;
+  for (let d = 0; d < days; d++) {
+    s.day++;
+    vipAtDawn(s);
+    each?.();
+    const fest = harborFestOn(s);
+    if (!fest) quiet++;
+    for (const t of tiers) {
+      if (s.lastOffer?.[t] !== s.day) continue;
+      if (prev[t] !== undefined) longest[t] = Math.max(longest[t], s.day - prev[t]!);
+      prev[t] = s.day;
+      if (!fest) calls[t]++;
+    }
+    if (s.news.length > 100) s.news = [];
+  }
+  return { gap: (t: VipTier) => quiet / calls[t], longest };
 }
 const mega = (s: GameState, dock: string, o: Partial<Order> & Pick<Order, 'id' | 'qty'>) =>
   order(s, { tier: 'mega', pay: o.qty * 100, plot: dock, recipe: 'frozen', ...o });

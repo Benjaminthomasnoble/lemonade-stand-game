@@ -91,13 +91,15 @@ export function stockBottles(s: GameState, recipe: RecipeId, n: number): void {
   const left = Math.max(0, (m[recipe] ?? 0) + n);
   if (left) m[recipe] = left; else delete m[recipe];
 }
-/** Pay is per bottle (Local Orders: 1.5× that stand's cup price). Chance = offers per day. */
+/** Pay is per bottle (Local Orders: 1.5× that stand's cup price). Chance: the daily chance a client calls. The tiers with
+ * the 10-day floor (VIP_MAX_GAP) have theirs solved so the mean gap, floor and all, is the spec's: (1 − (1 − p)^10) / p
+ * comes to 2.95 days for a chopper (about 3), 5.0 for a ship and 7.0 for a Supply Deal. */
 export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size: [number, number]; pay: number; days: number; chance: number; label: string }> = {
   local: { rank: 3, stars: 0, size: [300, 1500], pay: 1.5, days: 2, chance: 0.5, label: 'Local Order' },
   caterer: { rank: 5, stars: 0, size: [1000, 5000], pay: 6, days: 3, chance: 0.4, label: 'Caterer Truck' }, // about 2 per 5 days
   heli: { rank: 6, stars: 3.5, size: [2000, 10000], pay: 30, days: 4, chance: 1 / 3, label: 'Helicopter VIP' },
-  ship: { rank: 7, stars: 4.0, size: [10000, 60000], pay: 40, days: 7, chance: 1 / 5, label: 'Ship Contract' },
-  deal: { rank: 8, stars: 4.0, size: [200000, 200000], pay: 30, days: 28, chance: 1 / 7, label: 'Supply Deal' },
+  ship: { rank: 7, stars: 4.0, size: [10000, 60000], pay: 40, days: 7, chance: 0.168, label: 'Ship Contract' }, // 1 in 5 a day made it 4.5
+  deal: { rank: 8, stars: 4.0, size: [200000, 200000], pay: 30, days: 28, chance: 0.082, label: 'Supply Deal' }, // 1 in 7 made it 5.5
   // The stretch tier: a Heliport, a Cargo Terminal and 2 premium recipes too (tierOpen). Its freighters load at the Cargo
   // Terminal, 25,000 a day, so the 14 days are about bottling: 150,000 bottles need about 10,700 a day.
   mega: { rank: 9, stars: 4.5, size: [100000, 150000], pay: 100, days: 14, chance: 1 / 20, label: 'Mega Contract' },
@@ -356,8 +358,8 @@ export function vipAtDawn(s: GameState): void {
   s.seed = rng.seed;
 }
 
-/** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 days): VIP clients 50% more
- * often with Old Money, and choppers and ships every day of Harbor Fest. */
+/** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 / 20 days, the 10-day floor
+ * included): VIP clients 50% more often with Old Money, and choppers and ships every day of Harbor Fest. */
 export function offerChance(s: GameState, tier: OrderTier): number {
   const base = ORDER_TIERS[tier].chance * (isVip(tier) && oldMoney(s) ? OLD_MONEY_OFFERS : 1);
   return (tier === 'heli' || tier === 'ship') && harborFestOn(s) ? Math.max(base, HARBOR_FEST_CHANCE) : base;

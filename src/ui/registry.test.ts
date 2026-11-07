@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice, PLOTS,
-  purchasablePlots, type DistrictId, type GameState,
+  grantPage, LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice,
+  PLOTS, purchasablePlots, recipeCost, type DistrictId, type GameState,
 } from '../sim/economy.ts';
 import {
   controlNote, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, vacantNote,
@@ -148,13 +148,18 @@ describe('the Land Registry', () => {
     expect(registryTabs(s)).toContain('auctions');
     const html = registryScreen(s, 'auctions');
     expect(text(html)).toContain('The Lavender page The Hilltop estate Auction: closes at dawn Skip: rivals bid ~$');
-    expect(html).toContain('Lavender Lemonade: $0.40 a cup, +25% price');
+    expect(html).toContain(`Lavender Lemonade: $${recipeCost(s, 'lavender').toFixed(2)} a cup, +25% price`); // the book's numbers
     expect(buttons(html, 'bid').map(plotOf)).toEqual([LAVENDER_LOT, LAVENDER_LOT, LAVENDER_LOT]);
     expect(text(landTickets(s).join(''))).toContain('Lavender page auction See bids');
     placeBid(s, LAVENDER_LOT, 1_250_000);
     expect(text(registryScreen(s, 'auctions'))).toContain('Your bid: $1,250,000');
     delete s.lavender!.auction;
     expect(registryTabs(s)).not.toContain('auctions');
+    // A page that came home some other way (a Sandbox fair win) leaves the lot and its ticket off at once.
+    openLavender(s);
+    grantPage(s, 'lavender');
+    expect(registryTabs(s)).not.toContain('auctions');
+    expect(landTickets(s)).toEqual([]);
   });
 
   it('Yours lists your deeds by district with control, Vacant Lots and Sell buttons', () => {

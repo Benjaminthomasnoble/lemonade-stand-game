@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, hqPlot, LAVENDER, LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame,
-  newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, placeBid, PLOTS, PRESTON_OUTBID, sleepUntilDawn, unlistPlot, withdrawBid,
+  bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER, LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame,
+  newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder, placeBid, PLOTS, PRESTON_OUTBID, sleepUntilDawn, unlistPlot,
+  withdrawBid,
   type DistrictId, type GameState, type Guard, type Order, type RivalId,
 } from './economy.ts';
 
@@ -383,7 +384,7 @@ describe('the Lavender page auction', () => {
       const s = lavender(seed, { fizzco: 5e6, sourwood: 5e6, hollis: 5e6, coldbrew: 5e6, blenders: 5e6 });
       close(s);
       wins.push(s.lavender!.paid!);
-      expect(s.lavender!.holder).not.toBe('player');
+      expect(s.lavender!.winner).not.toBe('player');
     }
     const mean = wins.reduce((a, b) => a + b, 0) / wins.length;
     expect(mean).toBeGreaterThan(1_400_000);
@@ -398,11 +399,14 @@ describe('the Lavender page auction', () => {
     placeBid(s, LAVENDER_LOT, 2_000_000);
     const cash = s.cash;
     close(s);
-    expect(s.lavender).toEqual({ holder: 'player', paid: 1_800_000 });
+    expect(s.lavender).toEqual({ winner: 'player', paid: 1_800_000 });
     expect(cash - s.cash).toBe(1_800_000);
     expect(s.rivals.fizzco.grudge).toBe(10);
     expect(s.rivals.sourwood.grudge).toBe(10);
-    expect(s.news.at(-1)).toContain('The Lavender page is yours for $1,800,000');
+    expect(s.news).toContain('Skip Larkin: "SOLD to Lottie\'s Lemonade! The Lavender page is yours for $1,800,000."');
+    // Into Lottie's book: Lavender Lemonade to pour, and the morning's Bugle.
+    expect(ownsRecipe(s, 'lavender')).toBe(true);
+    expect(s.news.at(-1)).toContain('The Lavender page comes home');
     openLavender(s);
     expect(s.lavender?.auction).toBeUndefined(); // once a game
   });
@@ -413,7 +417,9 @@ describe('the Lavender page auction', () => {
     const cash = s.cash;
     close(s);
     expect(s.cash).toBe(cash);
-    expect(s.lavender!.holder).toBe('fizzco');
+    expect(s.lavender!.winner).toBe('fizzco');
+    expect(pageHolder(s, 'lavender')).toBe('fizzco');
+    expect(ownsRecipe(s, 'lavender')).toBe(false);
     expect(s.lavender!.paid).toBeGreaterThan(LAVENDER.open);
     expect(s.rivals.fizzco.cash).toBe(5e6 - s.lavender!.paid!);
     expect(s.news.some((n) => n.startsWith('Skip Larkin: "Outbid on the Lavender page') && n.includes('It hangs in FizzCo Tower till they fall.'))).toBe(true);
@@ -421,8 +427,8 @@ describe('the Lavender page auction', () => {
     openLavender(s);
     expect(s.lavender?.auction).toBeUndefined();
     eliminate(s, 'fizzco', 'buyout');
-    expect(s.lavender!.holder).toBe('player');
-    expect(s.news).toContain('The Lavender page comes home from FizzCo Tower!');
+    expect(ownsRecipe(s, 'lavender')).toBe(true);
+    expect(s.news.some((n) => n.startsWith('The Lavender page comes home'))).toBe(true);
   });
 
   it('with no bids the harp teacher runs it again the next day; a bid you can no longer cover bounces', () => {
@@ -430,12 +436,29 @@ describe('the Lavender page auction', () => {
     dawn(s);
     expect(s.news.some((n) => n.includes('No bids on the Lavender page'))).toBe(true);
     expect(s.lavender?.auction).toEqual({ kind: 'page', closes: s.day + 1, min: LAVENDER.open });
-    expect(s.lavender?.holder).toBeUndefined();
+    expect(s.lavender?.winner).toBeUndefined();
     s.cash = 2e6;
     placeBid(s, LAVENDER_LOT, LAVENDER.open);
     s.cash = 1000;
     close(s);
     expect(s.news.some((n) => n.includes('bid on the Lavender page bounced'))).toBe(true);
-    expect(s.lavender?.holder).toBeUndefined();
+    expect(s.lavender?.winner).toBeUndefined();
+    expect(pageHolder(s, 'lavender')).toBe('harpTeacher');
+  });
+
+  it('a page already in the book (a Sandbox fair win) calls the auction off and opens no other', () => {
+    const s = lavender(74, { fizzco: 5e6 });
+    s.cash = 2e6;
+    placeBid(s, LAVENDER_LOT, LAVENDER.open);
+    grantPage(s, 'lavender'); // the fair win, before the gavel
+    expect(canBid(s, LAVENDER_LOT, LAVENDER.open)).toEqual({ ok: false, why: 'Already in your book' });
+    const cash = s.cash, theirs = s.rivals.fizzco.cash;
+    close(s);
+    expect(s.cash).toBe(cash);
+    expect(s.rivals.fizzco.cash).toBe(theirs);
+    expect(s.lavender?.winner).toBeUndefined();
+    expect(s.news).toContain('Skip Larkin: "The harp teacher calls it off: the Lavender page is already in your book."');
+    dawn(s);
+    expect(s.lavender?.auction).toBeUndefined();
   });
 });

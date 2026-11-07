@@ -14,6 +14,7 @@ import { FIRE_SALE, familySilver, hqPlot, HQS } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
+import { grantPage, movePage, pageHolder } from './recipes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -28,10 +29,10 @@ export interface Auction {
 }
 interface Bid { who: FactionId; amount: number }
 
-/** The Lavender page auction: its sealed bids while they run, then who holds the page. */
+/** The Lavender page auction: its sealed bids while they run, then who won. The page itself sits in Lottie's book or the winner's HQ (pageHolder). */
 export interface Lavender {
   auction?: Auction; // open: sealed bids close at that dawn
-  holder?: FactionId; // who won it; Lottie's once it comes home from the winner's HQ
+  winner?: FactionId; // who won the auction
   paid?: number; // the winning bid
 }
 /** The Lavender page is bid on like a plot, under this lot id. */
@@ -116,6 +117,7 @@ export function canBid(s: GameState, lot: string, amount: number): Blocker {
   const a = auctionOf(s, lot);
   if (!a) return { ok: false, why: 'No auction here' };
   if (a.kind === 'listing') return { ok: false, why: "It's your plot on the block" };
+  if (a.kind === 'page' && !pageOnSale(s)) return { ok: false, why: 'Already in your book' };
   if (!(amount >= a.min)) return { ok: false, why: `Bids start at ${money(a.min)}` };
   if (s.cash < bidCost(s, amount)) return { ok: false, why: `Needs ${money(bidCost(s, amount))} on hand at dawn` };
   return { ok: true };
@@ -321,15 +323,22 @@ function pageGuess(s: GameState, a: Auction): number {
   return best ? roundUp(best) : 0;
 }
 
+/** The harp teacher still has the page to sell (a Sandbox fair win can bring it home first). */
+function pageOnSale(s: GameState): boolean {
+  return pageHolder(s, 'lavender') === 'harpTeacher';
+}
+
+/** The Lavender page's open auction, while the page is still for sale (the Registry shows the lot only then). */
+export const lavenderLot = (s: GameState): Auction | undefined => (pageOnSale(s) ? s.lavender?.auction : undefined);
+
 /**
  * From the first dawn at Rank 8: Vera's old harp teacher swaps her Hilltop
  * estate for a houseboat and auctions the Lavender page, once a game. Sealed
  * bids for 24 game hours, open to every faction; with no bids it runs again
- * the next day. Seam: after world's recipe book merges, skip it once the page
- * is already in the book (ownsRecipe(s, 'lavender')).
+ * the next day.
  */
 export function openLavender(s: GameState): void {
-  if (s.rank < LAVENDER.rank || s.lavender?.holder || s.lavender?.auction) return;
+  if (s.rank < LAVENDER.rank || s.lavender?.auction || !pageOnSale(s)) return;
   const first = !s.lavender;
   (s.lavender ??= {}).auction = { kind: 'page', closes: s.day + 1, min: LAVENDER.open };
   if (first) s.news.push(`Skip Larkin: "Vera's old harp teacher is swapping her Hilltop estate for a houseboat, and she's auctioning the Lavender page! Sealed bids from ${money(LAVENDER.open)} close at dawn."`);
@@ -339,6 +348,7 @@ function settlePage(s: GameState, rng: Rng): void {
   const lv = s.lavender!;
   const a = lv.auction!;
   delete lv.auction;
+  if (!pageOnSale(s)) { s.news.push('Skip Larkin: "The harp teacher calls it off: the Lavender page is already in your book."'); return; }
   const bids: Bid[] = [];
   if (a.bid !== undefined) {
     if (s.cash >= bidCost(s, a.bid)) bids.push({ who: 'player', amount: a.bid });
@@ -356,25 +366,20 @@ function settlePage(s: GameState, rng: Rng): void {
     const cost = bidCost(s, win.amount);
     s.cash = round2(s.cash - cost); // ledger: the Lavender auction (the Ledger's Other line, once it has one)
     s.today.land = round2(s.today.land + cost);
-    lv.holder = 'player'; // seam: world's grantPage(s, 'lavender') after merge
+    lv.winner = 'player';
     lv.paid = cost;
     s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! The Lavender page is yours for ${money(cost)}."`);
+    grantPage(s, 'lavender'); // into Lottie's book: Lavender Lemonade to pour, and the morning's Bugle
     return;
   }
   const id = win.who as RivalId;
   s.rivals[id].cash -= win.amount;
-  lv.holder = id; // seam: world's movePage(s, 'lavender', id) after merge
+  lv.winner = id;
   lv.paid = win.amount;
+  movePage(s, 'lavender', id); // it hangs in their HQ; recoverPage brings it home when they're out
   const hangs = `It hangs in ${hqPlot(id).name} till they fall.`;
   if (bids.some((b) => b.who === 'player')) {
     s.news.push(`Skip Larkin: "Outbid on the Lavender page. ${FACTIONS[id].name} went to ${money(win.amount)}. ${hangs}"`);
     if (id === 'fizzco') bossCall(s, 'fizzco', PRESTON_OUTBID);
   } else s.news.push(`Skip Larkin: "Gavel's down: ${FACTIONS[id].name} take the Lavender page for ${money(win.amount)}. ${hangs}"`);
-}
-
-/** eliminate(), on every route: a rival that won the Lavender page hands it back. Seam: world's recoverPage(s, id) does this after merge. */
-export function lavenderHome(s: GameState, id: RivalId): void {
-  if (s.lavender?.holder !== id) return;
-  s.lavender.holder = 'player';
-  s.news.push(`The Lavender page comes home from ${hqPlot(id).name}!`);
 }

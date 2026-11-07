@@ -235,7 +235,7 @@ export interface GameState {
   fight?: LiveFight; // the fight playing live right now (fight.ts)
   control?: Partial<Record<DistrictId, ControlTier>>; // each district's control tier at the last check (for the headlines)
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
-  lavender?: Lavender; // the Lavender page auction (Rank 8) and who holds the page
+  lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
 }
 
 export type SimEvent =

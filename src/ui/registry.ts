@@ -6,8 +6,8 @@
 // mounts it and every button goes through hud's one click listener.
 import {
   auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
-  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
-  plotPrice, PLOTS, purchasablePlots, reachBlocker, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
+  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
+  plotPrice, PLOTS, purchasablePlots, reachBlocker, RECIPES, recipeCost, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
   type Blocker, type DistrictId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -130,7 +130,7 @@ export const registryOpen = (s: GameState) => taught(s, 'land');
 export function registryTabs(s: GameState): RegistryTab[] {
   return [
     'buy',
-    ...(auctionPlots(s).length || s.lavender?.auction ? ['auctions' as const] : []),
+    ...(auctionPlots(s).length || lavenderLot(s) ? ['auctions' as const] : []),
     'mine',
     ...(s.rank >= SITDOWN_RANK ? ['rivals' as const] : []),
   ];
@@ -190,13 +190,15 @@ function buyTab(s: GameState): string {
   return rows.length ? table(rows) : '<span class="cl-note">Nothing for sale right now</span>';
 }
 
-/** What the Lavender page is, for its lot's tooltip (spec: Recipe pages; Lavender Lemonade). */
-const LAVENDER_TIP = ["Lottie's Lavender page, sold by Vera's harp teacher", 'Lavender Lemonade: $0.40 a cup, +25% price', 'High rollers love it in Hilltop Estates', "Outbid: it hangs in the winner's HQ"].join('\n');
+/** What the Lavender page is, for its lot's tooltip (spec: Recipe pages; Lavender Lemonade), with the book's numbers. */
+const lavenderTip = (s: GameState) => ["Lottie's Lavender page, sold by Vera's harp teacher",
+  `Lavender Lemonade: $${recipeCost(s, 'lavender').toFixed(2)} a cup, +${Math.round(RECIPES.lavender.priceBonus * 100)}% price`,
+  'High rollers love it in Hilltop Estates', "Outbid: it hangs in the winner's HQ"].join('\n');
 
 /** Auctions: the Lavender page while it runs, each plot under sealed bids with the plot card's bid buttons, and your own listings with Take it back. */
 function auctionsTab(s: GameState): string {
-  const page = s.lavender?.auction
-    ? `<div class="cl-planner" data-testid="registry-lot"><b title="${esc(LAVENDER_TIP)}">The Lavender page</b><span class="cl-note">The Hilltop estate</span>${auctionControls(s, LAVENDER_LOT)}</div>`
+  const page = lavenderLot(s)
+    ? `<div class="cl-planner" data-testid="registry-lot"><b title="${esc(lavenderTip(s))}">The Lavender page</b><span class="cl-note">The Hilltop estate</span>${auctionControls(s, LAVENDER_LOT)}</div>`
     : '';
   const lots = auctionPlots(s).map((p) => {
     const mine = s.plots[p.id].auction!.kind === 'listing';
@@ -282,7 +284,7 @@ export const sellPlotButton = (s: GameState) =>
 export function landTickets(s: GameState): string[] {
   if (!registryOpen(s)) return [];
   const t: string[] = [];
-  const page = s.lavender?.auction;
+  const page = lavenderLot(s);
   if (page) t.push(`<div class="cl-ticket good" data-testid="lavender-ticket" title="Sealed bids close at dawn${page.bid !== undefined ? `. Your bid: ${whole(page.bid)}` : ''}">${ICON.board()}<b>Lavender page auction</b>${btn('registry', 'See bids', { ok: true }, 'data-tab="auctions"')}</div>`);
   const lots = auctionPlots(s).filter((p) => s.plots[p.id].auction!.kind !== 'listing');
   if (lots.length) {

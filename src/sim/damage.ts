@@ -1,18 +1,21 @@
 // Buildings and their damage (spec: Stands, "Damage, repairs and rebuilds"; Defenses, "When a stand falls"; canon:
 // Knock it down, buy it up). Every faction's stands and facilities keep their HP from one raid to the next: a Smash
-// that runs out of time, or any chopping short of 0, leaves the building Damaged. A Damaged stand stays open and pours
-// its HP share of its cups an hour until a repair, approved by the end of the Evening and paid on approval, puts it
-// back to full HP at dawn. Wrecked rebuilds and Busted fixes join the same overnight queue: the building stays closed
-// for the rest of the day and opens at dawn as good as new, so a stand smashed at night misses a day of sales. An
-// unrebuilt plot lapses For Sale (Knock it down, buy it up). Rebuilds and repairs cost a share of what went into the
-// building itself: a stand's level steps or a facility's tiers, never the plot's fences and gadgets. Pure functions
-// over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes the dawn's rng.
+// that runs out of time, any chopping short of 0, or a Storm on an L1–L2 stand leaves the building Damaged (weather
+// damage is the late-game Hurricane's seam too). A Damaged stand stays open and pours its HP share of its cups an hour
+// until a repair, approved by the end of the Evening and paid on approval, puts it back to full HP at dawn. Wrecked
+// rebuilds and Busted fixes join the same overnight queue: the building stays closed for the rest of the day and opens
+// at dawn as good as new, so a stand smashed at night misses a day of sales. An unrebuilt plot lapses For Sale. Rebuilds
+// and repairs cost a share of what went into the building itself: a stand's level steps or a facility's tiers, never
+// the plot's fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's
+// rebuild) takes the dawn's rng.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, STORM_DAMAGE,
+  type RivalId,
 } from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
+import { alert } from './alerts.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
@@ -105,6 +108,33 @@ export function raidDamage(s: GameState, plotId: string, hpLeft: number): number
   return before - after;
 }
 
+/** Weather damage: `share` of the building's max HP comes off, never below 1 HP, so it never falls. The Storm's seam, and
+ * the late-game Hurricane's. Returns the HP it took. */
+export function weatherDamage(s: GameState, plotId: string, share: number): number {
+  const ps = s.plots[plotId];
+  const b = building(ps);
+  if (!b || isWrecked(ps)) return 0;
+  const before = currentHp(ps);
+  const after = Math.max(1, before - Math.round(buildingHp(ps) * share));
+  if (after >= before) return 0;
+  b.hp = after;
+  return before - after;
+}
+
+/** The stands open on a Storm: every faction's L1–L2 stand loses a quarter of its max HP (never below 1) and sells at its
+ * HP share until repaired. The alert card names the counter-play. */
+export function stormAtOpen(s: GameState): void {
+  if (s.weather.kind !== 'storm') return;
+  const hit: string[] = [];
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (!ps.stand || ps.stand.level > STORM_DAMAGE.maxLevel) continue;
+    if (weatherDamage(s, p.id, STORM_DAMAGE.share) && ps.owner === 'player') hit.push(p.id);
+  }
+  const what = hit.length === 1 ? `${PLOT_BY_ID[hit[0]].name} takes a beating` : `${hit.length} of your stands take a beating`;
+  alert(s, { kind: 'note', text: `Storm!${hit.length ? ` ${what}.` : ''} Stock light; repair L1–L2 stands.`, plot: hit[0] });
+}
+
 /** The battle headline's last words: what a raid that didn't flatten the building took off it. */
 export function hpLostNote(b: BattleReport): string {
   if (!b.hpLost || b.outcome === 'smashed') return '';
@@ -113,41 +143,54 @@ export function hpLostNote(b: BattleReport): string {
 
 // ---------- repairs ----------
 
+/** The repair already booked for tonight on a standing building (none for a rebuild). */
+const booked = (ps: PlotState) => (ps.repair && !ps.repair.rebuild ? ps.repair : undefined);
+
+/** HP the building has lost that no repair booked for tonight puts back yet: all of it, or what a Storm or a raid took
+ * after the booking. */
+function unbookedLoss(ps: PlotState): number {
+  return isDamaged(ps) ? Math.max(0, buildingHp(ps) - currentHp(ps) - (booked(ps)?.hp ?? 0)) : 0;
+}
+
 /**
  * What a Damaged building costs to repair: 15% of what went into it × the share of HP lost (a Kiosk at half HP: $304),
  * in whole dollars, and never more than putting it back up after a fall would cost (a rebuild, or on Laid Back your
- * Busted fix). 0 when there's nothing to repair.
+ * Busted fix). Once a repair is booked, the price of topping it up for the HP lost since. 0 when there's nothing to repair.
  */
 export function repairCost(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
-  if (!isDamaged(ps)) return 0;
+  const lost = unbookedLoss(ps);
+  if (!lost) return 0;
   const base = buildingInvested(ps);
-  const max = buildingHp(ps);
-  const lost = (max - currentHp(ps)) / max;
   const fall = ps.owner === 'player' && difficulty(s).bustOnly ? BUSTED_REPAIR_SHARE : REBUILD_SHARE;
-  return Math.min(dollarsUp(base * DAMAGE_REPAIR_SHARE * lost), dollarsUp(base * fall));
+  const cap = Math.max(0, dollarsUp(base * fall) - (booked(ps)?.cost ?? 0));
+  return Math.min(dollarsUp(base * DAMAGE_REPAIR_SHARE * (lost / buildingHp(ps))), cap);
 }
 
-/** Repairs are approved any time up to the end of the Evening (they run overnight), on your own Damaged buildings. */
+/** Repairs are approved any time up to the end of the Evening (they run overnight), on your own Damaged buildings. A
+ * booked one can be topped up for damage done after it (a Storm at the open, a daytime raid). */
 export function canRepair(s: GameState, plotId: string): Blocker {
   const ps = s.plots[plotId];
   if (ps?.owner !== 'player') return { ok: false, why: 'Not your plot' };
-  if (ps.repair) return { ok: false, why: 'Fixing tonight' };
-  if (!isDamaged(ps)) return { ok: false, why: 'Nothing to fix' };
+  if (!isDamaged(ps)) return { ok: false, why: ps.repair ? 'Fixing tonight' : 'Nothing to fix' };
+  if (!unbookedLoss(ps)) return { ok: false, why: 'Fixing tonight' };
   if (s.phase === 'night') return { ok: false, why: 'Too late tonight: approve it tomorrow' };
   const cost = repairCost(s, plotId);
   if (s.cash < cost) return { ok: false, why: `Needs ${money(cost)}` };
   return { ok: true };
 }
 
-/** Approve a repair: paid now (the Ledger's repairs), worked on overnight, back to full HP at dawn. Auto-Repair's seam. */
+/** Approve a repair (or top one up): paid now (the Ledger's repairs), worked on overnight, back to full HP at dawn.
+ * Auto-Repair's seam. */
 export function approveRepair(s: GameState, plotId: string): boolean {
   if (!canRepair(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const cost = repairCost(s, plotId);
+  const hp = unbookedLoss(ps);
   s.cash = round2(s.cash - cost);
   s.today.land = round2(s.today.land + cost); // ledger: repairs
-  ps.repair = { by: 'player', cost, hp: buildingHp(ps) - currentHp(ps) };
+  const r = booked(ps);
+  ps.repair = r ? { ...r, cost: r.cost + cost, hp: r.hp + hp } : { by: 'player', cost, hp };
   return true;
 }
 
@@ -327,7 +370,7 @@ export function damageAtDawn(s: GameState): void {
     if (r.by === 'player') (hp >= buildingHp(ps) ? fixed : dented).push(p.name);
   }
   if (fixed.length) s.news.push(`Fixed overnight: ${fixed.length <= 2 ? fixed.join(' and ') : `${fixed.length} buildings`} ${fixed.length === 1 ? 'is' : 'are'} good as new.`);
-  for (const name of dented) s.news.push(`${name} is patched up, but last night's raid left fresh damage.`);
+  for (const name of dented) s.news.push(`${name} is patched up, but it took fresh damage after the booking.`);
 }
 
 /** Saves from before building HP (and any odd values) load clean. Safe to run on every load. */

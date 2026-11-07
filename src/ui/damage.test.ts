@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { approveRebuild, approveRepair, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
-import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, wreckNote } from './damage.ts';
+import { approveRebuild, approveRepair, LESSON_DAY, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
+import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
 /** Lottie's Corner as a Kiosk ($4,050, 800 HP, 120 cups an hour) at Morning Prep. */
@@ -115,6 +115,39 @@ describe('the HP readout and the repair', () => {
     const cards = repairCards(s).join('');
     expect(cards).toContain('data-testid="damaged"');
     expect(cards).toContain('Repair $456');
+  });
+});
+
+describe('Storms', () => {
+  it('a Storm forecast puts a stock-light ticket in the Morning Prep feed, naming the stands at risk', () => {
+    const s = newGame(22);
+    s.phase = 'prep';
+    expect(stormTicket(s)).toEqual([]);
+    s.forecast = { kind: 'storm', temp: 60 };
+    expect(stormTicket(s)).toEqual([]); // Day 1: the forecast's lesson hasn't come yet
+    s.day = LESSON_DAY.forecast;
+    const [ticket] = stormTicket(s);
+    expect(ticket).toContain('data-testid="storm"');
+    expect(ticket).toContain('<b>Storm: stock light</b>');
+    expect(ticket).toContain('Your L1–L2 stand loses a quarter of its HP at the open. Repair it by the Evening');
+    s.phase = 'open';
+    expect(stormTicket(s)).toEqual([]);
+    const k = kiosk();
+    k.forecast = { kind: 'storm', temp: 60 };
+    k.settings.lessons = false; // lessons off: every button follows rank alone
+    expect(stormTicket(k)[0]).toContain('title="Storm forecast: few customers."');
+  });
+
+  it('damage after a booked repair brings the Repair button back to top it up', () => {
+    const s = kiosk();
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    approveRepair(s, LOTTIES_CORNER);
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('Fixing tonight');
+    s.plots[LOTTIES_CORNER].stand!.hp = 200; // a daytime raid after the booking
+    const row = damageHere(s, LOTTIES_CORNER);
+    expect(row).not.toContain('Fixing tonight');
+    expect(row).toContain(`title="Adds to tonight's repair: good as new at dawn"`);
+    expect(row).toContain('Repair $152');
   });
 });
 

@@ -2,13 +2,15 @@
 // the stand panel's Defend tab for the selected stand, show an HP meter with the exact points in its tooltip; your own
 // Damaged ones get a Repair button with the price, or a note once tonight's repair is booked. Your smashed plots get a
 // Rebuild button (Fix when Busted) the same way. Your Damaged and smashed buildings also get a ticket in the feed at
-// Morning Prep and with the Evening's repairs. From Rank 3 each of your plots has an Auto-Repair switch (on unless you
-// skip the plot). Plain controls on the HUD's existing classes; clicks go through the HUD's one listener
-// (data-action="repair" and "rebuild" approve, "autoRepair" flips the switch, "goto" flies there).
+// Morning Prep and with the Evening's repairs, and a Storm in the forecast gets a stock-light ticket at Morning Prep.
+// From Rank 3 each of your plots has an Auto-Repair switch (on unless you skip the plot). Plain controls on the HUD's
+// existing classes; clicks go through the HUD's one listener (data-action="repair" and "rebuild" approve,
+// "autoRepair" flips the switch, "goto" flies there).
 import {
   autoRepairOn, buildingHp, canRebuild, canRepair, currentHp, FACILITIES, hpCapacity, hpShare, isDamaged, isWrecked, lastRebuildDay,
-  PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, type GameState,
+  PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
 } from '../sim/economy.ts';
+import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
@@ -31,14 +33,15 @@ function hpTip(s: GameState, plotId: string): string {
   return `${hp}. Damaged: pours ${hpCapacity(ps, full)} of ${full} cups an hour until repaired`;
 }
 
-/** Your Damaged building's fix: Repair $X (a blocked one says why), or a note once tonight's repair is booked. */
+/** Your Damaged building's fix: Repair $X (a blocked one says why), or a note once tonight's repair is booked. Damage
+ * after the booking (a Storm at the open) brings the button back to top it up. */
 function repairButton(s: GameState, plotId: string, cls = 'cl-b tiny go'): string {
   const ps = s.plots[plotId];
-  if (ps.owner !== 'player') return '';
-  if (ps.repair) return `<span class="cl-note good" title="Paid ${whole(ps.repair.cost)}: good as new at dawn">Fixing tonight</span>`;
-  if (!isDamaged(ps)) return '';
+  if (ps.owner !== 'player' || !isDamaged(ps)) return '';
   const b = canRepair(s, plotId);
-  return `<button class="${cls}" data-action="repair" data-plot="${plotId}" data-testid="repair-hp" ${b.ok ? 'title="Fixed overnight: good as new at dawn"' : `disabled title="${esc(b.why)}"`}>Repair ${whole(repairCost(s, plotId))}</button>`;
+  if (!b.ok && b.why === 'Fixing tonight') return `<span class="cl-note good" title="Paid ${whole(ps.repair?.cost ?? 0)}: good as new at dawn">Fixing tonight</span>`;
+  const tip = !b.ok ? b.why : ps.repair ? 'Adds to tonight\'s repair: good as new at dawn' : 'Fixed overnight: good as new at dawn';
+  return `<button class="${cls}" data-action="repair" data-plot="${plotId}" data-testid="repair-hp" ${b.ok ? '' : 'disabled '}title="${esc(tip)}">Repair ${whole(repairCost(s, plotId))}</button>`;
 }
 
 /** How long your smashed plot can wait: Busted ones wait for their fix; a Wrecked one lapses the day after the smash. */
@@ -107,6 +110,15 @@ export function damageHere(s: GameState, plotId: string): string {
   const auto = autoRepairToggle(s, plotId);
   if (ps.stand?.wrecked || ps.facility?.wrecked) return auto;
   return `<span class="cl-acts" data-testid="hp" title="${esc(hpTip(s, plotId))}">${meter(hpShare(ps))}${repairButton(s, plotId)}</span>${auto}`;
+}
+
+/** Morning Prep with a Storm in the forecast: stock light, and your L1–L2 stands will want a repair by the Evening. */
+export function stormTicket(s: GameState): string[] {
+  if (s.phase !== 'prep' || s.forecast.kind !== 'storm' || !taught(s, 'forecast')) return []; // the forecast's lesson first
+  const n = PLOTS.filter((p) => { const st = s.plots[p.id].stand; return s.plots[p.id].owner === 'player' && !!st && !st.wrecked && st.level <= STORM_DAMAGE.maxLevel; }).length;
+  const hit = n === 1 ? 'Your L1–L2 stand loses a quarter of its HP at the open. Repair it by the Evening'
+    : `Your ${n} L1–L2 stands lose a quarter of their HP at the open. Repair them by the Evening`;
+  return [`<div class="cl-ticket" data-testid="storm" title="${esc(`Storm forecast: few customers.${n ? ` ${hit}` : ''}`)}">${art('storm', () => A.skySVG('storm'))}<b>Storm: stock light</b></div>`];
 }
 
 /** Feed tickets for your Damaged buildings: the HP left, Go There, and the repair. */

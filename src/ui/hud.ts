@@ -26,7 +26,7 @@ import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, wreckNote } from './damage.ts';
+import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
@@ -489,7 +489,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const need = Math.ceil(-s.cash / 50) * 50;
       t.push(`<div class="cl-ticket red" data-testid="in-the-red" title="${jar}">${ART.piggy()}<b>In the Red! ${left} day${left === 1 ? '' : 's'}</b>${need > 0 && canBorrow(s, need).ok ? btn('borrow', `Borrow ${whole(need)}`, { ok: true }, `data-amount="${need}" data-testid="borrow"`) : ''}</div>`);
     }
-    t.push(...rebuildTickets(s), ...damageTickets(s)); // smashed and Damaged buildings: the rebuild, the HP left, the repair (src/ui/damage.ts)
+    t.push(...stormTicket(s), ...rebuildTickets(s), ...damageTickets(s)); // a Storm forecast, smashed and Damaged buildings (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);

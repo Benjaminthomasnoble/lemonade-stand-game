@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   approveRebuild, approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget,
   buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid,
-  growUpgrades, hpCapacity, hpShare, isDamaged, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame, newStand, openStand,
-  ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, raidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand,
-  simulateRestOfDay, sleepUntilDawn, tickMinute, toggleAutoRepair, upgradeStand, type GameState, type RivalId, type SupplyId,
+  FORECAST_ACCURACY, growUpgrades, hpCapacity, hpShare, isDamaged, isWrecked, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame,
+  newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, raidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand,
+  repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute, toggleAutoRepair, upgradeStand, type GameState,
+  type RivalId, type SupplyId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -572,6 +573,111 @@ describe('rebuilds run overnight', () => {
     expect(ps.stand!.wrecked).toBe(false);
     expect(ps.repair).toBeUndefined();
     expect(s.news).toContain(`Hammers and elbow grease: ${p.name} is back in business.`);
+  });
+});
+
+describe('Storms', () => {
+  /** Morning Prep with a Storm in the forecast that comes true when the stands open. */
+  function stormyMorning(s: GameState) {
+    s.phase = 'prep';
+    s.forecast = { kind: 'storm', temp: 60 };
+    s.seed = Array.from({ length: 100 }, (_, k) => k).find((k) => nextRandom({ seed: k }) < FORECAST_ACCURACY)!;
+  }
+  const rivalStands = (s: GameState, level: number) => PLOTS.filter((p) => s.plots[p.id].owner !== 'player' && s.plots[p.id].owner && s.plots[p.id].stand?.level === level && !s.plots[p.id].stand!.wrecked);
+
+  it('take a quarter of the max HP off every L1–L2 stand of every faction as the stands open, and the alert says what to do', () => {
+    const s = newGame(50);
+    const corner = s.plots[LOTTIES_CORNER];
+    const l2 = rivalStands(s, 2), l3 = rivalStands(s, 3);
+    expect(l2.length).toBeGreaterThan(0);
+    expect(l3.length).toBeGreaterThan(0);
+    stormyMorning(s);
+    expect(openStand(s)).toBe(true);
+    expect(s.weather.kind).toBe('storm');
+    expect(currentHp(corner)).toBe(75); // a 100 HP Folding Table
+    expect(isWrecked(corner)).toBe(false);
+    expect(hpCapacity(corner, 20)).toBe(15); // open, at its HP share
+    for (const p of l2) expect(currentHp(s.plots[p.id])).toBe(225); // 300 HP Wooden Stands
+    for (const p of l3) expect(isDamaged(s.plots[p.id])).toBe(false); // a Kiosk rides it out
+    const card = s.alerts!.find((a) => a.text.startsWith('Storm!'))!;
+    expect(card.text).toBe(`Storm! ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a beating. Stock light; repair L1–L2 stands.`);
+    expect(card).toMatchObject({ kind: 'note', plot: LOTTIES_CORNER });
+    expect(s.news).toContain(card.text);
+  });
+
+  it('never knock a stand down, and leave a sunny day alone', () => {
+    const s = newGame(51);
+    const corner = s.plots[LOTTIES_CORNER];
+    corner.stand!.hp = 10;
+    s.weather = { kind: 'warm', temp: 75 };
+    stormAtOpen(s);
+    expect(currentHp(corner)).toBe(10);
+    expect(s.alerts ?? []).toEqual([]);
+    s.weather = { kind: 'storm', temp: 60 };
+    stormAtOpen(s);
+    expect(currentHp(corner)).toBe(1);
+    expect(isWrecked(corner)).toBe(false);
+    stormAtOpen(s);
+    expect(currentHp(corner)).toBe(1);
+  });
+
+  it('a Kiosk-only player still hears the counter-play', () => {
+    const s = kiosk(52);
+    s.weather = { kind: 'storm', temp: 60 };
+    stormAtOpen(s);
+    expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
+    expect(s.alerts!.map((a) => a.text)).toContain('Storm! Stock light; repair L1–L2 stands.');
+  });
+
+  it('a repair booked before the Storm can be topped up for the new damage, and dawn fixes it all', () => {
+    const s = newGame(53);
+    const corner = s.plots[LOTTIES_CORNER];
+    corner.stand!.hp = 50;
+    s.cash = 500;
+    expect(approveRepair(s, LOTTIES_CORNER)).toBe(true);
+    expect(corner.repair).toEqual({ by: 'player', cost: 12, hp: 50 });
+    stormyMorning(s);
+    openStand(s);
+    expect(currentHp(corner)).toBe(25);
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(6); // the 25 HP the Storm took
+    expect(canRepair(s, LOTTIES_CORNER).ok).toBe(true);
+    const cash = s.cash;
+    expect(approveRepair(s, LOTTIES_CORNER)).toBe(true);
+    expect(s.cash).toBe(cash - 6);
+    expect(corner.repair).toEqual({ by: 'player', cost: 18, hp: 75 });
+    expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Fixing tonight' });
+    simulateRestOfDay(s);
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(isDamaged(corner)).toBe(false);
+  });
+
+  it('a top-up never takes the bill past a rebuild', () => {
+    const s = newGame(54);
+    const corner = s.plots[LOTTIES_CORNER];
+    corner.stand!.hp = 2;
+    s.cash = 500;
+    approveRepair(s, LOTTIES_CORNER);
+    expect(corner.repair!.cost).toBe(23); // 98 of 100 HP lost: capped at the $23 rebuild
+    corner.stand!.hp = 1;
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(0);
+    expect(approveRepair(s, LOTTIES_CORNER)).toBe(true);
+    expect(corner.repair).toEqual({ by: 'player', cost: 23, hp: 99 });
+  });
+
+  it('Auto-Repair books the Storm damage at closing; rivals repair theirs when they can spare the cash', () => {
+    const s = newGame(55);
+    s.rank = 3;
+    s.cash = 1000;
+    const l2 = rivalStands(s, 2)[0];
+    s.rivals[s.plots[l2.id].owner as RivalId].cash = 100000;
+    stormyMorning(s);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.plots[LOTTIES_CORNER].repair).toMatchObject({ by: 'player', hp: 25 });
+    expect(s.plots[l2.id].repair).toMatchObject({ by: s.plots[l2.id].owner, hp: 75 });
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
+    expect(isDamaged(s.plots[l2.id])).toBe(false);
   });
 });
 

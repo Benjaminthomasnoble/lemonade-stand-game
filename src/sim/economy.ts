@@ -24,7 +24,7 @@ import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
-import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
+import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
@@ -541,6 +541,7 @@ export function openStands(s: GameState): boolean {
   s.minute = OPEN;
   s.spawnCarry = {};
   dayCache.delete(s);
+  stormAtOpen(s); // a Storm dents every L1–L2 stand (damage.ts)
   for (const p of PLOTS) {
     const st = s.plots[p.id].stand;
     if (!st) continue;

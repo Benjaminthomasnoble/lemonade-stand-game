@@ -366,6 +366,9 @@ export const RIVAL_REPAIR_RESERVE = 500;
 /** Auto-Repair (spec: Helpers that keep a big empire calm): from this rank it books the fixes your plots need at closing,
  * except on the plots you skip. */
 export const AUTO_REPAIR_RANK = 3;
+/** A Storm day (the real weather, not the forecast) takes this share of max HP off every faction's stand up to
+ * `maxLevel`, never below 1 HP, so it stays open at its HP share until repaired (spec: Damage, repairs and rebuilds). */
+export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
 export const REPAIR_SHARE = 0.15; // of the fence's price, times the share of HP lost

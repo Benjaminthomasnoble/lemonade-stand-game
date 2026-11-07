@@ -163,7 +163,7 @@ async function main() {
     state = s;
     state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`;
     hud.inspected = null; vipResume = 0; vipPaused = ''; acc = 0; savedHour = -1;
-    crowd.clear(); stopFights(); scenes.stop(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
+    crowd.clear(); stopFights(); resetScene(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
     if (midDay(state)) pause(); else resume();
     hud.toast(line);
   };
@@ -315,8 +315,10 @@ async function main() {
     flushNews();
     if (state.phase === 'prep' || state.phase === 'report') saveGame(state);
   };
-  /** A fight replay or a VIP pickup cuts a scene short. */
+  /** A fight replay or a VIP show cuts a scene short. */
   const cutScene = () => { if (playingScene(state)) finishScene(true); };
+  /** A new run or a loaded game: the world's actors leave, and a scene saved mid-play replays from its first line. */
+  const resetScene = () => { scenes.stop(); sceneT = 0; sceneWorld = false; };
   let callsQuietUntil = 0; // a rank-up's fanfare outranks a boss's call
 
   const vip = createVip(world.scene, { onHorn: () => audio.horn() });
@@ -461,7 +463,7 @@ async function main() {
         clearSave();
         state = freshRun(a.settings);
         hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; vipPaused = ''; bubbles.clear();
-        crowd.clear(); stopFights(); scenes.stop(); bay.sync(state); focusPlot(state.selected);
+        crowd.clear(); stopFights(); resetScene(); bay.sync(state); focusPlot(state.selected);
         break;
       }
       case 'keepSqueezing': keepSqueezing(state); break;

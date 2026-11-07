@@ -23,7 +23,7 @@ import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
-import { approveRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
+import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
   saveUnreadable, slotList,
@@ -600,6 +600,7 @@ async function main() {
       case 'repairFence': repairFence(state, a.plot); break;
       case 'rebuild': rebuildStand(state, a.plot); break;
       case 'repair': approveRepair(state, a.plot); break;
+      case 'autoRepair': toggleAutoRepair(state, a.plot); break;
       case 'hire': hireGuard(state, a.id); break;
       case 'fire': fireGuard(state, a.id); break;
       case 'post': postGuard(state, a.id, a.plot); break;

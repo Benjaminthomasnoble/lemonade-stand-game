@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRepair, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget, buyPerimeter, canRepair, currentHp,
-  damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid, growUpgrades, hpCapacity, hpShare, isDamaged, LOTTIES_CORNER,
-  maxPacks, migrateDamage, migrateSave, newGame, openStand, ownedPlots, PLOTS, raidDamage, raidPartyFor, rebuildCost, rebuildStand,
-  repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, upgradeStand, type GameState, type RivalId, type SupplyId,
+  approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget, buyPerimeter,
+  canRepair, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid, growUpgrades, hpCapacity, hpShare,
+  isDamaged, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOTS, raidDamage,
+  raidPartyFor, rebuildCost, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, tickMinute, toggleAutoRepair,
+  upgradeStand, type GameState, type RivalId, type SupplyId,
 } from './economy.ts';
 
 /** Lottie's Corner grown into a Kiosk the normal way: Folding Table ($150), Lemonade Cart ($400), Kiosk ($3,500). */
@@ -21,6 +22,13 @@ function kiosk(seed = 1): GameState {
 function smash(s: GameState, plot: string, chop: number, n = 1) {
   const party = raidPartyFor(s, 'blenders').slice(0, n).map((f) => ({ ...f, hit: 200, chop, hp: 100000, nerve: 1000 }));
   return fightRaid(s, { id: `r${s.nextId++}`, attacker: 'blenders', target: plot, objective: 'smash', party, detected: true, eta: '23:00' }, true);
+}
+
+/** The last minute of business hours, so the stands close (whatever the weather would have been today). */
+function closeShop(s: GameState) {
+  s.phase = 'open';
+  s.minute = CLOSE - 1;
+  tickMinute(s);
 }
 
 /** Fill the selected stand up for a day of selling. */
@@ -333,6 +341,85 @@ describe('repairs', () => {
     simulateRestOfDay(s);
     expect(s.phase).toBe('report');
     expect(s.plots[p.id].repair?.by).toBe('fizzco' as RivalId);
+  });
+});
+
+describe('Auto-Repair (Rank 3)', () => {
+  /** A rank-3 run with two Damaged stands of yours: the Corner (a Kiosk at half HP) and a Folding Table at 10 HP. */
+  function twoDamaged(seed = 30) {
+    const s = kiosk(seed);
+    s.rank = 3;
+    const side = PLOTS.find((p) => p.district === 'maple' && !s.plots[p.id].owner && p.type === 'street')!;
+    s.plots[side.id] = { owner: 'player', stand: newStand(1), invested: 150, landValue: 300, defense: { tier: 0, fenceHp: 0, gadgets: [] } };
+    s.plots[LOTTIES_CORNER].stand!.hp = 400; // $304
+    s.plots[side.id].stand!.hp = 10; // 90% of a $150 table lost: $21
+    return { s, side: side.id };
+  }
+
+  it('books every Damaged plot of yours at closing, paid then and good as new at dawn', () => {
+    const { s, side } = twoDamaged();
+    s.cash = 1000;
+    closeShop(s);
+    expect(s.phase).toBe('report');
+    expect(s.plots[LOTTIES_CORNER].repair).toMatchObject({ by: 'player', cost: 304, hp: 400 });
+    expect(s.plots[side].repair).toMatchObject({ by: 'player', cost: 21, hp: 90 });
+    expect(s.cash).toBeLessThanOrEqual(1000 - 325);
+    expect(s.news).toContain('Auto-Repair: 2 fixes booked for tonight, $325. Good as new at dawn.');
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
+    expect(isDamaged(s.plots[side])).toBe(false);
+  });
+
+  it('waits until Rank 3', () => {
+    const { s, side } = twoDamaged();
+    s.rank = 2;
+    damageAtClose(s);
+    expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
+    expect(s.plots[side].repair).toBeUndefined();
+    expect(autoRepairOn(s)).toBe(false);
+    expect(toggleAutoRepair(s, side)).toBe(false);
+  });
+
+  it('skips the plots you pick, and only yours can be picked', () => {
+    const { s, side } = twoDamaged();
+    expect(autoRepairs(s, side)).toBe(true);
+    expect(toggleAutoRepair(s, side)).toBe(true);
+    expect(s.plots[side].noAutoRepair).toBe(true);
+    expect(autoRepairs(s, side)).toBe(false);
+    damageAtClose(s);
+    expect(s.plots[side].repair).toBeUndefined();
+    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(304);
+    expect(s.news).toContain('Auto-Repair: 1 fix booked for tonight, $304. Good as new at dawn.');
+    expect(toggleAutoRepair(s, side)).toBe(true); // back on
+    expect(s.plots[side].noAutoRepair).toBeUndefined();
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    expect(toggleAutoRepair(s, rival.id)).toBe(false);
+    expect(autoRepairs(s, rival.id)).toBe(false);
+  });
+
+  it('fixes the worst first when the cash runs short', () => {
+    const { s, side } = twoDamaged();
+    s.cash = 100; // enough for the $21 table, not the $304 Kiosk
+    s.plots[LOTTIES_CORNER].stand!.hp = 100; // 12.5% HP: $532, the worst
+    s.plots[side].stand!.hp = 50; // 50%: $12
+    damageAtClose(s);
+    expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
+    expect(s.plots[side].repair?.cost).toBe(12);
+    expect(s.cash).toBe(88);
+    s.cash = 600; // now the Kiosk too
+    damageAtClose(s);
+    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(532);
+    expect(s.cash).toBe(68);
+  });
+
+  it('a skip on a plot that is not yours does not survive a load', () => {
+    const { s } = twoDamaged();
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    s.plots[rival.id].noAutoRepair = true;
+    s.plots[LOTTIES_CORNER].noAutoRepair = true;
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.plots[rival.id].noAutoRepair).toBeUndefined();
+    expect(back.plots[LOTTIES_CORNER].noAutoRepair).toBe(true);
   });
 });
 

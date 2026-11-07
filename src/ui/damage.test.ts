@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approveRepair, LOTTIES_CORNER, newGame, PLOTS, upgradeStand, type GameState } from '../sim/economy.ts';
+import { approveRepair, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
 import { damageCard, damageHere, damageTickets } from './damage.ts';
 import { repairCards } from './evening.ts';
 
@@ -64,7 +64,8 @@ describe('the HP readout and the repair', () => {
     expect(row).toContain('cl-snake hp');
     expect(row).not.toContain('Repair');
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
-    expect(damageHere(s, LOTTIES_CORNER)).toBe('');
+    expect(damageHere(s, LOTTIES_CORNER)).not.toContain('cl-snake');
+    expect(damageHere(s, LOTTIES_CORNER)).not.toContain('data-action="repair"');
   });
 
   it("the stand panel's Defend card shows the selected stand's HP, and its repair once Damaged", () => {
@@ -74,7 +75,7 @@ describe('the HP readout and the repair', () => {
     expect(full).toContain('<b>The Kiosk</b>');
     expect(full).toContain('--v:1.000');
     expect(full).toContain('title="The Kiosk: 800/800 HP"');
-    expect(full).not.toContain('Repair');
+    expect(full).not.toContain('data-action="repair"');
     s.plots[LOTTIES_CORNER].stand!.hp = 400;
     const card = damageCard(s, LOTTIES_CORNER);
     expect(card).toContain('--v:0.500');
@@ -85,6 +86,25 @@ describe('the HP readout and the repair', () => {
     expect(damageCard(s, rival.id)).toBe('');
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
     expect(damageCard(s, LOTTIES_CORNER)).toBe('');
+  });
+
+  it('from Rank 3 your plots get an Auto-Repair switch, on until you skip the plot', () => {
+    const s = kiosk();
+    s.rank = 2;
+    expect(damageHere(s, LOTTIES_CORNER)).not.toContain('autoRepair');
+    s.rank = 3;
+    const on = damageHere(s, LOTTIES_CORNER);
+    expect(on).toContain(`<button class="cl-toggle on" data-action="autoRepair" data-plot="${LOTTIES_CORNER}" data-testid="auto-repair" aria-pressed="true"`);
+    expect(on).toContain('Tap to skip this plot');
+    expect(damageCard(s, LOTTIES_CORNER)).toContain('data-action="autoRepair"');
+    toggleAutoRepair(s, LOTTIES_CORNER);
+    const off = damageHere(s, LOTTIES_CORNER);
+    expect(off).toContain('<button class="cl-toggle" data-action="autoRepair"');
+    expect(off).toContain('aria-pressed="false"');
+    s.plots[LOTTIES_CORNER].stand!.wrecked = true; // a smashed plot keeps its switch: Auto-Repair rebuilds too
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('data-action="autoRepair"');
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
+    expect(damageHere(s, rival.id)).not.toContain('autoRepair');
   });
 
   it('the Evening repair cards list your Damaged buildings', () => {

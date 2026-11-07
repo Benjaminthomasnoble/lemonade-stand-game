@@ -363,6 +363,9 @@ export const DAMAGE_REPAIR_SHARE = 0.15;
 /** A rival repairs a Damaged building at closing only with this much cash to spare beyond the bill (placeholder: the spec
  * says only that rivals repair under the same cost rule). */
 export const RIVAL_REPAIR_RESERVE = 500;
+/** Auto-Repair (spec: Helpers that keep a big empire calm): from this rank it books the fixes your plots need at closing,
+ * except on the plots you skip. */
+export const AUTO_REPAIR_RANK = 3;
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
 export const REPAIR_SHARE = 0.15; // of the fence's price, times the share of HP lost

@@ -104,6 +104,7 @@ export interface PlotState {
   garrison?: number; // rival henchmen on guard here
   facility?: Facility; // Bottling Works, Helipad or Pier
   repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
+  noAutoRepair?: boolean; // Auto-Repair (Rank 3) skips this plot of yours (damage.ts)
   dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
   wreckedDay?: number; // day the stand or facility here was smashed
   smashedBy?: FactionId;

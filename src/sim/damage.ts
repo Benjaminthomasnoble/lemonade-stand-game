@@ -5,7 +5,9 @@
 // back to full HP at dawn. Rebuilds and repairs cost a share of what went into the building itself: a stand's level
 // steps or a facility's tiers, never the plot's fences and gadgets. Pure functions over GameState, like the rest of
 // the sim; nothing here rolls dice.
-import { BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId } from './balance.ts';
+import {
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, type RivalId,
+} from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
@@ -152,9 +154,45 @@ function callOffRepair(s: GameState, plotId: string): void {
   } else if (s.rivals[r.by as RivalId]) s.rivals[r.by as RivalId].cash += r.cost;
 }
 
-/** Closing time: each rival books the repairs it can spare the cash for (the bill plus $500 in hand), paid now and done
- * by dawn, the same as yours. */
+// ---------- Auto-Repair ----------
+
+/** Auto-Repair takes over the overnight fixes from Rank 3. */
+export const autoRepairOn = (s: GameState) => s.rank >= AUTO_REPAIR_RANK;
+
+/** Does Auto-Repair look after this plot of yours? On for every plot unless you skip it. */
+export function autoRepairs(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  return autoRepairOn(s) && ps?.owner === 'player' && !ps.noAutoRepair;
+}
+
+/** Skip a plot of yours from Auto-Repair, or take it back on. */
+export function toggleAutoRepair(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player' || !autoRepairOn(s)) return false;
+  if (ps.noAutoRepair) delete ps.noAutoRepair; else ps.noAutoRepair = true;
+  return true;
+}
+
+/** Closing time: Auto-Repair books the fixes your plots need, the worst first, as far as the cash goes. Plots you skip
+ * wait for you. */
+function autoRepair(s: GameState): void {
+  if (!autoRepairOn(s)) return;
+  const due = PLOTS.filter((p) => autoRepairs(s, p.id) && isDamaged(s.plots[p.id]))
+    .sort((a, b) => hpShare(s.plots[a.id]) - hpShare(s.plots[b.id]));
+  let n = 0, paid = 0;
+  for (const p of due) {
+    const cost = repairCost(s, p.id);
+    if (!approveRepair(s, p.id)) continue;
+    n++;
+    paid += cost;
+  }
+  if (n) s.news.push(`Auto-Repair: ${n} fix${n === 1 ? '' : 'es'} booked for tonight, ${money(paid)}. Good as new at dawn.`);
+}
+
+/** Closing time: Auto-Repair books your fixes; each rival books the repairs it can spare the cash for (the bill plus
+ * $500 in hand), paid now and done by dawn, the same as yours. */
 export function damageAtClose(s: GameState): void {
+  autoRepair(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (!ps.owner || ps.owner === 'player' || ps.repair || !isDamaged(ps)) continue;
@@ -198,5 +236,6 @@ export function migrateDamage(s: GameState): void {
     }
     const r = ps.repair as Partial<Repair> | undefined;
     if (r !== undefined && (!r || typeof r !== 'object' || typeof r.by !== 'string' || typeof r.cost !== 'number' || typeof r.hp !== 'number' || !b || isWrecked(ps))) delete ps.repair;
+    if (ps.noAutoRepair !== undefined && (ps.noAutoRepair !== true || ps.owner !== 'player')) delete ps.noAutoRepair;
   }
 }

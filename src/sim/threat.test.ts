@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLOSE, HQS, LOTTIES_CORNER, NIGHT_END, newGame, nightStep, onYou, planNight, PLOTS, RAID_PARTY, RAIDS_PER_WEEK, raidCount, raidsCounted,
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
-  customDefaults, DEX, difficultyOf, fightRaid, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
+  customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 
@@ -246,7 +246,7 @@ describe('the tutorial raid comes once a run', () => {
   });
 });
 
-describe('Respect keeps a beaten rival off you for the whole spell', () => {
+describe('Respect and truces keep a rival off you for the whole spell', () => {
   /** Day 30's Evening at Threat 4 where only the Blenders may raid you (the others back off for good), with cash. */
   function blendersOnly(difficulty: Difficulty, custom?: CustomDifficulty): GameState {
     const s = evening(4, difficulty, 61);
@@ -278,4 +278,30 @@ describe('Respect keeps a beaten rival off you for the whole spell', () => {
     }
   });
 
+  it('a Truce made on Day D keeps its rival off every night through D+6, even with no Respect on record, and it may come on D+7', () => {
+    const s = blendersOnly('cutthroat');
+    Object.assign(s, { phase: 'prep', cash: 1e5 });
+    const D = s.day;
+    expect(makeTruce(s, 'blenders')).toBe(true);
+    for (let night = D; night <= D + 7; night++) expect([night - D, raidedOn(s, night)]).toEqual([night - D, night === D + 7]);
+    s.rivals.blenders.respectUntil = 0; // the truce bars it by itself
+    for (const night of [D, D + 6]) expect(raidedOn(s, night)).toBe(false);
+    expect(raidedOn(s, D + 7)).toBe(true);
+  });
+
+  it('the tutorial raid keeps a Truce too: the next rival sends the pair, and with every rival in one it waits', () => {
+    const truced = (ids: RivalId[]) => {
+      const s = newGame(51);
+      Object.assign(s, { phase: 'report', minute: CLOSE, raids: [], day: TUTORIAL_RAID_DAY });
+      for (const id of ids) s.rivals[id].truceUntil = s.day;
+      planNight(s);
+      return s.raids.filter((r) => onYou(s, r));
+    };
+    expect(truced([]).map((r) => [r.attacker, r.tutorial])).toEqual([['blenders', true]]);
+    const other = truced(['blenders']);
+    expect(other).toHaveLength(1);
+    expect(other[0].tutorial).toBe(true);
+    expect(other[0].attacker).not.toBe('blenders');
+    expect(truced(Object.keys(newGame(1).rivals) as RivalId[])).toEqual([]);
+  });
 });

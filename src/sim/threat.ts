@@ -14,7 +14,7 @@ import { PLOT_BY_ID, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { guardFighter, hasBuilding, raidParty, threatLevel, TUTORIAL_RAID_DAY, type Guard, type Raid } from './crew.ts';
 import { targetScore } from './rivalAi.ts';
-import { HQS } from './rivals.ts';
+import { HQS, inTruce } from './rivals.ts';
 import { difficulty } from './modes.ts';
 import { hhmm, onYou, raidStart, travelMinutes } from './night.ts';
 
@@ -27,9 +27,10 @@ export const TUTORIAL_CALL = 'Bro. Your stand is in my sun.';
 
 // ---------- how many, and who ----------
 
-/** A rival may raid you tonight: it's still in and isn't backing off after a raid of its you beat (beaten on night D,
- * it sits out nights D+1 to D+R and may come again on D+R+1, R the difficulty's Respect days). */
-export const mayRaidYou = (s: GameState, id: RivalId) => s.rivals[id].alive && s.rivals[id].respectUntil <= s.day;
+/** A rival may raid you tonight: it's still in, isn't backing off after a raid of its you beat (beaten on night D,
+ * it sits out nights D+1 to D+R and may come again on D+R+1, R the difficulty's Respect days), and isn't in a Truce
+ * (made on Day D, no raids through the night of D+6). */
+export const mayRaidYou = (s: GameState, id: RivalId) => s.rivals[id].alive && s.rivals[id].respectUntil <= s.day && !inTruce(s, id);
 
 /** Raids on you per week right now: by Threat (1 / 2 / 3 / 4 / 6), × the difficulty (Laid Back ×0.5, Cutthroat ×1.5,
  * Custom's slider). */
@@ -61,10 +62,9 @@ function weakest(s: GameState, rival: RivalId, mine: Plot[], taken: Set<string>)
 
 /** The scripted first raid on you: two Smoothie Bros with bare fists, announced, for a Shakedown, straight at Dex.
  * It always bounces (withDex, tutorialBounce). Brock calls first. */
-function tutorialRaid(s: GameState, rng: Rng, mine: Plot[]): Raid {
+function tutorialRaid(s: GameState, rng: Rng, mine: Plot[], rival: RivalId): Raid {
   const dex = s.guards.find((g) => g.name === DEX && g.post && s.plots[g.post]?.owner === 'player' && hasBuilding(s.plots[g.post]));
-  const target = dex ? PLOT_BY_ID[dex.post!] : weakest(s, 'blenders', mine, new Set());
-  const rival: RivalId = s.rivals.blenders.alive ? 'blenders' : RIVALS.find((r) => s.rivals[r].alive) ?? 'blenders';
+  const target = dex ? PLOT_BY_ID[dex.post!] : weakest(s, rival, mine, new Set());
   const party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
   const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
   const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
@@ -97,7 +97,11 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const u = nextRandom(rng);
   const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
   if (s.day <= NO_RAID_DAYS || !mine.length) return [];
-  if (!tutorialDone(s)) return tutorialNight(s) && RIVALS.some((r) => s.rivals[r].alive) ? [tutorialRaid(s, rng, mine)] : [];
+  if (!tutorialDone(s)) {
+    // Brock's Bros; if the Blenders are out or in a Truce with you, the next rival who may raid sends the same two.
+    const rival = (['blenders', ...RIVALS] as RivalId[]).find((r) => mayRaidYou(s, r));
+    return tutorialNight(s) && rival ? [tutorialRaid(s, rng, mine, rival)] : [];
+  }
   const n = raidCount(weeklyRaids(s) / 7, u);
   const out: Raid[] = [];
   const taken = new Set<string>();

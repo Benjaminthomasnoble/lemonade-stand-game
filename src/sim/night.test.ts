@@ -426,6 +426,15 @@ describe('Delivery Raids', () => {
     expect(s.news.filter((n) => n.includes('Test Star picks up'))).toHaveLength(1);
   });
 
+  it('no rival in a Truce with you sends one', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const { s } = pickupGame(seed);
+      for (const id of Object.keys(s.rivals) as RivalId[]) Object.assign(s.rivals[id], { truceUntil: s.day, respectUntil: 0 });
+      while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+      expect(s.raids.some((x) => x.delivery)).toBe(false);
+    }
+  });
+
   it('a pickup still loading keeps loading across a save', () => {
     const { s, r } = raidedPickup();
     const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;

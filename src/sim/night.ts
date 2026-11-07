@@ -21,7 +21,7 @@ import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
-import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
+import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
@@ -394,7 +394,7 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   if (!isVip(o.tier) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
-  const rivals = RIVALS.filter((r) => s.rivals[r].alive && s.rivals[r].respectUntil <= s.day);
+  const rivals = RIVALS.filter((r) => mayRaidYou(s, r)); // not backing off after a beaten raid, nor in a Truce
   const rival = rivals[Math.floor(nextRandom(rng) * rivals.length)];
   s.seed = rng.seed;
   if (roll >= DELIVERY_RAID_CHANCE || !rival) return null;

@@ -4,7 +4,7 @@
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
 import {
-  AUTO_RESTOCK_DAY, averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
+  averageStopChance, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
@@ -506,7 +506,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     const servings = servingsAvailable(st);
-    if (servings === 0 && !st.autoRestock && !st.wrecked) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
+    if (servings === 0 && !st.autoRestock && !st.wrecked && taught(s, 'market')) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons and sugar!</b></div>`);
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
   }
 
@@ -567,7 +567,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
     };
-    const restock = s.day >= AUTO_RESTOCK_DAY ? `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>` : '';
+    const restock = `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>`;
     const n = playerStands(s).length;
     return `<div class="cl-tray">
       ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>` : ''}
@@ -575,7 +575,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${cents(ceiling)}: past it, buyers walk off. Costs you ${cents(cost)} a cup. Tap to price at the top"><b data-testid="price">${cents(st.price)}</b><i data-testid="ceiling">top ${cents(ceiling)}</i></div>
         <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>
         <div class="cl-row cl-crowd" data-action="inspect" data-plot="${plotId}" title="About ${Math.round(stop * 100)}% of ~${Math.round(people)} walkers stop: ~${cups} cups. Tap for the math">${[0, 1, 2, 3, 4].map((i) => `<i aria-pressed="${i < lit}">${ART.head(i)}</i>`).join('')}</div></div>
-      <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div>${restock}</div>
+      ${taught(s, 'market') ? `<div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div>${restock}</div>` : ''}
       <button class="cl-open" data-action="open" data-testid="open" aria-label="Open ${n > 1 ? 'all stands' : 'the stand'}" title="Open at ${clock(OPEN)}"><span class="cl-btn"></span>${tape('OPEN', 'cl-t-open')}</button>
     </div>`;
   }

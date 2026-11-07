@@ -7,11 +7,12 @@
 // at the next dawn. Sandbox and Endless have no acts. This module also holds
 // the lessons (Act 1's one system a day) and the story's hooks into the day:
 // dawn, every few minutes, closing. Pure, like the rest of the sim.
-import { ACT_BY_RANK, ACTS, LESSON_DAY, type RivalId } from './balance.ts';
+import { ACT_BY_RANK, ACTS, CUPS_PER_PITCHER, LESSON_DAY, type RivalId, type SupplyId } from './balance.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID } from './map.ts';
 import { alert } from './alerts.ts';
-import type { GameState } from './economy.ts';
+import type { GameState, Stand } from './economy.ts';
+import { expectedCups, pitcherNeeds, playerStands, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, scenesAtDawn } from './scenes.ts';
@@ -42,6 +43,37 @@ export const lessonsOn = (s: GameState) => s.settings.lessons !== false;
 export const taught = (s: GameState, lesson: keyof typeof LESSON_DAY) => !lessonsOn(s) || s.day >= LESSON_DAY[lesson];
 /** Today is the guards lesson: Dex turns up unposted, and stationing him is the goal. */
 export const dexLesson = (s: GameState) => lessonsOn(s) && s.day === LESSON_DAY.crew;
+/** Days 1–2: Lottie stocks your stands, and the Market waits for Day 3's lesson (from then on you buy your own). */
+export const lottieStocks = (s: GameState) => !taught(s, 'market');
+
+/** Lottie's own stock goes on the shelf at no cost to you: your cash stays put, and so does Net Worth. */
+function gift(st: Stand, id: SupplyId, qty: number, day: number): void {
+  const inv = st.inventory;
+  if (id === 'lemons') { inv.lemons.push({ qty, day, unitCost: 0 }); return; }
+  const key = id === 'sugar' ? 'sugarCost' : 'iceCost';
+  inv[key] = (inv[id] * inv[key]) / (inv[id] + qty);
+  inv[id] += qty;
+}
+
+/**
+ * Days 1–2 (spec "Supplies": Lottie stocks your table): each Morning Prep she fills every stand you own up to the
+ * forecast day's expected sales, Auto-Restock's suggested target, in whole pitchers and as storage allows. A stand
+ * built during Morning Prep gets its share at once (storyAfterAct).
+ */
+export function lottieStocksStands(s: GameState): void {
+  if (!lottieStocks(s) || s.phase !== 'prep') return;
+  for (const p of playerStands(s)) {
+    const st = s.plots[p.id].stand!;
+    if (st.wrecked) continue;
+    const cups = Math.max(CUPS_PER_PITCHER, Math.ceil(expectedCups(s, p.id, s.forecast) / CUPS_PER_PITCHER) * CUPS_PER_PITCHER);
+    const n = pitcherNeeds(st), room = standLevel(st).storage;
+    const want: Record<SupplyId, number> = { lemons: (cups / CUPS_PER_PITCHER) * n.lemons, sugar: (cups / CUPS_PER_PITCHER) * n.sugar, ice: cups * n.icePerCup };
+    for (const id of Object.keys(want) as SupplyId[]) {
+      const add = Math.min(want[id], room[id]) - stock(st, id);
+      if (add > 0) gift(st, id, add, s.day);
+    }
+  }
+}
 
 /** The current act: the story's in the campaign, read from rank everywhere else. */
 export function storyAct(s: GameState): number {
@@ -114,10 +146,20 @@ function dexOnDuty(s: GameState): void {
   alert(s, { kind: 'note', text: `Dex: "Nobody posted me. I took ${home === LOTTIES_CORNER ? 'the Corner' : PLOT_BY_ID[home].name.replace(/ lot /, ' ')}."`, plot: home });
 }
 
+/** A new run's first Morning Prep (newGame): Lottie stocks the Corner, and the campaign opens on her scene. */
+export function storyAtStart(s: GameState): void {
+  migrateStory(s);
+  lottieStocksStands(s);
+  scenesAtDawn(s);
+}
+
 /** Dawn (one line in sleepUntilDawn): the act may turn, the day's goals and scenes arrive, bosses' moods are read. */
 export function storyAtDawn(s: GameState): void {
   migrateStory(s);
   advanceAct(s);
+  lottieStocksStands(s);
+  // Day 3's lesson: the Market opens, and Auto-Restock with it.
+  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today you buy your own. Or flip on Auto, and I\'ll do the market runs."');
   goalsAtDawn(s);
   scenesAtDawn(s);
   phoneCheck(s, true);
@@ -137,8 +179,9 @@ export function storyAtClose(s: GameState): void {
   phoneAtClose(s);
 }
 
-/** After anything the player does (main.ts): a goal met by a purchase ticks off at once. */
+/** After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Days 1–2 gets Lottie's stock. */
 export function storyAfterAct(s: GameState): void {
+  lottieStocksStands(s);
   checkGoals(s);
   phoneCheck(s);
 }

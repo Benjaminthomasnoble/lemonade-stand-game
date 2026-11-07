@@ -281,7 +281,7 @@ export const RANKS = [
 // ---------- land (section 10) ----------
 export const PROPERTY_TAX_WEEKLY = 0.005;
 export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops
-export const AUTO_RESTOCK_DAY = 3;
+export const AUTO_RESTOCK_DAY = 3; // the Market and Auto-Restock open with Day 3's lesson; Lottie stocks your stands before it
 
 // ---------- rivals (section 13) ----------
 export type RivalId = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
@@ -496,7 +496,7 @@ export const GOAL_REWARD = { short: { share: 0.1, min: 5 }, medium: { share: 0.2
 /** The day's short goal: sell this share of the cups every stand should sell on the forecast. */
 export const SALES_GOAL_SHARE = 0.9; // placeholder: spec gap (the walkthrough's 1,200 cups across 5 stands on Day 12)
 /** Lessons (spec "One system a day"): the day each system's buttons appear. Switched off, buttons follow rank alone. */
-export const LESSON_DAY = { recipes: 2, forecast: 2, upgrade: 4, rank: 4, threat: 5, defense: 5, crew: 6, marketing: 7, land: 8 } as const;
+export const LESSON_DAY = { recipes: 2, forecast: 2, market: AUTO_RESTOCK_DAY, upgrade: 4, rank: 4, threat: 5, defense: 5, crew: 6, marketing: 7, land: 8 } as const;
 /** A boss phones when their Grudge toward you jumps this much at once (a raid on them adds 8 or 20). */
 export const PHONE_GRUDGE_JUMP = 8; // placeholder: spec gap ("a mood shift")
 /** ...or their Attention on you, beyond Threat, rises this much from one dawn to the next (one more district of yours on their border). */

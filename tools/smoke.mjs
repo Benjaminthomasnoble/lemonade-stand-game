@@ -32,9 +32,10 @@ try {
   await page.waitForSelector('[data-testid="prep"]');
   console.log('backend:', await page.evaluate(() => window.__game.backend));
 
-  for (const id of ['lemons', 'lemons', 'sugar', 'sugar', 'ice', 'ice', 'ice']) {
-    await page.click(`[data-action="buy"][data-id="${id}"][data-packs="1"]`);
-  }
+  // Days 1-2: Lottie stocks the table, and the Market waits for Day 3's lesson.
+  const stocked = await page.evaluate(() => { const st = window.__game.state.plots[window.__game.state.selected].stand; return st.inventory.lemons.length > 0 && st.inventory.sugar > 0 && st.inventory.ice > 0; });
+  if (!stocked) fail('Lottie did not stock the table on Day 1');
+  if (await page.$('[data-action="buy"]')) fail('the Market shows before Day 3');
   await page.screenshot({ path: 'test-results/1-prep.png' });
   await page.click('[data-testid="open"]');
   await page.waitForSelector('[data-testid="daybar"]');

@@ -40,7 +40,7 @@ describe('economy', () => {
   });
 
   it('buying supplies costs cash and respects storage', () => {
-    const s = newGame(1);
+    const s = newGame(1, { lessons: false }); // lessons on, Lottie stocks the table on Days 1-2 (story.test.ts)
     const st = selectedStand(s);
     expect(buySupply(s, 'lemons', 1)).toBe(true);
     expect(stock(st, 'lemons')).toBe(20);
@@ -64,7 +64,7 @@ describe('economy', () => {
   });
 
   it('with no stock thirsty people are turned away and reputation drops', () => {
-    const s = newGame(7);
+    const s = newGame(7, { lessons: false }); // you buy your own from Day 1
     openStand(s);
     simulateRestOfDay(s);
     expect(s.today.customers).toBe(0);
@@ -73,7 +73,7 @@ describe('economy', () => {
   });
 
   it('lemons spoil after 3 days', () => {
-    const s = newGame(9);
+    const s = newGame(9, { lessons: false }); // you buy your own from Day 1
     buySupply(s, 'lemons', 1);
     for (let d = 0; d < 3; d++) { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); }
     expect(stock(selectedStand(s), 'lemons')).toBe(0);

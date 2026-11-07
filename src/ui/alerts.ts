@@ -7,6 +7,7 @@ import {
   canBuyPerimeter, clockText, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
+import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
 import { bellEta, canRingBell } from '../sim/reinforce.ts';
 
@@ -54,11 +55,11 @@ function warning(s: GameState, a: Alert, r: Raid): string {
     <span class="cl-acts">${btn('goto', 'Go there', `data-plot="${r.target}"`)}${fix}</span></div>`;
 }
 
-function card(a: Alert): string {
+function card(s: GameState, a: Alert): string {
   const vip = a.kind === 'vip' || a.kind === 'pickup';
   const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
   // The one action: Restock now on a sold-out stand; Watch on a VIP card (a first arrival's show waits for it).
-  const act = a.kind === 'soldout' && a.plot ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')
+  const act = a.kind === 'soldout' && a.plot && taught(s, 'market') ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go') // the Market opens on Day 3
     : vip && a.scene ? btn('watch', `${A.glyph('play')} Watch`, `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
   return `<div class="cl-ticket" title="${esc(a.text)}">${icon}<b>${esc(a.text.replace(/!$/, ''))}</b>
     <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', A.glyph('close'), `data-id="${a.id}" title="Dismiss" aria-label="Dismiss"`, 'tiny ghost')}</span></div>`;
@@ -80,7 +81,7 @@ export function alertCards(s: GameState): string[] {
     }
     const small = a.kind === 'soldout' || a.kind === 'note' || (a.kind === 'pickup' && !a.scene);
     if (small && (a.day !== s.day || s.minute - a.minute > ALERT_LIFE)) continue;
-    out.push(card(a));
+    out.push(card(s, a));
   }
   // A raid warning or a VIP's Watch keeps its strip: the one tap it offers can't hide.
   let shown = 0;

@@ -4,7 +4,7 @@
 // Covers every stand on the Citrine Bay map: the player's and the rivals'.
 import { nextRandom, randomRange } from './rng.ts';
 import {
-  AUTO_RESTOCK_DAY, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
+  BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
   DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
@@ -32,7 +32,7 @@ import {
   campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
   migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
-import { migrateStory, storyAtClose, storyAtDawn, storyMinute, type StoryState } from './story.ts';
+import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, taught, type StoryState } from './story.ts';
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
@@ -351,7 +351,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
   migrateWorld(s);
   s.today = emptyStats(s);
   s.peakScore = successScore(s);
-  migrateStory(s);
+  storyAtStart(s); // the story's parts, and Lottie stocks the Corner for Day 1
   return s;
 }
 
@@ -547,7 +547,7 @@ export function openStands(s: GameState): boolean {
     if (!st) continue;
     st.day = emptyStandDay();
     st.queue = 0;
-    if (s.plots[p.id].owner === 'player' && st.autoRestock && s.day >= AUTO_RESTOCK_DAY) autoRestock(s, p.id);
+    if (s.plots[p.id].owner === 'player' && st.autoRestock && taught(s, 'market')) autoRestock(s, p.id); // the Market's lesson (Day 3)
   }
   return true;
 }
@@ -809,7 +809,6 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   fortunesAtDawn(s);
   nightsAtDawn(s);
   storyAtDawn(s);
-  if (s.day === AUTO_RESTOCK_DAY) s.news.push('Lottie: "Tired of hauling lemons? Flip on Auto-Restock and I\'ll handle the market runs."');
   return true;
 }
 

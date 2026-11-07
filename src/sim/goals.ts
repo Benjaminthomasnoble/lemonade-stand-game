@@ -314,7 +314,7 @@ export function goalsNow(s: GameState): Goal[] {
     const done = g.done || !!s.goals?.done.includes(g.id);
     const st = ownStand(s);
     // First things first at Morning Prep: an empty stand needs stock (a nudge, not a goal: it pays nothing).
-    if (slot === 'short' && !done && s.phase === 'prep' && st && servingsAvailable(st) === 0 && !st.autoRestock) {
+    if (slot === 'short' && !done && s.phase === 'prep' && st && servingsAvailable(st) === 0 && !st.autoRestock && taught(s, 'market')) {
       return { text: 'Buy lemons and sugar', progress: 0, done: false, slot };
     }
     return { text: g.text, progress: done ? 1 : g.progress, done, story: g.story, slot, reward: goalReward(s, slot) };

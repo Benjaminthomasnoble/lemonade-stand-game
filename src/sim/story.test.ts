@@ -303,7 +303,7 @@ describe("Lottie's goals", () => {
 
   it('pay once when ticked off, and scale with the empire', () => {
     const s = newGame(22);
-    expect(goalsNow(s)[0].text).toBe('Buy lemons and sugar'); // first things first at Morning Prep
+    expect(goalsNow(s)[0].text).toBe('Sell out your first pitcher'); // Lottie stocked the table: price is today's lesson
     expect(s.goals!.slots.short).toBe('lesson-pitcher');
     const cash = s.cash;
     s.today.customers = CUPS_PER_PITCHER;

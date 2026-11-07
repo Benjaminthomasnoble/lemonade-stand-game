@@ -18,7 +18,7 @@ import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
 import { taught } from '../sim/story.ts';
 import { corkboardBody } from './corkboard.ts';
-import { orderWhen, recipeOf } from './orders.ts';
+import { bidNote, matchButton, orderWhen, recipeOf } from './orders.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -117,9 +117,9 @@ function orders(s: GameState): string {
     const recipe = RECIPES[recipeOf(s, o)].label; // world: the client's recipe, a Local Order its stand's (src/ui/orders.ts)
     const due = orderWhen(s, o, waiting); // world: the deadline, or how far a job you took has loaded
     const risk = deliveryRaidRisk(s, o);
-    const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button><button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks">✕</button></span>` : '';
+    const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button>${matchButton(s, o)}<button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks">✕</button></span>` : '';
     return `<div class="cl-ticket order${risk ? ' warn' : ''}" data-testid="order-card" title="${esc(`${ORDER_TIERS[o.tier].label} for ${o.client}${waiting ? `; offer good till day ${o.expires}` : '; accepted'}`)}">
-      <b>${esc(o.client)}: ${whole(o.pay)}</b><span class="cl-note">${o.qty.toLocaleString('en-US')} ${unit} of ${recipe} · ${due}${risk ? ' · Delivery Raid possible' : ''}</span>${acts}</div>`;
+      <b>${esc(o.client)}: ${whole(o.pay)}</b><span class="cl-note">${o.qty.toLocaleString('en-US')} ${unit} of ${recipe} · ${due}${risk ? ' · Delivery Raid possible' : ''}${waiting ? esc(bidNote(s, o)) : ''}</span>${acts}</div>`;
   };
   const body = [...s.offers.map((o) => card(o, true)), ...s.orders.map((o) => card(o, false))].join('');
   return sheet('orders', 'Order Book', body || row('<span class="cl-note">No offers yet. They come with the Bugle.</span>'));

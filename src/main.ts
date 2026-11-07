@@ -631,7 +631,7 @@ async function main() {
       case 'fight': if (a.cmd === 'rally' || a.cmd === 'fallBack') fightCommand(state, a.cmd); break;
       case 'bell': ringTheBell(state, a.raid); break;
       case 'facility': if (a.kind === 'clubhouse') buildClubhouse(state, a.plot); else buildFacility(state, a.plot, a.kind); break;
-      case 'accept': acceptOrder(state, a.id); break;
+      case 'accept': acceptOrder(state, a.id, a.match); break;
       case 'decline': declineOrder(state, a.id); break;
       case 'entry': setTasteOffEntry(state, a); break;
       case 'sponsor': sponsorFestival(state, a.festival); break;

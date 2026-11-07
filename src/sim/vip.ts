@@ -1,11 +1,11 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, RANKS, RECIPES, type RecipeId } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
-import { hasTrophy } from './rivals.ts';
+import { FIZZCO_PLANT, hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
@@ -36,7 +36,11 @@ export interface Order {
   loading?: number; // the bottles on the trip a Delivery Raid is holding, until it's fought
   loads?: number; // a Supply Deal: its weekly loads, each due a week after the last
   recipe?: RecipeId; // what the client wants bottled (older orders: Classic); a Local Order pours its stand's card
+  bid?: OrderBid; // an offer a rival bids for too: the client weighs both when you take it
 }
+
+/** A rival's bid for the same contract: its price and the days it needs to deliver. */
+export interface OrderBid { rival: RivalId; pay: number; days: number }
 
 // ---------- tunables (starting values; the balance thread replaces these) ----------
 
@@ -95,6 +99,18 @@ export const TRIPS_PER_DAY: Record<'helipad' | 'pier', number[]> = { helipad: [1
 export const DELIVERY_RAID_THREAT = 3;
 export const DELIVERY_RAID_CHANCE = 0.3;
 export const MAX_OFFERS = 4;
+/** Rival bids for VIP contracts (spec: VIP clients, "Rivals also bid for contracts, and the client weighs price, delivery
+ * time and Reputation; FizzCo, with the Harbor's Docks and bottling plant, bids hardest"). Placeholders, as the spec gives
+ * no numbers: the chance each rival bids on a VIP offer, how far under the client's price it goes, the share of the
+ * order's window it needs to deliver, and the share of its price it keeps when the job goes to it. */
+export const RIVAL_BID = { chance: 0.15, under: 0.05, window: 0.75, margin: 0.05 };
+/** FizzCo's bid while it holds the Harbor bottling plant (without it, FizzCo bids like the rest). */
+export const FIZZCO_BID = { chance: 0.5, under: 0.15, window: 0.25 };
+/** A bidder's Reputation, until rivals carry a star rating of their own (placeholder). */
+export const RIVAL_BID_STARS: Record<RivalId, number> = { sourwood: 4, hollis: 3.5, fizzco: 3.5, coldbrew: 3, blenders: 3 };
+/** How the client weighs a bid, in stars: its Reputation, a star for each 10% under the client's price, a quarter star
+ * off for each day it takes. */
+export const BID_WEIGHTS = { tenPercent: 1, day: 0.25 };
 /** Once a facility tier stands, its client type offers a job at least this often. */
 export const VIP_MAX_GAP = 10;
 /** A Supply Deal ships in weekly loads (4 of 50,000 bottles). */
@@ -222,7 +238,61 @@ function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
     const book = ownedRecipes(s);
     o.recipe = book[Math.floor(nextRandom(rng) * book.length)];
   }
+  if (isVip(tier)) rollBid(s, o, rng);
   return o;
+}
+
+/** FizzCo bids hardest while its Harbor bottling plant stands. */
+const fizzcoPlant = (s: GameState) => {
+  const ps = s.plots[FIZZCO_PLANT];
+  return ps?.owner === 'fizzco' && ps.facility?.kind === 'bottling' && !ps.facility.wrecked;
+};
+const bidTerms = (s: GameState, r: RivalId) => (r === 'fizzco' && fizzcoPlant(s) ? { ...RIVAL_BID, ...FIZZCO_BID } : RIVAL_BID);
+/** A bidder's Reputation (seam: a rival star rating, once one exists). */
+export const rivalBidStars = (_s: GameState, r: RivalId) => RIVAL_BID_STARS[r];
+/** A live bid: its rival is still in business. */
+export const liveBid = (s: GameState, o: Order) => (o.bid && s.rivals[o.bid.rival]?.alive ? o.bid : undefined);
+
+/** What the client makes of a bid, in stars: Reputation, plus its price under the client's, less the days it takes. */
+export function bidValue(o: Order, stars: number, pay: number, days: number): number {
+  return stars + BID_WEIGHTS.tenPercent * 10 * (1 - pay / o.pay) - BID_WEIGHTS.day * days;
+}
+
+/** Days you'd take to load an offer, counting today: your facility's daily rate, your spare bottles of its recipe, and
+ * what bottling adds each dawn (past its window: one day late). A Supply Deal ships on its weekly schedule whoever has it. */
+export function yourDays(s: GameState, o: Order): number {
+  const window = ORDER_TIERS[o.tier].days;
+  if (o.tier === 'deal') return window;
+  const f = o.plot ? s.plots[o.plot]?.facility : undefined;
+  const line = f && !f.wrecked ? lineOf(f) : null;
+  const rate = line ? LOADING_PER_DAY[line][f!.level - 1] ?? 0 : 0;
+  const r = orderRecipe(o);
+  const spare = bottlesOf(s, r) - s.orders.filter((x) => x.tier !== 'local' && orderRecipe(x) === r).reduce((a, x) => a + bottlesLeft(x), 0);
+  const make = ownsRecipe(s, r) ? bottlingCapacity(s) : 0;
+  for (let k = 1; k <= window; k++) if (Math.min(k * rate, Math.max(0, spare) + (k - 1) * make) >= o.qty) return k;
+  return window + 1;
+}
+
+/** Rivals bid for a VIP offer: each that's in business may, and the client keeps the strongest bid. */
+function rollBid(s: GameState, o: Order, rng: Rng): void {
+  let best: OrderBid | undefined, top = -Infinity;
+  for (const r of Object.keys(FACTIONS) as RivalId[]) {
+    if (!s.rivals[r]?.alive) continue;
+    const t = bidTerms(s, r);
+    if (nextRandom(rng) >= t.chance) continue;
+    const days = o.tier === 'deal' ? ORDER_TIERS.deal.days : Math.max(1, Math.ceil(ORDER_TIERS[o.tier].days * t.window));
+    const bid: OrderBid = { rival: r, pay: Math.round(o.pay * (1 - t.under)), days };
+    const v = bidValue(o, rivalBidStars(s, r), bid.pay, bid.days);
+    if (v > top) { best = bid; top = v; }
+  }
+  if (best) o.bid = best;
+}
+
+/** An offer with a rival's bid leaves the book without you (lost, turned down or let go): the rival does the job and keeps
+ * its margin. No star is lost. */
+function rivalTakesJob(s: GameState, o: Order): void {
+  const b = liveBid(s, o);
+  if (b) s.rivals[b.rival].cash = Math.round((s.rivals[b.rival].cash + b.pay * RIVAL_BID.margin) * 100) / 100;
 }
 
 /** At dawn: production, expiring offers, new offers. */
@@ -244,6 +314,7 @@ export function vipAtDawn(s: GameState): void {
     s.cash = round2(s.cash - make * cost);
     s.today.supplies = round2(s.today.supplies + make * cost);
   }
+  for (const o of s.offers) if (o.expires < s.day) rivalTakesJob(s, o); // an offer let go: a rival who bid does the job
   s.offers = s.offers.filter((o) => o.expires >= s.day);
   const last = (s.lastOffer ??= {});
   for (const tier of Object.keys(ORDER_TIERS) as OrderTier[]) {
@@ -264,18 +335,38 @@ export const offerChance = (_s: GameState, tier: OrderTier) => ORDER_TIERS[tier]
  * a full book lets its oldest offer go, a day early, to make room. */
 function makeOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const o = rollOffer(s, tier, rng);
-  if (s.offers.length >= MAX_OFFERS) s.offers.shift();
+  if (s.offers.length >= MAX_OFFERS) rivalTakesJob(s, s.offers.shift()!);
   s.offers.push(o);
   (s.lastOffer ??= {})[tier] = s.day;
-  if (tier === 'deal') s.news.push(`Supply Deal! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles over ${ORDER_TIERS.deal.days} days for ${money(o.pay)}, shipped weekly from your Cargo Terminal.`);
-  else if (isVip(tier)) s.news.push(`VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.`);
+  const bid = o.bid ? ` ${FACTIONS[o.bid.rival].name} bids ${money(o.bid.pay)}.` : '';
+  if (tier === 'deal') s.news.push(`Supply Deal! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles over ${ORDER_TIERS.deal.days} days for ${money(o.pay)}, shipped weekly from your Cargo Terminal.${bid}`);
+  else if (isVip(tier)) s.news.push(`VIP call! ${o.client} wants ${o.qty.toLocaleString('en-US')} bottles for ${money(o.pay)}.${bid}`);
   return o;
 }
 
-export function acceptOrder(s: GameState, id: string): boolean {
+/** Take an offer. When a rival bid for it too, the client weighs both bids: price, delivery time and Reputation (ties go
+ * to you). `match` bids the rival's price. A lost bid costs no star: the job just goes to the rival. */
+export function acceptOrder(s: GameState, id: string, match = false): boolean {
   const i = s.offers.findIndex((o) => o.id === id);
   if (i < 0) return false;
-  const o = s.offers.splice(i, 1)[0];
+  const o = s.offers[i];
+  const bid = liveBid(s, o);
+  if (bid) {
+    const price = match ? Math.min(o.pay, bid.pay) : o.pay;
+    const you = bidValue(o, s.reputation, price, yourDays(s, o));
+    const them = bidValue(o, rivalBidStars(s, bid.rival), bid.pay, bid.days);
+    if (you < them) {
+      s.offers.splice(i, 1);
+      rivalTakesJob(s, o);
+      const days = o.tier === 'deal' ? '' : `, ${bid.days} day${bid.days === 1 ? '' : 's'}`;
+      s.news.push(`Lost the bid: ${o.client} went with ${FACTIONS[bid.rival].name} (${money(bid.pay)}${days}).`);
+      return false;
+    }
+    s.news.push(`${o.client} picks you over ${FACTIONS[bid.rival].name}${price < o.pay ? ` at ${money(price)}` : ''}!`);
+    o.pay = price;
+  }
+  delete o.bid;
+  s.offers.splice(i, 1);
   o.accepted = true;
   if (o.tier === 'deal') o.loads = DEAL_LOADS; // weekly loads from the Cargo Terminal, paid at each pickup
   s.orders.push(o);
@@ -283,6 +374,7 @@ export function acceptOrder(s: GameState, id: string): boolean {
 }
 
 export function declineOrder(s: GameState, id: string): void {
+  for (const o of s.offers) if (o.id === id) rivalTakesJob(s, o);
   s.offers = s.offers.filter((o) => o.id !== id);
 }
 

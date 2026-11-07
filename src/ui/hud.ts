@@ -47,7 +47,7 @@ import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
 import { fightBar } from './fight.ts';
 import { shakedownLoot } from '../sim/loot.ts';
-import { bottleStock, orderGoods, orderTicket } from './orders.ts';
+import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -86,7 +86,7 @@ export type Action =
   | { type: 'defend'; plot: string }
   | { type: 'mute' }
   | { type: 'facility'; plot: string; kind: FacilityKind }
-  | { type: 'accept'; id: string }
+  | { type: 'accept'; id: string; match?: boolean } // world: match bids a rival's price for the contract (vip.ts)
   | { type: 'decline'; id: string }
   | { type: 'truce'; rival: RivalId }
   | { type: 'plotBuyout'; plot: string }
@@ -363,6 +363,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
       case 'accept': case 'decline': onAction({ type: d.action, id: d.id! }); break;
+      case 'match': onAction({ type: 'accept', id: d.id!, match: true }); break; // world: bid the rival's price
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
@@ -505,7 +506,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fit = o.tier === 'deal' ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
       const risk = deliveryRaidRisk(s, o) ? `<span class="cl-short" title="Rivals may raid this pickup">${ART.raid()}</span>` : '';
       t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${esc(orderGoods(s, o))} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
-        <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${btn('decline', '✕', { ok: true }, `data-id="${o.id}" title="No thanks"`, 'ghost')}</span></div>`);
+        <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${matchButton(s, o)}${btn('decline', '✕', { ok: true }, `data-id="${o.id}" title="No thanks"`, 'ghost')}</span></div>`);
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     const servings = servingsAvailable(st);

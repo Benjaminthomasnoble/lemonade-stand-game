@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, DELIVERY_WINDOW,
-  FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, openStand, ORDER_TIERS, owedBy, ownsRecipe,
-  PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, simulateRestOfDay, sleepUntilDawn, stock, tripLoad,
-  tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, type GameState, type Order,
+  acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder, DELIVERY_WINDOW,
+  FAILED_ORDER_STARS, FIZZCO_BID, FIZZCO_PLANT, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, openStand, ORDER_TIERS,
+  owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, simulateRestOfDay,
+  sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, yourDays, type GameState, type Order, type OrderBid,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -292,7 +292,7 @@ describe('VIP clients', () => {
     buildFacility(s, dock.id, 'pier'); // the Cargo Terminal, at Morning Prep
     expect(s.offers.filter((o) => o.tier === 'deal')).toHaveLength(1);
     expect(s.lastOffer!.deal).toBe(s.day);
-    expect(s.news.at(-1)).toMatch(/^Supply Deal! .+ wants 200,000 bottles over 28 days for \$6,000,000, shipped weekly from your Cargo Terminal\.$/);
+    expect(s.news.at(-1)).toMatch(/^Supply Deal! .+ wants 200,000 bottles over 28 days for \$6,000,000, shipped weekly from your Cargo Terminal\.( .+ bids \$[\d,]+\.)?$/);
     const days: number[] = [s.day];
     for (let d = 0; d < 1400; d++) {
       s.day++;
@@ -416,6 +416,96 @@ describe('VIP clients', () => {
     expect(s.orders).not.toContain(o);
     expect(o.loaded).toBe(300);
     expect(s.history.at(-1)!.revenue).toBeGreaterThanOrEqual(450); // the order is part of the day's sales
+  });
+
+  it('rivals bid for VIP contracts, and FizzCo bids hardest while it holds the Harbor bottling plant', () => {
+    const { s, field } = vipGame(31);
+    buildFacility(s, field.id, 'helipad');
+    expect(s.plots[FIZZCO_PLANT]).toMatchObject({ owner: 'fizzco', facility: { kind: 'bottling' } });
+    const seen = new Set<string>();
+    const tally = () => {
+      const bids: Record<string, number> = {};
+      for (let d = 0; d < 300; d++) {
+        s.day++;
+        vipAtDawn(s);
+        for (const o of s.offers.filter((x) => x.tier === 'heli' && !seen.has(x.id))) {
+          seen.add(o.id);
+          if (!o.bid) continue;
+          bids[o.bid.rival] = (bids[o.bid.rival] ?? 0) + 1;
+          const t = o.bid.rival === 'fizzco' && !s.plots[FIZZCO_PLANT].facility!.wrecked ? FIZZCO_BID : RIVAL_BID;
+          expect(o.bid.pay).toBe(Math.round(o.pay * (1 - t.under)));
+          expect(o.bid.days).toBe(Math.ceil(ORDER_TIERS.heli.days * t.window));
+        }
+      }
+      return bids;
+    };
+    const before = seen.size;
+    const withPlant = tally();
+    const calls = seen.size - before;
+    expect(withPlant.fizzco).toBeGreaterThan(calls * 0.35); // about half the calls
+    for (const r of ['sourwood', 'hollis', 'coldbrew', 'blenders']) expect(withPlant[r] ?? 0).toBeLessThan(withPlant.fizzco / 3);
+    s.plots[FIZZCO_PLANT].facility!.wrecked = true; // knocked out: FizzCo bids like the rest
+    const without = tally();
+    expect(without.fizzco ?? 0).toBeLessThan(withPlant.fizzco / 3);
+    expect(without.sourwood).toBeGreaterThan(0);
+  });
+
+  it('the client weighs price, delivery time and Reputation: FizzCo undercuts you, and matching its price wins it back', () => {
+    const { s, field } = vipGame(32);
+    buildFacility(s, field.id, 'helipad'); // a Pad: 2,000 bottles a day
+    s.bottles = 20000;
+    const offer = (id: string, bid: OrderBid): Order => {
+      const o: Order = { id, tier: 'heli', client: `Client ${id}`, qty: 4000, pay: 120000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'classic', bid };
+      s.offers.push(o);
+      return o;
+    };
+    const fizz: OrderBid = { rival: 'fizzco', pay: 102000, days: 1 };
+    const a = offer('a', fizz);
+    expect(yourDays(s, a)).toBe(2);
+    // You: 4.5 stars at full price over 2 days = 4.0. FizzCo: 3.5 stars, +1.5 for 15% under, -0.25 for 1 day = 4.75.
+    const cash = s.rivals.fizzco.cash, rep = s.reputation;
+    expect(acceptOrder(s, 'a')).toBe(false);
+    expect(s.offers).not.toContain(a);
+    expect(s.orders).toEqual([]);
+    expect(s.reputation).toBe(rep); // a lost bid costs no star
+    expect(s.rivals.fizzco.cash).toBe(round(cash + 102000 * RIVAL_BID.margin)); // the job, and its margin, go to FizzCo
+    expect(s.news.at(-1)).toBe('Lost the bid: Client a went with FizzCo Beverages ($102,000, 1 day).');
+    // Match its price: 4.5 + 1.5 - 0.5 = 5.5 beats 4.75.
+    const b = offer('b', fizz);
+    expect(acceptOrder(s, 'b', true)).toBe(true);
+    expect(s.orders).toContain(b);
+    expect(b.pay).toBe(102000);
+    expect(b.bid).toBeUndefined();
+    expect(s.news.at(-1)).toBe('Client b picks you over FizzCo Beverages at $102,000!');
+    // Reputation counts: Sourwood's softer bid loses to 4.5 stars at full price, and beats 3.0.
+    const sour: OrderBid = { rival: 'sourwood', pay: 114000, days: 3 };
+    offer('c', sour);
+    expect(acceptOrder(s, 'c')).toBe(true); // you 4.5 - 0.5 = 4.0; Sourwood 4 + 0.5 - 0.75 = 3.75
+    s.reputation = 3;
+    offer('d', sour);
+    expect(acceptOrder(s, 'd')).toBe(false); // you 3 - 0.5 = 2.5
+    // Turning an offer down, or letting it lapse, leaves the job to the rival who bid; one out of business takes nothing.
+    const sourCash = s.rivals.sourwood.cash;
+    offer('e', sour);
+    declineOrder(s, 'e');
+    expect(s.rivals.sourwood.cash).toBe(round(sourCash + 114000 * RIVAL_BID.margin));
+    s.rivals.fizzco.alive = false;
+    offer('f', fizz);
+    expect(acceptOrder(s, 'f')).toBe(true);
+  });
+
+  it('the Order Book card shows a rival bid and a Match button', () => {
+    const { s, field } = vipGame(33);
+    buildFacility(s, field.id, 'helipad');
+    s.bottles = 10000;
+    s.offers.push({ id: 'o9', tier: 'heli', client: 'a pop star', qty: 4000, pay: 120000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'classic', bid: { rival: 'fizzco', pay: 102000, days: 1 } });
+    const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
+    const book = menuScreen(s, 'orders', parts);
+    expect(book).toContain(' · FizzCo Beverages bids $102,000, 1 day (you: 2 days)');
+    expect(book).toContain('data-action="match" data-id="o9"');
+    expect(book).toContain('>Match $102,000</button>');
+    s.rivals.fizzco.alive = false; // out of business: the bid is gone
+    expect(menuScreen(s, 'orders', parts)).not.toContain('data-action="match"');
   });
 
   it('an order with no bottles fails and costs a star', () => {

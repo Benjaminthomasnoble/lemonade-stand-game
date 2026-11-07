@@ -4,7 +4,8 @@ import {
   runningSchemes, SCHEMES, schemesAtDawn, simulateRestOfDay, sleepUntilDawn, snipeBid, startScheme, warAt, warFront,
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
-  type GameState, type RivalId,
+  canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY,
+  type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
 
@@ -481,5 +482,82 @@ describe('FizzCo buyout offers', () => {
     s.phase = 'night';
     expect(ticket()).toContain('disabled title="Sell at Morning Prep"');
     expect(schemeNote(s, plot)).toBe(`<span class="cl-note">${bid}</span>`);
+  });
+});
+
+describe('Old Money', () => {
+  /** Act 5 at Morning Prep, with a week of sales on the books. */
+  function act5(seed: number, sales = [1000, 2000, 3000, 4000, 5000, 6000, 7000]) {
+    const s = newGame(seed);
+    s.rank = 8;
+    s.day = 110;
+    s.phase = 'prep';
+    s.cash = 50_000;
+    s.history = sales.map((revenue) => ({ revenue }) as DayStats);
+    return s;
+  }
+
+  it('Mayor Fontaine fines you half your average day\'s sales, out of the till, for Vera\'s Strike', () => {
+    const s = act5(51);
+    const strike = budgetOf(s, 'sourwood').strike;
+    const job = startScheme(s, 'sourwood', 'fine')!;
+    expect(job).toMatchObject({ kind: 'fine', by: 'sourwood', day: 110, price: 2000, done: true });
+    expect(s.cash).toBe(48_000);
+    expect(strike - budgetOf(s, 'sourwood').strike).toBeCloseTo(OLD_MONEY.fineCost, 2);
+    expect(s.alerts!.at(-1)!.text).toBe('MAYOR\'S FINE! Town Hall fines Lottie\'s Lemonade $2,000 for "unlicensed cheer".');
+    expect(s.news).toContain(`Mayor Fontaine: "${OLD_MONEY.mayor}"`);
+  });
+
+  it('a fine is at least $25 and never more than your cash, and none comes before Rank 8', () => {
+    expect(mayorsFine(act5(52, []))).toBe(OLD_MONEY.minFine);
+    const broke = act5(53);
+    broke.cash = 300;
+    expect(mayorsFine(broke)).toBe(300);
+    broke.cash = 0;
+    expect(startScheme(broke, 'sourwood', 'fine')).toBeNull();
+    const early = act5(54);
+    early.rank = 7;
+    expect(startScheme(early, 'sourwood', 'fine')).toBeNull();
+    expect(freezeLand(early)).toBeNull();
+    expect(startScheme(act5(55), 'fizzco', 'fine')).toBeNull(); // the Mayor answers to Vera
+  });
+
+  it('a land freeze stops anyone buying the plot for 3 days, and your First Dibs waits it out', () => {
+    const s = act5(56);
+    const p = PLOTS.find((q) => q.district === 'maple' && !s.plots[q.id].owner && q.type === 'street')!;
+    s.plots[p.id].dibs = { who: 'player', until: 110 };
+    const job = startScheme(s, 'sourwood', 'freeze')!;
+    expect(job).toMatchObject({ kind: 'freeze', by: 'sourwood', plots: [p.id], day: 110, until: 112 });
+    expect(s.plots[p.id].dibs!.until).toBe(113);
+    expect(landFrozen(s, p.id)).toBe(true);
+    expect(canBuyPlot(s, p.id)).toEqual({ ok: false, why: 'Town Hall froze this sale' });
+    expect(s.alerts!.at(-1)!.text).toBe(`LAND FREEZE! Town Hall freezes the sale of ${p.name} for 3 days, to protect "historic hedges."`);
+    hush(s);
+    for (const day of [111, 112]) { s.day = day; schemesAtDawn(s); expect(landFrozen(s, p.id)).toBe(true); }
+    s.day = 113;
+    schemesAtDawn(s);
+    expect(landFrozen(s, p.id)).toBe(false);
+    expect(canBuyPlot(s, p.id).ok).toBe(true); // First Dibs still holds today
+  });
+
+  it('with no dibs or bid, the freeze lands on the busiest plot you could buy; a Sit-down buyout waits too', () => {
+    const s = act5(57);
+    const job = startScheme(s, 'sourwood', 'freeze')!;
+    const busiest = PLOTS.filter((p) => !s.plots[p.id].owner && !landFrozen(s, p.id) && canBuyPlot(s, p.id).ok)
+      .reduce((m, p) => Math.max(m, p.baseTraffic), 0);
+    expect(PLOT_BY_ID[job.plots[0]].baseTraffic).toBeGreaterThanOrEqual(busiest);
+    const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && p.type !== 'hq')!.id;
+    expect(freezeLand(s, theirs)).not.toBeNull(); // the story's Act 5 freeze can name the plot
+    expect(canPlotBuyout(s, theirs)).toEqual({ ok: false, why: 'Town Hall froze this sale' });
+  });
+
+  it('on the HUD: a red ticket with the plot, days left and Go There; the plot card says the sale is frozen', () => {
+    const s = act5(58);
+    const job = startScheme(s, 'sourwood', 'freeze')!;
+    const plot = job.plots[0];
+    const ticket = schemeTickets(s).find((x) => x.includes('data-testid="freeze"'))!;
+    expect(ticket).toContain(`Sale frozen: ${PLOT_BY_ID[plot].name.replace(/'/g, '\'')}`);
+    expect(ticket).toContain(`data-action="goto" data-plot="${plot}"`);
+    expect(schemeNote(s, plot)).toBe('<span class="cl-note bad">Sale frozen</span>');
   });
 });

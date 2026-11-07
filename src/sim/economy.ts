@@ -18,7 +18,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { ceaseAndDesistCut, ceaseAndDesistIn, schemesAtDawn, type Scheme } from './schemes.ts';
+import { ceaseAndDesistCut, ceaseAndDesistIn, landFrozen, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -851,6 +851,7 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (p.type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
   if (ps.owner === 'player') return { ok: false, why: 'You own it' };
   if (ps.owner) return { ok: false, why: `Owned by ${FACTIONS[ps.owner as RivalId].name}` };
+  if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' }; // Sourwood's Old Money
   if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
   if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
   const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;

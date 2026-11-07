@@ -1,20 +1,20 @@
 // Rival schemes on the HUD (spec: Rival marketing; How rivals think): a ticket in
 // the left feed while a rival's price war runs near your stands, FizzCo's
-// Cease-and-Desist blocks your ads in a district or FizzCo's buyout offer
-// stands (Sell or No), and on the morning a smear-poster crew hits (with Free
-// Sample Day, the spec's answer, one tap away), plus a note on the plot card.
-// Plain functional controls on the HUD's ticket styles; clicks go through the
-// HUD's one listener (data-action).
+// Cease-and-Desist blocks your ads in a district, FizzCo's buyout offer stands
+// (Sell or No) or Town Hall holds a land sale frozen, and on the morning a
+// smear-poster crew hits (with Free Sample Day, the spec's answer, one tap
+// away), plus a note on the plot card. Plain functional controls on the HUD's
+// ticket styles; clicks go through the HUD's one listener (data-action).
 import {
-  canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, offerOn, PLOT_BY_ID, runningSchemes, SCHEMES, TAKEOVER, warAt,
-  type GameState, type RivalId, type Scheme,
+  canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, OLD_MONEY, offerOn, PLOT_BY_ID, runningSchemes, SCHEMES,
+  TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
 const art = (key: string, f: () => string) => { let v = memo.get(key); if (v === undefined) { v = f(); memo.set(key, v); } return v; };
-const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG), bag: () => art('bag', A.moneyBagSVG) };
+const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG), bag: () => art('bag', A.moneyBagSVG), ice: () => art('ice', A.iceSVG) };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const btn = (action: string, label: string, extra = '', cls = 'tiny', why?: string) =>
   `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
@@ -69,13 +69,23 @@ function buyout(s: GameState, offer: Scheme): string {
     + `${btn('takeover', 'No', `data-plot="${plot}" data-sell="0"`)}${btn('goto', 'Go there', `data-plot="${plot}"`)}</span></div>`;
 }
 
-/** The feed's scheme tickets: each price war, Cease-and-Desist and buyout offer running now, and this morning's posters. */
+/** Old Money: Town Hall holds a land sale frozen, days left and Go There. */
+function freeze(s: GameState, job: Scheme): string {
+  const plot = job.plots[0];
+  const left = job.until - s.day + 1;
+  const tip = `Town Hall froze the sale of ${place(plot)}, ${left} day${left === 1 ? '' : 's'} left: nobody can buy it. First Dibs you hold waits it out.`;
+  return `<div class="cl-ticket red" data-testid="freeze" title="${esc(tip)}">${ICON.ice()}<b>Sale frozen: ${esc(place(plot))}</b>
+    <span class="cl-acts">${pips(left, OLD_MONEY.freezeDays)}${btn('goto', 'Go there', `data-plot="${plot}"`)}</span></div>`;
+}
+
+/** The feed's scheme tickets: each price war, Cease-and-Desist, buyout offer and land freeze running now, and this morning's posters. */
 export function schemeTickets(s: GameState): string[] {
   const out: string[] = [];
   for (const x of runningSchemes(s)) {
     if (x.kind === 'priceWar') out.push(priceWar(s, x));
     else if (x.kind === 'cease' && x.district && ceaseAndDesistIn(s, x.district)) out.push(cease(s, x));
     else if (x.kind === 'buyout' && offerOn(s, x.plots[0]) === x) out.push(buyout(s, x));
+    else if (x.kind === 'freeze') out.push(freeze(s, x));
   }
   for (const x of s.schemes ?? []) if (x.kind === 'posters' && x.day === s.day) out.push(posters(s, x));
   return out;
@@ -87,6 +97,7 @@ export function schemeNote(s: GameState, plotId: string): string {
   if (s.plots[plotId]?.owner === 'player' && ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return '<span class="cl-note bad">Ads blocked</span>';
   const offer = offerOn(s, plotId);
   if (offer) return `<span class="cl-note">FizzCo bids ${whole(offer.price!)}</span>`;
+  if (freezeOn(s, plotId)) return '<span class="cl-note bad">Sale frozen</span>';
   const hit = (s.schemes ?? []).some((x) => x.kind === 'posters' && x.day === s.day && !x.caught && x.plots.includes(plotId));
   return hit ? '<span class="cl-note bad">Smear posters</span>' : '';
 }

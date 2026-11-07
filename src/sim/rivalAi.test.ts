@@ -6,7 +6,7 @@ import {
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
-  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn,
+  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -434,6 +434,38 @@ describe('Blender Rush', () => {
     expect(s.raids[0].party!.length).toBe(RAID_PARTY[tier - 1].size[1]);
     expect(s.raids[0].party!.every((f) => f.weapon === 'fists')).toBe(true);
     expect(s.news.some((n) => n.startsWith('Brock:'))).toBe(false); // he only phones you
+  });
+});
+
+describe('Old Money: elite Stewards', () => {
+  it('each Steward comes one henchman level up, in that level\'s gear, every weapon one tier toward hatchets', () => {
+    const s = newGame(61);
+    s.rank = 6;
+    const party = raidPartyFor(s, 'sourwood');
+    const elite = eliteStewards(party);
+    const up = { fists: 'clubs', clubs: 'hatchets', hatchets: 'hatchets' } as const;
+    elite.forEach((f, i) => {
+      expect(f.level).toBe(Math.min(5, (party[i].level ?? 1) + 1));
+      expect(f.weapon).toBe(up[party[i].weapon]);
+      expect(f.hp).toBeGreaterThan(party[i].hp);
+      expect(f.hit).toBeGreaterThanOrEqual(party[i].hit);
+      expect(f.id).toBe(party[i].id);
+    });
+  });
+
+  it('Vera sends them on her raids on you from Rank 8 (Act 5), at the next tier\'s wages', () => {
+    const raidBy = (rank: number) => {
+      const s = newGame(62);
+      s.day = 120;
+      s.rank = rank;
+      pastTutorial(s);
+      for (const id of RIVALS) budgetOf(s, id).strike = 0;
+      s.rivals.sourwood.cash = 1e7;
+      budgetOf(s, 'sourwood').strike = 1e6;
+      return nightsUntilRaid(s)!;
+    };
+    for (const f of raidBy(8).party!) { expect(f.weapon).not.toBe('fists'); expect(f.level).toBeGreaterThan(1); }
+    expect(raidBy(7).party!.some((f) => f.weapon === 'fists' || f.level === 1)).toBe(true);
   });
 });
 

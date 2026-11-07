@@ -3,30 +3,31 @@
 // "come more often with each lemon"). Each dawn a rival with no scheme running
 // may start one, paid from its Strike bucket: a price war at its stands that
 // share customers with yours, the Cold Brew Collective's smear posters on one
-// of your stands, a snipe at an auction you bid on, or FizzCo's Hostile
-// Takeover: a Cease-and-Desist on your marketing in one district, or an offer
-// to buy one of your plots. The Bugle reports each one. Pure and seeded, like
+// of your stands, a snipe at an auction you bid on, FizzCo's Hostile Takeover
+// (a Cease-and-Desist on your marketing in one district, or an offer to buy one
+// of your plots), or Sourwood's Old Money (Mayor Fontaine's fine, or a land
+// sale frozen at Town Hall). The Bugle reports each one. Pure and seeded, like
 // the rest of the sim.
 import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, Stand } from './economy.ts';
-import { ownedPlots, rivalPrice } from './economy.ts';
+import { canBuyPlot, ownedPlots, rivalPrice } from './economy.ts';
 import { detectionChance, threatLevel } from './crew.ts';
 import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend, tauntsAtDawn } from './rivalAi.ts';
-import { CEASE, inTruce, SCHEMES, TAKEOVER } from './rivals.ts';
+import { CEASE, inTruce, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { phoneCall } from './phone.ts';
 
-export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease' | 'buyout';
+export type SchemeKind = 'priceWar' | 'posters' | 'snipe' | 'cease' | 'buyout' | 'fine' | 'freeze';
 export interface Scheme {
   kind: SchemeKind;
   by: RivalId;
   day: number; // the dawn it started
   until: number; // it runs through this day
-  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot
+  plots: string[]; // a price war: the rival's stands in it; posters: your stand they hit; a snipe: the lot; a letter: your stands it hit; an offer: your plot; a freeze: the plot
   district?: DistrictId; // a Cease-and-Desist: the district it blocks
-  price?: number; // a buyout offer: what they'd pay you
+  price?: number; // a buyout offer: what they'd pay you; a fine: what you paid
   caught?: boolean; // posters: your night watch caught the crew
   cost?: number; // what Strike has paid for it so far
   done?: boolean; // over: it ran its days, Strike ran dry, or the snipe went off
@@ -44,7 +45,7 @@ const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 const PREFERS: Record<RivalId, SchemeKind[]> = {
   coldbrew: ['posters', 'priceWar', 'snipe'],
   fizzco: ['snipe', 'cease', 'buyout', 'priceWar'],
-  sourwood: ['priceWar', 'snipe'],
+  sourwood: ['priceWar', 'freeze', 'fine', 'snipe'],
   hollis: ['priceWar', 'snipe'],
   blenders: ['priceWar', 'snipe'],
 };
@@ -303,6 +304,66 @@ export function answerBuyout(s: GameState, plotId: string, sell: boolean): boole
   return true;
 }
 
+// ---------- Old Money ----------
+
+/** Is a sale of this plot frozen at Town Hall today (Sourwood's Old Money)? Nobody can buy it while it is. */
+export function landFrozen(s: GameState, plotId: string): boolean {
+  return !!s.schemes?.length && runningSchemes(s).some((x) => x.kind === 'freeze' && x.plots.includes(plotId));
+}
+/** For the HUD and tests: the freeze on a plot today, if any. */
+export const freezeOn = (s: GameState, plotId: string) => runningSchemes(s).find((x) => x.kind === 'freeze' && x.plots.includes(plotId));
+
+/** What the Mayor fines you: half your average day's sales over the last week (at least $25), never more than your cash. */
+export function mayorsFine(s: GameState): number {
+  const week = s.history.slice(-7);
+  const avg = week.length ? week.reduce((a, d) => a + d.revenue, 0) / week.length : 0;
+  return Math.min(Math.max(0, Math.floor(s.cash)), Math.max(OLD_MONEY.minFine, Math.round(avg * OLD_MONEY.fine)));
+}
+
+/** Mayor Fontaine fines you, on Vera's word: under a day's sales, straight out of the till. */
+function startFine(s: GameState, id: RivalId): Scheme | null {
+  if (id !== 'sourwood' || s.rank < OLD_MONEY.rank) return null;
+  const fine = mayorsFine(s);
+  if (fine <= 0 || !canSpend(s, id, 'strike', OLD_MONEY.fineCost)) return null;
+  spend(s, id, 'strike', OLD_MONEY.fineCost);
+  s.cash = round2(s.cash - fine); // ledger: fines (Old Money: the Mayor's fine)
+  const job: Scheme = { kind: 'fine', by: id, day: s.day, until: s.day, plots: [], price: fine, cost: OLD_MONEY.fineCost, done: true };
+  s.schemes!.push(job);
+  alert(s, { kind: 'note', text: `MAYOR'S FINE! Town Hall fines Lottie's Lemonade ${money(fine)} for "unlicensed cheer".`, plot: LOTTIES_CORNER });
+  s.news.push(`Mayor Fontaine: "${OLD_MONEY.mayor}"`);
+  return job;
+}
+
+/** The sale the Mayor freezes: a plot you hold First Dibs on, the lot you bid on, or the busiest open plot you could buy now. */
+function freezeTarget(s: GameState): string | null {
+  const open = PLOTS.filter((p) => !landFrozen(s, p.id));
+  const dibs = open.find((p) => s.plots[p.id].dibs?.who === 'player' && s.plots[p.id].dibs!.until >= s.day && !s.plots[p.id].owner);
+  if (dibs) return dibs.id;
+  const bid = open.find((p) => lotOn(s, p.id)?.bid !== undefined && lotOn(s, p.id)!.closes >= s.day);
+  if (bid) return bid.id;
+  const buyable = open.filter((p) => !s.plots[p.id].owner && canBuyPlot(s, p.id).ok);
+  return buyable.sort((a, b) => b.baseTraffic - a.baseTraffic || a.id.localeCompare(b.id))[0]?.id ?? null;
+}
+
+/**
+ * Town Hall freezes a land sale for 3 days (Sourwood's Old Money; `plotId` is the seam for story's Act 5 freeze on
+ * your Hilltop deal). Nobody can buy the plot while it's frozen; First Dibs you hold on it waits out the freeze.
+ */
+export function freezeLand(s: GameState, plotId?: string): Scheme | null {
+  const id: RivalId = 'sourwood';
+  if (!s.rivals[id].alive || s.rank < OLD_MONEY.rank) return null;
+  const plot = plotId ?? freezeTarget(s);
+  if (!plot || landFrozen(s, plot) || !canSpend(s, id, 'strike', OLD_MONEY.freezeCost)) return null;
+  spend(s, id, 'strike', OLD_MONEY.freezeCost);
+  s.schemes ??= [];
+  const job: Scheme = { kind: 'freeze', by: id, day: s.day, until: s.day + OLD_MONEY.freezeDays - 1, plots: [plot], cost: OLD_MONEY.freezeCost };
+  s.schemes.push(job);
+  const dibs = s.plots[plot].dibs;
+  if (dibs?.who === 'player' && dibs.until >= s.day) dibs.until += OLD_MONEY.freezeDays;
+  alert(s, { kind: 'note', text: `LAND FREEZE! Town Hall freezes the sale of ${PLOT_BY_ID[plot].name} for ${OLD_MONEY.freezeDays} days, to protect "historic hedges."`, plot });
+  return job;
+}
+
 // ---------- auction snipe ----------
 
 /** An open auction on a plot, as land's auctions keep it (PlotState.auction once they land; none before). */
@@ -372,7 +433,8 @@ export function startScheme(s: GameState, id: RivalId, kind: SchemeKind, rng?: R
   s.schemes ??= [];
   const r = rng ?? { seed: s.seed };
   const started = kind === 'priceWar' ? startPriceWar(s, id) : kind === 'posters' ? startPosters(s, id, r) : kind === 'snipe' ? startSnipe(s, id)
-    : kind === 'buyout' ? startBuyout(s, id) : id === 'fizzco' ? ceaseAndDesist(s) : null;
+    : kind === 'buyout' ? startBuyout(s, id) : kind === 'fine' ? startFine(s, id) : kind === 'freeze' ? (id === 'sourwood' ? freezeLand(s) : null)
+    : id === 'fizzco' ? ceaseAndDesist(s) : null;
   if (!rng) s.seed = r.seed; // called on its own: write the draws back
   return started;
 }

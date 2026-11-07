@@ -11,6 +11,7 @@ import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
+import { landFrozen } from './schemes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -118,6 +119,16 @@ export const CEASE = { rank: 6, cost: 2000, days: 3, taunt: "I'm not threatening
  * Morning Prep. Turning it down adds `snub` to Preston's Grudge (placeholders: the spec gives no numbers).
  */
 export const TAKEOVER = { rank: 6, price: 1.25, days: 2, snub: 10, taunt: "Let's circle back to you being out of business." };
+/**
+ * Old Money, Sourwood's signature move: from Rank `rank` (Act 5), Mayor Fontaine fines you `fine` of your average
+ * daily sales over the last week (at least `minFine`, never more than your cash) for `fineCost` of Vera's Strike, or
+ * freezes a land sale for `freezeDays` days for `freezeCost`. Vera's raids on you send elite Stewards: one henchman
+ * level higher, every weapon one tier toward hatchets (placeholders: the spec gives no numbers).
+ */
+export const OLD_MONEY = {
+  rank: 8, fine: 0.5, minFine: 25, fineCost: 500, freezeDays: 3, freezeCost: 1500,
+  mayor: 'I represent all of Citrine Bay. Some of it more than others.',
+};
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 
@@ -235,6 +246,7 @@ export function canPlotBuyout(s: GameState, plotId: string): Blocker {
   if (s.rank < SITDOWN_RANK) return rankNeed(SITDOWN_RANK);
   if (!ps.owner || ps.owner === 'player') return { ok: false, why: 'Pick a rival plot' };
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
+  if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' };
   if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
   const price = plotBuyoutPrice(s, plotId);
   if (s.cash < price) return { ok: false, why: `They want ${money(price)}` };

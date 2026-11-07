@@ -5,22 +5,23 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND, SEASON_WEATHER,
-  SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND,
+  SEASON_WEATHER, SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE,
-  RIVAL_UPGRADE_DAYS,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS,
+  RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
 import { raidCall } from './phone.ts';
+import { landFrozen } from './schemes.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -390,7 +391,7 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   const f = FACTIONS[id];
   const open = (plotId: string) => {
     const ps = s.plots[plotId];
-    return !ps.owner && !(ps.dibs && ps.dibs.who !== id && ps.dibs.until >= s.day);
+    return !ps.owner && !(ps.dibs && ps.dibs.who !== id && ps.dibs.until >= s.day) && !landFrozen(s, plotId);
   };
   const targets = PLOTS.filter((p) => open(p.id) && (p.type === 'street' || p.type === 'prime')
     && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');
@@ -627,6 +628,17 @@ export function pickRaider(s: GameState, rng: Rng, size: number): RivalId | null
 }
 
 const FISTWARD: Record<WeaponId, WeaponId> = { hatchets: 'clubs', clubs: 'fists', fists: 'fists' };
+const HATCHETWARD: Record<WeaponId, WeaponId> = { fists: 'clubs', clubs: 'hatchets', hatchets: 'hatchets' };
+
+/** Old Money's elite Stewards: each henchman one level higher (with that level's gear) and every weapon one tier toward hatchets. */
+export function eliteStewards(party: Fighter[]): Fighter[] {
+  return party.map((f) => {
+    const h = HENCHMEN[Math.min(HENCHMEN.length, (f.level ?? 1) + 1) - 1];
+    const weapon = HATCHETWARD[f.weapon];
+    const m = 1 + 0.1 * (h.level - 1);
+    return { ...f, level: h.level, gear: h.gear, armor: GEAR[h.gear].armor, weapon, hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m };
+  });
+}
 
 /**
  * Blender Rush: the Blenders' party for a raid at Threat tier `tier`, filled to the top of the tier's range with
@@ -683,7 +695,9 @@ export function signatureRaids(s: GameState): Raid[] {
         s.rivals.blenders.rush = s.day;
         raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)
       }
-      spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, threat));
+      const elite = raider === 'sourwood' && s.rank >= OLD_MONEY.rank; // Old Money: Vera sends her elite Stewards
+      if (elite) raid.party = eliteStewards(raid.party);
+      spend(s, raider, 'strike', raidCost(s, raider, raid.party.length, elite ? Math.min(5, threat + 1) : threat));
       kept.push(raid);
     } else {
       const tier = Math.min(3, threat + 1);

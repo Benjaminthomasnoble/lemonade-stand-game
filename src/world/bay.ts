@@ -23,7 +23,7 @@ import { createTown, townFootprints } from './town.ts';
 import { makePerson } from './people.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
-import { clayPlain, kit } from './clay/kit.ts';
+import { clayPlain, kit, reflective } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 
 export const SIDEWALK_OFFSET = STREET_HALF + 1.1;
@@ -102,6 +102,8 @@ export function createBay(scene: THREE.Scene): Bay {
   const town = new Chunks(90); // lawns, roads, sidewalks: receive shadows only
   const props = new Chunks(70); // trees, lamps, hedges: cast shadows
 
+  // Rain leaves the streets glossy: a thin wet skin over every road, shown in rain and storms.
+  const wetB = new Baker();
   // District lawns, streets with curbs, sidewalks and lane dashes.
   for (const d of DISTRICTS) {
     const x0 = d.origin[0] - 6, x1 = d.origin[0] + d.cols * PLOT_SPACING + 6;
@@ -110,6 +112,7 @@ export function createBay(scene: THREE.Scene): Bay {
     for (let x = x0; x < x1; x += 60) {
       const w = Math.min(60, x1 - x), mx = x + w / 2, B = town.at(mx, z);
       B.add(rbox(w + 0.02, 0.16, STREET_HALF * 2, 0.06), P.asphalt, { p: [mx, 0.02, z] });
+      wetB.add(new THREE.BoxGeometry(w, 0.01, STREET_HALF * 2 - 0.3), '#ffffff', { p: [mx, 0.104, z] });
       for (let k = x + 2; k < x + w - 1; k += 4) B.add(new THREE.BoxGeometry(1.3, 0.05, 0.16), P.paint, { p: [k + (hash(k) - 0.5) * 0.12, 0.11, z + (hash(k, 2) - 0.5) * 0.08], r: [0, (hash(k, 3) - 0.5) * 0.06, 0] });
       for (const side of [-1, 1]) {
         B.add(cap(0.16, w - 0.3, 1, 5), P.curb, { p: [mx, 0.1, z + side * (STREET_HALF + 0.02)], r: [0, 0, Math.PI / 2] });
@@ -143,6 +146,7 @@ export function createBay(scene: THREE.Scene): Bay {
       const x = along ? r.x + o : r.x, z = along ? r.z : r.z + o, w = along ? l + 0.02 : r.w, d = along ? r.d : l + 0.02;
       const B = town.at(x, z);
       B.add(rbox(w, 0.14, d, 0.05), P.asphalt, { p: [x, 0.0, z] });
+      wetB.add(new THREE.BoxGeometry(w - 0.3, 0.01, d - 0.3), '#ffffff', { p: [x, 0.075, z] });
       if (r.w >= 8 || r.d >= 8) for (let k = -l / 2 + 2; k < l / 2 - 1; k += 4) B.add(new THREE.BoxGeometry(1.3, 0.05, 0.16), P.paint, { p: along ? [x + k, 0.08, z] : [x, 0.08, z + k], r: [0, along ? 0 : Math.PI / 2, 0] });
     }
   }
@@ -198,6 +202,11 @@ export function createBay(scene: THREE.Scene): Bay {
     blobAt.push([x, z, 1.3]);
   }
   town.build(scene, K.world, 'town', false);
+  const wet = new THREE.Mesh(wetB.build(), reflective(new THREE.MeshStandardMaterial({ color: '#2a2746', roughness: 0.06, metalness: 0.1, transparent: true, opacity: 0.42, depthWrite: false, envMapIntensity: 1.8, polygonOffset: true, polygonOffsetFactor: -1 })));
+  wet.name = 'wet-streets';
+  wet.visible = false;
+  wet.renderOrder = 1;
+  scene.add(wet);
   props.build(scene, K.world, 'props', true);
 
   // Grass tufts and clay flowers on the open lawns (two instanced draws).
@@ -458,6 +467,7 @@ export function createBay(scene: THREE.Scene): Bay {
       flowers.visible = level < 1;
       tufts.visible = level < 2;
       blobs.visible = scene.userData.shadows === false;
+      wet.visible = s.weather.kind === 'rainy' || s.weather.kind === 'storm';
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
       let merges = 2;
       for (const [id, f] of far) {

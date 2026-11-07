@@ -12,6 +12,7 @@ import { P } from './clay/palette.ts';
 import { createPost, type ClayPost } from './clay/post.ts';
 import { buildDiorama, DESK_LAMP, PLINTH } from './diorama.ts';
 import { cloneLook, hourOf, lookAt, LOOKS, mixLook, weatherOn } from './lighting.ts';
+import { createWeather } from './weather.ts';
 
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
@@ -159,22 +160,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   halos.frustumCulled = false;
   scene.add(halos);
 
-  // Rain: one Points cloud of resin droplets that follows the camera target.
-  let seed = 7;
-  const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const rainCount = phone ? 900 : 2000;
-  const rainPos = new Float32Array(rainCount * 3);
-  for (let i = 0; i < rainCount; i++) {
-    rainPos[i * 3] = (rng() - 0.5) * 70;
-    rainPos[i * 3 + 1] = rng() * 25;
-    rainPos[i * 3 + 2] = (rng() - 0.5) * 70;
-  }
-  const rainGeo = new THREE.BufferGeometry();
-  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-  const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xd8f2f4, size: 0.12, transparent: true, opacity: 0.75 }));
-  rain.visible = false;
-  rain.frustumCulled = false;
-  scene.add(rain);
+  // Weather looks: beaded-fishing-line rain, storm cups and lightning, scorcher shimmer (weather.ts).
+  const weatherFx = createWeather(scene, phone);
 
   // Bay View people: every figure (anything with userData.limbs at the top of the scene) draws as one clay speck in one instanced draw.
   const SPECKS = 400;
@@ -321,17 +308,10 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       const pr = renderer.getPixelRatio();
       post.tilt(phone ? 0 : (2.6 - 1.9 * z) * pr, L.vig * (1 - 0.25 * z), 0.5);
 
-      rain.visible = weather === 'rainy' || weather === 'storm';
-      rain.position.set(t.x, 0, t.z);
-      if (rain.visible) {
-        const p = rainGeo.attributes.position as THREE.BufferAttribute;
-        for (let i = 0; i < rainCount; i++) {
-          let y = p.getY(i) - dt * 16;
-          if (y < 0) y += 25;
-          p.setY(i, y);
-        }
-        p.needsUpdate = true;
-      }
+      // Weather, and the desk lamp flickering for lightning in a storm.
+      const flash = weatherFx.update(dt, weather, t, dist);
+      if (flash > 0) { hemi.intensity += flash * 1.6; sun.intensity += flash * 2.2; renderer.toneMappingExposure += flash * 0.25; }
+      scene.userData.weather = weather;
     },
     render() {
       renderer.info.reset();

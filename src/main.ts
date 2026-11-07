@@ -3,7 +3,7 @@ import './screens.css';
 import * as THREE from 'three';
 import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
-  runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
+  runCampaign, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
@@ -332,7 +332,7 @@ async function main() {
     if (state.phase === 'report') eveningWait = 0; // the Evening is a moment after the last thing you did
     switch (a.type) {
       case 'buy': buySupply(state, a.id, a.packs); break;
-      case 'recipe': setRecipe(st, a.id); break;
+      case 'recipe': pickRecipe(state, st, a.id); break;
       case 'sweet': setSweetness(st, a.value); break;
       case 'price': setPrice(st, st.price + a.delta); break;
       case 'restock': st.autoRestock = !st.autoRestock; break;

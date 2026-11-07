@@ -1,0 +1,158 @@
+// Lottie's recipe book (spec: Recipe cards; Narrative, Recipe pages): ten
+// cards, who holds each missing page and how it comes home, where each card
+// shines, the Sweetness dial and the Blender Bar. Pure functions over GameState.
+import {
+  BLENDER_BAR_TOP_PRICE, BOARDWALK_SEASON, CUP_COST, CUPS_PER_PITCHER, RECIPES, SEASON_DEMAND, SEGMENTS, SHINE_MATCH, SWEETNESS_SHIFT,
+  type RecipeId, type RivalId, type SegmentId, type Sweetness,
+} from './balance.ts';
+import { PLOT_BY_ID, type DistrictId } from './map.ts';
+import type { GameState, Stand } from './economy.ts';
+import { seasonOf } from './economy.ts';
+import { hasTrophy } from './rivals.ts';
+
+export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
+/** Classic, Pink and Mint: the 3 pages Lottie kept. */
+export const START_RECIPES = RECIPE_IDS.filter((id) => RECIPES[id].start);
+
+/** A page's holder: a rival boss, or (Lavender) Vera's old harp teacher. */
+export type PageHolder = RivalId | 'harpTeacher';
+/** Who holds each stolen page at the start (spec: Recipe pages). */
+export const PAGE_HOLDERS: Partial<Record<RecipeId, PageHolder>> = {
+  strawberry: 'blenders', frozen: 'blenders', honeyGinger: 'coldbrew', halfAndHalf: 'hollis', lavender: 'harpTeacher', sparkling: 'fizzco', secretReserve: 'sourwood',
+};
+
+/** The world lane's saved state: the recipe book. */
+export interface WorldState {
+  pages: RecipeId[]; // pages in Lottie's book: the cards you can pour
+  holders: Partial<Record<RecipeId, PageHolder>>; // who holds each page still missing
+}
+
+/** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
+export function migrateWorld(s: GameState): GameState {
+  const w = (s.world ??= { pages: [], holders: { ...PAGE_HOLDERS } });
+  w.pages ??= [];
+  w.holders ??= { ...PAGE_HOLDERS };
+  for (const id of START_RECIPES) if (!w.pages.includes(id)) w.pages.push(id);
+  for (const id of RECIPE_IDS) {
+    if (w.pages.includes(id)) delete w.holders[id];
+    else w.holders[id] ??= PAGE_HOLDERS[id];
+  }
+  // Older saves: a rival already out of the game has handed its pages back.
+  for (const id of RECIPE_IDS) {
+    const h = w.holders[id];
+    if (h && h !== 'harpTeacher' && s.rivals[h] && !s.rivals[h].alive) grantPage(s, id, true);
+  }
+  return s;
+}
+
+export function worldOf(s: GameState): WorldState {
+  return s.world ?? migrateWorld(s).world!;
+}
+
+export const ownsRecipe = (s: GameState, id: RecipeId) => (s.world?.pages ?? START_RECIPES).includes(id);
+/** The cards in Lottie's book, in book order. */
+export const ownedRecipes = (s: GameState) => RECIPE_IDS.filter((id) => ownsRecipe(s, id));
+/** Who holds a page you don't have yet (null once it's in the book). */
+export function pageHolder(s: GameState, id: RecipeId): PageHolder | null {
+  return ownsRecipe(s, id) ? null : s.world?.holders[id] ?? PAGE_HOLDERS[id] ?? null;
+}
+/** Premium pages (Mega Contracts): any won or recovered page beyond the starting three and Strawberry. */
+export const isPremium = (id: RecipeId) => !RECIPES[id].start && id !== 'strawberry';
+export const premiumPages = (s: GameState) => ownedRecipes(s).filter(isPremium).length;
+
+/** Each page that comes home gets its 20-second scene; until story's scenes merge, a line in Lottie's book. */
+const PAGE_HOME: Record<RecipeId, string> = {
+  classic: '', pink: '', mint: '',
+  strawberry: 'The Strawberry page comes home! Lottie: "Berries go in last. Brock never learned."',
+  frozen: 'The Frozen Lemonade page comes home, still framed over Brock\'s blenders.',
+  honeyGinger: 'Honey-Ginger Hot Lemonade comes home, peeled out of Juni\'s register.',
+  halfAndHalf: 'Tilly hands over Hollis Half-and-Half. Lottie: "Tea in my lemonade. Fine. It\'s good."',
+  lavender: 'The Lavender page comes home. Lottie: "Vera paid for harp lessons with my recipe!"',
+  sparkling: 'Sparkling Lemonade comes home, still laminated from the FizzCo boardroom.',
+  secretReserve: 'Lottie\'s Secret Reserve, sealed for 40 years: "Open together."',
+};
+
+/** A page comes home and becomes a recipe card. Idempotent; returns false if it was already in the book. */
+export function grantPage(s: GameState, id: RecipeId, quiet = false): boolean {
+  const w = worldOf(s);
+  if (w.pages.includes(id)) return false;
+  w.pages.push(id);
+  delete w.holders[id];
+  if (!quiet) s.news.push(PAGE_HOME[id]); // seam: story's playScene(s, 'page', { id }) after merge
+  return true;
+}
+
+/** Called from eliminate() on every route (HQ captured, Faction Buyout, 7 days bankrupt): their pages come home. */
+export function recoverPage(s: GameState, rival: RivalId): void {
+  const w = worldOf(s);
+  for (const id of RECIPE_IDS) if (w.holders[id] === rival) grantPage(s, id);
+}
+
+/** A page changes hands (the Lavender auction: outbid, it moves to the winner's HQ). */
+export function movePage(s: GameState, id: RecipeId, holder: PageHolder): void {
+  const w = worldOf(s);
+  if (!w.pages.includes(id)) w.holders[id] = holder;
+}
+
+/** Pour a card at a stand, if it's in the book. */
+export function pickRecipe(s: GameState, st: Stand, id: RecipeId): boolean {
+  if (!ownsRecipe(s, id)) return false;
+  st.recipe = id;
+  return true;
+}
+
+// ---------- where a card shines, the Sweetness dial and the Blender Bar ----------
+
+export type ShineReason = 'everywhere' | 'district' | 'season' | 'heatWave';
+
+/** Seam: the Heat Wave event (world lane, random events) switches this on. */
+export const heatWaveOn = (_s: GameState): boolean => false;
+
+/** Why a card shines at a stand in this district today, or null. */
+export function shineReason(s: GameState, district: DistrictId, id: RecipeId): ShineReason | null {
+  const r = RECIPES[id];
+  if (r.everywhere) return 'everywhere';
+  if (r.shines.includes(district)) return 'district';
+  if (r.season === seasonOf(s.day)) return 'season';
+  if (r.heatWave && heatWaveOn(s)) return 'heatWave';
+  return null;
+}
+
+/** One number per stand, for every customer there: ×1.2 where the card shines, ×1.3 for the Secret Reserve, else ×1. */
+export function recipeMatch(s: GameState, plotId: string, id?: RecipeId): number {
+  const ps = s.plots[plotId];
+  if (ps?.owner !== 'player' || !ps.stand) return 1;
+  const card = id ?? ps.stand.recipe;
+  return shineReason(s, PLOT_BY_ID[plotId].district, card) ? RECIPES[card].everywhere ?? SHINE_MATCH : 1;
+}
+
+/** Classic is neutral; Extra wins kids and costs seniors and office workers 10%; Less does the reverse. */
+export function sweetnessFit(seg: SegmentId, v: Sweetness): number {
+  const want = SEGMENTS[seg].sweet;
+  if (want === 'classic' || v === 'classic') return 1;
+  return v === want ? 1 + SWEETNESS_SHIFT : 1 - SWEETNESS_SHIFT;
+}
+
+/** The Blend Shack Trophy: Frozen Lemonade's top price rises 20%. */
+export const blenderBar = (s: GameState, id: RecipeId) => (id === 'frozen' && hasTrophy(s, 'blenders') ? BLENDER_BAR_TOP_PRICE : 1);
+
+const NEUTRAL = Object.freeze({ match: 1, sweet: 1, top: 1 });
+/** appealFor's one call: the card's match, the Sweetness factor for this segment and the top-price perk (rivals: all 1). */
+export function cardFit(s: GameState, plotId: string, seg: SegmentId): { match: number; sweet: number; top: number } {
+  const ps = s.plots[plotId];
+  if (ps.owner !== 'player' || !ps.stand) return NEUTRAL;
+  return { match: recipeMatch(s, plotId), sweet: sweetnessFit(seg, ps.stand.sweetness), top: blenderBar(s, ps.stand.recipe) };
+}
+
+/** Season demand at a stand: Honey-Ginger Hot Lemonade takes no Winter penalty (×1, the Boardwalk too). */
+export function seasonDemand(s: GameState, plotId: string): number {
+  const season = seasonOf(s.day);
+  if (season === 'winter' && s.plots[plotId].stand?.recipe === 'honeyGinger') return 1;
+  return (PLOT_BY_ID[plotId].district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND)[season];
+}
+
+/** Cost of one cup of a card at today's market (lemons, sugar and ice move with it; the cup and extras are flat). */
+export function recipeCost(s: GameState, id: RecipeId): number {
+  const r = RECIPES[id];
+  return (r.lemonsPerPitcher * s.market.lemons + r.sugarPerPitcher * s.market.sugar) / CUPS_PER_PITCHER + r.icePerCup * s.market.ice + r.extraPerCup + CUP_COST;
+}

@@ -1,6 +1,7 @@
 // Every tunable number in one place. Values follow the spec's tuned balance
 // tables (Appendix A, /mnt/project-files/lemonade-stand-wars/balance-tables.md)
 // except where a comment says the build tuned its own model.
+import type { DistrictId } from './map.ts';
 
 export const START = {
   cash: 150,
@@ -67,27 +68,56 @@ export const MARKET_SWING = 0.2; // daily prices move ±20%
 export const CUP_COST = 0.05; // cups and napkins, flat per cup sold
 export const CUPS_PER_PITCHER = 10;
 
-// ---------- recipes ----------
-export type RecipeId = 'classic' | 'pink' | 'mint';
+// ---------- recipes (spec: Recipe cards; Appendix A, Supplies and recipes) ----------
+export type RecipeId = 'classic' | 'pink' | 'mint' | 'strawberry' | 'frozen' | 'honeyGinger' | 'sparkling' | 'lavender' | 'halfAndHalf' | 'secretReserve';
 export type Sweetness = 'less' | 'classic' | 'extra';
-export const RECIPES: Record<RecipeId, { label: string; lemonsPerPitcher: number; sugarPerPitcher: number; icePerCup: number; extraPerCup: number; priceBonus: number; blurb: string }> = {
-  classic: { label: 'Classic Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0, priceBonus: 0, blurb: 'Everyone likes it.' },
-  pink: { label: 'Pink Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 12, icePerCup: 3, extraPerCup: 0.02, priceBonus: 0.05, blurb: 'Kids and families love it.' },
-  mint: { label: 'Mint Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 8, icePerCup: 4, extraPerCup: 0.03, priceBonus: 0.05, blurb: 'Joggers and students love it.' },
+export interface Recipe {
+  label: string;
+  lemonsPerPitcher: number; sugarPerPitcher: number; icePerCup: number;
+  /** Mint, berries, honey, bubbles: a flat cost per cup, so switching cards wastes no stock. */
+  extraPerCup: number;
+  priceBonus: number; // the card's price bonus (+10% = 0.1)
+  blurb: string;
+  shines: DistrictId[]; // ×1.2 appeal at stands in these districts
+  season?: Season; // ... and everywhere through this season
+  heatWave?: boolean; // ... and everywhere during a Heat Wave
+  everywhere?: number; // Lottie's Secret Reserve: this match at every stand instead
+  start?: boolean; // one of the 3 pages Lottie kept
+}
+// Every card pours the Classic base (half a lemon, a scoop of sugar, 3 cubes: $0.16) plus its extra, so the
+// totals hit the spec's cost per cup at normal market prices. Frozen is blended with double ice and
+// Honey-Ginger is served hot with none (the build's own split; the spec gives only the totals).
+export const RECIPES: Record<RecipeId, Recipe> = {
+  classic: { label: 'Classic Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0, priceBonus: 0, blurb: 'Everyone likes it', shines: [], start: true },
+  pink: { label: 'Pink Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.03, priceBonus: 0.05, blurb: 'Kids and families love it', shines: ['maple'], start: true },
+  mint: { label: 'Mint Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.04, priceBonus: 0.05, blurb: 'Students and joggers love it', shines: ['campus', 'boardwalk'], start: true },
+  strawberry: { label: 'Strawberry Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.11, priceBonus: 0.1, blurb: 'Kids and tourists love it', shines: ['maple', 'boardwalk'] },
+  frozen: { label: 'Frozen Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 6, extraPerCup: 0.06, priceBonus: 0.15, blurb: 'Tourists and students love it', shines: ['boardwalk'], season: 'summer', heatWave: true },
+  honeyGinger: { label: 'Honey-Ginger Hot Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 0, extraPerCup: 0.12, priceBonus: 0.1, blurb: 'Seniors love it, even in Winter', shines: ['maple', 'oldtown'], season: 'winter' },
+  sparkling: { label: 'Sparkling Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.11, priceBonus: 0.15, blurb: 'Office workers love it', shines: ['downtown'] },
+  lavender: { label: 'Lavender Lemonade', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.19, priceBonus: 0.25, blurb: 'High rollers love it', shines: ['hilltop'] },
+  halfAndHalf: { label: 'Hollis Half-and-Half', lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.04, priceBonus: 0.1, blurb: 'Lemonade and sweet tea. Workers love it', shines: ['groves', 'harbor'], season: 'summer' },
+  secretReserve: { label: "Lottie's Secret Reserve", lemonsPerPitcher: 5, sugarPerPitcher: 10, icePerCup: 3, extraPerCup: 0.24, priceBonus: 0.3, blurb: 'Everyone loves it', shines: [], everywhere: 1.3 },
 };
-export const SWEETNESS_SUGAR: Record<Sweetness, number> = { less: 0.6, classic: 1, extra: 1.5 };
+/** A card's appeal where it shines: its districts, its season, or an event crowd of its fans. Matches never stack. */
+export const SHINE_MATCH = 1.2;
+/** The Sweetness dial moves appeal this much for the segments that care (kids like Extra; seniors and office workers like Less). */
+export const SWEETNESS_SHIFT = 0.1;
+/** Blender Bar (the Blend Shack Trophy): Frozen Lemonade's top price rises 20%. */
+export const BLENDER_BAR_TOP_PRICE = 1.2;
 
 // ---------- customers ----------
 export type SegmentId = 'kids' | 'families' | 'seniors' | 'students' | 'office' | 'tourists' | 'workers' | 'highRollers';
+/** `sweet` is the Sweetness a segment leans to; 'classic' means it doesn't care either way. */
 export const SEGMENTS: Record<SegmentId, { label: string; priceTolerance: number; favorites: RecipeId[]; sweet: Sweetness; peaks: number[] }> = {
-  kids: { label: 'Kids', priceTolerance: 0.8, favorites: ['pink'], sweet: 'extra', peaks: [11, 15] },
+  kids: { label: 'Kids', priceTolerance: 0.8, favorites: ['pink', 'strawberry'], sweet: 'extra', peaks: [11, 15] },
   families: { label: 'Families', priceTolerance: 1.0, favorites: ['pink', 'classic'], sweet: 'classic', peaks: [12, 18] },
-  seniors: { label: 'Seniors', priceTolerance: 0.9, favorites: ['classic'], sweet: 'less', peaks: [9, 16] },
-  students: { label: 'Students', priceTolerance: 0.85, favorites: ['mint'], sweet: 'classic', peaks: [13, 19] },
-  office: { label: 'Office workers', priceTolerance: 1.2, favorites: ['classic', 'mint'], sweet: 'less', peaks: [8, 12, 17] },
-  tourists: { label: 'Tourists', priceTolerance: 1.3, favorites: ['pink'], sweet: 'extra', peaks: [13, 16] },
-  workers: { label: 'Workers', priceTolerance: 0.9, favorites: ['classic'], sweet: 'classic', peaks: [8, 12, 17] },
-  highRollers: { label: 'High rollers', priceTolerance: 2.0, favorites: ['classic'], sweet: 'less', peaks: [14, 18] },
+  seniors: { label: 'Seniors', priceTolerance: 0.9, favorites: ['honeyGinger', 'classic'], sweet: 'less', peaks: [9, 16] },
+  students: { label: 'Students', priceTolerance: 0.85, favorites: ['mint', 'frozen'], sweet: 'classic', peaks: [13, 19] },
+  office: { label: 'Office workers', priceTolerance: 1.2, favorites: ['sparkling'], sweet: 'less', peaks: [8, 12, 17] },
+  tourists: { label: 'Tourists', priceTolerance: 1.3, favorites: ['strawberry', 'frozen'], sweet: 'classic', peaks: [13, 16] },
+  workers: { label: 'Workers', priceTolerance: 0.9, favorites: ['halfAndHalf'], sweet: 'classic', peaks: [8, 12, 17] },
+  highRollers: { label: 'High rollers', priceTolerance: 2.0, favorites: ['lavender', 'secretReserve'], sweet: 'classic', peaks: [14, 18] },
 };
 /** Who walks down Maple Row. */
 export const MAPLE_ROW_MIX: Partial<Record<SegmentId, number>> = { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 };

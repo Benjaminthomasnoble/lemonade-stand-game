@@ -327,6 +327,10 @@
 .clay .cl-diff.on { background: radial-gradient(circle at 34% 26%, #fff 0 4%, #ffe28a 14%, #F7C948 60%); }
 .clay .cl-more { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .8); width: 100%; }
 .clay .cl-row.wrap { flex-wrap: wrap; justify-content: center; }
+/* world lane: recipe pitchers wrap five to a row; a star marks a card that shines at this stand (UI thread restyles) */
+.clay .cl-recipe .cl-row.wrap { max-width: calc(var(--u) * 29); }
+.clay .cl-shine { position: absolute; left: calc(var(--u) * -.5); top: calc(var(--u) * -.4); width: calc(var(--u) * 2); height: calc(var(--u) * 2); pointer-events: none; }
+.clay .cl-shine svg { width: 100%; height: 100%; }
 .clay .cl-toggle { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: calc(var(--u) * .6); border: 0; background: none; font: 600 calc(var(--u) * 1.8)/1 'Fredoka', sans-serif; color: #2E2A4F; }
 .clay .cl-toggle i { position: relative; width: calc(var(--u) * 4.4); height: calc(var(--u) * 2.4); border-radius: 999px; border: calc(var(--u) * .22) solid #2E2A4F; background: #e6d6b8; }
 .clay .cl-toggle i::after { content: ''; position: absolute; left: calc(var(--u) * .2); top: calc(var(--u) * .15); width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); border-radius: 50%; background: #fff; border: calc(var(--u) * .18) solid #2E2A4F; transition: left .2s cubic-bezier(.3,1.6,.5,1); }

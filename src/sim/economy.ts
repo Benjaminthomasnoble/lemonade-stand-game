@@ -6,11 +6,12 @@ import { nextRandom, randomRange } from './rng.ts';
 import {
   AUTO_RESTOCK_DAY, BASE_STOP_CHANCE, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
   CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
-  RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_DEMAND, BOARDWALK_SEASON, SEASON_TEMP_SHIFT, SEASON_WEATHER,
-  SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, SWEETNESS_SUGAR, WEATHER,
+  RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
+  SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
+import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
@@ -29,6 +30,7 @@ export * from './rivals.ts';
 export * from './modes.ts';
 export * from './night.ts';
 export * from './alerts.ts';
+export * from './recipes.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -163,6 +165,7 @@ export interface GameState {
   alerts?: Alert[]; // the alert feed's cards (alerts.ts)
   alertSeq?: number;
   heldPickups?: string[]; // VIP orders still loading while a Delivery Raid is out for them (night.ts)
+  world?: WorldState; // Lottie's recipe book
 }
 
 export type SimEvent =
@@ -293,6 +296,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
   seedRivalDefenses(s, rng);
   seedRivalFacilities(s);
   s.seed = rng.seed;
+  migrateWorld(s);
   s.today = emptyStats(s);
   s.peakScore = successScore(s);
   return s;
@@ -376,7 +380,7 @@ export function setPrice(st: Stand, price: number): void { st.price = clamp(roun
 
 export function pitcherNeeds(st: Stand): { lemons: number; sugar: number; icePerCup: number } {
   const r = RECIPES[st.recipe];
-  return { lemons: r.lemonsPerPitcher, sugar: Math.round(r.sugarPerPitcher * SWEETNESS_SUGAR[st.sweetness]), icePerCup: r.icePerCup };
+  return { lemons: r.lemonsPerPitcher, sugar: r.sugarPerPitcher, icePerCup: r.icePerCup }; // Sweetness never moves the cost
 }
 
 /** Supply cost of one cup at today's market prices (plus the flat cup). */
@@ -409,14 +413,13 @@ export function appealFor(s: GameState, plotId: string, seg: SegmentId, w: Weath
   const g = SEGMENTS[seg];
   const rival = ps.owner !== 'player';
   const r = RECIPES[st.recipe];
+  const card = cardFit(s, plotId, seg); // world: where the card shines, the Sweetness dial, the Blender Bar (rivals: 1)
   const districtMult = DISTRICT_BY_ID[p.district].priceMult ?? 1;
-  const topPrice = (standLevel(st).topPrice + (rival ? 0 : r.priceBonus)) * g.priceTolerance * districtMult;
+  const topPrice = (standLevel(st).topPrice + (rival ? 0 : r.priceBonus)) * card.top * g.priceTolerance * districtMult;
   const fairPrice = topPrice * 0.5;
   const priceFit = st.price <= fairPrice ? 1 + 0.3 * (fairPrice - st.price) / fairPrice : Math.max(0, 1 - (st.price - fairPrice) / (topPrice - fairPrice));
-  const recipeMatch = rival ? 1 : g.favorites.includes(st.recipe) ? 1.2 : 1;
-  const order: Sweetness[] = ['less', 'classic', 'extra'];
-  const gap = Math.abs(order.indexOf(g.sweet) - order.indexOf(st.sweetness));
-  const sweetMatch = rival ? 1 : gap === 0 ? 1.1 : gap === 1 ? 1 : 0.85;
+  const recipeMatch = card.match;
+  const sweetMatch = card.sweet;
   const appeal = CURB_APPEAL[st.level - 1] * recipeMatch * sweetMatch * priceFit * repMultiplier(ownerReputation(s, ps.owner!));
   const stopChance = clamp(BASE_STOP_CHANCE * WEATHER[w.kind].thirst * appeal, 0, 0.95);
   return { priceFit, recipeMatch, sweetMatch, appeal, stopChance, fairPrice, topPrice };
@@ -440,7 +443,7 @@ export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.w
   const ps = s.plots[plotId];
   if (!ps.stand || ps.stand.wrecked) return 0;
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand)
-    * (PLOT_BY_ID[plotId].district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND)[seasonOf(s.day)] * WEATHER[w.kind].traffic;
+    * seasonDemand(s, plotId) * WEATHER[w.kind].traffic;
 }
 
 /** Rough cups a player stand should sell today (for the prep odds and auto-restock). */
@@ -1014,5 +1017,5 @@ export function migrateSave(x: unknown): GameState | null {
   }
   migrateCombat(s);
   if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
-  return isGameState(s) ? s : null;
+  return isGameState(s) ? migrateWorld(s) : null;
 }

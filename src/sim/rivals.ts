@@ -8,6 +8,7 @@ import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { netWorth, ownedPlots } from './economy.ts';
 import { bump, checkVictory, peaceful } from './modes.ts';
+import { recoverPage } from './recipes.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -206,6 +207,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
     s.news.push(`${FACTIONS[id].name} are finished! Their HQ, ${hq.name}, becomes Lottie's ${TROPHIES[id].name}: ${TROPHIES[id].perk.toLowerCase()}.`);
   }
   if (how === 'bankrupt') s.news.push(`${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.`);
+  recoverPage(s, id); // world: their recipe page comes home, on every route
   let sale = 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];

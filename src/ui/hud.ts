@@ -27,6 +27,7 @@ import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { optionsScreen } from './options.ts';
+import { bookSheet, recipeRow } from './recipes.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -124,7 +125,6 @@ const ART = (() => {
     bandage: once(A.bandageSVG), foot: once(A.footSVG), sour: once(A.lemonSourSVG), face: once(A.faceSVG), lemon: once(A.lemonSVG),
   };
 })();
-const PITCHER: Record<RecipeId, string> = { classic: '#F7C948', pink: '#F49AB8', mint: '#86D39A' };
 const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
 const GADGET_ART: Record<GadgetId, () => string> = { alarm: ART.can, goose: ART.goose, slick: ART.peel, sprinkler: ART.sprinkler, floodlights: ART.lamp, watchtower: ART.tower };
 const WEAPON_ART: Record<WeaponId, () => string> = { fists: ART.fist, clubs: ART.club, hatchets: ART.hatchet };
@@ -165,7 +165,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     <div id="top"></div><div id="dawn"></div><div id="feed"></div><div id="phase"></div><div id="plotcard"></div><div id="corner"></div><div id="pops"></div>`;
   const q = (id: string) => root.querySelector('#' + id) as HTMLElement;
   const topEl = q('top'), dawnEl = q('dawn'), feedEl = q('feed'), phaseEl = q('phase'), plotEl = q('plotcard'), cornerEl = q('corner'), pops = q('pops');
-  let tab: 'today' | 'grow' | 'crew' = 'today';
+  let tab: 'today' | 'grow' | 'crew' | 'book' = 'today';
   let goalsOpen = false, books = false, moreOpts = false;
   let ledgerDay = -1; // each Evening opens on its Ledger
   const squad = new Set<string>();
@@ -456,8 +456,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <button class="cl-tab${tab === 'today' ? ' on' : ''}" data-action="tab" data-tab="today">Today</button>
       <button class="cl-tab${tab === 'grow' ? ' on' : ''}" data-action="tab" data-tab="grow" data-testid="tab-grow">Grow</button>
       ${defendOpen(s) ? `<button class="cl-tab${tab === 'crew' ? ' on' : ''}" data-action="tab" data-tab="crew" data-testid="tab-crew">Defend</button>` : ''}
+      <button class="cl-tab${tab === 'book' ? ' on' : ''}" data-action="tab" data-tab="book" data-testid="tab-book">Book</button>
       ${standPicker(s)}</div>`;
-    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>` : '';
+    const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
+      : tab === 'book' ? `<div class="cl-sheet">${bookSheet(s)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
 
@@ -483,7 +485,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (id === 'ice') return st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(cups, Math.max(servings, 1));
       return servings < cups * 0.8;
     };
-    const pitch = (id: RecipeId) => `<button class="cl-pitch" data-action="recipe" data-id="${id}" aria-pressed="${st.recipe === id}" title="${RECIPES[id].label}: ${esc(RECIPES[id].blurb)}">${ART.pitcher(PITCHER[id])}</button>`;
     const lvl = SWEET.indexOf(st.sweetness);
     const cube = (i: number) => `<button class="cl-cube" data-action="sweet" data-value="${SWEET[i]}" aria-pressed="${i <= lvl}" title="Sweetness: ${['less', 'classic', 'extra'][i]}">${ART.cube()}</button>`;
     const art: Record<SupplyId, (l: string) => string> = { lemons: ART.bowl, sugar: ART.bag, ice: ART.tray };
@@ -499,7 +500,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const restock = s.day >= AUTO_RESTOCK_DAY ? `<button class="cl-auto${st.autoRestock ? ' on' : ''}" data-action="restock" title="Auto-Restock: Lottie buys what this stand needs each morning">${tape(st.autoRestock ? 'Auto ✓' : 'Auto')}</button>` : '';
     const n = playerStands(s).length;
     return `<div class="cl-tray">
-      <div class="cl-sec cl-recipe"><div class="cl-row">${(Object.keys(RECIPES) as RecipeId[]).map(pitch).join('')}</div><div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>
+      <div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>
       <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
         <div class="cl-chalk${st.price < cost ? ' loss' : ''}" title="Costs you ${cents(cost)} a cup"><b data-testid="price">${cents(st.price)}</b></div>
         <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>

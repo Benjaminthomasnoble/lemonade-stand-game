@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, ownedPlots, PERIMETERS, PLOT_BY_ID, PLOTS, startNight,
-  type BattleReport, type GameState, type Guard, type Raid, type SimEvent,
+  BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, nightStep, ownedPlots, PERIMETERS, PLOT_BY_ID,
+  PLOTS, raidOdds, RIVAL_HELP, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard, type Raid, type SimEvent,
 } from './economy.ts';
 import { reserveAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
-import { bellEta, bellParty, canRingBell, reserveMinutes, ringTheBell } from './reinforce.ts';
+import { bellEta, bellParty, canRingBell, reserveMinutes, ringTheBell, rivalHelpFor, sendHelp } from './reinforce.ts';
 import { alertCards } from '../ui/alerts.ts';
 import { fightBar } from '../ui/fight.ts';
 
@@ -208,5 +208,100 @@ describe('the warning card', () => {
     ringTheBell(s, r.id);
     expect(alertCards(s)[0]).not.toContain('data-action="bell"');
     expect(alertCards(s)[0]).toContain('Help in 30 min');
+  });
+});
+
+describe('rivals send help', () => {
+  /** A Blenders stand on the Boardwalk, their other garrisons emptied but one plot nearby holding `garrison`; rank 6 is Threat 3. */
+  function spotted(garrison: number, rank = 6, seed = 1) {
+    const s = newGame(seed);
+    s.rank = rank;
+    const theirs = ownedPlots(s, 'blenders');
+    const target = theirs.find((p) => s.plots[p.id].stand && p.type !== 'hq' && p.district === 'boardwalk')!;
+    for (const p of theirs) s.plots[p.id].garrison = 0;
+    const near = theirs.find((p) => p.id !== target.id && p.district === target.district)!;
+    s.plots[near.id].garrison = garrison;
+    s.guards = Array.from({ length: 3 }, (_, i) => guard(`G${i}`));
+    s.news = [];
+    return { s, target: target.id, near: near.id };
+  }
+  /** Your raid on it: it set out `lead` game minutes before contact. */
+  const raidOn = (s: GameState, target: string, lead: number, detected = true): Raid => ({
+    id: `r${s.nextId++}`, attacker: 'player', target, objective: 'smash', guards: s.guards.map((g) => g.id), detected, eta: '', leave: 1500 - lead, at: 1500,
+  });
+  const bare = () => ({ attackers: [], defenders: [], perimeter: 0, fenceHp: 0, gadgets: [], standHp: 0, objective: 'smash' as const, detected: true });
+
+  it('a spotted raid brings half the garrison of their plots nearby, up to the cap by Threat', () => {
+    for (const [garrison, rank, want] of [[4, 6, 2], [6, 6, 2], [3, 6, 1], [1, 6, 0], [6, 10, 3], [6, 1, 1]]) {
+      const { s, target, near } = spotted(garrison, rank);
+      expect(RIVAL_HELP.cap[threatLevel(s) - 1]).toBe(rank === 10 ? 3 : rank === 6 ? 2 : 1);
+      const r = raidOn(s, target, 600);
+      const input = sendHelp(s, r, bare(), { seed: 1 });
+      expect(input.defenders).toHaveLength(want);
+      expect(s.plots[near].garrison).toBe(garrison - want); // they've left their plot
+      expect(r.help ?? []).toEqual(want ? [{ from: near, ids: input.defenders.map((f) => f.id) }] : []);
+      if (want) expect(s.news.at(-1)).toBe(`Spotted! The Boardwalk Blenders send ${want} to ${name(target)}.`);
+    }
+  });
+
+  it('they walk over from their plot: there by contact they start in the fight, else they join as they arrive', () => {
+    const { s, target, near } = spotted(4);
+    const walk = travelMinutes(s, near, target);
+    const early = sendHelp(s, raidOn(s, target, walk + 30), bare(), { seed: 1 });
+    expect(early.defenders).toHaveLength(2);
+    expect(early.joins).toBeUndefined();
+    const t = spotted(4);
+    const late = sendHelp(t.s, raidOn(t.s, t.target, 20), bare(), { seed: 1 });
+    expect(late.defenders).toHaveLength(0);
+    expect(late.joins).toEqual([{ t: (walk - 20) * FIGHT_SECONDS_PER_GAME_MINUTE, fighters: expect.any(Array) }]);
+    expect(late.joins![0].fighters).toHaveLength(2);
+  });
+
+  it('no help for a raid they never saw coming, and none from too far away', () => {
+    const { s, target, near } = spotted(4);
+    const r = raidOn(s, target, 600, false);
+    expect(sendHelp(s, r, bare(), { seed: 1 }).defenders).toEqual([]);
+    expect(s.plots[near].garrison).toBe(4);
+    expect(r.help).toBeUndefined();
+    // Their only other garrison is two districts away: out of range.
+    const t = spotted(0);
+    const district = PLOT_BY_ID[t.target].district;
+    const far = PLOTS.find((p) => p.district !== district && !BORDERS[district].includes(p.district) && p.type !== 'hq')!;
+    Object.assign(t.s.plots[far.id], { owner: 'blenders', garrison: 6 });
+    expect(rivalHelpFor(t.s, raidOn(t.s, t.target, 600), { seed: 1 })).toEqual([]);
+  });
+
+  it('after the fight the help walks home, less the knocked-out, and the target keeps its own count', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const { s, target, near } = spotted(4, 6, seed);
+      s.plots[target].garrison = 2;
+      Object.assign(s.plots[target].defense, { gadgets: ['alarm', 'watchtower'] }); // spotted by day 95% of the time
+      s.guards = Array.from({ length: 4 }, (_, i) => guard(`G${i}`, { weapon: 'hatchets', gear: 'pro', level: 5 }));
+      const r = raidOn(s, target, 600);
+      const report = fightRaid(s, r, false);
+      if (!r.detected) continue;
+      const helpers = report.defenders.slice(2); // after the target's own two
+      expect(helpers).toHaveLength(2);
+      const ownKo = report.koed.filter((id) => report.defenders.slice(0, 2).some((f) => f.id === id)).length;
+      const helpKo = report.koed.filter((id) => helpers.some((f) => f.id === id)).length;
+      expect(s.plots[target].garrison).toBe(report.outcome === 'smashed' ? 0 : 2 - ownKo);
+      expect(s.plots[near].garrison).toBe(4 - helpKo);
+      expect(r.help).toBeUndefined();
+      return;
+    }
+    throw new Error('never spotted');
+  });
+
+  it("the Raid Planner's odds count the help a spotted raid would meet", () => {
+    const quiet = spotted(0);
+    const busy = spotted(8, 10);
+    quiet.s.rank = 10;
+    for (const { s, target } of [quiet, busy]) {
+      Object.assign(s.plots[target].defense, { gadgets: ['alarm', 'watchtower'] });
+      s.plots[target].garrison = 1;
+      s.guards = Array.from({ length: 3 }, (_, i) => guard(`G${i}`, { weapon: 'clubs', level: 2 }));
+    }
+    const odds = (x: typeof quiet) => raidOdds(x.s, x.target, x.s.guards.map((g) => g.id), 'smash', false, 200);
+    expect(odds(busy)).toBeLessThan(odds(quiet) - 0.1);
   });
 });

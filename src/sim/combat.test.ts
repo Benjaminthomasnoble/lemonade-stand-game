@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type Fighter, type Side } from './combat.ts';
 import {
-  BOSS_MOVES, canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER, migrateSave,
-  newGame, ownedPlots, PERIMETERS, raidOdds, raidPartyFor, raidTargets, resolveNight, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId,
+  BOSS_MOVES, canRaid, COMBAT, creditGuards, fightRaid, GUARD_BASE, guardFighter, hhmm, HQS, hqSquad, hqStageInput, hqSurvivors, LOTTIES_CORNER, migrateSave,
+  newGame, ownedPlots, PERIMETERS, raidOdds, raidPartyFor, raidTargets, resolveNight, squadTrip, STAND_HP, stormHQ, WEAPONS, type BattleReport, type GadgetId,
   type GameState, type GearId, type Guard, type Raid, type RivalId, type Trait, type WeaponId,
 } from './economy.ts';
 
@@ -443,15 +443,17 @@ describe('the Raid Planner\'s odds', () => {
     return { s, id, ids: s.guards.map((g) => g.id) };
   }
 
-  it('land near what the raid wins when it\'s fought: each run draws its own garrison and detection roll', () => {
+  it('land near what the raid wins when it\'s fought: each run draws its own garrison, detection roll and help', () => {
     const { s, id, ids } = kiosk();
     const odds = raidOdds(s, id, ids, 'shakedown', true);
+    const trip = squadTrip(s, id, 'tonight'); // set out at 01:00, there after the walk: a spotted raid meets the help sent
     let won = 0;
     const runs = 300;
     for (let seed = 1; seed <= runs; seed++) {
       const t = JSON.parse(JSON.stringify(s)) as GameState;
       t.seed = seed;
-      if (fightRaid(t, { id: `r${seed}`, attacker: 'player', target: id, objective: 'shakedown', guards: ids, detected: false, eta: '01:00' }, true).outcome === 'robbed') won++;
+      const raid: Raid = { id: `r${seed}`, attacker: 'player', target: id, objective: 'shakedown', guards: ids, detected: false, eta: hhmm(trip.at), leave: trip.leave, at: trip.at };
+      if (fightRaid(t, raid, true).outcome === 'robbed') won++;
     }
     expect(Math.abs(odds - won / runs)).toBeLessThanOrEqual(0.1);
     expect(odds).toBeGreaterThan(0.05);

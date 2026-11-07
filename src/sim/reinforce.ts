@@ -8,13 +8,21 @@
 // and once it's over they arrive to the aftermath. Defense only, once per
 // raid; with no Clubhouse there's no reserve. Arrivals count in their side's
 // head count for the Nerve check, and when the raid is done they're back at
-// their Clubhouse. Pure, like the rest of the sim.
-import { FIGHT_SECONDS_PER_GAME_MINUTE, RESERVE_MINUTES } from './balance.ts';
-import { BORDERS, PLOT_BY_ID } from './map.ts';
-import type { BattleInput, Fighter } from './combat.ts';
+// their Clubhouse.
+//
+// It runs both ways (spec: "The same five steps run when you raid a rival and
+// when a rival raids you"): a rival who spots your raid as it sets out sends
+// help from its other plots and its HQ in the same or a bordering district.
+// Pure, like the rest of the sim.
+import { FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, RESERVE_MINUTES, RIVAL_HELP, type RivalId } from './balance.ts';
+import { BORDERS, PLOT_BY_ID, PLOTS } from './map.ts';
+import type { BattleInput, BattleResult, Fighter } from './combat.ts';
 import { clubhouses, reserveAt } from './clubhouse.ts';
-import { guardFighter, guardReady, strongholdTravelMult, type Guard, type Raid } from './crew.ts';
+import { guardFighter, guardReady, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
+import { garrisonTier } from './rivalAi.ts';
 import { joinFight } from './fight.ts';
+import { travelMinutes } from './night.ts';
+import type { Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 
 /** Game minutes from a Clubhouse to a plot: 30 within its district, 60 from a bordering one, null out of range
@@ -92,4 +100,71 @@ export function withBell(s: GameState, raid: Raid, input: BattleInput, night: bo
   }
   const joins = [...later].sort(([a], [b]) => a - b).map(([t, fighters]) => ({ t, fighters }));
   return { ...input, defenders: [...input.defenders, ...there], ...(joins.length ? { joins: [...(input.joins ?? []), ...joins] } : {}) };
+}
+
+// ---------- rivals send help ----------
+
+export interface RivalHelp { from: string; minutes: number; fighters: Fighter[] }
+
+/**
+ * Who a rival sends when it spots your raid on one of its plots (RIVAL_HELP): half the garrison of each of its other
+ * plots and its HQ in the same or a bordering district, nearest first, up to the cap by Threat. They walk over from
+ * their plot (travelMinutes). An undetected raid gets no help. Draws the henchmen's weapons from rng.
+ */
+export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
+  const rival = s.plots[raid.target]?.owner;
+  if (raid.attacker !== 'player' || !raid.detected || !rival || rival === 'player') return [];
+  const to = PLOT_BY_ID[raid.target].district;
+  const near = PLOTS
+    .filter((p) => p.id !== raid.target && s.plots[p.id].owner === rival && (p.district === to || BORDERS[to].includes(p.district)))
+    .map((p) => ({ id: p.id, minutes: travelMinutes(s, p.id, raid.target) }))
+    .sort((a, b) => a.minutes - b.minutes || a.id.localeCompare(b.id));
+  let room = RIVAL_HELP.cap[threatLevel(s) - 1] ?? 0;
+  const out: RivalHelp[] = [];
+  for (const { id, minutes } of near) {
+    const n = Math.min(room, Math.floor((s.plots[id].garrison ?? 0) * RIVAL_HELP.share));
+    if (n <= 0) continue;
+    const tier = garrisonTier(s.plots[id]);
+    out.push({ from: id, minutes, fighters: Array.from({ length: n }, (_, i) => henchmanFor(s, rival as RivalId, tier, rng, 10 + i)) });
+    room -= n;
+    if (room <= 0) break;
+  }
+  return out;
+}
+
+/** The help, into the fight: whoever is there by contact (`lead` minutes after the warning) starts in it; the rest
+ * join as they arrive (a game minute is a fight-second). */
+export function withRivalHelp(input: BattleInput, help: RivalHelp[], lead: number): BattleInput {
+  if (!help.length) return input;
+  const there = help.filter((h) => h.minutes <= lead).flatMap((h) => h.fighters);
+  const later = help.filter((h) => h.minutes > lead).map((h) => ({ t: (h.minutes - lead) * FIGHT_SECONDS_PER_GAME_MINUTE, fighters: h.fighters }));
+  return {
+    ...input, defenders: [...input.defenders, ...there],
+    ...(later.length ? { joins: [...(input.joins ?? []), ...later].sort((a, b) => a.t - b.t) } : {}),
+  };
+}
+
+/**
+ * Your raid reaches the plot: if it was spotted as it set out, the help the rival sent is there or on its way. They
+ * leave their plots' garrisons until the fight is over (helpHome).
+ */
+export function sendHelp(s: GameState, raid: Raid, input: BattleInput, rng: Rng): BattleInput {
+  const lead = Math.max(0, (raid.at ?? 0) - (raid.leave ?? raid.at ?? 0)); // spotted as they set out: warned this long before contact
+  const help = rivalHelpFor(s, raid, rng);
+  if (!help.length) return input;
+  for (const h of help) s.plots[h.from].garrison = Math.max(0, (s.plots[h.from].garrison ?? 0) - h.fighters.length);
+  raid.help = help.map((h) => ({ from: h.from, ids: h.fighters.map((f) => f.id) }));
+  const n = help.reduce((a, h) => a + h.fighters.length, 0);
+  s.news.push(`Spotted! ${FACTIONS[s.plots[raid.target].owner as RivalId].name} send ${n} to ${PLOT_BY_ID[raid.target].name}.`);
+  return withRivalHelp(input, help, lead);
+}
+
+/** The fight's over: the help walks home to its plots (still theirs); the knocked-out are lost to them. */
+export function helpHome(s: GameState, raid: Raid, res: Pick<BattleResult, 'koed'>): void {
+  const rival = s.plots[raid.target]?.owner;
+  for (const h of raid.help ?? []) {
+    const ps = s.plots[h.from];
+    if (ps && ps.owner === rival) ps.garrison = (ps.garrison ?? 0) + h.ids.filter((id) => !res.koed.includes(id)).length;
+  }
+  delete raid.help;
 }

@@ -20,11 +20,11 @@ import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
-import { withBell } from './reinforce.ts';
+import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
-import { awayGuards, etaMinute, onTheRoad, sendRaid } from './night.ts';
+import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
@@ -76,6 +76,7 @@ export interface Raid {
   lookouts?: number; // lookouts riding along (from Threat 3): each cuts the target's detection chance
   syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
   siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
+  help?: { from: string; ids: string[] }[]; // your raid was spotted (reinforce.ts): the henchmen each rival plot sent, home after the fight
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
@@ -757,17 +758,20 @@ const oddsSeed = (plotId: string) => [...plotId].reduce((h, c) => Math.imul(h ^ 
 
 /**
  * Estimated win chance for the Raid Planner (night or now): the raid fought many times, each against its own draw
- * of the garrison's weapons and its own detection roll (a raid that's seen loses its first strike; a Sneaky guard
- * makes that rarer). It rolls its own dice, so the game's seed doesn't move.
+ * of the garrison's weapons and its own detection roll (a raid that's seen loses its first strike, and the rival
+ * sends help; a Sneaky guard is seen less). It rolls its own dice, so the game's seed doesn't move.
  */
 export function raidOdds(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): number {
   if (!guardIds.length) return 0;
   const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
-  const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: false, eta: '' };
   const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
+  const lead = travelMinutes(s, squadHome(s, plotId), plotId); // spotted as it sets out: the warning comes this far ahead
   const nextId = s.nextId; // each henchman drawn takes an id: hand them back
   try {
-    return winChance((rng) => ({ ...battleInput(s, raid, squad, night, new Set(), rng), detected: nextRandom(rng) < seen }), oddsSeed(plotId), runs);
+    return winChance((rng) => {
+      const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: nextRandom(rng) < seen, eta: '' };
+      return withRivalHelp(battleInput(s, raid, squad, night, new Set(), rng), rivalHelpFor(s, raid, rng), lead);
+    }, oddsSeed(plotId), runs);
   } finally {
     s.nextId = nextId;
   }
@@ -826,7 +830,8 @@ export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): B
     ? squadFighters(raidSquad(s, raid.guards!), 'att', night)
     : raid.party!;
   if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night, sneakyIn(s, raid.guards!));
-  return withBell(s, raid, battleInput(s, raid, attackers, night, away, rng), night); // Ring the Bell: the reserve on its way
+  const input = sendHelp(s, raid, battleInput(s, raid, attackers, night, away, rng), rng); // spotted: the rival sends help
+  return withBell(s, raid, input, night); // Ring the Bell: the reserve on its way
 }
 
 /** Fight a raid and live with the result. `fought`: a live fight (fight.ts) already fought it. */
@@ -861,7 +866,9 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     if (raid.attacker === 'player') book(s, 'loot', loot);
     else s.rivals[raid.attacker as RivalId].cash = round2(s.rivals[raid.attacker as RivalId].cash + loot);
   }
-  if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => input.defenders.some((d) => d.id === id)).length);
+  const helpers = new Set((raid.help ?? []).flatMap((h) => h.ids));
+  if (defender !== 'player' && res.koed.length) ps.garrison = Math.max(0, (ps.garrison ?? 0) - res.koed.filter((id) => !helpers.has(id) && input.defenders.some((d) => d.id === id)).length);
+  helpHome(s, raid, res); // the help the rival sent walks home
 
   creditGuards(s, input, res);
 

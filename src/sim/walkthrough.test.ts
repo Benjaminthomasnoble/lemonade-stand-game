@@ -220,22 +220,29 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
 
   it.todo('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)');
 
-  // Measured: the Planner reads 42% (46% over 400 runs). Each of its runs fights its own draw of the garrison the sim
-  // posts at a rival L3 Kiosk (3 Threat 3 henchmen in vests, most with clubs at 21.6 a hit) and rolls the 55% detection.
-  // Against 3 club Bros at 18 a hit, as the walkthrough has them, the squad wins all 400 (see raidInput below).
+  // Measured: the Planner reads 30% (30% over 400 runs). Each of its runs fights its own draw of the garrison the sim
+  // posts at a rival L3 Kiosk (3 Threat 3 henchmen in vests, most with clubs at 21.6 a hit) and rolls the 55% detection;
+  // a raid that's spotted also meets the help the Blenders send from their other Boardwalk plots (1 at Threat 2, there
+  // by contact). Against 3 club Bros at 18 a hit, unseen as the walkthrough has them, the squad wins all 400 (see
+  // raidInput below).
   it.fails('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
     const { s, kiosk } = day24();
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true), 0.81, 0.05);
   });
 
-  it('the Planner\'s figure is what the raid wins when it\'s fought, each fight with its own garrison and detection roll', () => {
+  it('the Planner\'s figure is what the raid wins when it\'s fought, each fight with its own garrison, detection roll and help', () => {
     const { s, kiosk } = day24();
-    const raid: Raid = { id: 'odds', attacker: 'player', target: kiosk, objective: 'shakedown', guards: s.guards.map((g) => g.id), detected: false, eta: '' };
-    let won = 0;
+    const trip = squadTrip(s, kiosk, 'tonight');
+    let won = 0, helped = 0;
     for (let seed = 1; seed <= 400; seed++) {
+      const t = JSON.parse(JSON.stringify(s)) as GameState;
+      const raid: Raid = { id: 'odds', attacker: 'player', target: kiosk, objective: 'shakedown', guards: t.guards.map((g) => g.id), detected: false, eta: '', leave: trip.leave, at: trip.at };
       const rng = { seed };
-      if (runBattle(raidInput(s, raid, true, rng), rng).winner === 'att') won++;
+      const input = raidInput(t, raid, true, rng);
+      if (raid.help) helped++;
+      if (runBattle(input, rng).winner === 'att') won++;
     }
+    expect(helped).toBeGreaterThan(100); // most spotted raids meet help
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 

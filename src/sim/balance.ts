@@ -568,6 +568,12 @@ export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; wea
   { fence: 2, gadgets: ['alarm', 'goose', 'slick'], level: 2, weapons: [0, 1, 0], gear: 'vest' },
   { fence: 3, gadgets: ['goose', 'slick', 'sprinkler'], level: 4, weapons: [0, 0.5, 0.5], gear: 'pro' },
 ];
+/**
+ * A rival who spots your raid sends help (spec: "the defender sees the ETA and sends help"; no numbers): each of its
+ * other plots and its HQ in the same or a bordering district sends this share of its garrison (rounded down), nearest
+ * first, up to `cap` henchmen by Threat. Placeholders: spec gap.
+ */
+export const RIVAL_HELP = { share: 0.5, cap: [1, 1, 2, 2, 3] };
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

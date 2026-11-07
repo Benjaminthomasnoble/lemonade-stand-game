@@ -82,9 +82,11 @@ describe('economy', () => {
 
   it('gouging scares customers away', () => {
     const s = newGame(3);
-    const fair = appealFor(s, LOTTIES_CORNER, 'families').stopChance;
-    setPrice(selectedStand(s), 1.45);
-    expect(appealFor(s, LOTTIES_CORNER, 'families').stopChance).toBeLessThan(fair / 4);
+    const fair = appealFor(s, LOTTIES_CORNER, 'families').stopChance; // at the $1.50 ceiling
+    setPrice(selectedStand(s), 1.95); // 30% over: three buyers in four walk off
+    expect(appealFor(s, LOTTIES_CORNER, 'families').stopChance).toBeCloseTo(fair / 4, 6);
+    setPrice(selectedStand(s), 2.1); // 40% over: nobody buys
+    expect(appealFor(s, LOTTIES_CORNER, 'families').stopChance).toBeCloseTo(0, 6);
   });
 
   it('upgrades the stand once you can afford it, gated by rank', () => {

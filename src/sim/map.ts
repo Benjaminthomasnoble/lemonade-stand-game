@@ -14,7 +14,6 @@ export interface District {
   traffic: [number, number]; // street-plot passersby per day
   land: [number, number]; // street-plot land price range
   specialLand?: Partial<Record<PlotType, [number, number]>>;
-  priceMult?: number; // Hilltop customers pay ×2
   mix: Partial<Record<SegmentId, number>>;
   feel: string;
   // layout: a street running east-west with plots on both sides
@@ -79,7 +78,7 @@ export const DISTRICTS: District[] = [
     ],
   },
   {
-    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], land: [240000, 480000], specialLand: { field: [120000, 240000], dock: [300000, 600000] }, priceMult: 2, mix: { highRollers: 0.7, seniors: 0.15, families: 0.15 },
+    id: 'hilltop', name: 'Hilltop Estates', owner: 'sourwood', traffic: [300, 600], land: [240000, 480000], specialLand: { field: [120000, 240000], dock: [300000, 600000] }, mix: { highRollers: 0.7, seniors: 0.15, families: 0.15 },
     feel: 'Mansions, country club, hedges', origin: [92, -100], cols: 5, ground: 0x6fb257,
     special: [
       { col: 2, side: 0, type: 'hq', name: 'Sourwood Manor' }, { col: 0, side: 0, type: 'field', name: 'Polo Lawn' },
@@ -183,10 +182,42 @@ export const PLOT_BY_ID: Record<string, Plot> = Object.fromEntries(PLOTS.map((p)
 export const LOTTIES_CORNER = PLOTS.find((p) => p.name === "Lottie's Corner")!.id;
 export const DISTRICT_BY_ID: Record<DistrictId, District> = Object.fromEntries(DISTRICTS.map((d) => [d.id, d])) as Record<DistrictId, District>;
 
-/** Plots whose stands compete for the same passersby: same street, within 2 plots. */
-const NEARBY: Record<string, Plot[]> = Object.fromEntries(
-  PLOTS.map((p) => [p.id, PLOTS.filter((q) => q.district === p.district && Math.abs(q.col - p.col) <= 2)]),
-);
+/**
+ * Each district is one east-west street. Districts in the same row share a street line, and where two of them
+ * border each other the street runs on from one into the next, so the end plots are neighbors across the line.
+ * A plot's place on its line is its column plus the columns of the districts before it.
+ */
+const LINE_POS: Record<string, { line: number; pos: number }> = (() => {
+  const rows = [...new Set(DISTRICTS.map((d) => d.origin[1]))];
+  const out: Record<string, { line: number; pos: number }> = {};
+  rows.forEach((z, line) => {
+    let at = 0;
+    let prev: District | null = null;
+    for (const d of DISTRICTS.filter((x) => x.origin[1] === z).sort((a, b) => a.origin[0] - b.origin[0])) {
+      if (prev && !BORDERS[prev.id].includes(d.id)) at += 3; // no shared border: the streets don't meet
+      for (const p of PLOTS) if (p.district === d.id) out[p.id] = { line, pos: at + p.col };
+      at += d.cols;
+      prev = d;
+    }
+  });
+  return out;
+})();
+
+/**
+ * Within 2 plots (spec: The world): neighbors sit beside a plot (same side, one column over) or straight across
+ * the street, across district lines too, and "within 2 plots" is neighbors of neighbors: the same side to two
+ * columns over, the other side to one. The plot itself is included. One helper for demand splitting, Billboards,
+ * the Billboard Roof, the Watchtower and Kids' Lemonade Day.
+ */
+export function withinTwo(a: Plot, b: Plot): boolean {
+  const pa = LINE_POS[a.id], pb = LINE_POS[b.id];
+  if (pa.line !== pb.line) return false;
+  const d = Math.abs(pa.pos - pb.pos);
+  return a.side === b.side ? d <= 2 : d <= 1;
+}
+
+/** Plots whose stands compete for the same passersby (within 2 plots, the plot itself included). */
+const NEARBY: Record<string, Plot[]> = Object.fromEntries(PLOTS.map((p) => [p.id, PLOTS.filter((q) => withinTwo(p, q))]));
 export function nearbyPlots(p: Plot): Plot[] {
   return NEARBY[p.id];
 }

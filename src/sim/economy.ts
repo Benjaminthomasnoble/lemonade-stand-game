@@ -4,10 +4,10 @@
 // Covers every stand on the Citrine Bay map: the player's and the rivals'.
 import { nextRandom, randomRange } from './rng.ts';
 import {
-  AUTO_RESTOCK_DAY, BASE_STOP_CHANCE, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  CURB_APPEAL, DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
+  AUTO_RESTOCK_DAY, BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
+  DAWN, DISTRICT_RANK, FACTIONS, FORECAST_ACCURACY, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER,
-  SEASONS, SEGMENTS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
+  SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
   type WeatherKind,
 } from './balance.ts';
@@ -19,13 +19,17 @@ import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budg
 import { schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, welcomeDex, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId } from './balance.ts';
-import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { BORDERS, DISTRICTS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
-import { damageAtClose, damageAtDawn, hpCapacity, migrateDamage, restoreHp, type Repair } from './damage.ts';
+import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
+import {
+  ceilingFor, chooseStand, curbAppeal, dailyService, dayMix, drainQueue, drawSegment, expectedDemand, joinsLine, migrateDemand, priceCeiling,
+  segmentPriceFit, serviceLeft, stopOdds,
+} from './demand.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -40,6 +44,7 @@ export * from './recipes.ts';
 export * from './calendar.ts';
 export * from './rivalAi.ts';
 export * from './schemes.ts';
+export * from './demand.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -68,7 +73,8 @@ export interface Stand {
   sweetness: Sweetness;
   price: number;
   pitcherCups: number;
-  servedThisHour: number;
+  /** People in line right now; it moves at the stand's pour rate (demand.ts). Optional for older saves. */
+  queue?: number;
   campaigns: Partial<Record<CampaignId, number>>; // days left
   autoRestock: boolean;
   day: StandDay;
@@ -193,7 +199,7 @@ export interface GameState {
 }
 
 export type SimEvent =
-  | { type: 'passerby'; plot: string; at: string; segment: SegmentId; buys: boolean; reason?: WalkReason; price: number; owner: FactionId }
+  | { type: 'passerby'; plot: string; at: string; segment: SegmentId; buys: boolean; reason?: WalkReason; price: number; owner: FactionId } // price: what they paid (or the posted price)
   | { type: 'pickup'; order: Order; ok: boolean; raid?: BattleReport }
   | { type: 'close' }
   | { type: 'alert'; alert: Alert } // a card landed in the alert feed
@@ -245,10 +251,10 @@ function emptyStats(s: GameState): DayStats {
   };
 }
 
-export function newStand(level = 1, price = 0.75): Stand {
+export function newStand(level = 1, price = STAND_LEVELS[level - 1].topPrice): Stand {
   return {
     level, inventory: { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 }, recipe: 'classic', sweetness: 'classic',
-    price, pitcherCups: 0, servedThisHour: 0, campaigns: {}, autoRestock: false, day: emptyStandDay(),
+    price, pitcherCups: 0, queue: 0, campaigns: {}, autoRestock: false, day: emptyStandDay(),
   };
 }
 
@@ -297,9 +303,9 @@ function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
   s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
 }
 
+/** A rival's everyday price: its stand's ceiling (the same formula as yours), nudged by personality (FACTIONS.price). */
 export function rivalPrice(id: RivalId, level: number, p: Plot): number {
-  const d = DISTRICT_BY_ID[p.district];
-  return round2(STAND_LEVELS[level - 1].topPrice * 0.45 * FACTIONS[id].price * (d.priceMult ?? 1));
+  return round2(ceilingFor(level, p.district, 'classic') * FACTIONS[id].price);
 }
 
 export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settings> = {}): GameState {
@@ -317,6 +323,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
   };
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
+  s.plots[LOTTIES_CORNER].stand!.price = priceCeiling(s, LOTTIES_CORNER); // the sweet spot (spec: Pricing)
   seedRivals(s, rng);
   seedRivalDefenses(s, rng);
   seedRivalFacilities(s);
@@ -424,40 +431,46 @@ export function servingsAvailable(st: Stand): number {
 
 // ---------- demand ----------
 
-export interface Appeal { priceFit: number; recipeMatch: number; sweetMatch: number; appeal: number; stopChance: number; fairPrice: number; topPrice: number }
+export interface Appeal {
+  priceFit: number; recipeMatch: number; sweetMatch: number; curb: number; appeal: number;
+  /** The chance a passerby stops and buys; `wouldStop` is the chance at the ceiling (over it, the gap is lost to price). */
+  stopChance: number; wouldStop: number;
+  /** The stand's ceiling, one per stand. fairPrice and topPrice are older names for it. */
+  ceiling: number; fairPrice: number; topPrice: number;
+}
 
 function ownerReputation(s: GameState, owner: FactionId): number {
   return owner === 'player' ? s.reputation : 3;
 }
 
-/** How a customer of a segment feels about a stand today. Shown to the player as odds. */
+/** How a customer of a segment feels about a stand today (spec: appeal = curb appeal x recipe match x price fit x Reputation). */
 export function appealFor(s: GameState, plotId: string, seg: SegmentId, w: Weather = s.weather): Appeal {
   const ps = s.plots[plotId];
   const st = ps.stand!;
-  const p = PLOT_BY_ID[plotId];
-  const g = SEGMENTS[seg];
-  const rival = ps.owner !== 'player';
-  const r = RECIPES[st.recipe];
-  const card = cardFit(s, plotId, seg); // world: where the card shines, the Sweetness dial, the Blender Bar (rivals: 1)
-  const districtMult = DISTRICT_BY_ID[p.district].priceMult ?? 1;
-  const topPrice = (standLevel(st).topPrice + (rival ? 0 : r.priceBonus)) * card.top * g.priceTolerance * districtMult;
-  const fairPrice = topPrice * 0.5;
-  const priceFit = st.price <= fairPrice ? 1 + 0.3 * (fairPrice - st.price) / fairPrice : Math.max(0, 1 - (st.price - fairPrice) / (topPrice - fairPrice));
+  const ceiling = priceCeiling(s, plotId, st);
+  const priceFit = segmentPriceFit(plotId, seg, st.price, ceiling);
+  // world: where the card shines and the Sweetness dial (rivals: 1). Its top-price perk is in the ceiling (topPriceMods).
+  const card = cardFit(s, plotId, seg);
   const recipeMatch = card.match;
   const sweetMatch = card.sweet;
-  const appeal = CURB_APPEAL[st.level - 1] * recipeMatch * sweetMatch * priceFit * repMultiplier(ownerReputation(s, ps.owner!));
-  const stopChance = clamp(BASE_STOP_CHANCE * WEATHER[w.kind].thirst * appeal, 0, 0.95);
-  return { priceFit, recipeMatch, sweetMatch, appeal, stopChance, fairPrice, topPrice };
+  const curb = curbAppeal(s, plotId);
+  const beforePrice = curb * recipeMatch * sweetMatch * repMultiplier(ownerReputation(s, ps.owner!));
+  const appeal = beforePrice * priceFit;
+  const { stopChance, wouldStop } = stopOdds(WEATHER[w.kind].thirst, beforePrice, priceFit);
+  return { priceFit, recipeMatch, sweetMatch, curb, appeal, stopChance, wouldStop, ceiling, fairPrice: ceiling, topPrice: ceiling };
 }
 
-/** Average stop chance across a plot's customer mix. */
+/** Average stop chance across a plot's day-long customer mix. */
 export function averageStopChance(s: GameState, plotId: string, w: Weather = s.weather): number {
-  const mix = Object.entries(DISTRICT_BY_ID[PLOT_BY_ID[plotId].district].mix) as [SegmentId, number][];
-  const total = mix.reduce((a, [, x]) => a + x, 0);
-  return mix.reduce((a, [seg, x]) => a + appealFor(s, plotId, seg, w).stopChance * x, 0) / total;
+  return dayMix(PLOT_BY_ID[plotId].district).reduce((a, [seg, x]) => a + appealFor(s, plotId, seg, w).stopChance * x, 0);
 }
 
-export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand): number {
+/**
+ * The marketing number: every traffic bonus adds into one number that multiplies the plot's traffic (spec: How
+ * marketing stacks). One term per line: brand tier, Lemon Groves, campaigns.
+ */
+export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand, plotId?: string): number {
+  void plotId; // the district perks read it
   const tier = owner === 'player' ? s.brandTier : s.rivals[owner]?.brandTier ?? 0;
   let m = 1 + (tier ? BRAND_TIERS[tier - 1].traffic : 0) + (owner === 'player' ? groveTraffic(s) : 0) + calendarTraffic(s, owner, st);
   if (st) for (const [id, days] of Object.entries(st.campaigns) as [CampaignId, number][]) if (days > 0) m += CAMPAIGNS[id].traffic;
@@ -467,39 +480,21 @@ export function marketingMultiplier(s: GameState, owner: FactionId, st?: Stand):
 export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.weather): number {
   const ps = s.plots[plotId];
   if (!ps.stand || ps.stand.wrecked) return 0;
-  return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand)
+  return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand, plotId)
     * seasonDemand(s, plotId) * WEATHER[w.kind].traffic;
 }
 
-/** Rough cups a player stand should sell today (for the prep odds and auto-restock). */
+/** Cups a stand should sell today (the prep odds and Auto-Restock): demand by the day's own rules, capped at its service. */
 export function expectedCups(s: GameState, plotId: string, w: Weather = s.forecast): number {
-  const st = s.plots[plotId].stand!;
-  const rivals = nearbyPlots(PLOT_BY_ID[plotId]).filter((q) => q.id !== plotId && s.plots[q.id].stand && s.plots[q.id].owner !== 'player').length;
-  const share = 1 / (1 + rivals * 0.6);
-  return Math.min(Math.round(expectedPassersby(s, plotId, w) * averageStopChance(s, plotId, w) * share), hpCapacity(s.plots[plotId], standLevel(st).capacityPerHour) * 12);
+  if (!s.plots[plotId]?.stand) return 0;
+  return Math.min(Math.round(expectedDemand(s, plotId, w).demand), dailyService(s, plotId)); // service: a Damaged stand pours its HP share
 }
 
 const HOURLY_SUM = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
 
-const segTables = new Map<string, { segs: SegmentId[]; cum: number[] }>();
+/** Who walks past: the district's mix, with each segment's peak hours weighted up (demand.ts). */
 function segmentAt(rng: Rng, district: DistrictId, hour: number): SegmentId {
-  const key = district + hour;
-  let t = segTables.get(key);
-  if (!t) {
-    const segs: SegmentId[] = [];
-    const cum: number[] = [];
-    let total = 0;
-    for (const [seg, x] of Object.entries(DISTRICT_BY_ID[district].mix) as [SegmentId, number][]) {
-      total += x * (SEGMENTS[seg].peaks.some((p) => Math.abs(p - hour) <= 1) ? 1.8 : 1);
-      segs.push(seg);
-      cum.push(total);
-    }
-    t = { segs, cum: cum.map((c) => c / total) };
-    segTables.set(key, t);
-  }
-  const r = nextRandom(rng);
-  for (let i = 0; i < t.cum.length; i++) if (r <= t.cum[i]) return t.segs[i];
-  return t.segs[t.segs.length - 1];
+  return drawSegment(rng, district, hour);
 }
 
 // ---------- the business day ----------
@@ -525,7 +520,7 @@ export function openStands(s: GameState): boolean {
     const st = s.plots[p.id].stand;
     if (!st) continue;
     st.day = emptyStandDay();
-    st.servedThisHour = 0;
+    st.queue = 0;
     if (s.plots[p.id].owner === 'player' && st.autoRestock && s.day >= AUTO_RESTOCK_DAY) autoRestock(s, p.id);
   }
   return true;
@@ -556,12 +551,17 @@ function cachedAppeal(s: GameState, plotId: string, seg: SegmentId): Appeal {
   return a;
 }
 
-function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boolean; reason?: WalkReason } {
+function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: SegmentId): { buys: boolean; reason?: WalkReason; paid?: number } {
   const ps = s.plots[plotId];
   const st = ps.stand!;
   const isPlayer = ps.owner === 'player';
-  if (nextRandom(rng) >= a.stopChance) return { buys: false, reason: a.priceFit < 0.6 ? 'pricey' : 'notThirsty' };
-  if (st.servedThisHour >= hpCapacity(ps, standLevel(st).capacityPerHour)) return { buys: false, reason: 'line' }; // a Damaged stand pours its HP share
+  // Over the ceiling, the buyers lost to price walk off "too pricey"; the rest simply aren't thirsty.
+  const roll = nextRandom(rng);
+  if (roll >= a.stopChance) return { buys: false, reason: roll < a.wouldStop ? 'pricey' : 'notThirsty' };
+  // A buyer joins the line only if the people ahead are within their patience; it moves at the pour rate.
+  // The day's pours stop at cups/hour × 10 (service); past that, everyone finds the line too long too.
+  // A Damaged stand pours its HP share (pourRate, damage.ts), so its line moves slower and its day ends sooner.
+  if (!joinsLine(st, seg) || serviceLeft(s, plotId) <= 0) return { buys: false, reason: 'line' };
   if (!isPlayer && st.day.customers >= stockCups(st)) return { buys: false, reason: 'soldOut' }; // a rival sells one full stock a day
   if (isPlayer) {
     if (st.pitcherCups === 0) {
@@ -575,7 +575,8 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
     if (st.pitcherCups === 0) return { buys: false, reason: 'soldOut' };
     st.pitcherCups--;
   }
-  st.servedThisHour++;
+  st.queue = (st.queue ?? 0) + 1;
+  const paid = st.price;
   let warm = false;
   let cupCost = CUP_COST;
   if (isPlayer) {
@@ -590,16 +591,16 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
   const d = st.day;
   d.satisfaction = (d.satisfaction * d.customers + sat) / (d.customers + 1);
   d.customers++;
-  d.revenue = round2(d.revenue + st.price);
+  d.revenue = round2(d.revenue + paid);
   d.cupCosts = round2(d.cupCosts + cupCost);
   if (isPlayer) {
-    s.cash = round2(s.cash + st.price - cupCost);
+    s.cash = round2(s.cash + paid - cupCost);
     s.lifetimeCups++;
   } else {
     const r = s.rivals[ps.owner as RivalId];
-    r.cash = round2(r.cash + st.price - cupCost);
+    r.cash = round2(r.cash + paid - cupCost);
   }
-  return { buys: true };
+  return { buys: true, paid };
 }
 
 /** Advance one game minute. Returns what happened, for the renderer. */
@@ -613,11 +614,10 @@ export function tickMinute(s: GameState): SimEvent[] {
   const events: SimEvent[] = [];
   const rng = { seed: s.seed };
   const hourIdx = Math.floor((s.minute - OPEN) / 60);
-  const newHour = (s.minute - OPEN) % 60 === 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (!ps.stand || ps.stand.wrecked) continue;
-    if (newHour) ps.stand.servedThisHour = 0;
+    drainQueue(s, p.id);
     const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx]) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);
     while (carry >= 1) {
@@ -637,23 +637,14 @@ export function tickMinute(s: GameState): SimEvent[] {
   return events;
 }
 
-/** One person walks past plot p and picks the most appealing stand within 2 plots. */
+/** One person walks past plot p; the stands within 2 plots split them by appeal (rivals take 35% at most). */
 function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   const seg = festivalCrowd(s, rng, p.district) ?? segmentAt(rng, p.district, 8 + hourIdx);
   const home = s.plots[p.id];
   home.stand!.day.passersby++;
-  const options = nearbyPlots(p).filter((q) => s.plots[q.id].stand && !s.plots[q.id].stand!.wrecked);
-  let chosen = p.id;
-  let a = cachedAppeal(s, p.id, seg);
-  if (options.length > 1) {
-    const appeals = options.map((q) => ({ id: q.id, a: q.id === p.id ? a : cachedAppeal(s, q.id, seg) }));
-    // The stand they're walking past gets an "it's right here" bonus.
-    const weights = appeals.map((x) => x.a.appeal * (x.id === p.id ? 1.6 : 1));
-    let r = nextRandom(rng) * weights.reduce((t, w) => t + w, 0);
-    for (let i = 0; i < appeals.length; i++) { r -= weights[i]; if (r <= 0) { chosen = appeals[i].id; a = appeals[i].a; break; } }
-  }
+  const { id: chosen, a } = chooseStand(s, p, rng, (id) => cachedAppeal(s, id, seg));
   const chosenOwner = s.plots[chosen].owner!;
-  const result = serveAt(s, chosen, rng, a);
+  const result = serveAt(s, chosen, rng, a, seg);
   if (chosenOwner !== home.owner) home.stand!.day.walkedPast.rival++;
   if (chosenOwner === 'player' && result.buys && home.owner !== 'player') tookCustomer(s, home.owner as RivalId); // Attention
   if (!result.buys) s.plots[chosen].stand!.day.walkedPast[result.reason!]++;
@@ -664,7 +655,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   if (chosenOwner === 'player') {
     if (result.buys) s.today.customers++; else s.today.walkedPast[result.reason!]++;
   }
-  return { type: 'passerby', plot: p.id, at: chosen, segment: seg, buys: result.buys, reason: result.reason, price: s.plots[chosen].stand!.price, owner: chosenOwner };
+  return { type: 'passerby', plot: p.id, at: chosen, segment: seg, buys: result.buys, reason: result.reason, price: result.paid ?? s.plots[chosen].stand!.price, owner: chosenOwner };
 }
 
 function closeDay(s: GameState): void {
@@ -824,7 +815,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   s.cash = round2(s.cash - price);
   s.today.land = round2(s.today.land + price);
   ps.owner = 'player';
-  if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1, selectedStand(s).price); ps.invested += STAND_LEVELS[0].cost; }
+  if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
   delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
   checkVictory(s);
@@ -848,7 +839,8 @@ export function buildStand(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   s.cash = round2(s.cash - STAND_LEVELS[0].cost);
   s.today.land = round2(s.today.land + STAND_LEVELS[0].cost);
-  ps.stand = newStand(1, selectedStand(s).price);
+  ps.stand = newStand(1);
+  ps.stand.price = priceCeiling(s, plotId); // a new table opens at its ceiling
   ps.invested += STAND_LEVELS[0].cost;
   s.selected = plotId;
   s.news.push(`A brand-new Folding Table opens at ${PLOT_BY_ID[plotId].name}!`);
@@ -1028,6 +1020,7 @@ export function migrateSave(x: unknown): GameState | null {
   }
   migrateDamage(s); // building HP and queued repairs (damage.ts)
   migrateCombat(s);
+  migrateDemand(s);
   if (s.version === SAVE_VERSION) migrateNights(s); // real-time nights: the alert feed and the raid clock
   if (isGameState(s)) migrateRivals(s);
   return isGameState(s) ? migrateWorld(s) : null;

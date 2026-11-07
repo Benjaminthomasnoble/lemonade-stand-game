@@ -108,22 +108,42 @@ export const BLENDER_BAR_TOP_PRICE = 1.2;
 
 // ---------- customers ----------
 export type SegmentId = 'kids' | 'families' | 'seniors' | 'students' | 'office' | 'tourists' | 'workers' | 'highRollers';
-/** `sweet` is the Sweetness a segment leans to; 'classic' means it doesn't care either way. */
-export const SEGMENTS: Record<SegmentId, { label: string; priceTolerance: number; favorites: RecipeId[]; sweet: Sweetness; peaks: number[] }> = {
-  kids: { label: 'Kids', priceTolerance: 0.8, favorites: ['pink', 'strawberry'], sweet: 'extra', peaks: [11, 15] },
-  families: { label: 'Families', priceTolerance: 1.0, favorites: ['pink', 'classic'], sweet: 'classic', peaks: [12, 18] },
-  seniors: { label: 'Seniors', priceTolerance: 0.9, favorites: ['honeyGinger', 'classic'], sweet: 'less', peaks: [9, 16] },
-  students: { label: 'Students', priceTolerance: 0.85, favorites: ['mint', 'frozen'], sweet: 'classic', peaks: [13, 19] },
-  office: { label: 'Office workers', priceTolerance: 1.2, favorites: ['sparkling'], sweet: 'less', peaks: [8, 12, 17] },
-  tourists: { label: 'Tourists', priceTolerance: 1.3, favorites: ['strawberry', 'frozen'], sweet: 'classic', peaks: [13, 16] },
-  workers: { label: 'Workers', priceTolerance: 0.9, favorites: ['halfAndHalf'], sweet: 'classic', peaks: [8, 12, 17] },
-  highRollers: { label: 'High rollers', priceTolerance: 2.0, favorites: ['lavender', 'secretReserve'], sweet: 'classic', peaks: [14, 18] },
+/**
+ * Appendix A, Customer segments. Price tolerance only decides who leaves first over a stand's ceiling (the
+ * district's tolerance is already the blend of its crowd); patience is the longest line, in people ahead, a
+ * buyer will join; peaks are [start, end) clock hours when the segment makes up more of the crowd.
+ * `sweet` is the Sweetness a segment leans to; 'classic' means it doesn't care either way.
+ */
+export const SEGMENTS: Record<SegmentId, { label: string; priceTolerance: number; patience: number; favorites: RecipeId[]; sweet: Sweetness; peaks: [number, number][] }> = {
+  kids: { label: 'Kids', priceTolerance: 0.8, patience: 4, favorites: ['pink', 'strawberry'], sweet: 'extra', peaks: [[13, 17]] },
+  families: { label: 'Families', priceTolerance: 1.0, patience: 6, favorites: ['pink', 'classic'], sweet: 'classic', peaks: [[17, 20]] },
+  seniors: { label: 'Seniors', priceTolerance: 0.9, patience: 10, favorites: ['honeyGinger', 'classic'], sweet: 'less', peaks: [[8, 11]] },
+  students: { label: 'Students', priceTolerance: 0.85, patience: 6, favorites: ['mint', 'frozen'], sweet: 'classic', peaks: [[12, 18]] },
+  office: { label: 'Office workers', priceTolerance: 1.2, patience: 3, favorites: ['sparkling'], sweet: 'less', peaks: [[8, 9], [12, 14]] },
+  tourists: { label: 'Tourists', priceTolerance: 1.3, patience: 8, favorites: ['strawberry', 'frozen'], sweet: 'classic', peaks: [[11, 17]] },
+  workers: { label: 'Workers', priceTolerance: 0.9, patience: 5, favorites: ['halfAndHalf'], sweet: 'classic', peaks: [[12, 13], [17, 18]] },
+  highRollers: { label: 'High rollers', priceTolerance: 2.0, patience: 2, favorites: ['lavender', 'secretReserve'], sweet: 'classic', peaks: [[14, 19]] },
 };
+/** How much more of the crowd a segment makes up in its peak hours. placeholder: spec gap (the spec gives no size). */
+export const PEAK_BOOST = 1.8;
 /** Who walks down Maple Row. */
 export const MAPLE_ROW_MIX: Partial<Record<SegmentId, number>> = { kids: 0.3, families: 0.3, seniors: 0.25, students: 0.08, workers: 0.07 };
 /** Foot traffic shape over business hours (commute, lunch, afternoon heat, evening stroll). */
 export const HOURLY_TRAFFIC = [0.9, 0.7, 0.7, 0.9, 1.3, 1.2, 1.1, 1.3, 1.3, 1.0, 1.1, 1.0]; // 08..19
 export const BASE_STOP_CHANCE = 0.25;
+/** Effective selling hours of the 12 open (peaks, lulls and queues): a stand pours at most cups/hour × 10 a day. */
+export const SELLING_HOURS = 10;
+/**
+ * Price fit around a stand's ceiling (spec: Pricing): +1% appeal per 1% under, up to +25%; a quarter of
+ * buyers lost per 10% over (×2.5 per 100% over), so nobody buys at 40% over.
+ */
+export const PRICE_FIT = { underMax: 0.25, overSlope: 2.5 };
+/** Price tolerance by district (Appendix A, land table): the blend of each district's usual crowd. */
+export const PRICE_TOLERANCE: Record<string, number> = { maple: 1.0, oldtown: 1.0, campus: 0.9, downtown: 1.15, boardwalk: 1.2, harbor: 0.9, groves: 0.9, hilltop: 2.0 };
+/** Rival stands within 2 plots cost a stand at most this share of its own passersby (demand constants). */
+export const RIVAL_SHARE_CAP = 0.35;
+/** Majority (51%+ of a district): your stands there sell +10% (curb appeal ×1.1); rival stands there −10% appeal. */
+export const MAJORITY_CURB = { player: 1.1, rival: 0.9 };
 
 // ---------- stands ----------
 export interface StandLevel { level: number; name: string; cost: number; draw: number; capacityPerHour: number; topPrice: number; upkeep: number; hp: number; guardPosts: number; storage: Record<SupplyId, number> }
@@ -137,8 +157,6 @@ export const STAND_LEVELS: StandLevel[] = [
 export const BUILDING_VALUE_SHARE = 0.75;
 /** Rank needed to upgrade TO each level (index = level - 1). */
 export const STAND_RANK_GATE = [1, 1, 3, 5, 7];
-/** Curb appeal by level: nicer stands look more inviting. */
-export const CURB_APPEAL = [1.0, 1.05, 1.1, 1.15, 1.2];
 
 // ---------- marketing ----------
 export const BRAND_TIERS = [

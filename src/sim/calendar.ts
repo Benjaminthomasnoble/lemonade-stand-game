@@ -4,7 +4,7 @@
 // Tilly's Fields). Pure functions over GameState, like the rest of the sim.
 import { nextRandom } from './rng.ts';
 import {
-  FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
+  FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, PRICE_TOLERANCE, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
   TASTE_OFF_SKILL, TILLY_FAIR_ACT, TILLY_FAIR_YEAR, TILLY_FIELD_BUYOUT, TILLY_WAITS_FOR_FAIR, YEAR_DAYS,
   type FestivalId, type RecipeId, type RivalId, type SegmentId, type Sweetness,
 } from './balance.ts';
@@ -231,7 +231,7 @@ export function setTasteOffEntry(s: GameState, change: { recipe?: RecipeId; swee
 /** The booth's top price: your best stand's top price × the card's price bonus × the district's tolerance. */
 export function boothCeiling(s: GameState, recipe: RecipeId, district: DistrictId): number {
   const level = Math.max(1, ...playerStands(s).map((p) => s.plots[p.id].stand!.level));
-  return STAND_LEVELS[level - 1].topPrice * (1 + RECIPES[recipe].priceBonus) * (DISTRICT_BY_ID[district].priceMult ?? 1) * blenderBar(s, recipe);
+  return STAND_LEVELS[level - 1].topPrice * (1 + RECIPES[recipe].priceBonus) * (PRICE_TOLERANCE[district] ?? 1) * blenderBar(s, recipe); // demand: the district tolerance table
 }
 
 /** 0 bargain, 1 fair, 2 worth a little extra, 3 over the top price. */

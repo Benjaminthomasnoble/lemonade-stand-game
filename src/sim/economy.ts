@@ -13,7 +13,7 @@ import {
 } from './balance.ts';
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
-import { eventsOnTheClock, eventWeather } from './events.ts';
+import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
@@ -52,6 +52,7 @@ export * from './schemes.ts';
 export * from './demand.ts';
 export * from './events.ts';
 export * from './media.ts';
+export * from './happenings.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -494,7 +495,7 @@ export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.w
   const ps = s.plots[plotId];
   if (!ps.stand || ps.stand.wrecked) return 0;
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand, plotId)
-    * seasonDemand(s, plotId) * WEATHER[w.kind].traffic;
+    * seasonDemand(s, plotId) * WEATHER[w.kind].traffic * eventTraffic(s, plotId); // world: Viral Video, Parade, Roadworks...
 }
 
 /** Cups a stand should sell today (the prep odds and Auto-Restock): demand by the day's own rules, capped at its service. */

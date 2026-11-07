@@ -232,6 +232,27 @@ export const HEAT_WAVE = {
   chance: { summer: 0.4, fall: 0.1, winter: 0, spring: 0.06 } as Record<Season, number>,
   window: { summer: [3, 12], fall: [1, 4], winter: [1, 1], spring: [9, 12] } as Record<Season, [number, number]>,
 };
+/** The rest of the table: how long each runs (spec) and its odds against the others when the scheduler rolls.
+ * placeholder: spec gap (the odds; Captain Squawk's "until restocked" ends after 3 days at most, as his lemons would spoil) */
+export const RANDOM_EVENTS = {
+  lemonBlight: { days: 5, weight: 1 }, sugarShortage: { days: 5, weight: 1 }, viralVideo: { days: 2, weight: 1.2 }, foodCritic: { days: 1, weight: 1 },
+  powerOutage: { days: 1, weight: 1 }, celebrity: { days: 1, weight: 1 }, parade: { days: 1, weight: 1 }, roadworks: { days: 3, weight: 1 },
+  touristBus: { days: 1, weight: 1 }, captainSquawk: { days: 3, weight: 1 },
+};
+/** A district or street event lands where you sell this often (else anywhere with stands). placeholder: spec gap */
+export const EVENT_NEAR_YOU = 0.7;
+/** Lemon Blight and Sugar Shortage double a Market price, on top of the daily ±20% (spec). */
+export const SUPPLY_SHOCK = 2;
+/** Traffic surges multiply on top of marketing (spec: Viral Video, Celebrity Sighting and Parade Route ×2, Roadworks −50%).
+ * A street is 4–6 adjacent columns of one district, both sides. placeholder: spec gap (the street's length; the Tourist Bus's +50%) */
+export const EVENT_TRAFFIC = { viralVideo: 2, celebrity: 2, parade: 2, roadworks: 0.5, touristBus: 1.5, street: [4, 6] as [number, number] };
+/** Tourist Bus: tourists are this share of the district's walkers for the day. placeholder: spec gap ("tourists fill one district") */
+export const TOURIST_BUS_SHARE = 0.7;
+/** Food Critic: a short line, a fair price and a fitting card. All three: +0.1 star; two: nothing; fewer: −0.1 (spec). The line is
+ * short while under 5% of the stand's walkers leave over it. placeholder: spec gap (the 5%) */
+export const FOOD_CRITIC = { stars: 0.1, line: 0.05 };
+/** L4 The Lemon Shack and up make their own ice as they pour, at the Market price, so none melts overnight (spec). */
+export const ICE_MACHINE_LEVEL = 4;
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★

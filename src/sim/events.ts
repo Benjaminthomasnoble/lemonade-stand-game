@@ -5,7 +5,7 @@
 // ahead each season, so the Radio Jingle's look-ahead sees it coming. Other lanes add theirs with registerEvent
 // (land's Hurricane and Health Inspection). Pure and seeded, like the rest of the sim.
 import { nextRandom } from './rng.ts';
-import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season, type SupplyId } from './balance.ts';
+import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season, type SegmentId, type SupplyId } from './balance.ts';
 import type { DistrictId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
 import { seasonDay, seasonOf } from './economy.ts';
@@ -29,7 +29,8 @@ export interface WorldEvent {
   plots?: string[]; // a street's plots, or the one named stand
   kids?: string[]; // Kids' Lemonade Day: the plots with a kid stand on the sidewalk beside them
   raided?: string[]; // ... and the kid stands raided
-  low?: number; // Captain Squawk: the fewest lemons the stand has held since the theft (restocked once it holds more)
+  low?: number; // Captain Squawk: the fewest lemons the stand has held since the theft (restocked once it holds more; -1 after)
+  stolen?: number; // ... and how many he took
   verdict?: number; // the Food Critic's star change, once given at closing
 }
 
@@ -61,6 +62,8 @@ export interface EventDef {
   headline(s: GameState, e: WorldEvent): string; // how it's announced: the Bugle at dawn, 101.5 mid-day
   bugle?(s: GameState, e: WorldEvent): [string, string]; // its front-page tapes (default: its name, where and how long)
   shock?: SupplyId; // the Market price it doubles (the Bugle prints the shock and its days left)
+  traffic?(s: GameState, e: WorldEvent, plotId: string): number; // a surge on a stand's walkers, on top of marketing (1: none)
+  crowd?: { segment: SegmentId; share: number }; // who fills its district, like a festival crowd (the Tourist Bus)
 }
 
 export interface EventsState {
@@ -95,6 +98,30 @@ export const liveEvent = (s: GameState, id: string): WorldEvent | undefined => s
 export const daysLeft = (s: GameState, e: WorldEvent) => e.to - Math.max(s.day, e.from) + 1;
 /** The absolute first day of the season a day falls in. */
 const seasonStart = (day: number) => day - seasonDay(day) + 1;
+
+/** expectedPassersby's one factor: every running surge on this stand's walkers multiplied (Viral Video ×2, Roadworks ×0.5).
+ * Runs for every stand every minute, so it walks the list without building one. */
+export function eventTraffic(s: GameState, plotId: string): number {
+  const on = s.world?.events?.on;
+  if (!on?.length) return 1;
+  let m = 1;
+  for (const e of on) {
+    const t = e.live && runsOn(e, s.day) ? EVENT_DEFS[e.id]?.traffic : undefined;
+    if (t) m *= t(s, e, plotId);
+  }
+  return m;
+}
+
+/** The crowd a running event fills a district with (the Tourist Bus), ahead of any festival's. */
+export function eventCrowd(s: GameState, district: DistrictId): { segment: SegmentId; share: number } | undefined {
+  const on = s.world?.events?.on;
+  if (!on?.length) return undefined;
+  for (const e of on) {
+    const c = e.district === district && e.live && runsOn(e, s.day) ? EVENT_DEFS[e.id]?.crowd : undefined;
+    if (c) return c;
+  }
+  return undefined;
+}
 
 // ---------- the one-at-a-time rule ----------
 

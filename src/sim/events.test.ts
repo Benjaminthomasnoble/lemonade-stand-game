@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  CLOSE, EVENT_DEFS, EVENTS, eventsAtDawn, eventsOf, HEAT_WAVE, heatWaveDay, heatWaveOn, liveEvent, liveEvents, newGame, openStand,
-  plannedWeather, registerEvent, scorcherKeep, SEASON_DAYS, SEASON_WEATHER, SEASONS, shineReason, sleepUntilDawn, tickMinute,
-  type EventDef, type GameState, type Season,
+  appealFor, buySupply, CLOSE, costPerCup, criticChecks, criticVerdict, crowdAt, DISTRICT_BY_ID, EVENT_DEFS, EVENT_TRAFFIC, EVENTS, eventsAtDawn,
+  eventsOf, eventTraffic, expectedCups, expectedPassersby, festivalCrowd, FOOD_CRITIC, HEAT_WAVE, heatWaveDay, heatWaveOn, liveEvent, liveEvents,
+  LOTTIES_CORNER, mainSegment, marketLines, newGame, newStand, openStand, plannedWeather, PLOT_BY_ID, PLOTS, RANDOM_EVENTS, registerEvent, scorcherKeep,
+  SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
+  type DistrictId, type EventDef, type GameState, type Season, type WorldEvent,
 } from './economy.ts';
+import { eventTickets } from '../ui/events.ts';
 
 /** Jump to a day's Morning Prep through the real dawn (with cash to spare: these tests skip the business days). */
 function dawn(s: GameState, day: number): void {
@@ -38,6 +41,34 @@ afterEach(() => {
   for (const d of saved.splice(0)) EVENT_DEFS[d.id] = d;
   Object.assign(HEAT_WAVE.chance, chance);
 });
+
+/** A quiet Day 7 game: nothing rolls on its own (Heat Waves off too), so a test brings its own event. */
+function quietGame(seed: number): GameState {
+  only();
+  for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
+  const s = newGame(seed);
+  dawnsTo(s, 7);
+  return s;
+}
+/** Put an event on the calendar from the next morning (placed as it starts, unless told where) and go to that dawn. */
+function force(s: GameState, id: string, where: Partial<WorldEvent> = {}): WorldEvent {
+  const e: WorldEvent = { id, from: s.day + 1, to: s.day + EVENT_DEFS[id].days, ...(EVENT_DEFS[id].when === 'midday' ? { at: 12 * 60 } : {}), ...where };
+  eventsOf(s).on.push(e);
+  dawn(s, s.day + 1);
+  return e;
+}
+/** Hand the player a Folding Table on the first free street plot of a district. */
+function standIn(s: GameState, district: DistrictId): string {
+  const p = PLOTS.find((q) => q.district === district && q.type === 'street' && !s.plots[q.id].owner)!;
+  s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(1) };
+  return p.id;
+}
+/** Stock a stand for a long day. */
+function stockUp(s: GameState, plotId: string): void {
+  s.cash = Math.max(s.cash, 5000);
+  const st = s.plots[plotId].stand!;
+  for (const id of ['lemons', 'sugar', 'ice'] as const) while (buySupply(s, id, 1, st));
+}
 
 describe('the random events scheduler', () => {
   it('nothing before Day 6, then about one event every 5-7 days', () => {
@@ -187,5 +218,188 @@ describe('the Heat Wave', () => {
       eventsOf(s).on = [];
     }
     expect(kept / 3000).toBeCloseTo(scorcherKeep('summer'), 1);
+  });
+});
+
+describe('Lemon Blight and Sugar Shortage', () => {
+  it('lemons ×2 for 5 days on top of the daily swing: every buyer pays it, about 10¢ more a cup, and the Bugle counts it down', () => {
+    const s = quietGame(41);
+    const e = force(s, 'lemonBlight');
+    expect(e.to - e.from + 1).toBe(RANDOM_EVENTS.lemonBlight.days);
+    expect(s.news.some((n) => n.startsWith('LEMON BLIGHT!') && n.includes('Buy daily (lemons spoil in 3 days) and nudge prices up'))).toBe(true);
+    for (let d = e.from; d <= e.to; d++) {
+      if (d > e.from) dawn(s, d);
+      expect(s.market.lemons).toBeGreaterThanOrEqual(0.2 * 0.8 * SUPPLY_SHOCK - 1e-9);
+      expect(s.market.lemons).toBeLessThanOrEqual(0.2 * 1.2 * SUPPLY_SHOCK + 1e-9);
+      expect(marketLines(s)[0].shock).toEqual({ name: 'Lemon Blight', left: e.to - d + 1 });
+      const cash = s.cash;
+      buySupply(s, 'lemons', 1);
+      expect(cash - s.cash).toBeCloseTo(20 * s.market.lemons, 2); // the player pays the doubled price
+    }
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    const blighted = costPerCup(s, st);
+    s.market.lemons /= SUPPLY_SHOCK;
+    expect(blighted - costPerCup(s, st)).toBeCloseTo(0.1, 1); // "about $0.10 more a cup"
+    dawn(s, e.to + 1);
+    expect(liveEvent(s, 'lemonBlight')).toBeUndefined();
+    expect(s.market.lemons).toBeLessThanOrEqual(0.24 + 1e-9);
+    expect(marketLines(s)[0].shock).toBeUndefined();
+  });
+
+  it('Sugar Shortage doubles sugar; both are harmful, so they never run together', () => {
+    const s = quietGame(42);
+    const e = force(s, 'sugarShortage');
+    expect(s.market.sugar).toBeGreaterThanOrEqual(0.03 * 0.8 * SUPPLY_SHOCK - 1e-9);
+    expect(marketLines(s)[1].shock).toEqual({ name: 'Sugar Shortage', left: 5 });
+    expect(EVENT_DEFS.sugarShortage.counter).toBe('Sugar keeps: a stocked Warehouse rides it out');
+    expect(EVENT_DEFS.lemonBlight.kind).toBe('harmful');
+    expect(EVENT_DEFS.sugarShortage.kind).toBe('harmful');
+    dawn(s, e.to + 1);
+    expect(s.market.sugar).toBeLessThanOrEqual(0.036 + 1e-9);
+  });
+});
+
+describe('traffic surges', () => {
+  it('Viral Video: one of your stands ×2 from the minute it breaks in, for 2 days; the odds and Auto-Restock see it', () => {
+    const s = quietGame(43);
+    const e = force(s, 'viralVideo');
+    expect(e.live).toBeFalsy();
+    expect(eventTraffic(s, LOTTIES_CORNER)).toBe(1);
+    openStand(s);
+    while (s.minute < e.at!) tickMinute(s);
+    expect(e.plots).toEqual([LOTTIES_CORNER]); // placed on one of your stands
+    expect(eventTraffic(s, LOTTIES_CORNER)).toBe(EVENT_TRAFFIC.viralVideo);
+    expect(s.news.some((n) => n.startsWith('VIRAL VIDEO!') && n.includes('Stock deep, raise the price'))).toBe(true);
+    const rival = PLOTS.find((p) => s.plots[p.id].owner && s.plots[p.id].owner !== 'player')!.id;
+    expect(eventTraffic(s, rival)).toBe(1);
+    simulateRestOfDay(s);
+    dawn(s, e.to);
+    const surge = expectedPassersby(s, LOTTIES_CORNER, s.forecast);
+    const cups = expectedCups(s, LOTTIES_CORNER);
+    e.live = false;
+    expect(surge).toBeCloseTo(2 * expectedPassersby(s, LOTTIES_CORNER, s.forecast), 6);
+    expect(cups).toBeGreaterThanOrEqual(expectedCups(s, LOTTIES_CORNER));
+    e.live = true;
+    dawn(s, e.to + 1);
+    expect(eventTraffic(s, LOTTIES_CORNER)).toBe(1);
+  });
+
+  it('Celebrity Sighting ×2 in a district for a day, rivals included', () => {
+    const s = quietGame(44);
+    force(s, 'celebrity', { district: 'downtown' });
+    const there = PLOTS.filter((p) => p.district === 'downtown' && s.plots[p.id].stand);
+    expect(there.length).toBeGreaterThan(0);
+    for (const p of there) expect(eventTraffic(s, p.id)).toBe(EVENT_TRAFFIC.celebrity);
+    expect(eventTraffic(s, LOTTIES_CORNER)).toBe(1);
+    expect(EVENT_DEFS.celebrity.counter).toBe('Send Sunny the Lemon');
+  });
+
+  it('a Parade Route ×2 and Roadworks ×0.5 on a street: 4-6 adjacent columns of one district, both sides', () => {
+    for (const [id, mult, days] of [['parade', EVENT_TRAFFIC.parade, 1], ['roadworks', EVENT_TRAFFIC.roadworks, 3]] as const) {
+      for (let seed = 50; seed < 56; seed++) {
+        const s = quietGame(seed);
+        const e = force(s, id);
+        expect(e.to - e.from + 1).toBe(days);
+        const plots = e.plots!.map((pid) => PLOT_BY_ID[pid]);
+        const district = plots[0].district;
+        const cols = [...new Set(plots.map((p) => p.col))].sort((a, b) => a - b);
+        expect(cols.length).toBeGreaterThanOrEqual(Math.min(4, DISTRICT_BY_ID[district].cols));
+        expect(cols.length).toBeLessThanOrEqual(6);
+        expect(cols[cols.length - 1] - cols[0] + 1).toBe(cols.length); // adjacent
+        expect(e.plots!.sort()).toEqual(PLOTS.filter((p) => p.district === district && cols.includes(p.col)).map((p) => p.id).sort());
+        for (const p of PLOTS) expect(eventTraffic(s, p.id)).toBe(e.plots!.includes(p.id) ? mult : 1); // rivals' stands too
+      }
+    }
+    expect(EVENT_DEFS.roadworks.kind).toBe('harmful');
+  });
+
+  it('a street lands through one of your stands when its district has one', () => {
+    let through = 0;
+    for (let seed = 60; seed < 80; seed++) {
+      const s = quietGame(seed);
+      const e = force(s, 'parade');
+      if (e.district === 'maple') { through++; expect(e.plots).toContain(LOTTIES_CORNER); }
+    }
+    expect(through).toBeGreaterThan(5); // most of them: Maple Row is the only district you sell in
+  });
+});
+
+describe('the Tourist Bus', () => {
+  it('fills a district with tourists (70%) and +50% traffic for a day: Strawberry shines there', () => {
+    const s = quietGame(45);
+    force(s, 'touristBus', { district: 'oldtown' });
+    expect(crowdAt(s, 'oldtown')).toBe('tourists');
+    expect(crowdAt(s, 'maple')).toBeUndefined();
+    const rng = { seed: 7 };
+    let tourists = 0;
+    for (let i = 0; i < 4000; i++) if (festivalCrowd(s, rng, 'oldtown') === 'tourists') tourists++;
+    expect(tourists / 4000).toBeCloseTo(TOURIST_BUS_SHARE, 1);
+    expect(shineReason(s, 'oldtown', 'strawberry')).toBe('crowd');
+    const p = PLOTS.find((q) => q.district === 'oldtown' && s.plots[q.id].stand)!;
+    expect(eventTraffic(s, p.id)).toBe(EVENT_TRAFFIC.touristBus);
+    dawn(s, s.day + 1);
+    expect(crowdAt(s, 'oldtown')).not.toBe('tourists'); // the Summer Fair's families again
+  });
+});
+
+describe('event tickets in the feed', () => {
+  it('each names its counter-play, with the buttons that play it; a dawn one shows on its first day', () => {
+    const s = quietGame(48);
+    const e = force(s, 'viralVideo');
+    expect(eventTickets(s).join('')).not.toContain('data-event="viralVideo"'); // not before it breaks in
+    openStand(s);
+    while (s.minute < e.at!) tickMinute(s);
+    const card = eventTickets(s).join('');
+    expect(card).toContain('data-event="viralVideo"');
+    expect(card).toContain('Stock deep, raise the price');
+    expect(card).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
+    expect(card).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    simulateRestOfDay(s);
+    dawn(s, e.to);
+    expect(eventTickets(s).join('')).toContain('data-event="viralVideo"'); // its second day too
+    const r = force(s, 'roadworks');
+    expect(eventTickets(s).join('')).toContain('Run campaigns elsewhere');
+    expect(eventTickets(s).join('')).toContain('class="cl-ticket red"');
+    dawn(s, r.from + 1);
+    expect(eventTickets(s).join('')).not.toContain('data-event="roadworks"'); // the Bugle keeps count from here
+  });
+});
+
+describe('the Food Critic', () => {
+  it('names one of your stands at dawn and gives the verdict at closing', () => {
+    const s = quietGame(46);
+    const e = force(s, 'foodCritic');
+    expect(e.plots).toEqual([LOTTIES_CORNER]);
+    expect(s.news.some((n) => n.startsWith('FOOD CRITIC!') && n.includes("Lottie's Corner"))).toBe(true);
+    stockUp(s, LOTTIES_CORNER);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(e.verdict).toBe(criticVerdict(criticChecks(s, LOTTIES_CORNER)));
+    expect(s.today.reputationAfter).toBe(s.reputation);
+    expect(s.news.some((n) => /^CRITIC (RAVES|SHRUGS|PANS)/.test(n))).toBe(true);
+  });
+
+  it('three checks: a short line, a fair price for the main segment, a card it loves or that shines; 3 = +0.1, 2 = 0, fewer = −0.1', () => {
+    const s = quietGame(47);
+    const plot = standIn(s, 'downtown');
+    const st = s.plots[plot].stand!;
+    expect(mainSegment('downtown')).toBe('office');
+    expect(mainSegment('maple')).toBe('kids');
+    st.day.passersby = 400;
+    st.day.customers = 120;
+    st.day.walkedPast.line = 19; // under 5%
+    st.recipe = 'classic';
+    st.price = appealFor(s, plot, 'office').fairPrice;
+    const c = criticChecks(s, plot);
+    expect(c).toEqual({ tasted: true, line: true, price: true, recipe: false }); // office workers love Sparkling, not Classic
+    expect(criticVerdict(c)).toBe(0);
+    expect(criticVerdict({ ...c, recipe: true })).toBe(FOOD_CRITIC.stars);
+    expect(SEGMENTS.office.favorites).toContain('sparkling');
+    st.day.walkedPast.line = 20; // 5%: too long
+    expect(criticChecks(s, plot).line).toBe(false);
+    expect(criticVerdict(criticChecks(s, plot))).toBe(-FOOD_CRITIC.stars);
+    st.price += 0.05;
+    expect(criticChecks(s, plot).price).toBe(false);
+    expect(criticVerdict({ tasted: false, line: true, price: true, recipe: true })).toBe(-FOOD_CRITIC.stars); // nothing to taste
   });
 });

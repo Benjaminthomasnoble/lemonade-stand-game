@@ -13,7 +13,7 @@ import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
 import { actOf, districtControl, isEndless } from './modes.ts';
-import { eventsAtClose, eventsAtDawn } from './events.ts';
+import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
 import { mediaAtClose, mediaAtDawn } from './media.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -60,8 +60,10 @@ export function upcomingFestivals(s: GameState, days = 7): { id: FestivalId; fro
 
 // Festival crowds depend on the day alone, and every passerby asks, so each day's are worked out once.
 const dayCrowds = new Map<number, Partial<Record<DistrictId, SegmentId>>>();
-/** The crowd an event fills a district with today (festivals now; random events add theirs). */
+/** The crowd an event fills a district with today: a random event's (the Tourist Bus), else a festival's. */
 export function crowdAt(s: GameState, district: DistrictId): SegmentId | undefined {
+  const event = eventCrowd(s, district); // not in the day cache: it rides on the save, not the calendar
+  if (event) return event.segment;
   let crowds = dayCrowds.get(s.day);
   if (!crowds) {
     crowds = {};
@@ -72,10 +74,10 @@ export function crowdAt(s: GameState, district: DistrictId): SegmentId | undefin
   return crowds[district];
 }
 
-/** A passerby in a festival district is one of the festival crowd half the time. */
+/** A passerby in a festival district is one of the festival crowd half the time (a Tourist Bus's, 70%). */
 export function festivalCrowd(s: GameState, rng: { seed: number }, district: DistrictId): SegmentId | undefined {
   const crowd = crowdAt(s, district);
-  return crowd && nextRandom(rng) < FESTIVAL_CROWD_SHARE ? crowd : undefined;
+  return crowd && nextRandom(rng) < (eventCrowd(s, district)?.share ?? FESTIVAL_CROWD_SHARE) ? crowd : undefined;
 }
 
 // ---------- traffic: Taste-Off wins and sponsorships, added into the marketing number ----------
@@ -369,10 +371,11 @@ export function worldAtDawn(s: GameState): void {
   eventsAtDawn(s);
 }
 
-/** Closing: judge today's Taste-Off; the events have their evening (the Food Critic's verdict). */
+/** Closing: judge today's Taste-Off (it makes its own story in the Bugle); then the newsroom marks the day's news, so the
+ * events' evening (the Food Critic's verdict) makes tomorrow's wire. */
 export function worldAtClose(s: GameState): void {
   const t = tasteOffToday(s);
   if (t) judgeTasteOff(s, t);
-  eventsAtClose(s);
   mediaAtClose(s);
+  eventsAtClose(s);
 }

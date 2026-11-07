@@ -42,6 +42,7 @@ import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
+import { eventTickets } from './events.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -452,6 +453,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function feed(s: GameState) {
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
+    t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {

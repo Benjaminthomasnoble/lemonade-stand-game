@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder, DELIVERY_WINDOW,
-  FAILED_ORDER_STARS, FIZZCO_BID, FIZZCO_PLANT, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS,
-  oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost,
-  RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, yourDays,
-  type GameState, type Order, type OrderBid,
+  FAILED_ORDER_STARS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS, newGame, newStand,
+  nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt, pickupsAtClose, playerStands,
+  PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, tripLoad, tripMinutes, VIP_MAX_GAP,
+  VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
 } from './economy.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
@@ -541,14 +541,33 @@ describe('VIP clients', () => {
     for (const t of ['heli', 'ship', 'deal'] as const) expect(offerChance(s, t)).toBeCloseTo(ORDER_TIERS[t].chance * OLD_MONEY_OFFERS);
     expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance); // a Caterer Truck is no VIP
     const seen = new Set<string>();
-    const days = 400;
-    for (let d = 0; d < days; d++) {
+    let days = 0;
+    while (days < 400) {
       s.day++;
+      if (festivalsOn(s.day).includes('harborFest')) continue; // the Fest's rush is its own test
+      days++;
       vipAtDawn(s);
       for (const o of s.offers) if (o.tier === 'heli') seen.add(o.id);
     }
     expect(seen.size / days).toBeGreaterThan(0.44); // about 1 in 2 days, up from 1 in 3
     expect(seen.size / days).toBeLessThan(0.58);
+  });
+
+  it('Harbor Fest brings the Fall VIP rush: choppers and ships call on every day of it', () => {
+    const { s, field, dock } = vipGame(36);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    let fest = 0;
+    for (let d = 0; d < YEAR_DAYS; d++) {
+      s.day++;
+      vipAtDawn(s);
+      if (!harborFestOn(s)) continue;
+      fest++;
+      expect(s.lastOffer!.heli).toBe(s.day);
+      expect(s.lastOffer!.ship).toBe(s.day);
+      expect(offerChance(s, 'caterer')).toBe(ORDER_TIERS.caterer.chance);
+    }
+    expect(fest).toBe(FESTIVALS.harborFest.to - FESTIVALS.harborFest.from + 1);
   });
 
   it('an order with no bottles fails and costs a star', () => {

@@ -13,6 +13,7 @@ import { iceMachineOn, machineIce } from './happenings.ts';
 import { restoreHp } from './damage.ts';
 import { ownedRecipes, ownsRecipe, recipeCost } from './recipes.ts';
 import { fullControl } from './demand.ts';
+import { festivalsOn } from './calendar.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -116,6 +117,9 @@ export const BID_WEIGHTS = { tenPercent: 1, day: 0.25 };
  * each pickup; Old Money (Hilltop) brings VIP offers 50% more often. */
 export const SHIPPING_LANE = 0.15;
 export const OLD_MONEY_OFFERS = 1.5;
+/** Harbor Fest's VIP rush (spec: "extra helicopter and ship offers every Fall"): on each of its days the chance a chopper
+ * or a ship client calls (placeholder: the spec gives no number). */
+export const HARBOR_FEST_CHANCE = 1;
 /** Once a facility tier stands, its client type offers a job at least this often. */
 export const VIP_MAX_GAP = 10;
 /** A Supply Deal ships in weekly loads (4 of 50,000 bottles). */
@@ -334,15 +338,18 @@ export function vipAtDawn(s: GameState): void {
 }
 
 /** How likely a tier's client calls at dawn (spec: Offers, about 1 per 2 / 2.5 / 3 / 5 / 7 days): VIP clients 50% more
- * often with Old Money. */
+ * often with Old Money, and choppers and ships every day of Harbor Fest. */
 export function offerChance(s: GameState, tier: OrderTier): number {
-  return ORDER_TIERS[tier].chance * (isVip(tier) && oldMoney(s) ? OLD_MONEY_OFFERS : 1);
+  const base = ORDER_TIERS[tier].chance * (isVip(tier) && oldMoney(s) ? OLD_MONEY_OFFERS : 1);
+  return (tier === 'heli' || tier === 'ship') && harborFestOn(s) ? Math.max(base, HARBOR_FEST_CHANCE) : base;
 }
 
 /** The Harbor's perk, live while you hold every plot there. Seam: land's perkActive(s, 'shippingLane') once it merges. */
 export const shippingLane = (s: GameState) => fullControl(s, 'harbor');
 /** Hilltop's perk, live while you hold every plot there. Seam: land's perkActive(s, 'oldMoney') once it merges. */
 export const oldMoney = (s: GameState) => fullControl(s, 'hilltop');
+/** Harbor Fest runs today: the Fall VIP rush. Seam for nights: the Syndicate goes after every delivery while it runs. */
+export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harborFest');
 /** A pickup's pay, with Shipping Lane's 15% on a Ship Contract (a Supply Deal keeps its $1.5M a load). */
 const withLane = (s: GameState, o: Order, pay: number) => (o.tier === 'ship' && shippingLane(s) ? Math.round(pay * (1 + SHIPPING_LANE)) : pay);
 

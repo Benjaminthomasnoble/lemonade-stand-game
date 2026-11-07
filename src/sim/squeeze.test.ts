@@ -3,6 +3,7 @@ import {
   bigSqueezeGoal, callBigSqueeze, canAssault, canCallBigSqueeze, CLOSE, eliminate, HQS, hqPlot, isWeakened, manorStewards, migrateSave, newGame, newStand,
   NIGHT_END, nightStep, onYou, planNight, PLOTS, raidsCounted, rivalsBankrupt, siegeDone, siegeFought, siegeTargets, siegeTonight, sleepUntilDawn, SQUEEZE_READY, startNight,
   squeezeAtDawn, squeezedHq, stormHQ, SYNDICATE_CALL, syndicateFormed, type BattleReport, type GameState, type Guard, type Mode, type Raid, type RivalId,
+  bugleNews, PLOT_BY_ID,
 } from './economy.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
 import { CALL_PRIORITY } from './phone.ts';
@@ -129,6 +130,28 @@ describe('the Big Squeeze goal and button', () => {
     const one = finale(3, 1); // Lottie's Corner alone
     callBigSqueeze(one);
     expect(siegeTargets(one)).toHaveLength(1);
+  });
+});
+
+describe('the Big Squeeze in the Bugle', () => {
+  const place = (id: string) => PLOT_BY_ID[id].name.replace(/ lot /, ' ');
+  it("leads the front page the day you call it, each siege dawn with that night's targets, and the morning it ends", () => {
+    const s = finale();
+    callBigSqueeze(s); // Vera calls in the Pact too: its line rides along as the first brief
+    let paper = bugleNews(s);
+    expect(paper.headline).toEqual(['THE BIG SQUEEZE!', 'Lottie calls out Sourwood Manor']);
+    expect(paper.briefs[0]).toBe('Pact is back: Sourwood signs up everyone but the kid.');
+    night(s, 'repelled');
+    paper = bugleNews(s);
+    const names = siegeTargets(s).map(place);
+    expect(paper.headline[0]).toBe('SIEGE NIGHT 2!');
+    for (const n of names) expect(paper.headline[1]).toContain(n);
+    expect(paper.briefs).not.toContain('Pact is back: Sourwood signs up everyone but the kid.'); // that was yesterday's
+    for (let n = 0; n < 6; n++) night(s, 'repelled');
+    expect(siegeDone(s)).toBe(true);
+    expect(bugleNews(s).headline).toEqual(['SIEGE OVER!', "Sourwood Manor's Gate at 1,500 HP"]);
+    s.day++;
+    expect(bugleNews(s).headline[0]).not.toMatch(/SIEGE|SQUEEZE|PACT/); // and then the paper moves on
   });
 });
 

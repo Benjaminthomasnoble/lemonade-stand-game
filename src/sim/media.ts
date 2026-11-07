@@ -14,6 +14,7 @@ import { pagesInTheBugle, worldOf } from './recipes.ts';
 import { festivalDays, festivalsOn, storyFairs, tasteOffResult, tasteOffToday, upcomingFestivals } from './calendar.ts';
 import { daysLeft, eventDef, liveEvents, plannedWeather, type WorldEvent } from './events.ts';
 import { storyHeadline } from './story.ts';
+import { pactNews } from './squeeze.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** Rivals as the paper names them in a headline. */
@@ -136,6 +137,7 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   const add = (big: string, small: string, brief: string, rank = 1) => out.push({ big, small, brief, rank });
   const act = storyHeadline(s); // a new act leads the morning paper (story.ts)
   if (act) add(act[0], act[1], `${act[0]} ${act[1]}.`, 0);
+  for (const n of pactNews(s)) add(n.big, n.small, n.brief, n.rank); // nights: the Pact and the Big Squeeze land at dawn, after the newsroom's notes (squeeze.ts)
   if (s.day === 1) add("SCHOOL'S OUT!", 'Grandkid opens on Maple Row', "School's out: Lottie's grandkid opens on Maple Row.");
   const act1 = tasteOffResult(s, 'summerFair', 1);
   if (storyFairs(s) && act1?.stake === 'strawberry' && act1.winner === 'player' && s.day === act1.day + 1) {

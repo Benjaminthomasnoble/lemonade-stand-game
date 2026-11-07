@@ -3,6 +3,7 @@ import {
   actOf, CLOSE, eliminate, hqPlot, migrateSave, newGame, pactHeadline, sleepUntilDawn, SYNDICATE_CALL, syndicateAtDawn, syndicateFormed,
   syndicateLeader, syndicateMembers, threatLevel, type Difficulty, type GameState, type Mode,
   deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Order, type Raid, type RivalId,
+  bugleHeadline,
 } from './economy.ts';
 import { CALL_PRIORITY } from './phone.ts';
 import { RIVAL_SABOTAGE } from './balance.ts';
@@ -81,8 +82,10 @@ describe('the Syndicate forms', () => {
     expect(card.text).toBe('Bugle: PACT IS BACK: SOURWOOD SIGNS UP EVERYONE BUT THE KID');
     expect(s.phone!.queue[0]).toMatchObject({ who: 'sourwood', text: SYNDICATE_CALL, priority: CALL_PRIORITY.story }); // rings at a lull
     expect(syndicateMembers(s)).toHaveLength(5);
+    expect(bugleHeadline(s)).toEqual(['PACT IS BACK', 'Sourwood signs up everyone but the kid']); // it leads that morning's paper
     s.day++;
     syndicateAtDawn(s);
+    expect(bugleHeadline(s)[0]).not.toBe('PACT IS BACK');
     expect(s.alerts!.filter((a) => a.text.startsWith('Bugle: PACT IS BACK'))).toHaveLength(1);
     expect(s.syndicate?.formed).toBe(61);
     expect(migrateSave(JSON.parse(JSON.stringify(s)))!.syndicate).toEqual({ formed: 61 });

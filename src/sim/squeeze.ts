@@ -15,7 +15,7 @@ import { PLOT_BY_ID } from './map.ts';
 import { nextRandom } from './rng.ts';
 import { targetScore } from './rivalAi.ts';
 import { HQS, hqPlot, inTruce } from './rivals.ts';
-import { formSyndicate, syndicateFormed } from './syndicate.ts';
+import { formSyndicate, pactTapes, syndicateFormed, syndicateLeader } from './syndicate.ts';
 import { actOf } from './modes.ts';
 import { CALL_PRIORITY, phoneCall } from './phone.ts';
 
@@ -170,6 +170,41 @@ export function squeezeAssault(s: GameState, id: RivalId): Blocker | null {
 
 /** rivalsBankrupt's campaign rule: Vera never goes bust; only the Big Squeeze ends her. */
 export const onlyTheSqueeze = (s: GameState, id: RivalId) => id === VERA && s.settings.mode === 'campaign';
+
+// ---------- the Bugle ----------
+
+/** One of the Pact's stories for the front page: its two tapes, its line as a brief, and how high it ranks (lower
+ * leads; a new act's banner is 0, the other story beats 1). */
+export interface PactStory { big: string; small: string; brief: string; rank: number }
+
+const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? '');
+
+/** The Pact and the Big Squeeze on this morning's Bugle. They land at dawn after the newsroom has taken its notes, so
+ * world's front page reads them here, as story beats (media.ts): PACT IS BACK the morning the Syndicate forms; THE BIG
+ * SQUEEZE the day you call it, with tonight's targets; each siege dawn, that night's targets; and the morning the
+ * siege ends, the Manor's Gate as it stands. */
+export function pactNews(s: GameState): PactStory[] {
+  const out: PactStory[] = [];
+  const leader = syndicateLeader(s);
+  if (s.syndicate?.formed === s.day && leader) {
+    const [big, small] = pactTapes(leader);
+    out.push({ big, small, brief: `Pact is back: ${small}.`, rank: 0.5 });
+  }
+  const q = s.squeeze;
+  if (!finale(s) || !q || q.called === undefined) return out;
+  const targets = list(siegeTargets(s).map(place));
+  if (q.called === s.day) {
+    out.push({ big: 'THE BIG SQUEEZE!', small: 'Lottie calls out Sourwood Manor', brief: `Lottie calls out Sourwood Manor${targets ? `; tonight the Pact circles ${targets}` : ''}.`, rank: 0.4 });
+  } else if (targets) {
+    const n = siegeNight(s);
+    out.push({ big: `SIEGE NIGHT ${n}!`, small: `The Pact circles ${targets}`, brief: `Siege night ${n} of ${BIG_SQUEEZE.nights}: the Pact circles ${targets}.`, rank: 0.5 });
+  }
+  if (q.done === s.day) {
+    const gate = squeezedHq(s, VERA).gate.toLocaleString('en-US');
+    out.push({ big: 'SIEGE OVER!', small: `Sourwood Manor's Gate at ${gate} HP`, brief: `The siege is over: Sourwood Manor's Gate stands at ${gate} HP.`, rank: 0.5 });
+  }
+  return out;
+}
 
 // ---------- the goal ----------
 

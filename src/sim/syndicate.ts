@@ -25,6 +25,9 @@ const BYLINE: Record<RivalId, string> = { sourwood: 'SOURWOOD', fizzco: 'FIZZCO'
 export const SYNDICATE_CALL = 'I sent your grandmother a reminder, dear. This is the follow-up.';
 /** The Bugle the morning it forms (spec: Voice). */
 export const pactHeadline = (leader: RivalId) => `Bugle: PACT IS BACK: ${BYLINE[leader]} SIGNS UP EVERYONE BUT THE KID`;
+/** The same headline as the front page's two tapes: the big one, and the small one in the paper's sentence case. */
+const SIGNER: Record<RivalId, string> = { sourwood: 'Sourwood', fizzco: 'FizzCo', hollis: 'Hollis', coldbrew: 'Cold Brew', blenders: 'Brock' };
+export const pactTapes = (leader: RivalId): [string, string] => ['PACT IS BACK', `${SIGNER[leader]} signs up everyone but the kid`];
 
 /** The Syndicate stands (rivals' feuds are off, every raid on you is its strike). The Corkboard ties its strings to
  * your photo, and Harbor Fest's crews go after every delivery, from this day on. */

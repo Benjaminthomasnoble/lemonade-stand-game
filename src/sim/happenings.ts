@@ -288,16 +288,17 @@ export const kidsDay = (s: GameState): WorldEvent | undefined => liveEvent(s, 'k
 
 const SIDEWALKS = new Set(['street', 'prime', 'landmark']);
 
-/** One kid stand per district on a sidewalk: beside a plot within 2 of one of your stands where you sell, anywhere else. */
+/** One kid stand per district, on a free sidewalk lot (no stand or facility on it): where you sell, within 2 plots of one of
+ * your stands when there's room there; anywhere in the district otherwise. */
 function kidPlots(s: GameState, rng: Rng): Placement {
   const kids: string[] = [];
   const at = working(s);
+  const free = (p: Plot) => SIDEWALKS.has(p.type) && !s.plots[p.id].stand && !s.plots[p.id].facility && !kids.includes(p.id);
   for (const d of DISTRICTS) {
-    const street = PLOTS.filter((p) => p.district === d.id && SIDEWALKS.has(p.type));
     const mine = at.filter((id) => PLOT_BY_ID[id].district === d.id);
     for (let i = 0; i < KIDS_DAY.perDistrict; i++) {
-      const near = i === 0 && mine.length ? nearbyPlots(PLOT_BY_ID[pick(rng, mine)]).filter((p) => SIDEWALKS.has(p.type)) : street;
-      const open = near.filter((p) => !kids.includes(p.id));
+      const near = i === 0 && mine.length ? nearbyPlots(PLOT_BY_ID[pick(rng, mine)]).filter(free) : [];
+      const open = near.length ? near : PLOTS.filter((p) => p.district === d.id && free(p));
       if (open.length) kids.push(pick(rng, open).id);
     }
   }

@@ -577,6 +577,7 @@ describe("Kids' Lemonade Day", () => {
     expect(EVENT_DEFS.kidsDay.kind).toBe('mixed'); // never holds back a harmful event
     expect(e.kids!.length).toBe(DISTRICTS.length * KIDS_DAY.perDistrict);
     expect(new Set(e.kids!.map((k) => PLOT_BY_ID[k].district)).size).toBe(DISTRICTS.length);
+    for (const k of e.kids!) expect(s.plots[k].stand ?? s.plots[k].facility).toBeUndefined(); // a free lot, never on a stand
     const next = kidStandsAt(s, LOTTIES_CORNER);
     expect(next.length).toBe(1);
     expect(nearbyPlots(PLOT_BY_ID[LOTTIES_CORNER]).map((p) => p.id)).toContain(next[0]);

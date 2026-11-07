@@ -49,7 +49,8 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
     ? `<span class="cl-slot" title="${GADGETS[g].name}: sprung. Re-laid overnight for ${k.whole(GADGETS[g].reset ?? 0)}">${k.GADGET_ART[g]()}</span>`
     : `<span class="cl-slot full" title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}">${k.GADGET_ART[g]()}</span>`)).join('');
   const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
-  const shop = (Object.keys(GADGETS) as GadgetId[]).filter((g) => !ps.defense.gadgets.includes(g)).map((g) => ({ g, b: canBuyGadget(s, id, g) })).filter(({ b }) => !k.locked(b))
+  // The Neighborhood Watch's free Tin-Can (shown in its own slot below) takes the alarm off the shelf.
+  const shop = (Object.keys(GADGETS) as GadgetId[]).filter((g) => !ps.defense.gadgets.includes(g) && !(g === 'alarm' && freeAlarm(s, id))).map((g) => ({ g, b: canBuyGadget(s, id, g) })).filter(({ b }) => !k.locked(b))
     .map(({ g, b }) => `<button class="cl-gadget" data-action="gadget" data-plot="${id}" data-id="${g}" ${b.ok ? '' : `disabled`} title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}${b.ok ? '' : ` (${k.esc(b.why)})`}">${k.GADGET_ART[g]()}${k.tape(k.whole(GADGETS[g].cost))}</button>`).join('');
   const pct = (v: number) => `${Math.round(v * 100)}%`;
   const night = detectionChance(s, id, true), day = detectionChance(s, id, false);
@@ -76,7 +77,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}">📍</button>
+        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}">${k.ART.foot()}</button>
         ${nextWeapon && wb && !k.locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${k.whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${k.esc(wb.why)})`}">${k.WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !k.locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${k.whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${k.esc(gb.why)})`}">${k.ART.shield()}</button>` : ''}
         ${promoteButtons(k, s, g)}

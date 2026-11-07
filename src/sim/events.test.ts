@@ -424,13 +424,15 @@ describe('the L4+ ice machine and the Power Outage', () => {
     const iced = clone(base), machine = clone(base), dark = clone(base);
     machine.plots[LOTTIES_CORNER].stand!.inventory.ice = 0;
     dark.plots[LOTTIES_CORNER].stand!.inventory.ice = 0;
+    dark.plots[LOTTIES_CORNER].stand!.autoRestock = false; // nobody buys Market ice for it
     eventsOf(dark).on.push({ id: 'powerOutage', from: dark.day, to: dark.day, live: true, district: 'maple' });
     expect(iceMachineOn(dark, LOTTIES_CORNER)).toBe(false);
     for (const s of [iced, machine, dark]) { openStand(s); simulateRestOfDay(s); }
     const day = (s: GameState) => s.plots[LOTTIES_CORNER].stand!.day;
     expect(day(machine).customers).toBeGreaterThan(50);
     expect(day(machine).satisfaction).toBe(day(iced).satisfaction); // never warm
-    expect(day(dark).satisfaction).toBeLessThan(day(iced).satisfaction); // warm cups in the dark
+    expect(day(dark).customers).toBe(0); // in the dark with no ice it's sold out: no warm cups
+    expect(day(dark).walkedPast.soldOut).toBeGreaterThan(0);
     const cups = day(machine).customers; // the ice goes on each cup's cost: 3 cubes a Classic (the day's books round each cup to the cent)
     expect(Math.abs(day(machine).cupCosts - day(iced).cupCosts - cups * 3 * machine.market.ice)).toBeLessThan(0.006 * cups);
     expect(iced.plots[LOTTIES_CORNER].stand!.inventory.ice).toBeGreaterThan(0); // nothing melts overnight
@@ -528,6 +530,7 @@ describe('Captain Squawk', () => {
     const t = quietGame(66);
     const f = force(t, 'captainSquawk');
     t.plots[LOTTIES_CORNER].stand!.inventory.lemons = [];
+    t.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the stand stays without lemons
     openStand(t);
     while (t.minute < f.at!) tickMinute(t);
     expect(liveEvent(t, 'captainSquawk')).toBeUndefined(); // called off

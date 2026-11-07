@@ -7,7 +7,7 @@ import {
   averageStopChance, restockOn, BRAND_TIERS, campaignCost, CAMPAIGNS, canBuildStand, canBuyBrand, canBuyPlot, canRunCampaign, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
-  selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
+  selectedStand, cupsInStock, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
@@ -543,7 +543,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     t.push(...landTickets(s));
-    const servings = servingsAvailable(st);
+    const servings = cupsInStock(s, s.selected);
     if (servings === 0 && !restockOn(s, st) && !st.wrecked && taught(s, 'market') && !isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket">${ART.lottie()}<b>Buy lemons, sugar and ice!</b></div>`);
     t.push(...autoTickets(s)); // the day's automatic spending (src/ui/automation.ts)
     return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
@@ -581,7 +581,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const st = selectedStand(s);
     const plotId = s.selected;
     const cups = expectedCups(s, plotId);
-    const servings = servingsAvailable(st);
+    const servings = cupsInStock(s, plotId);
     const stop = averageStopChance(s, plotId, s.forecast);
     const people = expectedPassersby(s, plotId, s.forecast);
     const cost = costPerCup(s, st);
@@ -666,7 +666,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const w = s.today.walkedPast;
     const why = [['not thirsty', w.notThirsty], ['too pricey', w.pricey], ['line too long', w.line], ['sold out', w.soldOut], ['went to a rival', w.rival]]
       .filter(([, n]) => (n as number) > 0).map(([k, n]) => `${n} ${k}`).join(', ');
-    const left = playerStands(s).reduce((a, p) => a + servingsAvailable(s.plots[p.id].stand!), 0);
+    const left = playerStands(s).reduce((a, p) => a + cupsInStock(s, p.id), 0);
     return `<div class="cl-daybar" data-testid="daybar" data-action="inspect" data-plot="${s.selected}" title="${left} cups left${why ? ` · walked past: ${why}` : ''} · tap for your stand">${ART.cup()}${tape(`<b>${s.today.customers}</b>`, 'cl-t-cash')}<span class="cl-sun" style="--v:${pct.toFixed(3)}"><i></i></span></div>`;
   }
 

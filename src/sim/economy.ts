@@ -1091,7 +1091,7 @@ export function canRunCampaign(s: GameState, id: CampaignId, plotId = s.selected
   if (left > 0) return { ok: false, why: `Running (${left} day${left === 1 ? '' : 's'} left)` };
   const cost = campaignCost(s, id); // Word of Mouth halves it
   if (cost.cash && s.cash < cost.cash) return { ok: false, why: `Needs $${cost.cash}` };
-  if (cost.samples && servingsAvailable(st) < cost.samples) return { ok: false, why: `Needs stock for ${cost.samples} cups` };
+  if (cost.samples && cupsInStock(s, plotId) < cost.samples) return { ok: false, why: `Needs stock for ${cost.samples} cups` };
   return { ok: true };
 }
 

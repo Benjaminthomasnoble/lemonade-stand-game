@@ -4,7 +4,7 @@
 // in title tooltips, the panel itself stays a few words a line.
 import {
   BASE_STOP_CHANCE, costPerCup, demandChain, FACTIONS, maxPacks, nearbyPlots, peopleAhead, PERKS, PLOT_BY_ID, RECIPES, seasonOf, serviceLeft,
-  servingsAvailable, stock, storageFor, SUPPLIES, WEATHER,
+  cupsInStock, iceMachineOn, stock, storageFor, SUPPLIES, WEATHER,
   type DemandChain, type GameState, type RivalId, type SegmentId, type SupplyId, type Sweetness, type WalkReason,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -60,7 +60,7 @@ function chainFor(s: GameState, plotId: string): DemandChain | null {
     const ps = s.plots[q.id], x = ps.stand;
     return x ? `${ps.owner}:${x.level}:${x.price}:${x.recipe}:${x.sweetness}:${x.wrecked ? 1 : 0}:${JSON.stringify(x.campaigns)}` : '-';
   }).join(',');
-  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, servingsAvailable(st), owned, block].join('|');
+  const key = [plotId, s.day, s.phase, w.kind, s.reputation, s.brandTier, cupsInStock(s, plotId), owned, block].join('|');
   const m = memo.get(s);
   if (m && m.key === key) return m.chain;
   const chain = demandChain(s, plotId);
@@ -126,9 +126,9 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
   const cubes = SWEET.map((v, i) => `<button class="cl-cube" data-action="sweet" data-value="${v}" aria-pressed="${i <= lvl}" title="Sweetness: ${v}">${I.cube}</button>`).join('');
   const cost = costPerCup(s, st);
   const left = Math.max(0, c.cups - st.day.customers); // what the rest of the day should sell
-  const servings = servingsAvailable(st);
+  const servings = cupsInStock(s, plotId);
   const short = (id: SupplyId) => left > 0 // mid-day nobody restocks for you: Auto-Restock buys at dawn and at Open
-    && (id === 'ice' ? st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(left, Math.max(servings, 1)) : servings < left * 0.8);
+    && (id === 'ice' ? !iceMachineOn(s, plotId) && st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(left, Math.max(servings, 1)) : servings < left * 0.8);
   const gauge = (id: SupplyId) => {
     const sp = SUPPLIES[id];
     const max = maxPacks(s, st, id);
@@ -159,7 +159,7 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
   const step1 = `Walk by: ${n0(c.traffic)} × ${num(c.draw)} draw × ${num(c.marketing)} marketing × ${num(c.season)} season × ${num(c.weather)} weather${c.lunch !== 1 ? ` × ${num(c.lunch)} lunch` : ''}`;
   const step2 = `Stop: 25% × ${num(c.thirst)} thirst × ${num(c.curb)} curb × ${num(c.recipe)} recipe × ${num(c.sweet)} sweetness × ${num(c.priceFit)} price (${usd(c.price)} of ${usd(c.ceiling)}) × ${num(c.reputation)} stars`;
   const caps: [string, number, boolean][] = open
-    ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', servingsAvailable(st), servingsAvailable(st) <= 0]]
+    ? [['pour left', serviceLeft(s, plotId), serviceLeft(s, plotId) <= 0], ['stock', cupsInStock(s, plotId), cupsInStock(s, plotId) <= 0]]
     : [['want', c.demand, c.binding === 'demand'], ['pour', c.service, c.binding === 'service'], ['stock', c.stock, c.binding === 'stock']];
   const capRow = caps.map(([k, v, bind]) => (bind ? tape(`${k} ${n0(v)}`) : `${k} ${n0(v)}`)).join(' · ');
   const step3 = `Cups: the smallest of want ${n0(c.demand)}, pour ${n0(c.service)} (${c.pourRate} an hour × 10) and stock ${n0(c.stock)}`;

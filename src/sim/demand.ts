@@ -14,7 +14,7 @@ import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionI
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
 import type { Appeal, GameState, Stand, Weather } from './economy.ts';
-import { appealFor, expectedPassersby, marketingMultiplier, rivalPrice, servingsAvailable } from './economy.ts';
+import { appealFor, cupsInStock, expectedPassersby, marketingMultiplier, rivalPrice } from './economy.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
 import { crowdAt } from './calendar.ts';
 import { kidsShare } from './happenings.ts';
@@ -380,7 +380,7 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
   const passersby = expectedPassersby(s, plotId, w);
   const lunch = lunchRushDay(s, plotId);
   const service = dailyService(s, plotId);
-  const stock = owner === 'player' ? servingsAvailable(st) : stockCups(st); // a rival sells one full stock a day (rivalAi.ts)
+  const stock = owner === 'player' ? cupsInStock(s, plotId) : stockCups(st); // a rival sells one full stock a day (rivalAi.ts)
   const demand = Math.round(f.demand);
   const cups = Math.min(demand, service, stock);
   const binding: Binding = cups === demand ? 'demand' : cups === service ? 'service' : 'stock';

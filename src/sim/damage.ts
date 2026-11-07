@@ -25,6 +25,7 @@ import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { bookHelper, registerHelper } from './automation.ts'; // Auto-Repair's line in the automation frame
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
 import { openAuction } from './auction.ts';
@@ -318,6 +319,9 @@ function forSale(s: GameState, p: Plot, toAuction: Plot[]): void {
 
 // ---------- Auto-Repair ----------
 
+/** Auto-Repair's id in the automation frame (automation.ts): its day's record and its Ledger line. */
+export const AUTO_REPAIR = 'repair';
+
 /** Auto-Repair takes over the overnight fixes from Rank 3. */
 export const autoRepairOn = (s: GameState) => s.rank >= AUTO_REPAIR_RANK;
 
@@ -353,8 +357,18 @@ function autoRepair(s: GameState): void {
     n++;
     paid += cost;
   }
-  if (n) s.news.push(`Auto-Repair: ${n} fix${n === 1 ? '' : 'es'} booked for tonight, ${money(paid)}. Good as new at dawn.`);
+  if (!n) return;
+  s.news.push(`Auto-Repair: ${n} fix${n === 1 ? '' : 'es'} booked for tonight, ${money(paid)}. Good as new at dawn.`);
+  bookHelper(s, AUTO_REPAIR, paid, { count: n }); // its Ledger line; the cash went on the Repairs row as each was booked
 }
+
+// A helper in the automation frame: no dawn run (it books at closing), and the day's fixes as its Ledger line.
+registerHelper({
+  id: AUTO_REPAIR,
+  name: 'Auto-Repair',
+  unlocked: autoRepairOn,
+  line: (d) => `${d.count} fix${d.count === 1 ? '' : 'es'} overnight`,
+});
 
 /** Closing time: Auto-Repair books your fixes; each rival books the repairs it can spare the cash for (the bill plus
  * $500 in hand), paid now and done by dawn, the same as yours. */

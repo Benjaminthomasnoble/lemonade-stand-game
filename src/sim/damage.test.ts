@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget,
-  buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid,
-  FORECAST_ACCURACY, growUpgrades, hpCapacity, hpShare, isDamaged, isWrecked, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame,
-  newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, applyRaidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand,
-  repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute, toggleAutoRepair, upgradeStand, type GameState,
-  type Raid, type RivalId, type SupplyId,
+  approveRebuild, approveRepair, AUTO_REPAIR, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply,
+  buyGadget, buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS,
+  fightRaid, FORECAST_ACCURACY, growUpgrades, helperLines, helpers, hpCapacity, hpShare, isDamaged, isWrecked, LOTTIES_CORNER, maxPacks,
+  migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, prepPreview, applyRaidDamage,
+  raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute,
+  toggleAutoRepair, upgradeStand, type GameState, type Raid, type RivalId, type SupplyId,
 } from './economy.ts';
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
@@ -451,6 +451,21 @@ describe('Auto-Repair (Rank 3)', () => {
     expect(isDamaged(s.plots[side])).toBe(false);
   });
 
+  it('is a helper in the automation frame: its night on the Ledger, the cash on the Repairs row once', () => {
+    const { s } = twoDamaged();
+    s.cash = 1000;
+    expect(helpers().map((h) => h.id)).toContain(AUTO_REPAIR);
+    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR); // nothing at dawn or at Open: it books at closing
+    closeShop(s);
+    const day = s.history[s.history.length - 1];
+    expect(day).toBe(s.today); // closing time: the day's record is still open
+    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 325, count: 2, amount: 0 });
+    expect(helperLines(day).find((h) => h.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', line: '2 fixes overnight', spent: 325 });
+    expect(day.books?.repairs).toBe(-325);
+    damageAtClose(s); // nothing left to book: the line stays as it was
+    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 325, count: 2, amount: 0 });
+  });
+
   it('waits until Rank 3', () => {
     const { s, side } = twoDamaged();
     s.rank = 2;
@@ -459,6 +474,8 @@ describe('Auto-Repair (Rank 3)', () => {
     expect(s.plots[side].repair).toBeUndefined();
     expect(autoRepairOn(s)).toBe(false);
     expect(toggleAutoRepair(s, side)).toBe(false);
+    expect(s.today.auto?.[AUTO_REPAIR]).toBeUndefined();
+    expect(helperLines(s.today).map((h) => h.id)).not.toContain(AUTO_REPAIR);
   });
 
   it('skips the plots you pick, and only yours can be picked', () => {

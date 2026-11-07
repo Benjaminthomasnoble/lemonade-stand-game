@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen, toggleAutoRepair, upgradeStand, type GameState,
+  approveRebuild, approveRepair, damageAtClose, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen, toggleAutoRepair, upgradeStand,
+  type GameState,
 } from '../sim/economy.ts';
+import { helperRows } from './automation.ts';
 import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
@@ -108,6 +110,15 @@ describe('the HP readout and the repair', () => {
     expect(damageHere(s, LOTTIES_CORNER)).toContain('data-action="autoRepair"');
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
     expect(damageHere(s, rival.id)).not.toContain('autoRepair');
+  });
+
+  it("Auto-Repair's night is a line in the day's Ledger", () => {
+    const s = kiosk();
+    s.rank = 3;
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    expect(helperRows(s.today)).not.toContain('ledger-repair');
+    damageAtClose(s);
+    expect(helperRows(s.today)).toContain('<tr data-testid="ledger-repair"><td>Auto-Repair: 1 fix overnight</td><td>$304.00</td></tr>');
   });
 
   it('the Evening repair cards list your Damaged buildings', () => {

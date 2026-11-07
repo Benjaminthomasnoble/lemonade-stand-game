@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { approveRebuild, approveRepair, LESSON_DAY, LOTTIES_CORNER, newGame, PLOTS, toggleAutoRepair, upgradeStand, type GameState } from '../sim/economy.ts';
+import {
+  approveRebuild, approveRepair, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen, toggleAutoRepair, upgradeStand, type GameState,
+} from '../sim/economy.ts';
 import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
@@ -137,6 +139,53 @@ describe('Storms', () => {
     k.forecast = { kind: 'storm', temp: 60 };
     k.settings.lessons = false; // lessons off: every button follows rank alone
     expect(stormTicket(k)[0]).toContain('title="Storm forecast: few customers."');
+  });
+
+  it('a Storm day keeps its ticket up while the stands are open: the counter-play, Go There and the repair', () => {
+    const s = newGame(23);
+    s.cash = 500;
+    s.forecast = { kind: 'rainy', temp: 55 }; // the forecast missed: no Morning Prep ticket warned of it
+    s.weather = { kind: 'storm', temp: 55 };
+    s.phase = 'open';
+    stormAtOpen(s); // the Corner's table: 75 of 100 HP
+    let [ticket] = stormTicket(s);
+    expect(ticket).toContain('data-testid="storm"');
+    expect(ticket).toContain('<b>Storm</b>');
+    expect(ticket).toContain('Stock light; repair L1–L2 stands');
+    expect(ticket).toContain('--v:0.750');
+    expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
+    expect(ticket).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    expect(ticket).toContain('Repair $4'); // a quarter of Lottie's $100 table at 15%
+    s.minute += 300; // hours later the ticket is still up, unlike a small alert card
+    expect(stormTicket(s)).toHaveLength(1);
+    approveRepair(s, LOTTIES_CORNER);
+    [ticket] = stormTicket(s);
+    expect(ticket).toContain('Fixing tonight');
+    expect(ticket).not.toContain('data-action="repair"');
+    s.phase = 'report'; // the Evening's repair cards take over
+    expect(stormTicket(s)).toEqual([]);
+  });
+
+  it("puts the worst-hit stand still to book on the ticket; a crew with no L1–L2 stand gets the counter-play alone", () => {
+    const s = newGame(24);
+    s.cash = 500;
+    const side = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[side.id] = { owner: 'player', stand: newStand(1), invested: 150, landValue: 300, defense: { tier: 0, fenceHp: 0, gadgets: [] } };
+    s.plots[side.id].stand!.hp = 50;
+    s.weather = { kind: 'storm', temp: 55 };
+    s.phase = 'open';
+    stormAtOpen(s); // the Corner at 75, the side table at 25
+    expect(stormTicket(s)[0]).toContain(`data-action="repair" data-plot="${side.id}"`);
+    expect(stormTicket(s)[0]).toContain('2 of your L1–L2 stands took a beating');
+    approveRepair(s, side.id);
+    expect(stormTicket(s)[0]).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    const k = kiosk();
+    k.weather = { kind: 'storm', temp: 55 };
+    k.phase = 'open';
+    stormAtOpen(k);
+    const [only] = stormTicket(k);
+    expect(only).toContain('Stock light; repair L1–L2 stands');
+    expect(only).not.toContain('data-action=');
   });
 
   it('damage after a booked repair brings the Repair button back to top it up', () => {

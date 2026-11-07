@@ -509,6 +509,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
+    t.push(...stormTicket(s)); // a Storm: the forecast at Morning Prep, then the counter-play and the repair all day (src/ui/damage.ts)
     const radio = radioTicket(s, hud.options.captions, hud.options.celsius); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
@@ -526,7 +527,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fixes = (need > 0 && canBorrow(s, need).ok ? btn('borrow', `Borrow ${whole(need)}`, { ok: true }, `data-amount="${need}" data-testid="borrow"`) : '') + sellPlotButton(s);
       t.push(`<div class="cl-ticket red" data-testid="in-the-red" title="${jar}">${ART.piggy()}<b>In the Red! ${left} day${left === 1 ? '' : 's'}</b>${fixes ? `<span class="cl-acts">${fixes}</span>` : ''}</div>`);
     }
-    t.push(...stormTicket(s), ...rebuildTickets(s), ...damageTickets(s)); // a Storm forecast, smashed and Damaged buildings (src/ui/damage.ts)
+    t.push(...rebuildTickets(s), ...damageTickets(s)); // smashed and Damaged buildings (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);

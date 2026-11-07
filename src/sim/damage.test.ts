@@ -661,7 +661,7 @@ describe('Storms', () => {
   }
   const rivalStands = (s: GameState, level: number) => PLOTS.filter((p) => s.plots[p.id].owner !== 'player' && s.plots[p.id].owner && s.plots[p.id].stand?.level === level && !s.plots[p.id].stand!.wrecked);
 
-  it('take a quarter of the max HP off every L1–L2 stand of every faction as the stands open, and the alert says what to do', () => {
+  it('take a quarter of the max HP off every L1–L2 stand of every faction as the stands open, and the headline says what to do', () => {
     const s = newGame(50);
     const corner = s.plots[LOTTIES_CORNER];
     const l2 = rivalStands(s, 2), l3 = rivalStands(s, 3);
@@ -675,10 +675,10 @@ describe('Storms', () => {
     expect(hpCapacity(corner, 20)).toBe(15); // open, at its HP share
     for (const p of l2) expect(currentHp(s.plots[p.id])).toBe(225); // 300 HP Wooden Stands
     for (const p of l3) expect(isDamaged(s.plots[p.id])).toBe(false); // a Kiosk rides it out
-    const card = s.alerts!.find((a) => a.text.startsWith('Storm!'))!;
-    expect(card.text).toBe(`Storm! ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a beating. Stock light; repair L1–L2 stands.`);
-    expect(card).toMatchObject({ kind: 'note', plot: LOTTIES_CORNER });
-    expect(s.news).toContain(card.text);
+    // Announced as it starts, like a random event; the feed's Storm ticket (src/ui/damage.ts) keeps it up all day, so
+    // no alert card melts away under it.
+    expect(s.news).toContain(`Storm! ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a beating. Stock light; repair L1–L2 stands.`);
+    expect((s.alerts ?? []).some((a) => a.text.startsWith('Storm!'))).toBe(false);
   });
 
   it('never knock a stand down, and leave a sunny day alone', () => {
@@ -688,7 +688,7 @@ describe('Storms', () => {
     s.weather = { kind: 'warm', temp: 75 };
     stormAtOpen(s);
     expect(currentHp(corner)).toBe(10);
-    expect(s.alerts ?? []).toEqual([]);
+    expect(s.news.some((n) => n.startsWith('Storm!'))).toBe(false);
     s.weather = { kind: 'storm', temp: 60 };
     stormAtOpen(s);
     expect(currentHp(corner)).toBe(1);
@@ -702,7 +702,7 @@ describe('Storms', () => {
     s.weather = { kind: 'storm', temp: 60 };
     stormAtOpen(s);
     expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
-    expect(s.alerts!.map((a) => a.text)).toContain('Storm! Stock light; repair L1–L2 stands.');
+    expect(s.news).toContain('Storm! Stock light; repair L1–L2 stands.');
   });
 
   it('a repair booked before the Storm can be topped up for the new damage, and dawn fixes it all', () => {

@@ -23,7 +23,6 @@ import {
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import { alert } from './alerts.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
@@ -136,7 +135,8 @@ export function weatherDamage(s: GameState, plotId: string, share: number): numb
 }
 
 /** The stands open on a Storm: every faction's L1–L2 stand loses a quarter of its max HP (never below 1) and sells at its
- * HP share until repaired. The alert card names the counter-play. */
+ * HP share until repaired. It is announced as it starts, with the counter-play, like a random event: a headline here, and
+ * the feed's Storm ticket (src/ui/damage.ts) keeps the counter-play and the repair up all day. */
 export function stormAtOpen(s: GameState): void {
   if (s.weather.kind !== 'storm') return;
   const hit: string[] = [];
@@ -146,7 +146,7 @@ export function stormAtOpen(s: GameState): void {
     if (weatherDamage(s, p.id, STORM_DAMAGE.share) && ps.owner === 'player') hit.push(p.id);
   }
   const what = hit.length === 1 ? `${PLOT_BY_ID[hit[0]].name} takes a beating` : `${hit.length} of your stands take a beating`;
-  alert(s, { kind: 'note', text: `Storm!${hit.length ? ` ${what}.` : ''} Stock light; repair L1–L2 stands.`, plot: hit[0] });
+  s.news.push(`Storm!${hit.length ? ` ${what}.` : ''} Stock light; repair L1–L2 stands.`);
 }
 
 /** The battle headline's last words: what a raid that didn't flatten the building took off it. */

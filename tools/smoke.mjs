@@ -18,7 +18,10 @@ try {
     try { if ((await fetch(base)).ok) break; } catch { await new Promise((r) => setTimeout(r, 200)); }
   }
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // SMOKE_SCALE below 1 renders the 3D view at a lower device pixel ratio: SwiftShader is
+  // fragment-bound, so 0.5 runs about 2.7x more frames a second on a 4-core container.
+  const scale = Number(process.env.SMOKE_SCALE ?? 1) || 1;
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: scale });
   // Software WebGL with the clay HUD can take many seconds a frame on a busy container: give screenshots room.
   page.setDefaultTimeout(180000);
   const errors = [];

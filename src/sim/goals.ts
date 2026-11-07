@@ -42,7 +42,9 @@ type Candidate = Goal & { id: string; urgent?: boolean; filler?: boolean };
 export const GOAL_PROVIDERS: { id: string; slot: GoalSlot; goal: (s: GameState) => Goal | null }[] = [];
 
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
-const whole = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+/** 1,200 (Lottie's goals are checked every few game minutes: a plain format, not Intl's). */
+const commas = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const whole = (n: number) => `$${commas(n)}`;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Two significant figures, so targets and rewards read like Lottie wrote them. */
 export const nice = (n: number) => {
@@ -57,8 +59,10 @@ export const DEX_LESSON = 'lesson-dex';
 /** Plot types a stand can go up on. */
 const STAND_PLOTS: string[] = ['street', 'prime', 'landmark'];
 const maxLevel = (s: GameState) => playerStands(s).reduce((m, p) => Math.max(m, s.plots[p.id].stand!.level), 0);
-const standIn = (s: GameState, d: DistrictId) => PLOTS.some((p) => p.district === d && s.plots[p.id].owner === 'player' && s.plots[p.id].stand);
-const ownsFacility = (s: GameState, kind: FacilityKind) => PLOTS.some((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind);
+/** The plots you own: the medium slot's checks read them once and look at them many times. */
+const minePlots = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].owner === 'player');
+const standIn = (s: GameState, d: DistrictId, mine = minePlots(s)) => mine.some((p) => p.district === d && !!s.plots[p.id].stand);
+const ownsFacility = (s: GameState, kind: FacilityKind, mine = minePlots(s)) => mine.some((p) => s.plots[p.id].facility?.kind === kind);
 /** The selected stand if it's yours and standing (a plain read: unlike selectedStand it never moves the selection). */
 const ownStand = (s: GameState) => {
   const ps = s.plots[s.selected];
@@ -138,7 +142,7 @@ function shortGoals(s: GameState): Candidate[] {
     if (s.day === LESSON_DAY.crew && dex) lesson({ id: DEX_LESSON, text: 'Station Dex for the night', progress: dex.post ? 1 : 0, done: !!dex.post });
   }
   const target = salesTarget(s);
-  out.push({ id: `sales-${s.day}`, text: `Sell ${target.toLocaleString('en-US')} cups today`, progress: s.today.customers / target, done: s.today.customers >= target });
+  out.push({ id: `sales-${s.day}`, text: `Sell ${commas(target)} cups today`, progress: s.today.customers / target, done: s.today.customers >= target });
   return out;
 }
 
@@ -148,11 +152,13 @@ function mediumGoals(s: GameState): Candidate[] {
   const lvl = maxLevel(s);
   const stands = playerStands(s).length;
   const lessons = lessonsOn(s);
+  const mine = minePlots(s);
+  const oldtown = standIn(s, 'oldtown', mine);
   // Act 1's lessons, newest first; the Wooden Stand is the first session's goal from Day 1. Week 2's Old Town
   // corner is a story beat in the campaign (page icon) and a lesson elsewhere.
-  if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || standIn(s, 'oldtown'))) {
-    const owns = PLOTS.some((p) => p.district === 'oldtown' && s.plots[p.id].owner === 'player');
-    out.push({ id: 'beat-oldtown', text: 'Open a stand in Old Town', progress: standIn(s, 'oldtown') ? 1 : owns ? 0.8 : Math.min(0.6, cash / cheapestPlot(s, 'oldtown')), done: standIn(s, 'oldtown'), story: hasStory(s), urgent: true });
+  if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown)) {
+    const owns = mine.some((p) => p.district === 'oldtown');
+    out.push({ id: 'beat-oldtown', text: 'Open a stand in Old Town', progress: oldtown ? 1 : owns ? 0.8 : Math.min(0.6, cash / cheapestPlot(s, 'oldtown')), done: oldtown, story: hasStory(s), urgent: true });
   }
   if (lessons) {
     if (s.day >= LESSON_DAY.marketing) out.push({ id: 'lesson-sign', text: 'Paint your first sign', progress: s.brandTier ? 1 : cash / BRAND_TIERS[0].cost, done: s.brandTier >= 1, urgent: true });
@@ -171,11 +177,13 @@ function mediumGoals(s: GameState): Candidate[] {
   if (s.rank >= HIRE_RANK && taught(s, 'crew')) out.push({ id: 'guards-2', text: 'Hire a guard', progress: Math.min(1, s.guards.length / 2), done: s.guards.length >= 2 });
   for (const d of DISTRICTS) {
     if (d.id === 'maple' || (d.id === 'oldtown' && out.some((g) => g.id === 'beat-oldtown'))) continue;
-    if (standIn(s, d.id) || (taught(s, 'land') && districtOpen(s, d.id))) out.push({ id: `district-${d.id}`, text: `Open a stand in ${d.name}`, progress: standIn(s, d.id) ? 1 : 0, done: standIn(s, d.id) });
+    const there = standIn(s, d.id, mine);
+    if (there || (taught(s, 'land') && districtOpen(s, d.id))) out.push({ id: `district-${d.id}`, text: `Open a stand in ${d.name}`, progress: there ? 1 : 0, done: there });
   }
   for (const kind of Object.keys(FACILITIES) as FacilityKind[]) {
     const f = FACILITIES[kind];
-    if (s.rank >= f.ranks[0] || ownsFacility(s, kind)) out.push({ id: `facility-${kind}`, text: `Build a ${f.names[kind === 'helipad' ? 1 : 0]}`, progress: ownsFacility(s, kind) ? 1 : cash / f.costs[0], done: ownsFacility(s, kind) });
+    const built = ownsFacility(s, kind, mine);
+    if (s.rank >= f.ranks[0] || built) out.push({ id: `facility-${kind}`, text: `Build a ${f.names[kind === 'helipad' ? 1 : 0]}`, progress: built ? 1 : cash / f.costs[0], done: built });
   }
   if (isEndless(s)) {
     // Endless Summer: Full Control of a district you hold, more Citrus Palaces, a Supply Deal.

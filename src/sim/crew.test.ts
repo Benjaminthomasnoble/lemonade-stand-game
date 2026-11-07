@@ -6,7 +6,7 @@ import {
   threatLevel, tickMinute, welcomeDex, type GameState,
 } from './economy.ts';
 import {
-  availableRaiders, canPost, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
+  availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
   canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
@@ -1059,5 +1059,26 @@ describe("Sheriff Budd's Citation", () => {
     expect(s.day).toBe(day);
     expect(s.citations?.election?.day).toBe(day);
     expect(s.news.some((l) => l.startsWith('ELECTION DAY: Mayor Fontaine'))).toBe(true);
+  });
+});
+
+describe('the Raid Planner squad', () => {
+  it('Dex fills it to the cap: unposted guards first, the strongest first, never one a warned raid needs at home', () => {
+    const s = newGame(111);
+    s.rank = 3; // a squad of 5
+    const g = (id: string, weapon: Guard['weapon'], gear: Guard['gear'], level: number, post: string | null = null) => guardOf(weapon, gear, level, 'Loyal', { id, name: id, post });
+    s.plots['maple-3s'] = { ...s.plots['maple-3s'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
+    s.guards = [
+      g('fists', 'fists', 'none', 1), g('clubs', 'clubs', 'vest', 1), g('vet', 'clubs', 'vest', 4), g('posted', 'hatchets', 'vest', 4, LOTTIES_CORNER),
+      g('postedWeak', 'fists', 'none', 1, LOTTIES_CORNER), g('home', 'hatchets', 'pro', 5, 'maple-3s'), g('hurt', 'hatchets', 'pro', 5),
+    ];
+    s.guards[6].outUntil = s.day + 2; // Out: not ready
+    s.raids.push({ id: 'r9', attacker: 'blenders', target: 'maple-3s', objective: 'smash', party: [], detected: true, eta: '23:00', warned: true });
+    expect(dexSquad(s)).toEqual(['vet', 'clubs', 'fists', 'posted', 'postedWeak']);
+    s.guards = s.guards.slice(0, 2);
+    expect(dexSquad(s)).toEqual(['clubs', 'fists']);
+    s.rank = 7;
+    s.guards = Array.from({ length: 14 }, (_, i) => g(`x${i}`, 'clubs', 'vest', 1));
+    expect(dexSquad(s)).toHaveLength(12); // the Rank 7 cap
   });
 });

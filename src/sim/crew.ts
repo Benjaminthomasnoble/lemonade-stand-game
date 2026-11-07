@@ -722,6 +722,22 @@ export function availableRaiders(s: GameState): Guard[] {
   return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id) && g.scoutDay !== s.day);
 }
 
+/** How hard a guard hits and how much they take, by day: Dex's yardstick for picking a squad. */
+const raidPower = (g: Guard) => { const f = guardFighter(g, 'att', false); return (f.hp / (1 - f.armor)) * f.hit; };
+
+/**
+ * Dex's squad as the Raid Planner opens (spec: "Dex fills it up to your cap; swap anyone"): ready guards up to the cap,
+ * the unposted ones first, then those on posts (the Planner flags the posts they leave empty), the strongest first.
+ * He leaves alone a guard on a plot a warned raid is heading for.
+ */
+export function dexSquad(s: GameState): string[] {
+  const threatened = new Set(incomingRaids(s).map((r) => r.target));
+  return availableRaiders(s).filter((g) => !(g.post && threatened.has(g.post)))
+    .map((g) => ({ id: g.id, posted: g.post ? 1 : 0, power: raidPower(g) }))
+    .sort((a, b) => a.posted - b.posted || b.power - a.power)
+    .slice(0, SQUAD_CAP(s.rank)).map((g) => g.id);
+}
+
 /** The day a Sabotage now would close the stand: today if it hasn't opened yet (Morning Prep), else tomorrow. */
 const spoilDay = (s: GameState) => (s.phase === 'prep' ? s.day : s.day + 1);
 

@@ -44,4 +44,18 @@ describe('the Raid Planner', () => {
     expect(seen).toMatch(/<b class="cl-odds">(Long shot|Risky|Coin flip|Good odds|Sure thing)<\/b>/);
     expect(seen).toContain(`<tape>×${s.scouting![target].garrison}</tape>`);
   });
+
+  it('opening on a plot, Dex fills the squad; a swap sticks until it opens on another plot', () => {
+    const { s, target } = setup(82);
+    const other = raidTargets(s).find((t) => t.id !== target && s.plots[t.id].stand)!.id;
+    const { p } = planner();
+    const html = p.panel(s, target);
+    expect([...p.squad]).toEqual(['r0', 'r1', 'r2']);
+    expect(html.match(/aria-pressed="true"/g)).toHaveLength(3);
+    p.click({ action: 'squad', id: 'r1' }); // swap one out
+    p.panel(s, target);
+    expect([...p.squad]).toEqual(['r0', 'r2']);
+    p.panel(s, other);
+    expect([...p.squad]).toEqual(['r0', 'r1', 'r2']);
+  });
 });

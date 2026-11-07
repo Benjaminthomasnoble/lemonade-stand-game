@@ -2,7 +2,7 @@
 // odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
 // panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canRaid, canSabotage, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance, SABOTAGE_RANK, squadTrip,
+  availableRaiders, canRaid, canSabotage, dexSquad, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance, SABOTAGE_RANK, squadTrip,
   WEAPONS, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
@@ -65,8 +65,18 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     return `${unknown}<div class="cl-acts">${k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}"${b.ok ? ` title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"` : ''}`, 'ghost')}${fly}</div>`;
   }
 
+  /** The plot the Planner last opened on: opening it on another, Dex fills the squad to the cap (swap anyone after). */
+  let openFor: string | null = null;
+  function open(s: GameState, id: string) {
+    if (openFor === id) return;
+    openFor = id;
+    squad.clear();
+    for (const g of dexSquad(s)) squad.add(g);
+  }
+
   function panel(s: GameState, id: string) {
     if (s.rank < RAID_RANK) return '';
+    open(s, id);
     const crew = availableRaiders(s);
     for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
     if (!crew.length) return '<span class="cl-note">No guards free</span>';

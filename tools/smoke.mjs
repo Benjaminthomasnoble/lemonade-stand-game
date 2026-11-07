@@ -102,8 +102,9 @@ try {
   });
   await page.evaluate((t) => { window.__game.act({ type: 'inspect', plot: t }); window.__game.focus(t); }, target);
   await page.waitForSelector('[data-testid="raid-planner"]');
-  const squadButtons = await page.$$('[data-action="squad"]');
-  for (let i = 0; i < squadButtons.length; i++) await page.click(`[data-action="squad"] >> nth=${i}`);
+  // Dex fills the squad as the Planner opens: tap in anyone he left out.
+  const unpicked = '[data-testid="raid-planner"] [data-action="squad"][aria-pressed="false"]';
+  for (let i = 0; i < 12 && await page.$(unpicked); i++) await page.click(unpicked);
   await page.click('[data-testid="raid-now"]');
   // The squad travels 1-3 game hours: open the stands, run the clock to a minute out, and the fight plays on arrival.
   await page.evaluate(() => {
@@ -202,7 +203,7 @@ try {
   await page.evaluate((id) => window.__game.act({ type: 'inspect', plot: id }), hq.hqId);
   await page.waitForSelector('[data-testid="hq-assault"]');
   await page.screenshot({ path: 'test-results/14-hq-panel.png' });
-  for (let i = 0; i < 12; i++) await page.click(`[data-testid="hq-assault"] [data-action="squad"][data-id="sg${i}"]`);
+  for (let i = 0; i < 12; i++) { const face = `[data-testid="hq-assault"] [data-action="squad"][data-id="sg${i}"][aria-pressed="false"]`; if (await page.$(face)) await page.click(face); } // Dex's picks stay in
   await page.click('[data-testid="assault"]');
   await page.waitForFunction(() => window.__game.battle(), null, { timeout: 60000 });
   await page.waitForTimeout(2500);

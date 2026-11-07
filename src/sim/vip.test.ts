@@ -103,6 +103,20 @@ describe('VIP clients', () => {
     expect(s.orders).toEqual([]);
   });
 
+  it("a VIP pickup counts in the day's sales, next to the stands' cups", () => {
+    const { s, field } = vipGame(28);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    s.bottles = 2000;
+    const o = order(s, { id: 'sales', tier: 'heli', qty: 2000, pay: 60000, due: s.day, plot: field.id });
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(o.loaded).toBe(2000);
+    const t = s.history.at(-1)!;
+    const stands = playerStands(s).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
+    expect(t.revenue).toBe(round(stands + 60000));
+  });
+
   it('a Heliport flies 2 trips a day; a pier shares its daily rate between orders, oldest first', () => {
     const { s, field, dock } = vipGame(6);
     noRaids(s);

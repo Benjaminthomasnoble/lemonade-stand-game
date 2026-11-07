@@ -744,7 +744,7 @@ function closeDay(s: GameState): void {
     }
   }
   closeTills(s); // combat: each stand's day in its books, for Shakedown loot
-  t.revenue = round2(revenue);
+  t.revenue = round2(t.revenue + revenue); // world: the day's VIP pickups (booked as they load) stay in its sales
   t.cupCosts = round2(cupCosts);
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;

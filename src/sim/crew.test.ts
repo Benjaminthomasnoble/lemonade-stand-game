@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildClubhouse, buyGadget, buyPerimeter, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
-  payCrew, planRaid, promote,
+  buildClubhouse, buyGadget, buyPerimeter, canBuyGadget, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
+  payCrew, planRaid, PLOTS, promote,
   raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
-  PLOTS,
 } from './economy.ts';
-import { availableRaiders, guardFighter, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, type Guard } from './crew.ts';
+import {
+  availableRaiders, guardFighter, holdsStronghold, neighborhoodWatch, raidIsNight, raidIsNightAt, raidRepCost, squadFighters, strongholdTravelMult, type Guard,
+} from './crew.ts';
 import { CLOSE } from './balance.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
@@ -390,5 +391,51 @@ describe('day and night raids', () => {
     const f = guardFighter({ id: 'gg', name: 'Gentle G', trait: 'Gentle Giant', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 }, 'att', false);
     expect(f.hp).toBeCloseTo(150);
     expect(f.hit).toBeCloseTo(18 * 0.7);
+  });
+});
+
+describe('district control on defense', () => {
+  /** Hands you the first n purchasable plots of a district (all of them by default). */
+  const own = (s: GameState, d: string, n = Infinity) => {
+    for (const p of PLOTS.filter((q) => q.district === d && q.type !== 'civic' && q.type !== 'hq').slice(0, n)) s.plots[p.id].owner = 'player';
+  };
+
+  it('Neighborhood Watch: Maple Row at Full Control rings a free Tin-Can on every Maple plot and adds 10% everywhere', () => {
+    const s = newGame(91);
+    s.rank = 4;
+    s.cash = 5000;
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && p.type !== 'hq')!.id;
+    const rivalSeen = detectionChance(s, rival, false);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    own(s, 'maple', 11); // 11 of 12: a Stronghold, not yet Full Control
+    expect(neighborhoodWatch(s)).toBe(false);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6);
+    own(s, 'maple');
+    expect(neighborhoodWatch(s)).toBe(true);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.85); // 50 + free alarm 15 + Watch 10 + Stronghold 10
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.6);
+    expect(canBuyGadget(s, LOTTIES_CORNER, 'alarm')).toEqual({ ok: false, why: 'Neighborhood Watch rings one here' });
+    expect(canBuyGadget(s, LOTTIES_CORNER, 'goose').ok).toBe(true); // the free one takes no slot
+    s.plots[LOTTIES_CORNER].defense.gadgets = ['alarm'];
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.85); // a bought one doesn't ring twice
+    s.plots['harbor-1n'].owner = 'player';
+    expect(detectionChance(s, 'harbor-1n', false)).toBe(0.6); // +10% anywhere, but the free alarm is Maple Row's
+    expect(detectionChance(s, rival, false)).toBe(rivalSeen); // rivals get nothing from it
+  });
+
+  it('a Stronghold (75%+) spots raids on your plots there 10% more and halves reinforcement travel', () => {
+    const s = newGame(92);
+    own(s, 'maple', 8); // 8 of 12
+    expect(holdsStronghold(s, 'maple')).toBe(false);
+    expect(strongholdTravelMult(s, 'maple')).toBe(1);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
+    own(s, 'maple', 9); // 9 of 12 = 75%
+    expect(holdsStronghold(s, 'maple')).toBe(true);
+    expect(strongholdTravelMult(s, 'maple')).toBe(0.5);
+    expect(strongholdTravelMult(s, 'harbor')).toBe(1);
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.35);
+    s.plots['harbor-1n'].owner = 'player';
+    expect(detectionChance(s, 'harbor-1n', false)).toBe(0.5);
   });
 });

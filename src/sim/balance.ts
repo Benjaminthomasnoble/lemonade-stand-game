@@ -441,6 +441,11 @@ export const DELIVERY_WINDOW = 120;
 export const GRAPEVINE_EARLY = 60;
 /** A Sneaky raider in the party takes this much more off (once per raid). */
 export const SNEAKY_STEALTH = 0.25;
+/** Maple Row at Full Control (Neighborhood Watch): every raid on any plot of yours is detected this much more often. */
+export const NEIGHBORHOOD_WATCH_DETECTION = 0.1;
+/** A Stronghold (75%+ of a district): raids on your plots there are spotted more, and reinforcements get there faster. placeholder: spec gap (no numbers). */
+export const STRONGHOLD_DETECTION = 0.1;
+export const STRONGHOLD_TRAVEL = 0.5;
 export const DAYTIME_RAID_REP = { raid: 0.1, smash: 0.2 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',

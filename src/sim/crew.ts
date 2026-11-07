@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, OPEN, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
@@ -12,7 +12,7 @@ import {
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
-import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
+import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
 import { newStand, ownedPlots, priceCeiling } from './economy.ts';
@@ -22,7 +22,7 @@ import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { withBell } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce } from './rivals.ts';
-import { bump, difficulty, peaceful } from './modes.ts';
+import { bump, difficulty, districtControl, peaceful } from './modes.ts';
 import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
@@ -168,6 +168,7 @@ export function canBuyGadget(s: GameState, plotId: string, g: GadgetId): Blocker
   const gd = GADGETS[g];
   if (ps.owner !== 'player') return { ok: false, why: 'Not your plot' };
   if (ps.defense.gadgets.includes(g)) return { ok: false, why: 'Installed' };
+  if (g === 'alarm' && freeAlarm(s, plotId)) return { ok: false, why: 'Neighborhood Watch rings one here' };
   if (s.rank < gd.rank) return { ok: false, why: `Needs Rank ${gd.rank}` };
   if (ps.defense.gadgets.length >= GADGET_SLOTS(ps.stand?.level ?? 1)) return { ok: false, why: 'No free gadget slot' };
   if (s.cash < gd.cost) return { ok: false, why: `Needs ${money(gd.cost)}` };
@@ -460,16 +461,32 @@ export function presentGuards(s: GameState, plotId: string): Guard[] {
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 
+// District control, until land's controlTier(s, d) and perkActive(s, perkId) take over: Stronghold at 75%+, Full Control at 100%.
+const controlShare = (s: GameState, d: DistrictId) => districtControl(s, d);
+/** Do you hold a Stronghold (75%+ of the purchasable plots) in this district? */
+export const holdsStronghold = (s: GameState, d: DistrictId) => { const c = controlShare(s, d); return c.total > 0 && c.share >= 0.75; };
+/** Maple Row's Full Control perk, Neighborhood Watch: free Tin-Can Alarms there, +10% detection everywhere. */
+export const neighborhoodWatch = (s: GameState) => { const c = controlShare(s, 'maple'); return c.total > 0 && c.mine === c.total; };
+/** Reinforcements sent into a Stronghold travel this much of their usual time (Ring the Bell multiplies by it). */
+export const strongholdTravelMult = (s: GameState, d: DistrictId) => (holdsStronghold(s, d) ? STRONGHOLD_TRAVEL : 1);
+/** Neighborhood Watch's free Tin-Can Alarm on a Maple Row plot of yours that has none of its own (it takes no gadget slot). */
+export const freeAlarm = (s: GameState, plotId: string) =>
+  s.plots[plotId].owner === 'player' && PLOT_BY_ID[plotId].district === 'maple' && !s.plots[plotId].defense.gadgets.includes('alarm') && neighborhoodWatch(s);
+
 /** Is there a Sneaky guard in this raiding party? (Their stealth counts once per raid.) */
 export const sneakyIn = (s: GameState, guardIds: string[]) => s.guards.some((g) => guardIds.includes(g.id) && g.trait === 'Sneaky');
 
 /** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights) and a Sneaky raider 25 more. Never below 0%. */
 export function detectionChance(s: GameState, plotId: string, night: boolean, sneaky = false): number {
   const ps = s.plots[plotId];
-  const here = ps.owner === 'player' ? presentGuards(s, plotId) : [];
+  const mine = ps.owner === 'player';
+  const here = mine ? presentGuards(s, plotId) : [];
   let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].detection, 0);
+  if (freeAlarm(s, plotId)) d += GADGETS.alarm.detection;
   if (here.some((g) => g.trait === 'Eagle Eye')) d += EAGLE_EYE_DETECTION;
   if (here.some((g) => g.specialty === 'lookout')) d += LOOKOUT_DETECTION;
+  if (mine && neighborhoodWatch(s)) d += NEIGHBORHOOD_WATCH_DETECTION;
+  if (mine && holdsStronghold(s, PLOT_BY_ID[plotId].district)) d += STRONGHOLD_DETECTION;
   d = Math.min(DETECTION_CAP, d);
   if (night && !ps.defense.gadgets.includes('floodlights')) d -= NIGHT_STEALTH;
   if (sneaky) d -= SNEAKY_STEALTH;

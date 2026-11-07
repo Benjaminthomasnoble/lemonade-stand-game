@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptOrder, BOTTLE_CAP, bottleCost, bottlesOf, bottleValue, buildFacility, canBuildFacility, CUP_COST, dealShortfallPerDay, declineOrder,
-  DELIVERY_WINDOW, FAILED_ORDER_STARS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
+  DELIVERY_WINDOW, FAILED_ORDER_STARS, FEST_HUMS, FESTIVALS, festivalsOn, FIZZCO_BID, FIZZCO_PLANT, harborFestOn, LOADING_PER_DAY, LOTTIES_CORNER, MAX_OFFERS,
   netWorth, newGame, newStand, nextDue, offerChance, OLD_MONEY_OFFERS, oldMoney, openStand, ORDER_TIERS, owedBy, ownsRecipe, PICKUP_MINUTE, pickupsAt,
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
@@ -579,6 +579,27 @@ describe('VIP clients', () => {
     while (!harborFestOn(s)) s.day++;
     expect([heli, ship, tent].map((o) => syndicateFestRaid(s, o, true))).toEqual([true, true, false]); // a Caterer Truck is no VIP
     expect(syndicateFestRaid(s, ship, false)).toBe(false); // no Syndicate: nights passes syndicateFormed(s) once it exists
+  });
+
+  it("Harbor Fest: Lottie swears she isn't humming along to the ships' horns, a line for each day of the Fest", () => {
+    const { s, field, dock } = vipGame(40);
+    noRaids(s);
+    buildFacility(s, dock.id, 'pier'); // 10,000 bottles a day: both of a day's ships load on its one trip
+    buildFacility(s, field.id, 'helipad');
+    while (!harborFestOn(s)) s.day++;
+    s.bottles = 100000;
+    const hums = () => s.news.filter((n) => FEST_HUMS.includes(n));
+    order(s, { id: 'star', tier: 'heli', qty: 2000, pay: 60000, due: s.day, plot: field.id });
+    for (let d = 0; d < FEST_HUMS.length; d++) {
+      order(s, { id: `cruise${d}`, tier: 'ship', qty: 4000, pay: 160000, due: s.day, plot: dock.id });
+      order(s, { id: `liner${d}`, tier: 'ship', qty: 4000, pay: 160000, due: s.day, plot: dock.id });
+      trips(s);
+    }
+    expect(s.orders).toEqual([]);
+    expect(hums()).toEqual(FEST_HUMS); // once a day, at the first ship (a chopper's rotors play no theme)
+    order(s, { id: 'late', tier: 'ship', qty: 4000, pay: 160000, due: s.day, plot: dock.id });
+    trips(s); // the Fest is over
+    expect(hums()).toEqual(FEST_HUMS);
   });
 
   it('bottles on hand count in the Success Score at cost', () => {

@@ -11,9 +11,9 @@ import type { Blocker, GameState } from './economy.ts';
 import { pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
 import { restoreHp } from './damage.ts';
-import { ownedRecipes, ownsRecipe, recipeCost } from './recipes.ts';
+import { ownedRecipes, ownsRecipe, recipeCost, worldOf } from './recipes.ts';
 import { fullControl } from './demand.ts';
-import { festivalsOn } from './calendar.ts';
+import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal';
@@ -361,6 +361,20 @@ export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harbo
  * with the usual warning, in place of the usual 30% at Threat 3+. Seam for nights: the Delivery Raid roll (night.ts
  * scheduleDeliveryRaid) passes syndicateFormed(s) and sends the crew; until the Syndicate exists nothing passes true. */
 export const syndicateFestRaid = (s: GameState, o: Order, syndicateFormed: boolean) => syndicateFormed && isVip(o.tier) && harborFestOn(s);
+/** Harbor Fest: every ship's horn plays Lottie's Theme, and Lottie swears she isn't humming along (spec: Act 5, Harbor
+ * Fest). Her line for each day of the Fest, said at the day's first ship pickup. */
+export const FEST_HUMS = [
+  'Lottie: "Every horn in the harbor is honking my song. I am not humming along."',
+  'Lottie: "That is not humming. That is the wind off the water."',
+  'Lottie: "Fine. One hum. You tell nobody."',
+];
+/** A ship (or a Supply Deal's freighter) loads during Harbor Fest: Lottie's line for the day, once. */
+function festHum(s: GameState): void {
+  const w = worldOf(s);
+  if (!harborFestOn(s) || w.humDay === s.day) return;
+  w.humDay = s.day;
+  s.news.push(FEST_HUMS[Math.min(s.day - festivalDays('harborFest', yearOf(s.day)).from, FEST_HUMS.length - 1)]);
+}
 /** A pickup's pay, with Shipping Lane's 15% on a Ship Contract (a Supply Deal keeps its $1.5M a load). */
 const withLane = (s: GameState, o: Order, pay: number) => (o.tier === 'ship' && shippingLane(s) ? Math.round(pay * (1 + SHIPPING_LANE)) : pay);
 
@@ -538,6 +552,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   }
   const tally = done ? (before ? ' Order complete!' : '') : ` ${o.loaded.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} loaded.`;
   s.news.push(`${o.client} picks up ${n.toLocaleString('en-US')} bottles: ${money(pay)}!${tally}`);
+  if (o.tier !== 'heli') festHum(s); // the ship sails in tooting Lottie's Theme
   return { pickup: { order: o, ok: true }, load: n };
 }
 

@@ -571,7 +571,7 @@ async function main() {
         break;
       }
       case 'brand': buyBrand(state); break;
-      case 'campaign': runCampaign(state, a.id); break;
+      case 'campaign': runCampaign(state, a.id, a.plot); break;
       case 'select': state.selected = a.plot; hud.inspected = a.plot; focusPlot(a.plot); break;
       case 'inspect': // a tap on the map, or a pick from a menu's list (which flies there)
         if (a.plot && hud.menu && hud.menu !== 'goals') focusPlot(a.plot);

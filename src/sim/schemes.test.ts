@@ -4,7 +4,7 @@ import {
   runningSchemes, SCHEMES, schemesAtDawn, simulateRestOfDay, sleepUntilDawn, snipeBid, startScheme, warAt, warFront,
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
-  canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY,
+  canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
   type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -148,6 +148,102 @@ describe('smear posters', () => {
     budgetOf(s, 'coldbrew').strike = 1000;
     for (const p of PLOTS) if (s.plots[p.id].owner === 'player') s.plots[p.id].stand = null;
     expect(startScheme(s, 'coldbrew', 'posters')).toBeNull();
+  });
+
+  /** Cold Brew keeps only the Grindhouse on campus; Lottie holds a quiet stand a lot from it and a busy one at the far end. */
+  function onCampus(seed: number, rank: number) {
+    const s = newGame(seed);
+    s.day = 10;
+    s.rank = rank;
+    for (const p of PLOTS) if (p.district === 'campus' && p.type !== 'hq' && s.plots[p.id].owner === 'coldbrew') s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
+    for (const [id, busy] of [['campus-6n', 50], ['campus-0s', 400]] as const) {
+      s.plots[id] = { ...s.plots[id], owner: 'player', stand: newStand(1, 1) };
+      s.plots[id].stand!.day.passersby = busy;
+    }
+    return s;
+  }
+
+  it('in Act 3 hit your busiest Campus & Arts stand under the spec\'s slogan; in other acts, your stand nearest their turf', () => {
+    let landed = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = onCampus(seed, 5); // Act 3
+      const job = startScheme(s, 'coldbrew', 'posters')!;
+      expect(job.plots).toEqual(['campus-0s']);
+      if (job.caught) continue;
+      landed++;
+      expect(s.news.at(-1)).toBe('Bugle: Every campus wall sneers "LOTTIE\'S: LEMONADE FOR PEOPLE WHO LIKE THINGS."');
+      expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === 'It\'s not graffiti. It\'s a review.')).toBe(true); // Juni phones it in
+    }
+    expect(landed).toBeGreaterThan(0);
+    for (const rank of [4, 7]) { // Acts 2 and 4
+      for (let seed = 1; seed <= 12; seed++) {
+        const s = onCampus(seed, rank);
+        const job = startScheme(s, 'coldbrew', 'posters')!;
+        expect(job.plots).toEqual(['campus-6n']); // a lot from the Grindhouse
+        if (!job.caught) expect(s.news.at(-1)).toBe(`Bugle: Smear posters plaster ${PLOT_BY_ID['campus-6n'].name}`);
+      }
+    }
+    const away = onCampus(2, 5); // Act 3 with no stand of yours on campus: the usual rule
+    for (const id of ['campus-6n', 'campus-0s']) away.plots[id] = { ...away.plots[id], owner: null, stand: null };
+    expect(startScheme(away, 'coldbrew', 'posters')!.plots).toEqual([LOTTIES_CORNER]);
+  });
+
+  it('in Act 3 Cold Brew reaches for its posters before a price war', () => {
+    const chance = [...SCHEMES.chance];
+    SCHEMES.chance.fill(1); // every dawn
+    try {
+      const kinds = (rank: number) => {
+        const out: string[] = [];
+        for (let seed = 1; seed <= 20; seed++) {
+          const s = newGame(seed);
+          s.day = 10;
+          s.rank = rank;
+          nextTo(s, 'coldbrew'); // a war front: a price war is on the table too
+          hush(s);
+          s.rivals.coldbrew.truceUntil = 0;
+          schemesAtDawn(s);
+          out.push(...s.schemes!.filter((x) => x.by === 'coldbrew' && x.day === 10).map((x) => x.kind));
+        }
+        return out;
+      };
+      const act3 = kinds(5);
+      expect(act3).toHaveLength(20);
+      expect(new Set(act3)).toEqual(new Set(['posters']));
+      expect(kinds(4)).toContain('priceWar'); // Act 2: a seeded draw that favors posters
+    } finally {
+      SCHEMES.chance.splice(0, chance.length, ...chance);
+    }
+  });
+
+  it('stay up 3 days, or until free samples begin at that stand; a caught crew leaves none', () => {
+    let seen = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = newGame(seed);
+      s.day = 10;
+      const job = startScheme(s, 'coldbrew', 'posters')!;
+      const at = job.plots[0];
+      if (job.caught) { expect(postersAt(s, at)).toBe(false); continue; }
+      seen++;
+      expect(postersAt(s, at)).toBe(true);
+      s.day = 12;
+      expect(postersAt(s, at)).toBe(true);
+      expect(schemeNote(s, at)).toBe('<span class="cl-note bad">Smear posters</span>');
+      s.day = 13;
+      expect(postersAt(s, at)).toBe(false);
+      expect(schemeNote(s, at)).toBe('');
+      s.day = 11;
+      const st = s.plots[at].stand!;
+      st.campaigns.freeSamples = CAMPAIGNS.freeSamples.days - 2; // begun on Day 9, before the posters
+      expect(postersAt(s, at)).toBe(true);
+      st.campaigns.freeSamples = CAMPAIGNS.freeSamples.days - 1; // begun on Day 10, the morning they went up
+      expect(postersAt(s, at)).toBe(false);
+      st.campaigns.freeSamples = CAMPAIGNS.freeSamples.days; // begun today
+      expect(postersAt(s, at)).toBe(false);
+      delete st.campaigns.freeSamples;
+      s.plots[at].owner = 'blenders'; // the stand left you
+      expect(postersAt(s, at)).toBe(false);
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });
 
@@ -308,7 +404,7 @@ describe('on the HUD', () => {
       expect(ticket).toContain('Smear posters! −0.1★');
       expect(ticket).not.toContain('data-id="freeSamples"'); // Rank 1: Free Sample Day is still locked
       s.rank = 2;
-      expect(schemeTickets(s)[0]).toContain('data-action="campaign" data-id="freeSamples"');
+      expect(schemeTickets(s)[0]).toContain(`data-action="campaign" data-id="freeSamples" data-plot="${job.plots[0]}"`); // at the stand they hit
       expect(schemeNote(s, job.plots[0])).toBe('<span class="cl-note bad">Smear posters</span>');
       s.day = 11;
       expect(schemeTickets(s)).toEqual([]); // gone the next morning

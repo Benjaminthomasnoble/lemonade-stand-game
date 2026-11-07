@@ -6,8 +6,8 @@
 // away), plus a note on the plot card. Plain functional controls on the HUD's
 // ticket styles; clicks go through the HUD's one listener (data-action).
 import {
-  canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, OLD_MONEY, offerOn, PLOT_BY_ID, runningSchemes, SCHEMES,
-  TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
+  canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, OLD_MONEY, offerOn, PLOT_BY_ID, postersAt, runningSchemes,
+  SCHEMES, TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -38,11 +38,12 @@ function posters(s: GameState, job: Scheme): string {
   if (job.caught) {
     return `<div class="cl-ticket good" data-testid="posters" title="${esc(`Your night watch caught Cold Brew's poster crew at ${place(where)}.`)}">${ICON.shield()}<b>Poster crew caught!</b></div>`;
   }
-  // Free Sample Day wins the stars back (Rank 2, planned at Morning Prep): hidden while it's locked.
-  const b = canRunCampaign(s, 'freeSamples');
+  // Free Sample Day at the stand they hit wins the stars back and takes the posters down (Rank 2, planned at Morning
+  // Prep): hidden while it's locked.
+  const b = canRunCampaign(s, 'freeSamples', where);
   const samples = s.phase === 'prep' && !/Rank \d/.test(b.ok ? '' : b.why)
-    ? btn('campaign', 'Free samples', 'data-id="freeSamples"', 'tiny go', b.ok ? undefined : b.why) : '';
-  const tip = `Cold Brew's poster crew hit ${place(where)} last night: −${SCHEMES.posters.stars} star. Free samples win it back; floodlights catch night crews.`;
+    ? btn('campaign', 'Free samples', `data-id="freeSamples" data-plot="${where}"`, 'tiny go', b.ok ? undefined : b.why) : '';
+  const tip = `Cold Brew's poster crew hit ${place(where)} last night: −${SCHEMES.posters.stars} star. Free samples there win it back; floodlights catch night crews.`;
   return `<div class="cl-ticket red" data-testid="posters" title="${esc(tip)}">${ICON.sour()}<b>Smear posters! −${SCHEMES.posters.stars}★</b>
     <span class="cl-acts">${samples}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }
@@ -91,13 +92,12 @@ export function schemeTickets(s: GameState): string[] {
   return out;
 }
 
-/** A plot card's note: the stand is in a price war, its ads are blocked, or posters went up on your stand this morning. */
+/** A plot card's note: the stand is in a price war, its ads are blocked, an offer or freeze is on it, or posters are up. */
 export function schemeNote(s: GameState, plotId: string): string {
   if (warAt(s, plotId)) return `<span class="cl-note bad">Price war ${CUT}</span>`;
   if (s.plots[plotId]?.owner === 'player' && ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return '<span class="cl-note bad">Ads blocked</span>';
   const offer = offerOn(s, plotId);
   if (offer) return `<span class="cl-note">FizzCo bids ${whole(offer.price!)}</span>`;
   if (freezeOn(s, plotId)) return '<span class="cl-note bad">Sale frozen</span>';
-  const hit = (s.schemes ?? []).some((x) => x.kind === 'posters' && x.day === s.day && !x.caught && x.plots.includes(plotId));
-  return hit ? '<span class="cl-note bad">Smear posters</span>' : '';
+  return postersAt(s, plotId) ? '<span class="cl-note bad">Smear posters</span>' : '';
 }

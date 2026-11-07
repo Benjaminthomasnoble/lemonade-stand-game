@@ -51,8 +51,16 @@ const PREFERS: Record<RivalId, SchemeKind[]> = {
   blenders: ['priceWar', 'snipe'],
 };
 
-/** The order a rival tries its schemes in this dawn: a seeded draw that favors the ones it reaches for first. */
-function tryOrder(id: RivalId, rng: Rng): SchemeKind[] {
+/**
+ * The order a rival tries its schemes in this dawn: a seeded draw that favors the ones it reaches for first. In Act 3
+ * (Grounds for Revenge) Cold Brew reaches for its posters before anything else.
+ */
+function tryOrder(s: GameState, id: RivalId, rng: Rng): SchemeKind[] {
+  const order = drawOrder(id, rng);
+  return campusWalls(s, id) ? ['posters', ...order.filter((k) => k !== 'posters')] : order;
+}
+
+function drawOrder(id: RivalId, rng: Rng): SchemeKind[] {
   const left = PREFERS[id].map((kind, i, all) => ({ kind, w: all.length - i }));
   const out: SchemeKind[] = [];
   while (left.length > 1) {
@@ -133,13 +141,34 @@ function runPriceWar(s: GameState, war: Scheme): void {
 
 // ---------- smear posters ----------
 
-/** Cold Brew's poster crew goes for your stand nearest its turf (the busiest of those, on a tie). */
+/** Act 3, Grounds for Revenge: Cold Brew's crew works the Campus & Arts walls (spec: "every campus wall sneers"). */
+const campusWalls = (s: GameState, id: RivalId) => id === 'coldbrew' && actOf(s) === SCHEMES.posters.act;
+
+/**
+ * Cold Brew's poster crew goes for your stand nearest its turf (the busiest of those, on a tie). In Act 3 it goes for
+ * your busiest stand in Campus & Arts, if you have one there.
+ */
 function posterTarget(s: GameState, id: RivalId): string | null {
   const theirs = PLOTS.filter((p) => s.plots[p.id].owner === id);
   const away = (p: (typeof PLOTS)[number]) => Math.round(theirs.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.z - q.z)), Infinity));
+  const busy = (p: (typeof PLOTS)[number]) => s.plots[p.id].stand!.day.passersby;
   const mine = PLOTS.filter((p) => { const ps = s.plots[p.id]; return ps.owner === 'player' && !!ps.stand && !ps.stand.wrecked; });
-  mine.sort((a, b) => away(a) - away(b) || s.plots[b.id].stand!.day.passersby - s.plots[a.id].stand!.day.passersby);
+  const campus = campusWalls(s, id) ? mine.filter((p) => p.district === FACTIONS[id].home).sort((a, b) => busy(b) - busy(a)) : [];
+  if (campus.length) return campus[0].id;
+  mine.sort((a, b) => away(a) - away(b) || busy(b) - busy(a));
   return mine[0]?.id ?? null;
+}
+
+/**
+ * Are Cold Brew's smear posters up on this plot's walls? For the plot card and the art thread's poster props: they
+ * stay up `SCHEMES.posters.days` days, or until you hand out free samples there (a Free Sample Day begun since).
+ */
+export function postersAt(s: GameState, plotId: string): boolean {
+  const st = s.plots[plotId]?.stand;
+  if (!st || s.plots[plotId].owner !== 'player' || !s.schemes?.length) return false;
+  const left = st.campaigns.freeSamples ?? 0;
+  const sampled = left > 0 ? s.day - (CAMPAIGNS.freeSamples.days - left) : -Infinity; // the day the Free Sample Day there began
+  return s.schemes.some((x) => x.kind === 'posters' && !x.caught && x.plots.includes(plotId) && s.day - x.day < SCHEMES.posters.days && sampled < x.day);
 }
 
 /** The crew goes out overnight: the plot's night watch may catch it (the same detection as a raid); else your Reputation dips. */
@@ -156,7 +185,8 @@ function startPosters(s: GameState, id: RivalId, rng: Rng): Scheme | null {
   } else {
     s.reputation = Math.max(1, round2(s.reputation - SCHEMES.posters.stars));
     phoneCall(s, 'coldbrew', SCHEMES.posters.taunt, { mood: 'gloat' }); // Juni rings the Corner (src/sim/phone.ts)
-    s.news.push(`Bugle: Smear posters plaster ${where}`);
+    const campus = campusWalls(s, id) && PLOT_BY_ID[target].district === FACTIONS[id].home;
+    s.news.push(campus ? `Bugle: Every campus wall sneers "${SCHEMES.posters.slogan}"` : `Bugle: Smear posters plaster ${where}`);
   }
   return job;
 }
@@ -424,7 +454,7 @@ export function schemesAtDawn(s: GameState): void {
     const r = s.rivals[id];
     if (!r.alive || inTruce(s, id) || runningFor(s, id)) continue;
     if (nextRandom(rng) >= chance) continue;
-    for (const kind of tryOrder(id, rng)) if (startScheme(s, id, kind, rng)) break;
+    for (const kind of tryOrder(s, id, rng)) if (startScheme(s, id, kind, rng)) break;
   }
   s.seed = rng.seed;
 }

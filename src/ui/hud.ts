@@ -60,7 +60,7 @@ export type Action =
   | { type: 'newgame' }
   | { type: 'upgrade' }
   | { type: 'brand' }
-  | { type: 'campaign'; id: CampaignId }
+  | { type: 'campaign'; id: CampaignId; plot?: string } // plot: a ticket's stand (else the selected one)
   | { type: 'restock' }
   | { type: 'select'; plot: string }
   | { type: 'inspect'; plot: string | null }
@@ -326,7 +326,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'sweet': onAction({ type: 'sweet', value: d.value as Sweetness }); break;
       case 'price': onAction({ type: 'price', delta: Number(d.delta) }); break;
       case 'speed': onAction({ type: 'speed', value: Number(d.value) }); break;
-      case 'campaign': onAction({ type: 'campaign', id: d.id as CampaignId }); break;
+      case 'campaign': onAction({ type: 'campaign', id: d.id as CampaignId, plot: d.plot }); break;
       case 'select': onAction({ type: 'select', plot: d.plot! }); break;
       case 'buyPlot': onAction({ type: 'buyPlot', plot: d.plot! }); break;
       case 'build': onAction({ type: 'build', plot: d.plot! }); break;

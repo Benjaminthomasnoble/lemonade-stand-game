@@ -84,14 +84,16 @@ export const BLENDER_RUSH = { cost: 0.5, taunt: 'Bro. Tonight we blend your stan
  * rival with no scheme running starts one on `chance[Threat - 1]` of dawns, if its Strike bucket can fund it. A price
  * war cuts its prices by `cut` for `days` days at its stands that share passers-by with yours, and Strike pays the
  * margin it gives up. Cold Brew's poster crew costs `posters.cost` and takes `posters.stars` off your Reputation
- * unless the plot's night watch catches it. An auction snipe tops your sealed bid by `snipe.over`, the extra out of
- * Strike. A finished scheme stays on the books `keep` days.
+ * unless the plot's night watch catches it; the posters stay up `posters.days` days, or until you hand out free
+ * samples there. In Act `posters.act` (Grounds for Revenge) the crew works your Campus & Arts walls with the spec's
+ * `slogan`. An auction snipe tops your sealed bid by `snipe.over`, the extra out of Strike. A finished scheme stays on
+ * the books `keep` days.
  */
 export const SCHEMES = {
   from: 8,
   chance: [0.02, 0.035, 0.05, 0.065, 0.08],
   priceWar: { cut: 0.25, days: 3 },
-  posters: { cost: 150, stars: 0.1, taunt: "It's not graffiti. It's a review." },
+  posters: { cost: 150, stars: 0.1, days: 3, act: 3, slogan: "LOTTIE'S: LEMONADE FOR PEOPLE WHO LIKE THINGS.", taunt: "It's not graffiti. It's a review." },
   snipe: { over: 0.05 },
   keep: 7,
 };

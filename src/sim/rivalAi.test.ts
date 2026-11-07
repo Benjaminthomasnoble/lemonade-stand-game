@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
-  LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS, raidCost, reserveOf, rivalDawn,
+  costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
+  raidCost, reserveOf, rivalDawn, simulateRestOfDay,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -287,5 +288,18 @@ describe('rival net worth', () => {
     const fenceSpend = spent - RIVAL_HIRE_FEE * (ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0) - hench);
     expect(ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].defense.tier, 0)).toBeGreaterThan(fences);
     expect(netWorth(s, id)).toBeCloseTo(nw - spent + 0.75 * fenceSpend, 0);
+  });
+});
+
+describe('rival trade', () => {
+  it('rival cups cost what yours do at today\'s Market prices, the cup counted once', () => {
+    const s = newGame(21);
+    s.market = { lemons: 0.3, sugar: 0.05, ice: 0.02 };
+    openStand(s);
+    simulateRestOfDay(s);
+    const p = ownedPlots(s, 'fizzco').find((q) => (s.plots[q.id].stand?.day.customers ?? 0) > 0)!;
+    const st = s.plots[p.id].stand!;
+    expect(st.day.cupCosts / st.day.customers).toBeCloseTo(costPerCup(s, st), 2);
+    expect(costPerCup(s, st)).toBeCloseTo((5 * 0.3 + 10 * 0.05) / 10 + 3 * 0.02 + CUP_COST, 5);
   });
 });

@@ -572,7 +572,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal): { buys: boo
     st.inventory.ice = Math.max(0, st.inventory.ice - ice);
     cupCost += RECIPES[st.recipe].extraPerCup;
   } else {
-    cupCost = 0.21 + CUP_COST; // rivals buy as they pour, at about the canon Classic cost
+    cupCost = costPerCup(s, st); // rivals buy as they pour, at today's Market prices (the cup included)
   }
   const sat = clamp(0.55 + 1.25 * (a.recipeMatch - 1) + (a.sweetMatch - 1) + 0.4 * (a.fairPrice - st.price) / a.fairPrice - (warm ? 0.35 : 0), 0, 1);
   const d = st.day;

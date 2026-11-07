@@ -458,6 +458,8 @@ describe('VIP clients', () => {
     const { s, field } = vipGame(32);
     buildFacility(s, field.id, 'helipad'); // a Pad: 2,000 bottles a day
     s.bottles = 20000;
+    s.rivals.fizzco.reputation = 3.5; // each bidder's own stars (demand.ts: rivalStars)
+    s.rivals.sourwood.reputation = 4;
     const offer = (id: string, bid: OrderBid): Order => {
       const o: Order = { id, tier: 'heli', client: `Client ${id}`, qty: 4000, pay: 120000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'classic', bid };
       s.offers.push(o);

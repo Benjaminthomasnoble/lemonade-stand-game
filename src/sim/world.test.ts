@@ -3,7 +3,7 @@ import {
   actOf, appealFor, boothCeiling, buySupply, calendarTraffic, maxPacks, pitcherNeeds, priceCeiling, canAssault, canFactionBuyout, canSponsor, CLOSE, costPerCup, crowdAt, eliminate, entryOf,
   eventsOf, expectedPassersby, festivalCrowd, festivalDays, festivalsOn, FESTIVALS, grantPage, hqPlot, isEventDay, isPremium, judgeMark, LOTTIES_CORNER,
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
-  pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, SEGMENTS, setTasteOffEntry,
+  pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, rivalReputationTarget, rivalStars, SEGMENTS, setTasteOffEntry,
   simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
   tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf, sponsorHalfPrice, underCeaseAndDesist, DISTRICTS, MARKETING_BLOCKS, bugleHeadline, frontPage,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
@@ -493,6 +493,7 @@ describe('Taste-Offs', () => {
     expect(tasteOffResult(s, 'summerFair')!.winner).toBe('blenders');
     expect(pageHolder(s, 'strawberry')).toBe('blenders');
     expect(s.rivals.blenders.cash).toBeGreaterThan(brock + TASTE_OFF.prize - 1000); // the prize, less a day's upkeep
+    expect(rivalStars(s, 'blenders')).toBeCloseTo(3 + 0.05 * (rivalReputationTarget(s, 'blenders') - 3) + TASTE_OFF.stars, 3); // the night's drift, then the star
     expect(worldOf(s).boosts).toEqual([{ owner: 'blenders', district: 'oldtown', from: 15, to: 21 }]);
     expect(s.news.some((n) => n.includes('Blend Shack'))).toBe(true);
   });

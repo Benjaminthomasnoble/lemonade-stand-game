@@ -8,7 +8,7 @@
 // like any menu's list (data-action="inspect"): yours to fortify, theirs for
 // the Raid Planner, their HQ for a Sit-down.
 import {
-  budgetOf, FACTIONS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, PLOTS, RAID_PARTY, RAID_RANK, raidCost, softSpot,
+  budgetOf, FACTIONS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, PLOTS, RAID_PARTY, RAID_RANK, raidCost, rivalStars, softSpot,
   successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
@@ -56,6 +56,7 @@ function pin(s: GameState, id: RivalId): string {
   const hq = hqOf(s, id);
   const truce = inTruce(s, id) ? s.rivals[id].truceUntil : 0;
   const tags = [
+    `<span class="cl-note" data-testid="cork-stars" title="${esc(`Reputation ${rivalStars(s, id).toFixed(2)} stars: their stands' appeal, ×0.7 at 1 star to ×1.3 at 5`)}">${rivalStars(s, id).toFixed(1)} stars</span>`, // demand: rival Reputation
     isWeakened(s, id) ? '<span class="cl-note bad" data-testid="cork-weakened">WEAKENED</span>' : '',
     truce ? `<span class="cl-note">Truce to Day ${truce}</span>` : '',
     broke(s, id) ? '<span class="cl-note">Broke</span>' : '',

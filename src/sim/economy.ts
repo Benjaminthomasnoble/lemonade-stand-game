@@ -31,8 +31,8 @@ import { stationByPriority } from './autodefend.ts';
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
-  marketingMultiplier, migrateDemand, pourRate, priceCeiling, serviceLeft, stopOdds, streetAt, touristPays, type Street,
+  adsBlocked, campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
+  marketingMultiplier, migrateDemand, pourRate, priceCeiling, reputationAtClose, rivalStars, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 import { campaignDay, districtBlocker, isDistrictCampaign, planCampaign, salePrice, standCampaignBusy, standingBillboard, standPriceFit, startBookings, type MarketingState } from './marketing.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
@@ -157,6 +157,7 @@ export interface RivalState {
   peakPlots: number;
   alive: boolean;
   respectUntil: number; // won't raid the player before this day
+  reputation?: number; // its own stars, 1..5, drifting by your rules each night (demand.ts: rivalStars; 3.0 until then)
   truceUntil?: number; // Sit-down truce: no raids either way through this day
   brokeDays?: number; // days in a row in the red (7 = bankrupt)
   outsoldDays?: number; // days in a row the player sold 2x what they did (7 = Weakened)
@@ -539,7 +540,7 @@ export interface Appeal {
 }
 
 function ownerReputation(s: GameState, owner: FactionId): number {
-  return owner === 'player' ? s.reputation : 3;
+  return owner === 'player' ? s.reputation : rivalStars(s, owner as RivalId); // each rival's own stars (demand.ts)
 }
 
 /** How a customer of a segment feels about a stand today (spec: appeal = curb appeal x recipe match x price fit x Reputation). */
@@ -831,7 +832,7 @@ function closeDay(s: GameState): void {
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
   book(s, 'upkeep', -round2(upkeep), stands); // stand upkeep only: wages, tribute and interest left cash when paid
-  driftReputation(s, t); // the nightly drift toward the stands' levels, less the buyers who left empty-handed (demand.ts)
+  reputationAtClose(s, t); // the nightly drift toward the stands' levels, less the buyers who left empty-handed: yours and each rival's (demand.ts)
   t.reputationAfter = s.reputation;
   worldAtClose(s); // world: judge today's Taste-Off
   s.history.push(t);

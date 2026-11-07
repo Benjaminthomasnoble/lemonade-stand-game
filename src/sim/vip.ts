@@ -13,7 +13,7 @@ import { iceMachineOn, machineIce } from './happenings.ts';
 import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { restoreHp } from './damage.ts';
 import { ownedRecipes, ownsRecipe, recipeCost, worldOf } from './recipes.ts';
-import { fullControl } from './demand.ts';
+import { fullControl, rivalStars } from './demand.ts';
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
@@ -117,8 +117,6 @@ export const MAX_OFFERS = 4;
 export const RIVAL_BID = { chance: 0.15, under: 0.05, window: 0.75, margin: 0.05 };
 /** FizzCo's bid while it holds the Harbor bottling plant (without it, FizzCo bids like the rest). */
 export const FIZZCO_BID = { chance: 0.5, under: 0.15, window: 0.25 };
-/** A bidder's Reputation, until rivals carry a star rating of their own (placeholder). */
-export const RIVAL_BID_STARS: Record<RivalId, number> = { sourwood: 4, hollis: 3.5, fizzco: 3.5, coldbrew: 3, blenders: 3 };
 /** How the client weighs a bid, in stars: its Reputation, a star for each 10% under the client's price, a quarter star
  * off for each day it takes. */
 export const BID_WEIGHTS = { tenPercent: 1, day: 0.25 };
@@ -266,8 +264,8 @@ const fizzcoPlant = (s: GameState) => {
   return ps?.owner === 'fizzco' && ps.facility?.kind === 'bottling' && !ps.facility.wrecked;
 };
 const bidTerms = (s: GameState, r: RivalId) => (r === 'fizzco' && fizzcoPlant(s) ? { ...RIVAL_BID, ...FIZZCO_BID } : RIVAL_BID);
-/** A bidder's Reputation (seam: a rival star rating, once one exists). */
-export const rivalBidStars = (_s: GameState, r: RivalId) => RIVAL_BID_STARS[r];
+/** A bidder's Reputation: the rival's own stars (demand.ts). */
+export const rivalBidStars = (s: GameState, r: RivalId) => rivalStars(s, r);
 /** A live bid: its rival is still in business. */
 export const liveBid = (s: GameState, o: Order) => (o.bid && s.rivals[o.bid.rival]?.alive ? o.bid : undefined);
 

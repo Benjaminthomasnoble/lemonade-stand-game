@@ -13,7 +13,7 @@ import {
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS,
   type FacilityKind, RANKS,
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
-  plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
+  plotPrice, rivalStars, rivalStatus, SITDOWN_RANK, truceCost,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
@@ -758,7 +758,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const d = DISTRICT_BY_ID[p.district];
     const st = ps.stand;
     const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field', dock: 'Dock', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
-    const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
+    const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}${ps.owner && ps.owner !== 'player' ? ` · ${rivalStars(s, ps.owner as RivalId).toFixed(1)} stars` : ''}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${fitGarrison(s, id)} henchmen${henchmenOut(ps, s.day) ? ` (${henchmenOut(ps, s.day)} seeing stars)` : ''}` : ''}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : '', standRepTip(s, id)].filter(Boolean).join('\n');
@@ -809,7 +809,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const st = rivalStatus(s, id);
     const hq = HQS[id];
     const price = factionBuyoutPrice(s, id);
-    const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}">${st.weakened ? 'Weakened!' : `${st.plots} plots`}${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
+    const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} · ${rivalStars(s, id).toFixed(1)} stars${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
     if (s.rank < SITDOWN_RANK) return head;
     const tb = canTruce(s, id), fb = canFactionBuyout(s, id);
     const sit = `<div class="cl-acts">${locked(tb) ? '' : btn('truce', `Truce ${whole(truceCost(s))}`, tb, `data-rival="${id}" data-testid="truce" title="7 days of peace for a tribute"`)}${locked(fb) ? '' : btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`)}</div>`;

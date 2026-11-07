@@ -522,18 +522,33 @@ export function emptyHanded(t: DayStats): number {
   return lost + t.customers > 0 ? lost / (lost + t.customers) : 0;
 }
 
+/** The levels of an owner's stands: every stand counts, a wrecked one too. */
+const standLevels = (s: GameState, owner: FactionId) => Object.values(s.plots).filter((ps) => ps.owner === owner && ps.stand).map((ps) => ps.stand!.level);
+
+/** 3.0 stars plus 0.4 per average stand level above L1, capped at 4.6, less 0.1 star per 10% who left empty-handed. */
+function driftTarget(levels: number[], empty: number): number {
+  const avg = levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : 1;
+  return Math.min(REP_DRIFT.cap, REP_DRIFT.base + REP_DRIFT.perLevel * (avg - 1)) - REP_DRIFT.dropPerShare * empty;
+}
+
 /**
  * Where Reputation drifts tonight: 3.0 stars plus 0.4 per average level of your stands above L1 (every stand
  * counts, a wrecked one too), capped at 4.6, less 0.1 star per 10% of the day's would-be buyers who left empty-handed.
  */
 export function reputationTarget(s: GameState, t: DayStats = s.today): number {
-  const levels = Object.values(s.plots).filter((ps) => ps.owner === 'player' && ps.stand).map((ps) => ps.stand!.level);
-  const avg = levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : 1;
-  const top = Math.min(REP_DRIFT.cap, REP_DRIFT.base + REP_DRIFT.perLevel * (avg - 1));
-  return top - REP_DRIFT.dropPerShare * emptyHanded(t);
+  return driftTarget(standLevels(s, 'player'), emptyHanded(t));
 }
 
 const REP_GRAIN = 1e-4; // Reputation keeps four decimals
+/** Stars kept within 1–5, to four decimals. */
+const toStars = (x: number) => Math.min(REP_DRIFT.max, Math.max(REP_DRIFT.min, Math.round(x * 1e4) / 1e4));
+
+/** One night's drift: 5% of the gap to the target, and at least 0.0001 (or onto it), so a hair short still gets there. */
+function drifted(stars: number, target: number): number {
+  const gap = target - stars;
+  const step = Math.abs(gap) <= REP_GRAIN ? gap : Math.sign(gap) * Math.max(REP_GRAIN, Math.abs(REP_DRIFT.rate * gap));
+  return toStars(stars + step);
+}
 
 /**
  * The nightly drift, at closing: 5% of the way to the target, within 1-5 stars. Reputation keeps four decimals, so
@@ -542,9 +557,42 @@ const REP_GRAIN = 1e-4; // Reputation keeps four decimals
 export function driftReputation(s: GameState, t: DayStats = s.today): void {
   const target = reputationTarget(s, t);
   t.repTarget = Math.round(target * 100) / 100;
-  const gap = target - s.reputation;
-  const step = Math.abs(gap) <= REP_GRAIN ? gap : Math.sign(gap) * Math.max(REP_GRAIN, Math.abs(REP_DRIFT.rate * gap));
-  s.reputation = Math.min(REP_DRIFT.max, Math.max(REP_DRIFT.min, Math.round((s.reputation + step) * 1e4) / 1e4));
+  s.reputation = drifted(s.reputation, target);
+}
+
+// ---------- rival Reputation: the same stars, by the same rules ----------
+
+/** A rival's Reputation, 1–5 stars: 3.0 until its first night (and in a save from before rivals had stars). */
+export const rivalStars = (s: GameState, id: RivalId): number => s.rivals[id]?.reputation ?? REP_DRIFT.base;
+
+/** Stars on or off a rival, within 1–5 (a Taste-Off win gives the winner +0.1, rivals included). */
+export function addRivalStars(s: GameState, id: RivalId, delta: number): void {
+  const r = s.rivals[id];
+  if (r) r.reputation = toStars(rivalStars(s, id) + delta);
+}
+
+/** A rival's share of would-be buyers who left its stands empty-handed today, counted as yours are. */
+export function rivalEmptyHanded(s: GameState, id: RivalId): number {
+  let lost = 0, customers = 0;
+  for (const ps of Object.values(s.plots)) {
+    if (ps.owner !== id || !ps.stand) continue;
+    const w = ps.stand.day.walkedPast;
+    lost += w.pricey + w.line + w.soldOut;
+    customers += ps.stand.day.customers;
+  }
+  return lost + customers > 0 ? lost / (lost + customers) : 0;
+}
+
+/** Where a rival's stars drift tonight: your rule, from its own stands and its own day. */
+export const rivalReputationTarget = (s: GameState, id: RivalId): number => driftTarget(standLevels(s, id), rivalEmptyHanded(s, id));
+
+/** At closing everyone's Reputation drifts: yours, then each rival still in business. */
+export function reputationAtClose(s: GameState, t: DayStats = s.today): void {
+  driftReputation(s, t);
+  for (const id of Object.keys(s.rivals) as RivalId[]) {
+    const r = s.rivals[id];
+    if (r.alive) r.reputation = drifted(rivalStars(s, id), rivalReputationTarget(s, id));
+  }
 }
 
 // ---------- saves ----------
@@ -559,6 +607,7 @@ export function driftReputation(s: GameState, t: DayStats = s.today): void {
 export function migrateDemand(s: GameState): void {
   migrateLedger(s); // the Ledger's score log, from what the history still knows
   migrateMarketing(s); // district campaigns and bookings (marketing.ts)
+  for (const r of Object.values(s.rivals ?? {})) r.reputation ??= REP_DRIFT.base; // rivals' own stars start at 3.0
   for (const [id, ps] of Object.entries(s.plots)) {
     const st = ps.stand;
     if (!st) continue;

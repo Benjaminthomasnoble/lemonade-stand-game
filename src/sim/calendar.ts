@@ -17,6 +17,7 @@ import { actOf, districtControl, isEndless } from './modes.ts';
 import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
 import { mediaAtClose, mediaAtDawn } from './media.ts';
 import { ceaseAndDesistIn } from './schemes.ts';
+import { addRivalStars } from './demand.ts'; // a rival's own Reputation: its Taste-Off star
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -280,9 +281,6 @@ function rivalScore(rng: { seed: number }, c: Contestant, judges: Judge[]): numb
     return r < p ? (j.kind === 'recipe' ? TASTE_OFF.recipeHit : TASTE_OFF.hit) : r < p + (1 - p) * TASTE_OFF.nearShare ? TASTE_OFF.near : TASTE_OFF.miss;
   }));
 }
-
-/** Seam: demand's rival Reputation (addRivalStars) after merge. Rivals sit at a fixed 3 stars until then. */
-const addRivalStars = (_s: GameState, _id: RivalId, _delta: number): void => {};
 
 /** Sandbox and Endless: a missing page a fair win brings home: Strawberry, or one whose holder isn't on the map (the harp teacher's Lavender). */
 export function fairWinPage(s: GameState, id: RecipeId): boolean {

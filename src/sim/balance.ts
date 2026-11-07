@@ -461,6 +461,9 @@ export const RIVAL_VS_RIVAL = [0.3, 0.3, 0.3, 0.15, 0.15];
 export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2 };
 /** The Syndicate's raids on you per week, Classic (Laid Back ×0.5 = 3, Cutthroat ×1.5 = 9). */
 export const SYNDICATE_RAIDS_PER_WEEK = 6;
+/** A Syndicate strike comes as a Threat 5 raid whatever the Threat (Cutthroat's forms at 4): 12–20 in full kit, boss-led,
+ * all Smash, on 2–3 plots. */
+export const SYNDICATE_TIER = 5;
 /** When the Syndicate forms: in the campaign two weeks into Act 5 on every difficulty; in Sandbox and Endless at
  * Threat 5, or Threat 4 on Cutthroat. Laid Back's Threat stops at 4, so there it forms at Rank 9, where Classic reaches
  * Threat 5 (placeholder: spec gap); Custom follows Classic. */

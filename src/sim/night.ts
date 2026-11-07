@@ -22,7 +22,8 @@ import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, th
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
-import { syndicateAtDawn } from './syndicate.ts';
+import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
+import { isEventDay } from './calendar.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
@@ -399,13 +400,17 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   const rivals = RIVALS.filter((r) => mayRaidYou(s, r)); // not backing off after a beaten raid, nor in a Truce
   const rival = rivals[Math.floor(nextRandom(rng) * rivals.length)];
   s.seed = rng.seed;
-  if (roll >= DELIVERY_RAID_CHANCE || !rival) return null;
+  if (roll >= deliveryRaidChance(s) || !rival) return null;
   // They set out as loading starts and hit inside the 2-hour window (world's loading windows: relative to PICKUP_MINUTE until then).
   const leave = s.minute;
   const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, o.plot), o.plot));
   s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party: raidPartyFor(s, rival), detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });
   return held();
 }
+
+/** A VIP pickup's chance of a Delivery Raid: 30%, and all of them while the Syndicate stands during Harbor Fest (its
+ * crews go after every delivery). */
+export const deliveryRaidChance = (s: GameState) => (syndicateFormed(s) && isEventDay(s, 'harborFest') ? 1 : DELIVERY_RAID_CHANCE);
 
 /** Could a Delivery Raid hit this pickup? (Order Book cards flag it.) */
 export const deliveryRaidRisk = (s: GameState, o: Order) => isVip(o.tier) && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s);

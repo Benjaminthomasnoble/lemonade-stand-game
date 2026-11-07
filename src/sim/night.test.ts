@@ -7,7 +7,7 @@ import {
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, TUTORIAL_CALL, newStand, welcomeDex,
-  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand,
+  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 
@@ -424,6 +424,18 @@ describe('Delivery Raids', () => {
     simulateRestOfDay(s); // closing: nothing left to deliver, nothing rolled again
     expect(s.raids.some((x) => x.delivery)).toBe(false);
     expect(s.news.filter((n) => n.includes('Test Star picks up'))).toHaveLength(1);
+  });
+
+  it('while the Syndicate stands, every Harbor Fest pickup draws one', () => {
+    const fest = festivalDays('harborFest', 2).from;
+    for (let seed = 1; seed <= 6; seed++) {
+      const { s } = pickupGame(seed);
+      s.day = fest;
+      s.syndicate = { formed: fest - 1 };
+      for (const o of s.orders) Object.assign(o, { due: fest, expires: fest });
+      while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+      expect(s.raids.some((x) => x.delivery)).toBe(true);
+    }
   });
 
   it('no rival in a Truce with you sends one', () => {

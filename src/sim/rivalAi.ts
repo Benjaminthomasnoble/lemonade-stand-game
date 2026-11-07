@@ -704,7 +704,7 @@ export function signatureRaids(s: GameState): Raid[] {
     const attacker = raid.attacker as RivalId;
     if (raid.attacker === 'player' || raid.delivery || !raid.party) { kept.push(raid); continue; }
     if (s.plots[raid.target].owner === 'player') {
-      if (raid.tutorial) { kept.push(raid); continue; } // the scripted first raid (threat.ts)
+      if (raid.tutorial || raid.syndicate) { kept.push(raid); continue; } // the scripted first raid, and the Syndicate's strikes (threat.ts)
       const size = raid.party.length;
       const raider = pickRaider(s, rng, size);
       if (!raider) continue; // every boss is broke tonight

@@ -97,6 +97,14 @@ describe('the raid warning card', () => {
     expect(alertCards(s)[0]).not.toContain('leads them'); // no tower, no sighting
   });
 
+  it("a Syndicate strike reads as the Syndicate's, and says who sent it", () => {
+    const { s } = warned({ attacker: 'fizzco', syndicate: true });
+    const card = alertCards(s)[0];
+    expect(card).toContain('<b>Syndicate → ');
+    expect(card).toContain('A Syndicate strike, sent by FizzCo.');
+    expect(alertCards(warned({ attacker: 'fizzco' }).s)[0]).toContain('<b>FizzCo → ');
+  });
+
   it('on the tutorial raid Dex is among the shields, wherever he is posted', () => {
     const { s } = warned({ tutorial: true });
     s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');

@@ -2,7 +2,31 @@ import { describe, expect, it } from 'vitest';
 import {
   actOf, CLOSE, eliminate, hqPlot, migrateSave, newGame, pactHeadline, sleepUntilDawn, SYNDICATE_CALL, syndicateAtDawn, syndicateFormed,
   syndicateLeader, syndicateMembers, threatLevel, type Difficulty, type GameState, type Mode,
+  deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Raid, type RivalId,
 } from './economy.ts';
+
+/** Day 60's Evening in a Sandbox where the Syndicate formed a week ago, every member flush, with `stands` stands of yours. */
+function pactEvening(difficulty: Difficulty, seed = 3, stands = 8): GameState {
+  const s = newGame(seed, { mode: 'sandbox', difficulty });
+  Object.assign(s, { phase: 'report', minute: CLOSE, raids: [], day: 60, rank: difficulty === 'cutthroat' ? 7 : 9, tutorialRaidDone: true });
+  s.syndicate = { formed: 53 };
+  for (const id of Object.keys(s.rivals) as RivalId[]) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
+  const side = PLOTS.filter((p) => (p.district === 'maple' || p.district === 'oldtown') && p.type === 'street' && !s.plots[p.id].owner);
+  for (const p of side.slice(0, stands - 1)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
+  return s;
+}
+/** Plan many nights from one Evening: tonight's raids on you. */
+function strikes(base: GameState, n: number): Raid[][] {
+  const out: Raid[][] = [];
+  for (let i = 0; i < n; i++) {
+    const s = structuredClone(base);
+    s.seed = (i * 2654435761 + 12345) | 0;
+    planNight(s);
+    out.push(s.raids.filter((r) => onYou(s, r)));
+  }
+  return out;
+}
+const groups = (raids: Raid[]) => [...new Set(raids.map((r) => r.group ?? r.id))].map((g) => raids.filter((r) => (r.group ?? r.id) === g));
 
 /** A run on Day 60 at a rank (Syndicate checks happen at dawn). */
 function run(mode: Mode, difficulty: Difficulty, rank: number, extra: Partial<GameState['settings']> = {}): GameState {
@@ -79,5 +103,87 @@ describe('the Syndicate forms', () => {
     for (const id of Object.keys(late.rivals) as (keyof typeof late.rivals)[]) late.rivals[id].alive = false;
     syndicateAtDawn(late);
     expect(syndicateFormed(late)).toBe(false); // nobody left to sign up
+  });
+});
+
+describe("the Syndicate's strikes", () => {
+  it('come 6 a week on Classic, 3 on Laid Back and 9 on Cutthroat', () => {
+    for (const [difficulty, want] of [['classic', 6], ['laidback', 3], ['cutthroat', 9]] as [Difficulty, number][]) {
+      const base = pactEvening(difficulty);
+      expect(weeklyRaids(base)).toBeCloseTo(want);
+      const perWeek = strikes(base, 700).reduce((a, x) => a + raidsCounted(x), 0) / 100;
+      expect(perWeek).toBeGreaterThan(want * 0.85);
+      expect(perWeek).toBeLessThan(want * 1.15);
+    }
+  });
+
+  it("each is Threat 5's raid whatever the Threat: 12–20 in full kit, boss-led, all Smash, on 2–3 of your plots", () => {
+    for (const difficulty of ['classic', 'cutthroat'] as Difficulty[]) { // Cutthroat's Syndicate stands at Threat 4
+      const base = pactEvening(difficulty, 5);
+      expect(threatLevel(base)).toBe(difficulty === 'cutthroat' ? 4 : 5);
+      for (const night of strikes(base, 60)) {
+        for (const [k, [first, ...rest]] of groups(night).entries()) {
+          const boss = HQS[first.attacker as RivalId].boss;
+          const crew = [first, ...rest].flatMap((r) => r.party!).filter((f) => f.name !== boss);
+          expect(crew.length).toBeGreaterThanOrEqual(12);
+          expect(crew.length).toBeLessThanOrEqual(20);
+          for (const f of crew) { expect(f.weapon).not.toBe('fists'); expect(f.gear).toBe('pro'); } // no Blender Rush either
+          expect(first.party![0].name).toBe(boss);
+          if (k === 0) expect(rest.length + 1).toBeGreaterThanOrEqual(2); // a later strike can find every plot already taken
+          expect(rest.length + 1).toBeLessThanOrEqual(3);
+          for (const r of [first, ...rest]) expect(r).toMatchObject({ objective: 'smash', syndicate: true, attacker: first.attacker });
+          expect(new Set([first, ...rest].map((r) => r.target)).size).toBe(rest.length + 1);
+        }
+      }
+    }
+  });
+
+  it('the first one comes the night it forms', () => {
+    const base = pactEvening('laidback', 9);
+    base.syndicate = { formed: base.day };
+    expect(strikes(base, 60).every((night) => raidsCounted(night) >= 1)).toBe(true);
+    base.syndicate = { formed: base.day - 1 };
+    expect(strikes(base, 60).some((night) => !night.length)).toBe(true);
+  });
+
+  it('members backing off or in a Truce sit it out, the rest still strike; with nobody able to pay, none come', () => {
+    const base = pactEvening('cutthroat', 11);
+    for (const id of ['sourwood', 'fizzco', 'hollis', 'coldbrew'] as RivalId[]) base.rivals[id].truceUntil = base.day;
+    base.rivals.blenders.respectUntil = 0;
+    const sent = strikes(base, 100).flat();
+    expect(sent.length).toBeGreaterThan(10);
+    expect(new Set(sent.map((r) => r.attacker))).toEqual(new Set(['blenders']));
+    base.rivals.blenders.respectUntil = base.day + 1; // beaten last night
+    expect(strikes(base, 60).every((night) => !night.length)).toBe(true);
+    const broke = pactEvening('cutthroat', 11);
+    for (const id of Object.keys(broke.rivals) as RivalId[]) Object.assign(broke.rivals[id], { budget: { grow: 0, guard: 0, strike: 0 } });
+    expect(strikes(broke, 60).every((night) => !night.length)).toBe(true);
+  });
+
+  it('each one is paid from Strike: the sender’s, or the Pact’s when the sender is short', () => {
+    const base = pactEvening('classic', 13);
+    base.rivals.blenders.budget = { grow: 0, guard: 0, strike: 0 };
+    for (let i = 0; i < 40; i++) {
+      const s = structuredClone(base);
+      s.seed = i;
+      planNight(s);
+      const mine = s.raids.filter((r) => onYou(s, r));
+      if (!mine.length) continue;
+      const spent = (Object.keys(s.rivals) as RivalId[]).reduce((a, id) => a + base.rivals[id].budget!.strike - s.rivals[id].budget!.strike, 0);
+      expect(spent).toBeGreaterThan(0);
+      expect(s.rivals.blenders.budget!.strike).toBe(0);
+    }
+  });
+
+  it("during Harbor Fest its crews go after every VIP pickup; otherwise it's the usual 30%", () => {
+    const s = pactEvening('classic');
+    const fest = festivalDays('harborFest', 2); // Days 82–84, after it formed on Day 53
+    s.day = fest.from;
+    expect(deliveryRaidChance(s)).toBe(1);
+    s.day = fest.to + 1;
+    expect(deliveryRaidChance(s)).toBe(0.3);
+    s.day = fest.to;
+    delete s.syndicate;
+    expect(deliveryRaidChance(s)).toBe(0.3);
   });
 });

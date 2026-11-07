@@ -5,7 +5,7 @@
 // Pure and seeded, like the rest of the sim.
 import {
   FACTIONS, GUARD_BASE, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
-  SMASH_SHARE, type RivalId,
+  SMASH_SHARE, SYNDICATE_RAIDS_PER_WEEK, SYNDICATE_TIER, type RivalId,
 } from './balance.ts';
 import type { BattleInput, BattleResult, Fighter, Objective } from './combat.ts';
 import type { GameState } from './economy.ts';
@@ -13,11 +13,11 @@ import { ownedPlots } from './economy.ts';
 import { PLOT_BY_ID, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { guardFighter, hasBuilding, raidParty, threatLevel, TUTORIAL_RAID_DAY, type Guard, type Raid } from './crew.ts';
-import { grudge, rivalTarget, targetScore } from './rivalAi.ts';
+import { canSpend, grudge, raidCost, rivalTarget, spend, targetScore } from './rivalAi.ts';
 import { HQS, inTruce } from './rivals.ts';
 import { difficulty } from './modes.ts';
 import { hhmm, onYou, raidStart, travelMinutes } from './night.ts';
-import { syndicateFormed } from './syndicate.ts';
+import { syndicateFormed, syndicateLeader, syndicateMembers } from './syndicate.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -33,9 +33,9 @@ export const TUTORIAL_CALL = 'Bro. Your stand is in my sun.';
  * (made on Day D, no raids through the night of D+6). */
 export const mayRaidYou = (s: GameState, id: RivalId) => s.rivals[id].alive && s.rivals[id].respectUntil <= s.day && !inTruce(s, id);
 
-/** Raids on you per week right now: by Threat (1 / 2 / 3 / 4 / 6), × the difficulty (Laid Back ×0.5, Cutthroat ×1.5,
- * Custom's slider). */
-export const weeklyRaids = (s: GameState) => RAIDS_PER_WEEK[threatLevel(s) - 1] * difficulty(s).raids;
+/** Raids on you per week right now: by Threat (1 / 2 / 3 / 4 / 6), or the Syndicate's 6 once it stands, × the
+ * difficulty (Laid Back ×0.5, Cutthroat ×1.5, Custom's slider). */
+export const weeklyRaids = (s: GameState) => (syndicateFormed(s) ? SYNDICATE_RAIDS_PER_WEEK : RAIDS_PER_WEEK[threatLevel(s) - 1]) * difficulty(s).raids;
 
 /** How many raids come tonight for a nightly mean: a Poisson draw read off one uniform, so several can land on one
  * night, and a busier rate raids on every night a quieter one does. */
@@ -103,17 +103,32 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
     const rival = (['blenders', ...RIVALS] as RivalId[]).find((r) => mayRaidYou(s, r));
     return tutorialNight(s) && rival ? [tutorialRaid(s, rng, mine, rival)] : [];
   }
-  const n = raidCount(weeklyRaids(s) / 7, u);
+  const pact = syndicateFormed(s);
+  const n = Math.max(pact && s.syndicate!.formed === s.day ? 1 : 0, raidCount(weeklyRaids(s) / 7, u)); // its first strike: the night it forms
   const out: Raid[] = [];
   const taken = new Set<string>();
   for (let i = 0; i < n; i++) {
     const rival = pickRival(s, rng);
     if (!rival) break;
     const target = weakest(s, rival, mine, taken);
+    const raid = pact ? syndicateStrike(s, rng, rival, target) : raidOnYou(s, rng, rival, target, threatLevel(s));
+    if (!raid) continue;
     taken.add(target.id);
-    out.push(raidOnYou(s, rng, rival, target, threatLevel(s)));
+    out.push(raid);
   }
   return out;
+}
+
+/** A Syndicate strike, sent by one of its members (`rival`, who may raid you): Threat 5's raid whatever the Threat,
+ * always a Smash, flagged for combat's hooks. Paid from the sender's Strike, or short of it from the Pact's (the leader
+ * first); null when nobody in it can pay (the bosses settle no Syndicate strike in signatureRaids). */
+function syndicateStrike(s: GameState, rng: Rng, rival: RivalId, target: Plot): Raid | null {
+  const raid: Raid = { ...raidOnYou(s, rng, rival, target, SYNDICATE_TIER), objective: 'smash', syndicate: true };
+  const cost = raidCost(s, rival, raid.party!.length, SYNDICATE_TIER);
+  const payer = [rival, syndicateLeader(s), ...syndicateMembers(s)].find((id): id is RivalId => !!id && canSpend(s, id, 'strike', cost));
+  if (!payer) return null;
+  spend(s, payer, 'strike', cost);
+  return raid;
 }
 
 /** Who sends a raid on you, before the bosses settle it: weighted by Grudge, Attention and Strike. */

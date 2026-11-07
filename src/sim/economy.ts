@@ -17,6 +17,7 @@ import { crewAtDawn, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, wel
 import type { GadgetId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
+import { COMBAT_RULES, migrateCombat } from './combat.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -153,6 +154,7 @@ export interface GameState {
   tally?: Tally;
   outcome?: Outcome; // the run was won or lost
   endlessSince?: number; // kept squeezing after a win (Endless Summer) from this day
+  combatRules?: number; // the fight rules this save's numbers follow (combat.ts migrateCombat)
 }
 
 export type SimEvent =
@@ -272,6 +274,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
     guards: [], recruits: [], clubhouse: 0, nextId: 1, raids: [], battles: [], respectFromPlayer: {},
     bottles: 0, offers: [], orders: [], settings: defaultSettings(settings), peakDay: 1,
+    combatRules: COMBAT_RULES,
   };
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
@@ -984,5 +987,6 @@ export function migrateSave(x: unknown): GameState | null {
     s.peakDay = s.day;
     s.version = 8;
   }
+  migrateCombat(s);
   return isGameState(s) ? s : null;
 }

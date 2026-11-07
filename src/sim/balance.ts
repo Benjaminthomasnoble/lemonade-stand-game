@@ -157,16 +157,14 @@ export const PLAYER_COLOR = 0xf6d33c;
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
 
 // ---------- defenses, crew and raids (canon sections 11–14) ----------
+/** hp: the chopping a breach takes. breachDps: damage a second to every raider at the fence line while it stands. slow: raiders' movement while it stands. */
 export interface PerimeterTier { tier: number; name: string; rank: number; cost: number; hp: number; breachDps: number; slow: number; repair: number }
-// Fence HP and breach damage are the build's own tuning, so the canon anchors hold in this
-// combat model (npm run combat): T1 raid vs Picket + 1 guard fails ~60%; T4 raid vs a kitted
-// P4 plot holds ~70%. Spec table: 150/500/1,200/2,500/5,000 HP, 2 and 4 damage/second.
 export const PERIMETERS: PerimeterTier[] = [
-  { tier: 1, name: 'Picket Fence', rank: 1, cost: 150, hp: 280, breachDps: 0, slow: 0, repair: 15 },
+  { tier: 1, name: 'Picket Fence', rank: 1, cost: 150, hp: 150, breachDps: 0, slow: 0, repair: 15 },
   { tier: 2, name: 'Chain-Link Fence', rank: 2, cost: 1200, hp: 500, breachDps: 0, slow: 0, repair: 120 },
-  { tier: 3, name: 'Sharpened Stakes', rank: 4, cost: 6000, hp: 800, breachDps: 0.5, slow: 0, repair: 600 },
-  { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 1150, breachDps: 1, slow: 0.3, repair: 2500 },
-  { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 3000, breachDps: 0, slow: 0, repair: 10000 },
+  { tier: 3, name: 'Sharpened Stakes', rank: 4, cost: 6000, hp: 1200, breachDps: 2, slow: 0, repair: 600 },
+  { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 2500, breachDps: 4, slow: 0.3, repair: 2500 },
+  { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 5000, breachDps: 0, slow: 0, repair: 10000 },
 ];
 /** Defenders hit harder while any perimeter stands (P5 doubles it). */
 export const FENCE_DEFENDER_BONUS = 0.25;

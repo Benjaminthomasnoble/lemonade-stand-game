@@ -3,6 +3,7 @@
 // timeline it returns is what the 3D replay plays back.
 import { COMBAT, FENCE_DEFENDER_BONUS, GUARD_BASE, PERIMETERS, type GadgetId } from './balance.ts';
 import { nextRandom, type Rng } from './rng.ts';
+import type { GameState } from './economy.ts';
 
 export type Side = 'att' | 'def';
 export type Objective = 'smash' | 'shakedown';
@@ -178,4 +179,25 @@ export function winChance(input: BattleInput, seed: number, runs = 120): number 
   let wins = 0;
   for (let i = 0; i < runs; i++) if (runBattle(input, rng).winner === 'att') wins++;
   return wins / runs;
+}
+
+// ---------- saves ----------
+
+/** The fight rules a save's numbers follow: newGame stamps it, migrateCombat brings older saves up to it. */
+export const COMBAT_RULES = 1;
+/** Full fence HP by tier before rules 1 (the build's own tuning). An old fence keeps its share of full HP. */
+const OLD_FENCE_HP = [280, 500, 800, 1150, 3000];
+
+/** Brings an older save up to these fight rules. Safe to run on every load. */
+export function migrateCombat(s: GameState): void {
+  const from = s.combatRules ?? 0;
+  if (from < 1) {
+    for (const ps of Object.values(s.plots)) {
+      const per = PERIMETERS[(ps.defense?.tier ?? 0) - 1];
+      if (!per) continue;
+      const share = Math.min(1, Math.max(0, ps.defense.fenceHp / OLD_FENCE_HP[per.tier - 1]));
+      ps.defense.fenceHp = Math.round(share * per.hp);
+    }
+  }
+  s.combatRules = COMBAT_RULES;
 }

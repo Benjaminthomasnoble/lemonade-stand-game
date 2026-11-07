@@ -268,6 +268,8 @@ describe('detection', () => {
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
     g.outUntil = 0;
     s.raids.push({ id: 'r1', attacker: 'player', target: 'oldtown-0n', objective: 'smash', guards: [g.id], detected: false, eta: '01:00' });
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.6); // planned: still on the plot until it sets out
+    s.raids[0].leave = s.minute;
     expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.5);
   });
 });
@@ -311,6 +313,31 @@ describe('the Lookout', () => {
     playDay(s);
     expect(isScouted(s, target)).toBe(false);
     expect(s.scouting?.[target]).toBeUndefined();
+  });
+
+  it('scouts by day only, and is back on post for the night', () => {
+    const { s, dex } = setup(63);
+    const target = raidTargets(s)[0].id;
+    expect(scoutWithLookout(s, dex.id, target)).toBe(true);
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.25); // away watching: 50% less the night's 25
+    s.phase = 'night';
+    s.minute = 23 * 60;
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.5); // back: 75% less 25
+    delete dex.scoutDay;
+    expect(canScout(s, dex.id, target)).toEqual({ ok: false, why: 'Scout by day' });
+  });
+
+  it('holds the post until their raid sets out', () => {
+    const { s, dex } = setup(64);
+    const target = raidTargets(s)[0].id;
+    s.raids.push({ id: 'rx', attacker: 'player', target, objective: 'smash', guards: [dex.id], detected: false, eta: '01:00' });
+    expect(detectionChance(s, LOTTIES_CORNER, false)).toBe(0.75); // planned, not gone
+    s.phase = 'night';
+    s.minute = 23 * 60;
+    Object.assign(s.raids[0], { leave: 25 * 60, at: 25 * 60 });
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.5);
+    s.minute = 25 * 60;
+    expect(detectionChance(s, LOTTIES_CORNER, true)).toBe(0.25); // set out: the post stands empty
   });
 });
 
@@ -612,14 +639,14 @@ describe('guard posts', () => {
     expect(s.news.at(-1)).toContain('waits at the Clubhouse');
   });
 
-  it('"fill the posts" takes the reserve first, never a guard from a plot under attack tonight', () => {
+  it('"fill the posts" takes the reserve first, never a guard from a plot a warned raid is heading for', () => {
     const s = crew(102, 5);
     const [, a, b, c, d] = s.guards;
     s.plots['maple-1s'] = { ...s.plots['maple-1s'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
     s.plots['maple-3s'] = { ...s.plots['maple-3s'], owner: 'player', facility: { kind: 'bottling', level: 1 } };
     postGuard(s, a.id, 'maple-1s');
     postGuard(s, b.id, 'maple-3s');
-    s.raids.push({ id: 'r9', attacker: 'blenders', target: 'maple-3s', objective: 'smash', party: [], detected: true, eta: '23:00' });
+    s.raids.push({ id: 'r9', attacker: 'blenders', target: 'maple-3s', objective: 'smash', party: [], detected: true, eta: '23:00', warned: true });
     s.plots[LOTTIES_CORNER].stand!.level = 5; // 6 posts, Dex holds one
     expect(fillable(s, LOTTIES_CORNER)).toBe(3); // c and d from the reserve, a from quiet maple-1s; b stays put
     expect(fillPosts(s, LOTTIES_CORNER)).toBe(3);

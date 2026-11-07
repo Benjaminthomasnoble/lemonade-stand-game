@@ -25,8 +25,8 @@ export function scoutedSnapshot(s: GameState, plotId: string): Scouted | null {
 }
 export const isScouted = (s: GameState, plotId: string) => !!scoutedSnapshot(s, plotId);
 
-/** A Lookout out scouting is away from their post through the business day, back by the evening. */
-export const scoutingToday = (s: GameState, g: Guard) => g.scoutDay === s.day && s.phase !== 'report';
+/** A Lookout out scouting is away from their post through the business day (Morning Prep and open hours), back by the Evening. */
+export const scoutingToday = (s: GameState, g: Guard) => g.scoutDay === s.day && (s.phase === 'prep' || s.phase === 'open');
 
 export function canScout(s: GameState, guardId: string, plotId: string): Blocker {
   const g = s.guards.find((x) => x.id === guardId);
@@ -36,7 +36,7 @@ export function canScout(s: GameState, guardId: string, plotId: string): Blocker
   if (g.scoutDay === s.day) return { ok: false, why: `${g.name.split(' ')[0]} scouted today` };
   if (s.raids.some((r) => r.attacker === 'player' && r.guards?.includes(g.id))) return { ok: false, why: `${g.name.split(' ')[0]} raids tonight` };
   if (!ps?.owner || ps.owner === 'player') return { ok: false, why: 'Scout a rival plot' };
-  if (s.phase === 'report') return { ok: false, why: 'Scout by day' };
+  if (s.phase === 'report' || s.phase === 'night') return { ok: false, why: 'Scout by day' };
   return { ok: true };
 }
 

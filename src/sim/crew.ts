@@ -6,9 +6,9 @@ import {
   BUILDING_POSTS, BUSTED_REPAIR_SHARE, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
   DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
   GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, OPEN, PERIMETERS,
-  PROMOTE_LEVEL, RAIDS_PER_WEEK, RAID_PARTY, RAID_RANK, RAID_LEAVE, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, RIVAL_RAID_AT,
-  RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP, STAND_HP,
-  STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
+  PROMOTE_LEVEL, RAIDS_PER_WEEK, RAID_LEAVE, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
+  RIVAL_KIT, RIVAL_RAID_AT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
+  STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -382,7 +382,7 @@ export function postGuard(s: GameState, id: string, plotId: string | null): bool
   return true;
 }
 
-/** Ready guards who could move to this plot: the reserve first, then guards from plots no raid is heading for tonight. */
+/** Ready guards who could move to this plot: the reserve first, then guards from plots no warned raid is heading for. */
 function movers(s: GameState, plotId: string): Guard[] {
   const threatened = new Set(incomingRaids(s).map((r) => r.target));
   const raiding = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
@@ -615,7 +615,7 @@ export function rivalDefenseSpend(s: GameState, id: RivalId, purse: GuardPurse):
 
 function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng): Fighter[] {
   const ps = s.plots[plotId];
-  if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id)), 'def', night);
+  if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g)), 'def', night);
   return garrisonFighters(s, plotId, rng);
 }
 
@@ -628,9 +628,12 @@ function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: bool
   };
 }
 
-/** Who is really on a plot of yours right now: posted there, not Out, not away on tonight's raid or out scouting. */
+/** Guards away on one of your raids: only once it has set out (night.ts gives it a leave minute); until then they hold their posts. */
+const raidingNow = (s: GameState) => new Set(s.raids.flatMap((r) => (r.attacker === 'player' && r.leave !== undefined && r.leave <= s.minute ? r.guards ?? [] : [])));
+
+/** Who is really on a plot of yours right now: posted there, not Out, not away on a raid that has set out, not out scouting. */
 export function presentGuards(s: GameState, plotId: string): Guard[] {
-  const away = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
+  const away = raidingNow(s);
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 

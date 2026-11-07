@@ -24,6 +24,7 @@ import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, typ
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
 import { damageAtClose, damageAtDawn, hpCapacity, migrateDamage, restoreHp, type Repair } from './damage.ts';
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
+import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 
 export * from './balance.ts';
@@ -1018,7 +1019,7 @@ export function isGameState(x: unknown): x is GameState {
 
 /** Saves migrate forward so long runs survive updates. Returns null for anything unreadable. */
 export function migrateSave(x: unknown): GameState | null {
-  const s = x as GameState;
+  const s = migrateLegacy(x) as GameState; // v1 to v6 step up to v7 first (legacy.ts)
   if (!s || typeof s !== 'object' || typeof s.cash !== 'number' || !s.plots || !s.today) return null;
   if (s.version === 7) { // v8: modes and difficulty; older runs carry on as a Classic campaign
     s.settings = defaultSettings();

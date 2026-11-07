@@ -6,14 +6,14 @@
 // will wake to; a day that isn't on it (Day 1) follows its forecast by the same rule. Scorcher, Hot and Warm keep
 // their temperature bands in every season; the cool seasons shift Cloudy, Rainy and Storm down. economy.ts calls in
 // at a new game, each dawn and the open; events.ts's Heat Wave lays its Scorchers on top (plannedWeather, and its
-// dawn and open hooks). Pure and seeded.
+// dawn and open hooks), and the other Scorchers are thinned as their days are rolled (scorcherKeep). Pure and seeded.
 import {
   FORECAST_ACCURACY, LOOK_AHEAD_DAYS, SEASON_TEMP_SHIFT, SEASON_WEATHER, TEMP_BANDS, WEATHER, WEATHER_STEPS, type Season, type WeatherKind,
 } from './balance.ts';
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { GameState, Weather } from './economy.ts';
 import { seasonOf } from './economy.ts';
-import { plannedWeather } from './events.ts';
+import { plannedWeather, scorcherKeep } from './events.ts';
 
 /** One day's weather, rolled ahead: what the day brings, and what its dawn forecast says. */
 export interface DayWeather { day: number; weather: Weather; forecast: Weather }
@@ -69,13 +69,21 @@ export function oneStep(rng: Rng, w: Weather, season: Season): Weather {
 
 /**
  * A day rolled ahead. A Heat Wave planned for it is a Scorcher, forecast as one; any other day comes from its season's
- * odds, with its forecast read off it.
+ * odds, with its forecast read off it. The Heat Waves' Scorchers come on top of those odds, so any other Scorcher is
+ * kept only so often (events.ts scorcherKeep), else it comes in Hot. It's thinned once, here, before its forecast is
+ * read: the look-ahead, the dawn and the day itself then all read the same sky, and never two steps apart.
  */
 export function rollDay(s: GameState, rng: Rng, day: number): DayWeather {
   const season = seasonOf(day);
   const planned = plannedWeather(s, day);
-  const weather = planned ? { kind: planned.kind, temp: rollTemp(rng, planned.kind, season) } : seasonWeather(rng, season);
-  return { day, weather, forecast: planned ? near(rng, weather) : oneStep(rng, weather, season) };
+  if (planned) {
+    const weather = { kind: planned.kind, temp: rollTemp(rng, planned.kind, season) };
+    return { day, weather, forecast: near(rng, weather) };
+  }
+  let weather = seasonWeather(rng, season);
+  const keep = scorcherKeep(season);
+  if (weather.kind === 'scorcher' && keep < 1 && nextRandom(rng) >= keep) weather = { kind: 'hot', temp: inBand('hot', weather.temp - 10) };
+  return { day, weather, forecast: oneStep(rng, weather, season) };
 }
 
 /**
@@ -101,8 +109,8 @@ const same = (a: Weather, b: Weather) => a.kind === b.kind && a.temp === b.temp;
 
 /**
  * The open: the day's real weather. While the dawn forecast stands it is the day as rolled; when the day wasn't rolled
- * (Day 1, a save from before the queue) or something changed its forecast since (a Heat Wave's Scorcher, a thinned
- * one), the day follows the forecast by the same rule: right 80% of the time, otherwise one step off.
+ * (Day 1, a save from before the queue) or something changed its forecast since (a Heat Wave's Scorcher), the day
+ * follows the forecast by the same rule: right 80% of the time, otherwise one step off.
  */
 export function weatherAtOpen(s: GameState, rng: Rng): Weather {
   const today = s.weatherQueue?.find((d) => d.day === s.day);

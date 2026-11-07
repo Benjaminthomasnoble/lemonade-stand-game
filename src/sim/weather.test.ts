@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   BRAND_TIERS, eventsOf, FORECAST_ACCURACY, forecastAhead, forecastDays, HEAT_WAVE, inBand, lookAhead, migrateSave, migrateWeather, neighbors, newGame,
-  oneStep, openStands, rollDay, SEASON_TEMP_SHIFT, SEASON_WEATHER, seasonOf, SEASONS, sleepUntilDawn, TEMP_BANDS, WEATHER, WEATHER_STEPS, weatherAtOpen,
+  oneStep, openStands, rollDay, scorcherKeep, SEASON_TEMP_SHIFT, SEASON_WEATHER, seasonOf, SEASONS, sleepUntilDawn, TEMP_BANDS, WEATHER, WEATHER_STEPS, weatherAtOpen,
   type GameState, type Season, type Weather, type WeatherKind,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -182,6 +182,40 @@ describe('the weather queue', () => {
     dawn(s);
     expect(s.day).toBe(wave.from);
     expect(s.forecast.kind).toBe('scorcher');
+  });
+
+  it("with Heat Waves on, any other Scorcher is thinned as its day is rolled (kept at scorcherKeep's rate, else Hot), and its forecast is read off what's left", () => {
+    const s = newGame(24);
+    eventsOf(s).on = [];
+    const day = firstDay('summer'), n = 20000, rng = { seed: 777 };
+    let scorchers = 0, hot = 0;
+    for (let i = 0; i < n; i++) {
+      const d = rollDay(s, rng, day);
+      if (d.weather.kind === 'scorcher') scorchers++;
+      if (d.weather.kind === 'hot') { hot++; expect(TEMP_BANDS.hot![0] <= d.weather.temp && d.weather.temp <= TEMP_BANDS.hot![1]).toBe(true); }
+      expect(steps(d.weather.kind, d.forecast.kind)).toBeLessThanOrEqual(1);
+    }
+    const p = SEASON_WEATHER.summer.scorcher!, keep = scorcherKeep('summer');
+    expect(keep).toBeLessThan(1);
+    expect(scorchers / n).toBeCloseTo(p * keep, 2);
+    expect(hot / n).toBeCloseTo(SEASON_WEATHER.summer.hot! + p * (1 - keep), 2);
+  });
+
+  it('with Heat Waves on, a day never comes in more than one step from its dawn forecast or the look-ahead that called it a day or two before', () => {
+    let read = 0, far = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = newGame(seed);
+      const said = new Map<number, WeatherKind[]>();
+      while (s.day < 60) {
+        for (const a of forecastDays(s)) said.set(a.day, [...(said.get(a.day) ?? []), a.forecast.kind]);
+        const calls = [s.forecast.kind, ...(said.get(s.day) ?? [])];
+        openStands(s);
+        for (const k of calls) { read++; if (steps(s.weather.kind, k) > 1) far++; }
+        dawn(s);
+      }
+    }
+    expect(read).toBeGreaterThan(2000);
+    expect(far).toBe(0); // a Scorcher the look-ahead called comes in Scorcher or Hot, never Warm
   });
 
   it('rides in the save; a save from before it plays on and gets one at its next dawn; a load draws nothing', () => {

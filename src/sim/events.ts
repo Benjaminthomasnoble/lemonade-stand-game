@@ -265,23 +265,24 @@ export function scorcherKeep(season: Season): number {
 
 const cooler = (w: Weather): Weather => ({ kind: 'hot', temp: Math.min(WEATHER.hot.temp[1], Math.max(WEATHER.hot.temp[0], w.temp - 10)) });
 
-/** Dawn's forecast: a Heat Wave day is a Scorcher; any other Scorcher is thinned (scorcherKeep). */
+/** Dawn's forecast: a Heat Wave day is a Scorcher. Any other Scorcher was thinned as its day was rolled (scorcherKeep in
+ * demand's weather.ts rollDay), so the look-ahead that called it still stands. */
 function weatherAtDawn(s: GameState, rng: Rng): void {
   let w = s.forecast;
   if (heatWaveDay(s)) {
     if (w.kind !== 'scorcher') w = { kind: 'scorcher', temp: randInt(rng, WEATHER.scorcher.temp[0], WEATHER.scorcher.temp[1]) };
-  } else if (w.kind === 'scorcher' && nextRandom(rng) >= scorcherKeep(seasonOf(s.day))) w = cooler(w);
+  }
   if (w === s.forecast) return;
   s.forecast = w;
   s.weather = w;
   s.today.weather = w;
 }
 
-/** openStands' one call, on the day's real weather: a Heat Wave day is a Scorcher whatever the roll, and a Scorcher the
- * forecast didn't call is thinned like the dawn's. */
+/** openStands' one call, on the day's real weather: a Heat Wave day is a Scorcher whatever the roll, and on a day the
+ * weather queue didn't roll (Day 1, a save from before it) a Scorcher the forecast didn't call is thinned as the queue's are. */
 export function eventWeather(s: GameState, w: Weather): Weather {
   if (heatWaveDay(s)) return w.kind === 'scorcher' ? w : { kind: 'scorcher', temp: s.forecast.kind === 'scorcher' ? s.forecast.temp : WEATHER.scorcher.temp[0] };
-  if (w.kind !== 'scorcher' || s.forecast.kind === 'scorcher') return w;
+  if (w.kind !== 'scorcher' || s.forecast.kind === 'scorcher' || s.weatherQueue?.some((d) => d.day === s.day)) return w; // thinned when rolled (weather.ts)
   const rng = { seed: s.seed };
   const keep = nextRandom(rng) < scorcherKeep(seasonOf(s.day));
   s.seed = rng.seed;

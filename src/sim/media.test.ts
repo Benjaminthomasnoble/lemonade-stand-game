@@ -173,6 +173,7 @@ describe('the Morning Bugle', () => {
     const e = frontPage(s).events.find((x) => x.id === 'heatWave')!;
     expect(e).toMatchObject({ name: 'Heat Wave', where: 'all over the bay', days: 3, left: 3, counter: 'Extra ice, higher prices, Frozen' });
     dawn(s, wave.from + 1);
+    quiet(s); // only the wave's story: the rival moves and the wire would crowd the 3 briefs
     expect(frontPage(s).events.find((x) => x.id === 'heatWave')?.left).toBe(2);
     expect(frontPage(s).briefs.join(' ')).toContain('Heat Wave, all over the bay: 2 days left.');
   });

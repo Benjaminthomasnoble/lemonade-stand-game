@@ -213,19 +213,14 @@ describe('the Heat Wave', () => {
       const p = SEASON_WEATHER[season].scorcher ?? 0, q = HEAT_WAVE.chance[season], n = SEASON_DAYS, k = HEAT_WAVE.days;
       expect(k * q + (n - k * q) * p * scorcherKeep(season)).toBeCloseTo(n * p, 6);
     }
-    // At dawn, a Scorcher outside a wave is kept at that rate (the rest turn Hot).
+    // A Scorcher outside a wave is kept at that rate as its day is rolled (demand's weather.ts rollDay, tested there),
+    // so the dawn leaves a Scorcher forecast standing, as the look-ahead called it.
     const s = newGame(24);
     dawnsTo(s, 3);
     eventsOf(s).on = [];
-    let kept = 0;
-    for (let i = 0; i < 3000; i++) {
-      s.forecast = { kind: 'scorcher', temp: 99 };
-      eventsAtDawn(s);
-      if (s.forecast.kind === 'scorcher') kept++;
-      else expect(s.forecast).toEqual({ kind: 'hot', temp: 89 });
-      eventsOf(s).on = [];
-    }
-    expect(kept / 3000).toBeCloseTo(scorcherKeep('summer'), 1);
+    s.forecast = { kind: 'scorcher', temp: 99 };
+    eventsAtDawn(s);
+    expect(s.forecast).toEqual({ kind: 'scorcher', temp: 99 });
   });
 });
 

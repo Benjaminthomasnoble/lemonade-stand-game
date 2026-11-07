@@ -82,7 +82,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
   return {
     squawk,
     update(s, dt, time, target, views) {
-      const night = s.phase === 'report';
+      const night = s.phase === 'report' || s.phase === 'night';
       const threat = threatLevel(s);
 
       // Henchmen: one per nearby rival stand, two from Threat 3, gone home at night.

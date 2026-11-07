@@ -107,16 +107,15 @@ try {
   await page.waitForTimeout(4500);
   if (!(await page.evaluate(() => window.__game.battle()))) fail('battle replay not playing');
   await page.screenshot({ path: 'test-results/9-raid.png' });
-  // Play on until a rival raid is announced at closing time, then sleep through it.
+  // Play on until a rival raid is planned at closing time. Sleep till dawn stops at its warning in the night; sleep on through it.
   let warned = false;
   for (let d = 0; d < 25 && !warned; d++) {
     warned = await page.evaluate(() => {
       const g = window.__game;
-      if (g.state.phase === 'prep') g.act({ type: 'open' });
-      g.act({ type: 'skip' });
+      for (let i = 0; i < 12 && g.state.phase !== 'report'; i++) g.act({ type: g.state.phase === 'prep' ? 'open' : g.state.phase === 'open' ? 'skip' : 'sleep' });
       const hit = g.state.raids.some((r) => r.attacker !== 'player' && g.state.plots[r.target].owner === 'player');
-      if (!hit) g.act({ type: 'sleep' });
-      return hit;
+      g.act({ type: 'sleep' });
+      return hit && g.state.phase === 'night';
     });
   }
   if (!warned) fail('no raid warning in 25 days');
@@ -131,7 +130,7 @@ try {
   // Milestone 5: build a helipad and a pier through the plot card, then watch a chopper and a ship pick up.
   const sites = await page.evaluate(() => {
     const g = window.__game, st = g.state;
-    if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+    for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
     st.rank = 7; st.reputation = 4.5; st.cash = 2000000;
     const field = Object.keys(st.plots).find((id) => id.startsWith('groves') && st.plots[id].owner === 'hollis' && !st.plots[id].stand);
     const dock = Object.keys(st.plots).find((id) => id.startsWith('harbor') && st.plots[id].owner === 'fizzco' && !st.plots[id].stand);
@@ -151,7 +150,7 @@ try {
     await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
     await page.evaluate(([tier, plot]) => {
       const g = window.__game, st = g.state;
-      if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+      for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
       st.bottles = 50000;
       st.raids = [];
       st.rank = 2; // keep Threat low so no delivery raid in the smoke test
@@ -162,7 +161,7 @@ try {
     await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
     await page.waitForFunction(() => window.__game.vip(), null, { timeout: 90000 });
-    await page.evaluate(() => window.__game.act({ type: 'speed', value: 0 }));
+    // Pause holds the scene too, so the clock runs on (a client's first visit holds it by itself for the show).
     await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 180000 });
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
@@ -171,7 +170,7 @@ try {
   await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
-    if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
+    for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
     st.raids = []; st.rank = 7; st.cash = 50000000; st.clubhouse = 3; // the Blend Shack opens at Rank 5
     const ids = Object.keys(st.plots).filter((id) => st.plots[id].owner === 'blenders');
     const hqId = window.__game.hqOf('blenders');

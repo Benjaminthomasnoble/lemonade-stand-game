@@ -9,7 +9,7 @@ import {
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, seasonDay, seasonOf,
   selectedStand, servingsAvailable, STAND_LEVELS, standLevel, stock, successScore, SUPPLIES, WEATHER,
   availableRaiders, canBuildClubhouse, canBuyGadget, canBuyPerimeter, canEquip, canHire, canRaid, CLUBHOUSE, clubhouseBeds,
-  fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, incomingRaids, PERIMETERS, raidOdds,
+  fenceRepairCost, GADGET_SLOTS, GADGETS, GEAR, guardReady, guardTitle, guardWage, PERIMETERS, raidOdds,
   RAID_RANK, rebuildCost, rosterCap, SQUAD_CAP, threatLevel, WEAPONS, HIRE_RANK,
   type GadgetId, type GearId, type Guard, type Objective, type WeaponId,
   bottlesNeeded, canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, PLOTS,
@@ -17,12 +17,15 @@ import {
   canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, inTruce, isWrecked, plotBuyoutPrice,
   plotPrice, rivalStatus, SITDOWN_RANK, truceCost,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, districtControl, dominationProgress, ENDINGS, everyLastPlot,
-  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition,
+  isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, winCondition, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
 } from '../sim/economy.ts';
 import type { ScoreEntry } from '../save.ts';
+import { DEFAULT_OPTIONS, type Options } from '../settings.ts';
 import * as A from './clay.ts';
+import { alertCards } from './alerts.ts';
+import { optionsScreen } from './options.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -70,6 +73,12 @@ export type Action =
   | { type: 'reloadDawn' }
   | { type: 'borrow'; amount: number }
   | { type: 'repay' }
+  | { type: 'night' } // the Evening ends: the night runs on the clock
+  | { type: 'goto'; plot: string } // an alert card's Go There
+  | { type: 'dismiss'; id: string } // put an alert card away
+  | { type: 'restockNow'; plot: string } // a sold-out card's one action
+  | { type: 'options' } // open or close the Options screen
+  | { type: 'option'; key: string; value?: string } // flip an option
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -138,6 +147,9 @@ export interface Hud {
   leaderboard: ScoreEntry[];
   /** A lost run can reload its last dawn (never in Ironman). */
   canReload: boolean;
+  /** The player's options (src/settings.ts), and whether the Options screen is open. */
+  options: Options;
+  optionsOpen: boolean;
 }
 
 export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud {
@@ -161,14 +173,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     setup: null,
     leaderboard: [],
     canReload: false,
+    options: { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } },
+    optionsOpen: false,
     render(s, speed) {
-      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : outcomeScreen(s);
-      root.toggleAttribute('data-night', s.phase === 'report');
+      const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel) : hud.optionsOpen ? optionsScreen(hud.options, s) : outcomeScreen(s);
+      root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
+      if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
+      root.toggleAttribute('data-calm', hud.options.reducedMotion);
       set(topEl, modal && hud.setup ? '' : topbar(s));
       set(dawnEl, !modal && s.phase === 'prep' ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(headline(s)[0], 'cl-big')}${tape(headline(s)[1], 'cl-sub')}</div>` : '');
-      set(feedEl, modal || s.phase !== 'prep' ? '' : feed(s));
+      set(feedEl, modal ? '' : feed(s));
       set(cornerEl, corner(s, speed));
-      set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : dayEnd(s)));
+      set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? dayEnd(s) : ''));
       set(plotEl, hud.inspected && s.phase !== 'report' && !modal ? plotCard(s, hud.inspected) : '');
     },
     popup(x, y, text, kind) {
@@ -182,7 +198,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     },
     coin(x, y, size, onLand) {
       const cash = topEl.querySelector('[data-testid="cash"]') as HTMLElement | null;
-      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches || hud.options.reducedMotion;
       if (!cash || reduce) { onLand?.(); return; }
       const r = cash.getBoundingClientRect();
       const box = root.getBoundingClientRect();
@@ -215,7 +231,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       el.innerHTML = tape('', 'cl-big');
       (el.querySelector('.cl-big') as HTMLElement).textContent = text;
       root.appendChild(el);
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && /RANK UP|makeover/.test(text)) {
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !hud.options.reducedMotion && /RANK UP|makeover/.test(text)) {
         const bits = [ART.lemon(), ART.star(true), ART.coin()];
         for (let i = 0; i < 36; i++) {
           const c = document.createElement('div');
@@ -283,6 +299,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...squad] }); squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
+      case 'night': books = false; onAction({ type: 'night' }); break;
+      case 'goto': case 'restockNow': onAction({ type: d.action, plot: d.plot! }); break;
+      case 'dismiss': onAction({ type: 'dismiss', id: d.id! }); break;
+      case 'options': onAction({ type: 'options' }); break;
+      case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute':
       case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'reloadDawn': case 'repay':
         onAction({ type: d.action }); break;
@@ -297,6 +318,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         if (d.key === 'target') st.target = Number(d.value);
         if (d.key === 'peaceful') st.peaceful = !st.peaceful;
         if (d.key === 'ironman') st.ironman = !st.ironman;
+        if (d.key === 'raidPause') st.raidPause = !raidPauses(st);
         redraw();
         break;
       }
@@ -352,18 +374,28 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return { text: `Own the Bay: ${out}/5 rivals out`, progress: (out / 5 + d.majority / d.districts) / 2, done: false };
   }
 
-  // ---------- bottom right: views, sound, new game and (while open) speed ----------
+  // ---------- bottom right: views, sound, options, new game and (while the clock runs) speed ----------
   function corner(s: GameState, speed: number) {
     const k = (action: string, inner: string, title: string, extra = '', on = false) => `<button class="cl-knob-s${on ? ' on' : ''}" data-action="${action}" ${extra} title="${title}" aria-label="${title}">${inner}</button>`;
-    const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('setup', '✚', 'New game');
-    if (s.phase !== 'open') return `<div class="cl-corner">${views}</div>`;
+    const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('options', '⚙', 'Options', 'data-testid="options-open"') + k('setup', '✚', 'New game');
+    // The clock runs in business hours and at night (and Morning Prep counts down when it starts the day by itself).
+    const running = s.phase === 'open' || s.phase === 'night' || (s.phase === 'prep' && hud.options.autoContinue && !s.outcome);
+    if (!running) return `<div class="cl-corner">${views}</div>`;
     const sb = (v: number, label: string) => k('speed', label, `Speed ${v ? v + '×' : 'pause'} (keys: space, 1, 2, 3)`, `data-value="${v}"`, speed === v);
-    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, '❚❚')}${sb(1, '▶')}${sb(2, '▶▶')}${sb(3, '▶▶▶')}${k('skip', '⏭', 'Finish the day')}</div>`;
+    const skip = s.phase === 'open' ? k('skip', '⏭', 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', '⏭', 'Sleep till dawn (stops at big alerts)', 'data-testid="next"') : '';
+    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, '❚❚')}${sb(1, '▶')}${sb(2, '▶▶')}${sb(3, '▶▶▶')}${skip}</div>`;
   }
 
   // ---------- left feed: little tickets for whatever needs you this morning ----------
   function feed(s: GameState) {
-    const t: string[] = [];
+    const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
+    if (s.phase !== 'prep') { // after the morning: today's (and tonight's) fights, each with a replay
+      for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
+        const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+        t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
+      }
+      return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
+    }
     const st = selectedStand(s);
     const plotId = s.selected;
     if (s.redDays) {
@@ -385,7 +417,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const short = o.tier === 'deal' ? dealShortfallPerDay(s, o) : 0;
       const when = o.tier === 'deal' ? `in ${DEAL_LOADS} weekly loads` : `by day ${o.due}`;
       const fit = o.tier === 'deal' ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
-      t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} ${when}${fit}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}
+      const risk = deliveryRaidRisk(s, o) ? `<span class="cl-short" title="Rivals may raid this pickup">${ART.raid()}</span>` : '';
+      t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${o.qty.toLocaleString('en-US')} ${o.tier === 'local' ? 'cups' : 'bottles'} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
         <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${btn('decline', '✕', { ok: true }, `data-id="${o.id}" title="No thanks"`, 'ghost')}</span></div>`);
     }
     const need = bottlesNeeded(s);
@@ -594,31 +627,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>${tip}</span></div>
       ${tonight(s)}
       ${books ? bookTable : ''}
-      <button class="cl-sleep" data-action="sleep" data-testid="next">${ART.moon()}<span>Sleep</span></button>
-      <button class="cl-link" data-action="books">${books ? 'Close the books' : 'See the books'}</button>
+      <button class="cl-sleep" data-action="night" data-testid="night" title="The night runs on the clock">${ART.moon()}<span>Night</span></button>
+      <span class="cl-acts"><button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Sleep till dawn</button>
+      <button class="cl-link" data-action="books">${books ? 'Close the books' : 'See the books'}</button></span>
     </div></div>`;
   }
 
   function tonight(s: GameState) {
-    const incoming = incomingRaids(s);
+    // Rival raids warn as they set out, on cards in the alert feed (src/ui/alerts.ts); the Ledger lists your own.
     const mine = s.raids.filter((r) => r.attacker === 'player');
-    if (!incoming.length && !mine.length) return '';
-    const warn = incoming.map((r) => {
-      const ps = s.plots[r.target];
-      const where = PLOT_BY_ID[r.target].name;
-      const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length;
-      const them = r.detected ? r.party!.map((f) => WEAPON_ART[f.weapon]()).slice(0, 6).join('') : '<b class="cl-q">?</b>';
-      const us = `${Array.from({ length: Math.min(6, guards) }, () => ART.shield()).join('')}${ps.defense.tier ? ART.fence(ps.defense.tier) : ''}`;
-      const tip = r.detected ? `${FACTIONS[r.attacker as RivalId].name} heading for ${where} tonight, ETA ${r.eta}: ${r.party!.length} henchmen` : `Someone is planning a raid on ${where} tonight. More alarms would tell you who.`;
-      const next = PERIMETERS[ps.defense.tier];
-      const pb = canBuyPerimeter(s, r.target);
-      const fix = next && !locked(pb) ? btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, pb, `data-plot="${r.target}"`, 'go')
-        : fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${r.target}"`) : '';
-      const station = s.guards.length && guards < s.guards.filter((g) => guardReady(s, g)).length ? btn('defend', 'All guards here', { ok: true }, `data-plot="${r.target}"`) : '';
-      return `<div class="cl-raidwarn" data-testid="raid-warning" title="${esc(tip)}"><span class="cl-feet">${ART.foot()}</span><span class="cl-vs">${them}<i>vs</i>${us || '<b class="cl-q">0</b>'}</span><span class="cl-acts">${fix}${station}</span></div>`;
-    }).join('');
+    if (!mine.length) return '';
     const out = mine.map((r) => `<div class="cl-raidwarn mine" title="Your crew raids ${esc(PLOT_BY_ID[r.target].name)} tonight (${r.objective})">${ART.raid()}<b>Raid tonight: ${r.guards!.length}</b></div>`).join('');
-    return `<div class="cl-tonight">${warn}${out}</div>`;
+    return `<div class="cl-tonight">${out}</div>`;
   }
 
   function fightLine(b: GameState['battles'][number]) {
@@ -721,7 +741,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       <div class="cl-acts">${btn('raid', `${ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight" title="${Math.round(night * 100)}% to win"`, 'go')}
-      ${btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
+      ${s.phase === 'report' || s.phase === 'night' ? '' : btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
   }
 
   // ---------- New Game, victory and game over ----------
@@ -739,7 +759,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <h1 class="cl-title">Lemonade Stand Wars</h1>
       <div class="cl-modes">${modes}</div>
       <div class="cl-diffs">${diffs}</div>
-      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${scores}</div>` : ''}
+      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>
         ${cancel ? '<button class="cl-link" data-action="cancelSetup">Back to my game</button>' : ''}
         <button class="cl-open big" data-action="start" data-testid="start" aria-label="Open the stand"><span class="cl-btn"></span>${tape('START', 'cl-t-open')}</button></div>

@@ -490,7 +490,7 @@ export function createBay(scene: THREE.Scene): Bay {
         if (!st) continue;
         const cap = STAND_LEVELS[st.level - 1].storage;
         v.stand.update({
-          price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report', ringing,
+          price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report' || s.phase === 'night', ringing,
           recipe: st.recipe, sweetness: st.sweetness, stars: s.reputation, detail: level,
           stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice, spoiling: stock(st, 'lemons') ? lemonsExpiringTomorrow(s, st) / stock(st, 'lemons') : 0 },
         });

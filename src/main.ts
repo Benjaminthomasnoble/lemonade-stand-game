@@ -3,8 +3,9 @@ import './screens.css';
 import * as THREE from 'three';
 import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
-  REAL_SECONDS_PER_MINUTE, runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
+  runCampaign, selectedStand, setPrice, setRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
+  alertTexts, autoRestock, dismissAlert, isMajor, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fireGuard, guardReady, hireGuard, planRaid, postGuard, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, type RivalId,
@@ -14,8 +15,9 @@ import { createBattle } from './world/battle.ts';
 import { createAudio } from './audio.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, incomingRaids, isVip } from './sim/economy.ts';
+import { bySea, isVip } from './sim/economy.ts';
 import { clearSave, loadDawn, loadGame, loadLeaderboard, recordScore, saveDawn, saveGame } from './save.ts';
+import { AUTO_CONTINUE_SECONDS, autoPauses, loadOptions, saveOptions, TEXT_SIZES, type Options, type PauseKind } from './settings.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { BAY_VIEW, createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
@@ -66,23 +68,54 @@ async function main() {
   };
   let state: GameState = saved ?? freshRun({}, seedParam ? Number(seedParam) : undefined);
   state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`; // saves from before the leaderboard
+  // The clock (spec: Clock and speed). speed 0 is a pause, from Space, the ❚❚ knob or an auto-pause on a major
+  // alert: the clock, the brawl on screen and any VIP scene all hold still. Full-screen paper pauses too.
   let speed = 1;
-  let vipResume = 0; // speed to restore after a first-visit VIP scene
+  let resumeTo = 1; // the speed a resume goes back to
+  let vipResume = 0; // a VIP client's first visit holds the clock (not its scene) until the show is over
   let acc = 0;
+  let options: Options = loadOptions();
+  let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
+  const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
+  let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
+  const pause = () => { if (speed) { resumeTo = speed; speed = 0; } };
+  const resume = () => { if (!speed) speed = resumeTo || 1; };
 
   const audio = createAudio();
   const wake = () => audio.start();
   window.addEventListener('pointerdown', wake, { once: true });
   window.addEventListener('keydown', wake, { once: true });
   const won = (b: BattleReport) => (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
-  /** Stingers for the end of the business day and for last night's fights. */
-  const afterClose = () => {
-    const raids = incomingRaids(state);
-    if (!raids.length) return;
+  /** A raid warning lands: the Raid Incoming stinger, the boss on the phone, Lottie's fist. */
+  const raidWarned = (a: Alert) => {
+    const boss = state.raids.find((r) => r.id === a.raid)?.attacker;
     audio.stinger('raid-incoming');
-    const boss = raids.find((r) => r.attacker !== 'player')?.attacker as RivalId | undefined;
-    if (boss) phone.ring(boss, pick(BOSS[boss].warn));
+    if (boss && boss !== 'player' && boss in BOSS) phone.ring(boss as RivalId, pick(BOSS[boss as RivalId].warn));
     lottieSays('raidComing', { react: 'fist' });
+  };
+  /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. */
+  const onAlert = (a: Alert) => {
+    if (a.kind === 'raid' || a.kind === 'delivery') raidWarned(a);
+    if (isMajor(a) && autoPauses(options, state, a.kind)) pause();
+  };
+  /** A raid hit at its minute. Live, the brawl plays (one at a time) and its headline waits for the end. */
+  const onFight = (b: BattleReport, live: boolean) => {
+    if (b.attacker !== 'player' && b.defender !== 'player') return;
+    if (!live) return;
+    const i = state.news.indexOf(battleHeadline(b));
+    if (i >= 0) state.news.splice(i, 1);
+    if (battle.active() && liveFight) fightQueue.push(b); else playBattle(b, true);
+  };
+  const stopFights = () => { battle.stop(); fightQueue.length = 0; liveFight = false; };
+  /** 07:00: the dawn autosave, Lottie reads the sky, the Bugle lands. */
+  const atDawn = () => {
+    saveDawn(state);
+    recordScore(state);
+    crowd.clear();
+    morningLine();
+    prepWait = 0;
+    const shot = bugle.best(state.day - 1);
+    if (shot) bugle.show(shot);
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);
@@ -200,20 +233,24 @@ async function main() {
 
   const vip = createVip(world.scene, { onHorn: () => audio.horn() });
   const traffic = createTraffic(world.scene);
-  const drawEvents = (events: SimEvent[]) => {
+  /** What the clock did, on screen. Skips (Finish the day, Sleep till dawn) pass live = false: no scenes. */
+  const drawEvents = (events: SimEvent[], live = true) => {
     for (const e of events) {
-      if (e.type !== 'pickup') continue;
+      if (e.type === 'alert') { onAlert(e.alert); continue; }
+      if (e.type === 'fight') { onFight(e.report, live); continue; }
+      if (e.type === 'dawn') { atDawn(); continue; }
+      if (e.type !== 'pickup' || !live) continue;
       flushNews();
       if (e.raid) { playBattle(e.raid); continue; }
       const o = e.order;
       if (!e.ok || !o.plot || !isVip(o.tier)) continue;
-      // Only a client's first visit stops the clock for the show; regulars just land and load.
+      // Only a client's first visit stops the clock for the show (its own switch); regulars just land and load.
       const seen = (state.seenClients ??= []);
       if (!seen.includes(o.client)) {
         seen.push(o.client);
         crowd.clear();
         focusPlot(o.plot, bySea(o.tier) ? 60 : 45);
-        if (speed) { vipResume = speed; speed = 0; }
+        if (autoPauses(options, state, 'vip')) vipResume = 1;
       }
       vip.play(bySea(o.tier) ? 'ship' : 'heli', bay.views[o.plot], o.qty > 20000, state.plots[o.plot].facility?.level ?? 1, o.client);
       audio.stinger('raid-won');
@@ -252,10 +289,15 @@ async function main() {
       audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
     },
   });
-  const playBattle = (b: BattleReport) => {
+  /** Play a brawl. live: it's happening now, so the clock runs at fight speed and the next one waits its turn. */
+  const playBattle = (b: BattleReport, live = false) => {
     crowd.clear();
     focusPlot(b.target, 20);
+    liveFight = live;
     battle.play(b, bay.views[b.target], () => {
+      liveFight = false;
+      const next = fightQueue.shift();
+      if (next) setTimeout(() => playBattle(next, true), 0);
       hud.toast(battleHeadline(b)); audio.stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
       snap(battleHeadline(b).toUpperCase(), 5);
       if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
@@ -281,10 +323,33 @@ async function main() {
       case 'sweet': setSweetness(st, a.value); break;
       case 'price': setPrice(st, st.price + a.delta); break;
       case 'restock': st.autoRestock = !st.autoRestock; break;
-      case 'open': openStands(state); acc = 0; if (speed === 0) speed = 1; break;
-      case 'speed': speed = a.value; break;
-      case 'skip': simulateRestOfDay(state); crowd.clear(); afterClose(); break;
-      case 'sleep': if (sleepUntilDawn(state)) saveDawn(state); crowd.clear(); battle.stop(); afterSleep(); morningLine(); { const shot = bugle.best(state.day - 1); if (shot) bugle.show(shot); } break;
+      case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
+      case 'speed': if (a.value > 0) speed = a.value; else pause(); break;
+      // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
+      case 'skip': { resume(); const ev = simulateRestOfDay(state, true); crowd.clear(); drawEvents(ev, false); break; }
+      case 'night': if (startNight(state)) { acc = 0; resume(); } break;
+      case 'sleep': {
+        resume(); // a skip means go; the next big alert pauses again
+        stopFights();
+        crowd.clear();
+        const ev: SimEvent[] = [];
+        const dawned = sleepUntilDawn(state, true, ev);
+        drawEvents(ev, false);
+        if (dawned) { atDawn(); afterSleep(); }
+        break;
+      }
+      case 'goto': hud.inspected = a.plot; focusPlot(a.plot); break;
+      case 'dismiss': dismissAlert(state, a.id); break;
+      case 'restockNow': {
+        const ps = state.plots[a.plot];
+        if (ps?.owner === 'player' && ps.stand && !ps.stand.wrecked) {
+          autoRestock(state, a.plot);
+          state.alerts = (state.alerts ?? []).filter((x) => !(x.kind === 'soldout' && x.plot === a.plot));
+        }
+        break;
+      }
+      case 'options': hud.optionsOpen = !hud.optionsOpen; break;
+      case 'option': setOption(a.key, a.value); break;
       case 'mute': hud.muted = audio.toggle(); break;
       case 'newgame': case 'setup': hud.setup = { settings: { ...state.settings }, cancel: true }; hud.leaderboard = loadLeaderboard(); break;
       case 'cancelSetup': hud.setup = null; break;
@@ -292,14 +357,14 @@ async function main() {
         if (state.day > 1) recordScore(state); // the run being left keeps its row on the leaderboard
         clearSave();
         state = freshRun(a.settings);
-        hud.setup = null; hud.inspected = null; speed = 1; bubbles.clear();
-        crowd.clear(); battle.stop(); bay.sync(state); focusPlot(state.selected);
+        hud.setup = null; hud.inspected = null; speed = 1; resumeTo = 1; vipResume = 0; bubbles.clear();
+        crowd.clear(); stopFights(); bay.sync(state); focusPlot(state.selected);
         break;
       }
       case 'keepSqueezing': keepSqueezing(state); break;
       case 'reloadDawn': {
         const d = loadDawn(state.runId);
-        if (d) { state = d; hud.inspected = null; crowd.clear(); battle.stop(); bubbles.clear(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
+        if (d) { state = d; hud.inspected = null; crowd.clear(); stopFights(); bubbles.clear(); hud.toast('Back to the last dawn. Let\'s try that again.'); }
         break;
       }
       case 'borrow': borrow(state, a.amount); break;
@@ -359,7 +424,18 @@ async function main() {
     hud.canReload = state.outcome?.result === 'lost' && !!loadDawn(state.runId);
     hud.render(state, speed);
   };
+  /** Flip an option (src/settings.ts). The raid-warning switch belongs to the run. */
+  const setOption = (key: string, value?: string) => {
+    if (key === 'raidPause') { state.settings.raidPause = !raidPauses(state.settings); return; }
+    if (key === 'textSize') { const v = Number(value); if ((TEXT_SIZES as number[]).includes(v)) options.textSize = v as Options['textSize']; }
+    else if (key.startsWith('pause.')) { const k = key.slice(6) as PauseKind; if (k in options.pause) options.pause[k] = !options.pause[k]; }
+    else if (key === 'autoPause' || key === 'quietNights' || key === 'autoContinue' || key === 'reducedMotion') options[key] = !options[key];
+    saveOptions(options);
+    hud.options = options;
+    prepWait = 0;
+  };
   const hud = createHud(document.getElementById('ui')!, act);
+  hud.options = options;
   const bugle = createBugle(document.getElementById('ui')!);
   const phone = createPhone(document.getElementById('ui')!, (_boss, line) => { audio.ring(); setTimeout(() => audio.babble(line, 0.9, 'flat'), 700); });
   document.getElementById('ui')!.prepend(bubbleLayer);
@@ -367,8 +443,11 @@ async function main() {
   // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
   if (!saved && !seedParam) { hud.setup = { settings: defaultSettings(), cancel: false }; hud.leaderboard = loadLeaderboard(); }
   const flushNews = () => {
+    if (!state.news.length) return;
+    const cards = alertTexts(state); // alerts show as cards in the feed, not as toasts
     while (state.news.length) {
       const n = state.news.shift()!;
+      if (cards.has(n)) continue;
       if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { audio.stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); }
       if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) audio.stinger('squeezed-out');
       hud.toast(n);
@@ -408,10 +487,11 @@ async function main() {
     gullBtn.classList.toggle('on', flight.active());
   });
 
-  // Keyboard: space pauses, 1-3 set speed.
+  // Keyboard: space pauses and resumes, 1-3 set speed, anywhere (mid-fight, at night and in menus).
   window.addEventListener('keydown', (e) => {
-    if (state.phase !== 'open' || hud.setup) return;
-    if (e.code === 'Space') { speed = speed === 0 ? 1 : 0; e.preventDefault(); }
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.repeat) return;
+    if (e.code === 'Space') { if (speed) pause(); else resume(); e.preventDefault(); }
     if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) speed = Number(e.code.slice(5));
   });
 
@@ -440,11 +520,16 @@ async function main() {
     vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '') => { focusPlot(plot, kind === 'ship' ? 60 : 45); vip.play(kind, bay.views[plot], big, level, client); },
     dex: () => welcomeDex(state),
     focus: (id: string) => focusPlot(id, 18),
+    /** Tick the clock (business hours or the night) up to `minutes`, stopping where the phase changes. */
     fastForward(minutes: number) {
-      for (let i = 0; i < minutes && state.phase === 'open'; i++) tickMinute(state);
-      if (state.phase !== 'open') { flushNews(); saveGame(state); }
+      const from = state.phase;
+      if (from !== 'open' && from !== 'night') return;
+      for (let i = 0; i < minutes && state.phase === from; i++) tickMinute(state);
+      if (state.phase !== from) { flushNews(); saveGame(state); if (state.phase === 'prep') atDawn(); }
       hud.render(state, speed);
     },
+    /** The clock as it runs now: real seconds per game minute (Infinity: stopped), and the speed knob. */
+    clock: () => ({ phase: state.phase, minute: state.minute, speed, spm: secondsPerMinute(state, speed, { fighting: liveFight, quiet: options.quietNights }) }),
   };
 
   morningLine();
@@ -453,31 +538,43 @@ async function main() {
     timer.update();
     const realDt = timer.getDelta();
     const dt = Math.min(realDt, 0.1);
-    if (state.phase === 'open' && speed > 0) {
-      acc += dt * speed;
+    const paper = !!hud.setup || hud.optionsOpen; // full-screen paper pauses
+    const frozen = speed === 0 || paper; // paused: the clock, the brawl and the scenes hold still
+    if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume) {
+      // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
+      const from = state.phase;
+      const rate = () => secondsPerMinute(state, speed, { fighting: liveFight, quiet: options.quietNights });
+      acc += dt;
       let guard = 0;
-      while (acc >= REAL_SECONDS_PER_MINUTE && state.phase === 'open' && guard++ < 60) {
-        acc -= REAL_SECONDS_PER_MINUTE;
+      while (acc >= rate() && guard++ < 240) {
+        acc -= rate();
         drawEvents(tickMinute(state));
+        if (state.phase !== from || speed === 0 || vipResume) { acc = 0; break; }
       }
-      if (state.phase !== 'open') { flushNews(); saveGame(state); bay.sync(state); afterClose(); }
-    }
+      if (state.phase !== from) { flushNews(); saveGame(state); bay.sync(state); }
+      else flushNews();
+    } else acc = 0;
+    // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it.
+    if (state.phase === 'prep' && options.autoContinue && !frozen && !state.outcome && !(state.redDays && autoPauses(options, state, 'red'))) {
+      prepWait += realDt;
+      if (prepWait >= AUTO_CONTINUE_SECONDS) act({ type: 'open' });
+    } else if (state.phase !== 'prep') prepWait = 0;
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     world.setClock(state.phase, state.minute);
     bay.update(state, timer.getElapsed(), phone.ringing());
     crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
-    crowd.update(state.phase === 'open' && speed === 0 ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
-    battle.update(dt);
-    vip.update(Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
+    crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
+    battle.update(frozen ? 0 : dt);
+    vip.update(frozen ? 0 : Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
     traffic.update(state, dt, world.controls.target);
     ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');
-    scenes.update(state, state.phase === 'open' && speed === 0 ? 0 : dt, bay.views);
-    if (state.phase === 'report') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
+    scenes.update(state, frozen ? 0 : dt, bay.views);
+    if (state.phase === 'report' || state.phase === 'night') lottieSays('night', { cooldown: 9000, icon: 'zzz' });
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
-    if (vipResume && !vip.active()) { speed = vipResume; vipResume = 0; }
+    if (vipResume && !vip.active()) vipResume = 0;
     if (!flight.active()) world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     for (const l of labels) {

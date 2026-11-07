@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, buildingHp, canFitSpec, ceilingFor, currentHp, dailyService, damageAtDawn, fitSpec, hpShare, LOTTIES_CORNER,
+  approveRebuild, approveRepair, buildingHp, buildingInvested, canFitSpec, ceilingFor, currentHp, dailyService, damageAtDawn, fitSpec, hpShare, LOTTIES_CORNER,
   MARKETING_BLOCKS, marketingMultiplier, marketingTerms, migrateSave, nearbyPlots, netWorth, newGame, newStand, PLOT_BY_ID, plotsAtDawn,
-  pourRate, priceCeiling, rivalPrice, specsAt, specSlots, STAND_LEVELS, topPriceMods, type DistrictId, type GameState, type SpecId,
+  pourRate, priceCeiling, rebuildCost, repairCost, rivalPrice, specsAt, specSlots, STAND_LEVELS, topPriceMods, type DistrictId, type GameState, type SpecId,
 } from './economy.ts';
 
 const blocks: typeof MARKETING_BLOCKS = [];
@@ -129,6 +129,29 @@ describe('stand specialization slots', () => {
     plotsAtDawn(s, { seed: s.seed });
     expect(s.plots[plot].owner).not.toBe('player');
     expect(s.plots[plot].stand).toBeNull();
+  });
+
+  it("are part of the building: a Wrecked or Damaged stand's rebuild and repair count what its slots cost", () => {
+    const plot = 'maple-3s';
+    const s = standAt(3, plot);
+    const ps = s.plots[plot];
+    expect(buildingInvested(ps)).toBe(4050); // a Kiosk built on an empty plot: $150 + $400 + $3,500
+    expect(rebuildCost(ps)).toBe(608);
+    expect(fit(s, 0, 'fortified', plot)).toBe(true);
+    expect(buildingInvested(ps)).toBe(6050); // plus the slot's $2,000
+    ps.stand!.hp = 600; // half of the Fortified Kiosk's 1,200
+    expect(repairCost(s, plot)).toBe(454); // 15% of $6,050 × half
+    expect(rebuildCost(ps)).toBe(908); // 15% of $6,050
+    expect(fit(s, 0, 'express', plot)).toBe(true); // a swap replaces what was there
+    expect(buildingInvested(ps)).toBe(6050);
+    const palace = standAt(5, plot);
+    const both = palace.plots[plot];
+    const levels = buildingInvested(both);
+    fit(palace, 0, 'fancy', plot);
+    fit(palace, 1, 'roof', plot);
+    expect(buildingInvested(both)).toBe(levels + 42_000);
+    both.stand!.wrecked = true;
+    expect(rebuildCost(both)).toBe(Math.ceil((levels + 42_000) * 0.15));
   });
 
   it('saves keep the slots; a save from before them loads with empty slots, and odd entries are dropped', () => {

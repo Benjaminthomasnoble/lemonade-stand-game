@@ -29,6 +29,15 @@ export function fittedOn(st: Stand | null | undefined): SpecId[] {
   return st.specs.slice(0, specSlots(st.level)).filter((x): x is SpecId => !!x && x in SPECIALIZATIONS);
 }
 
+/**
+ * What went into a stand's slots: each filled slot's price, as its first fitting paid it (a swap only replaces what was
+ * there). It is part of the building, so its rebuilds and repairs count it (damage.ts buildingInvested): a Wrecked
+ * stand comes back with its fittings, and a Fortified Kiosk ($4,050 + $2,000) rebuilds for 15% of $6,050.
+ */
+export function specsInvested(st: Stand): number {
+  return (st.specs ?? []).slice(0, specSlots(st.level)).reduce((a, x, i) => a + (x && x in SPECIALIZATIONS ? SPEC_SLOTS[i].cost : 0), 0);
+}
+
 /** The specializations at work on a plot: a stand of yours runs what it's fitted with, anyone else's runs none. */
 export const specsAt = (ps: PlotState | undefined): SpecId[] => (ps?.owner === 'player' ? fittedOn(ps.stand) : []);
 

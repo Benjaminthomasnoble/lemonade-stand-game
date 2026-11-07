@@ -6,9 +6,9 @@
 // rebuilds and Busted fixes join the same overnight queue: the building stays closed for the rest of the day and opens
 // at dawn as good as new, so a stand smashed at night misses a day of sales. An unrebuilt plot lapses: For Sale with
 // First Dibs for whoever smashed it, then a 24-hour sealed-bid auction, then back to the Registry. Rebuilds and repairs
-// cost a share of what went into the building itself: a stand's level steps or a facility's tiers, never the plot's
-// fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes
-// the dawn's rng.
+// cost a share of what went into the building itself: a stand's level steps and slot fittings or a facility's tiers,
+// never the plot's fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's
+// rebuild) takes the dawn's rng.
 //
 // Reading HP: Stand.hp and Facility.hp hold the points left on a dented building that still stands. Missing means full
 // HP, and the field is cleared whenever the building falls or comes back full, so read HP through currentHp(ps) and
@@ -31,6 +31,7 @@ import { FACILITIES } from './vip.ts';
 import { openAuction } from './auction.ts';
 import { announceControl } from './land.ts';
 import { canSpend, spend } from './rivalAi.ts';
+import { specsInvested } from './specializations.ts'; // demand: what its slots' fittings cost
 import { garrisonHome } from './garrison.ts';
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
@@ -48,13 +49,14 @@ const building = (ps: PlotState) => ps.stand ?? ps.facility ?? null;
 /**
  * What was invested in the building on a plot: the base for its rebuild and repair costs. A stand counts its level
  * steps (a Kiosk built on an empty plot: $150 + $400 + $3,500 = $4,050), and Lottie's own Folding Table, the one the run
- * starts with, counts as $100 (Appendix A), so it rebuilds for $15 and the Corner grown into a Kiosk has $4,000 in it. A
+ * starts with, counts as $100 (Appendix A), so it rebuilds for $15 and the Corner grown into a Kiosk has $4,000 in it.
+ * Its filled specialization slots count too (specializations.ts specsInvested: a Fortified Kiosk, $6,050). A
  * facility counts its tiers. Fences and gadgets have their own repair rule (Defenses), and the plot's `invested` (Net
  * Worth's figure, which counts them) is untouched.
  */
 export function buildingInvested(ps: PlotState): number {
   const st = ps.stand;
-  if (st) return STAND_LEVELS.slice(0, st.level).reduce((a, l, i) => a + (i === 0 && st.startTable ? START.tableInvested : l.cost), 0);
+  if (st) return STAND_LEVELS.slice(0, st.level).reduce((a, l, i) => a + (i === 0 && st.startTable ? START.tableInvested : l.cost), 0) + specsInvested(st);
   if (ps.facility) return FACILITIES[ps.facility.kind].costs.slice(0, ps.facility.level).reduce((a, c) => a + c, 0);
   return 0;
 }

@@ -470,7 +470,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
-    const radio = radioTicket(s, hud.options.captions); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
+    const radio = radioTicket(s, hud.options.captions, hud.options.celsius); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
@@ -533,7 +533,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${taught(s, 'recipes') ? worldTabs(s, tab) : ''}
       ${standPicker(s)}</div>`;
     const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
-      : tab === 'book' || tab === 'fair' || tab === 'bugle' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
+      : tab === 'book' || tab === 'fair' || tab === 'bugle' ? `<div class="cl-sheet">${worldSheet(s, tab, hud.options.celsius)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
 

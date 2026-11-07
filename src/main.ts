@@ -189,7 +189,7 @@ async function main() {
     morningLine();
     prepWait = 0;
     const shot = bugle.best(state.day - 1);
-    if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state)); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
+    if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state), options.celsius); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);

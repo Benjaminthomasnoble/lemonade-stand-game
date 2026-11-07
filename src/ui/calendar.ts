@@ -34,8 +34,9 @@ export function worldTabs(s: GameState, tab: string): string {
   return t('book', 'Book') + (tasteOffToday(s) ? t('fair', 'Taste-Off') : '') + t('bugle', 'Bugle');
 }
 
-export function worldSheet(s: GameState, tab: WorldTab): string {
-  return tab === 'book' ? bookSheet(s) : tab === 'bugle' ? bugleSheet(s) : fairSheet(s);
+/** celsius: the °C option, for the Bugle's weather. */
+export function worldSheet(s: GameState, tab: WorldTab, celsius = false): string {
+  return tab === 'book' ? bookSheet(s) : tab === 'bugle' ? bugleSheet(s, celsius) : fairSheet(s);
 }
 
 /** Three judges' hints, then your answer: a card, a Sweetness setting and a price. */

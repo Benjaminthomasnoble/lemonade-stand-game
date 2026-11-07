@@ -4,7 +4,7 @@
 // The Bugle tab at Morning Prep prints the whole front page (sim/media.ts):
 // the headline and briefs, the forecast, the Market against normal, each
 // stand's cost per cup, the week's calendar and today's events.
-import { frontPage, marketText, PLOT_BY_ID, SUPPLIES, weatherText, type FrontPage, type GameState } from '../sim/economy.ts';
+import { frontPage, inCelsius, marketText, PLOT_BY_ID, SUPPLIES, weatherText, type FrontPage, type GameState } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { cents, esc, once } from './recipes.ts';
 
@@ -15,8 +15,9 @@ export interface Bugle {
   offer(shot: Snapshot): void;
   /** Today's best moment, if any is worth printing. */
   best(day: number): Snapshot | null;
-  /** Show the front page; it folds itself away after a few seconds. With this morning's page, its headline and briefs print under the photo. */
-  show(shot: Snapshot, page?: Pick<FrontPage, 'headline' | 'briefs'>): void;
+  /** Show the front page; it folds itself away after a few seconds. With this morning's page, its headline and briefs print
+   * under the photo (celsius: the °C option). */
+  show(shot: Snapshot, page?: Pick<FrontPage, 'headline' | 'briefs'>, celsius?: boolean): void;
 }
 
 // ---------- the front page at Morning Prep ----------
@@ -28,13 +29,14 @@ const eggArt = once(() => A.eggSVG());
 const boardArt = once(() => A.boardSVG());
 const short = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
 
-/** The Bugle tab: this morning's front page, read off the state. */
-export function bugleSheet(s: GameState): string {
+/** The Bugle tab: this morning's front page, read off the state. celsius: the °C option (the paper prints in °F). */
+export function bugleSheet(s: GameState, celsius = false): string {
   const p = frontPage(s);
+  const deg = (t: string) => inCelsius(t, celsius);
   const head = `<div class="cl-card" data-testid="bugle-headline"><span class="cl-pic">${megaArt()}</span><span class="cl-txt"><b>${esc(p.headline[0])}</b><i>${esc(p.headline[1])}</i></span></div>`;
-  const briefs = p.briefs.map((b) => `<span class="cl-note" data-testid="bugle-brief">${esc(b)}</span>`).join('');
-  const ahead = p.ahead.map((a) => `<i>Day ${a.day}: ${esc(a.text)}</i>`).join('');
-  const sky = `<div class="cl-card" data-testid="bugle-weather" title="The forecast is right about 4 days in 5"><span class="cl-pic">${skyArt(p.forecast.kind)}</span><span class="cl-txt"><b>${esc(weatherText(p.forecast))}</b>${ahead}</span></div>`;
+  const briefs = p.briefs.map((b) => `<span class="cl-note" data-testid="bugle-brief">${esc(deg(b))}</span>`).join('');
+  const ahead = p.ahead.map((a) => `<i>Day ${a.day}: ${esc(deg(a.text))}</i>`).join('');
+  const sky = `<div class="cl-card" data-testid="bugle-weather" title="The forecast is right about 4 days in 5"><span class="cl-pic">${skyArt(p.forecast.kind)}</span><span class="cl-txt"><b>${esc(deg(weatherText(p.forecast)))}</b>${ahead}</span></div>`;
   const rows = p.market.map((m) => `<tr><td>${SUPPLIES[m.id].label}${m.shock ? ` · ${esc(m.shock.name)}` : ''}</td><td class="${m.shock ? 'bad' : ''}">${m.text}${m.shock ? `, ${m.shock.left === 1 ? 'last day' : `${m.shock.left} days`}` : ''}</td></tr>`).join('');
   const costs = p.costs.map((c) => `<tr><td>${esc(short(c.plot))}, a cup</td><td>${cents(c.cost)}</td></tr>`).join('');
   const market = `<div class="cl-card" title="${esc(marketText(p.market))}"><span class="cl-pic">${lemonArt()}</span><span class="cl-txt"><b>The Market</b><table class="cl-books" data-testid="bugle-market">${rows}${costs}</table></span></div>`;
@@ -79,7 +81,7 @@ export function createBugle(root: HTMLElement): Bugle {
       if (!today || today.day !== shot.day || shot.score > today.score) today = shot;
     },
     best(day) { return today && today.day === day ? today : null; },
-    show(shot, page) {
+    show(shot, page, celsius = false) {
       halftone(shot.url, (photo) => {
         const el = document.createElement('div');
         el.className = 'frontpage';
@@ -93,7 +95,7 @@ export function createBugle(root: HTMLElement): Bugle {
         } else {
           head.textContent = `${page.headline[0]} ${page.headline[1]}`;
           // Under the photo: its own caption, then the briefs, in the dateline's small hand.
-          for (const text of [shot.headline, ...page.briefs]) {
+          for (const text of [shot.headline, ...page.briefs.map((b) => inCelsius(b, celsius))]) {
             const line = document.createElement('div');
             line.className = 'dateline';
             line.textContent = text;

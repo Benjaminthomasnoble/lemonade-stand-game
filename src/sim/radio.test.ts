@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  airedToday, BRAND_TIERS, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
-  PLOT_BY_ID, PLOTS, RADIO_STAND_LEVEL, radioOn, radioToday, sayNumber, SIGN_OFF, simulateRestOfDay, STATION_IDS, tickMinute, weatherTalk,
+  airedToday, BRAND_TIERS, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
+  PLOT_BY_ID, PLOTS, RADIO_STAND_LEVEL, radioOn, radioToday, sayNumber, SIGN_OFF, simulateRestOfDay, STATION_IDS, tickMinute, toCelsius, weatherTalk,
   type FightNote, type GameState, type RivalId, type TasteOffResult,
 } from './economy.ts';
 import { RADIO_LINE_MS, radioTicket, soundtrack, toggleSoundtrack, tuneRadio } from '../ui/radio.ts';
@@ -20,6 +20,28 @@ describe('101.5 The Squeeze', () => {
     expect([7, 19, 60, 97, 102, 215].map(sayNumber)).toEqual(['seven', 'nineteen', 'sixty', 'ninety-seven', 'a hundred and two', 'two hundred and fifteen']);
     expect(weatherTalk({ kind: 'scorcher', temp: 97 })).toBe('Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation. Lock up your sugar, Maple Row.');
     expect(weatherTalk({ kind: 'storm', temp: 58 })).toContain('fifty-eight degrees');
+  });
+
+  it("the °C option: Cal says the Celsius numbers, and the paper's degrees on the air read °C", () => {
+    expect(toCelsius(97)).toBe(36);
+    expect(weatherTalk({ kind: 'scorcher', temp: 97 }, true)).toMatch(/^Thirty-six on the Boardwalk/);
+    expect(weatherTalk({ kind: 'storm', temp: 58 }, true)).toContain('fourteen degrees');
+    expect(inCelsius('Heat Wave! Scorcher, 97°', true)).toBe('Heat Wave! Scorcher, 36°C');
+    expect(inCelsius('Scorcher, 97° today.', false)).toBe('Scorcher, 97° today.');
+    expect(inCelsius('Feels like 41°F', true)).toBe('Feels like 41°F'); // already marked: left as it is
+    const s = newGame(31);
+    s.brandTier = BRAND_TIERS[2].tier; // the Jingle, and Cal's two-day after it
+    s.forecast = { kind: 'scorcher', temp: 97 };
+    eventsOf(s).on.push({ id: 'heatWave', from: s.day + 1, to: s.day + 3 }); // a planned Heat Wave: the look-ahead knows its degrees
+    const show = morningShow(s, true);
+    expect(show.some((l) => l.text === weatherTalk(s.forecast, true))).toBe(true);
+    expect(show.find((l) => l.kind === 'forecast')!.text).toMatch(/\d+°C/);
+    expect(show.map((l) => l.text).join(' ')).not.toMatch(/\d°(?!C)/);
+    expect(morningShow(s).map((l) => l.text).join(' ')).toMatch(/\d°(?!C)/); // °F by default
+    expect(radioTicket(s, true, true)).toContain('°C');
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(airedToday(s, true).map((l) => l.text).join(' ')).not.toMatch(/\d°(?!C)/);
   });
 
   it("the Morning Prep show reads the Bugle's headline and briefs, the weather, and signs off; the Jingle adds the spot and the two-day", () => {

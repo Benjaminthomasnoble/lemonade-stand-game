@@ -60,8 +60,13 @@ const WEATHER_TALK: Record<WeatherKind, (t: string) => string> = {
   rainy: (t) => `Rain on the bay, ${t} degrees. Keep your sugar dry out there.`,
   storm: (t) => `Storm rolling in off the harbor, ${t} degrees. Tie down those folding tables, Maple Row.`,
 };
-/** Cal's weather (the spec's Scorcher at 97°: "Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation."). */
-export const weatherTalk = (w: Weather) => WEATHER_TALK[w.kind](sayNumber(w.temp));
+/** °F to °C, as the HUD's temperatures read with the °C option. */
+export const toCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
+/** The paper's and Cal's degrees ("97°") in °C with the °C option ("36°C"); °F text is left as it is. */
+export const inCelsius = (text: string, celsius: boolean) => (celsius ? text.replace(/(-?\d+)°(?![CF])/g, (_, f: string) => `${toCelsius(Number(f))}°C`) : text);
+/** Cal's weather (the spec's Scorcher at 97°: "Ninety-seven on the Boardwalk, and the Smoothie Bros are jogging in formation.").
+ * With the °C option he says the Celsius number. */
+export const weatherTalk = (w: Weather, celsius = false) => WEATHER_TALK[w.kind](sayNumber(celsius ? toCelsius(w.temp) : w.temp));
 
 /** A fight called like a ball game, whoever's in it: Cal never takes sides. */
 export function callFight(f: FightNote): string {
@@ -75,9 +80,9 @@ export function callFight(f: FightNote): string {
 }
 
 /** Cal's 2-day forecast after the Jingle (seam: demand's forecastDays(s, 2) once it merges; the Bugle's lookAhead for now). */
-function twoDay(s: GameState): string {
+function twoDay(s: GameState, celsius = false): string {
   const [a, b] = lookAhead(s, 2);
-  const low = (t: string) => (/^Heat Wave/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1));
+  const low = (t: string) => inCelsius(/^Heat Wave/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1), celsius);
   return a && b ? `Cal's two-day: tomorrow, ${low(a.text)}; the day after, ${low(b.text)}.` : '';
 }
 
@@ -91,16 +96,16 @@ function sponsor(s: GameState, n: number): string {
 // ---------- the show ----------
 
 /** The Morning Prep show: a station ID, the Bugle's headline and briefs, the weather, the Jingle and Cal's 2-day forecast
- * (M3), and the sign-off. */
-export function morningShow(s: GameState): RadioLine[] {
+ * (M3), and the sign-off. celsius: the °C option (Cal says the Celsius numbers). */
+export function morningShow(s: GameState, celsius = false): RadioLine[] {
   const paper = bugleNews(s);
   const line = (kind: RadioKind, text: string): RadioLine => ({ minute: OPEN - 1, kind, text });
   return [
     line('id', STATION_IDS[s.day % STATION_IDS.length]),
     line('news', `Front page of the Bugle: ${end(paper.headline[0])} ${end(paper.headline[1])}`),
-    ...paper.briefs.map((b) => line('news', `Also in the paper: ${end(b)}`)),
-    line('weather', weatherTalk(s.forecast)),
-    ...(jingleOn(s) ? [line('jingle', JINGLE), line('forecast', twoDay(s))] : []),
+    ...paper.briefs.map((b) => line('news', `Also in the paper: ${end(inCelsius(b, celsius))}`)),
+    line('weather', weatherTalk(s.forecast, celsius)),
+    ...(jingleOn(s) ? [line('jingle', JINGLE), line('forecast', twoDay(s, celsius))] : []),
     line('signoff', SIGN_OFF),
   ].filter((l) => l.text);
 }
@@ -121,17 +126,17 @@ function kidsTalk(s: GameState): string | null {
 
 /** The hour's line, 08:00 to 19:00 (h = 0..11): station IDs, the weather, the paper's gossip, the sponsors, last night's box
  * score, the Market, the Jingle and the forecast at lunch, and last call. */
-function hourLines(s: GameState, h: number, briefs: () => string[]): RadioLine[] {
+function hourLines(s: GameState, h: number, briefs: () => string[], celsius: boolean): RadioLine[] {
   const minute = OPEN + h * 60;
   const say = (kind: RadioKind, text: string, at = minute): RadioLine => ({ minute: at, kind, text });
   const id = (k: number) => say('id', STATION_IDS[(s.day + k) % STATION_IDS.length]);
-  const gossip = (i: number, k: number) => (briefs()[i] ? say('gossip', `Word around the bay: ${end(briefs()[i])}`) : id(k));
+  const gossip = (i: number, k: number) => (briefs()[i] ? say('gossip', `Word around the bay: ${end(inCelsius(briefs()[i], celsius))}`) : id(k));
   switch (h) {
     case 0: return [say('id', `${STATION_IDS[s.day % STATION_IDS.length]} The stands are open, Citrine Bay.`)];
-    case 1: case 6: return [say('weather', weatherTalk(s.weather))];
+    case 1: case 6: return [say('weather', weatherTalk(s.weather, celsius))];
     case 2: return [gossip(0, 1)];
     case 3: case 8: return [say('ad', sponsor(s, h))];
-    case 4: return jingleOn(s) ? [say('jingle', JINGLE), say('forecast', twoDay(s), minute + 10)] : [id(2)];
+    case 4: return jingleOn(s) ? [say('jingle', JINGLE), say('forecast', twoDay(s, celsius), minute + 10)] : [id(2)];
     case 5: { const f = boxScore(s); return [f ? say('fight', `Last night on the scoreboard: ${callFight(f)}`) : gossip(1, 0)]; }
     case 7: { const k = kidsTalk(s); return [k ? say('gossip', k) : gossip(2, 1)]; }
     case 9: return [id(0)];
@@ -149,12 +154,12 @@ function brockLive(s: GameState): RadioLine | null {
 
 /** What's aired since the morning show, in order up to now: the hours, the break-ins and the fights as they came (the night's
  * too), Brock's call and the sign-off at closing. */
-export function airedToday(s: GameState): RadioLine[] {
+export function airedToday(s: GameState, celsius = false): RadioLine[] {
   if (s.phase === 'prep') return [];
   let paper: string[] | undefined;
   const briefs = () => (paper ??= bugleNews(s).briefs);
   const out: RadioLine[] = [];
-  for (let h = 0; h < 12; h++) if (OPEN + h * 60 <= s.minute) out.push(...hourLines(s, h, briefs));
+  for (let h = 0; h < 12; h++) if (OPEN + h * 60 <= s.minute) out.push(...hourLines(s, h, briefs, celsius));
   for (const b of s.world?.breaks ?? []) if (b.day === s.day) out.push({ minute: b.minute, kind: 'break', text: `Breaking on 101.5: ${b.text}` });
   for (const f of [...(s.world?.fights ?? [])].reverse()) if (f.day === s.day) out.push({ minute: f.minute, kind: 'fight', text: callFight(f) });
   const brock = brockLive(s);
@@ -164,10 +169,10 @@ export function airedToday(s: GameState): RadioLine[] {
 }
 
 /** The whole day on 101.5 so far: the Morning Prep show, then everything aired since. */
-export const radioToday = (s: GameState): RadioLine[] => [...morningShow(s), ...airedToday(s)];
+export const radioToday = (s: GameState, celsius = false): RadioLine[] => [...morningShow(s, celsius), ...airedToday(s, celsius)];
 
 /** The line on the air right now, after Morning Prep (Morning Prep plays the morning show). */
-export const onAir = (s: GameState): RadioLine | null => airedToday(s).at(-1) ?? null;
+export const onAir = (s: GameState, celsius = false): RadioLine | null => airedToday(s, celsius).at(-1) ?? null;
 
 /** Is 101.5 playing for you? Always in Morning Prep; while your stands are open, from the radio on any L3+ stand of yours; and
  * all day and night as the optional soundtrack. */

@@ -26,17 +26,17 @@ export function toggleSoundtrack(): void {
 
 /** The day's lines, worked out once a game minute (the HUD draws every frame). */
 let memo: { key: string; lines: string[] } = { key: '', lines: [] };
-function lines(s: GameState): string[] {
-  const key = [s.day, s.phase, s.minute, s.brandTier, s.world?.breaks?.length ?? 0, s.world?.fights?.length ?? 0, s.world?.events?.on.length ?? 0].join('|');
-  if (memo.key !== key) memo = { key, lines: (s.phase === 'prep' ? morningShow(s) : airedToday(s).slice(-1)).map((l) => l.text) };
+function lines(s: GameState, celsius: boolean): string[] {
+  const key = [s.day, s.phase, s.minute, s.brandTier, s.world?.breaks?.length ?? 0, s.world?.fights?.length ?? 0, s.world?.events?.on.length ?? 0, celsius].join('|');
+  if (memo.key !== key) memo = { key, lines: (s.phase === 'prep' ? morningShow(s, celsius) : airedToday(s, celsius).slice(-1)).map((l) => l.text) };
   return memo.lines;
 }
 
 /** The feed's 101.5 ticket while the station is on: the line on the air, or in Morning Prep the whole show (tuneRadio turns
- * through it). captions: the Captions option (Options; the HUD passes it). */
-export function radioTicket(s: GameState, captions = true): string {
+ * through it). captions and celsius: the Captions and °C options (Options; the HUD passes them). */
+export function radioTicket(s: GameState, captions = true, celsius = false): string {
   if (!captions || !radioOn(s, soundtrack())) return '';
-  const show = lines(s);
+  const show = lines(s, celsius);
   if (!show.length) return '';
   const all = soundtrack();
   const toggle = `<button class="cl-b ghost tiny" data-action="radio" aria-pressed="${all}" title="${all ? 'Back to mornings and L3+ stand radios' : 'Keep 101.5 on all day'}">All day${all ? ' ✓' : ''}</button>`;

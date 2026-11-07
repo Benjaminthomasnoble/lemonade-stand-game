@@ -177,6 +177,18 @@ describe('the Morning Bugle', () => {
     expect(frontPage(s).briefs.join(' ')).toContain('Heat Wave, all over the bay: 2 days left.');
   });
 
+  it('the °C option prints the weather, the look-ahead and the briefs in °C', () => {
+    const s = newGame(35);
+    s.brandTier = BRAND_TIERS[2].tier;
+    s.forecast = { kind: 'scorcher', temp: 97 };
+    eventsOf(s).on.push({ id: 'heatWave', from: s.day + 1, to: s.day + 3 }); // a planned Heat Wave: the look-ahead knows its degrees
+    expect(bugleSheet(s)).toContain('Scorcher, 97°<');
+    const c = bugleSheet(s, true);
+    expect(c).toContain('Scorcher, 36°C<');
+    expect(c).toMatch(/Day \d+: [^<]*\d+°C</);
+    expect(c).not.toMatch(/\d°(?!C)/);
+  });
+
   it("a mid-day event stays out of the morning paper; the Bugle tab prints the front page and the week's calendar", () => {
     testEvent({ id: 'flashMob', name: 'Flash Mob', when: 'midday', days: 1 });
     const s = newGame(36);

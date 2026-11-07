@@ -639,7 +639,7 @@ export const raidSize = (id: RivalId, size: number, tier: number) => (id === 'bl
  */
 export function raidWeight(s: GameState, id: RivalId): number {
   const r = s.rivals[id];
-  if (!r.alive || r.respectUntil > s.day + 1 || inTruce(s, id)) return 0;
+  if (!r.alive || r.respectUntil > s.day || inTruce(s, id)) return 0; // Respect: back on night D+R+1 (threat.ts mayRaidYou)
   return Math.max(0.1, r.attention + ATTENTION.strike * FACTIONS[id].strike);
 }
 

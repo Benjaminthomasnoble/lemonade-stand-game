@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLOSE, HQS, LOTTIES_CORNER, NIGHT_END, newGame, nightStep, onYou, planNight, PLOTS, RAID_PARTY, RAIDS_PER_WEEK, raidCount, raidsCounted,
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
+  customDefaults, DEX, difficultyOf, fightRaid, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 
@@ -243,4 +244,38 @@ describe('the tutorial raid comes once a run', () => {
     expect(back.tutorialRaidDone).toBe(false);
     expect(back.raids.filter((r) => r.tutorial)).toHaveLength(1);
   });
+});
+
+describe('Respect keeps a beaten rival off you for the whole spell', () => {
+  /** Day 30's Evening at Threat 4 where only the Blenders may raid you (the others back off for good), with cash. */
+  function blendersOnly(difficulty: Difficulty, custom?: CustomDifficulty): GameState {
+    const s = evening(4, difficulty, 61);
+    if (custom) s.settings.custom = custom;
+    for (const id of Object.keys(s.rivals) as RivalId[]) if (id !== 'blenders') s.rivals[id].respectUntil = 999;
+    s.rivals.blenders.cash = 1e6;
+    return s;
+  }
+  /** Whether anyone raids you on the night of `day`, over many dice. */
+  const raidedOn = (s: GameState, day: number) => {
+    const t = structuredClone(s);
+    Object.assign(t, { day, phase: 'report', minute: CLOSE, raids: [] });
+    return nights(t, 80).some((raids) => raids.length > 0);
+  };
+
+  it('a raid you beat on night D keeps its rival off nights D+1 to D+R (5 / 3 / 1, or the slider), back on D+R+1', () => {
+    const cases: [Difficulty, number, CustomDifficulty?][] = [['laidback', 5], ['classic', 3], ['cutthroat', 1], ['custom', 2, { ...customDefaults(), respectDays: 2 }]];
+    for (const [difficulty, R, custom] of cases) {
+      const s = blendersOnly(difficulty, custom);
+      const D = s.day;
+      expect(difficultyOf(s.settings).respectDays).toBe(R);
+      welcomeDex(s);
+      postGuard(s, s.guards.find((g) => g.name === DEX)!.id, LOTTIES_CORNER);
+      const weak = raidPartyFor(s, 'blenders').slice(0, 1).map((f) => ({ ...f, hit: 1, chop: 1, hp: 1, nerve: 1 }));
+      const beaten = fightRaid(s, { id: 'beaten', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: weak, detected: true, eta: '23:00' }, true);
+      expect(beaten.outcome).toBe('repelled');
+      expect(mayRaidYou(s, 'blenders')).toBe(false);
+      for (let night = D + 1; night <= D + R + 1; night++) expect([difficulty, night - D, raidedOn(s, night)]).toEqual([difficulty, night - D, night === D + R + 1]);
+    }
+  });
+
 });

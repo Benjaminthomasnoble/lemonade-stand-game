@@ -27,8 +27,9 @@ export const TUTORIAL_CALL = 'Bro. Your stand is in my sun.';
 
 // ---------- how many, and who ----------
 
-/** A rival may raid you tonight: it's still in and isn't backing off after a raid of its you beat. */
-export const mayRaidYou = (s: GameState, id: RivalId) => s.rivals[id].alive && s.rivals[id].respectUntil <= s.day + 1;
+/** A rival may raid you tonight: it's still in and isn't backing off after a raid of its you beat (beaten on night D,
+ * it sits out nights D+1 to D+R and may come again on D+R+1, R the difficulty's Respect days). */
+export const mayRaidYou = (s: GameState, id: RivalId) => s.rivals[id].alive && s.rivals[id].respectUntil <= s.day;
 
 /** Raids on you per week right now: by Threat (1 / 2 / 3 / 4 / 6), × the difficulty (Laid Back ×0.5, Cutthroat ×1.5,
  * Custom's slider). */

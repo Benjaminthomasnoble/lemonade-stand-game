@@ -5,6 +5,7 @@ import {
 } from '../sim/economy.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
+import * as A from './clay.ts';
 import { span, tripLines, tripNote } from './trips.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
@@ -81,6 +82,30 @@ describe('the raid warning card', () => {
     const { s } = warned();
     while (s.minute < 22 * 60) nightStep(s);
     expect(alertCards(s).some((c) => c.includes('raid-warning'))).toBe(false);
+  });
+
+  it('on the tutorial raid Dex is among the shields, wherever he is posted', () => {
+    const { s } = warned({ tutorial: true });
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    const mark = 'M32 6l20 8v14c0 13-8 23-20 28-12-5-20-15-20-28V14z'; // the shield's outline (clay.ts shieldSVG)
+    expect(A.shieldSVG()).toContain(mark);
+    const shields = (c: string) => c.split(mark).length - 1;
+    expect(s.guards.filter((g) => g.post === LOTTIES_CORNER)).toHaveLength(0);
+    expect(shields(alertCards(s)[0])).toBe(1);
+  });
+});
+
+describe('a sold-out card', () => {
+  it('offers Restock now only while the stands are open; after closing it keeps Go There', () => {
+    const s = newGame(5);
+    openStands(s);
+    alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
+    expect(alertCards(s)[0]).toContain('data-action="restockNow"');
+    for (const phase of ['report', 'night'] as const) {
+      s.phase = phase;
+      expect(alertCards(s)[0]).not.toContain('restockNow');
+      expect(alertCards(s)[0]).toContain('data-action="goto"');
+    }
   });
 });
 

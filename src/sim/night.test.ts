@@ -6,6 +6,7 @@ import {
   QUIET_NIGHT_SPEED, quietNight, raidNotice, raidPartyFor, raidPauses, raidStart, raidTargets, REAL_SECONDS_PER_MINUTE,
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
+  autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, TUTORIAL_CALL, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
@@ -171,9 +172,22 @@ describe('the night on the clock', () => {
     const r = raidOn(n, CLOSE + 1, CLOSE + 60);
     nightStep(n);
     expect(r.warned).toBe(true);
-    expect(secondsPerMinute(n, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the warning ends the quiet
+    // From the warning to the fight the clock runs at fight speed, whatever the speed or the quiet-night switch.
+    expect(secondsPerMinute(n, 1, { quiet: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
+    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
     while (r.at! - n.minute > raidNotice(n)) nightStep(n);
-    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the last minutes of notice
+    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the last minutes of notice too
+    while (n.raids.includes(r)) nightStep(n);
+    expect(secondsPerMinute(n, 1) * 60).toBeCloseTo(8); // fought: night speed again
+  });
+
+  it("a detected raid's whole countdown runs at fight speed: its ETA in game minutes is that many real seconds", () => {
+    const s = evening(15, { difficulty: 'cutthroat' }); // no auto-pause on Cutthroat
+    const r = raidOn(s, CLOSE + 30, CLOSE + 30 + 105);
+    startNight(s);
+    let real = 0;
+    while (s.raids.includes(r)) { if (r.warned) real += secondsPerMinute(s, 3, { quiet: true }); nightStep(s); }
+    expect(real).toBeCloseTo(105 * FIGHT_SECONDS_PER_GAME_MINUTE); // 105 real seconds, at 3× and on a quiet night
   });
 
   it('a quiet night lasts until an alert comes in, and is quiet again once the raid is fought or the card put away', () => {
@@ -187,7 +201,7 @@ describe('the night on the clock', () => {
     const r = raidOn(s, CLOSE + 30, CLOSE + 90);
     while (!r.warned) nightStep(s);
     expect(quietNight(s)).toBe(false);
-    expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE);
+    expect(secondsPerMinute(s, 1, { quiet: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the countdown to the fight
     while (s.raids.includes(r)) nightStep(s);
     expect(quietNight(s)).toBe(true); // fought: the 3× comes back
     expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / QUIET_NIGHT_SPEED);
@@ -220,6 +234,44 @@ describe('the alert feed', () => {
     expect(s.alerts).toEqual([]);
   });
 
+  it("Restock now buys while the stands are open; after closing it, and Auto-Restock, return and buy nothing", () => {
+    const empty = (s: GameState) => { const inv = s.plots[LOTTIES_CORNER].stand!.inventory; inv.lemons = []; inv.sugar = 0; inv.ice = 0; };
+    const s = newGame(21);
+    s.cash = 500;
+    openStand(s);
+    empty(s);
+    alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
+    expect(restockNow(s, LOTTIES_CORNER)).toBe(true);
+    expect(s.cash).toBeLessThan(500);
+    expect(servingsAvailable(s.plots[LOTTIES_CORNER].stand!)).toBeGreaterThan(0);
+    expect(s.alerts!.some((a) => a.kind === 'soldout')).toBe(false);
+    for (const phase of ['report', 'night'] as const) {
+      empty(s);
+      alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
+      s.phase = phase;
+      s.minute = phase === 'report' ? CLOSE : CLOSE + 90;
+      const cash = s.cash;
+      expect(restockNow(s, LOTTIES_CORNER)).toBe(false);
+      autoRestock(s, LOTTIES_CORNER); // returns: no spinning on a buy that can't happen
+      expect(s.cash).toBe(cash);
+      expect(servingsAvailable(s.plots[LOTTIES_CORNER].stand!)).toBe(0);
+      expect(s.alerts!.filter((a) => a.kind === 'soldout')).toHaveLength(1); // the card stays (it offers no Restock now)
+      dismissAlert(s, s.alerts!.find((a) => a.kind === 'soldout')!.id);
+      s.phase = 'open';
+    }
+  });
+
+  it('with no cash Restock now buys nothing and the card stays', () => {
+    const s = newGame(22);
+    openStand(s);
+    const inv = s.plots[LOTTIES_CORNER].stand!.inventory;
+    inv.lemons = []; inv.sugar = 0; inv.ice = 0;
+    s.cash = 0;
+    alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
+    expect(restockNow(s, LOTTIES_CORNER)).toBe(false);
+    expect(s.alerts).toHaveLength(1);
+  });
+
   it('a raid card goes when its raid hits', () => {
     const s = evening(10);
     raidOn(s, 21 * 60, 22 * 60);
@@ -228,6 +280,58 @@ describe('the alert feed', () => {
     expect(s.alerts).toHaveLength(1);
     while (s.minute < 22 * 60) nightStep(s);
     expect(s.alerts).toEqual([]);
+  });
+});
+
+describe('the tutorial raid', () => {
+  /** The Evening of Day 15 (the night after the Summer Fair): Dex on the Corner, a second stand on Maple Row. */
+  function fairNight(seed: number): { s: GameState; side: string } {
+    const s = evening(seed);
+    s.day = TUTORIAL_RAID_DAY;
+    s.rank = 3; // Threat 2: a normal raid could be a Smash
+    welcomeDex(s);
+    const side = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!.id;
+    s.plots[side] = { ...s.plots[side], owner: 'player', stand: newStand(1) };
+    postGuard(s, s.guards.find((g) => g.name === DEX)!.id, LOTTIES_CORNER);
+    planNight(s);
+    return { s, side };
+  }
+  const tutorialRaid = (s: GameState) => s.raids.find((r) => r.tutorial)!;
+  const dexOf = (s: GameState) => s.guards.find((g) => g.name === DEX);
+
+  it("Brock's Smoothie Bros come, announced, for a Shakedown, and Brock calls first", () => {
+    const { s } = fairNight(1);
+    const r = tutorialRaid(s);
+    expect(r).toMatchObject({ attacker: 'blenders', target: LOTTIES_CORNER, objective: 'shakedown', detected: true, tutorial: true });
+    expect(r.party).toHaveLength(2);
+    expect(s.news).toContain(`Brock: "${TUTORIAL_CALL}"`);
+  });
+
+  it('bounces wherever Dex is: moved off after the warning, out of action, or let go, with no fence', () => {
+    const moves: ((s: GameState, side: string) => void)[] = [
+      (s, side) => postGuard(s, dexOf(s)!.id, side), // the plot card's +shield, after the warning
+      (s) => postGuard(s, dexOf(s)!.id, null),
+      (s) => { dexOf(s)!.outUntil = s.day + 2; }, // knocked out
+      (s) => fireGuard(s, dexOf(s)!.id),
+    ];
+    let n = 0;
+    for (const move of moves) {
+      for (let seed = 1; seed <= 10; seed++) {
+        const { s, side } = fairNight(seed);
+        const r = tutorialRaid(s);
+        startNight(s);
+        while (!r.warned) nightStep(s);
+        move(s, side);
+        while (s.raids.includes(r)) nightStep(s);
+        const b = s.battles.find((x) => x.defender === 'player')!;
+        expect(b.outcome).toBe('repelled');
+        expect(b.loot).toBe(0);
+        expect(b.defenders.some((f) => f.name === DEX)).toBe(true);
+        expect(s.plots[LOTTIES_CORNER].stand!.wrecked).toBeFalsy();
+        n++;
+      }
+    }
+    expect(n).toBe(40);
   });
 });
 

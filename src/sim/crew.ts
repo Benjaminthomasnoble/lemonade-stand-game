@@ -29,6 +29,7 @@ import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
 import { bugleFight } from './media.ts';
 import { scoutingAtDawn, scoutingToday } from './scouting.ts';
+import { TUTORIAL_CALL, tutorialBounce, withDex } from './threat.ts';
 
 export interface Guard {
   id: string;
@@ -67,6 +68,7 @@ export interface Raid {
   order?: string; // a Delivery Raid: the VIP order it's after
   bell?: { id: string; at: number }[]; // Ring the Bell (reinforce.ts): the reserve on its way, and the minute each gets there
   sabotage?: boolean; // fought as a Shakedown, but the 10 minutes go on spoiling the stock instead of the till
+  tutorial?: boolean; // the scripted first raid on you: Dex is always there, and it always bounces (threat.ts)
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
@@ -622,7 +624,7 @@ function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<str
 function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng): BattleInput {
   const ps = s.plots[raid.target];
   return {
-    attackers, defenders: defendersAt(s, raid.target, night, away, rng),
+    attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng), night),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: armedGadgets(ps),
     standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
   };
@@ -811,11 +813,13 @@ export function planNight(s: GameState): void {
         rival = s.rivals.blenders.alive ? 'blenders' : rival;
         party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
         detected = true;
+        s.news.push(`Brock: "${TUTORIAL_CALL}"`); // story: phoneCall(s, 'blenders', TUTORIAL_CALL) once the phone lands
       }
-      const objective: Objective = nextRandom(rng) < 0.5 || threat === 1 ? 'shakedown' : 'smash';
+      const roll = nextRandom(rng);
+      const objective: Objective = tutorial || roll < 0.5 || threat === 1 ? 'shakedown' : 'smash'; // the tutorial raid is a Threat 1 Shakedown
       const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
       const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
-      s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: hhmm(at), leave, at });
+      s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: target.id, objective, party, detected, eta: hhmm(at), leave, at, ...(tutorial ? { tutorial: true } : {}) });
     }
   }
   // Rivals also raid each other (about 30% of their raids at Threat 1–3).
@@ -864,6 +868,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   const res = fought?.res ?? runBattle(input, rng);
   s.seed = rng.seed;
   let loot = 0;
+  if (raid.tutorial) tutorialBounce(input, res); // the first raid on you always bounces off the fence and Dex (threat.ts)
 
   ps.defense.fenceHp = res.fenceHpLeft;
   if (input.attackers.length) defensesAfterRaid(ps); // won or lost: the fence needs its overnight repair, a Slick its reset

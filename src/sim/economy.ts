@@ -51,6 +51,7 @@ export * from './vip.ts';
 export * from './rivals.ts';
 export * from './modes.ts';
 export * from './night.ts';
+export * from './threat.ts';
 export * from './damage.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
@@ -581,7 +582,7 @@ export function autoRestock(s: GameState, plotId: string): void {
   const pitchers = Math.ceil(want / CUPS_PER_PITCHER);
   const targets: Record<SupplyId, number> = { lemons: pitchers * n.lemons, sugar: pitchers * n.sugar, ice: iceMachineOn(s, plotId) ? 0 : want * n.icePerCup }; // world: the ice machine
   for (const id of Object.keys(targets) as SupplyId[]) {
-    while (stock(st, id) < targets[id] && maxPacks(s, st, id) > 0) buySupply(s, id, 1, st);
+    while (stock(st, id) < targets[id] && maxPacks(s, st, id) > 0) { if (!buySupply(s, id, 1, st)) break; }
   }
 }
 

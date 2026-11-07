@@ -17,7 +17,7 @@ import {
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
-import { servingsAvailable } from './economy.ts';
+import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
@@ -51,8 +51,8 @@ export const raidNotice = (s: GameState) => difficulty(s).notice;
 
 /** Real seconds per game minute right now; Infinity while the clock stands still.
  * Business hours run at about 18 real seconds a game hour and the night at 8, both divided by the speed. A brawl
- * on screen, or a raid warning in its last minutes of notice, slows the clock to fight speed (1 game minute per
- * real second) at any speed. Quiet nights (a setting) run at 3× until a warning comes in. */
+ * on screen, or a raid warning counting down to its fight, slows the clock to fight speed (1 game minute per real
+ * second) at any speed. Quiet nights (a setting) run at 3× until a warning comes in. */
 export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: boolean; quiet?: boolean } = {}): number {
   if (speed <= 0 || (s.phase !== 'open' && s.phase !== 'night')) return Infinity;
   if (o.fighting || countingDown(s)) return FIGHT_SECONDS_PER_GAME_MINUTE;
@@ -60,8 +60,10 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
   return NIGHT_REAL_SECONDS_PER_MINUTE / (o.quiet && quietNight(s) ? QUIET_NIGHT_SPEED : speed);
 }
 
-/** A raid on you is warned and inside its last minutes of notice: the clock runs at fight speed. */
-export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r) && (r.at ?? 0) - s.minute <= raidNotice(s));
+/** A raid on you is warned and not fought yet: the clock runs at fight speed from the warning until the fight starts
+ * (a detected raid's whole ETA; Cutthroat's 5-minute notice lasts 5 real seconds). With auto-pause on, the notice
+ * waits for you first. */
+export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r));
 /** Nothing has come in tonight: no warning is out and no card from the night is still on the feed, so a quiet night
  * runs at 3×. Once the raid is fought (its card goes) the night is quiet again. */
 export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => r.warned && onYou(s, r))
@@ -288,6 +290,18 @@ export function onTheClock(s: GameState, events: SimEvent[] = []): SimEvent[] {
     ev.push({ type: 'alert', alert: alert(s, { kind: 'soldout', text: `Sold out at ${p.name}!`, plot: p.id }) });
   }
   return ev;
+}
+
+/** A sold-out card's Restock now: Lottie buys what the stand needs for the day, while the stands are open (supplies
+ * can't be bought once they close). The card goes once there's something to sell again; with nothing bought (no
+ * cash, no room) it stays. */
+export function restockNow(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  if (s.phase !== 'open' || ps?.owner !== 'player' || !ps.stand || ps.stand.wrecked) return false;
+  autoRestock(s, plotId);
+  if (servingsAvailable(ps.stand) <= 0) return false;
+  s.alerts = (s.alerts ?? []).filter((a) => !(a.kind === 'soldout' && a.plot === plotId));
+  return true;
 }
 
 /** Evening ends: the night begins on the clock (stands are closed; it runs to 07:00). */

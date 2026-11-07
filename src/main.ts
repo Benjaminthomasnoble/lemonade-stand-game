@@ -7,7 +7,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, autoRestock, dismissAlert, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
@@ -540,14 +540,7 @@ async function main() {
         if (vipPaused === a.id) resume();
         break;
       case 'watch': { const card = (state.alerts ?? []).find((x) => x.id === a.id); if (card) watchVip(card); break; }
-      case 'restockNow': {
-        const ps = state.plots[a.plot];
-        if (ps?.owner === 'player' && ps.stand && !ps.stand.wrecked) {
-          autoRestock(state, a.plot);
-          state.alerts = (state.alerts ?? []).filter((x) => !(x.kind === 'soldout' && x.plot === a.plot));
-        }
-        break;
-      }
+      case 'restockNow': restockNow(state, a.plot); break; // business hours only (the card hides it after closing)
       case 'options': hud.optionsOpen = !hud.optionsOpen; hud.menu = null; hud.remap = null; break;
       case 'menu': { // a menu from its meter, its key or the corner's list (none before its system unlocks)
         if (hud.setup || outcomeUp()) break;

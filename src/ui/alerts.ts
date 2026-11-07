@@ -4,7 +4,7 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  canBuyPerimeter, clockText, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
+  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -37,7 +37,8 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const seen = towerSees(s, r.target) && r.party?.length;
   // The makeup a Watchtower sees: what they're after, then each raider's weapon (six shown, the rest counted).
   const them = seen ? `${r.objective === 'smash' ? ICON.boom() : ICON.bag()}${r.party!.slice(0, 6).map((f) => ICON.weapon(f.weapon)).join('')}${r.party!.length > 6 ? `<i>+${r.party!.length - 6}</i>` : ''}` : '';
-  const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length;
+  const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length
+    + (r.tutorial && !s.guards.some((g) => g.name === DEX && g.post === r.target && guardReady(s, g)) ? 1 : 0); // Dex always meets the first raid
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
   const after = r.delivery ? 'the cargo' : r.sabotage ? 'the stock' : r.objective === 'smash' ? 'a smash' : 'the till'; // crew: Sabotage spoils the stock
   const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
@@ -58,8 +59,9 @@ function warning(s: GameState, a: Alert, r: Raid): string {
 function card(s: GameState, a: Alert): string {
   const vip = a.kind === 'vip' || a.kind === 'pickup';
   const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
-  // The one action: Restock now on a sold-out stand; Watch on a VIP card (a first arrival's show waits for it).
-  const act = a.kind === 'soldout' && a.plot && taught(s, 'market') ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go') // the Market opens on Day 3
+  // The one action: Restock now on a sold-out stand while the stands are open (no supplies after closing) and once the
+  // Market opens (Day 3's lesson); Watch on a VIP card (a first arrival's show waits for it).
+  const act = a.kind === 'soldout' && a.plot && s.phase === 'open' && taught(s, 'market') ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')
     : vip && a.scene ? btn('watch', `${A.glyph('play')} Watch`, `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
   return `<div class="cl-ticket" title="${esc(a.text)}">${icon}<b>${esc(a.text.replace(/!$/, ''))}</b>
     <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', A.glyph('close'), `data-id="${a.id}" title="Dismiss" aria-label="Dismiss"`, 'tiny ghost')}</span></div>`;

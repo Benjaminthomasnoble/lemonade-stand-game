@@ -5,7 +5,7 @@ import {
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
-  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -403,6 +403,28 @@ describe('review rules', () => {
     expect(canTruce(s, 'coldbrew').ok).toBe(false);
     s.day += 14;
     expect(canTruce(s, 'coldbrew').ok).toBe(true);
+  });
+
+  it('a helicopter paid mid-day counts in the day\'s sales, and so toward outselling a rival', () => {
+    const s = rich(6);
+    for (const id of Object.keys(FACTIONS) as RivalId[]) budgetOf(s, id).strike = 0; // nobody can pay for a Delivery Raid
+    const field = PLOTS.find((p) => p.type === 'field')!.id;
+    s.plots[field] = { ...s.plots[field], owner: 'player', garrison: 0 };
+    expect(buildFacility(s, field, 'helipad')).toBe(true);
+    buildFacility(s, field, 'helipad'); // the Helipad tier loads 5,000 a day, so the order goes in one trip
+    s.bottles = 5000;
+    const order: Order = { id: 'vip', tier: 'heli', client: 'test', qty: 4000, pay: 15000, due: s.day, expires: s.day, plot: field, accepted: true };
+    openStand(s);
+    s.minute = PICKUP_MINUTE.heli;
+    expect(deliver(s, order)).toMatchObject({ ok: true });
+    simulateRestOfDay(s);
+    const day = s.history.at(-1)!;
+    const stands = playerStands(s).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
+    expect(day.revenue).toBeCloseTo(stands + 15000, 2); // the pickup survives closing
+    for (const id of Object.keys(FACTIONS) as RivalId[]) {
+      const theirs = PLOTS.filter((p) => s.plots[p.id].owner === id && s.plots[p.id].stand).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
+      expect(s.rivals[id].outsoldDays).toBe(day.revenue >= 2 * theirs ? 1 : 0);
+    }
   });
 
   it('outselling a rival 2x for 7 days weakens them', () => {

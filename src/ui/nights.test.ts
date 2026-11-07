@@ -20,6 +20,7 @@ import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
 import { callBigSqueeze, newStand, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
 import { squeezePanel } from './squeeze.ts';
+import { bugleSheet } from './bugle.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -229,16 +230,17 @@ describe('the ten menus', () => {
     expect(menuScreen(s, 'crew', parts())).toContain('CREW');
   });
 
-  it("the Bugle prints the forecast, the market, today's events and the week's calendar, each with district and length", () => {
+  it("the Bugle is world's front page, then the festivals on today, each with district and length, and the offers waiting", () => {
     const s = newGame(5);
     s.day = 5; // the Surf Contest's second day; the Summer Fair and Founders' Day come on Day 8
     const html = menuScreen(s, 'bugle', parts());
-    expect(html).toContain('HOT ONE!');
-    expect(html).toContain('title="Market prices a pack today"');
-    expect(html).toContain(`Today: Surf Contest, ${DISTRICT_BY_ID.boardwalk.name}, 3 days`);
+    expect(html).toContain('data-testid="menu-bugle"');
+    expect(html).toContain(bugleSheet(s)); // headline, briefs, forecast, the Market, the week ahead (src/ui/bugle.ts)
     expect(html).toContain(`Days 8-14: Summer Fair, ${DISTRICT_BY_ID.oldtown.name}`);
     expect(html).toContain(`Day 8: Founders' Day, ${DISTRICT_BY_ID.downtown.name}`);
-    expect(html.match(/data-testid="bugle-calendar"/g)).toHaveLength(3);
+    expect(html.match(/data-testid="bugle-today"/g)).toHaveLength(1);
+    expect(html).toContain(`Today: Surf Contest, ${DISTRICT_BY_ID.boardwalk.name}, 3 days`);
+    expect(html).toContain('data-testid="menu-done"');
   });
 
   it('Options lists every key, remappable, with the screens, captions and °C switches', () => {

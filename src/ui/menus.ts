@@ -5,18 +5,20 @@
 // and none shows before its system unlocks. Most are full-screen paper, which
 // pauses the clock (Options); Lottie's Goals is her sticky note and the Stand
 // panel is the stand's own card. Clicks go through the HUD's one listener.
-// Until other lanes land their screens, the Planner and Registry list what
-// they cover and open each one's plot card on the map; the Corkboard is the
-// rivals lane's board (corkboard.ts); Rank and Perks shows the rank ladder
-// (Lottie's tips join it later).
+// The Morning Bugle is world's front page (src/ui/bugle.ts) and the Corkboard
+// the rivals lane's board (corkboard.ts). Until other lanes land their
+// screens, the Planner and Registry list what they cover and open each one's
+// plot card on the map; Rank and Perks shows the rank ladder (Lottie's tips
+// join it later).
 import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals, siegeNight, siegeTargets,
-  type FestivalId, type GameState, type Goal, type RivalId, type SupplyId,
+  peaceful, plotPrice, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
+  type FestivalId, type GameState, type Goal, type RivalId,
 } from '../sim/economy.ts';
-import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
+import { MENU_IDS, type MenuId, type Options } from '../settings.ts';
 import { keyName } from './keys.ts';
+import { bugleSheet } from './bugle.ts';
 import { corkboardBody } from './corkboard.ts';
 import { matchButton, orderNote, orderWhen, recipeOf } from './orders.ts';
 import { registryOpen } from './registry.ts';
@@ -58,7 +60,7 @@ export function menuUnlocked(s: GameState, id: MenuId): boolean {
 
 /** What the HUD hands over for the menus it draws itself. */
 export interface MenuParts {
-  head: [string, string]; // today's Bugle headline
+  head: [string, string]; // today's Bugle headline (the Bugle menu prints world's front page, which carries it too)
   goals: Goal[];
   crew: () => string; // the crew roster and Hiring Hall (hud.ts)
   options: Options;
@@ -135,21 +137,13 @@ function rank(s: GameState): string {
   return sheet('rank', 'Rank and Perks', `${row(`<span class="cl-note" title="Your best: ${whole(s.peakScore)}">Success Score ${whole(ss)}</span>`)}<table class="cl-books">${rows}</table>`);
 }
 
-function bugle(s: GameState, p: MenuParts): string {
-  const w = s.forecast;
-  const pack = (id: SupplyId) => s.market[id] * SUPPLIES[id].pack;
-  const market = (Object.keys(SUPPLIES) as SupplyId[]).map((id) => `${SUPPLIES[id].label} ${pack(id) < 1 ? `${Math.round(pack(id) * 100)}¢` : `$${pack(id).toFixed(2)}`}`).join(' · ');
-  const fights = s.battles.filter((b) => b.day === s.day - 1).length;
-  // Today's events and the week's calendar, each with its district and length (spec: the Bugle prints them).
+/** The Morning Bugle: world's front page (headline, briefs, events, forecast, Market, the week ahead; celsius: the °C
+ * option), then the festivals on today, which its calendar of the days ahead leaves out, and the offers waiting. */
+function bugle(s: GameState, celsius: boolean): string {
   const where = (id: FestivalId) => DISTRICT_BY_ID[FESTIVALS[id].district].name;
   const today = festivalsOn(s.day).map((id) => { const f = FESTIVALS[id], n = f.to - f.from + 1; return `Today: ${f.name}, ${where(id)}${n > 1 ? `, ${n} days` : ''}`; });
-  const week = upcomingFestivals(s).map((x) => `${x.from === x.to ? `Day ${x.from}` : `Days ${x.from}-${x.to}`}: ${FESTIVALS[x.id].name}, ${where(x.id)}`);
-  return sheet('bugle', 'The Citrine Bay Bugle', `${row(`<span class="cl-note">Morning edition · Day ${s.day}</span>`)}
-    <span class="cl-tape cl-big">${esc(p.head[0])}</span><span class="cl-tape cl-sub">${esc(p.head[1])}</span>
-    ${row(`<span class="cl-note" title="The forecast is right about 4 days in 5">${WEATHER[w.kind].label}, ${tempText(p.options, w.temp)}</span>`)}
-    ${row(`<span class="cl-note" title="Market prices a pack today">${market}</span>`)}
-    ${[...today, ...week].map((line) => row(`<span class="cl-note" data-testid="bugle-calendar">${esc(line)}</span>`)).join('')}
-    ${fights ? row(`<span class="cl-note">${fights} fight${fights === 1 ? '' : 's'} last night</span>`) : ''}
+  return sheet('bugle', 'Morning Bugle', `${bugleSheet(s, celsius)}
+    ${today.map((line) => row(`<span class="cl-note" data-testid="bugle-today">${esc(line)}</span>`)).join('')}
     ${s.offers.length ? row(`<button class="cl-b go" data-action="menu" data-menu="orders">${s.offers.length} offer${s.offers.length === 1 ? '' : 's'} waiting</button>`) : ''}`);
 }
 
@@ -178,7 +172,7 @@ export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
     case 'ledger': return ledger(s);
     case 'orders': return orders(s);
     case 'rank': return rank(s);
-    case 'bugle': return bugle(s, p);
+    case 'bugle': return bugle(s, p.options.celsius);
     case 'crew': return sheet('crew', 'Crew roster', p.crew());
     case 'planner': return planner(s);
     case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', siegePins(s) + corkboardBody(s));

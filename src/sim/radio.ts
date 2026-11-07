@@ -60,10 +60,11 @@ export function blitzingToday(s: GameState): RivalId[] {
   return RIVALS.filter((r) => on.has(r) && s.rivals[r]?.alive);
 }
 
-/** eliminate(), on every route: the rival's jingle retires. The next morning show (today's, if it hasn't aired yet) opens
- * with a second of silence for it. */
-export function retireJingle(s: GameState, rival: RivalId): void {
-  (worldOf(s).jinglesOff ??= {})[rival] = s.phase === 'prep' ? s.day : s.day + 1;
+/** eliminate(), on every route: the rival's jingle retires, and the next morning show still to air opens with a second of
+ * silence for it. Gone bust: settled at dawn, before the show, so today's. Bought out or HQ taken: those are Morning Prep
+ * moves, made while today's show is on the air, so tomorrow's. */
+export function retireJingle(s: GameState, rival: RivalId, how: 'buyout' | 'hq' | 'bankrupt'): void {
+  (worldOf(s).jinglesOff ??= {})[rival] = how === 'bankrupt' ? s.day : s.day + 1;
 }
 
 /** The top of the morning show: a second of silence for each jingle retired since the last show, then the jingle of each

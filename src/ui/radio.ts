@@ -24,11 +24,11 @@ export function toggleSoundtrack(): void {
   try { localStorage.setItem(KEY, allDay ? '1' : '0'); } catch { /* blocked storage: this session only */ }
 }
 
-/** The day's lines, worked out once a game minute (the HUD draws every frame). */
-let memo: { key: string; lines: string[] } = { key: '', lines: [] };
+/** The day's lines, worked out once a game minute (the HUD draws every frame), and afresh for a new or loaded game. */
+let memo: { s?: GameState; key: string; lines: string[] } = { key: '', lines: [] };
 function lines(s: GameState, celsius: boolean): string[] {
   const key = [s.day, s.phase, s.minute, s.brandTier, s.world?.breaks?.length ?? 0, s.world?.fights?.length ?? 0, s.world?.events?.on.length ?? 0, celsius].join('|');
-  if (memo.key !== key) memo = { key, lines: (s.phase === 'prep' ? morningShow(s, celsius) : airedToday(s, celsius).slice(-1)).map((l) => l.text) };
+  if (memo.s !== s || memo.key !== key) memo = { s, key, lines: (s.phase === 'prep' ? morningShow(s, celsius) : airedToday(s, celsius).slice(-1)).map((l) => l.text) };
   return memo.lines;
 }
 

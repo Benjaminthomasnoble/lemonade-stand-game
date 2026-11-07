@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AD_BLITZ, airedToday, BANKRUPT_DAYS, blitzingToday, BRAND_TIERS, budgetOf, eliminate, nearbyPlots, newStand, schemesAtDawn, startScheme, RIVAL_JINGLES, sleepUntilDawn, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
+  AD_BLITZ, airedToday, BANKRUPT_DAYS, blitzingToday, BRAND_TIERS, budgetOf, factionBuyout, nearbyPlots, newStand, ownedPlots, schemesAtDawn, startScheme, RIVAL_JINGLES, sleepUntilDawn, bugleNews, callFight, CLOSE, eventsOf, FACTIONS, inCelsius, JINGLE, LOTTIES_CORNER, morningShow, newGame, onAir, OPEN, openStand,
   PLOT_BY_ID, PLOTS, RADIO_STAND_LEVEL, radioOn, radioToday, sayNumber, SIGN_OFF, simulateRestOfDay, STATION_IDS, tickMinute, toCelsius, weatherTalk,
   type FightNote, type GameState, type RivalId, type TasteOffResult,
 } from './economy.ts';
@@ -190,20 +190,36 @@ describe('101.5 The Squeeze', () => {
       'The Sourwood Family\'s jingle: "Some families are simply better."',
       'The Boardwalk Blenders\' jingle: "Smoothies so big they need a lifeguard!"',
     ]);
-    // The Blenders go out after today's show (their HQ falls tonight): tomorrow's show opens with a second of silence, once,
-    // and their jingle never plays again.
+    // Lottie buys the Blenders out at this Morning Prep, with today's show already on the air (the HUD ticket has it): the
+    // silence opens tomorrow's show, once, and their jingle never plays again.
+    const silence = "[One second of silence: The Boardwalk Blenders' jingle is off the air for good.]";
+    const onTicket = () => {
+      const raw = /data-show="([^"]*)"/.exec(radioTicket(s))?.[1] ?? '[]';
+      return JSON.parse(raw.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&')) as string[];
+    };
+    expect(onTicket().join(' ')).toContain('lifeguard');
+    s.rank = 7;
+    s.cash = 50_000_000;
+    for (const p of ownedPlots(s, 'blenders').filter((x) => x.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null }; // Weakened
+    expect(s.phase).toBe('prep');
+    expect(factionBuyout(s, 'blenders')).toBe(true);
+    expect(morningShow(s).some((l) => l.kind === 'silence')).toBe(false); // today's has aired its top
     openStand(s);
     simulateRestOfDay(s);
-    eliminate(s, 'blenders', 'hq');
     const sleep = () => { s.raids = []; s.cash = Math.max(s.cash, 1000); if (!sleepUntilDawn(s)) throw new Error('no dawn'); };
     sleep();
     blitz('blenders', 'sourwood'); // a blitz of theirs still on the books plays no jingle
-    expect(morningShow(s)[0]).toMatchObject({ kind: 'silence', text: "[One second of silence: The Boardwalk Blenders' jingle is off the air for good.]" });
+    expect(morningShow(s)[0]).toMatchObject({ kind: 'silence', text: silence });
+    expect(morningShow(s).filter((l) => l.kind === 'silence')).toHaveLength(1);
     expect(show()[1]).toBe('The Sourwood Family\'s jingle: "Some families are simply better."');
     expect(show().join(' ')).not.toContain('lifeguard');
+    expect(onTicket().filter((l) => l === silence)).toHaveLength(1); // the HUD ticket opens with it too
+    expect(onTicket()[0]).toBe(silence);
+    expect(radioTicket(s)).toContain(`data-testid="radio-line">${silence}<`);
     s.phase = 'report';
     sleep();
     expect(morningShow(s).some((l) => l.kind === 'silence')).toBe(false);
+    expect(onTicket()).not.toContain(silence);
     // Gone bust at dawn, before the show airs: the silence opens that morning's show.
     blitz();
     s.rivals.coldbrew.cash = -1e9;

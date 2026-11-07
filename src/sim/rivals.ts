@@ -357,7 +357,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   }
   if (how === 'bankrupt') s.news.push(`${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.`);
   recoverPage(s, id); // world: their recipe page comes home, on every route
-  retireJingle(s, id); // world: 101.5 retires their jingle with a second of silence
+  retireJingle(s, id, how); // world: 101.5 retires their jingle with a second of silence
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)
   startFireSale(s, id);
   checkVictory(s);

@@ -38,18 +38,21 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
 
 /** Cash a rival keeps out of its Grow / Guard / Strike buckets: this many days of upkeep and wages (placeholder: spec gap). */
 export const RIVAL_RESERVE_DAYS = 2;
-/** A rival hires a garrison henchman for this (the spec gives no rival hire fee: the build's own number). */
+/**
+ * A rival hires a garrison henchman for this, out of its Guard bucket (the spec gives no rival hire fee: the build's
+ * own number), and only while Guard's share of what its trade nets each day covers the new man's wage.
+ */
 export const RIVAL_HIRE_FEE = 300;
-/** ...and only with this many days of the new hire's wage also in the Guard bucket, which pays henchmen's wages (placeholder). */
-export const RIVAL_WAGE_RUNWAY = 7;
 /** On this share of dawns after Day 3 a rival with the Grow money buys a plot near its turf (the build's own pacing). */
 export const RIVAL_LAND_CHANCE = 0.25;
 /**
  * Rival cash grows about 1% a day from trade (balance tables). Over its first `days` dawns of trading, each rival's
- * share of its stands' margin is set so its opening stands earn about `share` of its starting cash a day after
- * upkeep (the rest is overheads), never more than the full margin you'd keep and never under `floor`.
+ * stands' margin is scaled so its opening stands net about `share` of its starting cash on an average day of the
+ * year (through the seasons and their weather, capped by each stand's stock), after their upkeep and its henchmen's
+ * wages: a small gang carries overheads (under 1), an old-money family's stands front a bigger trade (over 1, on the
+ * opening stands at their opening level only). The scale stays within `floor` and `ceiling` (placeholders: spec gap).
  */
-export const RIVAL_TRADE = { share: 0.01, days: 7, floor: 0.02 };
+export const RIVAL_TRADE = { share: 0.01, days: 7, floor: 0.02, ceiling: 25 };
 /** Every this many days each rival stand is owed one level, up to the faction's cap (balance tables: every 30 days). */
 export const RIVAL_UPGRADE_DAYS = 30;
 /** A raid costs the rival this many nights of wages for each henchman it sends (placeholder: spec gap). */

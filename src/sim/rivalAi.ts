@@ -5,7 +5,8 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, SEASON_DEMAND, SEASONS, STAND_LEVELS, type RivalId,
+  BOARDWALK_SEASON, CUPS_PER_PITCHER, FACTIONS, GUARD_WAGE, HENCHMEN, PERIMETERS, SEASON_DEMAND, SEASON_WEATHER, SEASONS, STAND_LEVELS, WEATHER,
+  type RivalId, type Season, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -13,15 +14,21 @@ import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
   ATTENTION, GRUDGE, inTruce, RAID_WAGE_NIGHTS, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
-  RIVAL_WAGE_RUNWAY,
 } from './rivals.ts';
 import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
 export interface Budget { grow: number; guard: number; strike: number }
-/** A rival's trade calibration: its first week's margin and upkeep, the share of margin it keeps, and yesterday's trade income. */
-export interface TradeBooks { base: number; days: number; margin: number; upkeep: number; scale: number; last: number }
+/**
+ * A rival's trade calibration: its starting cash, the calibration days so far, its opening stands' margin on an
+ * average day of the year, the upkeep and wages over those days, the scale on its stands' margin, yesterday's trade
+ * income after upkeep and wages, and each opening stand's first week (by plot id).
+ */
+export interface TradeBooks {
+  base: number; days: number; margin: number; upkeep: number; wages?: number; scale: number; last: number;
+  opening?: Record<string, OpeningBooks>;
+}
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const BUCKETS: Bucket[] = ['grow', 'guard', 'strike'];
@@ -34,14 +41,14 @@ export function budgetOf(s: GameState, id: RivalId): Budget {
   return (s.rivals[id].budget ??= { grow: 0, guard: 0, strike: 0 });
 }
 
-/** What the rival's stands cost to run each day: upkeep, charged at closing (henchmen's wages come out of Guard). */
+/** What the rival pays to run each day: its stands' upkeep (charged at closing) and its henchmen's wages (paid at dawn). */
 export function runningCosts(s: GameState, id: RivalId): number {
   let total = 0;
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.owner === id && ps.stand) total += STAND_LEVELS[ps.stand.level - 1].upkeep;
   }
-  return total;
+  return total + wageBill(s, id);
 }
 
 /** Cash a rival keeps out of all three buckets, so its spending never puts it in the red. */
@@ -65,7 +72,7 @@ export function openBooks(s: GameState, id: RivalId): void {
   r.budget = { grow: round2(r.cash * f.grow), guard: round2(r.cash * f.guard), strike: round2(r.cash * f.strike) };
   r.cashSeen = r.cash;
   r.held = ownedPlots(s, id).map((p) => p.id);
-  r.trade = { base: r.cash, days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 };
+  r.trade = { base: r.cash, days: 0, margin: 0, upkeep: 0, wages: 0, scale: 1, last: 0 };
 }
 
 /** Dawn: everything that moved the rival's cash since the last dawn, other than bucket spending (trade, upkeep, loot, rebuilds, sales), goes into the buckets by the split. */
@@ -103,53 +110,115 @@ export function migrateRivals(s: GameState): void {
     r.upgradesDue ??= [];
     r.grudges ??= {};
     r.held ??= ownedPlots(s, id).map((p) => p.id);
-    r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 };
+    r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, wages: 0, scale: 1, last: 0 };
+    r.trade.wages ??= 0;
   }
 }
 
 // ---------- trade: about 1% of cash a day ----------
 
+/** How the weather moves a stand's trade: more people pass by, and more of them stop, when it's hot. */
+const weatherPull = (w: WeatherKind) => WEATHER[w].traffic * WEATHER[w].thirst;
+/** How the seasons move a plot's trade (the Boardwalk swings harder). */
+const seasonTable = (plotId: string) => (PLOT_BY_ID[plotId]?.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND);
+
 /**
- * Yesterday's trade at a rival's stands: what customers paid less what the cups cost, the stands' upkeep, and the
- * margin as it would be in an average season (for setting the trade share without a summer or winter bias).
+ * A stand's average cups a day over a year: `demand` cups for each unit of season-and-weather pull, through each
+ * season's usual weather, never more than it stocks (`cap`).
  */
-export function standTrade(s: GameState, id: RivalId): { margin: number; upkeep: number; yearly: number } {
-  const season = seasonOf(s.day - 1);
-  const mean = (t: Record<string, number>) => SEASONS.reduce((a, k) => a + t[k], 0) / SEASONS.length;
-  let margin = 0, upkeep = 0, yearly = 0;
-  for (const p of ownedPlots(s, id)) {
-    const st = s.plots[p.id].stand;
-    if (!st) continue;
-    const m = st.day.revenue - st.day.cupCosts;
-    const table = p.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND;
-    margin += m;
-    yearly += m * mean(table) / table[season];
-    upkeep += STAND_LEVELS[st.level - 1].upkeep;
+export function yearOfCups(table: Record<Season, number>, demand: number, cap: number): number {
+  let sum = 0;
+  for (const k of SEASONS) {
+    for (const [w, p] of Object.entries(SEASON_WEATHER[k]) as [WeatherKind, number][]) sum += p * Math.min(cap, demand * table[k] * weatherPull(w));
   }
-  return { margin: round2(margin), upkeep, yearly: round2(yearly) };
+  return sum / SEASONS.length;
 }
 
 /**
- * Dawn: a rival keeps its share of yesterday's margin (the rest is overheads), so its trade earns about 1% of its
- * cash a day. The share is set over its first week: enough for its opening stands to earn 1% of its starting cash
- * after upkeep in an average season, never more than the whole margin. A smashed stand earns nothing and a bigger
- * one earns more.
- * Returns yesterday's trade income.
+ * One rival stand's trade yesterday: what its customers paid less what the cups cost, the cups it sold and the ones
+ * it would have sold with stock left (sold plus those turned away by a sell-out), its stock, and the day's pull.
+ */
+export interface StandTrade { id: string; margin: number; cups: number; wanted: number; cap: number; level: number; pull: number }
+
+/**
+ * An opening stand's first week, for the trade scale: its level and stock, its demand per unit of pull summed over
+ * the days it traded, and the margin and cups it sold.
+ */
+export interface OpeningBooks { level: number; cap: number; demand: number; days: number; margin: number; cups: number }
+
+/** An opening stand's average demand per unit of season-and-weather pull. */
+const demandOf = (o: OpeningBooks) => (o.days > 0 ? o.demand / o.days : 0);
+/** An opening stand's margin on an average day of the year, at the level it opened with. */
+export const openingYear = (plotId: string, o: OpeningBooks) => (o.cups > 0 ? (o.margin / o.cups) * yearOfCups(seasonTable(plotId), demandOf(o), o.cap) : 0);
+
+/** Yesterday's trade at a rival's stands (s.weather is still yesterday's at dawn), all stands' margin together, and their upkeep. */
+export function standTrade(s: GameState, id: RivalId): { margin: number; upkeep: number; stands: StandTrade[] } {
+  const season = seasonOf(s.day - 1);
+  const stands: StandTrade[] = [];
+  let upkeep = 0;
+  for (const p of ownedPlots(s, id)) {
+    const st = s.plots[p.id].stand;
+    if (!st) continue;
+    stands.push({
+      id: p.id, margin: round2(st.day.revenue - st.day.cupCosts), cups: st.day.customers, wanted: st.day.customers + st.day.walkedPast.soldOut,
+      cap: stockCups(st), level: st.level, pull: seasonTable(p.id)[season] * weatherPull(s.weather.kind),
+    });
+    upkeep += STAND_LEVELS[st.level - 1].upkeep;
+  }
+  return { margin: round2(stands.reduce((a, x) => a + x.margin, 0)), upkeep, stands };
+}
+
+/** A calibration day: note each stand's demand and margin, and return the opening stands' margin on an average day of the year. */
+function noteOpeningDay(t: TradeBooks, stands: StandTrade[]): number {
+  const opening = (t.opening ??= {});
+  for (const x of stands) {
+    const o = (opening[x.id] ??= { level: x.level, cap: x.cap, demand: 0, days: 0, margin: 0, cups: 0 });
+    o.level = x.level;
+    o.cap = x.cap;
+    if (x.cups <= 0 || !(x.pull > 0)) continue;
+    o.demand = round2(o.demand + x.wanted / x.pull);
+    o.days++;
+    o.margin = round2(o.margin + x.margin);
+    o.cups += x.cups;
+  }
+  return round2(Object.entries(opening).reduce((a, [plotId, o]) => a + openingYear(plotId, o), 0));
+}
+
+/**
+ * Dawn: a rival's trade is its stands' margin times its trade scale, so its trade nets about 1% of its cash a day.
+ * The scale is set over its first week: enough for its opening stands to net 1% of its starting cash on an average
+ * day of the year (their demand through the seasons and the weather, capped by their stock) after their upkeep and
+ * its henchmen's wages. A scale over 1 (the bigger trade an old-money family's stands front) covers only what each
+ * opening stand sells at the level it opened with: a stand it adds later, or the extra an upgrade brings, earns the
+ * plain margin. A smashed stand earns nothing and a bigger one earns more.
+ * Returns yesterday's trade income after upkeep and wages.
  */
 export function settleTrade(s: GameState, id: RivalId): number {
   const r = s.rivals[id];
-  const { margin, upkeep, yearly } = standTrade(s, id);
-  const t = (r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, scale: 1, last: 0 });
-  if (t.days < RIVAL_TRADE.days && yearly > 0) {
+  const trade = standTrade(s, id);
+  const wages = wageBill(s, id);
+  const t = (r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, wages: 0, scale: 1, last: 0 });
+  if (t.days < RIVAL_TRADE.days && trade.margin > 0) {
     t.days++;
-    t.margin = round2(t.margin + yearly);
-    t.upkeep += upkeep;
-    const want = RIVAL_TRADE.share * t.base + t.upkeep / t.days;
-    t.scale = Math.round(Math.min(1, Math.max(RIVAL_TRADE.floor, want / (t.margin / t.days))) * 1e4) / 1e4;
+    t.upkeep += trade.upkeep;
+    t.wages = (t.wages ?? 0) + wages;
+    t.margin = noteOpeningDay(t, trade.stands);
+    const want = RIVAL_TRADE.share * t.base + (t.upkeep + t.wages) / t.days;
+    if (t.margin > 0) t.scale = Math.round(Math.min(RIVAL_TRADE.ceiling, Math.max(RIVAL_TRADE.floor, want / t.margin)) * 1e4) / 1e4;
   }
-  const kept = round2(margin * t.scale);
-  r.cash = round2(r.cash - (margin - kept));
-  t.last = round2(kept - upkeep);
+  let kept = trade.margin * Math.min(1, t.scale);
+  if (t.scale > 1) {
+    for (const x of trade.stands) {
+      const o = t.opening?.[x.id];
+      if (!o || x.margin <= 0) continue;
+      // An upgraded opening stand keeps the bonus only on what it would sell at its opening level, in this season and weather.
+      const first = x.level > o.level && o.cups > 0 ? (o.margin / o.cups) * Math.min(o.cap, demandOf(o) * x.pull) : x.margin;
+      kept += (t.scale - 1) * Math.min(x.margin, first);
+    }
+  }
+  kept = round2(kept);
+  r.cash = round2(r.cash + kept - trade.margin); // the stands already banked the plain margin as they poured
+  t.last = round2(kept - trade.upkeep - wages);
   return t.last;
 }
 
@@ -299,15 +368,15 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 
-/** One rival's dawn (rivalsAtDawn): grudges from the night, yesterday's trade, bank the takings, wages, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned. */
+/** One rival's dawn (rivalsAtDawn): grudges from the night, yesterday's trade, wages, bank the takings, then spend Grow. Guard is spent in crewAtDawn, Strike when raids are planned and on schemes. */
 export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
   const r = s.rivals[id];
   noteSmashes(s, id);
   noteLandTaken(s, id);
   coolGrudges(s, id);
   settleTrade(s, id);
-  bankTakings(s, id);
   payWages(s, id);
+  bankTakings(s, id);
   growUpgrades(s, id);
   growLand(s, id, rng);
   r.held = ownedPlots(s, id).map((p) => p.id);
@@ -321,17 +390,28 @@ export const garrisonTier = (ps: PlotState) => Math.min(5, Math.max(1, Math.ceil
 /** A rival henchman's daily wage: what you'd pay a guard of the same level. */
 export const henchWage = (ps: PlotState) => GUARD_WAGE[HENCHMEN[garrisonTier(ps) - 1].level - 1];
 
-/** Dawn: a rival pays its henchmen the wages you pay your guards, out of its Guard bucket, best plots first. Anyone it can't pay walks off the job. Returns how many left. */
+/** What a rival's henchmen draw each day, all posts together. */
+export function wageBill(s: GameState, id: RivalId): number {
+  let total = 0;
+  for (const p of ownedPlots(s, id)) total += (s.plots[p.id].garrison ?? 0) * henchWage(s.plots[p.id]);
+  return total;
+}
+
+/**
+ * Dawn: a rival pays its henchmen the wages you pay your guards, out of its cash like yours (a running cost, so it
+ * comes off the takings), best plots first. Anyone it can't pay walks off the job. Returns how many left.
+ */
 export function payWages(s: GameState, id: RivalId): number {
+  const r = s.rivals[id];
   const value = (plotId: string) => s.plots[plotId].invested + s.plots[plotId].landValue;
-  const posts = ownedPlots(s, id).filter((p) => (s.plots[p.id].garrison ?? 0) > 0).sort((a, b) => value(b.id) - value(a.id));
+  const posts = ownedPlots(s, id).filter((p) => (s.plots[p.id].garrison ?? 0) > 0).sort((a, b) => value(b.id) - value(a.id) || a.id.localeCompare(b.id));
   let left = 0;
   for (const p of posts) {
     const ps = s.plots[p.id];
     const wage = henchWage(ps);
     let kept = 0;
     for (let i = 0; i < (ps.garrison ?? 0); i++) {
-      if (canSpend(s, id, 'guard', wage)) { spend(s, id, 'guard', wage); kept++; } else left++;
+      if (r.cash >= wage) { r.cash = round2(r.cash - wage); kept++; } else left++;
     }
     ps.garrison = kept;
   }
@@ -350,14 +430,19 @@ export function stockCups(st: Stand): number {
 
 /**
  * Guard spending at dawn (crewAtDawn), all from the Guard bucket: first patch chopped fences (the same repair price
- * as yours), then fences and henchmen on the three best stands. A henchman is hired only with a week of his wages
- * still in the bucket after the fee.
+ * as yours), then fences and henchmen on the three best stands. A henchman is hired only while Guard's share of what
+ * the rival's trade nets each day covers his wage, which then comes out of its cash every dawn.
  */
 export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   void rng;
   const r = s.rivals[id];
   if (!r.alive) return;
   fitBudget(s, id);
+  const affords = (wage: number) => {
+    const t = r.trade;
+    const extra = Math.max(0, wageBill(s, id) - (t?.days ? (t.wages ?? 0) / t.days : 0)); // wages beyond the crew it opened with
+    return extra + wage <= FACTIONS[id].guard * Math.max(0, (t?.last ?? 0) + extra);
+  };
   const plots = ownedPlots(s, id).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
   for (const p of plots) {
     const ps = s.plots[p.id];
@@ -374,7 +459,7 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
       spend(s, id, 'guard', next.cost);
       ps.invested += next.cost; // a fence counts in Net Worth at 75%, like yours
       ps.defense = { ...ps.defense, tier: next.tier, fenceHp: next.hp };
-    } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE + RIVAL_WAGE_RUNWAY * henchWage(ps))) {
+    } else if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE) && affords(henchWage(ps))) {
       spend(s, id, 'guard', RIVAL_HIRE_FEE);
       ps.garrison = (ps.garrison ?? 0) + 1;
     }

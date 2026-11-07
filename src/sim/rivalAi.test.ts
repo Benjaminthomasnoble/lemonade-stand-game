@@ -4,7 +4,8 @@ import {
   costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
-  GROVE_TRAFFIC, type BattleReport, type GameState, type RivalId,
+  GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
+  WEATHER, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -342,7 +343,7 @@ describe('rival trade', () => {
     expect(stockCups(newStand(1))).toBe(120); // 60 lemons, 5 a pitcher, 10 cups a pitcher
   });
 
-  it('rivals pay their henchmen your wages out of Guard at dawn, and the ones they can\'t pay walk off', () => {
+  it('rivals pay their henchmen your wages out of their cash at dawn, and the ones they can\'t pay walk off', () => {
     const s = newGame(22);
     const id: RivalId = 'coldbrew';
     const posts = ownedPlots(s, id).filter((p) => (s.plots[p.id].garrison ?? 0) > 0);
@@ -350,16 +351,49 @@ describe('rival trade', () => {
     const crew = () => ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0);
     const all = crew();
     expect(henchWage({ ...s.plots[posts[0].id], stand: newStand(1) })).toBe(15); // a Rookie's wage
-    const cash = s.rivals[id].cash;
-    budgetOf(s, id).guard = bill;
+    expect(wageBill(s, id)).toBe(bill);
+    expect(reserveOf(s, id)).toBe(2 * runningCosts(s, id)); // wages are a running cost, like upkeep
+    s.rivals[id].cash = bill;
     expect(payWages(s, id)).toBe(0);
-    expect(budgetOf(s, id).guard).toBe(0);
-    expect(s.rivals[id].cash).toBe(cash - bill);
-    budgetOf(s, id).guard = Math.floor(bill / 2);
+    expect(s.rivals[id].cash).toBe(0);
+    expect(crew()).toBe(all);
+    s.rivals[id].cash = Math.floor(bill / 2);
     const left = payWages(s, id);
     expect(left).toBeGreaterThan(0);
     expect(crew()).toBe(all - left);
-    expect(budgetOf(s, id).guard).toBeGreaterThanOrEqual(0);
+    expect(s.rivals[id].cash).toBeGreaterThanOrEqual(0);
+  });
+
+  it('wages come off the takings the buckets get, like upkeep', () => {
+    const s = newGame(22);
+    const id: RivalId = 'coldbrew';
+    bankTakings(s, id);
+    const bill = wageBill(s, id);
+    s.rivals[id].cash += 1000;
+    payWages(s, id);
+    expect(bankTakings(s, id)).toBeCloseTo(1000 - bill, 2);
+  });
+
+  it('hires a henchman only while Guard\'s share of the day\'s trade covers his wage', () => {
+    const s = newGame(22);
+    const id: RivalId = 'coldbrew';
+    const crew = () => ownedPlots(s, id).reduce((a, p) => a + (s.plots[p.id].garrison ?? 0), 0);
+    for (const p of ownedPlots(s, id)) {
+      s.plots[p.id].defense = { ...s.plots[p.id].defense, tier: PERIMETERS.length, fenceHp: PERIMETERS[PERIMETERS.length - 1].hp };
+      s.plots[p.id].garrison = 0;
+    }
+    s.rivals[id].cash = 1e6;
+    budgetOf(s, id).guard = 1e6;
+    s.rivals[id].trade = { ...s.rivals[id].trade!, days: RIVAL_TRADE.days, wages: 0, last: 0 };
+    rivalGuardSpend(s, id, { seed: 1 });
+    expect(crew()).toBe(0); // a day that nets nothing hires nobody
+    s.rivals[id].trade!.last = 100; // Guard's 25% is $25: one Rookie at $15
+    rivalGuardSpend(s, id, { seed: 1 });
+    expect(crew()).toBe(1);
+    expect(wageBill(s, id)).toBeLessThanOrEqual(FACTIONS[id].guard * (100 + wageBill(s, id)));
+    s.rivals[id].trade!.last = 100_000;
+    rivalGuardSpend(s, id, { seed: 1 });
+    expect(crew()).toBeGreaterThan(1);
   });
 
   it('a chopped rival fence is patched only with Guard money, at your repair price', () => {
@@ -379,29 +413,126 @@ describe('rival trade', () => {
 });
 
 describe('rival cash growth', () => {
-  it('trade earns about 1% of a rival\'s cash a day, never more than its whole margin', () => {
-    const s = newGame(24);
+  /** Play `days` days (the player just opens), returning each rival's trade income as a share of its starting cash after the first week. */
+  function play(s: GameState, days: number): Record<string, number[]> {
     const income: Record<string, number[]> = {};
-    for (let d = 0; d < 14; d++) {
+    for (let d = 0; d < days; d++) {
       s.cash = Math.max(s.cash, 500);
       openStand(s);
       simulateRestOfDay(s);
       sleepUntilDawn(s);
       for (const id of RIVALS) if (s.day > RIVAL_TRADE.days + 1) (income[id] ??= []).push(s.rivals[id].trade!.last / FACTIONS[id].startCash);
     }
+    return income;
+  }
+  const pullOf = (table: Record<string, number>) =>
+    SEASONS.reduce((a, k) => a + table[k] * Object.entries(SEASON_WEATHER[k]).reduce((b, [w, p]) => b + p! * WEATHER[w as keyof typeof WEATHER].traffic * WEATHER[w as keyof typeof WEATHER].thirst, 0), 0) / SEASONS.length;
+
+  it('a stand\'s year of cups follows the seasons and each season\'s weather, and never passes its stock', () => {
+    expect(yearOfCups(SEASON_DEMAND, 100, Infinity)).toBeCloseTo(100 * pullOf(SEASON_DEMAND), 6);
+    expect(yearOfCups(BOARDWALK_SEASON, 100, Infinity)).toBeCloseTo(100 * pullOf(BOARDWALK_SEASON), 6);
+    expect(yearOfCups(SEASON_DEMAND, 100, 60)).toBeLessThan(60);
+    expect(yearOfCups(SEASON_DEMAND, 100, 60)).toBeLessThan(yearOfCups(SEASON_DEMAND, 100, Infinity));
+    expect(yearOfCups(SEASON_DEMAND, 0, 60)).toBe(0);
+  });
+
+  it('the first week sets the scale so the opening stands net 1% of the starting cash on an average day, wages and upkeep paid', () => {
+    const s = newGame(24);
+    const income = play(s, 14);
     for (const id of RIVALS) {
       const t = s.rivals[id].trade!;
       expect(t.days).toBe(RIVAL_TRADE.days);
-      expect(t.scale).toBeLessThanOrEqual(1);
-      if (t.scale < 1) {
-        // Over the first week, the kept share of an average season's margin pays the upkeep plus 1% of the starting cash.
-        expect(t.scale * t.margin / t.days - t.upkeep / t.days).toBeCloseTo(RIVAL_TRADE.share * t.base, -1);
-        const mean = income[id].reduce((a, b) => a + b, 0) / income[id].length;
-        expect(mean).toBeGreaterThan(0.002);
-        expect(mean).toBeLessThan(0.03);
-      }
+      expect(t.margin).toBeCloseTo(Object.entries(t.opening!).reduce((a, [plotId, o]) => a + openingYear(plotId, o), 0), 1);
+      const want = RIVAL_TRADE.share * t.base + (t.upkeep + (t.wages ?? 0)) / t.days;
+      expect(t.scale * t.margin).toBeCloseTo(want, -1);
+      // Summer is the best season, so its days beat the yearly 1%, but not by miles.
+      const mean = income[id].reduce((a, b) => a + b, 0) / income[id].length;
+      expect(mean).toBeGreaterThan(0.002);
+      expect(mean).toBeLessThan(0.04);
     }
     expect(RIVALS.filter((id) => s.rivals[id].trade!.scale < 1).length).toBeGreaterThanOrEqual(2); // the small gangs carry overheads
+    expect(s.rivals.sourwood.trade!.scale).toBeGreaterThan(1); // old money fronts more than its stands pour
+  });
+
+  it('an opening stand\'s demand counts the customers a sell-out turned away', () => {
+    const s = newGame(24);
+    openStand(s);
+    simulateRestOfDay(s);
+    const w = WEATHER[s.weather.kind];
+    const sold = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && (s.plots[p.id].stand?.day.walkedPast.soldOut ?? 0) > 0);
+    expect(sold.length).toBeGreaterThan(0);
+    const day = Object.fromEntries(sold.map((p) => [p.id, { ...s.plots[p.id].stand!.day }]));
+    sleepUntilDawn(s);
+    for (const p of sold) {
+      const o = s.rivals.blenders.trade!.opening![p.id];
+      const pull = (p.district === 'boardwalk' ? BOARDWALK_SEASON : SEASON_DEMAND).summer * w.traffic * w.thirst;
+      expect(o.days).toBe(1);
+      expect(o.cups).toBe(day[p.id].customers);
+      expect(o.demand).toBeCloseTo((day[p.id].customers + day[p.id].walkedPast.soldOut) / pull, 1);
+    }
+  });
+
+  it('after the first week the scale stays put, a scale under 1 keeps that share of every stand, and a smashed stand earns nothing', () => {
+    const s = newGame(24);
+    play(s, RIVAL_TRADE.days + 1);
+    const id: RivalId = 'blenders';
+    const t = s.rivals[id].trade!;
+    expect(t.scale).toBeLessThan(1);
+    const scale = t.scale;
+    const smashed = ownedPlots(s, id).find((p) => s.plots[p.id].stand)!;
+    s.plots[smashed.id].stand!.wrecked = true;
+    openStand(s);
+    simulateRestOfDay(s);
+    s.day++;
+    const trade = standTrade(s, id);
+    expect(trade.stands.find((x) => x.id === smashed.id)!.margin).toBe(0);
+    const cash = s.rivals[id].cash;
+    const net = settleTrade(s, id);
+    expect(t.scale).toBe(scale);
+    expect(s.rivals[id].cash).toBeCloseTo(cash - trade.margin * (1 - scale), 1);
+    expect(net).toBeCloseTo(trade.margin * scale - trade.upkeep - wageBill(s, id), 1);
+  });
+
+  it('a scale over 1 covers only the opening stands, and an upgrade\'s extra earns the plain margin', () => {
+    const s = newGame(24);
+    play(s, RIVAL_TRADE.days + 1);
+    const id: RivalId = 'sourwood';
+    const t = s.rivals[id].trade!;
+    expect(t.scale).toBeGreaterThan(1);
+    openStand(s);
+    simulateRestOfDay(s);
+    s.day++;
+    const trade = standTrade(s, id);
+    const opening = t.opening!;
+    // The opening stands at their opening level have their whole margin scaled; a stand bought since has its plain margin.
+    const scaled = trade.stands.filter((x) => opening[x.id] && x.level <= opening[x.id].level).reduce((a, x) => a + x.margin, 0);
+    expect(scaled).toBeGreaterThan(0);
+    let cash = s.rivals[id].cash;
+    settleTrade(s, id);
+    expect(s.rivals[id].cash).toBeCloseTo(cash + scaled * (t.scale - 1), 0);
+    // Stands it added later: the plain margin.
+    s.rivals[id].cash = cash;
+    t.opening = {};
+    settleTrade(s, id);
+    expect(s.rivals[id].cash).toBeCloseTo(cash, 1);
+    // An opening stand upgraded since: the bonus covers what it would sell at its opening level.
+    const x = trade.stands.find((q) => q.margin > 0 && opening[q.id])!;
+    const o = { ...opening[x.id], level: x.level - 1 };
+    t.opening = { [x.id]: o };
+    s.rivals[id].cash = cash;
+    settleTrade(s, id);
+    const first = (o.margin / o.cups) * Math.min(o.cap, (o.demand / o.days) * x.pull);
+    expect(s.rivals[id].cash).toBeCloseTo(cash + (t.scale - 1) * Math.min(x.margin, first), 0);
+    cash = s.rivals[id].cash;
+    expect(cash).toBeGreaterThan(0);
+  });
+
+  it('a save from before the trade books calibrates on its next week', () => {
+    const s = newGame(24);
+    for (const id of RIVALS) delete s.rivals[id].trade;
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    for (const id of RIVALS) expect(loaded.rivals[id].trade).toMatchObject({ base: loaded.rivals[id].cash, days: 0, scale: 1 });
+    expect(JSON.stringify(migrateSave(JSON.parse(JSON.stringify(loaded)))!.rivals)).toBe(JSON.stringify(loaded.rivals));
   });
 });
 

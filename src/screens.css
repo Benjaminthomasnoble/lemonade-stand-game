@@ -351,3 +351,8 @@
 .clay .cl-sticky { width: calc(var(--u) * 22); }
 .clay .cl-goal { font-size: calc(var(--u) * 1.8); }
 .clay #dawn .cl-dawn { top: calc(var(--u) * 8.5); }
+/* Options (nights lane): text size scales the HUD unit; Less motion stills the HUD like the OS setting does. */
+#ui.clay[data-text="125"] { --u: calc(clamp(6px, min(0.82vw, 1.35vh), 12px) * 1.25); }
+#ui.clay[data-text="150"] { --u: calc(clamp(6px, min(0.82vw, 1.35vh), 12px) * 1.5); }
+@media (max-width: 640px) { #ui.clay[data-text="125"] { --u: calc(clamp(5px, 1.55vw, 9px) * 1.25); } #ui.clay[data-text="150"] { --u: calc(clamp(5px, 1.55vw, 9px) * 1.5); } }
+.clay[data-calm] *, .clay[data-calm] *::before, .clay[data-calm] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }

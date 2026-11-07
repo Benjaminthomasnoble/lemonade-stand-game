@@ -50,7 +50,6 @@ export const LINES = {
   veraThreat: "Charming little stand, dear. I'll ask the Mayor whether it's legal.",
   veraSteward: 'I sent your grandmother a reminder, dear.',
   juniAct3: "We don't smash. We curate decline.",
-  juniSabotage: "Your stock didn't spoil. It made an artistic choice.",
   juniPad: 'FizzCo will hit the pad. Bring a crew to the pickup.',
   prestonTruce: "Let's do lunch at Dot's. Seven days of peace, for a modest consideration.",
   prestonLater: "No? I'll pencil you in for later.",
@@ -194,9 +193,8 @@ export function phoneCheck(s: GameState, dawn = false): void {
   }
   // A boss who hit you last night calls at dawn: gloating, or sore that you held.
   const hit = dawn && s.battles.find((b) => b.day === s.day - 1 && b.defender === 'player' && b.attacker !== 'player');
-  // Seam: Juni after a Sabotage of hers (crew's Sabotage objective; until it lands no raid carries it).
-  const artistic = hit && hit.attacker === 'coldbrew' && (hit.objective as string) === 'sabotage';
-  if (hit) phoneCall(s, hit.attacker as RivalId, artistic ? LINES.juniSabotage : '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
+  // (Juni's line after a Sabotage of hers is the rivals lane's: tauntsAtDawn in src/sim/rivalAi.ts.)
+  if (hit) phoneCall(s, hit.attacker as RivalId, '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 /**

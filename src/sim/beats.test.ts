@@ -7,7 +7,7 @@ import {
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   type GameState, type Guard,
 } from './economy.ts';
-import { answerOffer, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, shipDocks, storyOffer } from './beats.ts';
+import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, shipDocks, storyOffer } from './beats.ts';
 import { exitScene, INVOICE } from './exits.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
@@ -327,6 +327,18 @@ describe('townsfolk scenes, staged by speaker', () => {
     expect(sceneDef('budd')).toMatchObject({ speaker: 'budd' }); // ready-made: the first Citation...
     expect(sceneDef('fontaine')).toMatchObject({ speaker: 'fontaine' }); // ...and Vera's fine from Town Hall
   });
+
+  it("Mayor Fontaine brings Vera's first fine to the Corner himself (rivals' Old Money)", () => {
+    const s = newGame(75);
+    s.scenes!.queue = [];
+    beatsAtDawn(s);
+    expect(s.scenes!.queue.some((q) => q.id === 'fontaine')).toBe(false); // no fine, no visit
+    s.schemes = [{ kind: 'fine', by: 'sourwood', day: s.day, until: s.day, plots: [], price: 120, done: true }];
+    beatsAtDawn(s);
+    const sc = beginScene(s)!;
+    expect(sc).toMatchObject({ id: 'fontaine', speaker: 'fontaine' });
+    expect(sc.recap).toBe("Mayor Fontaine delivered one of Vera's fines: $120.");
+  });
 });
 
 /** A raid of yours on a Blenders stand, as the battle log keeps it. */
@@ -360,7 +372,9 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
     expect(medium(s)).toMatchObject({ text: 'Build Dex a Clubhouse', story: true, done: false });
     s.cash = 5000;
     s.rank = Math.max(s.rank, 3);
-    expect(buildClubhouse(s)).toBe(true);
+    const lot = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[lot.id].owner = 'player'; // a Clubhouse fills an empty Street plot of yours
+    expect(buildClubhouse(s, lot.id)).toBe(true);
     expect(medium(s)).toMatchObject({ text: 'Hire a squad of 5', story: true });
     s.guards = crew(4);
     expect(medium(s).text).toBe('Hire a squad of 5');

@@ -233,9 +233,9 @@ function skipFindsACorner(s: GameState): void {
   alert(s, { kind: 'note', text: `Skip: "${name}, ${price}. Snap it up!"`, plot: lot.id });
 }
 
-/** Do you have a Clubhouse? The crew lane's beds (s.clubhouse), or combat's Clubhouse on a Street plot when it lands. */
+/** Do you have a Clubhouse? One on a Street plot of yours (src/sim/clubhouse.ts), standing or not, or an older save's level. */
 export function hasClubhouse(s: GameState): boolean {
-  return s.clubhouse > 0 || Object.values(s.plots).some((ps) => ps.owner === 'player' && (ps.facility?.kind as string) === 'clubhouse');
+  return (s.clubhouse ?? 0) > 0 || Object.values(s.plots).some((ps) => ps.owner === 'player' && ps.facility?.kind === 'clubhouse');
 }
 
 /**

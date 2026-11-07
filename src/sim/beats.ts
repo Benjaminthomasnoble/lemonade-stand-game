@@ -69,9 +69,9 @@ function handshake(s: GameState): void {
 // ---------- Act 3: the night flight ----------
 
 /**
- * The morning after Cold Brew's first raid on you in Act 3, Squawk's night flight unmasks the baristas and Juni calls
- * (the scene's follow-up). Seam: rivals' Night Shift, once it lands, is the raid to wait for. If Cold Brew hasn't hit
- * you a week in, Juni calls anyway.
+ * The morning after Cold Brew's first raid on you in Act 3 (their Night Shift: quiet night raids, src/sim/rivalAi.ts),
+ * Squawk's night flight unmasks the baristas and Juni calls (the scene's follow-up). If Cold Brew hasn't hit you a
+ * week in, Juni calls anyway.
  */
 function nightFlight(s: GameState): void {
   const st = s.story!;
@@ -151,11 +151,18 @@ export function shipDocks(s: GameState): void {
   alert(s, { kind: 'note', text: 'Lottie: "That horn? Just the wind, kid. Just the wind."', ...(o?.plot ? { plot: o.plot } : {}) });
 }
 
-/** Dawn (from storyAtDawn): Acts 3 and 4's beats. */
+/** Vera's first fine through Mayor Fontaine (rivals' Old Money, src/sim/schemes.ts): he brings it to the Corner himself. */
+function mayorsVisit(s: GameState): void {
+  const fine = s.schemes?.find((x) => x.kind === 'fine' && x.day === s.day);
+  if (fine) playScene(s, 'fontaine', { recap: `Mayor Fontaine delivered one of Vera's fines: ${money(fine.price ?? 0)}.` });
+}
+
+/** Dawn (from storyAtDawn): Acts 3 and 4's beats, and the Mayor's visit. */
 export function beatsAtDawn(s: GameState): void {
   if (!hasStory(s) || !s.story || s.story.epilogue !== undefined) return;
   handshake(s);
   nightFlight(s);
   firstOffers(s);
   chopperTip(s);
+  mayorsVisit(s);
 }

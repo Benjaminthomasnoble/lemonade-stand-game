@@ -8,7 +8,7 @@
 // the lessons (Act 1's one system a day) and the story's hooks into the day:
 // dawn, every few minutes, closing. Pure, like the rest of the sim.
 import {
-  ACT_BY_RANK, ACTS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
+  ACT_BY_RANK, ACTS, BELOVED_STARS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
 } from './balance.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
@@ -19,6 +19,7 @@ import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './g
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
 import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
+import { endingFor } from './modes.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -147,7 +148,28 @@ function advanceAct(s: GameState): void {
   st.since = s.day;
   st.banner = s.day;
   s.news.push(`ACT ${st.act}: ${ACTS[st.act - 1].toUpperCase()}! ${ACT_LINES[st.act - 1]}`);
+  s.news.push(`Lottie: "${leanLine(s)}"`); // which ending the act just played leans toward
   phoneAtAct(s, st.act);
+}
+
+/**
+ * Lottie's hint as each act ends (spec "Two endings": "Lottie hints at each act's end which way you lean"): the Beloved
+ * ending needs more buyouts than Smashes and HQ captures, plus BELOVED_STARS; anything else is the Iron Pitcher
+ * (modes.ts endingFor). Act 1 rarely has a buyout or a Smash in it, so with nothing on the tally the stars alone tip it.
+ * Placeholder lines: the spec gives none.
+ */
+export const LEAN_LINES = {
+  beloved: "The town's sweet on you, kid. A beloved mogul in the making.",
+  iron: "Squeeze like that and they'll call you the Iron Pitcher, kid.",
+  stars: "You deal fair, kid. Earn the stars to match, and they'll love you.",
+  freshBeloved: 'Folks wave at the stand already, kid. Keep it sweet.',
+  freshIron: "Folks don't know you yet, kid. Win them one cup at a time.",
+};
+export function leanLine(s: GameState): string {
+  const t = s.tally ?? { buyouts: 0, smashes: 0, hqs: 0 };
+  if (!t.buyouts && !t.smashes && !t.hqs) return s.reputation >= BELOVED_STARS ? LEAN_LINES.freshBeloved : LEAN_LINES.freshIron;
+  if (endingFor(s) === 'beloved') return LEAN_LINES.beloved;
+  return t.buyouts > t.smashes + t.hqs ? LEAN_LINES.stars : LEAN_LINES.iron;
 }
 
 /**

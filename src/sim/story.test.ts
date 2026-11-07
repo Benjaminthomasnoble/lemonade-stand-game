@@ -11,7 +11,7 @@ import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTar
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
-import { actBegan, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { actBegan, LEAN_LINES, leanLine, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
 import { LESSON_DAY } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -19,7 +19,7 @@ import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, 
 import { battleHeadline, crewOf, fightRaid, welcomeDex } from './crew.ts';
 import { hqStageOver } from './rivals.ts';
 import { bugleHeadline, frontPage } from './media.ts';
-import { defaultSettings } from './modes.ts';
+import { defaultSettings, endingFor } from './modes.ts';
 import type { BattleInput, BattleResult } from './combat.ts';
 import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
 
@@ -128,6 +128,34 @@ describe('story acts', () => {
     expect(s.news.indexOf('ACT 2: SURF & TURF! Brock wants his sun back.')).toBeLessThan(s.news.findIndex((n) => n.startsWith("Lottie's Cookie Jar!")));
     nextDawn(s);
     expect(actOf(s)).toBe(2); // one act a dawn
+  });
+});
+
+describe('the ending lean', () => {
+  it("Lottie hints at each act's end which ending you lean toward; with nothing on the tally, the stars tip it", () => {
+    const s = newGame(51);
+    s.reputation = 3.2;
+    expect(leanLine(s)).toBe(LEAN_LINES.freshIron); // Act 1: nothing bought out or smashed yet
+    s.reputation = 4.3;
+    expect(leanLine(s)).toBe(LEAN_LINES.freshBeloved);
+    s.tally = { buyouts: 2, smashes: 1, hqs: 0 };
+    expect([leanLine(s), endingFor(s)]).toEqual([LEAN_LINES.beloved, 'beloved']);
+    s.reputation = 3.9;
+    expect([leanLine(s), endingFor(s)]).toEqual([LEAN_LINES.stars, 'iron']); // more buyouts, too few stars
+    s.tally = { buyouts: 2, smashes: 1, hqs: 1 };
+    s.reputation = 4.8;
+    expect([leanLine(s), endingFor(s)]).toEqual([LEAN_LINES.iron, 'iron']); // as many Smashes and HQs as buyouts
+    // The dawn an act turns, Lottie says it, right after the act's banner.
+    Object.assign(s.story!, { act: 2, since: s.day });
+    eliminate(s, 'blenders', 'buyout'); // Act 2's climax: the Blend Shack falls
+    nextDawn(s);
+    expect(s.story!.act).toBe(3);
+    const banner = s.news.findIndex((n) => n.startsWith('ACT 3:'));
+    expect(s.news[banner + 1]).toBe(`Lottie: "${LEAN_LINES.iron}"`);
+    // Sandbox has no acts, and no hints.
+    const t = newGame(52, { mode: 'sandbox' });
+    nextDawn(t);
+    expect(Object.values(LEAN_LINES).some((l) => t.news.includes(`Lottie: "${l}"`))).toBe(false);
   });
 });
 

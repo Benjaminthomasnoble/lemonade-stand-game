@@ -10,7 +10,7 @@ import {
   alertTexts, dismissAlert, restockNow, SYNDICATE_CALL, syndicateLeader, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout,
+  factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk,
   announceControl, listPlot, placeBid, unlistPlot, withdrawBid,
@@ -639,6 +639,7 @@ async function main() {
         } else if (startAssault(state, a.rival, a.guards)) { hud.inspected = null; playLive(); }
         break;
       }
+      case 'callSqueeze': if (callBigSqueeze(state)) phone.ring('sourwood', pick(BOSS.sourwood.warn)); break; // Vera answers the Big Squeeze
       case 'replay': if (state.battles[a.index] && !state.fight) playBattle(state.battles[a.index]); break;
       case 'fight': if (a.cmd === 'rally' || a.cmd === 'fallBack') fightCommand(state, a.cmd); break;
       case 'bell': ringTheBell(state, a.raid); break;

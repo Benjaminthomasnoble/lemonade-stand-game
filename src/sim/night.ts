@@ -23,6 +23,7 @@ import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
+import { siegeFought, squeezeAtDawn } from './squeeze.ts';
 import { isEventDay } from './calendar.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
@@ -218,10 +219,12 @@ function arrive(s: GameState, r: Raid): BattleReport | null {
 }
 
 /** A raid's fight is over (fought at once, or live and just ended: `started` is the minute it began). Your squad
- * walks home, and a Delivery Raid's pickup loads out, or fails if the raiders overran it. */
+ * walks home, a Delivery Raid's pickup loads out, or fails if the raiders overran it, and a Big Squeeze target is held
+ * or lost. */
 export function raidFought(s: GameState, r: Raid, report: BattleReport, daytime: boolean, started = s.minute): void {
   if (r.attacker === 'player') homeward(s, r, report, daytime, started);
   if (r.delivery && r.order) settle(s, r.order, report);
+  if (r.siege) siegeFought(s, r, report); // the Big Squeeze: a target held, or lost
 }
 
 /** Your squad gets there and the stand is gone (smashed by someone else, sold, or its owner went under): they walk
@@ -350,6 +353,7 @@ export function nightsAtDawn(s: GameState): void {
   threatAtDawn(s);
   syndicateAtDawn(s);
   s.alerts = (s.alerts ?? []).filter((a) => a.day >= s.day);
+  squeezeAtDawn(s); // the Big Squeeze: last siege night scored, tonight's targets named
   for (const r of s.raids) {
     if (!onTheRoad(r)) continue;
     if (r.back !== undefined) r.back -= MINUTES_PER_DAY;

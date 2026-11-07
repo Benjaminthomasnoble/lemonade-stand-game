@@ -12,7 +12,7 @@
 import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
-  peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
+  peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals, siegeNight, siegeTargets,
   type FestivalId, type GameState, type Goal, type RivalId, type SupplyId,
 } from '../sim/economy.ts';
 import { MENU_IDS, tempText, type MenuId, type Options } from '../settings.ts';
@@ -159,6 +159,13 @@ function planner(s: GameState): string {
   return sheet('planner', 'Raid Planner', row(near.map((p) => plotButton(s, p.id, p.name, `${FACTIONS[s.plots[p.id].owner as RivalId].name} · ${DISTRICT_BY_ID[p.district].name}`)).join('') || '<span class="cl-note">Nothing to hit right now</span>'));
 }
 
+/** The Big Squeeze: tonight's siege targets, pinned over the rivals' board each siege dawn (squeeze.ts names them;
+ * the bosses' own pins show where a normal raid would go). */
+function siegePins(s: GameState): string {
+  const siege = siegeTargets(s).map((id) => plotButton(s, id, PLOT_BY_ID[id].name, "Tonight's siege target"));
+  return siege.length ? row(`<span class="cl-note">Siege night ${siegeNight(s)}: they hit</span>${siege.join('')}`) : '';
+}
+
 function registry(s: GameState): string {
   const plots = forSale(s).sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id)).slice(0, 12);
   return sheet('registry', 'Land Registry', row(plots.map((p) => plotButton(s, p.id, `${p.name} · ${whole(plotPrice(s, p.id))}`, `${DISTRICT_BY_ID[p.district].name} · ~${p.baseTraffic} passersby a day`)).join('')));
@@ -174,7 +181,7 @@ export function menuScreen(s: GameState, view: MenuView, p: MenuParts): string {
     case 'bugle': return bugle(s, p);
     case 'crew': return sheet('crew', 'Crew roster', p.crew());
     case 'planner': return planner(s);
-    case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', corkboardBody(s));
+    case 'corkboard': return sheet('corkboard', 'Rivals Corkboard', siegePins(s) + corkboardBody(s));
     case 'registry': return registry(s);
     default: return '';
   }

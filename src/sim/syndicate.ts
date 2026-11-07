@@ -55,8 +55,8 @@ export function syndicateAtDawn(s: GameState): void {
 }
 
 /** The morning it forms: the Bugle's front page and the leader's call (main.ts rings the phone). Its first strike,
- * on 2–3 of your plots, comes that night (threat.ts). */
-function formSyndicate(s: GameState): void {
+ * on 2–3 of your plots, comes that night (threat.ts). Calling the Big Squeeze forms it too, if it isn't yet (squeeze.ts). */
+export function formSyndicate(s: GameState): void {
   const leader = syndicateLeader(s)!;
   (s.syndicate ??= {}).formed = s.day;
   alert(s, { kind: 'note', text: pactHeadline(leader), plot: hqPlot(leader).id });

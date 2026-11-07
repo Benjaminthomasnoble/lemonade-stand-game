@@ -74,6 +74,7 @@ export interface Raid {
   led?: boolean; // planned boss-led (Threat 5): the boss joins once the raider is settled
   lookouts?: number; // lookouts riding along (from Threat 3): each cuts the target's detection chance
   syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
+  siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
 }
 
 /** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */

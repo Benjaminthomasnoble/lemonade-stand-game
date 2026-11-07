@@ -34,6 +34,7 @@ import { tripLines } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
 import { keysPanel } from './keys.ts';
+import { squeezePanel } from './squeeze.ts';
 import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
@@ -132,6 +133,7 @@ export type Action =
   | { type: 'unbid'; plot: string }
   | { type: 'listPlot'; plot: string }
   | { type: 'unlistPlot'; plot: string }
+  | { type: 'callSqueeze' } // Sourwood Manor's card: start the Big Squeeze (src/ui/squeeze.ts)
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -392,7 +394,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'options': onAction({ type: 'options' }); break;
       case 'option': onAction({ type: 'option', key: d.key!, value: d.value }); break;
       case 'open': case 'skip': case 'newgame': case 'upgrade': case 'brand': case 'restock': case 'mute': case 'priceCeiling':
-      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay':
+      case 'setup': case 'cancelSetup': case 'keepSqueezing': case 'repay': case 'callSqueeze':
         onAction({ type: d.action }); break;
       case 'reloadDawn': onAction({ type: 'reloadDawn', slot: d.slot === undefined ? undefined : Number(d.slot) }); break;
       case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;
@@ -788,7 +790,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>
       <span class="cl-stages"><i>Gate</i>▸<i>Yard</i>▸<i>Boss</i></span>${planner.picker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
       ${btn('assault', 'Storm it!', ab, `data-rival="${id}" data-testid="assault"`, 'go')}</div>`;
-    return head + sit + assault;
+    return head + sit + squeezePanel(s, id, assault); // the campaign's Sourwood Manor: the Big Squeeze first (src/ui/squeeze.ts)
   }
 
   // ---------- New Game, victory and game over ----------

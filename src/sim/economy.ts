@@ -44,6 +44,7 @@ import {
 } from './land.ts';
 import type { Auction, Lavender } from './auction.ts';
 import type { SyndicateState } from './syndicate.ts';
+import type { SqueezeState } from './squeeze.ts';
 
 export * from './balance.ts';
 export * from './map.ts';
@@ -54,6 +55,7 @@ export * from './modes.ts';
 export * from './night.ts';
 export * from './threat.ts';
 export * from './syndicate.ts';
+export * from './squeeze.ts';
 export * from './damage.ts';
 export * from './alerts.ts';
 export * from './recipes.ts';
@@ -241,6 +243,7 @@ export interface GameState {
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
   syndicate?: SyndicateState; // the rivals' Pact against you: Act 5's first day and the day it formed (syndicate.ts)
+  squeeze?: SqueezeState; // campaign: the Big Squeeze, its 7-night siege of Sourwood Manor and what it won (squeeze.ts)
 }
 
 export type SimEvent =

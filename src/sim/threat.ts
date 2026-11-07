@@ -18,6 +18,7 @@ import { HQS, inTruce } from './rivals.ts';
 import { difficulty } from './modes.ts';
 import { hhmm, onYou, raidStart, travelMinutes } from './night.ts';
 import { syndicateFormed, syndicateLeader, syndicateMembers } from './syndicate.ts';
+import { siegeTargets, siegeTonight } from './squeeze.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -91,9 +92,10 @@ export function raidOnYou(s: GameState, rng: Rng, rival: RivalId, target: Plot, 
 }
 
 /** Tonight's raids on you (planNight, at closing): none in the first five days; the scripted tutorial raid on its
- * night (and nothing before it); after that a Poisson count for the week's rate, each from a rival who may raid you,
- * at the weakest valuable plot nobody else is hitting tonight. The bosses settle who actually sends each one
- * (rivalAi signatureRaids) and the multi-plot ones split after that (spreadRaids). */
+ * night (and nothing before it); on a Big Squeeze siege night, the one strike on its named targets; after that a
+ * Poisson count for the week's rate, each from a rival who may raid you, at the weakest valuable plot nobody else is
+ * hitting tonight. The bosses settle who actually sends each one (rivalAi signatureRaids) and the multi-plot ones
+ * split after that (spreadRaids). */
 export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const u = nextRandom(rng);
   const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
@@ -103,6 +105,7 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
     const rival = (['blenders', ...RIVALS] as RivalId[]).find((r) => mayRaidYou(s, r));
     return tutorialNight(s) && rival ? [tutorialRaid(s, rng, mine, rival)] : [];
   }
+  if (siegeTonight(s)) return siegeStrike(s, rng);
   const pact = syndicateFormed(s);
   const n = Math.max(pact && s.syndicate!.formed === s.day ? 1 : 0, raidCount(weeklyRaids(s) / 7, u)); // its first strike: the night it forms
   const out: Raid[] = [];
@@ -129,6 +132,27 @@ function syndicateStrike(s: GameState, rng: Rng, rival: RivalId, target: Plot): 
   if (!payer) return null;
   spend(s, payer, 'strike', cost);
   return raid;
+}
+
+/** A Big Squeeze siege night's raid (squeeze.ts): one Syndicate strike on the targets named at dawn that still stand,
+ * its party dealt among them with the sender's boss at the head of the first. The Pact is all in: whoever isn't in a
+ * Truce with you may send it, backing off or not, and it comes whether or not anyone's Strike can pay for it. */
+function siegeStrike(s: GameState, rng: Rng): Raid[] {
+  const targets = siegeTargets(s).filter((id) => s.plots[id]?.owner === 'player' && hasBuilding(s.plots[id]));
+  const senders = syndicateMembers(s).filter((id) => !inTruce(s, id));
+  if (!targets.length || !senders.length) return [];
+  const rival = weighted(rng, senders, (r) => 1 + s.rivals[r].grudge / 10 + s.rivals[r].attention + FACTIONS[r].strike * 4);
+  const { spread: _spread, led: _led, ...raid } = raidOnYou(s, rng, rival, PLOT_BY_ID[targets[0]], SYNDICATE_TIER);
+  const cost = raidCost(s, rival, raid.party!.length, SYNDICATE_TIER);
+  const payer = [rival, syndicateLeader(s), ...syndicateMembers(s)].find((id): id is RivalId => !!id && canSpend(s, id, 'strike', cost));
+  if (payer) spend(s, payer, 'strike', cost);
+  const parts = targets.map(() => [] as Fighter[]);
+  [raidBoss(s, rival), ...raid.party!].forEach((f, i) => parts[i % parts.length].push(f));
+  return targets.map((target, i) => {
+    const part: Raid = { ...raid, id: i ? `r${s.nextId++}` : raid.id, objective: 'smash', party: parts[i], syndicate: true, siege: true, ...(targets.length > 1 ? { group: raid.id } : {}) };
+    aim(s, part, target);
+    return part;
+  });
 }
 
 /** Who sends a raid on you, before the bosses settle it: weighted by Grudge, Attention and Strike. */

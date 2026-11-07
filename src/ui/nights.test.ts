@@ -18,6 +18,8 @@ import { eliminate, openStands, simulateRestOfDay, sleepUntilDawn, successScore,
 import { scoreParts, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
+import { callBigSqueeze, newStand, PLOTS, siegeTargets, type Mode } from '../sim/economy.ts';
+import { squeezePanel } from './squeeze.ts';
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -395,5 +397,62 @@ describe('the Custom difficulty panel', () => {
     expect(difficultyLabel('custom', { raids: 1.5, notice: 5, respectDays: 1, bustOnly: true, cookieJar: 'never' })).toBe('Custom ×1.5 · 5m · 1d · Busted · Jar never');
     expect(difficultyLabel('custom')).toBe('Custom ×1.0 · 15m · 3d · Jar once an act');
     expect(difficultyLabel('laidback')).toBe('Laid Back');
+  });
+});
+
+describe("the Big Squeeze on Sourwood Manor's card", () => {
+  /** Morning Prep on Day 136 at Rank 9, with five more stands. */
+  const finale = (mode: Mode = 'campaign') => {
+    const s = newGame(3, { mode });
+    Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true });
+    const side = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner);
+    for (const p of side.slice(0, 5)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
+    return s;
+  };
+  const menuParts = () => ({ head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => 'CREW', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } });
+
+  it('from Rank 9 of the campaign the call stands in for the assault; every other card keeps its assault', () => {
+    const s = finale();
+    expect(squeezePanel(s, 'fizzco', 'ASSAULT')).toBe('ASSAULT');
+    const panel = squeezePanel(s, 'sourwood', 'ASSAULT');
+    expect(panel).not.toContain('ASSAULT');
+    expect(panel).toContain('data-testid="call-squeeze"');
+    expect(panel).toMatch(/data-action="callSqueeze"[^>]*title="7 siege nights/);
+    expect(panel).toContain('>Call the Big Squeeze</button>');
+    s.phase = 'open';
+    expect(squeezePanel(s, 'sourwood', 'ASSAULT')).toContain('disabled title="Call it at Morning Prep"');
+    s.rank = 8;
+    expect(squeezePanel(s, 'sourwood', 'ASSAULT')).toBe('ASSAULT'); // locked, so hidden (the assault is too, below Rank 9)
+    expect(squeezePanel(finale('sandbox'), 'sourwood', 'ASSAULT')).toBe('ASSAULT');
+  });
+
+  it("through the siege: its night, the Manor as it stands and tonight's targets to go to; after it, the Manor it left over the assault", () => {
+    const s = finale();
+    callBigSqueeze(s);
+    const panel = squeezePanel(s, 'sourwood', 'ASSAULT');
+    expect(panel).not.toContain('ASSAULT');
+    expect(panel).toContain('Siege: night 1 of 7');
+    expect(panel).toContain('<i>Gate 5,000</i>');
+    expect(siegeTargets(s).length).toBeGreaterThan(1);
+    for (const t of siegeTargets(s)) expect(panel).toContain(`data-action="goto" data-plot="${t}"`);
+    s.squeeze = { ...s.squeeze!, nights: 7, held: 7, lost: 1, done: 143, targets: [] };
+    const after = squeezePanel(s, 'sourwood', 'ASSAULT');
+    expect(after).toContain('<i>Gate 1,500</i>');
+    expect(after).toContain('<i>Vera +4</i>');
+    expect(after.endsWith('ASSAULT')).toBe(true);
+  });
+
+  it("the Corkboard pins up the night's targets, and a siege raid's warning says it's the siege", () => {
+    const s = finale();
+    expect(menuScreen(s, 'corkboard', menuParts())).not.toContain('Siege night');
+    callBigSqueeze(s);
+    const board = menuScreen(s, 'corkboard', menuParts());
+    expect(board).toContain('Siege night 1: they hit');
+    for (const t of siegeTargets(s)) expect(board).toContain(`data-plot="${t}"`);
+    const { s: w } = warned({ attacker: 'sourwood', syndicate: true, siege: true });
+    w.squeeze = { called: 6, nights: 2 };
+    const card = alertCards(w)[0];
+    expect(card).toContain('<b>Siege → ');
+    expect(card).toContain('Siege night 3: a Syndicate strike, sent by Sourwoods.');
   });
 });

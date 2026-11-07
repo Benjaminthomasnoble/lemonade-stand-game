@@ -4,7 +4,7 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, towerCovers,
+  canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -45,7 +45,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const boss = seen && r.attacker !== 'player' ? r.party!.find((f) => f.name === HQS[r.attacker as RivalId].boss) : undefined;
   const more = `${boss ? ` ${boss.name} leads them.` : ''}${seen && r.lookouts ? ` ${r.lookouts} lookout${r.lookouts > 1 ? 's' : ''}.` : ''}`;
   const others = r.group ? s.raids.filter((x) => x.group === r.group && x !== r).length : 0; // the same raid's other parts
-  const pact = r.syndicate ? ` A Syndicate strike, sent by ${SHORT[r.attacker as RivalId]}.` : '';
+  const pact = r.syndicate ? ` ${r.siege ? `Siege night ${siegeNight(s)}: a` : 'A'} Syndicate strike, sent by ${SHORT[r.attacker as RivalId]}.` : '';
   const tip = `${a.text}${pact}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${more}${others ? ` One of ${others + 1} plots they hit tonight.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
   // The one action: Ring the Bell while a reserve is in range (then when help gets there), else a fence.
   const next = PERIMETERS[ps.defense.tier];
@@ -56,7 +56,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
     : next && pb.ok ? btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, `data-plot="${r.target}"`, 'tiny go')
     : fenceRepairCost(ps) && s.cash >= fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, `data-plot="${r.target}"`) : '';
   return `<div class="cl-ticket red" data-testid="raid-warning" data-raid="${r.id}" title="${esc(tip)}">${ICON.foot()}
-    <b>${r.syndicate ? 'Syndicate' : SHORT[r.attacker as RivalId] ?? 'Raiders'} → ${esc(place(r.target))}</b>
+    <b>${r.siege ? 'Siege' : r.syndicate ? 'Syndicate' : SHORT[r.attacker as RivalId] ?? 'Raiders'} → ${esc(place(r.target))}</b>
     <span class="cl-acts"><span class="cl-note">${clockText(r.at ?? s.minute)} · ${left} min</span>${them ? `<span class="cl-vs">${them}<i>vs</i>${us}</span>` : ''}</span>
     <span class="cl-acts">${btn('goto', 'Go there', `data-plot="${r.target}"`)}${fix}</span></div>`;
 }

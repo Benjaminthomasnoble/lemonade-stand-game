@@ -15,6 +15,7 @@ import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
+import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -354,7 +355,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
 export function rivalsBankrupt(s: GameState): void {
   for (const id of RIVALS) {
     const r = s.rivals[id];
-    if (!r.alive) continue;
+    if (!r.alive || onlyTheSqueeze(s, id)) continue; // campaign: Vera never goes bust, only the Big Squeeze ends her
     r.brokeDays = r.cash < 0 ? (r.brokeDays ?? 0) + 1 : 0;
     if (r.brokeDays >= BANKRUPT_DAYS) eliminate(s, id, 'bankrupt');
   }
@@ -368,7 +369,8 @@ export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Block
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no HQ assaults in this Sandbox' };
   if (s.rank < hq.rank) return rankNeed(hq.rank);
   const tilly = tillyWaits(s, id, 'assault'); if (tilly) return tilly;
-  if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
+  const squeeze = squeezeAssault(s, id); // campaign: Sourwood Manor opens with the Big Squeeze, not once she's Weakened
+  if (squeeze ? !squeeze.ok : !isWeakened(s, id)) return squeeze ?? { ok: false, why: 'Only once they are Weakened' };
   if (s.phase !== 'prep') return { ok: false, why: 'Storm the HQ at Morning Prep' };
   if (!guardIds.length) return { ok: false, why: 'Pick your squad' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
@@ -394,7 +396,7 @@ export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[
 
 /** One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). */
 export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng): BattleInput {
-  const hq = HQS[id];
+  const hq = squeezedHq(s, id); // the campaign's Sourwood Manor as the Big Squeeze left its Gate and Yard
   let attackers = squad;
   let defenders = Array.from({ length: stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2) }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
   let perimeter = 0, fenceHp = 0;
@@ -410,7 +412,7 @@ export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: F
       defenders = [...defenders, ...turn.map((f) => ({ ...f, side: 'def' as const, id: `${f.id}-turned` }))];
     }
     if (id === 'sourwood') { // Old Money: Steward reinforcements, and her cane disarms one guard
-      defenders.push(...[0, 1, 2].map((i) => henchmanFor(s, id, 5, rng, 10 + i)));
+      defenders.push(...Array.from({ length: manorStewards(s, id) }, (_, i) => henchmanFor(s, id, 5, rng, 10 + i))); // +1 a plot the siege took
       if (attackers[0]) attackers = [{ ...attackers[0], weapon: 'fists', hit: attackers[0].hit * 0.6 }, ...attackers.slice(1)];
     }
   }

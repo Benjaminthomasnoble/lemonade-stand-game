@@ -51,7 +51,7 @@ function weaken(s: GameState, id: RivalId) {
   const plots = ownedPlots(s, id).filter((p) => p.type !== 'hq');
   for (const p of plots.slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
 }
-function assault(id: RivalId, size: number, level: number, weapon: WeaponId, gear: GearId, seeds = 40) {
+function assault(id: RivalId, size: number, level: number, weapon: WeaponId, gear: GearId, held = 0, seeds = 40) {
   let wins = 0;
   const stalls: Record<string, number> = {};
   for (let seed = 1; seed <= seeds; seed++) {
@@ -60,6 +60,7 @@ function assault(id: RivalId, size: number, level: number, weapon: WeaponId, gea
     s.cash = 1e9;
     s.day = 78; // after the Act 4 County Fair: the campaign's Tilly won't be stormed before it (calendar.ts tillyWaits)
     weaken(s, id);
+    if (id === 'sourwood') s.squeeze = { called: s.day - 7, nights: 7, held, lost: 0, done: s.day }; // the campaign opens the Manor with the Big Squeeze: `held` good nights
     // A mixed crew: traits cycle with the seed, as hires from the Hiring Hall would.
     s.guards = Array.from({ length: size }, (_, i) => guard(weapon, gear, level, TRAITS[(seed * 7 + i * 3) % TRAITS.length]));
     const r = stormHQ(s, id, s.guards.map((g) => g.id));
@@ -74,6 +75,7 @@ console.log(`  Hollis Homestead, 8 L3 hatchets + vests: ${assault('hollis', 8, 3
 console.log(`  FizzCo Tower, 12 L4 hatchets + Pro Gear: ${assault('fizzco', 12, 4, 'hatchets', 'pro')}`);
 console.log(`  Sourwood Manor, 12 L4 hatchets + Pro Gear: ${assault('sourwood', 12, 4, 'hatchets', 'pro')}`);
 console.log(`  Sourwood Manor, 12 L5 hatchets + Pro Gear: ${assault('sourwood', 12, 5, 'hatchets', 'pro')}`);
+console.log(`  Sourwood Manor after 7 good siege nights (Gate 1,500, Yard 4), 12 L4 hatchets + Pro Gear: ${assault('sourwood', 12, 4, 'hatchets', 'pro', 7)}`);
 
 if (process.env.DEBUG) {
   const r = runBattle(fight({ attackers: party(4, 9), defenders: guards(5, 'def', 'hatchets', 'pro'), ...fenced(4), gadgets: kit, standHp: STAND_HP[4] }), { seed: 9 });

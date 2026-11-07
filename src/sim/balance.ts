@@ -468,6 +468,13 @@ export const SYNDICATE_TIER = 5;
  * Threat 5, or Threat 4 on Cutthroat. Laid Back's Threat stops at 4, so there it forms at Rank 9, where Classic reaches
  * Threat 5 (placeholder: spec gap); Custom follows Classic. */
 export const SYNDICATE_FORMS = { act5Days: 14, threat: 5, cutthroatThreat: 4, laidBackRank: 9 };
+/**
+ * The Big Squeeze, the campaign's finale (spec: Act 5): from Rank `rank` you call it at Morning Prep, and `nights` siege
+ * nights follow. Each siege dawn names that night's `targets` (2–3) of your plots for the Syndicate's strike. Each night
+ * you hold them all takes `gateCut` (10% of its 5,000) off Sourwood Manor's Gate, down to `gateFloor` after 7 good nights,
+ * and benches one Yard elite; each plot you lose adds a Steward to the Boss Room, on top of Old Money's `stewards`.
+ */
+export const BIG_SQUEEZE = { rank: 9, nights: 7, targets: [2, 3] as [number, number], gateCut: 500, gateFloor: 1500, stewards: 3 };
 /** Detection: 50% plus gadgets and watchers, capped at 95%, then night stealth comes off, down to 0% (the floor is a placeholder: spec gap). */
 export const DETECTION_BASE = 0.5;
 export const DETECTION_CAP = 0.95;

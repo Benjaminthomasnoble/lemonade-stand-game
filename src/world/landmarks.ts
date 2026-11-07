@@ -468,10 +468,11 @@ export function forSaleLabel(): THREE.Group {
 
 // ---------------------------------------------------------------- the player's VIP facilities
 /** VIP facilities, in their owner's colours (lemon yellow and Lottie's name only for the player). `reach` sizes a pier to the water. */
-export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 'billboard', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
   const M = new Model();
   const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
   const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
+  if (kind === 'billboard') return billboard(M, owner, own.main, ACC);
   M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? own.main : '#F3E9D6';
   M.farFlat = kind === 'grove' || kind === 'pier';
   if (kind === 'bottling') M.farTop = own.main;
@@ -736,4 +737,30 @@ export function medallion(M0: Model, owner: RivalId | 'player' | null, X: number
   M0.B.raw(g, new THREE.Matrix4().makeTranslation(X, Y, Z));
   M0.B.raw(g, new THREE.Matrix4().makeTranslation(X, Y, Z).multiply(new THREE.Matrix4().makeRotationY(Math.PI)));
   g.dispose();
+}
+
+/**
+ * The Billboard: a cardstock board on popsicle-stick legs in the owner's colours, the owner's medallion
+ * pressed on its face, two clay spotlights that glow at night, and a cardboard strut behind.
+ */
+function billboard(M: Model, owner: string | null, main: Col, acc: Col) {
+  M.farColor = main;
+  const z = -3.2, W = 8, H = 3.6, y0 = 3.2, yc = y0 + H / 2;
+  // legs and a cross brace
+  for (const x of [-2.8, 0, 2.8]) { stick(M, x, 0, y0 + 0.3, z - 0.15, 0.3); stick(M, x, 0, y0 * 0.9, z - 1.6, 0.22); }
+  M.add(rbox(6.4, 0.18, 0.12, 0.04), P.stick, { p: [0, 1.4, z - 0.25], r: [0, 0, 0.32], fx: PAPER });
+  M.add(rbox(6.4, 0.18, 0.12, 0.04), P.stick, { p: [0, 1.4, z - 0.25], r: [0, 0, -0.32], fx: PAPER });
+  for (const x of [-2.8, 0, 2.8]) M.add(rbox(0.16, 0.16, 1.6, 0.04), P.stick, { p: [x, y0 * 0.85, z - 0.85], r: [-0.5, 0, 0], fx: PAPER });
+  // the cardstock board: an owner-coloured border round a cream face with stripes in the accent
+  M.add(rbox(W + 0.5, H + 0.5, 0.2, 0.08), main, { p: [0, yc, z], fx: PAPER });
+  M.add(rbox(W, H, 0.06, 0.03), '#FFF6DF', { p: [0, yc, z + 0.12], fx: PAPER });
+  for (let k = 0; k < 4; k++) M.add(rbox(W * 0.36, 0.22, 0.03, 0.02), k % 2 ? main : acc === '#FFFFFF' ? '#E8704F' : acc, { p: [1.9, yc + 1.05 - k * 0.7, z + 0.16], fx: PAPER });
+  medallion(M, (owner ?? 'player') as RivalId | 'player', -2.3, yc, z + 0.25, 1.45);
+  // clay spotlights on bent stick arms, lit at night
+  for (const x of [-2.6, 2.6]) {
+    M.add(rbox(0.1, 0.1, 1.2, 0.03), '#5B5568', { p: [x, y0 + H + 0.45, z + 0.45] });
+    M.add(cone(0.28, 0.45, 10, true), '#5B5568', { p: [x, y0 + H + 0.35, z + 1.05], r: [-2.2, 0, 0] });
+    M.add(sph(0.16, 8, 6), '#FFE2A8', { p: [x, y0 + H + 0.2, z + 1.15], fx: GLOSS + 1 });
+  }
+  return M.done('facility');
 }

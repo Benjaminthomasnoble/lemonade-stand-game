@@ -47,6 +47,8 @@ export interface PlotView {
   /** World-space spot where customers queue. */
   serve: THREE.Vector3;
   sidewalkZ: number;
+  /** A crate reveal is playing: re-collect this plot's Bay View clay once it's done (time it's due, -1 = not yet timed). */
+  refar?: number;
   /** Who owned the HQ last drawn here, so a capture can play the lemon-clay wave. */
   hqOwner?: string | null;
   /** The player's stand level last drawn here, so an upgrade can play its crate reveal. */
@@ -348,6 +350,40 @@ export function createBay(scene: THREE.Scene): Bay {
     return geo;
   }
   let idleTick = 0;
+  /** Districts with no plot within this of the camera's focus draw as their Bay View block. */
+  const NEAR_DETAIL = 75;
+  /** Within a near district, plots farther than this from the focus draw as their lite (Bay View) clay. */
+  const PLOT_NEAR = 42;
+  const liteMesh = new Map<PlotView, THREE.Mesh>();
+  let liteBuilds = 0;
+  /** Make sure a plot's lite mesh is current; at most a few new collections a frame. Returns whether it's ready. */
+  function liteBudget(v: PlotView) {
+    const cached = farGeo.get(v);
+    if ((!cached || cached.key !== v.key) && liteBuilds-- <= 0) return false;
+    const geo = plotFar(v);
+    let m = liteMesh.get(v);
+    if (!geo) { if (m) m.visible = false; return true; } // nothing here: hide the root too
+    if (!m) {
+      m = new THREE.Mesh(geo, K.world);
+      m.name = 'plot-lite';
+      m.castShadow = m.receiveShadow = true;
+      m.matrixAutoUpdate = false;
+      scene.add(m);
+      liteMesh.set(v, m);
+    } else if (m.geometry !== geo) m.geometry = geo;
+    return true;
+  }
+  /** Drop a plot's cached Bay View clay and have its district re-merged (a reveal has finished). */
+  function refar(v: PlotView) {
+    farGeo.get(v)?.geo?.dispose();
+    farGeo.delete(v);
+    far.get(v.plot.district)!.dirty = true;
+    v.refar = undefined;
+  }
+  addEventListener('stand-revealed', (e) => {
+    const g = (e as CustomEvent<{ stand: THREE.Object3D }>).detail?.stand;
+    for (const v of viewList) if (v.stand?.group === g) refar(v);
+  });
   function buildFar(id: DistrictId, f: { views: PlotView[]; mesh: THREE.Mesh | null; dirty: boolean }) {
     const B = new Baker();
     for (const v of f.views) { const g = plotFar(v); if (g) B.raw(g); }
@@ -461,7 +497,7 @@ export function createBay(scene: THREE.Scene): Bay {
       v.hqOwner = ps.owner;
     }
     else if (ps.facility?.kind === 'clubhouse') building = civicBuilding('Clubhouse'); // combat: a stand-in till the art threads model one
-    else if (ps.facility?.kind === 'billboard') building = civicBuilding('Billboard'); // demand: a stand-in till the art threads model one
+    else if (ps.facility?.kind === 'billboard') building = facilityModel('billboard', ps.facility.level, ps.owner);
     else if (ps.facility) {
       const east = ps.facility.kind === 'pier' ? eastReach(v) : null;
       building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, east ?? reachOf(v));
@@ -482,7 +518,7 @@ export function createBay(scene: THREE.Scene): Bay {
       v.standLottie = lottie;
       // An upgrade plays the crate reveal, and so does a brand-new stand once the game is under way.
       const fresh = shown === undefined && synced;
-      if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) m.reveal();
+      if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) { m.reveal(); v.refar = -1; }
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) {
       building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps), s.weather.kind === 'storm');
@@ -687,12 +723,25 @@ export function createBay(scene: THREE.Scene): Bay {
       }
       // One district merge a frame in Bay View, and one every half second while zoomed in (idle time),
       // so zooming out never waits on a pile of merges; a stale block stays up until its new one is ready.
-      let merges = level >= 2 || ++idleTick % 30 === 0 ? 1 : 0;
+      // A finished reveal (or one skipped with a tap) gets its plot re-collected for Bay View.
+      for (const v of viewList) if (v.refar !== undefined) { if (v.refar < 0) v.refar = time + 12; else if (time > v.refar) refar(v); }
+      // Distance-based detail: districts whose nearest plot is far from where the camera looks draw as
+      // their Bay View block even when zoomed in (a low Street View pitch or Gull Flight sees the whole bay).
+      const fx = focus?.x ?? 0, fz = focus?.z ?? 0;
+      let merges = level >= 2 || ++idleTick % 30 === 0 ? 1 : 0, awayBudget = 1;
+      liteBuilds = 2;
       for (const [id, f] of farList) {
-        if (f.dirty && merges > 0) { buildFar(id, f); merges--; }
-        const block = level >= 2 && !!f.mesh;
+        const away = level >= 2 || (!!focus && f.views.every((v) => Math.hypot(v.plot.x - fx, v.plot.z - fz) > NEAR_DETAIL));
+        if (f.dirty && (merges > 0 || (away && awayBudget > 0))) { buildFar(id, f); if (merges > 0) merges--; else awayBudget--; }
+        const block = away && !!f.mesh;
         if (f.mesh) f.mesh.visible = block;
-        for (const v of f.views) v.root.visible = !block;
+        for (const v of f.views) {
+          // In a district near the camera, plots beyond PLOT_NEAR draw as their own cached Bay View clay (one draw each).
+          const lite = !block && level < 2 && !!focus && Math.hypot(v.plot.x - fx, v.plot.z - fz) > PLOT_NEAR && v.refar === undefined && !held.has(v.plot.id) && liteBudget(v);
+          v.root.visible = !block && !lite;
+          const m = liteMesh.get(v);
+          if (m) m.visible = lite;
+        }
       }
       for (const v of viewList) {
         if (!v.stand) continue;

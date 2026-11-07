@@ -1,123 +1,85 @@
-// Lottie's Corner: the stand (built per level), the grandkid behind it and
-// Grandma Lottie in her lawn chair. L1 is the Folding Table; L2's striped
-// wooden booth is ready for milestone 2.
+// Lottie's Corner and every player stand, in Kitchen-Table Clay: the stand
+// itself (one of five clay levels, see clay/stands.ts), its dashboard props
+// (stock, pitcher, sugar cubes, chalkboard price, stars, OPEN card), the
+// upgrade crate reveal, the damage steps and the smashed pile. The grandkid
+// works the counter and Grandma Lottie sits in her lawn chair by the phone.
 import * as THREE from 'three';
 import { idlePose, MOTION, makePerson } from './people.ts';
-import { kiosk, palace, shack } from './standLevels.ts';
-import { clayFrom } from './clay/kit.ts';
+import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
+import { clayFrom, kit } from './clay/kit.ts';
+import { P } from './clay/palette.ts';
+import { buildLevel, fallSign, type LevelModel } from './clay/stands.ts';
+import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
+import { createRevealCrate } from './clay/crate.ts';
+import { wreckPile } from './clay/defenses.ts';
+import { cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
+
+export interface StandUpdate {
+  price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
+  recipe?: string; sweetness?: PropState['sweetness']; stock?: PropState['stock']; stars?: number;
+}
 
 export interface Stand {
   group: THREE.Group;
   /** Where a customer stands to buy. */
   servePoint: THREE.Vector3;
-  setLevel(level: number): void;
+  /** Change level; gilded is the Rank 10 Palace. */
+  setLevel(level: number, gilded?: boolean): void;
   setBrand(tier: number): void;
-  update(opts: { price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean }): void;
+  update(opts: StandUpdate): void;
   /** Who's at the stand, for bubbles to follow. Lottie only sits at Lottie's Corner. */
   kid: THREE.Object3D;
   lottie?: THREE.Object3D;
+  /** The dashboard props on the stand (stock, pitcher, chalkboard, stars). */
+  props: StandProps;
   /** Lottie reacts: cheers a rush or a rank-up, shakes her fist at trouble. */
   react(kind: LottieReaction): void;
-  /** The upgrade crate reveal: a crate drops, rattles, bursts, and the new stand boings up. */
+  /** The upgrade crate reveal: a crate drops, rattles, its slats fall open and the new stand rises like dough. */
   reveal(): void;
+  /** Skip a reveal that's playing (a tap). */
+  skipReveal(): void;
   /** Someone kicks the stand over (Day 5's "reminder"); the kid rights it a few seconds later. */
   knock(): void;
+  /** Damage steps by HP share: torn awning at 75%, fallen sign at 50%, dangling sticks and squashed corners at 25%. */
+  setDamage(hp: number): void;
+  /** Smashed: a neat pile of popsicle sticks and squashed clay with the sign on top. */
+  setWrecked(wrecked: boolean): void;
 }
 
 export type LottieReaction = 'cheer' | 'fist';
 
-const mat = (color: number, roughness = 0.85) => clayFrom(color, roughness); // clay (art thread)
+const mat = (color: number, roughness = 0.85) => clayFrom(color, roughness);
 
-function shadowy<T extends THREE.Mesh>(m: T): T { m.castShadow = true; m.receiveShadow = true; return m; }
-
-function signTexture(text: string, sub: string, crayon: boolean) {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 200;
-  const g = c.getContext('2d')!;
-  g.fillStyle = crayon ? '#d9b98a' : '#fff6c2'; // cardboard or painted board
-  g.fillRect(0, 0, c.width, c.height);
-  g.textAlign = 'center';
-  if (crayon) {
-    g.font = 'bold 76px "Comic Sans MS", "Chalkboard SE", cursive';
-    g.fillStyle = '#f2c200';
-    g.strokeStyle = '#c0392b';
-    g.lineWidth = 4;
-    g.save(); g.translate(256, 92); g.rotate(-0.04);
-    g.fillText(text, 0, 0); g.strokeText(text, 0, 0); g.restore();
-    g.fillStyle = '#2d6cdf';
-    g.font = 'bold 60px "Comic Sans MS", "Chalkboard SE", cursive';
-    g.fillText(sub, 256, 172);
-  } else {
-    g.strokeStyle = '#d9a400'; g.lineWidth = 12; g.strokeRect(6, 6, c.width - 12, c.height - 12);
-    g.fillStyle = '#e0a800'; g.font = 'bold 78px "Trebuchet MS", sans-serif'; g.fillText(text, 256, 100);
-    g.fillStyle = '#7a4a12'; g.font = 'bold 50px "Trebuchet MS", sans-serif'; g.fillText(sub, 256, 168);
+/** Lottie's striped lawn chair: chrome tubes and green and cream webbing. */
+function clayLawnChair(): THREE.Group {
+  const B = new Baker();
+  for (const s of [-1, 1]) {
+    B.add(cap(0.03, 0.9, 2, 6), P.chrome, { p: [s * 0.32, 0.25, 0.05], r: [Math.PI / 2 - 0.5, 0, 0], fx: GLOSS });
+    B.add(cap(0.03, 0.9, 2, 6), P.chrome, { p: [s * 0.32, 0.25, 0.05], r: [-(Math.PI / 2 - 0.5), 0, 0], fx: GLOSS });
+    B.add(cap(0.03, 0.85, 2, 6), P.chrome, { p: [s * 0.32, 0.72, -0.3], r: [-0.25, 0, 0], fx: GLOSS });
+    B.add(rbox(0.08, 0.05, 0.5, 0.02), P.stick, { p: [s * 0.34, 0.58, 0.02], fx: PAPER });
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function folkTable(): THREE.Group {
+  for (let k = 0; k < 5; k++) B.add(box(0.62, 0.02, 0.1), k % 2 ? P.cream : P.green, { p: [0, 0.38, -0.2 + k * 0.11], fx: PAPER });
+  for (let k = 0; k < 6; k++) B.add(box(0.62, 0.1, 0.02), k % 2 ? P.cream : P.green, { p: [0, 0.46 + k * 0.1, -0.3 - k * 0.026], r: [-0.25, 0, 0], fx: PAPER });
   const g = new THREE.Group();
-  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.9), mat(0x2f6d4f)));
-  top.position.set(0, 0.78, 0.3);
-  g.add(top);
-  for (const x of [-0.72, 0.72]) for (const z of [-0.1, 0.7]) {
-    const leg = shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.78, 6), mat(0x888888, 0.4)));
-    leg.position.set(x, 0.39, z);
-    g.add(leg);
-  }
-  // Blue cooler beside the table.
-  const cooler = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.42, 0.4), mat(0x2d7dd2, 0.5)));
-  cooler.position.set(1.15, 0.21, 0.35);
-  g.add(cooler);
-  const lid = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), mat(0xf4f4f4, 0.5)));
-  lid.position.set(1.15, 0.46, 0.35);
-  g.add(lid);
+  g.add(clayMesh(B.build(), kit().world));
   return g;
 }
 
-function woodenBooth(): THREE.Group {
+/** The hand-painted LOTTIE'S → signs up and down the block (brand tier 1). */
+function brandBoards(): THREE.Group {
   const g = new THREE.Group();
-  const counter = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 1.1), mat(0xb07a45)));
-  counter.position.set(0, 0.55, 0.3);
-  g.add(counter);
-  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.1, 1.3), mat(0xcf9a5c)));
-  top.position.set(0, 1.15, 0.3);
-  g.add(top);
-  for (const x of [-1.5, 1.5]) for (const z of [-0.2, 0.8]) {
-    const post = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), mat(0x8a5a30)));
-    post.position.set(x, 1.3, z);
-    g.add(post);
+  const tex = crayonSign("LOTTIE'S →");
+  const B = new Baker();
+  for (const [x, flip] of [[-4.8, 1], [4.8, -1]] as const) {
+    stick(B, 1.0, [x, 0.5, 0.98], [0, flip * 0.35, 0], P.stick, 0.1, 0.06);
+    B.add(rbox(1.2, 0.5, 0.05, 0.03), '#d9b48a', { p: [x, 1.0, 0.95], r: [0, flip * 0.35, 0], fx: PAPER });
+    const board = cardPlane(tex, 1.12, 0.44);
+    board.position.set(x + Math.sin(flip * 0.35) * 0.03, 1.0, 0.95 + Math.cos(flip * 0.35) * 0.03);
+    board.rotation.y = flip * 0.35;
+    g.add(board);
   }
-  const awning = new THREE.Group();
-  for (let i = 0; i < 8; i++) {
-    const s = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 1.7), mat(i % 2 ? 0xffffff : 0xf6d33c, 0.7)));
-    s.position.x = -1.8 + (i + 0.5) * 0.45;
-    awning.add(s);
-  }
-  awning.position.set(0, 2.62, 0.45);
-  awning.rotation.x = 0.18;
-  g.add(awning);
-  return g;
-}
-
-function lawnChair(): THREE.Group {
-  const g = new THREE.Group();
-  const frame = mat(0xcccccc, 0.4);
-  const webbing = mat(0x2bb3b1, 0.7);
-  const seat = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.55), webbing));
-  seat.position.y = 0.38;
-  g.add(seat);
-  const back = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.05), webbing));
-  back.position.set(0, 0.72, -0.3);
-  back.rotation.x = -0.25;
-  g.add(back);
-  for (const x of [-0.3, 0.3]) for (const z of [-0.25, 0.25]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.38, 5), frame);
-    leg.position.set(x, 0.19, z);
-    g.add(leg);
-  }
+  g.add(clayMesh(B.build(), kit().world));
   return g;
 }
 
@@ -125,24 +87,47 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   const group = new THREE.Group();
   const levelRoot = new THREE.Group();
   group.add(levelRoot);
-  let level = 0;
-  let surfaceY = 0.81;
+  let model: LevelModel | null = null;
+  let level = 0, gilt = false, hpNow = 1, wrecked = false;
   let spin: THREE.Object3D | undefined;
+  const props = createStandProps();
+  group.add(props.group);
+  const crate = createRevealCrate();
+  group.add(crate.group);
+  let wreck: THREE.Group | null = null;
 
-  // The upgrade upCrate: drops in, rattles, bursts into planks.
-  const upCrate = new THREE.Group();
-  const wood = mat(0x8B5E3C);
-  const crateBox = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.0, 1.8), wood));
-  crateBox.position.y = 1.0;
-  const label = shadowy(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.7), mat(0xF7C948, 0.6)));
-  label.position.set(0, 1.1, 0.91);
-  upCrate.add(crateBox, label);
-  for (const y of [0.35, 1.65]) { const band = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.16, 1.85), mat(0x6e4a2c))); band.position.y = y; upCrate.add(band); }
-  upCrate.visible = false;
-  group.add(upCrate);
-  const planks = [0, 1, 2, 3, 4, 5].map(() => { const p = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.35), wood)); p.visible = false; group.add(p); return p; });
-  const plankVel = planks.map(() => new THREE.Vector3());
-  let revealT = -1, lastTime = 0, knockT = -1;
+  // ---------- the reveal ----------
+  let revealT = -1, lastTime = 0, knockT = -1, flourishFrom = -1;
+  function endReveal() {
+    revealT = -1; flourishFrom = -1;
+    crate.hide();
+    kid.visible = true;
+    levelRoot.visible = props.group.visible = !wrecked;
+    levelRoot.scale.set(1, 1, 1);
+    model?.done();
+  }
+  function animateReveal(dt: number) {
+    if (revealT < 0 || !model) return;
+    revealT += dt;
+    const total = model.revealSeconds;
+    // Bigger levels get a bigger crate.
+    crate.group.scale.setScalar(model.level >= 4 ? 1.8 : model.level === 3 ? 1.3 : 1);
+    const { rise, burst } = crate.pose(revealT, total);
+    levelRoot.visible = rise > 0;
+    kid.visible = rise >= 0.95;
+    props.group.visible = rise >= 1 && revealT > 2;
+    const r = MOTION < 1 ? (rise > 0 ? 1 : 0) : rise;
+    levelRoot.scale.set(1 + (1 - r) * 0.12, Math.max(0.001, r), 1 + (1 - r) * 0.12);
+    if (burst && flourishFrom < 0) flourishFrom = revealT;
+    if (flourishFrom >= 0) model.flourish(Math.floor((revealT - flourishFrom) * 12) / 12);
+    if (revealT >= total) {
+      endReveal();
+      dispatchEvent(new CustomEvent('stand-revealed', { detail: { stand: group, level: model.level } }));
+    }
+  }
+  function onTap() { if (revealT > 0.6) endReveal(); }
+  if (typeof addEventListener === 'function') addEventListener('pointerdown', onTap);
+
   function animateKnock(dt: number) {
     if (knockT < 0) return;
     knockT += dt;
@@ -151,92 +136,45 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     const tip = q < 0.35 ? (q / 0.35) : q < 4.5 ? 1 : Math.max(0, 1 - (q - 4.5) / 0.6);
     levelRoot.rotation.x = -tip * 1.25;
     levelRoot.position.z = -tip * 0.4;
-    props.visible = tip < 0.2;
-    if (knockT > 5.2) { knockT = -1; levelRoot.rotation.x = 0; levelRoot.position.z = 0; props.visible = true; }
-  }
-  function animateReveal(time: number) {
-    if (revealT < 0) return;
-    const dt = Math.min(0.1, Math.max(0, time - lastTime));
-    revealT += dt;
-    const t = revealT;
-    // Stop-motion: the big moves step on twos (12 fps).
-    const q = Math.floor(t * 12) / 12;
-    if (t < 0.5) {
-      upCrate.visible = true; levelRoot.visible = false; props.visible = false;
-      const k = q / 0.5;
-      upCrate.position.y = 7 * (1 - k * k);
-      upCrate.scale.set(1, 1, 1);
-    } else if (t < 1.4) {
-      upCrate.position.y = 0;
-      const land = t < 0.7 ? Math.sin(((q - 0.5) / 0.2) * Math.PI) * 0.18 * MOTION : 0;
-      const rattle = t > 0.8 ? Math.sin(q * 70) * 0.05 * MOTION : 0;
-      upCrate.scale.set(1 + land * 0.6, 1 - land, 1 + land * 0.6);
-      upCrate.rotation.z = rattle;
-    } else if (upCrate.visible) {
-      // Burst: planks fly, the new stand pops up.
-      upCrate.visible = false;
-      planks.forEach((p, i) => {
-        const a = (i / planks.length) * Math.PI * 2;
-        p.visible = true;
-        p.position.set(Math.cos(a) * 0.8, 1 + (i % 3) * 0.5, Math.sin(a) * 0.7);
-        p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-        plankVel[i].set(Math.cos(a) * 4, 5 + Math.random() * 2, Math.sin(a) * 3.5);
-      });
-      levelRoot.visible = true;
-      props.visible = true;
-    }
-    if (t >= 1.4) {
-      const k = q - 1.4;
-      const pop = k < 0.5 ? [0.2, 0.6, 1.2, 1.15, 0.95, 1.02][Math.min(5, Math.floor(k * 12))] : 1;
-      const sc = MOTION < 1 ? 1 : pop;
-      levelRoot.scale.set(sc, sc, sc);
-      planks.forEach((p, i) => {
-        if (!p.visible) return;
-        plankVel[i].y -= 18 * dt;
-        p.position.addScaledVector(plankVel[i], dt);
-        p.rotation.x += dt * 6; p.rotation.z += dt * 4;
-        if (p.position.y < 0.06) { p.position.y = 0.06; plankVel[i].set(0, 0, 0); }
-      });
-      if (t > 3.2) { planks.forEach((p) => { p.visible = false; }); levelRoot.scale.set(1, 1, 1); revealT = -1; window.dispatchEvent(new CustomEvent('stand-revealed', { detail: { stand: group, level } })); }
-    }
+    props.group.visible = tip < 0.2 && !wrecked;
+    if (knockT > 5.2) { knockT = -1; levelRoot.rotation.x = 0; levelRoot.position.z = 0; props.group.visible = !wrecked; }
   }
 
-  // Props that move with the level: pitcher, lemons, cups, sign.
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.36, 16, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, roughness: 0.1 }));
-  const juice = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.33, 16),
-    new THREE.MeshStandardMaterial({ color: 0xfff15a, emissive: 0x554400, roughness: 0.3 }));
-  const props = new THREE.Group();
-  props.add(glass, juice);
-  const lemonMat = mat(0xffe11a, 0.5);
-  const lemonGeo = new THREE.SphereGeometry(0.07, 10, 8);
-  for (let i = 0; i < 6; i++) {
-    const l = new THREE.Mesh(lemonGeo, lemonMat);
-    l.scale.set(1.25, 1, 1);
-    l.position.set(0.3 + (i % 3) * 0.13, 0.06 + Math.floor(i / 3) * 0.1, 0.25 + (i % 2) * 0.1);
-    l.castShadow = true;
-    props.add(l);
+  // ---------- damage ----------
+  function applyDamage() {
+    if (!model) return;
+    const hp = hpNow;
+    if (model.awning) { model.awning.intact.visible = hp > 0.75; model.awning.torn.visible = hp <= 0.75; }
+    if (model.tearable) { model.tearable.intact.visible = hp > 0.75; model.tearable.torn.visible = hp <= 0.75; }
+    const rest = model.sign.userData.rest as { p: THREE.Vector3; r: THREE.Euler } | undefined;
+    if (rest) {
+      if (hp <= 0.5) fallSign(model.sign);
+      else { model.sign.position.copy(rest.p); model.sign.rotation.copy(rest.r); }
+    }
+    const starMesh = props.group.getObjectByName('stars');
+    if (starMesh) starMesh.visible = hp > 0.5;
+    model.sticks.visible = hp <= 0.25;
+    // Squashed corners: the whole stand slumps a little.
+    model.root.scale.set(hp <= 0.25 ? 1.04 : 1, hp <= 0.25 ? 0.9 : 1, 1);
+    model.root.rotation.z = hp <= 0.25 ? 0.035 : 0;
   }
-  for (let i = 0; i < 4; i++) {
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.13, 10), mat(0xf2f2f2));
-    cup.position.set(-0.1, 0.07 + i * 0.04, 0.3);
-    props.add(cup);
-  }
-  glass.position.set(-0.45, 0.18, 0.35);
-  juice.position.copy(glass.position);
-  group.add(props);
 
-  const signMat = new THREE.MeshStandardMaterial({ roughness: 0.8 });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.55), signMat);
-  sign.castShadow = true;
-  group.add(sign);
+  // Awning spring: rolled up at the hinge when shut, springs down when open (stepped on twos).
+  const spring = { x: 0, v: 0 };
+  function poseAwning(u: number) {
+    if (!model?.awning) return;
+    const { hinge, open } = model.awning;
+    hinge.rotation.x = open - (1 - u) * 0.5;
+    hinge.scale.set(1, 1 - (1 - u) * 0.15, Math.max(0.1, 0.1 + 0.9 * u));
+  }
+  let openNow = false, lastTq = -1;
 
   const kid = makePerson(0xf6d33c, 0x3c5aa6, undefined, 0.8);
   kid.position.set(0, 0, -0.45);
   group.add(kid);
 
   // Grandma Lottie: lavender dress, white bun, in a lawn chair.
-  const chair = lawnChair();
+  const chair = clayLawnChair();
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
   if (opts.lottie !== false) group.add(chair);
@@ -260,36 +198,26 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   lottieGlass.visible = false;
   lottieArms.left.add(lottieGlass);
   // The rotary phone by Lottie's chair: the bosses call it to taunt you.
+  // The rotary phone by Lottie's chair, on a crate: the bosses call it to taunt you.
   const phone = new THREE.Group();
-  const phoneBody = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.28), mat(0xE8704F, 0.5));
-  phoneBody.position.y = 0.08;
-  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 14), mat(0xFFF1D6, 0.5));
-  dial.position.set(0, 0.17, 0.05);
-  const handset = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.3, 4, 8), mat(0xE8704F, 0.5));
-  handset.rotation.z = Math.PI / 2;
+  {
+    const B = new Baker();
+    B.add(rbox(0.36, 0.17, 0.3, 0.06), P.terra, { p: [0, 0.085, 0] });
+    B.add(cyl(0.1, 0.1, 0.02, 16), P.cream, { p: [0, 0.18, 0.05], fx: GLOSS });
+    B.add(tor(0.06, 0.012, 5, 14), P.ink, { p: [0, 0.195, 0.05], r: [Math.PI / 2, 0, 0] });
+    B.add(rbox(0.44, 0.4, 0.38, 0.04), P.walnut, { p: [0, -0.2, 0], fx: PAPER });
+    phone.add(clayMesh(B.build(), kit().world));
+  }
+  const handset = clayMesh(new Baker().add(cap(0.035, 0.3, 4, 8), P.terra, { r: [0, 0, Math.PI / 2] }).add(new THREE.SphereGeometry(0.06, 8, 6), P.terra, { p: [-0.18, -0.02, 0], s: [1, 0.6, 1] }).add(new THREE.SphereGeometry(0.06, 8, 6), P.terra, { p: [0.18, -0.02, 0], s: [1, 0.6, 1] }).build(), kit().world);
   handset.position.set(0, 0.21, -0.07);
-  const phoneCrate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.36), mat(0x8B5E3C));
-  phoneCrate.position.y = -0.2;
-  phone.add(phoneBody, dial, handset, phoneCrate);
+  phone.add(handset);
   phone.position.set(-2.55, 0.4, 0.25);
-  phone.traverse((o) => { o.castShadow = true; });
   if (opts.lottie !== false) group.add(phone);
   let reaction: { kind: LottieReaction; start: number } | null = null;
   let pendingReaction: LottieReaction | null = null;
   if (opts.lottie !== false) group.add(lottie);
 
-  // Hand-painted signs (brand tier 1) up and down the block.
-  const brandSigns = new THREE.Group();
-  const brandMat = new THREE.MeshStandardMaterial({ map: signTexture("LOTTIE'S", 'this way →', true), roughness: 0.8 });
-  for (const [x, flip] of [[-4.8, 1], [4.8, -1]] as const) {
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.45), brandMat);
-    board.position.set(x, 0.9, 1.0);
-    board.rotation.y = flip * 0.35;
-    board.castShadow = true;
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), mat(0x8a5a30));
-    post.position.set(x, 0.45, 0.98);
-    brandSigns.add(board, post);
-  }
+  const brandSigns = brandBoards();
   brandSigns.visible = false;
   group.add(brandSigns);
 
@@ -365,63 +293,76 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     idlePose(lottie, time, 0.9);
   }
 
-  let lastSign = '';
+
   const stand: Stand = {
     group,
     kid,
+    props,
     lottie: opts.lottie !== false ? lottie : undefined,
     react(kind) { pendingReaction = kind; },
-    reveal() { revealT = 0; levelRoot.visible = false; props.visible = false; },
+    reveal() { if (!model || wrecked) return; revealT = 0; flourishFrom = -1; levelRoot.visible = false; props.group.visible = false; },
+    skipReveal() { if (revealT >= 0) endReveal(); },
     knock() { knockT = 0; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
-    setLevel(l) {
-      if (l === level) return;
-      level = l;
+    setLevel(l, gilded = false) {
+      if (l === level && gilded === gilt) return;
+      level = l; gilt = gilded;
       levelRoot.clear();
-      spin = undefined;
-      if (l >= 3) {
-        const m = (l === 3 ? kiosk : l === 4 ? shack : palace)();
-        levelRoot.add(m.group);
-        surfaceY = m.surfaceY;
-        sign.position.copy(m.sign);
-        sign.rotation.x = 0;
-        spin = m.spin;
-      } else {
-        levelRoot.add(l === 2 ? woodenBooth() : folkTable());
-        surfaceY = l === 2 ? 1.2 : 0.81;
-        if (l === 2) { sign.position.set(0, 0.6, 0.86); sign.rotation.x = 0; }
-        else { sign.position.set(0, 0.5, 0.76); sign.rotation.x = -0.05; }
-      }
-      props.position.set(0, surfaceY, l >= 5 ? 0.1 : l >= 3 ? 0.3 : 0);
-      // Bigger buildings: the kid works the window, Lottie sits further out.
-      kid.position.set(0, l >= 3 ? 0.3 : 0, l >= 3 ? 0.05 : -0.45);
-      const out = l >= 5 ? -5 : l === 4 ? -5.2 : l === 3 ? -3 : -2;
-      chair.position.x = out;
-      lottie.position.x = out;
-      phone.position.x = out - 0.55;
-      stand.servePoint.z = l === 4 ? 1.5 : 1.35;
-      lastSign = '';
+      model = buildLevel(l, 'player', { gilded });
+      levelRoot.add(model.root);
+      spin = model.spin;
+      props.place(model.anchors);
+      const [kx, ky, kz] = model.kid;
+      kid.position.set(kx, ky, kz);
+      kid.userData.baseY = ky;
+      chair.position.x = model.chairX;
+      lottie.position.x = model.chairX;
+      phone.position.x = model.chairX - 0.55;
+      stand.servePoint.z = model.serveZ;
+      spring.x = openNow ? 1 : 0; spring.v = 0;
+      poseAwning(spring.x);
+      applyDamage();
+      if (wreck) { wreck.removeFromParent(); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
     },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing }) {
-      const label = price < 1 ? `${Math.round(price * 100)}¢` : `$${price.toFixed(2)}`;
-      const key = `${level}|${label}`;
-      if (key !== lastSign) {
-        lastSign = key;
-        signMat.map?.dispose();
-        signMat.map = signTexture(level >= 2 ? "LOTTIE'S" : 'LEMONADE', label, level < 2);
-        signMat.needsUpdate = true;
+    setDamage(hp) {
+      const h = Math.max(0, Math.min(1, hp));
+      if (h === hpNow) return;
+      hpNow = h;
+      applyDamage();
+    },
+    setWrecked(w) {
+      wrecked = w;
+      if (w && !wreck) { wreck = wreckPile(level || 1, 'player'); group.add(wreck); }
+      if (wreck) wreck.visible = w;
+      levelRoot.visible = !w;
+      props.group.visible = !w;
+      if (w) endReveal(), levelRoot.visible = false, props.group.visible = false;
+    },
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars }) {
+      props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}) });
+      openNow = open;
+      const tq = Math.floor(time * 12) / 12;
+      if (tq !== lastTq) {
+        const steps = lastTq < 0 ? 1 : Math.max(1, Math.min(4, Math.round((tq - lastTq) * 12)));
+        lastTq = tq;
+        props.twos(tq);
+        if (model?.awning) {
+          const target = open ? 1 : 0;
+          for (let i = 0; i < steps * 2; i++) { spring.v += (target - spring.x) * 0.5 - spring.v * 0.28; spring.x += spring.v * 0.5; }
+          poseAwning(MOTION < 1 ? target : spring.x);
+        }
+        const b = props.bounce();
+        if (revealT < 0 && knockT < 0) levelRoot.scale.set(b.sx, b.sy, b.sx);
+        if (spin) spin.rotation.y = tq * 0.8;
       }
-      const f = Math.max(0.02, pitcherFill);
-      juice.scale.y = f;
-      juice.position.y = glass.position.y - 0.165 * (1 - f);
-      kid.position.y = (level >= 3 ? 0.3 : 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
+      kid.position.y = (kid.userData.baseY ?? 0) + (open ? Math.abs(Math.sin(time * 3)) * 0.03 * MOTION : 0);
       idlePose(kid, time, 0.8);
-      if (spin) spin.rotation.y = time * 0.8;
-      animateReveal(time);
-      animateKnock(Math.min(0.1, Math.max(0, time - lastTime)));
+      const dt = Math.min(0.1, Math.max(0, time - lastTime));
+      animateReveal(dt);
+      animateKnock(dt);
       lastTime = time;
       animateLottie(time, !night, hot ?? false);
       // Ringing: the handset hops on its cradle.

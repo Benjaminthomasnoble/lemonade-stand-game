@@ -14,7 +14,10 @@ import {
 import { SEA_X, SEA_Z, treeInto } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, type Stand as StandModel } from './stand.ts';
-import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, hqBuilding, pierModel, rivalStand, wreckLook } from './buildings.ts';
+import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, gadgetModels, hqBuilding, pierModel, rivalStand, wreckLook, wreckPile } from './buildings.ts';
+import type { Owner } from './clay/standKit.ts';
+import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
+import { stock } from '../sim/economy.ts';
 import { makePerson } from './people.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
@@ -57,6 +60,13 @@ const GROUND: Record<DistrictId, string> = {
   maple: '#7CC47F', oldtown: '#93c76a', campus: '#86c48a', downtown: '#c3bfd6',
   boardwalk: P.sand, harbor: '#cdbda2', groves: '#a9cf5e', hilltop: '#5FA35A',
 };
+/** Rank 10 gilds the Palace. */
+const gilded = (s: GameState, level: number) => level === 5 && s.rank >= 10;
+/** The fence's HP share, in quarters (pieces knock out as it drops). */
+function fenceShare(ps: GameState['plots'][string]): number {
+  const per = PERIMETERS[ps.defense.tier - 1];
+  return per ? Math.ceil((ps.defense.fenceHp / per.hp) * 4) / 4 : 1;
+}
 
 function guardsAt(s: GameState, id: string): number {
   const ps = s.plots[id];
@@ -300,16 +310,23 @@ export function createBay(scene: THREE.Scene): Bay {
     else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel())); if (!ps.owner) v.root.add(forSaleSign()); }
     else if (ps.stand && ps.owner === 'player') {
       const m = createStand({ lottie: p.id === LOTTIES_CORNER });
-      m.setLevel(ps.stand.level);
+      m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
+      m.setWrecked(!!ps.stand.wrecked);
       v.root.add(m.group);
       v.stand = m;
       if (v.shownLevel && ps.stand.level > v.shownLevel && !ps.stand.wrecked) m.reveal();
       v.shownLevel = ps.stand.level;
-    } else if (ps.stand) building = rivalStand(ps.owner as RivalId, ps.stand.level);
+    } else if (ps.stand) building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level);
     else if (!ps.owner) v.root.add(bakeGroup(forSaleSign()));
-    if (building) { v.root.add(building); v.root.updateMatrixWorld(true); bakeGroup(building); }
-    if ((ps.stand?.wrecked || ps.facility?.wrecked) && v.root.children[0]) v.root.add(bakeGroup(wreckLook(v.root.children[0])));
-    if (ps.defense.tier && ps.defense.fenceHp > 0 && p.type !== 'civic') { const f = fenceModel(ps.defense.tier); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
+    if (building) {
+      if (ps.facility?.wrecked) v.root.add(wreckLook(building, (ps.owner ?? 'player') as Owner));
+      v.root.add(building); v.root.updateMatrixWorld(true); bakeGroup(building);
+    }
+    if (p.type !== 'civic') {
+      // Fences and gadgets are one clay draw each, kept apart so battle.ts can hide the fence.
+      if (ps.defense.tier && ps.defense.fenceHp > 0) { const f = fenceModel(ps.defense.tier, fenceShare(ps)); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
+      if (ps.defense.gadgets.length) { const g = gadgetModels(ps.defense.gadgets); v.root.add(g); v.root.updateMatrixWorld(true); bakeGroup(g); }
+    }
     // Whoever stands guard here waits by the gate.
     // They stand still, so the whole watch bakes into one draw (battle.ts hides it by name during a fight).
     const guards = Math.min(guardsAt(s, p.id), ps.owner === 'player' ? 6 : 2);
@@ -356,7 +373,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of Object.values(views)) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       borders.computeBoundingSphere();
@@ -378,7 +395,12 @@ export function createBay(scene: THREE.Scene): Bay {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;
         if (!st) continue;
-        v.stand.update({ price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report', ringing });
+        const cap = STAND_LEVELS[st.level - 1].storage;
+        v.stand.update({
+          price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report', ringing,
+          recipe: st.recipe, sweetness: st.sweetness, stars: s.reputation,
+          stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice },
+        });
       }
     },
     pick(ndc, camera) {

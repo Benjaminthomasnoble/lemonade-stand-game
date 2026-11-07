@@ -4,6 +4,10 @@
 import * as THREE from 'three';
 import { FACTIONS, PLAYER_COLOR, type RivalId } from '../sim/economy.ts';
 import { clayFrom } from './clay/kit.ts';
+import type { GadgetId } from '../sim/balance.ts';
+import { rivalStand as clayRivalStand } from './clay/rivalStands.ts';
+import { fenceModel as clayFence, gadgetsModel, wreckPile as clayWreck } from './clay/defenses.ts';
+import type { Owner } from './clay/standKit.ts';
 
 const mats = new Map<string, THREE.MeshStandardMaterial>();
 function m(color: number, roughness = 0.8, emissive = 0) {
@@ -47,27 +51,9 @@ function sign(g: THREE.Group, text: string, w: number, x: number, y: number, z: 
 }
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
-/** A rival stand: the same five sizes as ours, painted in the faction's colors. */
-export function rivalStand(id: RivalId, level: number): THREE.Group {
-  const f = FACTIONS[id];
-  const g = new THREE.Group();
-  const w = [1.8, 3, 3.6, 5, 6][level - 1];
-  const h = [0.85, 1.1, 2.6, 3, 3.4][level - 1];
-  if (level <= 2) {
-    box(g, w, h, 1, f.color, 0, h / 2, 0.3);
-    box(g, w + 0.2, 0.08, 1.2, f.accent, 0, h + 0.04, 0.3);
-    if (level === 2) {
-      for (const x of [-w / 2, w / 2]) box(g, 0.1, 2.5, 0.1, 0x6b4a2e, x, 1.25, 0.8);
-      box(g, w + 0.4, 0.08, 1.6, f.accent, 0, 2.55, 0.45);
-    }
-  } else {
-    box(g, w, h, 2.6, f.color, 0, h / 2, -0.8);
-    box(g, w + 0.4, 0.25, 3.0, f.accent, 0, h + 0.12, -0.8);
-    box(g, w * 0.7, 0.9, 0.05, 0x23214a, 0, h * 0.62, 0.52, 0.3);
-    box(g, w + 0.2, 0.12, 0.6, f.accent, 0, 1.1, 0.75);
-  }
-  sign(g, f.product.toUpperCase(), Math.min(w, 2.6), 0, level <= 2 ? h * 0.55 : 0.6, level <= 2 ? 0.81 : 1.06, hex(f.accent), hex(f.color));
-  return g;
+/** A rival stand: the same five clay silhouettes as ours, in the faction's dress (clay/rivalStands.ts). */
+export function rivalStand(id: RivalId, level: number, hp = 1): THREE.Group {
+  return clayRivalStand(id, level, hp);
 }
 
 /** Rival HQs (and later the player's trophies). */
@@ -153,59 +139,29 @@ export function forSaleSign(): THREE.Group {
   return g;
 }
 
-/** Perimeter around a plot (P1 picket … P5 wall), with a gap at the front for the gate. */
-export function fenceModel(tier: number): THREE.Group {
-  const g = new THREE.Group();
-  g.name = 'fence';
-  const x0 = -5.2, x1 = 5.2, zf = 2.1, zb = -7.2;
-  // Runs: [ax, az, bx, bz], leaving a 2 m gate in the front middle.
-  const runs: [number, number, number, number][] = [[x0, zf, -1, zf], [1, zf, x1, zf], [x0, zf, x0, zb], [x1, zf, x1, zb], [x0, zb, x1, zb]];
-  for (const [ax, az, bx, bz] of runs) {
-    const len = Math.hypot(bx - ax, bz - az);
-    const cx = (ax + bx) / 2, cz = (az + bz) / 2;
-    const along = Math.abs(bx - ax) > Math.abs(bz - az);
-    const run = (w: number, h: number, d: number, color: number, y: number, rough = 0.8) =>
-      box(g, along ? len : w, h, along ? d : len, color, cx, y, cz, rough);
-    const posts = Math.max(2, Math.round(len / (tier === 1 ? 0.6 : 1.6)));
-    const postAt = (i: number) => [ax + ((bx - ax) * i) / (posts - 1), az + ((bz - az) * i) / (posts - 1)] as const;
-    if (tier === 1) {
-      for (let i = 0; i < posts; i++) { const [x, z] = postAt(i); box(g, 0.12, 0.8, 0.06, 0xffffff, x, 0.4, z); }
-      run(0.05, 0.08, 0.05, 0xffffff, 0.55);
-    } else if (tier === 2) {
-      for (let i = 0; i < posts; i++) { const [x, z] = postAt(i); box(g, 0.1, 1.4, 0.1, 0x8a9099, x, 0.7, z, 0.4); }
-      const mesh = run(0.03, 1.2, 0.03, 0xb8c2cc, 0.7, 0.4);
-      mesh.material = new THREE.MeshStandardMaterial({ color: 0xb8c2cc, transparent: true, opacity: 0.45, metalness: 0.5, roughness: 0.4 });
-    } else if (tier === 3) {
-      for (let i = 0; i < posts * 2; i++) {
-        const [x, z] = postAt(Math.min(posts - 1, i / 2));
-        const stake = new THREE.Mesh(new THREE.ConeGeometry(0.12, 1.5, 5), m(0x9a6b3c));
-        stake.position.set(x + (i % 2) * 0.2, 0.75, z);
-        stake.rotation[along ? 'x' : 'z'] = (az > -2 || ax > 0 ? 1 : -1) * 0.35;
-        stake.castShadow = true;
-        g.add(stake);
-      }
-    } else if (tier === 4) {
-      for (let i = 0; i < posts; i++) { const [x, z] = postAt(i); box(g, 0.1, 1.5, 0.1, 0x5a3a20, x, 0.75, z); }
-      for (const y of [0.4, 0.8, 1.2]) run(0.03, 0.03, 0.03, 0x3a3a3a, y, 0.5);
-    } else {
-      run(0.5, 2.2, 0.5, 0xb5523b, 1.1);
-      run(0.6, 0.2, 0.6, 0xe9d8a6, 2.25);
-    }
-  }
-  return g;
+/** Perimeter around a plot (P1 picket … P5 wall), with a gap at the front for the gate (clay/defenses.ts). */
+export function fenceModel(tier: number, hp = 1): THREE.Group {
+  return clayFence(tier, hp);
 }
 
-/** A smashed stand: knocked crooked with planks on the ground. */
-export function wreckLook(stand: THREE.Object3D): THREE.Group {
-  stand.rotation.z = 0.22;
-  stand.rotation.x = -0.12;
-  stand.position.y = -0.15;
-  const g = new THREE.Group();
-  for (let i = 0; i < 6; i++) {
-    const plank = box(g, 1.4, 0.08, 0.25, 0x8a5a30, -2 + i * 0.8, 0.05, 1.2 + (i % 2) * 0.5);
-    plank.rotation.y = i * 0.9;
-  }
-  sign(g, 'CLOSED: SMASHED', 2.2, 0, 1.0, 2.0, '#ffffff', '#d64545');
+/** Installed gadgets on a plot. */
+export function gadgetModels(ids: readonly GadgetId[]): THREE.Group {
+  return gadgetsModel(ids);
+}
+
+/** A smashed stand: the neat clay pile with the owner's sign on top. */
+export function wreckPile(level: number, owner: Owner): THREE.Group {
+  return clayWreck(level, owner);
+}
+
+/** A smashed facility: knocked crooked, with a pile of sticks and squashed clay. */
+export function wreckLook(building: THREE.Object3D, owner: Owner = 'player'): THREE.Group {
+  building.rotation.z = 0.12;
+  building.rotation.x = -0.08;
+  building.position.y = -0.15;
+  building.scale.y = 0.9;
+  const g = clayWreck(2, owner);
+  g.position.set(0, 0, 1.4);
   return g;
 }
 

@@ -268,6 +268,12 @@ export const RADIO_STAND_LEVEL = 3;
 
 // ---------- reputation ----------
 export const repMultiplier = (stars: number) => 0.7 + (0.6 * (stars - 1)) / 4; // 0.7× at 1★ .. 1.3× at 5★
+/**
+ * Reputation's nightly drift (spec: Reputation; Appendix A): 5% of the gap toward a target of 3.0 stars plus 0.4
+ * per average stand level above L1, capped at 4.6, less 0.1 star per 10% of would-be buyers who left empty-handed
+ * (too pricey, line too long, sold out; read as linear). Event changes apply at once, on their own.
+ */
+export const REP_DRIFT = { base: 3.0, perLevel: 0.4, cap: 4.6, rate: 0.05, dropPerShare: 1.0, min: 1, max: 5 };
 
 // ---------- ranks ----------
 export const RANKS = [

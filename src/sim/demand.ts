@@ -7,13 +7,13 @@
 import { nextRandom } from './rng.ts';
 import {
   AUTO_PRICE_RANK, BASE_STOP_CHANCE, CAMPAIGNS, FESTIVAL_CROWD_SHARE, HOURLY_TRAFFIC, MAJORITY, MAJORITY_CURB, OPEN, PEAK_BOOST, PERKS,
-  PRICE_FIT, PRICE_TOLERANCE, RECIPES, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
+  PRICE_FIT, PRICE_TOLERANCE, RECIPES, REP_DRIFT, repMultiplier, RIVAL_SHARE_CAP, SEGMENTS, SELLING_HOURS, STAND_LEVELS, WEATHER,
   type CampaignId, type RecipeId, type RivalId, type SegmentId,
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { districtControl } from './modes.ts';
 import { hpCapacity } from './damage.ts';
-import type { Appeal, GameState, Stand, Weather } from './economy.ts';
+import type { Appeal, DayStats, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, cupsInStock, expectedPassersby, marketingMultiplier, rivalPrice } from './economy.ts';
 import { migrateLedger } from './ledger.ts';
 import { blenderBar, seasonDemand } from './recipes.ts';
@@ -401,6 +401,34 @@ export function demandChain(s: GameState, plotId: string, w: Weather = s.phase =
       majority: majorityHeld(s, p.district),
     },
   };
+}
+
+// ---------- reputation ----------
+
+/** The share of would-be buyers who left empty-handed today (too pricey, line too long, sold out); 0 with none. */
+export function emptyHanded(t: DayStats): number {
+  const w = t.walkedPast;
+  const lost = w.pricey + w.line + w.soldOut;
+  return lost + t.customers > 0 ? lost / (lost + t.customers) : 0;
+}
+
+/**
+ * Where Reputation drifts tonight: 3.0 stars plus 0.4 per average level of your stands above L1 (every stand
+ * counts, a wrecked one too), capped at 4.6, less 0.1 star per 10% of the day's would-be buyers who left empty-handed.
+ */
+export function reputationTarget(s: GameState, t: DayStats = s.today): number {
+  const levels = Object.values(s.plots).filter((ps) => ps.owner === 'player' && ps.stand).map((ps) => ps.stand!.level);
+  const avg = levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : 1;
+  const top = Math.min(REP_DRIFT.cap, REP_DRIFT.base + REP_DRIFT.perLevel * (avg - 1));
+  return top - REP_DRIFT.dropPerShare * emptyHanded(t);
+}
+
+/** The nightly drift, at closing: 5% of the way to the target, within 1-5 stars. */
+export function driftReputation(s: GameState, t: DayStats = s.today): void {
+  const target = reputationTarget(s, t);
+  t.repTarget = Math.round(target * 100) / 100;
+  const rep = s.reputation + REP_DRIFT.rate * (target - s.reputation);
+  s.reputation = Math.min(REP_DRIFT.max, Math.max(REP_DRIFT.min, Math.round(rep * 1e4) / 1e4));
 }
 
 // ---------- saves ----------

@@ -30,7 +30,7 @@ import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './
 import { migrateLegacy } from './legacy.ts';
 import { isMajor, type Alert } from './alerts.ts';
 import {
-  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, expectedDemand, joinsLine, lunchRush,
+  campaignCost, ceilingFor, chooseOn, curbAppeal, dailyService, dayMixOn, drainQueue, drawSegment, driftReputation, expectedDemand, joinsLine, lunchRush,
   migrateDemand, perkTraffic, priceCeiling, segmentPriceFit, serviceLeft, stopOdds, streetAt, touristPays, type Street,
 } from './demand.ts';
 import { migrateStory, storyAtClose, storyAtDawn, storyAtStart, storyMinute, type StoryState } from './story.ts';
@@ -185,6 +185,7 @@ export interface DayStats {
   stockUsed?: number; // stock poured, given away, melted or spoiled, at its value
   waste?: number; // the part that melted or spoiled
   cashAtDawn?: number; // cash when the day's books opened: the next day's, less this, is the day's rows
+  repTarget?: number; // where Reputation drifted toward that night (demand.ts)
   iceMelted: number;
   lemonsSpoiled: number;
   satisfaction: number; // average 0..1 over customers
@@ -719,7 +720,8 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   } else {
     cupCost = costPerCup(s, st); // rivals buy as they pour, at today's Market prices (the cup included)
   }
-  // world: the card and the Sweetness dial win customers through appeal, never Reputation (spec: Reputation).
+  // How pleased this buyer is: the day's mood, never Reputation (it drifts on stand levels and walk-aways, demand.ts).
+  // world: the card and the Sweetness dial win customers through appeal (spec: Reputation).
   const sat = clamp(0.55 + 0.4 * (a.fairPrice - st.price) / a.fairPrice, 0, 1);
   const d = st.day;
   d.satisfaction = (d.satisfaction * d.customers + sat) / (d.customers + 1);
@@ -827,10 +829,7 @@ function closeDay(s: GameState): void {
   pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
   book(s, 'upkeep', -round2(upkeep), stands); // stand upkeep only: wages, tribute and interest left cash when paid
-  let rep = s.reputation;
-  if (satN > 0) rep += (1 + 4 * t.satisfaction - rep) * Math.min(0.25, satN / 400);
-  rep -= Math.min(0.15, t.walkedPast.soldOut * 0.004) + Math.min(0.1, t.walkedPast.line * 0.002);
-  s.reputation = clamp(Math.round(rep * 100) / 100, 1, 5);
+  driftReputation(s, t); // the nightly drift toward the stands' levels, less the buyers who left empty-handed (demand.ts)
   t.reputationAfter = s.reputation;
   worldAtClose(s); // world: judge today's Taste-Off
   s.history.push(t);

@@ -695,7 +695,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <tr><td>People walking by</td><td>${t.passersby}</td></tr><tr><td>Cups sold</td><td>${t.customers}</td></tr>${playerStands(s).length > 1 ? rows : ''}
         <tr><td>Not thirsty / too pricey</td><td>${w.notThirsty} / ${w.pricey}</td></tr><tr><td>Line / sold out / a rival</td><td>${w.line} / ${w.soldOut} / ${w.rival}</td></tr>
         ${booksRows(t)}${helperRows(t)}
-        <tr><td>Reputation</td><td>${t.reputationAfter.toFixed(2)} (${repDelta >= 0 ? '+' : ''}${repDelta.toFixed(2)})</td></tr>
+        <tr${t.repTarget === undefined ? '' : ` title="Heading for ${t.repTarget.toFixed(2)}: stand levels, less buyers turned away"`}><td>Reputation</td><td>${t.reputationAfter.toFixed(2)} (${repDelta >= 0 ? '+' : ''}${repDelta.toFixed(2)})</td></tr>
         <tr><td>Success Score</td><td>${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})</td></tr></table>`;
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="report">
       <div class="cl-end-day">${tape(`Day ${t.day}`)}</div>

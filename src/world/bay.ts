@@ -58,7 +58,8 @@ export interface PlotView {
 export interface Bay {
   views: Record<string, PlotView>;
   sync(s: GameState): void;
-  update(s: GameState, time: number, ringing?: boolean): void;
+  /** `focus` is where the camera looks: only watches near it are posed each twos step. */
+  update(s: GameState, time: number, ringing?: boolean, focus?: THREE.Vector3): void;
   pick(ndc: THREE.Vector2, camera: THREE.Camera): string | null;
   select(id: string | null): void;
 }
@@ -391,6 +392,9 @@ export function createBay(scene: THREE.Scene): Bay {
   interface Posted { fig: Figure; i: number; dex: boolean; goose: boolean; crossed: boolean; x: number; boss?: BossId }
   const watches = new Map<PlotView, Posted[]>();
   const calm = reducedMotion() ? 0.25 : 1;
+  /** Watches farther than this from the camera's focus keep their last pose. */
+  const POSE_NEAR = 60;
+  let fullSyncF = -1e9, fullSyncLevel = -1;
   /** How long a pier from this plot must be to reach past the shore (12 if the water isn't behind it). */
   function reachOf(v: PlotView) {
     const back = v.plot.side === 0 ? -1 : 1; // the plot's back points away from its street
@@ -503,6 +507,7 @@ export function createBay(scene: THREE.Scene): Bay {
       v.root.add(watch);
       for (const g of list) sentries.track(g.fig.root);
       watches.set(v, list);
+      fullSyncF = -1e9; // draw the new watch where it stands on the next step
       // Bay View: each guard is a dab of clay in the owner's colour (the full figures cost ~11k triangles a plot).
       const FB = new Baker();
       for (let i = 0; i < guards; i++) FB.add(cap(0.42, 0.9, 2, 6), ownerColor(ps.owner), { p: [(i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 0.7), 0.95, 1.5] });
@@ -522,6 +527,7 @@ export function createBay(scene: THREE.Scene): Bay {
       list.push({ fig, i: 7, dex: false, goose: false, crossed: false, x: 0, boss: id });
       sentries.track(fig.root);
       watches.set(v, list);
+      fullSyncF = -1e9;
     }
     // Moving parts (clock hands, windmill sails, windsocks, cranes) pose on twos in update().
     const parts: THREE.Object3D[] = [];
@@ -595,7 +601,7 @@ export function createBay(scene: THREE.Scene): Bay {
         for (const set of [...patternSets, farPatterns]) for (const m of Object.values(set.meshes)) { m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
       }
     },
-    update(s, time, ringing = false) {
+    update(s, time, ringing = false, focus) {
       // Detail levels: 0 Street View, 1 mid zoom, 2 Bay View (phones run one level simpler).
       const level = (scene.userData.detail as number | undefined) ?? 0;
       flowers.visible = level < 1;
@@ -618,7 +624,14 @@ export function createBay(scene: THREE.Scene): Bay {
         moverF = mf;
         const minute = s.phase === 'prep' ? 7 * 60 : s.minute;
         for (const parts of movers.values()) for (const o of parts) animatePart(o, mf / 12, minute);
-        for (const list of watches.values()) for (const g of list) {
+        // Only the watches near the camera move; the rest hold their last pose (late game posts 150+ guards).
+        const near: THREE.Object3D[] = [];
+        for (const [v, list] of watches) {
+          if (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR) continue;
+          for (const g of list) near.push(g.fig.root);
+        }
+        for (const [v, list] of watches) for (const g of list) {
+          if (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR) continue;
           const t = mf / 12 + g.i * 0.73, root = g.fig.root;
           if (g.dex) {
             // Dex scans the street in held beats, and hops sideways when the goose waddles by.
@@ -641,7 +654,10 @@ export function createBay(scene: THREE.Scene): Bay {
             g.fig.pose({ lift: b * 0.03 * calm, sq: (1 - b) * 0.04 * calm, headYaw: Math.sin(t * 0.45) * 0.3 * calm, aR: g.crossed ? undefined : [-0.35, -0.12] }, mf);
           }
         }
-        sentries.sync();
+        // far watches catch up now and then (and whenever the zoom level changes), so they show where they stand
+        const full = !focus || mf - fullSyncF >= 24 || level !== fullSyncLevel;
+        if (full) { fullSyncF = mf; fullSyncLevel = level; }
+        sentries.sync(full ? undefined : near);
       }
       // One district merge a frame in Bay View, and one every half second while zoomed in (idle time),
       // so zooming out never waits on a pile of merges; a stale block stays up until its new one is ready.

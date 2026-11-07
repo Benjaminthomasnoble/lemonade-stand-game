@@ -2,7 +2,7 @@
 // rig the world code expects, faces swap whole, and the crowd batch mirrors poses.
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
+import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, seasonWear, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
 import { CREWS, LOW_DETAIL, Figure, SPECS, type Face } from './figure.ts';
 import { P } from './palette.ts';
 import { createFigureBatch, freezeFigures, PROXY_LAYER } from './figureBatch.ts';
@@ -157,6 +157,22 @@ describe('clay cast', () => {
     batch.untrack(figs[0].root);
     expect(batch.stats().instances).toBe(st.instances - st.instances / 3);
     figs[0].root.traverse((o) => { if ((o as THREE.Mesh).isMesh) expect(o.layers.isEnabled(0)).toBe(true); });
+    // when the last figure wearing a look leaves, its geometry leaves the batch too
+    const lone = makeCustomer('seniors', 4, fm, { detail: 0.5 }).fig;
+    const g0 = batch.stats().geometries;
+    batch.track(lone.root);
+    const g1 = batch.stats().geometries;
+    expect(g1).toBeGreaterThan(g0);
+    batch.untrack(lone.root);
+    expect(batch.stats().geometries).toBeLessThan(g1);
+  });
+
+  it('dresses walkers for the season', () => {
+    const { fig } = makeCustomer('office', 0, mat, { detail: 0.3 });
+    const { scarf, breath } = seasonWear(fig);
+    expect(scarf.visible || breath.visible).toBe(false);
+    expect(scarf.parent).toBe(fig.rig);
+    expect(breath.parent).toBe(fig.neck);
   });
 
   it('freezes a posted watch into one draw', () => {

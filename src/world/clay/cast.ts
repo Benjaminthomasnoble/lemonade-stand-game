@@ -367,7 +367,9 @@ export function makeDex(look: CrewLook, mat: THREE.Material, opts: FigureOptions
 // your property) and never an owner's colours.
 const SHIRTS = [P.terra, P.teal, P.green, P.blush, P.denim, '#9C8AD0', P.cream, '#E59AB0'];
 const PANTS = [P.denim, P.plum, P.walnut, '#3b3f52', '#c7b79a', P.teal];
-const HAIRS = [P.walnut, '#241a14', '#C7652E', '#FBE29A', '#7A4A2A', '#3a2a22'];
+// warm browns and blondes, cool blue-black, plum-black and grey, and the odd dyed teal or pink,
+// so a Street View crowd isn't a sea of orange-brown domes
+const HAIRS = [P.walnut, '#241a14', '#C7652E', '#FBE29A', '#1f2433', '#2a1d33', '#9a9aa2', P.teal, '#7A4A2A', P.blush];
 const GREYS = ['#F4EEE6', '#d8d0c8', '#E6DDD2'];
 const SEG: Record<SegmentLook, { kind: BodyKind[]; hats: Hat[]; extra?: Partial<FigureSpec>; scale?: number }> = {
   kids: { kind: ['kid'], hats: ['pigtails', 'propeller', 'curly', 'ponytail'], extra: { eyeR: 0.15 } },
@@ -387,7 +389,7 @@ export function segmentSpec(seg: SegmentLook, i: number): FigureSpec {
   const sp: FigureSpec = {
     kind: S.kind[i % S.kind.length], seed: 20_000 + i * 13 + seg.length,
     skin: at(SKINS, 1), shirt: at(SHIRTS, 2), pants: at(PANTS, 3), shoes: at([P.plum, P.terra, P.walnut, '#ffffff'], 4),
-    hat: S.hats[i % S.hats.length], hatColor: at([P.terra, P.teal, P.green, P.blush, P.cream], 6),
+    hat: S.hats[i % S.hats.length], hatColor: at([P.terra, P.teal, P.green, P.blush, P.cream, P.denim, '#9C8AD0'], 6),
     hairColor: seg === 'seniors' ? at(GREYS, 7) : at(HAIRS, 7),
     mouth: at(['smile', 'smile', 'grin', 'o'] as const, 8), freckles: seg === 'kids' ? r(9) < 0.6 : r(9) < 0.2,
     brows: at(['up', 'up', 'flat', 'worried'] as const, 10),
@@ -400,6 +402,31 @@ export function segmentSpec(seg: SegmentLook, i: number): FigureSpec {
   if (seg === 'seniors' && r(13) < 0.4) sp.mustache = 'bushy';
   if (seg === 'kids' && sp.hat === 'pigtails') sp.hatColor = at([P.terra, P.teal, P.blush], 14);
   return sp;
+}
+const YARN = [P.terra, P.teal, '#9C8AD0', P.green];
+/**
+ * The seasons on a walker (spec season table): a yarn scarf for Fall, a cotton-wool breath puff
+ * for Winter. Both start hidden; the crowd shows them by season.
+ */
+export function seasonWear(fig: Figure): { scarf: THREE.Mesh; breath: THREE.Mesh } {
+  const R = fig.sp.R, crowd = crowdOf(fig), c = YARN[fig.id % YARN.length];
+  const scarf = new THREE.Mesh(worn('scarf' + c, (B) => {
+    B.add(lumpy(tor(0.66, 0.22, 6, 14), 0.02, 8, 2), c, { r: [Math.PI / 2 - 0.15, 0, 0] });
+    B.add(lumpy(rbx(0.34, 1.0, 0.14, 2, 0.06), 0.02, 8, 3), c, { p: [-0.28, -0.55, 0.78], r: [-0.2, 0, 0.1] });
+    for (const y of [-0.3, -0.75]) B.add(box(0.36, 0.06, 0.15), shade(c, -0.15), { p: [-0.28 + y * 0.1, y, 0.8 - (y + 0.55) * 0.2], r: [-0.2, 0, 0.1] });
+  }, crowd), fig.mat);
+  scarf.scale.setScalar(R);
+  scarf.position.set(0, fig.K.neck + R * 0.06, fig.sp.kind === 'bean' ? 0.06 : 0);
+  scarf.visible = false;
+  fig.rig.add(scarf);
+  const breath = new THREE.Mesh(worn('breath', (B) => {
+    for (const [x, y, z, r] of [[0, 0, 0, 0.16], [0.14, 0.06, 0.1, 0.12], [-0.1, 0.08, 0.14, 0.1]]) B.add(lumpy(sph(r, 8, 6), r * 0.15, 10, 4), '#ffffff', { p: [x, y, z], fx: PAPER });
+  }, crowd), fig.mat);
+  breath.scale.setScalar(R);
+  breath.position.set(R * 0.25, R * 0.6, R * 1.65);
+  breath.visible = false;
+  fig.neck.add(breath);
+  return { scarf, breath };
 }
 /** Build a customer with their segment's prop. Returns the figure and the prop (if any). */
 export function makeCustomer(seg: SegmentLook, i: number, mat: THREE.Material, opts: FigureOptions = {}): { fig: Figure; prop: THREE.Object3D | null } {

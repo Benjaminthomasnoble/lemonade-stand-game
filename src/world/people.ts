@@ -9,7 +9,8 @@
 import * as THREE from 'three';
 import { kit } from './clay/kit.ts';
 import { crowdDetail, Figure, gait as figureGait, type Face, type Gait as BodyGait } from './clay/figure.ts';
-import { holdProp, makeCustomer, segmentSpec, type SegmentLook } from './clay/cast.ts';
+import { holdProp, makeCustomer, seasonWear, segmentSpec, type SegmentLook } from './clay/cast.ts';
+import type { Season } from '../sim/balance.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
 /** Reduced motion keeps a little life but drops the bounce. */
@@ -57,6 +58,9 @@ interface Walker {
   /** The segment's prop, if it's in the hands (balloon, lunch pail) or rolls along (stroller, dog). */
   prop: THREE.Object3D | null;
   umbrella: THREE.Object3D;
+  /** Fall's yarn scarf and Winter's cotton-wool breath puff. */
+  scarf: THREE.Object3D;
+  breath: THREE.Object3D;
   /** A face held for a moment (yum after a sip, price-shock on a grumble). */
   face: Face;
   faceT: number;
@@ -118,6 +122,8 @@ export interface Crowd {
   clear(): void;
   activeCount(): number;
   setWeather(kind: StreetWeather): void;
+  /** Scarves in Fall, breath puffs in Winter. */
+  setSeason(season: Season): void;
   /** Everyone walking near this spot stops to clap for a moment (a stand reveal, a big win). */
   cheer(at: THREE.Vector3, radius: number): number;
   /** The crowd batch's size (instances, shared geometries, vertices). */
@@ -145,6 +151,7 @@ export function createCrowd(
   const batch = createFigureBatch(K.fig);
   scene.add(batch.mesh);
   let weather: StreetWeather = 'warm';
+  let season: Season = 'summer';
   for (let i = 0; i < pool; i++) {
     const segment = SEGMENTS[i % SEGMENTS.length];
     const { fig, prop } = makeCustomer(segment, Math.floor(i / SEGMENTS.length) % VARIANTS, K.fig, { detail: crowdDetail() });
@@ -156,10 +163,11 @@ export function createCrowd(
     cup.visible = false;
     const umbrella = holdProp(fig, 'umbrella', true);
     umbrella.visible = false;
+    const { scarf, breath } = seasonWear(fig);
     scene.add(obj);
     batch.track(obj);
     const body: BodyGait = fig.sp.kind === 'kid' ? 'skip' : fig.sp.kind === 'round' ? 'roll' : 'bob';
-    walkers.push({ obj, fig, segment, body, prop, umbrella, face: 'neutral', faceT: 0, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0, clap: 0 });
+    walkers.push({ obj, fig, segment, body, prop, umbrella, scarf, breath, face: 'neutral', faceT: 0, active: false, path: [], leg: 0, wait: 0, phase: 0, speed: 0, shown: false, grumbleX: 0, base: 1, cup, served: -1, sipped: false, boing: 0, gait: 'stroll', photo: -1, huff: false, standZ: 0, clap: 0 });
   }
   let queueSlot = 0;
   let clock = 0, lastT = 0, lastF = -1, lastDetail = -1;
@@ -174,6 +182,8 @@ export function createCrowd(
       if (!w.active) continue;
       const fig = w.fig;
       const limbs = w.obj.userData.limbs as THREE.Object3D[];
+      // Winter: a little cotton-wool puff of breath every few seconds
+      w.breath.visible = season === 'winter' && (tq + w.phase) % 2.6 < 0.5;
       if (w.served >= 0) w.served += dt;
       if (w.boing > 0) w.boing = Math.max(0, w.boing - dt);
       if (w.faceT > 0 && (w.faceT -= dt) <= 0) { w.face = 'neutral'; fig.face('neutral'); }
@@ -355,6 +365,11 @@ export function createCrowd(
       weather = kind;
       const wet = kind === 'rainy' || kind === 'storm';
       for (const w of walkers) w.umbrella.visible = wet;
+    },
+    setSeason(s) {
+      if (s === season) return;
+      season = s;
+      for (const w of walkers) { w.scarf.visible = s === 'fall'; w.breath.visible = false; }
     },
     stats: () => batch.stats(),
     pick(ray, reach = 0.7) {

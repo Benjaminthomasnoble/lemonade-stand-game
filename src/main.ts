@@ -22,7 +22,7 @@ import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand } from './sim/economy.ts';
+import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
@@ -854,8 +854,9 @@ async function main() {
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     world.setClock(state.phase, state.minute);
-    bay.update(state, timer.getElapsed(), phone.ringing());
+    bay.update(state, timer.getElapsed(), phone.ringing(), world.controls.target);
     crowd.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind);
+    crowd.setSeason(seasonOf(state.day));
     crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(frozen ? 0 : dt);
     vip.update(frozen ? 0 : Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow

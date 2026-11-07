@@ -771,7 +771,7 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
   if (!guardIds.length) return 0;
   const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night, s.plots[plotId].owner);
   const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
-  const lead = travelMinutes(s, squadHome(s, plotId), plotId); // spotted as it sets out: the warning comes this far ahead
+  const lead = travelMinutes(s, squadHome(s, plotId, guardIds), plotId); // spotted as it sets out: the warning comes this far ahead
   const nextId = s.nextId; // each henchman drawn takes an id: hand them back
   try {
     return winChance((rng) => {

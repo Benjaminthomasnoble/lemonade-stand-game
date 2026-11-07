@@ -20,7 +20,7 @@ import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
-import { clubhouses } from './clubhouse.ts';
+import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
@@ -99,9 +99,13 @@ export function raidStart(s: GameState, rival: RivalId, target: string): string 
   return best;
 }
 
-/** Where your squad sets out from and walks home to: your Clubhouse nearest the target (one on a Street plot that
- * stands; a wrecked one houses nobody), else Lottie's Corner. */
-export function squadHome(s: GameState, target: string): string {
+/** Where your squad sets out from and walks home to: the Clubhouse its guards wait at (the one most of them share,
+ * nearest the target on a tie: clubhouse.ts squadClub). When none of them waits at one (all on posts), or with no
+ * squad named, your Clubhouse nearest the target (one on a Street plot that stands; a wrecked one houses nobody),
+ * else Lottie's Corner. */
+export function squadHome(s: GameState, target: string, guardIds: readonly string[] = []): string {
+  const club = squadClub(s, guardIds, target);
+  if (club) return club;
   const t = PLOT_BY_ID[target];
   let best = LOTTIES_CORNER, d = Infinity;
   for (const p of clubhouses(s)) {
@@ -114,15 +118,15 @@ export function squadHome(s: GameState, target: string): string {
 /** Your raid's trip: when it sets out, when it hits, and about when the squad is home (the fight's length is a guess
  * until it's fought). Tonight's raids leave at 01:00 (straight away later in the night); one sent now leaves now,
  * or as the stands open when it's sent at Morning Prep. */
-export function squadTrip(s: GameState, target: string, when: 'now' | 'tonight'): { leave: number; at: number; back: number; travel: number } {
+export function squadTrip(s: GameState, target: string, when: 'now' | 'tonight', guardIds: readonly string[] = []): { leave: number; at: number; back: number; travel: number } {
   const leave = when === 'tonight' ? Math.max(PLAYER_RAID_LEAVE, s.phase === 'night' ? s.minute : 0) : Math.max(s.minute, OPEN);
-  const travel = travelMinutes(s, squadHome(s, target), target);
+  const travel = travelMinutes(s, squadHome(s, target, guardIds), target);
   return { leave, at: leave + travel, back: leave + travel + RAID_FIGHT_GUESS + travel, travel };
 }
 
 /** planRaid hands its raid here: it goes on the clock and travels; nothing is fought until it arrives. */
 export function sendRaid(s: GameState, raid: Raid, when: 'now' | 'tonight'): true {
-  const t = squadTrip(s, raid.target, when);
+  const t = squadTrip(s, raid.target, when, raid.guards);
   raid.leave = t.leave;
   raid.at = t.at;
   raid.eta = hhmm(t.at);
@@ -205,7 +209,7 @@ function muster(s: GameState, r: Raid): void {
 function homeward(s: GameState, r: Raid, report: BattleReport, daytime: boolean, started = s.minute): void {
   const stars = raidRepCost(s, r.guards ?? [], r.objective, !daytime); // crew's rule: Gentle Giants alone cost nothing
   if (stars) s.reputation = Math.max(1, Math.round((s.reputation - stars) * 100) / 100);
-  r.back = started + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target), r.target);
+  r.back = started + Math.ceil(report.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + travelMinutes(s, squadHome(s, r.target, r.guards), r.target);
   s.raids.push(r);
 }
 

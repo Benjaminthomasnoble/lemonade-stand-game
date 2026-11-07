@@ -271,14 +271,14 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     near(shakedownLoot(s, kiosk), 2400, 2400 * 0.05);
   });
 
-  // The squad sets out from its Clubhouse nearest the target, else the Corner (nights' squadHome). Day 24 doesn't say
+  // The squad sets out from the Clubhouse its guards wait at, else the Corner (squadHome). Day 24 doesn't say
   // where its Maple Row Clubhouse stands: from Maple Row's Street plots the trip runs 85-100 game minutes (100 from the
   // first one, where the Day 26 scene puts it, and the Planner would flag 04:40), and from the Corner it's the
   // walkthrough's 90. So this squad, with no Clubhouse, sets out from the Corner.
   it('they leave at 01:00 on a 1.5-game-hour trip, and the Planner flags the Corner\'s posts empty until about 04:20', () => {
     const { s, kiosk } = day24Trip();
     const ids = s.guards.map((g) => g.id);
-    const trip = squadTrip(s, kiosk, 'tonight');
+    const trip = squadTrip(s, kiosk, 'tonight', ids);
     expect(hhmm(trip.leave)).toBe('01:00');
     expect(trip.travel).toBe(90);
     expect(travelMinutes(s, LOTTIES_CORNER, kiosk)).toBe(90);

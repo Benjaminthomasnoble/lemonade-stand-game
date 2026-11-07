@@ -4,11 +4,12 @@
 // guard posts and Net Worth work through PlotState.facility like any building.
 // Each one upgrades on its own (6, 12, then 24 beds), and the roster holds 2
 // plus the beds of every Clubhouse still standing. A guard off post waits at
-// one of them: that's the reserve Ring the Bell calls (reinforce.ts). From L2
+// one of them: that's the reserve Ring the Bell calls (reinforce.ts), and a
+// raid squad sets out from (and walks home to) where its guards wait. From L2
 // the reserve trains in the Training Yard; an L3's Infirmary heals KOs a day
 // faster.
 import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL } from './balance.ts';
-import { PLOTS, type Plot } from './map.ts';
+import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import { levelUp, type Guard } from './crew.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
@@ -33,6 +34,23 @@ export const allBeds = (s: GameState) => clubhouses(s).reduce((a, p) => a + beds
 export function clubOf(s: GameState, g: Guard): string | null {
   const all = clubhouses(s);
   return (all.find((p) => p.id === g.club) ?? all[0])?.id ?? null;
+}
+
+/** The Clubhouse a raid squad sets out from and walks home to: the one most of its guards off post wait at, nearest
+ * the target on a tie. Null when none of them waits at one (all on posts, or no Clubhouse standing). */
+export function squadClub(s: GameState, guardIds: readonly string[], target: string): string | null {
+  const votes = new Map<string, number>();
+  for (const g of s.guards) {
+    const c = guardIds.includes(g.id) && !g.post ? clubOf(s, g) : null;
+    if (c) votes.set(c, (votes.get(c) ?? 0) + 1);
+  }
+  const t = PLOT_BY_ID[target];
+  let best: string | null = null, most = 0, d = Infinity;
+  for (const [id, k] of votes) {
+    const p = PLOT_BY_ID[id], dd = Math.hypot(p.x - t.x, p.z - t.z);
+    if (k > most || (k === most && dd < d)) { best = id; most = k; d = dd; }
+  }
+  return best;
 }
 
 /** Guards away fighting: on a raid of yours (planned or live), or on their way to one of your plots (Ring the Bell). */

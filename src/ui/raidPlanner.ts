@@ -72,7 +72,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       if (v === undefined) { v = raidOdds(s, id, ids, objective, night); if (oddsMemo.size > 200) oddsMemo.clear(); oddsMemo.set(key, v); }
       return v;
     };
-    const nightNow = raidIsNightAt(squadTrip(s, id, 'now').at); // the fight's minute decides, after the walk there
+    const nightNow = raidIsNightAt(squadTrip(s, id, 'now', ids).at); // the fight's minute decides, after this squad's walk there
     const night = odds(true), now = odds(nightNow);
     const stars = raidRepCost(s, ids, objective, nightNow);
     const can = canRaid(s, id, ids, objective);

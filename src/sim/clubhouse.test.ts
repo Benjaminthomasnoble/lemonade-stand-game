@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, canBuildClubhouse, canBuildStand, canHire, CLUBHOUSE, CLUBHOUSE_EXTRAS, creditGuards, crewAtDawn, damageAtDawn, fightRaid, guardFighter,
   guardReady, LOTTIES_CORNER, migrateSave, newGame, PLOTS, rebuildCost, rebuildStand, refreshRecruits, rosterCap, successScore, type GameState,
+  FIGHT_SECONDS_PER_GAME_MINUTE, MINUTES_PER_DAY, openStand, planRaid, PLOT_BY_ID, raidTargets, squadHome, squadTrip, tickMinute, travelMinutes, type BattleReport,
 } from './economy.ts';
 import { allBeds, clubhouses, clubhouseSite, clubOf, infirmaryDays, reserveAt, trainingYard, waitAt } from './clubhouse.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
@@ -123,6 +124,44 @@ describe('the reserve', () => {
     s.plots[b].facility!.wrecked = true; // they move to a Clubhouse still standing
     expect(clubOf(s, y)).toBe(a);
     expect(waitAt(s, x.id, b)).toBe(false);
+  });
+});
+
+describe('where a raid sets out from', () => {
+  it('the Clubhouse its squad waits at, and home there after, however near your other one is to the target', () => {
+    const s = rich(29);
+    const target = raidTargets(s)[0].id;
+    const t = PLOT_BY_ID[target];
+    const far = (p: (typeof PLOTS)[number]) => Math.hypot(p.x - t.x, p.z - t.z);
+    const open = PLOTS.filter((p) => p.type === 'street' && !s.plots[p.id].owner).sort((a, b) => far(a) - far(b));
+    const near = open[0].id, back = open[open.length - 1].id;
+    for (const id of [near, back]) { s.plots[id].owner = 'player'; expect(buildClubhouse(s, id)).toBe(true); }
+    const squad = [guardOf('clubs'), guardOf('clubs'), guardOf('clubs')];
+    s.guards.push(...squad);
+    const ids = squad.map((g) => g.id);
+    for (const g of squad) waitAt(s, g.id, back);
+    const fromBack = travelMinutes(s, back, target), fromNear = travelMinutes(s, near, target);
+    expect(fromBack).toBeGreaterThan(fromNear);
+    expect(squadHome(s, target, ids)).toBe(back);
+    expect(squadTrip(s, target, 'tonight', ids).travel).toBe(fromBack);
+    expect(squadHome(s, target)).toBe(near); // no squad named: the Clubhouse nearest the target
+    // The one most of them wait at; a tie goes to the one nearer the target; guards on a post wait at none.
+    waitAt(s, ids[2], near);
+    expect(squadHome(s, target, ids)).toBe(back);
+    expect(squadHome(s, target, ids.slice(1))).toBe(near);
+    expect(squadHome(s, target, [ids[0]])).toBe(back);
+    squad[0].post = LOTTIES_CORNER;
+    expect(squadHome(s, target, [ids[0]])).toBe(near);
+    squad[0].post = null;
+    waitAt(s, ids[2], back);
+    // Sent now: it walks from the far Clubhouse, and back to it after the fight.
+    openStand(s);
+    expect(planRaid(s, target, ids, 'smash', 'now')).toBe(true);
+    const raid = s.raids.find((r) => r.attacker === 'player')!;
+    expect(raid.at! - raid.leave!).toBe(fromBack);
+    let report: BattleReport | undefined;
+    for (let m = 0; !report && m < MINUTES_PER_DAY; m++) for (const e of tickMinute(s)) if (e.type === 'fight') report = e.report;
+    expect(raid.back).toBe(raid.at! + Math.ceil(report!.duration / FIGHT_SECONDS_PER_GAME_MINUTE) + fromBack);
   });
 });
 

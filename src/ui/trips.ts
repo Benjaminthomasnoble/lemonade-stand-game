@@ -17,8 +17,8 @@ export const span = (minutes: number) => `${Math.floor(minutes / 60)}h${minutes 
  * after closing; in business hours the line is for a raid sent now. */
 export function tripNote(s: GameState, target: string, guardIds: string[]): string {
   const when = s.phase === 'report' || s.phase === 'night' ? 'tonight' : 'now';
-  const t = squadTrip(s, target, when);
-  const tonight = when === 'now' ? squadTrip(s, target, 'tonight') : t;
+  const t = squadTrip(s, target, when, guardIds); // from the Clubhouse the picked squad waits at
+  const tonight = when === 'now' ? squadTrip(s, target, 'tonight', guardIds) : t;
   const tip = `Sets out ${clockText(t.leave)}, there about ${clockText(t.at)}, home about ${clockText(t.back)}`
     + (when === 'now' ? `. Tonight: out ${clockText(tonight.leave)}, home about ${clockText(tonight.back)}` : '');
   const out = [`<span class="cl-note" data-testid="raid-trip" title="${esc(tip)}">${art('foot', A.footSVG)}${span(t.travel)} each way</span>`];

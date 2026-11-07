@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { CLUBHOUSE, CLUBHOUSE_HP, RANKS } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_HP, DELIVERY_WINDOW, RANKS } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
@@ -30,6 +30,9 @@ export interface Order {
   expires: number; // offers vanish after this day
   plot?: string; // pickup point
   accepted: boolean;
+  loaded?: number; // VIP orders: bottles loaded so far (each pickup pays for its own load)
+  loading?: number; // the bottles on the trip a Delivery Raid is holding, until it's fought
+  loads?: number; // a Supply Deal: its weekly loads, each due a week after the last
 }
 
 // ---------- tunables (starting values; the balance thread replaces these) ----------
@@ -56,18 +59,25 @@ export const ORDER_TIERS: Record<OrderTier, { rank: number; stars: number; size:
 /** Order sizes served by each facility tier. */
 export const HELI_SIZES: [number, number][] = [[2000, 4000], [4000, 7000], [7000, 10000]];
 export const SHIP_SIZES: [number, number][] = [[10000, 20000], [20000, 40000], [40000, 60000]];
+/** A delivered helicopter order (ships and Supply Deals add none). */
 export const VIP_STAR_BONUS = 0.2;
+/** A failed or overrun order, once, whatever was loaded before it fell through. */
 export const FAILED_ORDER_STARS = 0.3;
+/** Bottles each facility tier loads a day (spec: VIP facilities): Pad, Helipad, Heliport; Jetty, Pier, Cargo Terminal. */
+export const LOADING_PER_DAY: Record<'helipad' | 'pier', number[]> = { helipad: [2000, 5000, 20000], pier: [5000, 10000, 25000] };
+/** Trips a day: the Heliport's bigger choppers make 2, the second a pickup window after the first. */
+export const TRIPS_PER_DAY: Record<'helipad' | 'pier', number[]> = { helipad: [1, 1, 2], pier: [1, 1, 1] };
 export const DELIVERY_RAID_THREAT = 3;
 export const DELIVERY_RAID_CHANCE = 0.3;
 export const MAX_OFFERS = 4;
 /** Once a facility tier stands, its client type offers a job at least this often. */
 export const VIP_MAX_GAP = 10;
-/** A Supply Deal ships in weekly loads. */
+/** A Supply Deal ships in weekly loads (4 of 50,000 bottles). */
 export const DEAL_LOADS = 4;
 export const GROVE_TRAFFIC = 0.05;
 export const MAX_GROVES = 2;
-/** Pickup minute: choppers at 5:30 pm, in the golden hour (spec mood scene "The first helicopter"), ships at 10 am. */
+/** Pickup minute: choppers at 5:30 pm, in the golden hour (spec mood scene "The first helicopter"), ships at 10 am (each
+ * opens a 2-hour window; Caterer Trucks and Local Orders at closing). */
 export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 20 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60 };
 
 const CLIENTS: Record<OrderTier, string[]> = {
@@ -147,14 +157,19 @@ export function tierOpen(s: GameState, tier: OrderTier): Blocker {
   return { ok: true };
 }
 
+/** The facility of a line with the highest tier (the first such): its orders come in its sizes and load at its rate. */
+function bestFacility(s: GameState, kind: 'helipad' | 'pier'): string | undefined {
+  const lvl = bestLevel(s, kind);
+  return facilityPlots(s, kind).find((p) => s.plots[p.id].facility!.level === lvl)?.id;
+}
+
 function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const t = ORDER_TIERS[tier];
   const [lo, hi] = tier === 'heli' ? HELI_SIZES[bestLevel(s, 'helipad') - 1] : tier === 'ship' ? SHIP_SIZES[bestLevel(s, 'pier') - 1] : t.size;
-  const terminal = facilityPlots(s, 'pier').find((p) => s.plots[p.id].facility!.level >= 3)?.id;
   const qty = Math.round((lo + (hi - lo) * nextRandom(rng)) / 100) * 100;
   const unit = tier === 'local' ? localPrice(s) * t.pay : t.pay;
   const days = t.days;
-  const plot = tier === 'heli' ? facilityPlots(s, 'helipad')[0]?.id : tier === 'ship' ? facilityPlots(s, 'pier')[0]?.id : tier === 'deal' ? terminal : undefined;
+  const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : undefined;
   const clients = CLIENTS[tier];
   return {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
@@ -171,7 +186,7 @@ function localPrice(s: GameState): number {
 export function vipAtDawn(s: GameState): void {
   const rng = { seed: s.seed };
   // Bottling runs only while an accepted order still needs bottles.
-  const need = s.orders.filter((o) => o.tier !== 'local').reduce((a, o) => a + o.qty, 0) - s.bottles;
+  const need = bottlesNeeded(s) - s.bottles;
   if (need > 0) {
     const make = Math.min(need, bottlingCapacity(s), Math.floor(Math.max(0, s.cash) / BOTTLE_COST));
     if (make > 0) {
@@ -204,13 +219,7 @@ export function acceptOrder(s: GameState, id: string): boolean {
   if (i < 0) return false;
   const o = s.offers.splice(i, 1)[0];
   o.accepted = true;
-  if (o.tier === 'deal') {
-    // Weekly loads from the Cargo Terminal, paid at each pickup.
-    for (let k = 1; k <= DEAL_LOADS; k++) {
-      s.orders.push({ ...o, id: `${o.id}-${k}`, qty: Math.round(o.qty / DEAL_LOADS), pay: Math.round(o.pay / DEAL_LOADS), due: s.day + Math.round((ORDER_TIERS.deal.days / DEAL_LOADS) * k), client: `${o.client} (load ${k} of ${DEAL_LOADS})` });
-    }
-    return true;
-  }
+  if (o.tier === 'deal') o.loads = DEAL_LOADS; // weekly loads from the Cargo Terminal, paid at each pickup
   s.orders.push(o);
   return true;
 }
@@ -222,42 +231,159 @@ export function declineOrder(s: GameState, id: string): void {
 /** For a Supply Deal offer: bottles a day it needs on top of what bottling is already committed to (≤ 0 means it's covered). */
 export function dealShortfallPerDay(s: GameState, o: Order): number {
   const perDay = o.qty / ORDER_TIERS.deal.days;
-  const committed = s.orders.filter((x) => x.tier === 'deal').length / DEAL_LOADS * perDay
-    + s.orders.filter((x) => x.tier !== 'local' && x.tier !== 'deal').reduce((a, x) => a + x.qty / Math.max(1, x.due - s.day), 0);
+  const committed = s.orders.filter((x) => x.tier !== 'local').reduce((a, x) => a + bottlesLeft(x) / Math.max(1, x.due - s.day), 0);
   return Math.ceil(perDay + committed - bottlingCapacity(s) - Math.max(0, s.bottles - bottlesNeeded(s)) / ORDER_TIERS.deal.days);
 }
 
-export const bottlesNeeded = (s: GameState) => s.orders.filter((o) => o.tier !== 'local').reduce((a, o) => a + o.qty, 0);
+/** Bottles an order still has to load. */
+export const bottlesLeft = (o: Order) => Math.max(0, o.qty - (o.loaded ?? 0));
+/** Bottles the accepted orders still need. */
+export const bottlesNeeded = (s: GameState) => s.orders.filter((o) => o.tier !== 'local').reduce((a, o) => a + bottlesLeft(o), 0);
 
 // ---------- pickups ----------
 
 export interface Pickup { order: Order; ok: boolean; raid?: BattleReport }
 
-/** Called every game minute while open: orders due today get picked up at their time. */
+type Line = 'helipad' | 'pier';
+const lineOf = (f: Facility): Line | null => (f.kind === 'helipad' || f.kind === 'pier' ? f.kind : null);
+
+/** The minutes a facility's clients land or dock to load, each opening a 2-hour window: one trip a day, two at a Heliport. */
+export function tripMinutes(f: Facility): number[] {
+  const line = lineOf(f);
+  if (!line) return [];
+  const at = PICKUP_MINUTE[line === 'helipad' ? 'heli' : 'ship'];
+  return Array.from({ length: TRIPS_PER_DAY[line][f.level - 1] ?? 1 }, (_, i) => at + i * DELIVERY_WINDOW);
+}
+/** What one trip can load: the facility's daily rate, split over its trips. */
+export function tripLoad(f: Facility): number {
+  const line = lineOf(f);
+  return line ? Math.floor((LOADING_PER_DAY[line][f.level - 1] ?? 0) / (TRIPS_PER_DAY[line][f.level - 1] ?? 1)) : 0;
+}
+
+/** A Supply Deal's first day (its last load is due 28 days on). */
+const dealStart = (o: Order) => o.due - ORDER_TIERS.deal.days;
+const dealWeek = (o: Order) => ORDER_TIERS.deal.days / (o.loads ?? 1);
+/** Bottles an order must have loaded by the end of a day: all of them on its deadline; a Supply Deal's loads one a week. */
+export function owedBy(o: Order, day: number): number {
+  if (!o.loads) return day >= o.due ? o.qty : 0;
+  const weeks = Math.min(o.loads, Math.floor((day - dealStart(o)) / dealWeek(o)));
+  return weeks > 0 ? Math.round((o.qty * weeks) / o.loads) : 0;
+}
+/** How far an order may have loaded by a day: a Supply Deal ships this week's load, not next week's. */
+function loadCap(o: Order, day: number): number {
+  if (!o.loads) return o.qty;
+  const week = Math.min(o.loads, Math.max(1, Math.ceil((day - dealStart(o)) / dealWeek(o))));
+  return Math.round((o.qty * week) / o.loads);
+}
+/** The day the order's next bottles are due: its deadline, or the end of a Supply Deal's week. */
+export function nextDue(o: Order, day: number): number {
+  if (!o.loads) return o.due;
+  return Math.min(o.due, dealStart(o) + Math.max(1, Math.ceil((day - dealStart(o)) / dealWeek(o))) * dealWeek(o));
+}
+/** The pay for the first n bottles (each pickup is paid for its own load; rounding never adds up to more than the order). */
+const payFor = (o: Order, n: number) => Math.round((o.pay * n) / o.qty);
+
+/** Called every game minute while open: at each facility's trip minutes its clients load, oldest order first, up to the
+ * trip's load; Caterer Trucks and Local Orders go out at their minute. */
 export function pickupsAt(s: GameState): Pickup[] {
   const out: Pickup[] = [];
+  for (const line of ['pier', 'helipad'] as const) {
+    for (const p of facilityPlots(s, line)) {
+      const f = s.plots[p.id].facility!;
+      if (!tripMinutes(f).includes(s.minute)) continue;
+      let room = tripLoad(f);
+      for (const o of s.orders.filter((x) => x.plot === p.id && isVip(x.tier) && x.due >= s.day && !s.heldPickups?.includes(x.id))) {
+        if (room <= 0) break;
+        const t = trip(s, o, room);
+        if (!t) continue;
+        out.push(t.pickup);
+        room -= t.load;
+      }
+    }
+  }
+  for (const o of [...s.orders]) if (!isVip(o.tier) && o.due === s.day && PICKUP_MINUTE[o.tier] === s.minute) out.push(handOver(s, o));
+  return out;
+}
+
+/** At closing: Local Orders and Caterer Trucks still due go out, and a VIP order short of what it owes by tonight (all of it
+ * on its deadline, a Supply Deal's load at the end of each week) falls through. */
+export function pickupsAtClose(s: GameState): Pickup[] {
+  const out: Pickup[] = [];
   for (const o of [...s.orders]) {
-    if (o.due !== s.day || PICKUP_MINUTE[o.tier] !== s.minute) continue;
-    out.push(deliver(s, o));
+    if (s.heldPickups?.includes(o.id)) continue; // a Delivery Raid is still out on its trip: that settles it first
+    if (!isVip(o.tier)) { if (o.due <= s.day) out.push(handOver(s, o)); continue; }
+    const owed = owedBy(o, s.day);
+    if ((o.loaded ?? 0) < owed) out.push(failOrder(s, o, shortWhy(s, o, owed)));
   }
   return out;
 }
 
-/** Orders still due today at closing (local orders, and anything a mid-day pickup missed). */
-export function pickupsAtClose(s: GameState): Pickup[] {
-  return s.orders.filter((o) => o.due <= s.day).map((o) => deliver(s, o));
+/** One trip of an order (night.ts calls it again to settle a Delivery Raid's hold: the held load goes out, or the order
+ * fails). Local Orders and Caterer Trucks go out in one go. */
+export function deliver(s: GameState, o: Order): Pickup | null {
+  if (!isVip(o.tier)) return handOver(s, o);
+  const f = o.plot ? s.plots[o.plot].facility : undefined;
+  return trip(s, o, f && !f.wrecked ? tripLoad(f) : 0)?.pickup ?? null;
 }
 
-export function deliver(s: GameState, o: Order): Pickup {
+/** The client loads up to `room` bottles, as many as are ready, and pays for them; the last load completes the order (a
+ * helicopter order adds 0.2 star). A Delivery Raid rolled on the trip holds it until the raid is fought. */
+function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: number } | null {
+  const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), s.bottles);
+  if (n <= 0) return null;
+  o.loading = n;
+  const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: a Delivery Raid is warned and fought on the clock
+  if (held) return { pickup: held, load: n };
+  delete o.loading;
+  const before = o.loaded ?? 0;
+  o.loaded = before + n;
+  const pay = payFor(o, o.loaded) - payFor(o, before);
+  s.bottles -= n;
+  s.cash = round2(s.cash + pay);
+  s.today.revenue = round2(s.today.revenue + pay);
+  s.lifetimeCups += n;
+  const done = o.loaded >= o.qty;
+  if (done) {
+    s.orders = s.orders.filter((x) => x !== o);
+    if (o.tier === 'heli') s.reputation = Math.min(5, Math.round((s.reputation + VIP_STAR_BONUS) * 100) / 100);
+  }
+  const tally = done ? (before ? ' Order complete!' : '') : ` ${o.loaded.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} loaded.`;
+  s.news.push(`${o.client} picks up ${n.toLocaleString('en-US')} bottles: ${money(pay)}!${tally}`);
+  return { pickup: { order: o, ok: true }, load: n };
+}
+
+/** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded. */
+export function loseLoad(s: GameState, o: Order): void {
+  s.bottles = Math.max(0, s.bottles - (o.loading ?? bottlesLeft(o)));
+  delete o.loading;
+}
+
+/** Why a VIP order fell short at closing. */
+function shortWhy(s: GameState, o: Order, owed: number): string {
+  const ps = o.plot ? s.plots[o.plot] : undefined;
+  const where = o.tier === 'heli' ? 'helipad' : 'pier';
+  if (!ps?.facility || ps.owner !== 'player') return `The ${where} is gone.`;
+  if (ps.facility.wrecked) return `The ${where} was smashed.`;
+  return `Only ${(o.loaded ?? 0).toLocaleString('en-US')} of ${owed.toLocaleString('en-US')} bottles were loaded in time.`;
+}
+
+/** A failed or overrun order: 0.3 star, once, and the pay for the bottles not yet loaded; earlier pickups stay paid (a
+ * Supply Deal's later loads go with it). */
+function failOrder(s: GameState, o: Order, why: string): Pickup {
   s.orders = s.orders.filter((x) => x !== o);
-  const fail = (why: string): Pickup => {
-    s.reputation = Math.max(1, Math.round((s.reputation - FAILED_ORDER_STARS) * 100) / 100);
-    s.news.push(`Order fell through: ${o.client}. ${why} (−${FAILED_ORDER_STARS} star)`);
-    return { order: o, ok: false };
-  };
+  delete o.loading;
+  s.reputation = Math.max(1, Math.round((s.reputation - FAILED_ORDER_STARS) * 100) / 100);
+  const unpaid = o.pay - payFor(o, o.loaded ?? 0);
+  s.news.push(`Order fell through: ${o.client}. ${why} (−${FAILED_ORDER_STARS} star${o.loaded ? `, ${money(unpaid)} unpaid` : ''})`);
+  return { order: o, ok: false };
+}
+
+/** Local Orders and Caterer Trucks: the whole order in one go. */
+function handOver(s: GameState, o: Order): Pickup {
   if (o.tier === 'local') {
     const st = playerStands(s).map((p) => s.plots[p.id].stand!).find((x) => x.level >= 3 && !x.wrecked);
-    if (!st) return fail('No working Kiosk to make it.');
+    if (!st) return failOrder(s, o, 'No working Kiosk to make it.');
+    s.orders = s.orders.filter((x) => x !== o);
     const cost = round2(o.qty * costPerCup(s, st));
     s.cash = round2(s.cash - cost + o.pay);
     s.today.supplies = round2(s.today.supplies + cost);
@@ -265,15 +391,13 @@ export function deliver(s: GameState, o: Order): Pickup {
     s.news.push(`Delivered ${o.qty} cups to ${o.client}: ${money(o.pay)}!`);
     return { order: o, ok: true };
   }
-  if (o.plot && s.plots[o.plot].facility?.wrecked) return fail(`The ${o.tier === 'heli' ? 'helipad' : 'pier'} was smashed.`);
-  if (s.bottles < o.qty) return fail(`Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
-  const held = scheduleDeliveryRaid(s, o, fail); // nights: a Delivery Raid is warned and fought on the clock
-  if (held) return held;
+  if (s.bottles < o.qty) return failOrder(s, o, `Only ${s.bottles.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
+  s.orders = s.orders.filter((x) => x !== o);
   s.bottles -= o.qty;
+  o.loaded = o.qty;
   s.cash = round2(s.cash + o.pay);
   s.today.revenue = round2(s.today.revenue + o.pay);
-  if (o.tier === 'heli' || o.tier === 'ship') s.reputation = Math.min(5, Math.round((s.reputation + VIP_STAR_BONUS) * 100) / 100);
   s.lifetimeCups += o.qty;
-  s.news.push(`${o.tier === 'heli' ? '🚁' : bySea(o.tier) ? '🚢' : '🚚'} ${o.client} picks up ${o.qty.toLocaleString('en-US')} bottles: ${money(o.pay)}!`);
+  s.news.push(`${o.client} picks up ${o.qty.toLocaleString('en-US')} bottles: ${money(o.pay)}!`);
   return { order: o, ok: true };
 }

@@ -21,7 +21,7 @@ import { servingsAvailable } from './economy.ts';
 import { detectionChance, guardReady, hasBuilding, raidPartyFor, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
-import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, type Order, type Pickup } from './vip.ts';
+import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
 import { nightShiftStealth } from './rivalAi.ts';
@@ -360,7 +360,7 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   if (settling?.order === o.id) {
     const { report } = settling;
     if (report?.outcome !== 'robbed') return null; // held off, or called off: the load goes out
-    s.bottles = Math.max(0, s.bottles - o.qty);
+    loseLoad(s, o); // world: the raiders make off with the bottles on this trip
     return { ...fail(`${FACTIONS[report.attacker as RivalId].name} overran the ${where} during loading.`), raid: report };
   }
   const held = (): Pickup => {

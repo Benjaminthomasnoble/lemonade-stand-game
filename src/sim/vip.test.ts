@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOrder, dealShortfallPerDay, buildFacility, canBuildFacility, LOTTIES_CORNER, newGame, openStand, PLOTS, simulateRestOfDay, sleepUntilDawn,
-  type GameState,
+  acceptOrder, dealShortfallPerDay, buildFacility, canBuildFacility, DELIVERY_WINDOW, FAILED_ORDER_STARS, LOADING_PER_DAY, LOTTIES_CORNER, newGame,
+  nextDue, openStand, owedBy, PICKUP_MINUTE, pickupsAt, pickupsAtClose, PLOTS, simulateRestOfDay, sleepUntilDawn, tripLoad, tripMinutes,
+  VIP_STAR_BONUS, type GameState, type Order,
 } from './economy.ts';
 
 const day = (s: GameState) => { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); };
@@ -18,6 +19,22 @@ function vipGame(seed: number) {
   for (const p of [field, dock, lot]) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: null, facility: undefined, invested: 0 };
   return { s, field, dock, lot };
 }
+
+/** No rival will raid a pickup (they all respect you): the trips load in peace. */
+const noRaids = (s: GameState) => { for (const r of Object.values(s.rivals)) r.respectUntil = 999; };
+/** Just the VIP side of a business day: every trip minute, then the closing check, then the next day. */
+function trips(s: GameState): void {
+  s.phase = 'open';
+  for (const m of [PICKUP_MINUTE.ship, PICKUP_MINUTE.heli, PICKUP_MINUTE.heli + DELIVERY_WINDOW]) { s.minute = m; pickupsAt(s); }
+  pickupsAtClose(s);
+  s.day++;
+  s.phase = 'prep';
+}
+const order = (s: GameState, o: Partial<Order> & Pick<Order, 'id' | 'tier' | 'qty' | 'pay' | 'plot'>): Order => {
+  const x: Order = { client: `Client ${o.id}`, due: s.day, expires: s.day, accepted: true, ...o };
+  s.orders.push(x);
+  return x;
+};
 
 describe('VIP clients', () => {
   it('facilities need the right land and rank', () => {
@@ -53,6 +70,108 @@ describe('VIP clients', () => {
     expect(s.lifetimeCups).toBeGreaterThan(2000);
   });
 
+  it('each facility tier loads its daily rate: a Pad takes 2,000 bottles a day, and each pickup pays for its own load', () => {
+    const { s, field } = vipGame(5);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    const pad = s.plots[field.id].facility!;
+    expect([tripMinutes(pad), tripLoad(pad)]).toEqual([[PICKUP_MINUTE.heli], 2000]);
+    s.bottles = 10000;
+    const o = order(s, { id: 'star', tier: 'heli', client: 'a movie star', qty: 4000, pay: 120000, due: s.day + 3, plot: field.id });
+    const cash = s.cash, rep = s.reputation;
+    trips(s);
+    expect(o.loaded).toBe(2000);
+    expect(s.bottles).toBe(8000);
+    expect(s.cash).toBe(cash + 60000);
+    expect(s.news.at(-1)).toBe('a movie star picks up 2,000 bottles: $60,000! 2,000 of 4,000 loaded.');
+    expect(s.reputation).toBe(rep); // not delivered yet
+    trips(s);
+    expect(s.orders).toEqual([]);
+    expect(s.cash).toBe(cash + 120000);
+    expect(s.news.at(-1)).toBe('a movie star picks up 2,000 bottles: $60,000! Order complete!');
+    expect(s.reputation).toBeCloseTo(rep + VIP_STAR_BONUS);
+    // The Helipad tier loads the spec's 5,000 bottles of Pink in one pickup.
+    buildFacility(s, field.id, 'helipad');
+    expect(tripLoad(s.plots[field.id].facility!)).toBe(5000);
+    order(s, { id: 'pink', tier: 'heli', qty: 5000, pay: 150000, due: s.day + 4, plot: field.id });
+    trips(s);
+    expect(s.orders).toEqual([]);
+  });
+
+  it('a Heliport flies 2 trips a day; a pier shares its daily rate between orders, oldest first', () => {
+    const { s, field, dock } = vipGame(6);
+    noRaids(s);
+    s.rank = 8;
+    for (let i = 0; i < 3; i++) buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    const port = s.plots[field.id].facility!;
+    expect(tripMinutes(port)).toEqual([PICKUP_MINUTE.heli, PICKUP_MINUTE.heli + DELIVERY_WINDOW]);
+    expect(tripLoad(port) * 2).toBe(LOADING_PER_DAY.helipad[2]);
+    s.bottles = 100000;
+    const a = order(s, { id: 'a', tier: 'heli', qty: 10000, pay: 300000, due: s.day + 4, plot: field.id });
+    const b = order(s, { id: 'b', tier: 'heli', qty: 10000, pay: 300000, due: s.day + 4, plot: field.id });
+    s.phase = 'open';
+    s.minute = PICKUP_MINUTE.heli;
+    pickupsAt(s);
+    expect([a.loaded, b.loaded]).toEqual([10000, undefined]);
+    s.minute = PICKUP_MINUTE.heli + DELIVERY_WINDOW; // the second trip
+    pickupsAt(s);
+    expect(b.loaded).toBe(10000);
+    expect(s.orders).toEqual([]);
+    // A Jetty loads 5,000 a day: the first order takes 4,000 of it, the next one what's left.
+    const c = order(s, { id: 'c', tier: 'ship', qty: 4000, pay: 160000, due: s.day + 7, plot: dock.id });
+    const d = order(s, { id: 'd', tier: 'ship', qty: 4000, pay: 160000, due: s.day + 7, plot: dock.id });
+    s.minute = PICKUP_MINUTE.ship;
+    pickupsAt(s);
+    expect([c.loaded, d.loaded]).toEqual([4000, 1000]);
+  });
+
+  it('a failed order costs 0.3 star once and only the unloaded pay: earlier pickups stay paid', () => {
+    const { s, field } = vipGame(7);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    s.bottles = 2000; // and no Bottling Works to make more
+    const o = order(s, { id: 'x', tier: 'heli', client: 'a celebrity wedding', qty: 4000, pay: 120000, due: s.day + 1, plot: field.id });
+    const cash = s.cash, rep = s.reputation;
+    trips(s);
+    expect(o.loaded).toBe(2000);
+    trips(s); // the deadline: nothing more was ready
+    expect(s.orders).toEqual([]);
+    expect(s.cash).toBe(cash + 60000);
+    expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
+    expect(s.news.at(-1)).toBe('Order fell through: a celebrity wedding. Only 2,000 of 4,000 bottles were loaded in time. (−0.3 star, $60,000 unpaid)');
+  });
+
+  it('a smashed helipad loads nothing, and the order falls through at its deadline', () => {
+    const { s, field } = vipGame(8);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    s.bottles = 5000;
+    order(s, { id: 'x', tier: 'heli', client: 'the Governor\'s Gala', qty: 2000, pay: 60000, due: s.day, plot: field.id });
+    s.plots[field.id].facility!.wrecked = true;
+    const rep = s.reputation;
+    trips(s);
+    expect(s.bottles).toBe(5000);
+    expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
+    expect(s.news.at(-1)).toBe("Order fell through: the Governor's Gala. The helipad was smashed. (−0.3 star)");
+  });
+
+  it('only helicopter deliveries add 0.2 star; ships and Supply Deals add none', () => {
+    const { s, field, dock } = vipGame(9);
+    noRaids(s);
+    buildFacility(s, field.id, 'helipad');
+    buildFacility(s, dock.id, 'pier');
+    s.bottles = 10000;
+    order(s, { id: 'yacht', tier: 'ship', qty: 5000, pay: 200000, due: s.day + 7, plot: dock.id });
+    const rep = s.reputation;
+    trips(s);
+    expect(s.orders).toEqual([]);
+    expect(s.reputation).toBe(rep);
+    order(s, { id: 'chopper', tier: 'heli', qty: 2000, pay: 60000, due: s.day + 4, plot: field.id });
+    trips(s);
+    expect(s.reputation).toBeCloseTo(rep + VIP_STAR_BONUS);
+  });
+
   it('an order with no bottles fails and costs a star', () => {
     const { s, field } = vipGame(3);
     buildFacility(s, field.id, 'helipad');
@@ -63,10 +182,13 @@ describe('VIP clients', () => {
     expect(s.orders).toHaveLength(0);
   });
 
-  it('Supply Deals ship in weekly loads, and several can run at once', () => {
+  it('Supply Deals ship in 4 weekly loads of 50,000, $1.5M a load, paid at each pickup; several can run at once', () => {
     const { s, dock, lot } = vipGame(4);
+    noRaids(s);
     s.rank = 8;
+    s.cash = 10_000_000;
     for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier');
+    expect(s.plots[dock.id].facility!.level).toBe(3); // the Cargo Terminal
     const deal = (n: string) => ({ id: n, tier: 'deal' as const, client: n, qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false });
     s.offers.push(deal('a'));
     expect(dealShortfallPerDay(s, s.offers[0])).toBeGreaterThan(0); // no bottling yet
@@ -75,8 +197,38 @@ describe('VIP clients', () => {
     acceptOrder(s, 'a');
     s.offers.push(deal('b'));
     acceptOrder(s, 'b');
-    expect(s.orders.filter((o) => o.tier === 'deal')).toHaveLength(8);
-    expect(s.orders[0].qty).toBe(50000);
-    expect(s.orders[0].pay).toBe(1500000);
+    expect(s.orders.map((o) => [o.id, o.loads])).toEqual([['a', 4], ['b', 4]]); // one order each, not one per load
+    const [a, b] = s.orders;
+    const start = s.day;
+    expect([6, 7, 13, 14, 28].map((d) => owedBy(a, start + d))).toEqual([0, 50000, 50000, 100000, 200000]);
+    expect([0, 7, 8, 27].map((d) => nextDue(a, start + d))).toEqual([start + 7, start + 7, start + 14, start + 28]);
+    s.bottles = 400000;
+    const cash = s.cash;
+    for (let d = 0; d < 7; d++) trips(s);
+    // The Cargo Terminal loads 25,000 a day: each deal's first load went out in 2 pickups, and no more than that.
+    expect([a.loaded, b.loaded]).toEqual([50000, 50000]);
+    expect(s.cash).toBe(cash + 2 * 1500000);
+    for (let d = 0; d < 21; d++) trips(s);
+    expect(s.orders).toEqual([]);
+    expect(s.cash).toBe(cash + 2 * 6000000);
+  });
+
+  it("a Supply Deal's short week ends the deal for 0.3 star, once; the loads already shipped stay paid", () => {
+    const { s, dock } = vipGame(10);
+    noRaids(s);
+    s.rank = 8;
+    s.cash = 10_000_000;
+    for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier');
+    s.offers.push({ id: 'd', tier: 'deal', client: 'Gulfstream Grocers', qty: 200000, pay: 6000000, due: s.day + 28, expires: s.day + 1, plot: dock.id, accepted: false });
+    acceptOrder(s, 'd');
+    s.bottles = 50000; // week 1's load, and not a bottle more
+    const cash = s.cash, rep = s.reputation;
+    for (let d = 0; d < 14; d++) trips(s);
+    expect(s.orders).toHaveLength(1); // week 2's load is due by the end of its 7th day
+    trips(s);
+    expect(s.orders).toEqual([]);
+    expect(s.cash).toBe(cash + 1500000);
+    expect(s.reputation).toBeCloseTo(rep - FAILED_ORDER_STARS);
+    expect(s.news.filter((n) => n.startsWith('Order fell through'))).toEqual(['Order fell through: Gulfstream Grocers. Only 50,000 of 100,000 bottles were loaded in time. (−0.3 star, $4,500,000 unpaid)']);
   });
 });

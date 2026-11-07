@@ -164,7 +164,8 @@ try {
       st.bottles = 50000;
       st.raids = [];
       st.rank = 2; // keep Threat low so no delivery raid in the smoke test
-      st.orders.push({ id: 'smoke-' + tier, tier, client: `Smoke Test ${tier}`, qty: tier === 'ship' ? 30000 : 4000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
+      // A Pad loads 2,000 bottles a day and a Jetty 5,000: each order goes in one pickup.
+      st.orders.push({ id: 'smoke-' + tier, tier, client: `Smoke Test ${tier}`, qty: tier === 'ship' ? 5000 : 2000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
       g.act({ type: 'open' });
       g.act({ type: 'speed', value: 0 });
     }, [tier, plot]);

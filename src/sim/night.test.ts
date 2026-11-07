@@ -232,7 +232,7 @@ describe('the alert feed', () => {
 });
 
 describe('Delivery Raids', () => {
-  /** Rank 7 with a helipad and a 4,000-bottle chopper order due at 14:00 today. */
+  /** Rank 7 with a Helipad (5,000 bottles a day: one trip) and a 4,000-bottle chopper order due at 14:00 today. */
   function pickupGame(seed: number) {
     const s = newGame(seed);
     s.rank = 7;
@@ -241,6 +241,7 @@ describe('Delivery Raids', () => {
     const field = PLOTS.find((p) => p.type === 'field')!.id; // cleared of Hollis's Lemon Grove
     s.plots[field] = { ...s.plots[field], owner: 'player', stand: null, facility: undefined, invested: 0 };
     buildFacility(s, field, 'helipad');
+    buildFacility(s, field, 'helipad'); // world: the Helipad tier loads 5,000 a day, so the order goes in one trip
     s.bottles = 6000;
     s.orders.push({ id: 'vip', tier: 'heli', client: 'Test Star', qty: 4000, pay: 15000, due: s.day, expires: s.day, plot: field, accepted: true });
     openStand(s);

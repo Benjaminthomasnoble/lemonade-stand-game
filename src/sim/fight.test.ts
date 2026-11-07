@@ -147,7 +147,7 @@ describe('a live fight', () => {
     expect(ended).toMatchObject({ delivery: true, outcome: 'robbed' });
     expect(s!.heldPickups).toEqual([]);
     expect(s!.orders.some((o) => o.id === 'vip')).toBe(false);
-    expect(s!.bottles).toBe(2000);
+    expect(s!.bottles).toBe(4000); // world: a Pad loads 2,000 bottles a trip, and the raiders make off with that load (vip.ts)
     expect(s!.news.some((n) => n.startsWith('Order fell through: Test Star.'))).toBe(true);
   });
 

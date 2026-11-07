@@ -7,7 +7,7 @@ import {
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
-  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore,
+  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -21,6 +21,8 @@ const levels = (s: GameState, id: RivalId) => ownedPlots(s, id).map((p) => s.plo
 function seedUnder(p: number): number {
   for (let seed = 1; ; seed++) if (nextRandom({ seed }) < p) return seed;
 }
+/** Rank `rank`, with the campaign's act to match: the campaign's act is the story's (src/sim/story.ts), not rank's. */
+const atRank = (s: GameState, rank: number) => { s.rank = rank; s.story!.act = ACT_BY_RANK[rank - 1]; };
 /** Pretend the tutorial raid already happened, so the next raids are ordinary ones. */
 function pastTutorial(s: GameState): void {
   s.battles.push({ day: 1, attacker: 'blenders', defender: 'player', target: LOTTIES_CORNER } as BattleReport);
@@ -461,7 +463,7 @@ describe('Old Money: elite Stewards', () => {
     const raidBy = (rank: number) => {
       const s = newGame(62);
       s.day = 120;
-      s.rank = rank;
+      atRank(s, rank);
       pastTutorial(s);
       for (const id of RIVALS) budgetOf(s, id).strike = 0;
       s.rivals.sourwood.cash = 1e7;

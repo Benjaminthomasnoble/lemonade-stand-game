@@ -5,7 +5,7 @@ import {
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
-  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID,
+  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK,
   type DayStats, type GameState, type RivalId,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -28,6 +28,8 @@ function nextTo(s: GameState, id: RivalId): { theirs: string; mine: string } {
 
 /** Nobody starts anything new (a Truce with everyone); what's running carries on. */
 const hush = (s: GameState) => { for (const id of RIVALS) s.rivals[id].truceUntil = 999; };
+/** Rank `rank`, with the campaign's act to match: the campaign's act is the story's (src/sim/story.ts), not rank's. */
+const atRank = (s: GameState, rank: number) => { s.rank = rank; s.story!.act = ACT_BY_RANK[rank - 1]; };
 
 describe('price wars', () => {
   it('cut a rival\'s prices 25% at its stands near yours for 3 days, and Strike pays the margin it gives up', () => {
@@ -155,7 +157,7 @@ describe('smear posters', () => {
   function onCampus(seed: number, rank: number) {
     const s = newGame(seed);
     s.day = 10;
-    s.rank = rank;
+    atRank(s, rank);
     for (const p of PLOTS) if (p.district === 'campus' && p.type !== 'hq' && s.plots[p.id].owner === 'coldbrew') s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
     for (const [id, busy] of [['campus-6n', 50], ['campus-0s', 400]] as const) {
       s.plots[id] = { ...s.plots[id], owner: 'player', stand: newStand(1, 1) };
@@ -198,7 +200,7 @@ describe('smear posters', () => {
         for (let seed = 1; seed <= 20; seed++) {
           const s = newGame(seed);
           s.day = 10;
-          s.rank = rank;
+          atRank(s, rank);
           nextTo(s, 'coldbrew'); // a war front: a price war is on the table too
           hush(s);
           s.rivals.coldbrew.truceUntil = 0;
@@ -419,7 +421,7 @@ describe('Cease-and-Desist', () => {
   /** Act 4 (Rank 7) with Flyers & Sidewalk Chalk, and a busy stand of Lottie's in Downtown as well as her Corner. */
   function marketed(seed: number) {
     const s = newGame(seed);
-    s.rank = 7;
+    atRank(s, 7);
     s.brandTier = 2;
     s.day = 60;
     const p = PLOTS.find((q) => q.district === 'downtown' && !s.plots[q.id].owner && q.type === 'street')!;
@@ -468,7 +470,7 @@ describe('Cease-and-Desist', () => {
 
   it('never before Act 4, with nothing to block, or twice on one district; story can aim the Act 4 letter', () => {
     const early = marketed(33).s;
-    early.rank = 6; // Act 3
+    atRank(early, 6); // Act 3
     expect(ceaseAndDesist(early)).toBeNull();
     const plain = marketed(34).s;
     plain.brandTier = 0;
@@ -496,7 +498,7 @@ describe('FizzCo buyout offers', () => {
   /** Act 4 (Rank 7) at Morning Prep, with a stand of Lottie's in Downtown, FizzCo's home turf. */
   function wanted(seed: number, district = 'downtown') {
     const s = newGame(seed);
-    s.rank = 7;
+    atRank(s, 7);
     s.day = 60;
     s.phase = 'prep';
     const p = PLOTS.find((q) => q.district === district && !s.plots[q.id].owner && q.type === 'street')!;
@@ -555,7 +557,7 @@ describe('FizzCo buyout offers', () => {
     const far = wanted(45, 'groves');
     expect(startScheme(far.s, 'fizzco', 'buyout')).toBeNull();
     const early = wanted(46);
-    early.s.rank = 6; // Act 3
+    atRank(early.s, 6); // Act 3
     expect(startScheme(early.s, 'fizzco', 'buyout')).toBeNull();
     const poor = wanted(47);
     budgetOf(poor.s, 'fizzco').grow = 10;
@@ -586,7 +588,7 @@ describe('Old Money', () => {
   /** Act 5 (Rank 9) at Morning Prep, with a week of sales on the books. */
   function act5(seed: number, sales = [1000, 2000, 3000, 4000, 5000, 6000, 7000]) {
     const s = newGame(seed);
-    s.rank = 9;
+    atRank(s, 9);
     s.day = 110;
     s.phase = 'prep';
     s.cash = 50_000;
@@ -613,7 +615,7 @@ describe('Old Money', () => {
     broke.cash = 0;
     expect(startScheme(broke, 'sourwood', 'fine')).toBeNull();
     const early = act5(54);
-    early.rank = 8; // Act 4
+    atRank(early, 8); // Act 4
     expect(startScheme(early, 'sourwood', 'fine')).toBeNull();
     expect(freezeLand(early)).toBeNull();
     expect(startScheme(act5(55), 'fizzco', 'fine')).toBeNull(); // the Mayor answers to Vera

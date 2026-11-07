@@ -11,6 +11,9 @@ import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady, SCENES } from './scenes.ts';
 import { actBegan, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { LESSON_DAY } from './balance.ts';
+import { menuScreen, menuUnlocked } from '../ui/menus.ts';
+import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 /** The year-1 Summer Fair's last day: its Taste-Off closes Act 1. */
@@ -449,6 +452,15 @@ describe('lessons and Dex', () => {
     expect(taught(newGame(25, { lessons: false }), 'land')).toBe(true);
     s.settings.lessons = false; // the Options switch, mid-run: every button follows rank alone
     expect(taught(s, 'land')).toBe(true);
+  });
+
+  it("the Land Registry menu waits for Week 2's land lesson; with lessons off it opens with land for sale", () => {
+    const s = newGame(33);
+    expect(menuUnlocked(s, 'registry')).toBe(false); // Maple Row's plots still sell from a tap on the map
+    expect(menuScreen(s, 'index', { head: ['', ''], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } })).not.toContain('data-menu="registry"');
+    s.day = LESSON_DAY.land;
+    expect(menuUnlocked(s, 'registry')).toBe(true);
+    expect(menuUnlocked(newGame(34, { lessons: false }), 'registry')).toBe(true);
   });
 
   it("Dex taking his post himself ticks the lesson off unpaid, and the tutorial raid goes straight at Dex's post", () => {

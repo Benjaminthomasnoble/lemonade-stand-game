@@ -3,7 +3,7 @@ import {
   bigSqueezeGoal, callBigSqueeze, canAssault, canCallBigSqueeze, CLOSE, eliminate, HQS, hqPlot, isWeakened, manorStewards, migrateSave, newGame, newStand,
   NIGHT_END, nightStep, onYou, planNight, PLOTS, raidsCounted, rivalsBankrupt, siegeDone, siegeFought, siegeTargets, siegeTonight, sleepUntilDawn, SQUEEZE_READY, startNight,
   squeezeAtDawn, squeezedHq, stormHQ, SYNDICATE_CALL, syndicateFormed, type BattleReport, type GameState, type Guard, type Mode, type Raid, type RivalId,
-  bugleNews, PLOT_BY_ID,
+  bugleNews, hqStageInput, PLOT_BY_ID,
 } from './economy.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
 import { CALL_PRIORITY } from './phone.ts';
@@ -226,6 +226,8 @@ describe('the siege', () => {
     for (let n = 0; n < 7; n++) night(s, 'repelled', 'repelled');
     expect(squeezedHq(s, 'sourwood')).toMatchObject({ gate: 1500, yard: HQS.sourwood.yard - 7 });
     expect(HQS.sourwood.gate).toBe(5000);
+    expect(hqStageInput(s, 'sourwood', 'gate', [], { seed: 1 }).standHp).toBe(1500); // the storm's Gate fight starts there
+    expect(hqStageInput(s, 'sourwood', 'yard', [], { seed: 1 }).defenders).toHaveLength(HQS.sourwood.yard - 7);
     s.squeeze!.held = 9; // more than seven can't take it lower
     expect(squeezedHq(s, 'sourwood').gate).toBe(1500);
   });

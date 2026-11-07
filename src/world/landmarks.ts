@@ -10,6 +10,8 @@ import { Baker, sph, cap, cyl, box, rbox as coreRbox, cone, tor, lathe, snake, l
 import { kit } from './clay/kit.ts';
 import { P, OWNER } from './clay/palette.ts';
 import type { RivalId } from '../sim/economy.ts';
+import { reducedMotion } from './clay/fx.ts';
+import { cardFlap } from './clay/standKit.ts';
 
 type Col = string | number;
 /** Rounded clay blocks at one bevel segment; thin parts are plain boxes (cheap: 12 vs 108 triangles). */
@@ -659,6 +661,8 @@ export function animatePart(o: THREE.Object3D, t: number, minute: number) {
     case 'spin:windmill': o.rotation.z = -t * 0.9; break;
     case 'sway:windsock': o.rotation.y = Math.sin(t * 0.7) * 0.5; o.rotation.z = Math.sin(t * 2.3) * 0.08; break;
     case 'sway:crane': o.rotation.y = Math.sin(t * 0.25) * 0.6; break;
+    // A storm flaps the card awnings and skirts of rival L1-L2 stands (still under reduced motion).
+    case 'sway:flap': o.rotation.x = (o.userData.base ?? 0) + (reducedMotion() ? 0.1 : cardFlap(t)); break;
   }
 }
 

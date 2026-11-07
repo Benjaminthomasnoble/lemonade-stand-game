@@ -8,24 +8,27 @@ import { rivalStand as clayRivalStand } from './clay/rivalStands.ts';
 import { fenceModel as clayFence, gadgetsModel, wreckPile as clayWreck } from './clay/defenses.ts';
 import type { Owner } from './clay/standKit.ts';
 
+/** Flags a model whose geometry and textures are its own, so bay.ts frees them all when the plot is rebuilt. */
+const own = <T extends THREE.Object3D>(g: T): T => { g.userData.ownTree = true; return g; };
+
 /** A rival stand: the same five clay silhouettes as ours, in the faction's dress (clay/rivalStands.ts). */
-export function rivalStand(id: RivalId, level: number, hp = 1): THREE.Group {
-  return clayRivalStand(id, level, hp);
+export function rivalStand(id: RivalId, level: number, hp = 1, storm = false): THREE.Group {
+  return own(clayRivalStand(id, level, hp, storm));
 }
 
 /** Perimeter around a plot (P1 picket … P5 wall), with a gap at the front for the gate (clay/defenses.ts). */
 export function fenceModel(tier: number, hp = 1, owner: Owner = 'player'): THREE.Group {
-  return clayFence(tier, hp, owner);
+  return own(clayFence(tier, hp, owner));
 }
 
 /** Installed gadgets on a plot. */
 export function gadgetModels(ids: readonly GadgetId[], owner: Owner = 'player'): THREE.Group {
-  return gadgetsModel(ids, owner);
+  return own(gadgetsModel(ids, owner));
 }
 
 /** A smashed stand: the neat clay pile with the owner's sign on top. */
 export function wreckPile(level: number, owner: Owner): THREE.Group {
-  return clayWreck(level, owner);
+  return own(clayWreck(level, owner));
 }
 
 /** A smashed facility: knocked crooked, with a pile of sticks and squashed clay. */
@@ -34,7 +37,7 @@ export function wreckLook(building: THREE.Object3D, owner: Owner = 'player'): TH
   building.rotation.x = -0.08;
   building.position.y = -0.15;
   building.scale.y = 0.9;
-  const g = clayWreck(2, owner);
+  const g = own(clayWreck(2, owner));
   g.position.set(0, 0, 1.4);
   return g;
 }

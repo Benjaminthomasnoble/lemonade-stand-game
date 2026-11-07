@@ -116,11 +116,11 @@ function familyProps(B: Baker, id: RivalId, a: Anchors, level: number) {
 }
 const INK2 = '#2b2b38';
 
-/** A rival stand at a level, optionally showing a damage step (`hp` 0..1). */
-export function rivalStand(id: RivalId, level: number, hp = 1): THREE.Group {
+/** A rival stand at a level, optionally showing a damage step (`hp` 0..1); in a storm an L1-L2's card flaps. */
+export function rivalStand(id: RivalId, level: number, hp = 1, storm = false): THREE.Group {
   const L = Math.max(1, Math.min(5, level));
   const m = buildLevel(L, id, {
-    static: true, hp,
+    static: true, hp, flap: storm,
     decor: (B, a, lv) => {
       const s = [0.7, 0.8, 0.95, 1.1, 1.25][lv - 1];
       // On a Palace the topper goes giant, on the pole where our lemon spins.

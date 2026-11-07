@@ -14,7 +14,7 @@ import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.t
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
 import { createRevealCrate } from './clay/crate.ts';
 import { wreckPile } from './clay/defenses.ts';
-import { cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
+import { cardFlap, cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
 
 export interface StandUpdate {
   price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
@@ -23,6 +23,9 @@ export interface StandUpdate {
   ceiling?: number;
   /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
   detail?: number;
+  /** Storm: an L1-L2's card skirt or awning flaps. Scorcher: the ice pops sag in the cooler. */
+  storm?: boolean;
+  scorcher?: boolean;
 }
 
 export interface Stand {
@@ -59,7 +62,7 @@ export interface Stand {
 }
 
 /** Dispose every geometry, and every textured or one-off material, under `root`, skipping `keep`. */
-function disposeTree(root: THREE.Object3D, keep: Set<THREE.Object3D> = new Set()) {
+export function disposeTree(root: THREE.Object3D, keep: Set<THREE.Object3D> = new Set()) {
   const shared = new Set<THREE.Material>([kit().world, kit().fig, kit().glass]);
   const visit = (o: THREE.Object3D) => {
     if (keep.has(o)) return;
@@ -125,6 +128,8 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   props.group.userData.far = new Baker().build(); // the props are too small to show in a district block
   group.add(props.group);
   const crate = createRevealCrate();
+  // Bay View never bakes a crate caught mid-reveal into its district block.
+  crate.group.userData.noFar = true;
   group.add(crate.group);
   let wreck: THREE.Group | null = null;
 
@@ -215,11 +220,12 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   // Awning spring: rolled up at the hinge when shut, springs down when open (stepped on twos).
   const spring = { x: 0, v: 0 };
   let springHold = -1;
+  let flapNow = 0;
   function poseAwning(u: number) {
     if (!model?.awning) return;
     const { hinge, open } = model.awning;
-    // Furled: rolled up tight at the hinge, a fat card roll rather than a sliver.
-    hinge.rotation.x = open - (1 - u) * 0.5;
+    // Furled: rolled up tight at the hinge, a fat card roll rather than a sliver. Open, it flaps in a storm.
+    hinge.rotation.x = open - (1 - u) * 0.5 + flapNow * Math.max(0, Math.min(1, u));
     hinge.scale.set(1, 1 + (1 - u) * 1.4, 0.28 + 0.72 * u);
     if (model.awning.lights) model.awning.lights.visible = u > 0.75;
   }
@@ -231,6 +237,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   const kidFig = new Figure(SPECS.kid, kit().fig, { scale: KID_SCALE, detail: heroDetail() });
   const kid = kidFig.root;
   kid.position.set(0, 0, -0.45);
+  kid.userData.noFar = true; // people stay out of the Bay View block
   group.add(kid);
   let kidCheerAt = -9;
 
@@ -238,11 +245,13 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   const chair = clayLawnChair();
   chair.position.set(-2.0, 0, -0.2);
   chair.rotation.y = 0.5;
+  chair.userData.noFar = true;
   if (opts.lottie !== false) group.add(chair);
   const lottieFig = new Figure(SPECS.lottie, kit().fig, { scale: 0.9, detail: heroDetail() });
   const lottie = lottieFig.root;
   lottie.position.set(-2.0, 0.05, -0.15);
   lottie.rotation.y = 0.5;
+  lottie.userData.noFar = true;
   const limbs = lottie.userData.limbs as THREE.Object3D[];
   limbs[0].rotation.x = limbs[1].rotation.x = -1.4; // sitting
   lottie.position.y = 0.3;
@@ -255,6 +264,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   // The rotary phone by Lottie's chair: the bosses call it to taunt you.
   // The rotary phone by Lottie's chair, on a crate: the bosses call it to taunt you.
   const phone = new THREE.Group();
+  phone.userData.noFar = true;
   {
     const B = new Baker();
     B.add(rbox(0.36, 0.17, 0.3, 0.06), P.terra, { p: [0, 0.085, 0] });
@@ -452,12 +462,15 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       listen(false);
       disposeTree(group, new Set([kid, lottie]));
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0 }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0, storm, scorcher }) {
       if (detail !== detailNow) { detailNow = detail; showSmall(); }
       if (busted) open = false; // closed for repairs
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}), ...(ceiling !== undefined ? { ceiling } : {}) });
       openNow = open;
+      props.setScorcher(!!scorcher);
       const tq = Math.floor(time * 12) / 12;
+      // Card awnings flap on L1-L2 in a storm (reduced motion: held lifted, no flapping).
+      flapNow = storm && model && model.level <= 2 ? (MOTION < 1 ? 0.1 : cardFlap(tq)) : 0;
       if (tq !== lastTq) {
         const steps = lastTq < 0 ? 1 : Math.max(1, Math.min(4, Math.round((tq - lastTq) * 12)));
         lastTq = tq;
@@ -466,6 +479,11 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
           const target = open || (revealT >= 0 && revealT < springHold) ? 1 : 0;
           for (let i = 0; i < steps * 2; i++) { spring.v += (target - spring.x) * 0.5 - spring.v * 0.28; spring.x += spring.v * 0.5; }
           poseAwning(MOTION < 1 ? target : spring.x);
+        }
+        if (model?.flapPivot && model.tearable) {
+          // L1's card skirt swings from the table edge about its pivot.
+          const [, py, pz] = model.flapPivot, a = flapNow, ca = Math.cos(a), sa = Math.sin(a);
+          for (const o of [model.tearable.intact, model.tearable.torn]) { o.rotation.x = a; o.position.set(0, py - (py * ca - pz * sa), pz - (py * sa + pz * ca)); }
         }
         const b = props.bounce();
         if (revealT < 0 && knockT < 0) levelRoot.scale.set(b.sx, b.sy, b.sx);

@@ -308,3 +308,8 @@ export function clayMesh(g: THREE.BufferGeometry, mat: THREE.Material, cast = tr
 }
 
 export { cyl };
+
+/** A card awning's flap in a storm (radians): gusty, on twos. */
+export function cardFlap(t: number) {
+  return (Math.sin(t * 9) * 0.6 + Math.sin(t * 23 + 1) * 0.4) * 0.16 + 0.05;
+}

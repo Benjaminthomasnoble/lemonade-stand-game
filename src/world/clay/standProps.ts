@@ -41,9 +41,41 @@ export interface StandProps {
   jarWorld(): THREE.Vector3;
   /** Mid zoom drops the small props; `stars` false hides the stars too (the sign is down). */
   showSmall(on: boolean, stars: boolean): void;
+  /** Scorcher: ice pops stand in the cooler, sagging like warm clay. */
+  setScorcher(on: boolean): void;
 }
 
 const SWEET_CUBES = { less: 1, classic: 2, extra: 3 } as const;
+
+/**
+ * Three ice pops on popsicle sticks, standing in the cooler's ice in cooler
+ * space. Each body is bent over and squashed down its height, with a drip
+ * pooling at the foot, so they read as sagging like warm clay.
+ */
+function icePops(): THREE.BufferGeometry {
+  const out = new Baker();
+  const cols = ['#ff4f6d', '#ff8c3a', '#6fc7ff'];
+  [[-0.2, 0.06, 0.25, -0.15], [0.02, -0.05, -0.1, 0.1], [0.22, 0.08, 0.35, 0.2]].forEach(([x, z, ry, rz], k) => {
+    const B = new Baker();
+    B.add(rbox(0.13, 0.24, 0.055, 0.03), cols[k], { p: [0, 0.3, 0], fx: GLOSS });
+    const body = B.build();
+    // Bend: the higher up the body, the further it droops sideways and down.
+    const pos = body.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const t = Math.max(0, (pos.getY(i) - 0.18) / 0.24);
+      pos.setX(i, pos.getX(i) * (1 + t * 0.25) + t * t * 0.13);
+      pos.setY(i, pos.getY(i) - t * t * 0.08);
+    }
+    body.computeVertexNormals();
+    const S = new Baker();
+    stick(S, 0.26, [0, 0.13, 0], [0, 0, 0], '#e3bf86', 0.035, 0.012);
+    S.add(sph(0.035, 6, 5), cols[k], { p: [0.115, 0.3, 0.02], s: [1, 1.5, 1], fx: GLOSS }); // a drip running off the slumped side
+    S.add(sph(0.05, 7, 5), cols[k], { p: [0.06, 0.2, 0], s: [1.6, 0.4, 1.4], fx: GLOSS }); // pooling at the foot
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, 0.42, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, rz)), new THREE.Vector3(1, 1, 1));
+    out.raw(body, m).raw(S.build(), m);
+  });
+  return out.build();
+}
 const LEMONS = 24, ICE = 16, CONFETTI = 60;
 const BROWN = new THREE.Color('#8f6a2a'), WHITE = new THREE.Color('#ffffff'), GOLD = new THREE.Color(P.gold), DULL = new THREE.Color('#d8ccb0');
 
@@ -103,6 +135,10 @@ export function createStandProps(): StandProps {
     ice.setMatrixAt(k, m4.compose(v.set(-0.27 + (k % 5) * 0.135, 0.44 + Math.floor(k / 5) * 0.085, -0.12 + (Math.floor(k / 5) % 2) * 0.18 + hash(k) * 0.05), q, sc.set(1, 1, 1)));
   }
   cooler.add(ice);
+  // Scorcher ice pops, poked into the ice and slumping like warm clay: one draw, only on Scorcher days.
+  const pops = clayMesh(icePops(), K.world, false, false);
+  pops.visible = false;
+  cooler.add(pops);
   group.add(cooler);
 
   // The pitcher: glass, liquid in the recipe's colour, and its garnish.
@@ -246,7 +282,7 @@ export function createStandProps(): StandProps {
   glass.renderOrder = 3;
   glass.name = 'propsGlass';
   group.add(body, smallBody, glass);
-  let pitcherGlassEnd = 0, smallOn = true;
+  let pitcherGlassEnd = 0, smallOn = true, scorcher = false;
   const handleAt = new THREE.Matrix4();
   function bake() {
     for (const o of [crate, cooler, chalk, pitcher, jar, cups]) o.updateMatrix();
@@ -267,6 +303,7 @@ export function createStandProps(): StandProps {
     showSmall(on, starsOn) {
       smallOn = on;
       for (const o of [smallBody, cubes, sackRoot]) o.visible = on;
+      pops.visible = on && scorcher;
       stars.visible = starsOn; // one instanced draw: phones keep the reputation on the sign
       glass.geometry.setDrawRange(0, on ? Infinity : pitcherGlassEnd);
     },
@@ -316,6 +353,7 @@ export function createStandProps(): StandProps {
       } else if (conf.count) conf.count = 0;
       conf.visible = conf.count > 0;
     },
+    setScorcher(on) { scorcher = on; pops.visible = on && smallOn; },
     bounce: () => bounceK,
     jarWorld: () => jar.localToWorld(new THREE.Vector3(0, 0.26, 0)),
   };

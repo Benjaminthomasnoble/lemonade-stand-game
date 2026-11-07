@@ -99,7 +99,7 @@ export function collectClay(root: THREE.Object3D, B: Baker, space?: THREE.Matrix
   root.updateMatrixWorld(true);
   let n = 0;
   const visit = (o: THREE.Object3D) => {
-    if (!o.visible) return;
+    if (!o.visible || o.userData.noFar) return; // people, reveal crates and other passing parts
     // A part with a cheap far version (stands, fences, wrecks) goes in as that instead of its children.
     const far = o.userData.far as THREE.BufferGeometry | undefined;
     if (far) {

@@ -13,7 +13,7 @@ import {
 } from '../sim/economy.ts';
 import { SEA_X, SEA_Z, treeInto } from './scene.ts';
 import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
-import { createStand, type Stand as StandModel } from './stand.ts';
+import { createStand, disposeTree, type Stand as StandModel } from './stand.ts';
 import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
@@ -426,10 +426,14 @@ export function createBay(scene: THREE.Scene): Bay {
     keepStand?.group.removeFromParent();
     if (v.stand && !keepStand) v.stand.dispose();
     // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
+    const owned: THREE.Object3D[] = [];
     v.root.traverse((o) => {
       if (o.name === 'baked' || o.userData.disposable) (o as THREE.Mesh).geometry.dispose();
       if (o.userData.ownFar) (o.userData.far as THREE.BufferGeometry).dispose();
+      if (o.userData.ownTree) owned.push(o);
     });
+    // Rival stands, fences, gadgets and wrecks are built fresh each time: free all of their GPU copies.
+    for (const o of owned) disposeTree(o);
     movers.delete(v);
     for (const g of watches.get(v) ?? []) sentries.untrack(g.fig.root);
     watches.delete(v);
@@ -469,7 +473,7 @@ export function createBay(scene: THREE.Scene): Bay {
       if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) m.reveal();
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) {
-      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps));
+      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps), s.weather.kind === 'storm');
     } else if (!ps.owner) forSale(v);
     if (keepStand && v.stand !== keepStand) keepStand.dispose();
     if (building) {
@@ -567,7 +571,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of viewList) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;
@@ -675,6 +679,7 @@ export function createBay(scene: THREE.Scene): Bay {
         const cap = STAND_LEVELS[st.level - 1].storage;
         v.stand.update({
           price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report' || s.phase === 'night', ringing,
+          storm: s.weather.kind === 'storm', scorcher: s.weather.kind === 'scorcher',
           recipe: st.recipe, sweetness: st.sweetness, stars: s.reputation, detail: level, ceiling: priceCeiling(s, v.plot.id),
           stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice, spoiling: stock(st, 'lemons') ? lemonsExpiringTomorrow(s, st) / stock(st, 'lemons') : 0 },
         });

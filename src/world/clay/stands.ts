@@ -48,6 +48,8 @@ export interface LevelModel {
   sign: THREE.Group;
   /** Card parts that tear at 75% HP (the L1 skirt). */
   tearable?: { intact: THREE.Object3D; torn: THREE.Object3D };
+  /** Where the L1 card skirt hangs from, so it can flap in a storm. */
+  flapPivot?: V3;
   /** Sticks that dangle at 25% HP. */
   sticks: THREE.Object3D;
   /** The reveal flourish, `k` seconds in (on twos); `done()` puts it back at rest. */
@@ -64,6 +66,8 @@ export interface BuildOpts {
   gilded?: boolean;
   /** HP share for static builds: shows the damage step. */
   hp?: number;
+  /** Storm: a static L1-L2 keeps its card skirt or awning loose, named 'sway:flap', to flap on twos. */
+  flap?: boolean;
   /** Extra clay baked into the body once the level is laid out (rival toppers and family props). */
   decor?: (B: Baker, a: Anchors, level: number) => void;
 }
@@ -71,7 +75,7 @@ export interface BuildOpts {
 /** What each level builder hands back. */
 interface Parts {
   anchors: Anchors; kid: V3; chairX: number; chairZ?: number; serveZ: number; sign: THREE.Group; sticks: THREE.Object3D;
-  awning?: LevelModel['awning']; tearable?: LevelModel['tearable']; spin?: THREE.Object3D;
+  awning?: LevelModel['awning']; tearable?: LevelModel['tearable']; flapPivot?: V3; spin?: THREE.Object3D;
   bell?: THREE.Mesh | null; menuTex?: THREE.Texture; neon?: THREE.Mesh | null; neonEnds?: number[]; dome?: THREE.Mesh | null;
 }
 
@@ -81,6 +85,8 @@ interface Ctx {
   st: boolean;
   root: THREE.Group;
   hp: number;
+  /** A static build leaves its card awning or skirt loose to flap (storms, L1-L2 only). */
+  flap?: boolean;
 }
 
 const m4 = (p: V3, r: V3 = [0, 0, 0], s: V3 = [1, 1, 1]) =>
@@ -161,6 +167,14 @@ function danglers(c: Ctx, w: number, y: number, z: number): THREE.Object3D {
 /** A hinged awning: a moving part on the player's stand, baked open on a rival's. */
 function hingedAwning(c: Ctx, at: V3, w: number, depth: number, lights: boolean, open: number, shut: number): LevelModel['awning'] {
   const torn = c.hp <= 0.75;
+  if (c.st && c.flap) {
+    // Storm: the card awning stays loose and flaps from its hinge.
+    const m = clayMesh(awning(c.d, w, depth, { lights, torn }), kit().world);
+    m.position.set(...at); m.rotation.x = open;
+    m.name = 'sway:flap'; m.userData.base = open;
+    c.root.add(m);
+    return undefined;
+  }
   if (c.st) { c.B.raw(awning(c.d, w, depth, { lights, torn }), m4(at, [open, 0, 0])); return undefined; }
   const hinge = new THREE.Group();
   hinge.position.set(...at);
@@ -229,7 +243,17 @@ function folding(c: Ctx): Parts {
     return S.build();
   };
   let tearable: LevelModel['tearable'];
-  if (c.st) B.raw(skirt(c.hp <= 0.75));
+  const pivot: V3 = [0, top, z0 + 0.49];
+  if (c.st && c.flap) {
+    // Storm: the card skirt hangs loose from the table edge and flaps.
+    const hang = new THREE.Group();
+    hang.position.set(...pivot);
+    hang.name = 'sway:flap'; hang.userData.base = 0;
+    const m = clayMesh(skirt(c.hp <= 0.75), kit().world);
+    m.position.set(-pivot[0], -pivot[1], -pivot[2]);
+    hang.add(m);
+    c.root.add(hang);
+  } else if (c.st) B.raw(skirt(c.hp <= 0.75));
   else {
     const intact = clayMesh(skirt(false), kit().world), torn = clayMesh(skirt(true), kit().world);
     torn.visible = false;
@@ -242,6 +266,7 @@ function folding(c: Ctx): Parts {
   const sign = makeSign(c, [0, 2.3, -0.26], 1.9, 0.62, tex);
   B.add(rbox(0.7, 0.42, 0.5, 0.05), P.walnut, { p: [0, 0.21, -0.85], fx: PAPER });
   return {
+    flapPivot: pivot,
     anchors: {
       counterY: top + 0.05,
       pitcher: [-0.6, top + 0.05, 0.2], cubes: [-0.12, top + 0.11, 0.42], jar: [0.5, top + 0.05, 0.25], cups: [0.95, top + 0.05, 0.15],
@@ -628,8 +653,8 @@ const RISE = [0.2, 0.6, 1.18, 1.1, 0.95, 1.02, 1];
 export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): LevelModel {
   const root = new THREE.Group();
   root.name = 'standLevel';
-  const c: Ctx = { B: new Baker(), d: DRESS[owner], st: !!opts.static, root, hp: opts.hp ?? 1 };
   const L = Math.max(1, Math.min(5, Math.round(level)));
+  const c: Ctx = { B: new Baker(), d: DRESS[owner], st: !!opts.static, root, hp: opts.hp ?? 1, flap: !!opts.flap && L <= 2 };
   // Only the player's live stand gets the 2-segment rounded corners.
   lod.seg = c.st ? 1 : 2;
   let m: Parts;
@@ -646,7 +671,7 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   const calm = reducedMotion();
   return {
     level: L, root, anchors: m.anchors, kid: m.kid, chairX: m.chairX, chairZ: m.chairZ, serveZ: m.serveZ, spin: m.spin,
-    awning: m.awning, sign: m.sign, tearable: m.tearable, sticks: m.sticks,
+    awning: m.awning, sign: m.sign, tearable: m.tearable, flapPivot: m.flapPivot, sticks: m.sticks,
     revealSeconds: L >= 4 ? 6 : 3,
     flourish(k) {
       // L1 unfolds with a snap: flat on the ground, then up with an overshoot (on twos).

@@ -4,7 +4,7 @@
 // 3. The HQ assault win rates in docs/HANDOFF.md, over 40 seeds with the model squads.
 // The fighters come from src/sim/fighters.ts, the same builders the walkthrough tests (src/sim/walkthrough.test.ts) use.
 import { runBattle, winChance } from '../src/sim/combat.ts';
-import { newGame, ownedPlots, stormHQ, STAND_HP, TRAITS, type GadgetId, type GameState, type GearId, type RivalId, type WeaponId } from '../src/sim/economy.ts';
+import { HQS, newGame, ownedPlots, stormHQ, STAND_HP, TRAITS, type GadgetId, type GameState, type GearId, type RivalId, type WeaponId } from '../src/sim/economy.ts';
 import { battleOf as fight, fencedOf as fenced, guardOf as guard, guardsOf as guards, henchmenOf as henchmen, partyOf as party } from '../src/sim/fighters.ts';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -75,7 +75,7 @@ console.log(`  Hollis Homestead, 8 L3 hatchets + vests: ${assault('hollis', 8, 3
 console.log(`  FizzCo Tower, 12 L4 hatchets + Pro Gear: ${assault('fizzco', 12, 4, 'hatchets', 'pro')}`);
 console.log(`  Sourwood Manor, 12 L4 hatchets + Pro Gear: ${assault('sourwood', 12, 4, 'hatchets', 'pro')}`);
 console.log(`  Sourwood Manor, 12 L5 hatchets + Pro Gear: ${assault('sourwood', 12, 5, 'hatchets', 'pro')}`);
-console.log(`  Sourwood Manor after 7 good siege nights (Gate 1,500, Yard 4), 12 L4 hatchets + Pro Gear: ${assault('sourwood', 12, 4, 'hatchets', 'pro', 7)}`);
+console.log(`  Sourwood Manor after 7 good siege nights (Gate 1,500, Yard ${HQS.sourwood.yard - 7}), 12 L4 hatchets + Pro Gear: ${assault('sourwood', 12, 4, 'hatchets', 'pro', 7)}`);
 
 if (process.env.DEBUG) {
   const r = runBattle(fight({ attackers: party(4, 9), defenders: guards(5, 'def', 'hatchets', 'pro'), ...fenced(4), gadgets: kit, standHp: STAND_HP[4] }), { seed: 9 });

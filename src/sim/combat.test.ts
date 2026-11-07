@@ -9,6 +9,7 @@ import {
 import { fitGarrison, hqOf, knockOut } from './garrison.ts';
 import { canSettle, captivesAtDawn, leftBehind, nabLeftBehind, settleCaptive } from './captives.ts';
 import { nextRandom } from './rng.ts';
+import { manorStewards } from './squeeze.ts';
 
 let n = 0;
 const fighter = (side: Side, weapon: WeaponId = 'fists', o: Partial<Fighter> = {}): Fighter => ({
@@ -491,6 +492,7 @@ describe('HQ assaults', () => {
     s.cash = 1e9;
     s.day = 78; // after the County Fair: Tilly can be stormed
     for (const p of ownedPlots(s, id).filter((p) => p.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
+    if (id === 'sourwood') s.squeeze = { called: s.day - 7, nights: 7, held: 0, lost: 0, done: s.day }; // the campaign opens the Manor with the Big Squeeze
     s.guards = Array.from({ length: k }, () => guard({ weapon, gear, level }));
     return s;
   }
@@ -551,7 +553,7 @@ describe('HQ assaults', () => {
     const s = hqGame('sourwood', 6, 'clubs', 'vest', 3);
     const vera = hqStageInput(s, 'sourwood', 'boss', hqSquad(s, 'sourwood', s.guards.map((g) => g.id)), { seed: 5 });
     const call = vera.bossMoves!.find((m) => m.type === 'call')!;
-    expect(call.type === 'call' && call.fighters.length).toBe(BOSS_MOVES.sourwood.stewards);
+    expect(call.type === 'call' && call.fighters.length).toBe(manorStewards(s, 'sourwood')); // nights' count: 3, more after a siege
     expect(call.t).toBe(BOSS_MOVES.sourwood.at);
   });
 
@@ -661,15 +663,25 @@ describe('HQ assaults', () => {
     expect(turns(true).n).toBe(0);
   });
 
-  it('a siege has worn the HQ down: the Gate at its HP left, Yard elites benched, Stewards added', () => {
+  it('the Manor the Big Squeeze left: the Gate at its HP, Yard elites benched, and Old Money calls in the Stewards it added', () => {
     const s = hqGame('sourwood', 12, 'hatchets', 'pro', 5);
     const squad = hqSquad(s, 'sourwood', s.guards.map((g) => g.id));
     const rng = { seed: 9 };
-    const siege = { gateHp: 1500, benched: 3, stewards: 2 };
     expect(hqStageInput(s, 'sourwood', 'gate', squad, rng).standHp).toBe(HQS.sourwood.gate);
-    expect(hqStageInput(s, 'sourwood', 'gate', squad, rng, siege).standHp).toBe(1500);
-    expect(hqStageInput(s, 'sourwood', 'yard', squad, rng, siege).defenders).toHaveLength(HQS.sourwood.yard - 3);
-    expect(hqStageInput(s, 'sourwood', 'boss', squad, rng, siege).defenders).toHaveLength(2 + Math.ceil(HQS.sourwood.tier / 2) + 2);
+    s.squeeze = { ...s.squeeze, held: 7, lost: 2 }; // seven nights held, two plots lost
+    expect(hqStageInput(s, 'sourwood', 'gate', squad, rng).standHp).toBe(1500);
+    expect(hqStageInput(s, 'sourwood', 'yard', squad, rng).defenders).toHaveLength(HQS.sourwood.yard - 7);
+    const room = hqStageInput(s, 'sourwood', 'boss', squad, rng);
+    expect(room.defenders).toHaveLength(1 + 1 + Math.ceil(HQS.sourwood.tier / 2)); // Vera and her bodyguards at the start
+    const call = room.bossMoves!.find((m) => m.type === 'call')!;
+    expect(call.type === 'call' && call.fighters.length).toBe(3 + 2);
+    // The report names the Stewards who came in among the room's defenders.
+    const res = runBattle(room, { seed: 4 });
+    const came = call.type === 'call' ? call.fighters.filter((f) => res.events.some((e) => e.type === 'at' && e.a === f.id)) : [];
+    const reports: BattleReport[] = [];
+    hqStageOver(s, 'sourwood', 'boss', room, res, reports);
+    expect(came.length).toBeGreaterThan(0);
+    expect(reports[0].defenders).toEqual([...room.defenders, ...came]);
   });
 });
 

@@ -16,7 +16,7 @@ import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import type { Rng } from './rng.ts';
 import { landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
-import { onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
+import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -44,14 +44,15 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
 /**
  * The bosses' moves in the Boss Room (spec "HQ assault": 3 guards; +50% speed for 10 seconds; 2 guards unless Loyal;
  * the rest are placeholders: spec gap). Each goes off `at` fight-seconds in, if the boss is still standing, and picks
- * on the guards nearest them.
+ * on the guards nearest them. The placeholders hold the HANDOFF win rates with the assault fought at Morning Prep, a
+ * night fight where Night Owls hit 25% harder (npm run combat).
  */
 export const BOSS_MOVES = {
   blenders: { at: 0, count: 3, stun: 4 }, // Blender Rush: Brock charges as they come in and knocks 3 guards flat for 4 s
   coldbrew: { at: 0, seconds: 10, boost: 0.5 }, // Espresso Shot: Juni's crew swings and steps 50% faster for the first 10 s
-  hollis: { at: 1, count: 4, hp: 160 }, // Hay Bale Wall: Tilly drops a 160-HP hay bale in front of 4 guards
+  hollis: { at: 0, count: 4, hp: 320 }, // Hay Bale Wall: as they come in, Tilly drops a 320-HP hay bale in front of 4 guards
   fizzco: { at: 6, count: 2 }, // Hostile Takeover: 2 guards switch sides, unless they're Loyal
-  sourwood: { at: 6, stewards: 4, tier: 5, cane: 3 }, // Old Money: 4 Stewards come in at 6 s; the cane disarms a guard at 3 s
+  sourwood: { at: 1, tier: 5, cane: 3 }, // Old Money: Vera's Stewards (squeeze.ts manorStewards) come in at 1 s; the cane disarms a guard at 3 s
 };
 
 // ---------- rival AI tunables (spec: Rivals, How rivals think; rivalAi.ts and schemes.ts use them) ----------
@@ -406,15 +407,13 @@ export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[
 }
 
 /**
- * What a siege has already done to an HQ before the assault (nights' Big Squeeze): the Gate's HP left, Yard elites
- * benched, and Stewards added to the Boss Room.
+ * One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). The campaign's
+ * Sourwood Manor is fought as nights' Big Squeeze left it (squeeze.ts): the Gate at its HP and the Yard short its
+ * benched elites (squeezedHq); the Stewards the siege added come in with Old Money's call (manorStewards).
  */
-export interface HqSiege { gateHp?: number; benched?: number; stewards?: number }
-
-/** One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). */
-export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng, siege: HqSiege = {}): BattleInput {
-  const hq = squeezedHq(s, id); // nights: the campaign's Sourwood Manor as the Big Squeeze left its Gate and Yard
-  const size = stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? Math.max(0, hq.yard - (siege.benched ?? 0)) : 1 + Math.ceil(hq.tier / 2) + (siege.stewards ?? 0);
+export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng): BattleInput {
+  const hq = squeezedHq(s, id);
+  const size = stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2);
   const defenders = Array.from({ length: size }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
   let bossMoves: BossMove[] | undefined;
   if (stage === 'boss') {
@@ -424,7 +423,7 @@ export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: F
   }
   return {
     attackers: squad, defenders, perimeter: 0, fenceHp: 0, gadgets: [],
-    standHp: stage === 'gate' ? siege.gateHp ?? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: true,
+    standHp: stage === 'gate' ? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: true,
     ...(bossMoves ? { bossMoves } : {}),
   };
 }
@@ -438,11 +437,17 @@ function bossMovesOf(s: GameState, id: RivalId, by: string, rng: Rng): BossMove[
     case 'fizzco': { const m = BOSS_MOVES.fizzco; return [{ t: m.at, by, type: 'takeover', count: m.count }]; }
     case 'sourwood': {
       const m = BOSS_MOVES.sourwood;
-      const stewards = Array.from({ length: m.stewards }, (_, i) => henchmanFor(s, id, m.tier, rng, 10 + i));
+      const stewards = Array.from({ length: manorStewards(s, id) }, (_, i) => henchmanFor(s, id, m.tier, rng, 10 + i)); // nights: 3, and one more for each plot the siege took
       return [{ t: m.cane, by, type: 'cane' }, { t: m.at, by, type: 'call', fighters: stewards }];
     }
   }
 }
+
+/** Who held the room: its defenders, and the reinforcements a boss's move called in that reached the fight. */
+const roomDefenders = (input: BattleInput, res: BattleResult): Fighter[] => [
+  ...input.defenders,
+  ...(input.bossMoves ?? []).flatMap((m) => (m.type === 'call' ? m.fighters : [])).filter((f) => res.events.some((e) => e.type === 'at' && e.a === f.id)),
+];
 
 /**
  * Survivors carry on to the next stage with the HP they had left (spec: "Your squad carries its HP from stage to
@@ -462,7 +467,7 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
   const won = res.winner === 'att' && (stage !== 'gate' || res.outcome === 'smashed');
   reports.push({
     day: s.day, attacker: 'player', defender: id, target: plot.id, objective: input.objective,
-    outcome: won ? (stage === 'boss' ? 'smashed' : 'damaged') : 'repelled', loot: 0, attackers: input.attackers, defenders: input.defenders,
+    outcome: won ? (stage === 'boss' ? 'smashed' : 'damaged') : 'repelled', loot: 0, attackers: input.attackers, defenders: roomDefenders(input, res),
     perimeter: input.perimeter, standLevel: 3, events: res.events, duration: res.duration, koed: res.koed, fled: res.fled, hq: stage,
   });
   if (!won) {
@@ -483,13 +488,13 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
 }
 
 /** Three fights in a row, all at once: the Gate, the Yard, the Boss Room. Survivors carry on with the HP they have left. */
-export function stormHQ(s: GameState, id: RivalId, guardIds: string[], siege: HqSiege = {}): AssaultResult | false {
+export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultResult | false {
   if (!canAssault(s, id, guardIds).ok) return false;
   let squad = hqSquad(s, id, guardIds);
   const rng = { seed: s.seed };
   const reports: BattleReport[] = [];
   for (const stage of HQ_STAGES) {
-    const input = hqStageInput(s, id, stage, squad, rng, siege);
+    const input = hqStageInput(s, id, stage, squad, rng);
     const res = runBattle(input, rng);
     s.seed = rng.seed;
     const next = hqStageOver(s, id, stage, input, res, reports);

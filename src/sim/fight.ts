@@ -16,7 +16,7 @@ import { createFight, type BattleInput, type BattleResult, type Fight, type Figh
 import { fightRaid, raidInput, type BattleReport, type Raid } from './crew.ts';
 import { raidFought } from './night.ts';
 import type { FactionId } from './map.ts';
-import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, type HqSiege, type HqStage } from './rivals.ts';
+import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, type HqStage } from './rivals.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState } from './economy.ts';
 
@@ -38,7 +38,7 @@ export interface LiveFight {
   start?: number; // the game minute it began (contact): your squad's walk home is timed from it
   commands: FightCommand[]; // what the player pressed, stamped with the fight-second it acted on
   side: Side | null; // the player's side: the buttons are theirs (null: a fight they only watch)
-  hq?: { rival: RivalId; stage: HqStage; reports: BattleReport[]; siege?: HqSiege }; // one stage of an HQ assault
+  hq?: { rival: RivalId; stage: HqStage; reports: BattleReport[] }; // one stage of an HQ assault
 }
 
 const EPS = 1e-9;
@@ -98,16 +98,16 @@ export function startFight(s: GameState, raid: Raid, night = s.phase !== 'open')
 
 /**
  * Storm a Weakened rival's HQ live: the Gate first, then the Yard and the Boss Room as each one falls. The squad
- * carries its HP from stage to stage; a siege (HqSiege) has already worn the HQ down.
+ * carries its HP from stage to stage; the campaign's Sourwood Manor is as the Big Squeeze left it (rivals.ts).
  */
-export function startAssault(s: GameState, id: RivalId, guardIds: string[], siege?: HqSiege): boolean {
+export function startAssault(s: GameState, id: RivalId, guardIds: string[]): boolean {
   if (s.fight || !canAssault(s, id, guardIds).ok) return false;
   const squad = hqSquad(s, id, guardIds);
   const rng = { seed: s.seed };
-  const input = hqStageInput(s, id, 'gate', squad, rng, siege);
+  const input = hqStageInput(s, id, 'gate', squad, rng);
   s.seed = rng.seed;
   const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: hqPlot(id).id, objective: input.objective, guards: guardIds, detected: true, eta: '' };
-  begin(s, { raid, night: false, input, side: 'att', hq: { rival: id, stage: 'gate', reports: [], ...(siege ? { siege } : {}) } });
+  begin(s, { raid, night: false, input, side: 'att', hq: { rival: id, stage: 'gate', reports: [] } });
   return true;
 }
 
@@ -117,16 +117,16 @@ function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
   running.delete(f);
   let report: BattleReport;
   if (f.hq) {
-    const { rival, stage, reports, siege } = f.hq;
+    const { rival, stage, reports } = f.hq;
     const next = hqStageOver(s, rival, stage, f.input, res, reports);
     report = reports[reports.length - 1];
     if (next === 'next') {
       // On to the next door, with the HP they have left.
       const rng = { seed: s.seed };
       const after = HQ_STAGES[HQ_STAGES.indexOf(stage) + 1];
-      const input = hqStageInput(s, rival, after, hqSurvivors(f.input, res), rng, siege);
+      const input = hqStageInput(s, rival, after, hqSurvivors(f.input, res), rng);
       s.seed = rng.seed;
-      begin(s, { raid: { ...f.raid, objective: input.objective }, night: false, input, side: 'att', hq: { rival, stage: after, reports, ...(siege ? { siege } : {}) } }, FIGHT_LEAD_IN + FIGHT_BREAK);
+      begin(s, { raid: { ...f.raid, objective: input.objective }, night: false, input, side: 'att', hq: { rival, stage: after, reports } }, FIGHT_LEAD_IN + FIGHT_BREAK);
     }
   } else {
     // Who joined mid-fight is part of the fight's record: they get the credit (and the bruises).

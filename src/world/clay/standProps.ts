@@ -43,7 +43,7 @@ export interface StandProps {
 
 const SWEET_CUBES = { less: 1, classic: 2, extra: 3 } as const;
 const LEMONS = 24, ICE = 16, CONFETTI = 60;
-const BROWN = new THREE.Color('#8f6a2a'), WHITE = new THREE.Color('#ffffff');
+const BROWN = new THREE.Color('#8f6a2a'), WHITE = new THREE.Color('#ffffff'), GOLD = new THREE.Color(P.gold), DULL = new THREE.Color('#d8ccb0');
 
 export function createStandProps(): StandProps {
   const K = kit();
@@ -208,13 +208,18 @@ export function createStandProps(): StandProps {
     for (let k = 0; k < n; k++) {
       const x = a.stars[0] - span / 2 + (k + 0.5) * (span / n);
       stars.setMatrixAt(k, m4.compose(v.set(x, a.stars[1] + 0.13, a.stars[2] - 0.02), q.identity(), sc.set(1, 1, 1)));
-      stars.setColorAt(k, new THREE.Color(k < lit ? P.gold : '#d8ccb0'));
+      stars.setColorAt(k, k < lit ? GOLD : DULL);
     }
     stars.instanceMatrix.needsUpdate = true;
     if (stars.instanceColor) stars.instanceColor.needsUpdate = true;
   }
 
-  function apply() {
+  // Only re-upload when something the props show has changed (set() runs every frame).
+  let shownKey = '';
+  function apply(force = false) {
+    const key = `${st.recipe}|${st.sweetness}|${st.pitcherFill.toFixed(2)}|${Math.round(st.stock.lemons * LEMONS)}|${Math.round((st.stock.spoiling ?? 0) * LEMONS)}|${Math.round(st.stock.ice * ICE)}|${st.stock.sugar.toFixed(2)}|${Math.round(st.stars)}`;
+    if (!force && key === shownKey) return;
+    shownKey = key;
     liqMat.color.set(RECIPE_COLOR[st.recipe] ?? RECIPE_COLOR.classic);
     for (const [k, g] of Object.entries(garnishes)) g.visible = k === st.recipe;
     const f = Math.max(0.02, Math.min(1, st.pitcherFill));
@@ -260,7 +265,7 @@ export function createStandProps(): StandProps {
     showSmall(on, starsOn) {
       smallOn = on;
       for (const o of [smallBody, cubes, sackRoot]) o.visible = on;
-      stars.visible = on && starsOn;
+      stars.visible = starsOn; // one instanced draw: phones keep the reputation on the sign
       glass.geometry.setDrawRange(0, on ? Infinity : pitcherGlassEnd);
     },
     place(a) {
@@ -269,7 +274,7 @@ export function createStandProps(): StandProps {
       at(pitcher, a.pitcher); at(cubes, a.cubes); at(jar, a.jar); at(cups, a.cups); at(card, a.card);
       starsAt = a;
       bake();
-      apply();
+      apply(true);
     },
     set(s) {
       if (s.price !== undefined && Math.abs(s.price - st.price) > 1e-6) { priceNow = s.price; redraw(chalkPrice(s.price)); }

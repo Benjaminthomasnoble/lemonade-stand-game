@@ -45,6 +45,8 @@ export interface PlotView {
   sidewalkZ: number;
   /** The player's stand level last drawn here, so an upgrade can play its crate reveal. */
   shownLevel?: number;
+  /** Whether the kept stand was built with Lottie (her corner only). */
+  standLottie?: boolean;
 }
 
 export interface Bay {
@@ -348,13 +350,21 @@ export function createBay(scene: THREE.Scene): Bay {
     v.root.add(forSaleLabel());
   }
 
+  let synced = false;
   function rebuild(v: PlotView, s: GameState) {
     const ps = s.plots[v.plot.id];
+    // The player's stand lives on across rebuilds (guards, fences and gadgets change far more often than the stand).
+    const lottie = v.plot.id === LOTTIES_CORNER;
+    const keepStand = v.stand && ps.stand && ps.owner === 'player' && v.standLottie === lottie ? v.stand : undefined;
+    keepStand?.group.removeFromParent();
+    if (v.stand && !keepStand) v.stand.dispose();
     // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
     v.root.traverse((o) => { if (o.name === 'baked') (o as THREE.Mesh).geometry.dispose(); });
     v.root.clear();
     if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
     v.stand = undefined;
+    const shown = v.shownLevel;
+    v.shownLevel = undefined;
     const p = v.plot;
     let building: THREE.Object3D | null = null;
     if (p.type === 'civic') building = civicBuilding(p.name);
@@ -363,23 +373,30 @@ export function createBay(scene: THREE.Scene): Bay {
     else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v); }
     else if (p.type === 'dock') { v.root.add(bakeGroup(pierModel())); if (!ps.owner) forSale(v); }
     else if (ps.stand && ps.owner === 'player') {
-      const m = createStand({ lottie: p.id === LOTTIES_CORNER });
+      const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
-      m.setWrecked(!!ps.stand.wrecked);
+      // Laid Back's Busted stand stays up, battered and taped shut; only a real Wreck is a pile.
+      m.setWrecked(!!ps.stand.wrecked && !ps.busted);
+      m.setBusted(!!ps.busted);
       v.root.add(m.group);
       v.stand = m;
-      if (v.shownLevel && ps.stand.level > v.shownLevel && !ps.stand.wrecked) m.reveal();
+      v.standLottie = lottie;
+      // An upgrade plays the crate reveal, and so does a brand-new stand once the game is under way.
+      const fresh = shown === undefined && synced;
+      if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) m.reveal();
       v.shownLevel = ps.stand.level;
-    } else if (ps.stand) building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level);
-    else if (!ps.owner) forSale(v);
+    } else if (ps.stand) {
+      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level);
+    } else if (!ps.owner) forSale(v);
+    if (keepStand && v.stand !== keepStand) keepStand.dispose();
     if (building) {
       if (ps.facility?.wrecked) v.root.add(wreckLook(building, (ps.owner ?? 'player') as Owner));
       v.root.add(building); v.root.updateMatrixWorld(true); bakeGroup(building);
     }
     if (p.type !== 'civic') {
       // Fences and gadgets are one clay draw each, kept apart so battle.ts can hide the fence.
-      if (ps.defense.tier && ps.defense.fenceHp > 0) { const f = fenceModel(ps.defense.tier, fenceShare(ps)); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
-      if (ps.defense.gadgets.length) { const g = gadgetModels(ps.defense.gadgets); v.root.add(g); v.root.updateMatrixWorld(true); bakeGroup(g); }
+      if (ps.defense.tier && ps.defense.fenceHp > 0) { const f = fenceModel(ps.defense.tier, fenceShare(ps), (ps.owner ?? 'player') as Owner); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
+      if (ps.defense.gadgets.length) { const g = gadgetModels(ps.defense.gadgets, (ps.owner ?? 'player') as Owner); v.root.add(g); v.root.updateMatrixWorld(true); bakeGroup(g); }
     }
     // Whoever stands guard here waits by the gate.
     // They stand still, so the whole watch bakes into one draw (battle.ts hides it by name during a fight).
@@ -433,9 +450,10 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of viewList) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
+      synced = true;
       borders.computeBoundingSphere();
       if (salesDirty) {
         salesDirty = false;

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { Baker, PAPER, box, hash, lumpy, sph } from './core.ts';
 import { kit } from './kit.ts';
+import { reducedMotion } from './fx.ts';
 import { P } from './palette.ts';
 import { clayMesh, lemon, stick, rbox } from './standKit.ts';
 
@@ -64,14 +65,21 @@ export function createRevealCrate(): RevealCrate {
   body.add(lid);
   group.visible = false;
 
+  const calm = reducedMotion();
   return {
     group,
     pose(t, total) {
       group.visible = true;
       const q = Math.floor(t * 12) / 12;
       const burstAt = 1.3;
-      // Drop (accelerating), then a squash on landing, then a rattle.
-      if (q < 0.45) {
+      // Drop (accelerating), then a squash on landing, then a rattle. Reduced
+      // motion: the crate swells smoothly into place, with no squash or rattle.
+      if (calm) {
+        const k = Math.min(1, t / 0.6);
+        body.position.y = 0;
+        body.scale.setScalar(Math.max(0.001, k * k * (3 - 2 * k)));
+        body.rotation.set(0, 0, 0);
+      } else if (q < 0.45) {
         const k = q / 0.45;
         body.position.y = 8 * (1 - k * k);
         body.scale.set(0.92, 1.12, 0.92);

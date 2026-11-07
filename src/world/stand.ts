@@ -50,6 +50,31 @@ export interface Stand {
   setDamage(hp: number): void;
   /** Smashed: a neat pile of popsicle sticks and squashed clay with the sign on top. */
   setWrecked(wrecked: boolean): void;
+  /** Busted (Laid Back): still standing but battered, taped shut and closed until it's repaired. */
+  setBusted(busted: boolean): void;
+  /** Free the stand's GPU resources and its tap listener (the kid and Lottie figures are left alone). */
+  dispose(): void;
+}
+
+/** Dispose every geometry, and every textured or one-off material, under `root`, skipping `keep`. */
+function disposeTree(root: THREE.Object3D, keep: Set<THREE.Object3D> = new Set()) {
+  const shared = new Set<THREE.Material>([kit().world, kit().fig, kit().glass]);
+  const visit = (o: THREE.Object3D) => {
+    if (keep.has(o)) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh) {
+      m.geometry?.dispose();
+      for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) {
+        if (!mat || shared.has(mat)) continue;
+        mat.map?.dispose();
+        mat.dispose();
+      }
+    }
+    const far = o.userData.far as THREE.BufferGeometry | undefined;
+    far?.dispose();
+    for (const c of o.children) visit(c);
+  };
+  visit(root);
 }
 
 export type LottieReaction = 'cheer' | 'fist';
@@ -87,12 +112,12 @@ function brandBoards(): THREE.Group {
   return g;
 }
 
-export function createStand(opts: { lottie?: boolean } = {}): Stand {
+export function createStand(opts: { lottie?: boolean; level?: number; gilded?: boolean } = {}): Stand {
   const group = new THREE.Group();
   const levelRoot = new THREE.Group();
   group.add(levelRoot);
   let model: LevelModel | null = null;
-  let level = 0, gilt = false, hpNow = 1, wrecked = false;
+  let level = 0, gilt = false, hpNow = 1, wrecked = false, busted = false;
   let spin: THREE.Object3D | undefined;
   const props = createStandProps();
   props.group.userData.far = new Baker().build(); // the props are too small to show in a district block
@@ -106,10 +131,11 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   function endReveal() {
     revealT = -1; flourishFrom = -1;
     crate.hide();
-    kid.visible = true;
+    kid.visible = !wrecked;
     levelRoot.visible = props.group.visible = !wrecked;
     levelRoot.scale.set(1, 1, 1);
     model?.done();
+    applyDamage();
   }
   function animateReveal(dt: number) {
     if (revealT < 0 || !model) return;
@@ -123,15 +149,21 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     props.group.visible = rise >= 1 && revealT > 2;
     const r = MOTION < 1 ? (rise > 0 ? 1 : 0) : rise;
     levelRoot.scale.set(1 + (1 - r) * 0.12, Math.max(0.001, r), 1 + (1 - r) * 0.12);
-    if (burst && flourishFrom < 0) flourishFrom = revealT;
+    if (burst && flourishFrom < 0) {
+      flourishFrom = revealT;
+      // L2's awning springs down from furled as the crate bursts.
+      if (model.level === 2) { spring.x = 0; spring.v = 0; springHold = revealT + 2.5; }
+    }
     if (flourishFrom >= 0) model.flourish(Math.floor((revealT - flourishFrom) * 12) / 12);
     if (revealT >= total) {
       endReveal();
+      listen(false);
       dispatchEvent(new CustomEvent('stand-revealed', { detail: { stand: group, level: model.level } }));
     }
   }
-  function onTap() { if (revealT > 0.6) endReveal(); }
-  if (typeof addEventListener === 'function') addEventListener('pointerdown', onTap);
+  function onTap() { if (revealT > 0.6) { endReveal(); listen(false); } }
+  // Listen only while a reveal plays, so idle stands hold no window listener.
+  const listen = (on: boolean) => { if (typeof addEventListener === 'function') (on ? addEventListener : removeEventListener)('pointerdown', onTap); };
 
   function animateKnock(dt: number) {
     if (knockT < 0) return;
@@ -148,13 +180,18 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   // Mid zoom drops the small props; a sign knocked down at half HP takes its stars with it.
   let detailNow = 0;
   function showSmall() {
-    props.showSmall(detailNow < 1, hpNow > 0.5);
+    props.showSmall(detailNow < 1, (busted ? Math.min(hpNow, 0.25) : hpNow) > 0.5);
   }
 
   // ---------- damage ----------
+  // Busted: taped shut with a cream X across the counter.
+  const tape = new THREE.Group();
+  tape.add(clayMesh(new Baker().add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, 0.42], fx: PAPER }).add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, -0.42], p: [0, 0, 0.01], fx: PAPER }).build(), kit().world));
+  tape.visible = false;
+  group.add(tape);
   function applyDamage() {
     if (!model) return;
-    const hp = hpNow;
+    const hp = busted ? Math.min(hpNow, 0.25) : hpNow;
     if (model.awning) { model.awning.intact.visible = hp > 0.75; model.awning.torn.visible = hp <= 0.75; }
     if (model.tearable) { model.tearable.intact.visible = hp > 0.75; model.tearable.torn.visible = hp <= 0.75; }
     const rest = model.sign.userData.rest as { p: THREE.Vector3; r: THREE.Euler } | undefined;
@@ -164,18 +201,24 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     }
     showSmall();
     model.sticks.visible = hp <= 0.25;
-    // Squashed corners: the whole stand slumps a little.
-    model.root.scale.set(hp <= 0.25 ? 1.04 : 1, hp <= 0.25 ? 0.9 : 1, 1);
-    model.root.rotation.z = hp <= 0.25 ? 0.035 : 0;
+    // Squashed corners: the whole stand slumps a little, and its props and the kid ride the slump.
+    const slump = hp <= 0.25;
+    for (const o of [model.root, props.group]) { o.scale.set(slump ? 1.04 : 1, slump ? 0.9 : 1, 1); o.rotation.z = slump ? 0.035 : 0; }
+    kid.userData.baseY = model.kid[1] * (slump ? 0.9 : 1);
+    const [cx, cy, cz] = model.anchors.card;
+    tape.position.set(cx, cy + 0.15, cz + 0.12);
+    tape.visible = busted && !wrecked;
   }
 
   // Awning spring: rolled up at the hinge when shut, springs down when open (stepped on twos).
   const spring = { x: 0, v: 0 };
+  let springHold = -1;
   function poseAwning(u: number) {
     if (!model?.awning) return;
     const { hinge, open } = model.awning;
+    // Furled: rolled up tight at the hinge, a fat card roll rather than a sliver.
     hinge.rotation.x = open - (1 - u) * 0.5;
-    hinge.scale.set(1, 1 - (1 - u) * 0.15, Math.max(0.1, 0.1 + 0.9 * u));
+    hinge.scale.set(1, 1 + (1 - u) * 1.4, 0.28 + 0.72 * u);
   }
   let openNow = false, lastTq = -1;
 
@@ -348,18 +391,18 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
     props,
     lottie: opts.lottie !== false ? lottie : undefined,
     react(kind) { pendingReaction = kind; },
-    reveal() { if (!model || wrecked) return; revealT = 0; flourishFrom = -1; levelRoot.visible = false; props.group.visible = false; },
-    skipReveal() { if (revealT >= 0) endReveal(); },
+    reveal() { if (!model || wrecked) return; revealT = 0; flourishFrom = -1; levelRoot.visible = false; props.group.visible = false; listen(false); listen(true); },
+    skipReveal() { if (revealT >= 0) endReveal(); listen(false); },
     knock() { knockT = 0; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
     setLevel(l, gilded = false) {
       if (l === level && gilded === gilt) return;
       level = l; gilt = gilded;
+      disposeTree(levelRoot);
       levelRoot.clear();
       model = buildLevel(l, 'player', { gilded });
       levelRoot.add(model.root);
       // Bay View's district block draws the cheap far version instead.
-      (levelRoot.userData.far as THREE.BufferGeometry | undefined)?.dispose();
       levelRoot.userData.far = farLevel(l, 'player', gilded);
       spin = model.spin;
       props.place(model.anchors);
@@ -373,7 +416,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       spring.x = openNow ? 1 : 0; spring.v = 0;
       poseAwning(spring.x);
       applyDamage();
-      if (wreck) { wreck.removeFromParent(); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
+      if (wreck) { wreck.removeFromParent(); disposeTree(wreck); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
     },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
@@ -390,10 +433,22 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       if (wreck) wreck.visible = w;
       levelRoot.visible = !w;
       props.group.visible = !w;
+      kid.visible = !w;
       if (w) endReveal(), levelRoot.visible = false, props.group.visible = false;
+      applyDamage();
+    },
+    setBusted(b) {
+      if (b === busted) return;
+      busted = b;
+      applyDamage();
+    },
+    dispose() {
+      listen(false);
+      disposeTree(group, new Set([kid, lottie]));
     },
     update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, detail = 0 }) {
       if (detail !== detailNow) { detailNow = detail; showSmall(); }
+      if (busted) open = false; // closed for repairs
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}) });
       openNow = open;
       const tq = Math.floor(time * 12) / 12;
@@ -402,7 +457,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
         lastTq = tq;
         props.twos(tq);
         if (model?.awning) {
-          const target = open ? 1 : 0;
+          const target = open || (revealT >= 0 && revealT < springHold) ? 1 : 0;
           for (let i = 0; i < steps * 2; i++) { spring.v += (target - spring.x) * 0.5 - spring.v * 0.28; spring.x += spring.v * 0.5; }
           poseAwning(MOTION < 1 ? target : spring.x);
         }
@@ -422,6 +477,6 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       phone.rotation.z = ringing ? Math.sin(time * 37) * 0.06 * MOTION : 0;
     },
   };
-  stand.setLevel(1);
+  stand.setLevel(opts.level ?? 1, opts.gilded ?? false);
   return stand;
 }

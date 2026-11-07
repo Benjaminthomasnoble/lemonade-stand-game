@@ -36,7 +36,9 @@ function rails(B: Baker, y: number, r: number, color: string, fx = 0) {
  * A perimeter, P1 Picket Fence to P5 Citrus Fortress Wall. `hp` (0..1) knocks
  * pieces out: pickets pop like piano keys, mesh peels, bricks pop out.
  */
-export function fenceModel(tier: number, hp = 1): THREE.Group {
+export function fenceModel(tier: number, hp = 1, owner: Owner = 'player'): THREE.Group {
+  // Lemon yellow is the player's: rival fences wear their own dress instead.
+  const { yel, acc } = trim(owner);
   const g = new THREE.Group();
   g.name = 'fence';
   const B = new Baker();
@@ -50,7 +52,7 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
       }
       const lean = (hash(i, 3) - 0.5) * 0.08;
       stick(B, 0.8, [x, 0.4, z], [0, ang, lean], P.cream, 0.11, 0.035);
-      B.add(sph(0.065, 5, 3), P.lemon, { p: [x, 0.84, z], r: [0, ang, Math.PI / 2], s: [1.3, 1, 1] });
+      B.add(sph(0.065, 5, 3), yel, { p: [x, 0.84, z], r: [0, ang, Math.PI / 2], s: [1.3, 1, 1] });
     });
     rails(B, 0.32, 0.025, P.stick);
     rails(B, 0.6, 0.025, P.stick);
@@ -75,7 +77,8 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
       }
     }
     rails(B, 1.38, 0.03, '#b8c2cc');
-    lemon(B, 0.13, [FENCE.gate + 0.05, 0.8, FENCE.zf + 0.08], [0, 0, Math.PI / 2], P.lemon, 4);
+    if (owner === 'player') lemon(B, 0.13, [FENCE.gate + 0.05, 0.8, FENCE.zf + 0.08], [0, 0, Math.PI / 2], P.lemon, 4);
+    else B.add(rbox(0.24, 0.2, 0.1, 0.04), acc, { p: [FENCE.gate + 0.05, 0.8, FENCE.zf + 0.08], fx: GLOSS });
     B.add(tor(0.07, 0.018, 6, 12, Math.PI), P.chrome, { p: [FENCE.gate + 0.05, 0.98, FENCE.zf + 0.08], fx: GLOSS });
   } else if (tier === 3) {
     // Pencil stubs sharpened to points, yellow as lemons, leaning out. Open
@@ -88,7 +91,7 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
       const tilt = knocked ? 1.2 : 0.32;
       const m = new THREE.Matrix4().compose(new THREE.Vector3(x + ox, 0, z + oz), new THREE.Quaternion().setFromEuler(new THREE.Euler(out[1] * tilt, 0, -out[0] * tilt)), new THREE.Vector3(1, 1, 1));
       const at = (y: number) => new THREE.Matrix4().makeTranslation(0, y, 0).premultiply(m);
-      B.add(cyl(0.07, 0.07, h, 6, true), P.lemon, { m: at(h / 2) });
+      B.add(cyl(0.07, 0.07, h, 6, true), yel, { m: at(h / 2) });
       B.add(cone(0.07, 0.2, 6, true), P.stick, { m: at(h + 0.1), fx: PAPER });
       B.add(cone(0.025, 0.07, 6, true), INK, { m: at(h + 0.175) });
       B.add(cyl(0.074, 0.074, 0.06, 6, true), P.chrome, { m: at(0.08), fx: GLOSS });
@@ -138,7 +141,7 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
     for (const [x, z] of [[FENCE.x0, FENCE.zf], [FENCE.x1, FENCE.zf], [FENCE.x0, FENCE.zb], [FENCE.x1, FENCE.zb]]) {
       B.add(lumpy(cyl(0.6, 0.65, 2.5, 12, true), 0.03, 2, x + z), '#c8664a', { p: [x, 1.25, z] });
       for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; B.add(box(0.28, 0.25, 0.25), '#b5523b', { p: [x + Math.cos(a) * 0.6, 2.6, z + Math.sin(a) * 0.6], r: [0, -a, 0] }); }
-      B.add(lumpy(new THREE.SphereGeometry(0.62, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0.03, 3, x - z), P.lemon, { p: [x, 2.72, z], s: [1, 1.1, 1] });
+      B.add(lumpy(new THREE.SphereGeometry(0.62, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0.03, 3, x - z), yel, { p: [x, 2.72, z], s: [1, 1.1, 1] });
       B.add(sph(0.1, 8, 6), P.green, { p: [x, 3.45, z], s: [1.4, 0.6, 1] });
     }
     // The gate: two pillars and a citrus press across the top.
@@ -146,20 +149,25 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
     B.add(rbox(2.9, 0.3, 0.6, 0.08), P.cream, { p: [0, 2.7, FENCE.zf] });
     const ream: [number, number][] = [[0, 0]];
     for (let k = 0; k <= 10; k++) ream.push([0.55 * (1 - k / 10) + (k % 2 ? 0.05 : 0), 0.1 + k * 0.07]);
-    B.add(lathe(ream, 14), P.lemon, { p: [0, 2.85, FENCE.zf], fx: GLOSS });
+    B.add(lathe(ream, 14), owner === 'player' ? P.lemon : acc, { p: [0, 2.85, FENCE.zf], fx: GLOSS });
     B.add(lathe([[0, 0], [0.75, 0], [0.8, 0.12], [0.7, 0.14], [0, 0.1]], 18), P.chrome, { p: [0, 2.82, FENCE.zf], fx: GLOSS });
     B.add(cap(0.06, 1.4), P.chrome, { p: [0.9, 3.55, FENCE.zf], r: [0, 0, 0.9], fx: GLOSS });
   }
   const mesh = clayMesh(B.build(), kit().world);
   g.add(mesh);
   g.userData.tier = tier;
-  g.userData.far = farFence(tier);
+  g.userData.far = farFence(tier, yel);
   return g;
 }
 
+/** The owner's stand-in for lemon yellow on a fence or gadget, and an accent. */
+function trim(owner: Owner) {
+  return owner === 'player' ? { yel: P.lemon as string, acc: '#FFFFFF' } : { yel: DRESS[owner].main, acc: DRESS[owner].accent };
+}
+
 /** The far version for Bay View: one low box per run in the tier's colour and height (60 triangles). */
-function farFence(tier: number): THREE.BufferGeometry {
-  const [h, t, col] = ([[0.85, 0.06, P.cream], [1.35, 0.04, '#b8c2cc'], [1.15, 0.12, P.lemon], [1.2, 0.08, '#9aa5b1'], [1.8, 0.42, '#c8664a']] as const)[Math.max(0, Math.min(4, tier - 1))];
+function farFence(tier: number, yel: string): THREE.BufferGeometry {
+  const [h, t, col] = ([[0.85, 0.06, P.cream], [1.35, 0.04, '#b8c2cc'], [1.15, 0.12, yel], [1.2, 0.08, '#9aa5b1'], [1.8, 0.42, '#c8664a']] as const)[Math.max(0, Math.min(4, tier - 1))];
   const B = new Baker();
   for (const [ax, az, bx, bz] of runs()) {
     const len = Math.hypot(bx - ax, bz - az);
@@ -170,7 +178,8 @@ function farFence(tier: number): THREE.BufferGeometry {
 function cap(r: number, l: number) { return new THREE.CapsuleGeometry(r, l, 3, 8); }
 
 /** Installed gadgets, visible on the plot (Tin-Can Alarm, Honkers, Peel Slick, Sprinklers, Floodlights, Watchtower). */
-export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
+export function gadgetsModel(ids: readonly GadgetId[], owner: Owner = 'player'): THREE.Group {
+  const { yel } = trim(owner);
   const g = new THREE.Group();
   g.name = 'gadgets';
   if (!ids.length) return g;
@@ -187,7 +196,7 @@ export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
       const [x, y, z] = pts[k];
       B.add(cyl(0.004, 0.004, 0.1, 3), INK, { p: [x, y - 0.05, z] });
       B.add(cyl(0.065, 0.065, 0.15, 10), P.chrome, { p: [x, y - 0.17, z], r: [0, 0, (hash(k) - 0.5) * 0.4], fx: GLOSS });
-      B.add(cyl(0.068, 0.068, 0.07, 10), P.lemon, { p: [x, y - 0.17, z], r: [0, 0, (hash(k) - 0.5) * 0.4], fx: PAPER });
+      B.add(cyl(0.068, 0.068, 0.07, 10), yel, { p: [x, y - 0.17, z], r: [0, 0, (hash(k) - 0.5) * 0.4], fx: PAPER });
     }
   }
   if (has('goose')) {
@@ -224,7 +233,7 @@ export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
       const x = s * 4.6, z = -6.6;
       stick(B, 3.2, [x, 1.6, z], [0, 0, 0], P.stick, 0.14, 0.1);
       const m = new THREE.Matrix4().compose(new THREE.Vector3(x - s * 0.15, 3.25, z + 0.15), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.7, -s * 0.6, 0)), new THREE.Vector3(1, 1, 1));
-      B.add(lumpy(new THREE.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0.015, 6, s), P.lemon, { m: new THREE.Matrix4().makeRotationX(Math.PI / 2).scale(new THREE.Vector3(1, 1.3, 1)).premultiply(m) });
+      B.add(lumpy(new THREE.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0.015, 6, s), yel, { m: new THREE.Matrix4().makeRotationX(Math.PI / 2).scale(new THREE.Vector3(1, 1.3, 1)).premultiply(m) });
       B.add(cyl(0.27, 0.27, 0.02, 14), '#fff4d6', { m: new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(0, 0, 0.01).premultiply(m), fx: GLOSS + 1 });
     }
   }

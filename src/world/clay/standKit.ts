@@ -88,6 +88,8 @@ export function pattern(B: Baker, d: Dress, w: number, h: number, m: THREE.Matri
     case 'stripes': {
       const n = Math.max(3, Math.round(w / 0.3)) | 1;
       for (let k = 0; k < n; k += 2) B.add(box(w / n, h, 0.012), d.accent, { m: at(-w / 2 + (k + 0.5) * (w / n), 0), fx: PAPER });
+      // Yellow and white share a lightness: a thin Plum line between every stripe.
+      if (d.inkEdge) for (let k = 1; k < n; k++) B.add(box(0.018, h, 0.016), INK, { m: at(-w / 2 + k * (w / n), 0, z + 0.003) });
       break;
     }
     case 'damask': // gold diamond studs
@@ -103,6 +105,11 @@ export function pattern(B: Baker, d: Dress, w: number, h: number, m: THREE.Matri
         const i = Math.round((x + w) / c), j = Math.round((y + h) / c);
         if ((i + j) % 2) continue;
         B.add(box(Math.min(c, w / 2 - x), Math.min(c, h / 2 - y), 0.012), (i % 2 && j % 2) ? '#FFF1D6' : d.accent, { m: at(x + Math.min(c, w / 2 - x) / 2, y + Math.min(c, h / 2 - y) / 2), fx: PAPER });
+      }
+      // Amber and red share a lightness: Plum lines round every square.
+      if (d.inkEdge) {
+        for (let x = -w / 2 + c; x < w / 2 - 1e-3; x += c) B.add(box(0.014, h, 0.016), INK, { m: at(x, 0, z + 0.003) });
+        for (let y = -h / 2 + c; y < h / 2 - 1e-3; y += c) B.add(box(w, 0.014, 0.016), INK, { m: at(0, y, z + 0.003) });
       }
       break;
     }
@@ -124,10 +131,12 @@ export function pattern(B: Baker, d: Dress, w: number, h: number, m: THREE.Matri
         const pts: V3[] = [];
         for (let k = 0; k <= 16; k++) pts.push([-w / 2 + 0.05 + (k / 16) * (w - 0.1), yy * h + Math.sin(k * 1.2) * h * 0.16, z + 0.01]);
         B.add(rope(pts, Math.min(0.03, h * 0.08), 24, 4), d.accent, { m });
+        // Orange and teal share a lightness: a Plum outline under the wave.
+        if (d.inkEdge) B.add(rope(pts.map(([x, y, zz]) => [x, y, zz - 0.008] as V3), Math.min(0.03, h * 0.08) * 1.6, 24, 4), INK, { m });
       }
       break;
   }
-  if (d.inkEdge && d.pattern !== 'stripes') {
+  if (d.inkEdge && d.pattern !== 'stripes' && d.pattern !== 'gingham') {
     B.add(box(w, 0.025, 0.014), INK, { m: at(0, -h / 2 + 0.012, z + 0.004) });
     B.add(box(w, 0.025, 0.014), INK, { m: at(0, h / 2 - 0.012, z + 0.004) });
   }
@@ -159,7 +168,11 @@ export function awning(d: Dress, w: number, depth: number, opts: { lights?: bool
     const m = new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(0, 0.02, depth / 2);
     pattern(B, d, w * 0.96, depth * 0.9, m, 0);
   } else if (d.inkEdge) {
-    B.add(box(w, 0.02, 0.02), INK, { p: [0, 0.02, depth - 0.01] });
+    // A thin Plum line along every seam between the slats.
+    for (let k = 1; k < n; k++) {
+      const tornHere = opts.torn && (k === 2 || k === 3 || k === n - 3 || k === n - 2);
+      B.add(box(0.018, 0.04, tornHere ? depth * 0.45 : depth), INK, { p: [-w / 2 + k * sw, 0.003, tornHere ? depth * 0.22 : depth / 2] });
+    }
   }
   if (opts.lights) {
     const pts: V3[] = [];

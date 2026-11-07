@@ -14,13 +14,13 @@ export function rivalStand(id: RivalId, level: number, hp = 1): THREE.Group {
 }
 
 /** Perimeter around a plot (P1 picket … P5 wall), with a gap at the front for the gate (clay/defenses.ts). */
-export function fenceModel(tier: number, hp = 1): THREE.Group {
-  return clayFence(tier, hp);
+export function fenceModel(tier: number, hp = 1, owner: Owner = 'player'): THREE.Group {
+  return clayFence(tier, hp, owner);
 }
 
 /** Installed gadgets on a plot. */
-export function gadgetModels(ids: readonly GadgetId[]): THREE.Group {
-  return gadgetsModel(ids);
+export function gadgetModels(ids: readonly GadgetId[], owner: Owner = 'player'): THREE.Group {
+  return gadgetsModel(ids, owner);
 }
 
 /** A smashed stand: the neat clay pile with the owner's sign on top. */

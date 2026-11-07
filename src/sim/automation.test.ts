@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_PRICE, AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, autoRestock, automationAtDawn, bestSetting, costPerCup, expectedCups, helperLines, helpers,
-  LOTTIES_CORNER, migrateSave, newGame, newStand, nudgeStockTarget, openStands, ownedRecipes, pickRecipe, pitcherNeeds, playerStands, prepPreview,
-  priceCeiling, pricingOn, registerHelper, restockGoal, restockOn, restockPlan, servingsAvailable, setByHand, setPrice, setRecipe, setStockTarget,
+  LOTTIES_CORNER, migrateSave, newGame, newStand, nudgeStockTarget, openStands, owedCups, ownedRecipes, pickRecipe, pitcherNeeds, playerStands, prepPreview,
+  priceCeiling, pricingOn, registerHelper, restockGoal, restockOn, restockPlan, serviceLeft, servingsAvailable, setByHand, setPrice, setRecipe, setStockTarget,
   simulateRestOfDay, sleepUntilDawn, stock, stockCapCups, stockTarget, suggestedTarget, SUPPLIES, tickMinute, toggleAutoPrice, toggleAutoRestock,
-  unregisterHelper, upgradeStand, type GameState, type RecipeId, type SupplyId, type Sweetness,
+  unregisterHelper, upgradeStand, type GameState, type Order, type RecipeId, type SupplyId, type Sweetness,
 } from './economy.ts';
 
 const SUPPLY_IDS = Object.keys(SUPPLIES) as SupplyId[];
@@ -161,6 +161,41 @@ describe('Auto-Restock', () => {
     expect(s.phase).toBe('report');
     expect(restockGoal(s, LOTTIES_CORNER)).toBe(0);
     expect(autoRestock(s, LOTTIES_CORNER)).toBe(0); // and it comes straight back
+  });
+
+  it("stocks a stand for its Local Order too: a 300-cup order at an L3 on the suggested target is poured by its deadline", () => {
+    const s = newGame(41);
+    playTo(s, AUTO_RESTOCK_DAY);
+    s.rank = 3;
+    s.cash = 20_000;
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 3;
+    playTo(s, AUTO_RESTOCK_DAY + 1); // a day as a Kiosk, then a fresh dawn
+    expect(st.stockTarget).toBeNull(); // on the suggestion
+    const walkIns = suggestedTarget(s, LOTTIES_CORNER);
+    expect(owedCups(s, LOTTIES_CORNER)).toBe(0);
+    // Accepted the day after it was offered: two days to pour 300 cups, each an hour before closing.
+    const o: Order = { id: 'lo', tier: 'local', client: 'the Maple Row Block Party', qty: 300, pay: Math.round(300 * st.price * 1.5), due: s.day + 1, expires: s.day, plot: LOTTIES_CORNER, accepted: true };
+    s.orders.push(o);
+    expect(owedCups(s, LOTTIES_CORNER)).toBe(300);
+    expect(owedCups(s, 'maple-1n')).toBe(0); // only the stand that pours it
+    expect(suggestedTarget(s, LOTTIES_CORNER)).toBe(Math.min(stockCapCups(3), walkIns + 300));
+    expect(restockPlan(s, LOTTIES_CORNER).goal).toBe(stockTarget(s, LOTTIES_CORNER)); // Open stocks for it
+    while (s.day <= o.due) {
+      openStands(s);
+      if (s.day === o.due) { // Restock now, mid-day, fills for the order as well as the pour left
+        for (let i = 0; i < 120; i++) tickMinute(s);
+        expect(restockGoal(s, LOTTIES_CORNER)).toBe(Math.min(stockTarget(s, LOTTIES_CORNER), serviceLeft(s, LOTTIES_CORNER) + owedCups(s, LOTTIES_CORNER)));
+      }
+      simulateRestOfDay(s);
+      s.cash = Math.max(s.cash, 5000);
+      sleepUntilDawn(s);
+    }
+    expect(o.loaded).toBe(300);
+    expect(s.orders).not.toContain(o);
+    expect(s.news.some((n) => n.startsWith('Order fell through'))).toBe(false);
+    expect(owedCups(s, LOTTIES_CORNER)).toBe(0); // and the target goes back to the walk-in sales
+    expect(suggestedTarget(s, LOTTIES_CORNER)).toBe(Math.min(stockCapCups(3), expectedCups(s, LOTTIES_CORNER, s.forecast)));
   });
 
   it('skips a wrecked stand', () => {

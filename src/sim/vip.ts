@@ -583,7 +583,7 @@ function failOrder(s: GameState, o: Order, why: string): Pickup {
 }
 
 /** The stand a Local Order is poured at (one from before Local Orders named a stand: your first working Kiosk). */
-const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
+export const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
 
 /** A Local Order's cups, an hour before closing on each day until it's due: poured at its stand from the stand's own stock
  * (the pitcher on hand, then whole pitchers from its lemons and sugar, each cup with its ice, an ice machine making what

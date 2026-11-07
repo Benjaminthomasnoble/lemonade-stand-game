@@ -2,7 +2,7 @@
 // the Morning Prep dock, a ticket per helper with the day's automatic spending (what they bought at dawn and will
 // buy at Open) or what they set, and each helper's one-line report in the Ledger. Mounted from hud.ts.
 import {
-  AUTO_PRICE, AUTO_PRICE_RANK, helperLines, playerStands, prepPreview, priceNote, pricingOn, stock, stockCapCups, stockTarget,
+  AUTO_PRICE, AUTO_PRICE_RANK, helperLines, owedCups, playerStands, prepPreview, priceNote, pricingOn, stock, stockCapCups, stockTarget,
   suggestedTarget, type DayStats, type GameState,
 } from '../sim/economy.ts';
 import { btn, esc, tape } from './recipes.ts';
@@ -25,7 +25,9 @@ export function restockControl(s: GameState, plotId: string): string {
   const suggested = suggestedTarget(s, plotId);
   const target = own ? stockTarget(s, plotId) : suggested;
   const cap = stockCapCups(st.level);
-  const tip = `Lottie fills this stand to ${target} cups at dawn, at the day's prices. Suggested: ${suggested}, the day's expected sales. It holds ${cap.toLocaleString('en-US')}`;
+  const owed = owedCups(s, plotId); // a Local Order pours from this stand's stock at 7 pm
+  const why = owed ? `the day's expected sales and ${owed.toLocaleString('en-US')} cups owed to orders` : "the day's expected sales";
+  const tip = `Lottie fills this stand to ${target} cups at dawn, at the day's prices. Suggested: ${suggested}, ${why}. It holds ${cap.toLocaleString('en-US')}`;
   return `<span class="cl-acts" title="${esc(tip)}">${sw}${btn('stockTarget', '−', target > 0 ? { ok: true } : { ok: false, why: 'Nothing to stock' }, 'data-delta="-1" aria-label="Lower the stock target"', 'tiny ghost')}<span class="cl-note" data-testid="stock-target">${target.toLocaleString('en-US')} cups</span>${btn('stockTarget', '+', target < cap ? { ok: true } : { ok: false, why: 'The stand is full at that' }, 'data-delta="1" aria-label="Raise the stock target"', 'tiny ghost')}${own ? btn('stockTarget', 'Suggested', { ok: true }, `data-delta="0" title="Back to ${suggested} cups"`, 'tiny ghost') : ''}</span>`;
 }
 

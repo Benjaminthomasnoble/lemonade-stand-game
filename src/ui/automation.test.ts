@@ -40,6 +40,18 @@ describe('Auto-Restock on screen', () => {
     expect(off).not.toContain('stockTarget');
   });
 
+  it("the target's tooltip gives a Local Order's share of the suggestion", () => {
+    const s = dawnOfDay3();
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 3;
+    expect(restockControl(s, LOTTIES_CORNER)).toContain("the day's expected sales. It holds 1,800");
+    const walkIns = suggestedTarget(s, LOTTIES_CORNER);
+    s.orders.push({ id: 'lo', tier: 'local', client: 'the Old Town Bake Sale', qty: 300, pay: 450, due: s.day + 1, expires: s.day, plot: LOTTIES_CORNER, accepted: true });
+    const html = restockControl(s, LOTTIES_CORNER);
+    expect(html).toContain(`${walkIns + 300} cups`);
+    expect(html).toContain(`Suggested: ${walkIns + 300}, the day's expected sales and 300 cups owed to orders`);
+  });
+
   it('Morning Prep shows what Lottie spent at dawn and what Open adds; the Ledger reports it in one line', () => {
     const s = dawnOfDay3({ kind: 'warm', temp: 80 }); // a Warm day: a Scorcher fills an L1's 200-cup pour at dawn, leaving a new card nothing to add
     const spent = s.today.auto!.restock!.spent;

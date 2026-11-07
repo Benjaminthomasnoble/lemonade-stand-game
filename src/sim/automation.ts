@@ -12,6 +12,7 @@ import type { DayStats, GameState, Stand } from './economy.ts';
 import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, stock, storageFor } from './economy.ts';
 import { priceCeiling, serviceLeft, stockCapCups } from './demand.ts';
 import { bookedSamples, salePrice } from './marketing.ts';
+import { bottlesLeft, localStand } from './vip.ts';
 import { ownedRecipes, pickRecipe } from './recipes.ts';
 import { gameOver } from './modes.ts';
 import { taught } from './story.ts';
@@ -216,10 +217,15 @@ export const AUTO_RESTOCK = 'restock';
  * Day 3's lesson, before which Lottie stocks your stands for free (story.ts), or Day 1 with the lessons off. */
 export const restockOn = (s: GameState, st: Stand) => st.autoRestock && taught(s, 'market');
 
-/** The suggested target: the forecast day's expected sales, within the level's stock cap. */
+/** Cups a stand still owes its Local Orders: they're poured from its own stock an hour before closing (vip.ts). */
+export function owedCups(s: GameState, plotId: string): number {
+  return s.orders.reduce((a, o) => a + (o.tier === 'local' && localStand(s, o) === plotId ? bottlesLeft(o) : 0), 0);
+}
+
+/** The suggested target: the forecast day's expected sales and the cups its Local Orders still need, within the level's stock cap. */
 export function suggestedTarget(s: GameState, plotId: string): number {
   const st = s.plots[plotId]?.stand;
-  return st ? Math.min(stockCapCups(st.level), expectedCups(s, plotId, s.forecast)) : 0;
+  return st ? Math.min(stockCapCups(st.level), expectedCups(s, plotId, s.forecast) + owedCups(s, plotId)) : 0;
 }
 
 /** The stand's stock target in cups: the player's own if set, else the suggestion; never past the stock cap. */
@@ -233,12 +239,13 @@ export function stockTarget(s: GameState, plotId: string): number {
 /** A tap of the target's - or +: a thirtieth of the level's stock (10 cups at an L1, 350 at an L5). */
 export const targetStep = (level: number) => stockCapCups(level) / 30;
 
-/** What a restock fills to now: the target before the stands open, no more than the pour left once they have. */
+/** What a restock fills to now: the target before the stands open; once they have, no more than the pour left and
+ * the cups still owed to Local Orders. */
 export function restockGoal(s: GameState, plotId: string): number {
   const st = s.plots[plotId]?.stand;
   if (!st || st.wrecked) return 0;
   if (s.phase === 'prep') return Math.min(stockCapCups(st.level), stockTarget(s, plotId) + bookedSamples(s, plotId)); // and a booked Free Sample Day's cups
-  return s.phase === 'open' ? Math.min(stockTarget(s, plotId), serviceLeft(s, plotId)) : 0;
+  return s.phase === 'open' ? Math.min(stockTarget(s, plotId), serviceLeft(s, plotId) + owedCups(s, plotId)) : 0;
 }
 
 export interface RestockPlan { goal: number; cups: number; packs: Record<SupplyId, number>; cost: number }

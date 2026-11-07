@@ -1,7 +1,21 @@
-// The auto-battle (canon section 12): approach, breach, brawl, objective.
-// Pure and seeded: the same inputs always give the same fight, and the
-// timeline it returns is what the 3D replay plays back.
-import { COMBAT, FENCE_DEFENDER_BONUS, GUARD_BASE, PERIMETERS, type GadgetId } from './balance.ts';
+// The auto-battle (canon section 12; spec "How a fight resolves"): breach,
+// brawl, objective. Pure and seeded: the same inputs always give the same
+// fight, and the timeline it returns, positions included, is what the 3D
+// replay plays back.
+//
+// The clock starts at contact, when the first raiders reach the fence (or the
+// defenders, or the stand), and one fight-second is one game minute. Every
+// swing lands for exactly its Hit or Chop times the listed multipliers, the
+// first at t = 0 and then one every 1.5 s, and everyone swings at the nearest
+// enemy. The dice are the Nerve and Butterfingers rolls; detection and the
+// raiding party are rolled before the fight.
+//
+// Positions are in plot-lengths on the plot's own frame: x runs across the
+// plot, z out from the stand's front (z = 0) toward the street.
+import {
+  COMBAT, FENCE_DEFENDER_BONUS, FIGHT_SECONDS_PER_GAME_MINUTE, GUARD_BASE, PERIMETERS, WEAPONS,
+  type GadgetId, type Trait, type WeaponId,
+} from './balance.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 
@@ -17,7 +31,9 @@ export interface Fighter {
   chop: number;
   nerve: number;
   armor: number; // share of damage ignored
-  weapon: 'fists' | 'clubs' | 'hatchets';
+  weapon: WeaponId;
+  speed?: number; // plot-lengths a second (COMBAT.speed when unset; Sprinters +25%)
+  trait?: Trait; // Butterfingers and Goose Whisperer act inside the fight
 }
 
 export interface BattleInput {
@@ -29,14 +45,19 @@ export interface BattleInput {
   standHp: number; // 0 when the plot has no stand
   objective: Objective;
   detected: boolean;
+  /** Attackers the Guard Goose stuns (at most 2). Unset: 1, or 2 with a Goose Whisperer among the defenders. */
+  gooseStuns?: number;
 }
 
 export type BattleEvent =
+  | { t: number; type: 'at'; a: string; x: number; z: number } // where each fighter is at contact
+  | { t: number; type: 'move'; a: string; x: number; z: number; speed: number } // from t, walks toward (x, z)
   | { t: number; type: 'swing'; a: string; b: string; dmg: number }
   | { t: number; type: 'chop'; a: string; target: 'fence' | 'stand'; dmg: number }
-  | { t: number; type: 'ko'; a: string }
+  | { t: number; type: 'ko'; a: string; by?: string; weapon?: WeaponId | 'fence' } // who landed the knockout blow ('fence': stakes or wire)
   | { t: number; type: 'flee'; a: string }
   | { t: number; type: 'stun'; a: string; by: 'goose' | 'slick' }
+  | { t: number; type: 'drop'; a: string } // Butterfingers: the weapon goes flying; fists from here on
   | { t: number; type: 'breach' }
   | { t: number; type: 'grab' };
 
@@ -47,127 +68,265 @@ export interface BattleResult {
   standHpLeft: number;
   koed: string[]; // fighter ids knocked out
   fled: string[];
-  duration: number;
+  hatchetKos: string[]; // knocked out by a hatchet blow: Out 2 days instead of 1
+  duration: number; // fight-seconds (game minutes)
   events: BattleEvent[];
 }
 
-const STEP = 0.5;
-const MAX_T = 120; // the objective timer: then the stand is only Damaged
-const HIT_CHANCE = 0.8;
-const FIRST_STRIKE = { bonus: 0.25, seconds: 5 };
-const GRAB_SECONDS = 8;
+const STEP = 0.25;
+const EPS = 1e-9;
 
-interface Live extends Fighter { maxHp: number; cd: number; stun: number; out: boolean; ran: boolean }
+interface Live {
+  f: Fighter;
+  side: Side;
+  rank: number; // tie-break for "nearest": arrival order, then line-up
+  hp: number;
+  hit: number;
+  chop: number;
+  weapon: WeaponId;
+  speed: number;
+  x: number;
+  z: number;
+  arrive: number; // attackers: when they reach the line
+  here: boolean;
+  cd: number; // seconds until the next swing
+  stun: number;
+  out: boolean;
+  ran: boolean;
+  dropOn: number; // Butterfingers: the weapon slips on this swing (0: it never does)
+  swings: number;
+  goal: string; // what they're walking toward, so each new leg is announced once
+}
+
+type Hit = { to: Live | 'fence' | 'stand'; dmg: number; by: Live | null };
+
+/** Shoulder-to-shoulder spots along a line: the middle first, then out to either side. */
+const slotX = (k: number) => (k % 2 ? -1 : 1) * Math.ceil(k / 2) * COMBAT.spacing;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export function runBattle(input: BattleInput, rng: Rng): BattleResult {
-  const mk = (f: Fighter): Live => ({ ...f, maxHp: f.hp, cd: nextRandom(rng) * GUARD_BASE.swing, stun: 0, out: false, ran: false });
-  const att = input.attackers.map(mk);
-  const def = input.defenders.map(mk);
-  const per = PERIMETERS[input.perimeter - 1];
-  let fence = per ? input.fenceHp : 0;
+  const C = COMBAT;
+  const per = input.perimeter > 0 ? PERIMETERS[input.perimeter - 1] : undefined;
+  let fence = per ? Math.max(0, input.fenceHp) : 0;
+  let breached = fence <= 0;
   let stand = input.standHp;
   const events: BattleEvent[] = [];
   const has = (g: GadgetId) => input.gadgets.includes(g);
-  const soaked = has('sprinkler') ? 0.8 : 1;
-  let nerveChecked: Record<Side, boolean> = { att: false, def: false };
+  const soaked = has('sprinkler') ? 1 - C.soak : 1;
+  // The fence-line bonus: +25% while any perimeter stands, and a Citrus Fortress Wall adds its own +25%.
+  const fenceLine = FENCE_DEFENDER_BONUS * (input.perimeter === 5 ? 2 : 1);
+  const grabFor = C.grabMinutes * FIGHT_SECONDS_PER_GAME_MINUTE;
+  const timer = C.objectiveMinutes * FIGHT_SECONDS_PER_GAME_MINUTE;
+  const giveUp = C.giveUpSeconds;
+  const gap = C.reach / 4; // each side's half of the space across a fence or a scuffle
+  const wireSlow = per?.slow ?? 0; // Barbed Wire: raiders move 30% slower until it falls
+
+  // ---- the line-up ----
+  const fencedAtStart = !breached;
+  const lineA = fencedAtStart ? C.fenceAt + gap : input.defenders.length ? C.holdAt + 2 * gap : gap;
+  const lineD = fencedAtStart ? C.fenceAt - gap : C.holdAt;
+  const speedOf = (f: Fighter) => f.speed ?? C.speed;
+  const vMax = Math.max(C.speed * 1e-3, ...input.attackers.map(speedOf));
+  const approachSlow = fencedAtStart ? 1 - wireSlow : 1;
+  const mk = (f: Fighter, rank: number): Live => ({
+    f, side: f.side, rank, hp: f.hp, hit: f.hit, chop: f.chop, weapon: f.weapon, speed: speedOf(f),
+    x: 0, z: 0, arrive: 0, here: f.side === 'def', cd: 0, stun: 0, out: false, ran: false, dropOn: 0, swings: 0, goal: '',
+  });
+  // Raiders walk the last stretch in together; the quick ones reach the line first and take the middle.
+  const lag = (f: Fighter) => C.approach * (1 / speedOf(f) - 1 / vMax) / approachSlow;
+  const order = input.attackers.map((f, i) => ({ f, i, lag: lag(f) })).sort((a, b) => a.lag - b.lag || a.i - b.i);
+  const att = order.map(({ f, lag: l }, k) => {
+    const u = mk(f, k);
+    u.x = slotX(k);
+    u.arrive = Math.ceil(l / STEP - EPS) * STEP;
+    u.z = lineA + C.approach * (1 - u.speed / vMax);
+    return u;
+  });
+  const def = input.defenders.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineD; return u; });
+  for (const u of [...att, ...def]) events.push({ t: 0, type: 'at', a: u.f.id, x: round3(u.x), z: round3(u.z) });
+  for (const u of att) if (u.arrive > 0) { u.goal = 'line'; events.push({ t: 0, type: 'move', a: u.f.id, x: round3(u.x), z: round3(lineA), speed: round3(u.speed * approachSlow) }); }
+
+  // Butterfingers: once a fight, a 10% chance the weapon slips on one of the first three swings.
+  for (const u of [...att, ...def]) {
+    if (u.f.trait !== 'Butterfingers' || u.weapon === 'fists') continue;
+    if (nextRandom(rng) < C.butterfingers) u.dropOn = 1 + Math.floor(nextRandom(rng) * 3);
+  }
+
+  // The goose honks at the first raider to arrive (twice with a Goose Whisperer); the peels trip the first three.
+  const whisperer = input.defenders.some((d) => d.trait === 'Goose Whisperer');
+  let honks = has('goose') ? Math.min(2, input.gooseStuns ?? (whisperer ? 2 : 1)) : 0;
+  let slips = has('slick') ? C.slick.count : 0;
+
+  const up = (u: Live) => !u.out && !u.ran;
+  const isUp = (xs: Live[]) => xs.some(up);
+  const dist = (a: { x: number; z: number }, x: number, z: number) => Math.hypot(a.x - x, a.z - z);
+  const nearest = (u: Live, foes: Live[]) => {
+    let best: Live | null = null, bd = Infinity;
+    for (const v of foes) {
+      const d = dist(u, v.x, v.z);
+      if (d < bd - EPS || (Math.abs(d - bd) <= EPS && best && v.rank < best.rank)) { best = v; bd = d; }
+    }
+    return best;
+  };
+  const inReach = (u: Live, x: number, z: number) => dist(u, x, z) <= C.reach + EPS;
+  /**
+   * Close in on (x, z) until it's within reach, announcing each new leg once; true when within reach.
+   * Behind a standing fence a defender can only move along it (z stays put).
+   */
+  const closeIn = (u: Live, goal: string, x: number, z: number, t: number, alongFence = false) => {
+    if (inReach(u, x, z)) return true;
+    const tz = alongFence ? u.z : z;
+    const d = dist(u, x, tz);
+    const go = Math.min(u.speed * STEP, Math.max(0, d - (alongFence ? 0 : C.reach * 0.9)));
+    if (u.goal !== goal) {
+      u.goal = goal;
+      events.push({ t, type: 'move', a: u.f.id, x: round3(x), z: round3(tz), speed: round3(u.speed) });
+    }
+    if (d > EPS) { u.x += ((x - u.x) / d) * go; u.z += ((tz - u.z) / d) * go; }
+    return inReach(u, x, z);
+  };
+  /** Butterfingers: the weapon slips on this swing, and they finish on fists (still scaled by level and traits). */
+  const swingWith = (u: Live, t: number) => {
+    u.swings++;
+    if (u.dropOn && u.swings === u.dropOn && u.weapon !== 'fists') {
+      u.hit *= WEAPONS.fists.hit / WEAPONS[u.weapon].hit;
+      u.chop *= WEAPONS.fists.chop / WEAPONS[u.weapon].chop;
+      u.weapon = 'fists';
+      events.push({ t, type: 'drop', a: u.f.id });
+    }
+    u.cd = GUARD_BASE.swing;
+  };
+
+  const koed: string[] = [], hatchetKos: string[] = [];
+  const hurt = (u: Live, dmg: number, by: Live | null, t: number) => {
+    if (u.out) return;
+    u.hp -= dmg * (1 - u.f.armor);
+    if (u.hp > EPS) return;
+    u.hp = 0;
+    u.out = true;
+    const weapon = by ? by.weapon : 'fence';
+    koed.push(u.f.id);
+    if (weapon === 'hatchets') hatchetKos.push(u.f.id);
+    events.push({ t, type: 'ko', a: u.f.id, by: by ? by.f.id : 'fence', weapon });
+  };
+
+  const checked: Record<Side, boolean> = { att: false, def: false };
+  let objStart = -1; // when the objective phase began: perimeter down, raiders up, no defender up
   let grab = 0;
-  let breached = fence <= 0;
-
-  // Gadgets spring first.
-  const t0 = 0;
-  if (has('goose') && att[0]) { att[0].stun = 3; events.push({ t: t0, type: 'stun', a: att[0].id, by: 'goose' }); }
-  if (has('slick')) for (const a of att.slice(0, 3)) { a.stun = Math.max(a.stun, 4); events.push({ t: t0, type: 'stun', a: a.id, by: 'slick' }); }
-
-  const up = (xs: Live[]) => xs.filter((x) => !x.out && !x.ran);
+  let done = false;
   let t = 0;
-  for (; t < MAX_T; t += STEP) {
-    const A = up(att), D = up(def);
-    if (!A.length) break;
-    const done = input.objective === 'smash' ? stand <= 0 : grab >= GRAB_SECONDS;
-    if (done) break;
+  for (let n = 0; ; n++) {
+    t = n * STEP;
+    // Arrivals, and the gadgets that spring on them.
+    for (const u of att) {
+      if (u.here || u.arrive > t + EPS || !up(u)) continue;
+      u.here = true;
+      u.z = lineA;
+      if (u.goal === 'line') u.goal = '';
+      if (honks > 0) { honks--; u.stun = Math.max(u.stun, C.goose.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'goose' }); }
+      if (slips > 0) { slips--; u.stun = Math.max(u.stun, C.slick.stun); events.push({ t, type: 'stun', a: u.f.id, by: 'slick' }); }
+    }
+    if (!isUp(att)) break;
+    const fenceUp = !breached;
+    const defUp = isUp(def);
+    if (objStart < 0 && !fenceUp && !defUp) objStart = t;
+    if (objStart >= 0 && t >= objStart + timer - EPS) break; // out of time: the stand is only Damaged
+    if (objStart < 0 && t >= giveUp - EPS) break; // no way through: the raiders go home
 
-    // Stakes and wire hurt attackers while they breach.
-    if (!breached && per?.breachDps) {
-      for (const a of A) hurt(a, per.breachDps * COMBAT.breachDps * STEP, t);
+    const hits: Hit[] = [];
+    const firstStrike = !input.detected && t < C.firstStrike.seconds - EPS ? 1 + C.firstStrike.bonus : 1;
+    const attMult = firstStrike * soaked;
+    const defMult = fenceUp ? 1 + fenceLine : 1;
+    const hereA = att.filter((u) => u.here && up(u));
+    const hereD = def.filter(up);
+    // Stakes and wire bite everyone at the fence line while it stands.
+    if (fenceUp && per?.breachDps) for (const a of hereA) hits.push({ to: a, dmg: per.breachDps * STEP, by: null });
+    let atTill = false;
+
+    for (const u of [...att, ...def]) {
+      if (!up(u)) continue;
+      if (u.side === 'att' && !u.here) continue; // still walking in
+      if (u.stun > EPS) { u.stun = Math.max(0, u.stun - STEP); continue; }
+      const ready = u.cd <= EPS;
+      if (u.side === 'att') {
+        if (fenceUp) {
+          // Raiders can't reach the guards or the stand until the perimeter is down: chop.
+          if (ready) { swingWith(u, t); hits.push({ to: 'fence', dmg: u.chop * attMult, by: u }); }
+        } else {
+          const foe = nearest(u, hereD);
+          if (foe) {
+            if (closeIn(u, foe.f.id, foe.x, foe.z, t) && ready) { swingWith(u, t); hits.push({ to: foe, dmg: u.hit * attMult, by: u }); }
+          } else {
+            // Nobody left to stop them: the stand (or the till).
+            const sx = Math.max(-C.standWidth / 2, Math.min(C.standWidth / 2, u.x));
+            if (closeIn(u, 'stand', sx, gap, t)) {
+              atTill = true;
+              if (input.objective === 'smash' && stand > 0 && ready) { swingWith(u, t); hits.push({ to: 'stand', dmg: u.chop * attMult, by: u }); }
+            }
+          }
+        }
+      } else {
+        // Defenders swing at the nearest raider: over the fence at the ones chopping it, then anywhere.
+        const foe = nearest(u, hereA);
+        if (foe && closeIn(u, foe.f.id, foe.x, foe.z, t, fenceUp) && ready) { swingWith(u, t); hits.push({ to: foe, dmg: u.hit * defMult, by: u }); }
+      }
+      u.cd = Math.max(0, u.cd - STEP);
     }
 
-    for (const u of [...A, ...D]) {
-      if (u.out || u.ran) continue;
-      if (u.stun > 0) { u.stun -= STEP; continue; }
-      u.cd -= STEP * (u.side === 'att' && !breached && per?.slow ? 1 - per.slow : 1);
-      if (u.cd > 0) continue;
-      u.cd += GUARD_BASE.swing;
-      const foes = up(u.side === 'att' ? def : att);
-      if (u.side === 'att') {
-        if (!breached) {
-          // Chop the fence (defenders strike over tougher fences).
-          const dmg = u.chop * (0.8 + 0.4 * nextRandom(rng)) * soaked * COMBAT.fenceChop;
-          fence -= dmg;
-          events.push({ t, type: 'chop', a: u.id, target: 'fence', dmg: Math.round(dmg) });
-          if (fence <= 0) { fence = 0; breached = true; events.push({ t, type: 'breach' }); }
-          continue;
-        }
-        if (foes.length) { swing(u, foes, t); continue; }
-        // No one left to stop them: do the job.
-        if (input.objective === 'smash' && stand > 0) {
-          const dmg = u.chop * (0.8 + 0.4 * nextRandom(rng));
-          stand = Math.max(0, stand - dmg);
-          events.push({ t, type: 'chop', a: u.id, target: 'stand', dmg: Math.round(dmg) });
-        }
-      } else if (foes.length && (breached || input.perimeter >= COMBAT.throughFenceTier)) {
-        swing(u, foes, t);
+    // Everything in the same instant lands together.
+    for (const h of hits) {
+      if (h.to === 'fence') {
+        fence -= h.dmg;
+        events.push({ t, type: 'chop', a: h.by!.f.id, target: 'fence', dmg: round1(h.dmg) });
+      } else if (h.to === 'stand') {
+        stand = Math.max(0, stand - h.dmg);
+        events.push({ t, type: 'chop', a: h.by!.f.id, target: 'stand', dmg: round1(h.dmg) });
+      } else {
+        if (h.by) events.push({ t, type: 'swing', a: h.by.f.id, b: h.to.f.id, dmg: round1(h.dmg) });
+        hurt(h.to, h.dmg, h.by, t);
       }
     }
-    if (input.objective === 'shakedown' && breached && up(att).length && !up(def).length) {
+    if (!breached && fence <= EPS) { fence = 0; breached = true; events.push({ t, type: 'breach' }); }
+
+    if (input.objective === 'smash' && objStart >= 0 && stand <= EPS && isUp(att)) { done = true; break; }
+    if (input.objective === 'shakedown' && objStart >= 0 && atTill) {
       if (grab === 0) events.push({ t, type: 'grab' });
       grab += STEP;
+      if (grab >= grabFor - EPS) { done = isUp(att); t += STEP; break; }
     }
 
-    // Nerve: once a side has lost half its people, each one left rolls once.
+    // Nerve: once a side has lost half its people (rounded down), everyone left rolls once.
     for (const side of ['att', 'def'] as Side[]) {
       const all = side === 'att' ? att : def;
-      if (nerveChecked[side] || !all.length) continue;
-      const lost = all.filter((x) => x.out || x.ran).length;
-      if (lost * 2 >= all.length && lost > 0) {
-        nerveChecked = { ...nerveChecked, [side]: true };
-        for (const u of up(all)) {
-          if (nextRandom(rng) * 100 > u.nerve + (side === 'def' ? 20 : 0)) { u.ran = true; events.push({ t, type: 'flee', a: u.id }); }
+      const need = Math.floor(all.length / 2);
+      if (checked[side] || need < 1) continue;
+      if (all.filter((u) => !up(u)).length < need) continue;
+      checked[side] = true;
+      for (const u of all) {
+        if (!up(u)) continue;
+        if (nextRandom(rng) * 100 >= u.f.nerve) {
+          u.ran = true;
+          events.push({ t, type: 'flee', a: u.f.id });
+          u.goal = 'home';
+          events.push({ t, type: 'move', a: u.f.id, x: round3(u.x), z: round3(side === 'att' ? lineA + C.approach * 2 : -1), speed: round3(u.speed) });
         }
       }
     }
   }
 
-  function swing(u: Live, foes: Live[], at: number) {
-    if (nextRandom(rng) > HIT_CHANCE) return;
-    const target = foes[Math.floor(nextRandom(rng) * foes.length)];
-    let mult = 0.8 + 0.4 * nextRandom(rng);
-    if (u.side === 'def') mult *= 1 + COMBAT.homeBonus;
-    if (u.side === 'def' && fence > 0) mult *= 1 + FENCE_DEFENDER_BONUS;
-    if (u.side === 'def' && input.perimeter === 5 && fence > 0) mult *= 1 + FENCE_DEFENDER_BONUS;
-    if (u.side === 'att' && !input.detected && at < FIRST_STRIKE.seconds) mult *= 1 + FIRST_STRIKE.bonus;
-    if (u.side === 'att') mult *= soaked;
-    const dmg = u.hit * mult;
-    events.push({ t: at, type: 'swing', a: u.id, b: target.id, dmg: Math.round(dmg) });
-    hurt(target, dmg, at);
-  }
-  function hurt(u: Live, dmg: number, at: number) {
-    if (u.out) return;
-    u.hp -= dmg * (1 - u.armor);
-    if (u.hp <= 0) { u.hp = 0; u.out = true; events.push({ t: at, type: 'ko', a: u.id }); }
-  }
-
-  const attackersUp = up(att).length > 0;
-  const finished = input.objective === 'smash' ? stand <= 0 : grab >= GRAB_SECONDS;
+  const attackersUp = isUp(att);
   let outcome: BattleResult['outcome'] = 'repelled';
-  if (attackersUp && finished) outcome = input.objective === 'smash' ? 'smashed' : 'robbed';
-  else if (attackersUp && !up(def).length && (stand < input.standHp || grab > 0)) outcome = 'damaged';
+  if (attackersUp && done) outcome = input.objective === 'smash' ? 'smashed' : 'robbed';
+  else if (attackersUp && !isUp(def) && (stand < input.standHp || grab > 0)) outcome = 'damaged';
   return {
     winner: outcome === 'smashed' || outcome === 'robbed' ? 'att' : 'def',
     outcome,
     fenceHpLeft: Math.round(fence),
     standHpLeft: Math.round(stand),
-    koed: [...att, ...def].filter((x) => x.out).map((x) => x.id),
-    fled: [...att, ...def].filter((x) => x.ran).map((x) => x.id),
+    koed,
+    fled: [...att, ...def].filter((u) => u.ran).map((u) => u.f.id),
+    hatchetKos,
     duration: t,
     events,
   };
@@ -177,7 +336,13 @@ export function runBattle(input: BattleInput, rng: Rng): BattleResult {
 export function winChance(input: BattleInput, seed: number, runs = 120): number {
   const rng = { seed };
   let wins = 0;
-  for (let i = 0; i < runs; i++) if (runBattle(input, rng).winner === 'att') wins++;
+  for (let i = 0; i < runs; i++) {
+    const before = rng.seed;
+    const won = runBattle(input, rng).winner === 'att';
+    if (won) wins++;
+    // No dice were rolled (no Nerve check, no Butterfingers): every run would end the same way.
+    if (rng.seed === before) { if (won) wins += runs - i - 1; break; }
+  }
   return wins / runs;
 }
 

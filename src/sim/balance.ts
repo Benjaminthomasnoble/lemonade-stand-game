@@ -20,6 +20,7 @@ export const SEASON_DAYS = 14;
 /** Real seconds per game minute at 1×: business hours take ~3.5 real minutes. */
 export const REAL_SECONDS_PER_MINUTE = 210 / BUSINESS_MINUTES;
 export const SPEEDS = [0, 1, 2, 3] as const;
+export const FIGHT_SECONDS_PER_GAME_MINUTE = 1;
 
 export type Season = 'summer' | 'fall' | 'winter' | 'spring';
 export const SEASONS: Season[] = ['summer', 'fall', 'winter', 'spring'];
@@ -166,7 +167,7 @@ export const PERIMETERS: PerimeterTier[] = [
   { tier: 4, name: 'Barbed Wire', rank: 6, cost: 25000, hp: 2500, breachDps: 4, slow: 0.3, repair: 2500 },
   { tier: 5, name: 'Citrus Fortress Wall', rank: 8, cost: 100000, hp: 5000, breachDps: 0, slow: 0, repair: 10000 },
 ];
-/** Defenders hit harder while any perimeter stands (P5 doubles it). */
+/** The fence-line bonus: defenders deal +25% while any perimeter stands; a Citrus Fortress Wall adds its own +25% (+50% in all). Gone once it falls. */
 export const FENCE_DEFENDER_BONUS = 0.25;
 
 export type GadgetId = 'alarm' | 'goose' | 'slick' | 'sprinkler' | 'floodlights' | 'watchtower';
@@ -232,12 +233,27 @@ export const TRAITS = [
   'Gentle Giant', 'Lumberjack', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',
 ] as const;
 export type Trait = (typeof TRAITS)[number];
-/** Combat knobs tuned against the canon anchors (npm run combat). */
+/**
+ * The fight model (spec "How a fight resolves"; npm run combat checks the canon anchors).
+ * Times are fight-seconds, one per game minute; distances are plot-lengths.
+ */
 export const COMBAT = {
-  fenceChop: 1, // fences resist chopping
-  homeBonus: 0.25, // defenders' damage bonus on their own plot
-  throughFenceTier: 1, // defenders can strike over fences of this tier and up
-  breachDps: 1, // scales stakes and wire damage
+  firstStrike: { bonus: 0.25, seconds: 5 }, // an undetected raid: +25% to every swing and chop for 5 s
+  soak: 0.2, // Sprinkler Ambush: soaked raiders deal 20% less damage all fight
+  goose: { stun: 3 }, // Guard Goose: stuns the first raider to arrive (the next one too with a Goose Whisperer)
+  slick: { stun: 4, count: 3 }, // Lemon-Peel Slick: the first 3 raiders slip
+  grabMinutes: 10, // time on target for a Shakedown or Sabotage
+  objectiveMinutes: 60, // a Smash that isn't done by then leaves the stand only Damaged
+  butterfingers: 0.1, // Butterfingers: chance per fight to drop the weapon and finish on fists
+  sprinter: 1.25, // Sprinter: +25% Speed
+  speed: 1 / 3, // placeholder: spec gap. Base Speed: one plot-length every 3 seconds
+  approach: 1, // placeholder: spec gap. Raiders walk the last plot-length in, so Sprinters reach the line first
+  giveUpSeconds: 120, // placeholder: spec gap. Raiders who can't break through and win the brawl by then go home
+  reach: 0.12, // placeholder: spec gap. How far a swing reaches
+  spacing: 0.1, // placeholder: spec gap. Shoulder room along a fence or a line
+  fenceAt: 0.4, // the perimeter's distance out from the stand
+  holdAt: 0.2, // where guards stand when there's no perimeter
+  standWidth: 0.5,
 };
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [

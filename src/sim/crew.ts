@@ -3,7 +3,7 @@
 // when the stands close (so the player always gets a warning) and fought
 // when the player sleeps.
 import {
-  CLUBHOUSE, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
+  CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, FACTIONS, GADGET_SLOTS, GADGETS, GEAR, GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, RAID_PARTY, RAID_RANK,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, REPAIR_SHARE, ROSTER_BASE, BUSTED_REPAIR_SHARE, DIFFICULTY, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS,
   type GadgetId, type GearId, type RivalId, type Trait, type WeaponId,
@@ -281,12 +281,14 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   let hit = WEAPONS[g.weapon].hit * m;
   let chop = WEAPONS[g.weapon].chop * m;
   let nerve = GUARD_BASE.nerve;
+  let speed = COMBAT.speed;
   if (g.trait === 'Tough Cookie') hp *= 1.2;
   if (g.trait === 'Gentle Giant') { hp *= 1.4; hit *= 0.7; }
   if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 20; }
   if (g.trait === 'Lumberjack') chop *= 1.5;
+  if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
-  return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon };
+  return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait };
 }
 
 // ---------- henchmen ----------

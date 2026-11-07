@@ -309,7 +309,7 @@ async function main() {
   });
 
   const scenes = createScenes(world.scene, {
-    say: (who, line, speaker, color) => { bubbles.say(who, line, { who: speaker, color, height: 2.1 }); audio.babble(line, speaker === 'Dex' ? 1.2 : 0.9, 'flat'); },
+    say: (who, line, speaker, color) => { bubbles.say(who, line, { who: speaker, color, height: 2.1 }); audio.babble(line, speaker === 'Dex' ? 1.2 : 0.9, 'flat'); twins?.caption(speaker, line); },
     lottie: (line, react) => lottieSays('morning', { text: line, react }),
     // No ring hook: a scene's follow-up call (Vera after the Steward) is queued by the sim when the scene ends.
     done: (id) => { const sc = playingScene(state); if (sc && (id === 'visit' ? !!sc.speaker : sc.world === id)) finishScene(false); },

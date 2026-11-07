@@ -307,6 +307,7 @@ describe('the ten menus', () => {
     expect(keyName('Digit2')).toBe('2');
     const html = optionsScreen(o, newGame(1), '', keys);
     for (const key of ['pause.screens', 'captions', 'celsius']) expect(html).toContain(`data-key="${key}"`);
+    expect(html).toContain('Voices, the radio and phone calls, written out'); // the story scenes' voices are captioned too (main.ts)
   });
 });
 

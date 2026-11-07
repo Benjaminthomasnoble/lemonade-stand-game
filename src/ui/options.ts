@@ -30,7 +30,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       ${toggle('autoContinue', o.autoContinue, 'Start each day by itself', 'Morning Prep opens the stands after a moment. Big alerts still stop it.')}
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD animations')}
-      ${toggle('captions', o.captions, 'Captions', "Lottie's lines and phone calls, written out")}
+      ${toggle('captions', o.captions, 'Captions', 'Voices, the radio and phone calls, written out')}
       ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
       ${toggle('lessons', lessonsOn(s), 'Lessons', 'Lottie teaches one system a day (this run). Off: buttons follow rank alone.')}
       <div class="cl-row wrap"><button class="cl-b tiny ghost" data-action="option" data-key="tour" data-testid="opt-tour" title="Lottie shows you around again, pointing at each thing">Replay Lottie's tour</button></div>

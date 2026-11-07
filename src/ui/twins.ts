@@ -3,8 +3,10 @@
 // screen-edge pulse in its colour and pattern, and an in-world marker). Each
 // stinger already has its card or toast (the raid warning, the fight tickets,
 // the rank-up headline); this adds the screen-edge pulse, and a caption line for
-// Lottie and the phone (the radio joins when it lands). In-world markers wait for
-// the rendering lane. Reduced motion keeps the pulse as one soft glow.
+// the voices (Lottie, the story scenes' Steward and Dex) and the phone; the radio
+// is a text ticket the same switch gates (src/ui/radio.ts). Barks (customers,
+// henchmen, brawls) are written out in their speech bubbles. In-world markers wait
+// for the rendering lane. Reduced motion keeps the pulse as one soft glow.
 import type { Stinger } from '../audio.ts';
 
 /** Each stinger's pulse: its colour, how many beats, how long each. */

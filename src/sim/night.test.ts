@@ -234,7 +234,7 @@ describe('the alert feed', () => {
 describe('Delivery Raids', () => {
   /** Rank 7 with a Helipad (5,000 bottles a day: one trip) and a 4,000-bottle chopper order due at 14:00 today. */
   function pickupGame(seed: number) {
-    const s = newGame(seed);
+    const s = newGame(seed, { lessons: false }); // no Day-1 stock from Lottie (src/sim/story.ts) to sell out by the pickup
     s.rank = 7;
     s.reputation = 4.5;
     s.cash = 3_000_000;

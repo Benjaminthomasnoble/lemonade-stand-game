@@ -3,10 +3,10 @@
 // clay mesh. Plot frame: the street is toward +z; the fence runs x -5.2..5.2,
 // z -7.2..2.1, with a 2 m gate in the middle of the front.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, cone, cyl, hash, lathe, lumpy, rbox, snake, sph, tor } from './core.ts';
+import { Baker, GLOSS, PAPER, box, cone, cyl, hash, lathe, lumpy, sph, tor } from './core.ts';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
-import { DRESS, INK, cardPlane, cardSign, clayMesh, lemon, rod, stick, type Owner } from './standKit.ts';
+import { DRESS, INK, cardPlane, cardSign, clayMesh, lemon, rod, rope, stick, type Owner, rbox } from './standKit.ts';
 import type { GadgetId } from '../../sim/balance.ts';
 
 type V3 = [number, number, number];
@@ -29,7 +29,7 @@ function along(step: number, fn: (x: number, z: number, i: number, ang: number, 
 }
 /** A rail or snake along every run at height y. */
 function rails(B: Baker, y: number, r: number, color: string, fx = 0) {
-  for (const [ax, az, bx, bz] of runs()) B.add(snake([[ax, y, az], [(ax + bx) / 2, y - 0.02, (az + bz) / 2], [bx, y, bz]], r, 10, 5), color, { fx });
+  for (const [ax, az, bx, bz] of runs()) B.add(rope([[ax, y, az], [(ax + bx) / 2, y - 0.02, (az + bz) / 2], [bx, y, bz]], r, 4, 4), color, { fx });
 }
 
 /**
@@ -43,14 +43,14 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
   const broke = (i: number) => hash(i, tier * 7) < (1 - Math.max(0, Math.min(1, hp))) * 0.85;
   if (tier === 1) {
     // Matchstick pickets with lemon-shaped clay tips.
-    along(0.3, (x, z, i, ang, out) => {
+    along(0.36, (x, z, i, ang, out) => {
       if (broke(i)) {
         stick(B, 0.8, [x + out[0] * 0.35, 0.05, z + out[1] * 0.35], [Math.PI / 2, ang + (hash(i) - 0.5), 0], P.cream, 0.11, 0.035);
         return;
       }
       const lean = (hash(i, 3) - 0.5) * 0.08;
       stick(B, 0.8, [x, 0.4, z], [0, ang, lean], P.cream, 0.11, 0.035);
-      lemon(B, 0.065, [x, 0.84, z], [0, ang, Math.PI / 2], P.lemon, i, true);
+      B.add(sph(0.065, 5, 3), P.lemon, { p: [x, 0.84, z], r: [0, ang, Math.PI / 2], s: [1.3, 1, 1] });
     });
     rails(B, 0.32, 0.025, P.stick);
     rails(B, 0.6, 0.025, P.stick);
@@ -78,20 +78,20 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
     lemon(B, 0.13, [FENCE.gate + 0.05, 0.8, FENCE.zf + 0.08], [0, 0, Math.PI / 2], P.lemon, 4);
     B.add(tor(0.07, 0.018, 6, 12, Math.PI), P.chrome, { p: [FENCE.gate + 0.05, 0.98, FENCE.zf + 0.08], fx: GLOSS });
   } else if (tier === 3) {
-    // Pencil stubs sharpened to points, yellow as lemons, leaning out.
-    along(0.32, (x, z, i, _ang, out) => {
+    // Pencil stubs sharpened to points, yellow as lemons, leaning out. Open
+    // hexagonal barrels (nobody sees the ends) keep each pencil to 30 triangles.
+    along(0.3, (x, z, i, _ang, out) => {
       const knocked = broke(i);
-      for (const row of [0, 1]) {
-        const ox = out[0] * row * 0.22, oz = out[1] * row * 0.22;
-        const h = 0.9 + hash(i, row) * 0.35;
-        const tilt = knocked ? 1.2 : 0.32;
-        const m = new THREE.Matrix4().compose(new THREE.Vector3(x + ox, 0, z + oz), new THREE.Quaternion().setFromEuler(new THREE.Euler(out[1] * tilt, 0, -out[0] * tilt)), new THREE.Vector3(1, 1, 1));
-        const at = (y: number) => new THREE.Matrix4().makeTranslation(0, y, 0).premultiply(m);
-        B.add(cyl(0.07, 0.07, h, 6), P.lemon, { m: at(h / 2) });
-        B.add(cone(0.07, 0.2, 6), P.stick, { m: at(h + 0.1), fx: PAPER });
-        B.add(cone(0.025, 0.07, 6), INK, { m: at(h + 0.175) });
-        B.add(cyl(0.072, 0.072, 0.05, 6), P.chrome, { m: at(0.06), fx: GLOSS });
-      }
+      const row = i % 2;
+      const ox = out[0] * row * 0.16, oz = out[1] * row * 0.16;
+      const h = 0.9 + hash(i, row) * 0.35;
+      const tilt = knocked ? 1.2 : 0.32;
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(x + ox, 0, z + oz), new THREE.Quaternion().setFromEuler(new THREE.Euler(out[1] * tilt, 0, -out[0] * tilt)), new THREE.Vector3(1, 1, 1));
+      const at = (y: number) => new THREE.Matrix4().makeTranslation(0, y, 0).premultiply(m);
+      B.add(cyl(0.07, 0.07, h, 6, true), P.lemon, { m: at(h / 2) });
+      B.add(cone(0.07, 0.2, 6, true), P.stick, { m: at(h + 0.1), fx: PAPER });
+      B.add(cone(0.025, 0.07, 6, true), INK, { m: at(h + 0.175) });
+      B.add(cyl(0.074, 0.074, 0.06, 6, true), P.chrome, { m: at(0.08), fx: GLOSS });
     });
   } else if (tier === 4) {
     // Twisted pipe-cleaner coils with lemon-seed barbs.
@@ -101,18 +101,18 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
       const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len;
       for (const y0 of [0.45, 1.02]) {
         const pts: V3[] = [];
-        const n = Math.round(len * 12);
+        const n = Math.round(len * 7);
         for (let k = 0; k <= n; k++) {
-          const s = (k / n) * len, a = s * 2 * Math.PI * 2 / 1.0;
+          const s = (k / n) * len, a = s * 2 * Math.PI * 1.25;
           const r = 0.17;
           pts.push([ax + ux * s + uz * Math.cos(a) * r, y0 + Math.sin(a) * r, az + uz * s - ux * Math.cos(a) * r]);
         }
         if (broke(seed++)) {
           const cut = Math.floor(pts.length * (0.3 + hash(seed) * 0.4));
-          B.add(snake(pts.slice(0, cut), 0.016, cut, 4), '#9aa5b1');
-          B.add(snake(pts.slice(cut + 6).map(([x, y, z]) => [x, Math.max(0.08, y - 0.35), z] as V3), 0.016, pts.length - cut, 4), '#9aa5b1');
-        } else B.add(snake(pts, 0.016, n, 4), '#9aa5b1');
-        for (let k = 0; k < n; k += 3) B.add(sph(0.035, 4, 3), '#f3e7c4', { p: pts[k], s: [1.6, 0.8, 0.8], r: [0, hash(k, seed) * 3, 0.5], fx: GLOSS });
+          B.add(rope(pts.slice(0, cut), 0.018, cut, 3), '#9aa5b1');
+          B.add(rope(pts.slice(cut + 6).map(([x, y, z]) => [x, Math.max(0.08, y - 0.35), z] as V3), 0.018, pts.length - cut, 3), '#9aa5b1');
+        } else B.add(rope(pts, 0.018, n, 3), '#9aa5b1');
+        for (let k = 0; k < n; k += 3) B.add(new THREE.OctahedronGeometry(0.035), '#f3e7c4', { p: pts[k], s: [1.6, 0.8, 0.8], r: [0, hash(k, seed) * 3, 0.5], fx: GLOSS });
       }
     }
   } else {
@@ -136,9 +136,9 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
       B.add(rbox(len + 0.1, 0.14, 0.52, 0.05), P.cream, { p: [(ax + bx) / 2, rows * BH + 0.07, (az + bz) / 2], r: [0, ang, 0] });
     }
     for (const [x, z] of [[FENCE.x0, FENCE.zf], [FENCE.x1, FENCE.zf], [FENCE.x0, FENCE.zb], [FENCE.x1, FENCE.zb]]) {
-      B.add(lumpy(cyl(0.6, 0.65, 2.5, 16), 0.03, 2, x + z), '#c8664a', { p: [x, 1.25, z] });
+      B.add(lumpy(cyl(0.6, 0.65, 2.5, 12, true), 0.03, 2, x + z), '#c8664a', { p: [x, 1.25, z] });
       for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; B.add(box(0.28, 0.25, 0.25), '#b5523b', { p: [x + Math.cos(a) * 0.6, 2.6, z + Math.sin(a) * 0.6], r: [0, -a, 0] }); }
-      B.add(lumpy(new THREE.SphereGeometry(0.62, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0.03, 3, x - z), P.lemon, { p: [x, 2.72, z], s: [1, 1.1, 1] });
+      B.add(lumpy(new THREE.SphereGeometry(0.62, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0.03, 3, x - z), P.lemon, { p: [x, 2.72, z], s: [1, 1.1, 1] });
       B.add(sph(0.1, 8, 6), P.green, { p: [x, 3.45, z], s: [1.4, 0.6, 1] });
     }
     // The gate: two pillars and a citrus press across the top.
@@ -153,7 +153,19 @@ export function fenceModel(tier: number, hp = 1): THREE.Group {
   const mesh = clayMesh(B.build(), kit().world);
   g.add(mesh);
   g.userData.tier = tier;
+  g.userData.far = farFence(tier);
   return g;
+}
+
+/** The far version for Bay View: one low box per run in the tier's colour and height (60 triangles). */
+function farFence(tier: number): THREE.BufferGeometry {
+  const [h, t, col] = ([[0.85, 0.06, P.cream], [1.35, 0.04, '#b8c2cc'], [1.15, 0.12, P.lemon], [1.2, 0.08, '#9aa5b1'], [1.8, 0.42, '#c8664a']] as const)[Math.max(0, Math.min(4, tier - 1))];
+  const B = new Baker();
+  for (const [ax, az, bx, bz] of runs()) {
+    const len = Math.hypot(bx - ax, bz - az);
+    B.add(box(len, h, t), col, { p: [(ax + bx) / 2, h / 2, (az + bz) / 2], r: [0, Math.atan2(-(bz - az), bx - ax), 0] });
+  }
+  return B.build();
 }
 function cap(r: number, l: number) { return new THREE.CapsuleGeometry(r, l, 3, 8); }
 
@@ -170,7 +182,7 @@ export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
     for (const x of [-4.9, -1.3]) stick(B, 1.15, [x, 0.57, zf + 0.25], [0, 0, 0], P.stick, 0.08, 0.05);
     const pts: V3[] = [];
     for (let k = 0; k <= 10; k++) { const x = -4.9 + (k / 10) * 3.6; pts.push([x, 1.08 - Math.sin((k / 10) * Math.PI) * 0.22, zf + 0.25]); }
-    B.add(snake(pts, 0.008, 30, 4), INK);
+    B.add(rope(pts, 0.008, 16, 3), INK);
     for (let k = 1; k < 10; k++) {
       const [x, y, z] = pts[k];
       B.add(cyl(0.004, 0.004, 0.1, 3), INK, { p: [x, y - 0.05, z] });
@@ -183,7 +195,7 @@ export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
     const at = (p: V3): V3 => [-3.3 + p[0], p[1], 1.35 + p[2]];
     B.add(lumpy(sph(0.32, 14, 10), 0.02, 4, 3), P.cream, { p: at([0, 0.42, -0.05]), s: [0.9, 0.8, 1.35] });
     B.add(lumpy(sph(0.16, 10, 8), 0.015, 6, 4), P.cream, { p: at([0, 0.5, -0.42]), s: [0.7, 0.6, 1], r: [0.5, 0, 0] });
-    B.add(snake([at([0, 0.55, 0.2]), at([0, 0.85, 0.3]), at([0, 1.05, 0.28])], 0.07, 10, 7), P.cream);
+    B.add(rope([at([0, 0.55, 0.2]), at([0, 0.85, 0.3]), at([0, 1.05, 0.28])], 0.07, 8, 6), P.cream);
     B.add(sph(0.12, 12, 9), P.cream, { p: at([0, 1.1, 0.32]) });
     B.add(cone(0.06, 0.2, 8), P.terra, { p: at([0, 1.07, 0.48]), r: [Math.PI / 2, 0, 0] });
     for (const s of [-1, 1]) B.add(sph(0.025, 6, 5), INK, { p: at([s * 0.08, 1.15, 0.4]), fx: GLOSS });
@@ -229,6 +241,14 @@ export function gadgetsModel(ids: readonly GadgetId[]): THREE.Group {
     for (const s of [-1, 1]) stick(B, H, [x + 0.6 + s * 0.24, H / 2, z + 0.55], [0, 0, 0], P.walnut, 0.06, 0.05);
   }
   g.add(clayMesh(B.build(), kit().world));
+  // Far away only the watchtower stands out: a stilt block and its roof.
+  const F = new Baker();
+  if (has('watchtower')) {
+    F.add(box(1.0, 2.8, 1.0), P.stick, { p: [-4.0, 1.4, -5.4] });
+    F.add(box(1.15, 0.9, 1.15), '#d9ad72', { p: [-4.0, 3.25, -5.4] });
+    F.add(cone(0.95, 0.6, 4), P.terra, { p: [-4.0, 4.15, -5.4], r: [0, Math.PI / 4, 0] });
+  }
+  g.userData.far = F.build();
   return g;
 }
 

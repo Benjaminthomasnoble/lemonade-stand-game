@@ -3,7 +3,24 @@
 // dress (colours and pressed pattern), the striped card awning, popsicle
 // sticks, clay lemons, stars and the canvas art for signs and chalkboards.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lumpy, snake, sph } from './core.ts';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lumpy, rbox as coreRbox, sph } from './core.ts';
+
+/**
+ * Triangle budget: a rounded box at 2 segments is 300 triangles, at 1 it is
+ * 108. Only the player's own stand (built while `lod.seg` is 2) gets the
+ * softer corners; rivals, fences, gadgets and props use 1.
+ */
+export const lod = { seg: 1 };
+export const rbox = (w: number, h: number, d: number, r?: number) => coreRbox(w, h, d, r, lod.seg);
+/** A clay snake with cheap end caps: core snake() caps each end with a 6-ring sphere, which costs more than a short tube itself. */
+export function rope(pts: [number, number, number][], r: number, seg = 12, rs = 4): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])));
+  const parts: THREE.BufferGeometry[] = [new THREE.TubeGeometry(curve, seg, r, rs, false)];
+  for (const t of [0, 1]) { const q = curve.getPoint(t); parts.push(sph(r, rs, 3).translate(q.x, q.y, q.z)); }
+  for (const y of parts) for (const k of Object.keys(y.attributes)) if (k !== 'position' && k !== 'normal') y.deleteAttribute(k);
+  return mergeGeometries(parts, false);
+}
 import { P } from './palette.ts';
 import { FACTIONS, type RivalId } from '../../sim/economy.ts';
 
@@ -48,7 +65,7 @@ export function rod(B: Baker, a: V3, b: V3, r: number, color: string, sides = 4)
 }
 /** A clay lemon: lumpy, with nubs at both ends. */
 export function lemon(B: Baker, r: number, p: V3, rot: V3 = [0, 0, 0], color: string = P.lemon, seed = 1, cheap = false) {
-  if (cheap) { B.add(sph(r, 7, 5), color, { p, r: rot, s: [1.3, 1, 1] }); return; }
+  if (cheap) { B.add(sph(r, 5, 4), color, { p, r: rot, s: [1.3, 1, 1] }); return; }
   B.add(lumpy(sph(r, 12, 9), r * 0.06, 8 / r, seed), color, { p, r: rot, s: [1.3, 1, 1] });
   const m = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1));
   for (const s of [-1, 1]) B.add(sph(r * 0.28, 6, 5), color, { m: new THREE.Matrix4().makeTranslation(s * r * 1.33, 0, 0).premultiply(m) });
@@ -92,21 +109,21 @@ export function pattern(B: Baker, d: Dress, w: number, h: number, m: THREE.Matri
     case 'bubbles': // chrome bubble buttons
       for (let k = 0; k < Math.round(w * h * 9); k++) {
         const x = (hash(k, 1) - 0.5) * (w - 0.12), y = (hash(k, 2) - 0.5) * (h - 0.12);
-        B.add(sph(0.035 + hash(k, 3) * 0.04, 8, 6), d.accent, { m: at(x, y), s: [1, 1, 0.5], fx: GLOSS });
+        B.add(new THREE.SphereGeometry(0.035 + hash(k, 3) * 0.04, 7, 3, 0, Math.PI * 2, 0, Math.PI / 2), d.accent, { m: at(x, y), r: [Math.PI / 2, 0, 0], s: [1, 0.5, 1], fx: GLOSS });
       }
       break;
     case 'zigzag': {
       const pts: V3[] = [];
       const n = Math.max(4, Math.round(w / 0.22));
       for (let k = 0; k <= n; k++) pts.push([-w / 2 + 0.05 + (k / n) * (w - 0.1), (k % 2 ? 0.3 : -0.3) * h, z + 0.01]);
-      B.add(snake(pts, Math.min(0.03, h * 0.08), n * 4, 5), d.accent, { m, fx: 0.7 });
+      B.add(rope(pts, Math.min(0.03, h * 0.08), n * 2, 4), d.accent, { m, fx: 0.7 });
       break;
     }
     case 'waves':
       for (const yy of h > 0.5 ? [-0.22, 0.22] : [0]) {
         const pts: V3[] = [];
         for (let k = 0; k <= 16; k++) pts.push([-w / 2 + 0.05 + (k / 16) * (w - 0.1), yy * h + Math.sin(k * 1.2) * h * 0.16, z + 0.01]);
-        B.add(snake(pts, Math.min(0.03, h * 0.08), 48, 5), d.accent, { m });
+        B.add(rope(pts, Math.min(0.03, h * 0.08), 24, 4), d.accent, { m });
       }
       break;
   }
@@ -136,7 +153,7 @@ export function awning(d: Dress, w: number, depth: number, opts: { lights?: bool
       continue;
     }
     B.add(box(sw, 0.035, depth), col, { p: [x, 0, depth / 2], fx: PAPER });
-    B.add(new THREE.CylinderGeometry(sw / 2, sw / 2, 0.032, 10, 1, false, Math.PI / 2, Math.PI), col, { p: [x, 0, depth], r: [Math.PI / 2 + 1.2, 0, 0], fx: PAPER });
+    B.add(new THREE.CylinderGeometry(sw / 2, sw / 2, 0.032, lod.seg === 2 ? 10 : 6, 1, false, Math.PI / 2, Math.PI), col, { p: [x, 0, depth], r: [Math.PI / 2 + 1.2, 0, 0], fx: PAPER });
   }
   if (d.pattern !== 'stripes') {
     const m = new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(0, 0.02, depth / 2);
@@ -147,8 +164,8 @@ export function awning(d: Dress, w: number, depth: number, opts: { lights?: bool
   if (opts.lights) {
     const pts: V3[] = [];
     for (let k = 0; k <= 12; k++) pts.push([-w / 2 + (k / 12) * w, -0.3 - Math.sin((k / 12) * Math.PI * 4) * 0.05, depth + 0.1]);
-    B.add(snake(pts, 0.011, 48, 4), INK);
-    pts.forEach(([x, y, z], k) => B.add(sph(0.055, 8, 6), [P.amber, P.blush, '#ffffff', P.green][k % 4], { p: [x, y - 0.06, z], s: [1, 1.3, 1], fx: GLOSS + 1 }));
+    B.add(rope(pts, 0.011, 24, 3), INK);
+    pts.forEach(([x, y, z], k) => B.add(sph(0.055, 6, 4), [P.amber, P.blush, '#ffffff', P.green][k % 4], { p: [x, y - 0.06, z], s: [1, 1.3, 1], fx: GLOSS + 1 }));
   }
   return B.build();
 }

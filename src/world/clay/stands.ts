@@ -7,13 +7,12 @@
 // (25% HP) and the reveal flourish (the bell, the chalk menu, the neon, the
 // dome). Rival stands bake everything static into the body.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, canvasTex, cone, cyl, hash, lathe, lumpy, rbox, snake, sph, tor } from './core.ts';
+import { Baker, GLOSS, PAPER, box, canvasTex, cone, cyl, hash, lathe, lumpy, snake, sph, tor } from './core.ts';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
 import {
   DRESS, INK, awning, cardPlane, cardSign, chalkMenu, clayMesh, crayonSign, lemon, pattern, starGeo, stick,
-  type Dress, type Owner,
-} from './standKit.ts';
+  type Dress, type Owner, lod, rbox, rope } from './standKit.ts';
 
 type V3 = [number, number, number];
 
@@ -166,7 +165,7 @@ function panel(c: Ctx, B: Baker, w: number, h: number, p: V3, ry = 0) {
 /** A scalloped hem along the bottom of a panel. */
 function hem(c: Ctx, B: Baker, w: number, y: number, z: number) {
   const n = Math.max(5, Math.round(w / 0.27));
-  for (let k = 0; k < n; k++) B.add(new THREE.CylinderGeometry(w / n / 2, w / n / 2, 0.03, 10, 1, false, Math.PI / 2, Math.PI), k % 2 ? c.d.main : c.d.accent, { p: [-w / 2 + (k + 0.5) * (w / n), y, z], r: [Math.PI / 2, 0, 0], fx: PAPER });
+  for (let k = 0; k < n; k++) B.add(new THREE.CylinderGeometry(w / n / 2, w / n / 2, 0.03, 6, 1, false, Math.PI / 2, Math.PI), k % 2 ? c.d.main : c.d.accent, { p: [-w / 2 + (k + 0.5) * (w / n), y, z], r: [Math.PI / 2, 0, 0], fx: PAPER });
 }
 
 // ---------- L1 The Folding Table ----------
@@ -187,7 +186,7 @@ function folding(c: Ctx): Parts {
       }
       const col = c.d.pattern === 'stripes' ? (k % 2 ? c.d.accent : c.d.main) : c.d.main;
       S.add(box(sw, 0.68, 0.03), col, { p: [-W / 2 + (k + 0.5) * sw, top - 0.38, z0 + 0.49], fx: PAPER });
-      S.add(new THREE.CylinderGeometry(sw / 2, sw / 2, 0.03, 10, 1, false, Math.PI / 2, Math.PI), col, { p: [-W / 2 + (k + 0.5) * sw, top - 0.72, z0 + 0.49], r: [Math.PI / 2, 0, 0], fx: PAPER });
+      S.add(new THREE.CylinderGeometry(sw / 2, sw / 2, 0.03, 6, 1, false, Math.PI / 2, Math.PI), col, { p: [-W / 2 + (k + 0.5) * sw, top - 0.72, z0 + 0.49], r: [Math.PI / 2, 0, 0], fx: PAPER });
     }
     if (c.d.pattern !== 'stripes') pattern(S, c.d, W * 0.96, 0.6, m4([0, top - 0.38, z0 + 0.5]), 0.01);
     for (const s of [-1, 1]) S.add(box(0.03, 0.68, 0.9), c.d.main, { p: [s * (W / 2 + 0.01), top - 0.38, z0], fx: PAPER });
@@ -341,7 +340,7 @@ function neonWord(word: string, h: number, color: string): { geo: THREE.BufferGe
 function shackModel(c: Ctx): Parts {
   const { B } = c;
   const W = 5, H = 3, zf = 0.5, zb = -2.5;
-  const plank = (y: number, z: number, w: number, ry = 0, x = 0) => B.add(rbox(w, 0.24, 0.06, 0.03, 1), hash(y * 7, z) > 0.5 ? '#c98b4f' : '#b97a42', { p: [x, y, z], r: [0, ry, (hash(y, z * 3) - 0.5) * 0.02], fx: PAPER });
+  const plank = (y: number, z: number, w: number, ry = 0, x = 0) => B.add(box(w, 0.24, 0.06), hash(y * 7, z) > 0.5 ? '#c98b4f' : '#b97a42', { p: [x, y, z], r: [0, ry, (hash(y, z * 3) - 0.5) * 0.02], fx: PAPER });
   // Plank walls with one wide serving window.
   for (let y = 0.12; y < H; y += 0.25) {
     plank(y, zb, W);
@@ -408,8 +407,8 @@ function palaceModel(c: Ctx, gilded: boolean): Parts {
   const drink: Record<string, string> = { player: '#ffe58a', sourwood: '#f3e7a0', hollis: '#c97b35', fizzco: '#8a2330', coldbrew: '#6b4a32', blenders: '#ffb347' };
   const R = 2.4, zc = -2.3;
   B.add(lumpy(cyl(R, R + 0.1, 2.8, 32), 0.03, 1.5, 5), P.cream, { p: [0, 1.4, zc] });
-  for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; B.add(rbox(0.2, 2.6, 0.12, 0.05), k % 2 ? trim : P.cream, { p: [Math.cos(a) * (R + 0.08), 1.35, zc + Math.sin(a) * (R + 0.08)], r: [0, -a + Math.PI / 2, 0], fx: PAPER }); }
-  B.add(tor(R + 0.05, 0.12, 8, 40), trim, { p: [0, 2.8, zc], r: [Math.PI / 2, 0, 0], fx: gilded ? GLOSS : 0 });
+  for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; B.add(box(0.2, 2.6, 0.12), k % 2 ? trim : P.cream, { p: [Math.cos(a) * (R + 0.08), 1.35, zc + Math.sin(a) * (R + 0.08)], r: [0, -a + Math.PI / 2, 0], fx: PAPER }); }
+  B.add(tor(R + 0.05, 0.12, 6, 28), trim, { p: [0, 2.8, zc], r: [Math.PI / 2, 0, 0], fx: gilded ? GLOSS : 0 });
   // Facade: a wide window and a counter.
   B.add(rbox(4.0, 0.95, 0.5, 0.08), P.cream, { p: [0, 0.48, 0.05] });
   B.add(rbox(4.0, 0.55, 0.5, 0.08), P.cream, { p: [0, 2.43, 0.05] });
@@ -429,15 +428,15 @@ function palaceModel(c: Ctx, gilded: boolean): Parts {
   B.add(cyl(0.84, 0.84, 0.04, 24), drink[c.d.owner], { p: [-3.5, 0.38, 0.2], fx: GLOSS });
   B.add(cyl(0.07, 0.09, 1.0, 10), P.cream, { p: [-3.5, 0.85, 0.2] });
   B.add(lathe([[0, 0], [0.35, 0.02], [0.4, 0.12], [0.3, 0.14], [0, 0.1]], 16), P.cream, { p: [-3.5, 1.35, 0.2] });
-  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; B.add(snake([[-3.5 + Math.cos(a) * 0.38, 1.47, 0.2 + Math.sin(a) * 0.38], [-3.5 + Math.cos(a) * 0.62, 1.42, 0.2 + Math.sin(a) * 0.62], [-3.5 + Math.cos(a) * 0.74, 1.0, 0.2 + Math.sin(a) * 0.74], [-3.5 + Math.cos(a) * 0.76, 0.42, 0.2 + Math.sin(a) * 0.76]], 0.022, 12, 5), drink[c.d.owner], { fx: GLOSS }); }
+  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; B.add(rope([[-3.5 + Math.cos(a) * 0.38, 1.47, 0.2 + Math.sin(a) * 0.38], [-3.5 + Math.cos(a) * 0.62, 1.42, 0.2 + Math.sin(a) * 0.62], [-3.5 + Math.cos(a) * 0.74, 1.0, 0.2 + Math.sin(a) * 0.74], [-3.5 + Math.cos(a) * 0.76, 0.42, 0.2 + Math.sin(a) * 0.76]], 0.022, 6, 4), drink[c.d.owner], { fx: GLOSS }); }
   for (let k = 0; k < 1; k++) { }
   // Pole for the giant spinning lemon.
   stick(B, 4.6, [3.4, 2.3, 0.7], [0, 0, 0], gilded ? P.gold : P.stick, 0.2, 0.2);
   const sign = makeSign(c, [0, 2.95, 0.32], 2.8, 0.72, cardSign(c.d.sign, c.d));
   // The dome rises like a sunrise on the reveal.
   const DB = new Baker();
-  DB.add(lumpy(new THREE.SphereGeometry(R + 0.05, 32, 14, 0, Math.PI * 2, 0, Math.PI / 2), 0.04, 1.2, 9), gold, { s: [1, 0.85, 1], fx: gilded ? GLOSS : 0 });
-  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; const pts: V3[] = []; for (let i = 0; i <= 8; i++) { const th = (i / 8) * Math.PI / 2; pts.push([Math.cos(a) * Math.cos(th) * (R + 0.08), Math.sin(th) * (R + 0.08) * 0.85, Math.sin(a) * Math.cos(th) * (R + 0.08)]); } DB.add(snake(pts, 0.035, 16, 5), gilded ? '#fff1d6' : P.gold, { fx: GLOSS }); }
+  DB.add(lumpy(new THREE.SphereGeometry(R + 0.05, player ? 32 : 20, player ? 14 : 9, 0, Math.PI * 2, 0, Math.PI / 2), 0.04, 1.2, 9), gold, { s: [1, 0.85, 1], fx: gilded ? GLOSS : 0 });
+  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; const pts: V3[] = []; for (let i = 0; i <= 8; i++) { const th = (i / 8) * Math.PI / 2; pts.push([Math.cos(a) * Math.cos(th) * (R + 0.08), Math.sin(th) * (R + 0.08) * 0.85, Math.sin(a) * Math.cos(th) * (R + 0.08)]); } DB.add(rope(pts, 0.035, 8, 4), gilded ? '#fff1d6' : P.gold, { fx: GLOSS }); }
   DB.add(sph(0.25, 10, 8), gilded ? P.gold : P.green, { p: [0, (R + 0.05) * 0.85 + 0.15, 0], s: [1, 1.4, 1] });
   const dome = part(c, DB.build(), m4([0, 2.8, zc]));
   // The giant lemon.
@@ -457,6 +456,55 @@ function palaceModel(c: Ctx, gilded: boolean): Parts {
   };
 }
 
+/**
+ * The far version of a stand for Bay View's district blocks: the level's
+ * silhouette in the owner's colours from a handful of plain boxes, about 100
+ * to 300 triangles against several thousand for the full model.
+ */
+export function farLevel(level: number, owner: Owner, gilded = false): THREE.BufferGeometry {
+  const d = DRESS[owner], B = new Baker();
+  const L = Math.max(1, Math.min(5, Math.round(level)));
+  const bx = (w: number, h: number, dd: number, p: V3, col: string, r: V3 = [0, 0, 0]) => B.add(box(w, h, dd), col, { p, r });
+  const sign = (y: number, z: number, w: number) => { bx(w + 0.12, 0.66, 0.06, [0, y, z], P.terra); bx(w, 0.54, 0.08, [0, y, z + 0.01], '#fff3d6'); };
+  if (L === 1) {
+    bx(2.4, 0.1, 0.95, [0, 0.92, 0.15], '#f3e3c0');
+    bx(2.4, 0.7, 0.04, [0, 0.55, 0.64], d.main);
+    for (const x of [-1.25, 1.25]) bx(0.08, 1.9, 0.08, [x, 0.95, 0.6], P.stick);
+    sign(1.85, 0.62, 2.1);
+  } else if (L === 2) {
+    bx(3.0, 1.12, 1.1, [0, 0.56, 0.25], P.stick);
+    bx(2.9, 0.32, 0.04, [0, 0.82, 0.82], d.main);
+    for (const x of [-1.55, 1.55]) for (const z of [0.8, -0.3]) bx(0.14, 2.7, 0.12, [x, 1.35, z], P.stick);
+    bx(3.4, 0.06, 1.7, [0, 2.4, 0.4], d.main, [0.3, 0, 0]);
+    sign(3.05, -0.32, 2.2);
+  } else if (L === 3) {
+    bx(3.6, 2.7, 2.4, [0, 1.35, -0.6], P.cream);
+    bx(3.0, 1.0, 0.04, [0, 1.67, 0.61], '#cdb8a0');
+    bx(3.4, 0.7, 0.04, [0, 0.55, 0.62], d.main);
+    bx(4.0, 0.28, 2.9, [0, 2.82, -0.6], P.terra);
+    sign(3.32, 0.75, 2.6);
+  } else if (L === 4) {
+    bx(5, 3, 3, [0, 1.5, -1], '#c98b4f');
+    bx(3.6, 1.1, 0.04, [0, 1.65, 0.51], '#5a4030');
+    bx(3.4, 0.5, 0.04, [0, 0.8, 0.53], d.main);
+    B.add(box(5.6, 0.25, 4.2), P.terra, { p: [0, 3.25, -0.8], r: [0.12, 0, 0] });
+    for (const x of [-3.75, 3.75]) { bx(0.9, 0.06, 1.0, [x, 0.74, 0.55], P.stick); B.add(cone(0.8, 0.35, 6, true), owner === 'player' ? P.lemon : d.main, { p: [x, 2.1, 0.55] }); }
+    sign(3.62, 0.65, 3.2);
+  } else {
+    const gold = gilded ? P.gold : owner === 'player' ? P.lemon : d.main;
+    B.add(cyl(2.4, 2.5, 2.8, 10, true), P.cream, { p: [0, 1.4, -2.3] });
+    B.add(new THREE.SphereGeometry(2.45, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), gold, { p: [0, 2.8, -2.3], s: [1, 0.85, 1] });
+    bx(4.0, 2.7, 0.5, [0, 1.35, 0.05], P.cream);
+    bx(3.2, 1.0, 0.04, [0, 1.6, 0.31], '#5a4030');
+    bx(4.2, 0.12, 0.65, [0, 1.0, 0.45], owner === 'player' || gilded ? gold : d.accent);
+    B.add(cyl(0.9, 1.0, 0.45, 8), P.cream, { p: [-3.5, 0.22, 0.2] });
+    bx(0.2, 4.6, 0.2, [3.4, 2.3, 0.7], gilded ? P.gold : P.stick);
+    B.add(sph(0.7, 6, 4), gold, { p: [3.4, 5.15, 0.7], s: [1.3, 1, 1] });
+    sign(2.95, 0.32, 2.8);
+  }
+  return B.build();
+}
+
 const RISE = [0.2, 0.6, 1.18, 1.1, 0.95, 1.02, 1];
 
 /** Build a stand level for an owner. */
@@ -465,8 +513,11 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   root.name = 'standLevel';
   const c: Ctx = { B: new Baker(), d: DRESS[owner], st: !!opts.static, root, hp: opts.hp ?? 1 };
   const L = Math.max(1, Math.min(5, Math.round(level)));
+  // Only the player's live stand gets the 2-segment rounded corners.
+  lod.seg = c.st ? 1 : 2;
   const m: Parts =
     L === 1 ? folding(c) : L === 2 ? wooden(c) : L === 3 ? kioskModel(c) : L === 4 ? shackModel(c) : palaceModel(c, !!opts.gilded);
+  lod.seg = 1;
   opts.decor?.(c.B, m.anchors, L);
   const body = clayMesh(c.B.build(), kit().world);
   body.name = 'standBody';

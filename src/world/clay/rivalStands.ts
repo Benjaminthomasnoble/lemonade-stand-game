@@ -3,10 +3,10 @@
 // surfboard, and dressed in family props. Built static: one baked body plus
 // the sign label.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, cone, cyl, hash, lathe, lumpy, rbox, snake, sph, tor } from './core.ts';
+import { Baker, GLOSS, PAPER, box, cone, cyl, hash, lathe, lumpy, sph, tor } from './core.ts';
 import { P } from './palette.ts';
-import { buildLevel, type Anchors } from './stands.ts';
-import { DRESS, stick } from './standKit.ts';
+import { buildLevel, farLevel, type Anchors } from './stands.ts';
+import { DRESS, stick, rbox, rope } from './standKit.ts';
 import type { RivalId } from '../../sim/economy.ts';
 
 type V3 = [number, number, number];
@@ -91,7 +91,7 @@ function familyProps(B: Baker, id: RivalId, a: Anchors, level: number) {
       for (const s of [-1, 1]) B.add(box(1.15, 1.1, 0.05), '#cdbd9e', { p: [rx, 0.55, rz + s * 0.7], fx: PAPER });
       const zz: V3[] = [];
       for (let k = 0; k <= 8; k++) zz.push([rx - 0.5 + k * 0.125, 0.5 + (k % 2 ? 0.12 : -0.12), rz + 0.73]);
-      B.add(snake(zz, 0.025, 32, 5), P.neon, { fx: 0.7 });
+      B.add(rope(zz, 0.025, 16, 4), P.neon, { fx: 0.7 });
       break;
     }
     case 'blenders': {
@@ -111,7 +111,7 @@ function familyProps(B: Baker, id: RivalId, a: Anchors, level: number) {
     const [cx, , cz] = a.crate;
     for (const y of [0.1, 0.28]) for (const zz of [-0.25, 0.25]) stick(B, 0.8, [cx, y, cz + zz], [0, 0, Math.PI / 2], '#d9ad72', 0.12, 0.035);
     B.add(box(0.8, 0.04, 0.52), '#c79a62', { p: [cx, 0.02, cz], fx: PAPER });
-    for (let k = 0; k < 6; k++) B.add(sph(0.1, 8, 6), d.main, { p: [cx - 0.25 + (k % 3) * 0.25, 0.32, cz - 0.1 + Math.floor(k / 3) * 0.2], fx: id === 'fizzco' ? GLOSS : 0 });
+    for (let k = 0; k < 6; k++) B.add(sph(0.1, 6, 4), d.main, { p: [cx - 0.25 + (k % 3) * 0.25, 0.32, cz - 0.1 + Math.floor(k / 3) * 0.2], fx: id === 'fizzco' ? GLOSS : 0 });
   }
 }
 const INK2 = '#2b2b38';
@@ -130,6 +130,7 @@ export function rivalStand(id: RivalId, level: number, hp = 1): THREE.Group {
     },
   });
   m.root.name = 'rivalStand';
+  m.root.userData.far = farLevel(L, id);
   m.root.userData.serveZ = m.serveZ;
   return m.root;
 }

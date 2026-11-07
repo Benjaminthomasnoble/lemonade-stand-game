@@ -53,7 +53,9 @@ with these pieces.
   watch.
 - `collectClay(root, B)` adds every visible clay part under `root`, in world
   space, to a Baker. Bay View uses it to draw a whole district's plots as one
-  block.
+  block. An object with `userData.far` (a cheap baked geometry in its own
+  frame) goes in as that instead: stands, fences and wrecks carry one, so a
+  district block costs a few hundred triangles a plot.
 
 ## Figures (figure.ts)
 

@@ -8,7 +8,7 @@ import { idlePose, MOTION, makePerson } from './people.ts';
 import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
 import { clayFrom, kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
-import { buildLevel, fallSign, type LevelModel } from './clay/stands.ts';
+import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.ts';
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
 import { createRevealCrate } from './clay/crate.ts';
 import { wreckPile } from './clay/defenses.ts';
@@ -93,6 +93,7 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
   let level = 0, gilt = false, hpNow = 1, wrecked = false;
   let spin: THREE.Object3D | undefined;
   const props = createStandProps();
+  props.group.userData.far = new Baker().build(); // the props are too small to show in a district block
   group.add(props.group);
   const crate = createRevealCrate();
   group.add(crate.group);
@@ -317,6 +318,9 @@ export function createStand(opts: { lottie?: boolean } = {}): Stand {
       levelRoot.clear();
       model = buildLevel(l, 'player', { gilded });
       levelRoot.add(model.root);
+      // Bay View's district block draws the cheap far version instead.
+      (levelRoot.userData.far as THREE.BufferGeometry | undefined)?.dispose();
+      levelRoot.userData.far = farLevel(l, 'player', gilded);
       spin = model.spin;
       props.place(model.anchors);
       const [kx, ky, kz] = model.kid;

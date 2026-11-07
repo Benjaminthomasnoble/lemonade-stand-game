@@ -3,10 +3,10 @@
 // open like petals; the new stand rises like dough, overshoots and settles.
 // Everything steps on twos.
 import * as THREE from 'three';
-import { Baker, PAPER, box, hash, lumpy, rbox, sph } from './core.ts';
+import { Baker, PAPER, box, hash, lumpy, sph } from './core.ts';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
-import { clayMesh, lemon, stick } from './standKit.ts';
+import { clayMesh, lemon, stick, rbox } from './standKit.ts';
 
 export interface RevealCrate {
   group: THREE.Group;

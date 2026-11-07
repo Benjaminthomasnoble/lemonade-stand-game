@@ -6,12 +6,12 @@
 // confetti flies. One set of props follows the player's stand through its
 // levels: place() moves them onto the new level's anchors.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lathe, lumpy, rbox, sph, tor } from './core.ts';
+import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lathe, lumpy, sph, tor } from './core.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
 import type { Anchors } from './stands.ts';
-import { RECIPE_COLOR, cardPlane, chalkPrice, clayMesh, openCard, starGeo, stick, whenFonts } from './standKit.ts';
+import { RECIPE_COLOR, cardPlane, chalkPrice, clayMesh, openCard, starGeo, stick, whenFonts, rbox } from './standKit.ts';
 
 export interface PropState {
   price: number;
@@ -89,7 +89,7 @@ export function createStandProps(): StandProps {
   const cooler = new THREE.Group();
   {
     const B = new Baker();
-    B.add(rbox(0.85, 0.5, 0.6, 0.1, 3), P.teal, { p: [0, 0.25, 0] });
+    B.add(rbox(0.85, 0.5, 0.6, 0.1), P.teal, { p: [0, 0.25, 0] });
     B.add(rbox(0.75, 0.05, 0.5, 0.02), '#ffffff', { p: [0, 0.5, 0] });
     B.add(rbox(0.85, 0.08, 0.6, 0.04), '#ffffff', { p: [0, 0.75, -0.38], r: [-1.2, 0, 0] });
     for (const s of [-1, 1]) B.add(box(0.05, 0.08, 0.2), '#ffffff', { p: [s * 0.45, 0.38, 0] });

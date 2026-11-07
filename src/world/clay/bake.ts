@@ -90,13 +90,25 @@ export function bakeGroup<T extends THREE.Object3D>(root: T, opts: BakeOptions =
  * Add every visible clay part under `root` to a Baker, in world space (or in
  * `space`, e.g. a parent's inverse world matrix): plain clay meshes are
  * coloured from their material, already-baked ones go in as they are. Labels,
- * glass and instanced parts are left out. Bay View uses it to draw a whole
- * district's plots as one block. Returns how many parts went in.
+ * glass and instanced parts are left out. An object carrying `userData.far`
+ * (a baked clay geometry in its own frame) goes in as that cheap version
+ * instead of its children. Bay View uses it to draw a whole district's plots
+ * as one block. Returns how many parts went in.
  */
 export function collectClay(root: THREE.Object3D, B: Baker, space?: THREE.Matrix4): number {
   root.updateMatrixWorld(true);
   let n = 0;
-  root.traverseVisible((o) => {
+  const visit = (o: THREE.Object3D) => {
+    if (!o.visible) return;
+    // A part with a cheap far version (stands, fences, wrecks) goes in as that instead of its children.
+    const far = o.userData.far as THREE.BufferGeometry | undefined;
+    if (far) {
+      const m = o.matrixWorld.clone();
+      if (space) m.premultiply(space);
+      if (m.determinant() > 0) { B.raw(far, m); n++; }
+      return;
+    }
+    for (const c of o.children) visit(c);
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || (mesh as THREE.SkinnedMesh).isSkinnedMesh || Array.isArray(mesh.material)) return;
     const mat = mesh.material as THREE.MeshStandardMaterial;
@@ -111,6 +123,7 @@ export function collectClay(root: THREE.Object3D, B: Baker, space?: THREE.Matrix
     }
     B.add(mesh.geometry.clone(), mat.color, { m, fx: fxOf(mat) });
     n++;
-  });
+  };
+  visit(root);
   return n;
 }

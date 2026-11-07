@@ -18,6 +18,7 @@ import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './bu
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
 import { lemonsExpiringTomorrow, seasonOf, stock } from '../sim/economy.ts';
+import { hpShare } from '../sim/damage.ts';
 import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, forSaleLabel, hqBuilding, pierModel, tapeBorder, tileOutline, tilePattern, TILE_PATTERN } from './landmarks.ts';
 import { createTown, townFootprints } from './town.ts';
 import { makeCrew, makeDex, type Side } from './clay/cast.ts';
@@ -361,6 +362,8 @@ export function createBay(scene: THREE.Scene): Bay {
     v.root.add(forSaleLabel());
   }
 
+  /** A stand's HP share as the damage step it shows: torn at 75%, sign down at 50%, slumped at 25%. */
+  const hpStep = (ps: GameState['plots'][string]) => { const h = hpShare(ps); return h > 0.75 ? 1 : h > 0.5 ? 0.75 : h > 0.25 ? 0.5 : 0.25; };
   let synced = false;
   const movers = new Map<PlotView, THREE.Object3D[]>();
   let moverF = -1;
@@ -412,6 +415,7 @@ export function createBay(scene: THREE.Scene): Bay {
       // Laid Back's Busted stand stays up, battered and taped shut; only a real Wreck is a pile.
       m.setWrecked(!!ps.stand.wrecked && !ps.busted);
       m.setBusted(!!ps.busted);
+      m.setDamage(hpStep(ps));
       v.root.add(m.group);
       v.stand = m;
       v.standLottie = lottie;
@@ -420,7 +424,7 @@ export function createBay(scene: THREE.Scene): Bay {
       if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) m.reveal();
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) {
-      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level);
+      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps));
     } else if (!ps.owner) forSale(v);
     if (keepStand && v.stand !== keepStand) keepStand.dispose();
     if (building) {
@@ -502,7 +506,7 @@ export function createBay(scene: THREE.Scene): Bay {
     sync(s) {
       for (const v of viewList) {
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;

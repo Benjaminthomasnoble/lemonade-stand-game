@@ -18,7 +18,7 @@ import type { Blocker, GameState, PlotState } from './economy.ts';
 import { newStand, ownedPlots, priceCeiling } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
-import { approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn, raidDamage } from './damage.ts';
+import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite } from './clubhouse.ts';
 import { withBell } from './reinforce.ts';
 import { shakedownLoot } from './loot.ts';
@@ -861,7 +861,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
     s.rivals[raid.attacker as RivalId].respectUntil = s.day + 1 + difficulty(s).respectDays;
   }
 
-  const hpLost = raidDamage(s, raid.target, res.standHpLeft); // the building keeps what the fight left it (damage.ts)
+  const hpLost = applyRaidDamage(s, raid.target, res.standHpLeft); // the building keeps what the fight left it (damage.ts)
   const report: BattleReport = {
     hpLost: hpLost || undefined,
     delivery: raid.delivery, busted: busted && res.outcome === 'smashed' ? true : undefined,

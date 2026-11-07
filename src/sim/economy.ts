@@ -110,7 +110,7 @@ export interface Stand {
   autoPrice?: boolean; // Marisol's Auto-Price switch (Rank 3): off once you price this stand by hand (automation.ts)
   ownCard?: boolean; // you picked this stand's card or Sweetness by hand: Auto-Price keeps them and still prices the stand
   day: StandDay;
-  hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
+  hp?: number; // HP left on a standing stand a raid or a Storm dented (damage.ts). Missing means full; it is cleared when the stand falls, so read HP through currentHp or hpShare, which give 0 for a Wrecked or Busted stand
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
   startTable?: true; // Lottie's own Folding Table, the run's first stand: its L1 counts as START.tableInvested ($100) in rebuilds and repairs (damage.ts)
   lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)

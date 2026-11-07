@@ -3,10 +3,11 @@ import {
   approveRebuild, approveRepair, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply, buyGadget,
   buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS, fightRaid,
   FORECAST_ACCURACY, growUpgrades, hpCapacity, hpShare, isDamaged, isWrecked, LOTTIES_CORNER, maxPacks, migrateDamage, migrateSave, newGame,
-  newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, raidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand,
+  newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, applyRaidDamage, raidPartyFor, rebuildCost, rebuilding, rebuildStand,
   repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute, toggleAutoRepair, upgradeStand, type GameState,
-  type RivalId, type SupplyId,
+  type Raid, type RivalId, type SupplyId,
 } from './economy.ts';
+import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
 
 /** The spec's Kiosk on Lottie's Corner: a Folding Table built new ($150, not Lottie's own $100 one), a Lemonade Cart
@@ -191,11 +192,41 @@ describe('building HP', () => {
     expect(report.hpLost).toBe(buildingHp(ps) - currentHp(ps));
   });
 
+  it('a live fight starts from the HP the last raid left, and the stand keeps what the fight leaves', () => {
+    const s = kiosk(60);
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.hp = 600;
+    const party = raidPartyFor(s, 'blenders').slice(0, 1).map((f) => ({ ...f, hit: 200, chop: 1, hp: 100000, nerve: 1000 }));
+    const raid: Raid = { id: 'live', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party, detected: true, eta: '23:00' };
+    watchFights(true); // as the game does: a fight on your plot plays live
+    try {
+      expect(startFight(s, raid, true)).toBe(true);
+      expect(s.fight!.input.standHp).toBe(600);
+      const [report] = finishFight(s); // fight.ts settles it through fightRaid, like an instant fight
+      expect(report.outcome).toBe('damaged');
+      expect(report.hpLost).toBeGreaterThan(0);
+      expect(currentHp(ps)).toBe(600 - report.hpLost!);
+      expect(s.news).toContain(battleHeadline(report));
+    } finally {
+      watchFights(false);
+    }
+  });
+
+  it("a fallen building's HP field is cleared, and currentHp and hpShare read 0 for it", () => {
+    const s = kiosk(61);
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.hp = 300;
+    expect(smash(s, LOTTIES_CORNER, 500, 2).outcome).toBe('smashed');
+    expect(ps.stand!.hp).toBeUndefined(); // not "full": the stand is down
+    expect(currentHp(ps)).toBe(0);
+    expect(hpShare(ps)).toBe(0);
+  });
+
   it('a building still standing keeps at least 1 HP', () => {
     const s = kiosk();
-    expect(raidDamage(s, LOTTIES_CORNER, 0)).toBe(799);
+    expect(applyRaidDamage(s, LOTTIES_CORNER, 0)).toBe(799);
     expect(currentHp(s.plots[LOTTIES_CORNER])).toBe(1);
-    expect(raidDamage(s, LOTTIES_CORNER, 0)).toBe(0);
+    expect(applyRaidDamage(s, LOTTIES_CORNER, 0)).toBe(0);
   });
 
   it('a stand that falls comes back at full HP when rebuilt', () => {

@@ -9,6 +9,13 @@
 // cost a share of what went into the building itself: a stand's level steps or a facility's tiers, never the plot's
 // fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes
 // the dawn's rng.
+//
+// Reading HP: Stand.hp and Facility.hp hold the points left on a dented building that still stands. Missing means full
+// HP, and the field is cleared whenever the building falls or comes back full, so read HP through currentHp(ps) and
+// hpShare(ps) (0 for a Wrecked or Busted building), never the raw field. Every raid on a stand or facility reaches it
+// through fightRaid's applyRaidDamage call: instant fights, live ones (fight.ts settles them through fightRaid), night
+// and daytime raids, Delivery Raids, your raids and rival-vs-rival ones; each fight starts from currentHp. HQ assaults
+// (rivals.ts) fight their own Gate and never touch a stand's HP.
 import {
   AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, START, STORM_DAMAGE,
   type RivalId,
@@ -94,11 +101,12 @@ export function restoreHp(s: GameState, plotId: string): void {
 }
 
 /**
- * After a fight on the plot. A building that fell (Wrecked or Busted) drops its HP, so it comes back full when rebuilt,
- * and a repair queued for it is called off and paid back. One still standing keeps the HP the fight left it, at least 1:
- * the next raid starts from there. Returns the HP it lost and kept (0 when it fell or wasn't touched).
+ * After a fight on the plot (fightRaid calls it for every fight; `hpLeft` is BattleResult.standHpLeft). A building that
+ * fell (Wrecked or Busted) drops its HP field, so it comes back full when rebuilt, and a repair queued for it is called
+ * off and paid back. One still standing keeps the HP the fight left it, at least 1: the next raid starts from there.
+ * Returns the HP it lost and kept (0 when it fell or wasn't touched).
  */
-export function raidDamage(s: GameState, plotId: string, hpLeft: number): number {
+export function applyRaidDamage(s: GameState, plotId: string, hpLeft: number): number {
   const ps = s.plots[plotId];
   const b = building(ps);
   if (!b) return 0;

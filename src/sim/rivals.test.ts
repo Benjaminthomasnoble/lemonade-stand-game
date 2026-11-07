@@ -3,7 +3,10 @@ import {
   buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
+  migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
 } from './economy.ts';
+import { guardOf } from './fighters.ts';
+import { negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
 
 function rich(seed = 1): GameState {
   const s = newGame(seed);
@@ -77,6 +80,79 @@ describe('sit-downs and buyouts', () => {
     weaken(s, 'sourwood');
     s.rank = 9;
     expect(canFactionBuyout(s, 'sourwood')).toEqual({ ok: false, why: 'Vera Sourwood never sells' });
+  });
+});
+
+describe('the Sit-down negotiator', () => {
+  /** A rich game with one Smooth Talker and one Gentle Giant on the crew, the Blenders Weakened. */
+  function table(seed = 1) {
+    const s = rich(seed);
+    const talker = guardOf('fists', 'none', 1, 'Smooth Talker', { name: 'Gus Gab' });
+    const giant = guardOf('fists', 'none', 1, 'Gentle Giant', { name: 'Big Al' });
+    s.guards.push(talker, giant);
+    weaken(s, 'blenders');
+    const plot = ownedPlots(s, 'coldbrew').find((p) => p.type !== 'hq')!.id;
+    const prices = () => ({ truce: truceCost(s, 'coldbrew'), plot: plotBuyoutPrice(s, plot), faction: factionBuyoutPrice(s, 'blenders')! });
+    return { s, talker, giant, plot, prices };
+  }
+
+  it('a Smooth Talker talks the Truce, the Plot Buyout and the Faction Buyout down; anyone else changes nothing', () => {
+    const { s, talker, giant, prices } = table();
+    s.rivals.coldbrew.grudge = 40;
+    const alone = prices();
+    expect(setNegotiator(s, giant.id)).toBe(true);
+    expect(prices()).toEqual(alone);
+    expect(setNegotiator(s, talker.id)).toBe(true);
+    expect(negotiator(s)).toBe(talker);
+    const cut = 1 - SMOOTH_TALKER.cut;
+    const talked = prices();
+    expect(talked.truce).toBe(Math.round(Math.max(TRUCE_TRIBUTE.floor, Math.round(netWorth(s) * TRUCE_TRIBUTE.share / 100) * 100) * 1.4 * cut / 100) * 100);
+    expect(talked.plot).toBeCloseTo(alone.plot * cut, -1);
+    expect(talked.faction).toBeCloseTo(alone.faction * cut, -1);
+    const cash = s.cash;
+    expect(factionBuyout(s, 'blenders')).toBe(true);
+    expect(s.cash).toBe(cash - talked.faction);
+    expect(setNegotiator(s, null)).toBe(true);
+    expect(s.negotiator).toBeUndefined();
+    expect(setNegotiator(s, 'nobody')).toBe(false);
+  });
+
+  it('a knocked-out negotiator stays home, and one who leaves the crew is forgotten', () => {
+    const { s, talker, prices } = table(2);
+    const alone = prices();
+    setNegotiator(s, talker.id);
+    talker.outUntil = s.day + 1;
+    expect(negotiator(s)).toBeNull();
+    expect(prices()).toEqual(alone);
+    talker.outUntil = 0;
+    expect(prices().plot).toBeLessThan(alone.plot);
+    s.guards = s.guards.filter((g) => g.id !== talker.id);
+    expect(prices()).toEqual(alone);
+    migrateSave(s);
+    expect(s.negotiator).toBeUndefined();
+  });
+
+  it('the Sit-down cards offer your Smooth Talkers to bring along, and tapping the one along goes alone', () => {
+    const kit: SitKit = {
+      btn: (action, label, b = { ok: true }, extra = '') => `<button data-action="${action}" ${extra} ${b.ok ? '' : 'disabled'}>${label}</button>`,
+      tape: (inner) => `<span>${inner}</span>`, locked: (b) => !b.ok && /Rank \d/.test(b.why), esc: (x) => x,
+      whole: (n) => `$${Math.round(n).toLocaleString('en-US')}`, face: (_s, g: Guard) => `<i>${g.name}</i>`,
+    };
+    const { s, talker, plot } = table(3);
+    expect(negotiatorRow(kit, s)).toContain(`data-id="${talker.id}" aria-pressed="false"`);
+    expect(negotiatorRow(kit, s)).not.toContain('Big Al'); // only a Smooth Talker gets better terms
+    setNegotiator(s, talker.id);
+    expect(negotiatorRow(kit, s)).toContain('data-id="" aria-pressed="true"'); // tap again: go alone
+    expect(sitdownAction({ action: 'negotiator', id: '' })).toEqual({ type: 'negotiator', id: null });
+    expect(sitdownAction({ action: 'negotiator', id: talker.id })).toEqual({ type: 'negotiator', id: talker.id });
+    expect(sitDown(kit, s, 'coldbrew')).toContain('data-testid="negotiator"');
+    expect(sitDown(kit, s, 'coldbrew')).toContain(`Truce $${truceCost(s, 'coldbrew').toLocaleString('en-US')}`);
+    expect(plotBuyoutRow(kit, s, plot)).toContain(`Buy it $${plotBuyoutPrice(s, plot).toLocaleString('en-US')}`);
+    s.guards = s.guards.filter((g) => g.trait !== 'Smooth Talker');
+    expect(negotiatorRow(kit, s)).toBe('');
+    s.rank = 3;
+    expect(sitDown(kit, s, 'coldbrew')).toBe('');
+    expect(plotBuyoutRow(kit, s, plot)).toBe('');
   });
 });
 

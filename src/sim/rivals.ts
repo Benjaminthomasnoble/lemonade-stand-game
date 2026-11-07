@@ -1,8 +1,8 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
-import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId } from './balance.ts';
+import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
-import { creditGuards, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport } from './crew.ts';
+import { creditGuards, guardReady, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -35,6 +35,12 @@ export const TRUCE_BAN_DAYS = 14;
  * least `floor`), times 1 + Grudge/100, so a boss at Grudge 50 asks half again, rounded to $100.
  */
 export const TRUCE_TRIBUTE = { share: 0.02, floor: 500, grudge: 0.01 };
+/**
+ * A Smooth Talker as your Sit-down negotiator: a Truce's tribute and Plot and Faction Buyout prices come down by
+ * `cut`, after Grudge and personality (placeholder: the spec gives no number; 15% matches Lottie's Tips "buyouts 15%
+ * cheaper"). The negotiator has to be fit to go: a knocked-out guard stays home.
+ */
+export const SMOOTH_TALKER = { trait: 'Smooth Talker' as Trait, cut: 0.15 };
 export const PLOT_BUYOUT = { home: 2.5, away: 2 };
 export const FIRE_SALE = { share: 0.75, days: 2 };
 export const BANKRUPT_DAYS = 7;
@@ -236,12 +242,31 @@ export const familySilver = (s: GameState) => (hasTrophy(s, 'sourwood') ? 0.9 : 
 
 export const hqPlot = (id: RivalId): Plot => PLOTS.find((p) => p.type === 'hq' && p.district === FACTIONS[id].home)!;
 
+// ---------- the negotiator ----------
+
+/** The guard you bring to Dot's Diner, if any: on your roster and fit to go. */
+export function negotiator(s: GameState): Guard | null {
+  const g = s.negotiator ? s.guards.find((x) => x.id === s.negotiator) : undefined;
+  return g && guardReady(s, g) ? g : null;
+}
+
+/** What a Sit-down deal costs with your negotiator along: a Smooth Talker talks every price down. */
+export const sitDownTerms = (s: GameState) => (negotiator(s)?.trait === SMOOTH_TALKER.trait ? 1 - SMOOTH_TALKER.cut : 1);
+
+/** Bring one of your guards to the Sit-downs as negotiator, or go alone (null). */
+export function setNegotiator(s: GameState, id: string | null): boolean {
+  if (id === null) { delete s.negotiator; return true; }
+  if (!s.guards.some((g) => g.id === id)) return false;
+  s.negotiator = id;
+  return true;
+}
+
 // ---------- Truce ----------
 
 /** The tribute this boss asks for a Truce: a share of your Net Worth, raised by their Grudge toward you. */
 export function truceCost(s: GameState, id: RivalId): number {
   const base = Math.max(TRUCE_TRIBUTE.floor, Math.round(netWorth(s) * TRUCE_TRIBUTE.share / 100) * 100);
-  return Math.round(base * (1 + Math.max(0, s.rivals[id].grudge) * TRUCE_TRIBUTE.grudge) / 100) * 100;
+  return Math.round(base * (1 + Math.max(0, s.rivals[id].grudge) * TRUCE_TRIBUTE.grudge) * sitDownTerms(s) / 100) * 100;
 }
 export const inTruce = (s: GameState, id: RivalId) => (s.rivals[id].truceUntil ?? 0) >= s.day;
 
@@ -285,7 +310,7 @@ export function plotBuyoutPrice(s: GameState, plotId: string): number {
   const id = ps.owner as RivalId;
   const home = PLOT_BY_ID[plotId].district === FACTIONS[id].home;
   const nudge = 1 + s.rivals[id].grudge / 200 + (id === 'sourwood' ? 0.2 : 0);
-  return Math.round(ps.landValue * (tillyFieldRate(s, plotId) ?? (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away)) * nudge * familySilver(s));
+  return Math.round(ps.landValue * (tillyFieldRate(s, plotId) ?? (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away)) * nudge * familySilver(s) * sitDownTerms(s));
 }
 
 export function canPlotBuyout(s: GameState, plotId: string): Blocker {
@@ -325,7 +350,7 @@ export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
   const m = HQS[id].buyout ?? (peaceful(s) ? PEACEFUL_VERA_BUYOUT : null);
   if (m === null) return null;
   const buildings = ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
-  return Math.round((Math.max(0, s.rivals[id].cash) + buildings) * m);
+  return Math.round((Math.max(0, s.rivals[id].cash) + buildings) * m * sitDownTerms(s));
 }
 
 export function canFactionBuyout(s: GameState, id: RivalId): Blocker {

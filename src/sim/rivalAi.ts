@@ -138,6 +138,7 @@ export function migrateRivals(s: GameState): void {
     r.trade.wages ??= 0;
   }
   s.schemes ??= [];
+  if (s.negotiator && !s.guards.some((g) => g.id === s.negotiator)) delete s.negotiator; // they left the crew
 }
 
 // ---------- trade: about 1% of cash a day ----------

@@ -246,6 +246,7 @@ export interface GameState {
   lastOffer?: Partial<Record<OrderTier, number>>; // day each VIP tier last made an offer
   seenClients?: string[]; // VIP clients who've visited before (no cutscene pause after the first)
   noTruceUntil?: number; // after breaking a truce, no rival accepts one through this day
+  negotiator?: string; // rivals: the guard you bring to Sit-downs at Dot's Diner (a Smooth Talker gets better terms)
   offers: Order[];
   orders: Order[];
   settings: Settings; // mode and difficulty, chosen at New Game

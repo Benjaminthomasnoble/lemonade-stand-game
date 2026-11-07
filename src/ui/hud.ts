@@ -13,8 +13,8 @@ import {
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
-  canAssault, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, hasBuilding, HQS, isWrecked, plotBuyoutPrice,
-  plotPrice, rivalStars, rivalStatus, SITDOWN_RANK, truceCost,
+  canAssault, hasBuilding, HQS, isWrecked,
+  plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
@@ -53,6 +53,7 @@ import { autoDefendSwitch, defendPriorityHere } from './autodefend.ts';
 import { captivesPanel } from './captives.ts';
 import type { CaptiveChoice } from '../sim/captives.ts';
 import { fitGarrison, henchmenOut } from '../sim/garrison.ts';
+import { plotBuyoutRow, sitDown, sitdownAction } from './sitdown.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
@@ -114,6 +115,7 @@ export type Action =
   | { type: 'plotBuyout'; plot: string }
   | { type: 'takeover'; plot: string; sell: boolean } // FizzCo's buyout offer: Sell or No
   | { type: 'factionBuyout'; rival: RivalId }
+  | { type: 'negotiator'; id: string | null } // who you bring to Sit-downs (src/ui/sitdown.ts): a guard, or go alone
   | { type: 'assault'; rival: RivalId; guards: string[] }
   | { type: 'setup' } // open the New Game screen
   | { type: 'start'; settings: Settings }
@@ -437,6 +439,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'match': onAction({ type: 'accept', id: d.id!, match: true }); break; // world: bid the rival's price
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
+      case 'negotiator': onAction(sitdownAction(d)); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
       case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...planner.squad] }); planner.squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
@@ -817,8 +820,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       : (id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`)) + standPanel(s, id, standMath);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
-      const pb = canPlotBuyout(s, id);
-      actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + (s.rank >= SITDOWN_RANK && !locked(pb) ? btn('plotBuyout', `Buy it ${whole(plotBuyoutPrice(s, id))}`, pb, `data-plot="${id}" data-testid="plot-buyout"`) : '');
+      actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + plotBuyoutRow(clubs, s, id); // its Sit-down (src/ui/sitdown.ts)
     }
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
@@ -845,11 +847,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function hqPanel(s: GameState, id: RivalId) {
     const st = rivalStatus(s, id);
     const hq = HQS[id];
-    const price = factionBuyoutPrice(s, id);
     const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} · ${rivalStars(s, id).toFixed(1)} stars${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
     if (s.rank < SITDOWN_RANK) return head;
-    const tb = canTruce(s, id), fb = canFactionBuyout(s, id);
-    const sit = `<div class="cl-acts">${locked(tb) ? '' : btn('truce', `Truce ${whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="7 days of peace. Their Grudge sets the tribute"`)}${locked(fb) ? '' : btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${whole(price)}`, fb, `data-rival="${id}" data-testid="faction-buyout"`)}</div>`;
+    const sit = sitDown(clubs, s, id); // the Truce, the Faction Buyout and your negotiator (src/ui/sitdown.ts)
     const ids = [...planner.squad];
     const ab = canAssault(s, id, ids);
     const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>

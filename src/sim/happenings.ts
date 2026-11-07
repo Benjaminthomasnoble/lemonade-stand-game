@@ -1,14 +1,15 @@
 // The random events themselves (spec: Events and the living world, Random events), on events.ts's scheduler: the
 // Market shocks (Lemon Blight, Sugar Shortage), the traffic surges (Viral Video, Celebrity Sighting, Parade Route,
-// Roadworks), the Tourist Bus and the Food Critic. Each names its counter-play, and the Bugle (or 101.5, mid-day)
-// announces it with its district and length. Pure and seeded: every placement draws from the scheduler's rng.
+// Roadworks), the Tourist Bus, the Food Critic, the Power Outage that stops the L4+ ice machines, and Captain Squawk.
+// Each names its counter-play, and the Bugle (or 101.5, mid-day) announces it with its district and length. Pure and
+// seeded: every placement draws from the scheduler's rng.
 import { nextRandom } from './rng.ts';
 import { DISTRICT_BY_ID, DISTRICTS, PLOT_BY_ID, PLOTS, type DistrictId } from './map.ts';
 import {
-  EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, RANDOM_EVENTS, SEGMENTS, SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
+  EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, ICE_MACHINE_LEVEL, RANDOM_EVENTS, SEGMENTS, SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
 } from './balance.ts';
-import type { GameState } from './economy.ts';
-import { appealFor, playerStands } from './economy.ts';
+import type { GameState, Stand } from './economy.ts';
+import { appealFor, playerStands, stock } from './economy.ts';
 import { shineReason } from './recipes.ts';
 import { registerEvent, type Placement, type WorldEvent } from './events.ts';
 import { eventWhere } from './media.ts';
@@ -185,4 +186,88 @@ registerEvent({
   close: critique,
   bugle: (_s, e) => ['FOOD CRITIC IN TOWN!', `Tasting at ${short(e.plots![0])} today`],
   headline: (_s, e) => `FOOD CRITIC! The Bugle's critic tastes at ${short(e.plots![0])} today. Short line, fair price, fitting recipe: +${FOOD_CRITIC.stars} star (or −${FOOD_CRITIC.stars}).`,
+});
+
+// ---------- the L4+ ice machine, and the Power Outage that stops it ----------
+
+/** A Power Outage is on in this district today: its ice machines are stopped. */
+export function powerOut(s: GameState, district: DistrictId): boolean {
+  const on = s.world?.events?.on;
+  return !!on?.length && on.some((e) => e.id === 'powerOutage' && e.live && e.district === district && e.from <= s.day && e.to >= s.day);
+}
+
+/** Your L4+ stands make their own ice as they pour, at the Market price: never warm, Auto-Restock buys none, and nothing melts
+ * overnight. A Power Outage stops the machines in its district for the day. */
+export function iceMachineOn(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  return ps?.owner === 'player' && !!ps.stand && ps.stand.level >= ICE_MACHINE_LEVEL && !powerOut(s, PLOT_BY_ID[plotId].district);
+}
+
+/** serveAt's one call, before a cup's ice comes out of the cooler: the machine makes what the cooler lacks, at the Market
+ * price, and the cost goes on the cup. */
+export function machineIce(s: GameState, plotId: string, st: Stand, ice: number): number {
+  const lack = ice - st.inventory.ice;
+  if (lack <= 0 || !iceMachineOn(s, plotId)) return 0;
+  st.inventory.ice += lack;
+  return lack * s.market.ice; // ledger: cups (the machine's ice, at the Market price)
+}
+
+/** Your stands with an ice machine. */
+const machines = (s: GameState) => working(s).filter((id) => s.plots[id].stand!.level >= ICE_MACHINE_LEVEL);
+
+registerEvent({
+  id: 'powerOutage', name: 'Power Outage', kind: 'harmful', scope: 'district', when: 'dawn', days: RANDOM_EVENTS.powerOutage.days,
+  weight: RANDOM_EVENTS.powerOutage.weight, counter: 'Buy Market ice for those stands',
+  can: (s) => machines(s).length > 0,
+  place: (s, rng) => { const ids = machines(s); return ids.length ? { district: PLOT_BY_ID[pick(rng, ids)].district } : null; },
+  bugle: (_s, e) => ['POWER OUTAGE!', `${named(e.district)} in the dark today`],
+  headline: (_s, e) => `POWER OUTAGE! ${named(e.district)} is in the dark today: the ice machines stop. Buy Market ice for those stands.`,
+});
+
+// ---------- Captain Squawk: the gull takes one stand's newest lemons ----------
+
+/** At his minute: the newest lemon delivery at the stand goes (no lemons by then, no theft). */
+function steal(s: GameState, e: WorldEvent): boolean {
+  const id = e.plots?.[0];
+  if (!yours(s, id)) return false;
+  const st = s.plots[id!].stand!;
+  const batch = st.inventory.lemons.pop();
+  if (!batch?.qty) return false;
+  e.stolen = batch.qty;
+  e.low = stock(st, 'lemons');
+  return true;
+}
+
+/** Restocked since (it holds more lemons than at its lowest), forgiven, or the stand is gone: the gull's done. */
+export function squawkOver(s: GameState, e: WorldEvent): boolean {
+  if (e.low === undefined) return false;
+  const id = e.plots?.[0];
+  return e.low < 0 || !yours(s, id) || stock(s.plots[id!].stand!, 'lemons') > e.low;
+}
+
+/** Each minute and each dawn: the stand's lowest since the theft (spoilage and sales take it lower), until it's restocked. */
+function track(s: GameState, e: WorldEvent): void {
+  if (e.low === undefined || e.low < 0) return;
+  if (squawkOver(s, e)) e.low = -1;
+  else e.low = Math.min(e.low, stock(s.plots[e.plots![0]].stand!, 'lemons'));
+}
+
+/** The card's Forgive him: Lottie lets it go (the stand stays short until you restock it). */
+export function forgiveSquawk(s: GameState, plotId: string): boolean {
+  const e = s.world?.events?.on.find((x) => x.id === 'captainSquawk' && x.live && x.plots?.[0] === plotId);
+  if (!e || squawkOver(s, e)) return false;
+  e.low = -1;
+  return true;
+}
+
+registerEvent({
+  id: 'captainSquawk', name: 'Captain Squawk', kind: 'harmful', scope: 'stand', when: 'midday', days: RANDOM_EVENTS.captainSquawk.days,
+  weight: RANDOM_EVENTS.captainSquawk.weight, counter: 'Restock; forgive him',
+  can: (s) => working(s).length > 0,
+  place: yourStand,
+  start: steal,
+  tick: track,
+  dawn: track,
+  over: squawkOver,
+  headline: (_s, e) => `SQUAWK! Captain Squawk flies off with ${e.stolen} lemons from ${short(e.plots![0])}. Restock; forgive him.`,
 });

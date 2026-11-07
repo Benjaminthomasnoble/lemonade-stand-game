@@ -4,6 +4,7 @@ import {
   eventsOf, eventTraffic, expectedCups, expectedPassersby, festivalCrowd, FOOD_CRITIC, HEAT_WAVE, heatWaveDay, heatWaveOn, liveEvent, liveEvents,
   LOTTIES_CORNER, mainSegment, marketLines, newGame, newStand, openStand, plannedWeather, PLOT_BY_ID, PLOTS, RANDOM_EVENTS, registerEvent, scorcherKeep,
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
+  forgiveSquawk, iceMachineOn, machineIce, stock,
   type DistrictId, type EventDef, type GameState, type Season, type WorldEvent,
 } from './economy.ts';
 import { eventTickets } from '../ui/events.ts';
@@ -401,5 +402,122 @@ describe('the Food Critic', () => {
     st.price += 0.05;
     expect(criticChecks(s, plot).price).toBe(false);
     expect(criticVerdict({ tasted: false, line: true, price: true, recipe: true })).toBe(-FOOD_CRITIC.stars); // nothing to taste
+  });
+});
+
+describe('the L4+ ice machine and the Power Outage', () => {
+  const clone = (s: GameState) => JSON.parse(JSON.stringify(s)) as GameState;
+
+  it('an L4+ stand makes its ice as it pours, at the Market price: never warm, and it keeps its ice overnight', () => {
+    const base = quietGame(61);
+    const corner = base.plots[LOTTIES_CORNER].stand!;
+    corner.level = 4;
+    stockUp(base, LOTTIES_CORNER);
+    expect(iceMachineOn(base, LOTTIES_CORNER)).toBe(true);
+    const iced = clone(base), machine = clone(base), dark = clone(base);
+    machine.plots[LOTTIES_CORNER].stand!.inventory.ice = 0;
+    dark.plots[LOTTIES_CORNER].stand!.inventory.ice = 0;
+    eventsOf(dark).on.push({ id: 'powerOutage', from: dark.day, to: dark.day, live: true, district: 'maple' });
+    expect(iceMachineOn(dark, LOTTIES_CORNER)).toBe(false);
+    for (const s of [iced, machine, dark]) { openStand(s); simulateRestOfDay(s); }
+    const day = (s: GameState) => s.plots[LOTTIES_CORNER].stand!.day;
+    expect(day(machine).customers).toBeGreaterThan(50);
+    expect(day(machine).satisfaction).toBe(day(iced).satisfaction); // never warm
+    expect(day(dark).satisfaction).toBeLessThan(day(iced).satisfaction); // warm cups in the dark
+    const cups = day(machine).customers; // the ice goes on each cup's cost: 3 cubes a Classic (the day's books round each cup to the cent)
+    expect(Math.abs(day(machine).cupCosts - day(iced).cupCosts - cups * 3 * machine.market.ice)).toBeLessThan(0.006 * cups);
+    expect(iced.plots[LOTTIES_CORNER].stand!.inventory.ice).toBeGreaterThan(0); // nothing melts overnight
+    expect(iced.today.iceMelted).toBe(0);
+    const st = machine.plots[LOTTIES_CORNER].stand!;
+    st.inventory.ice = 1;
+    expect(machineIce(machine, LOTTIES_CORNER, st, 3)).toBeCloseTo(2 * machine.market.ice, 9); // it tops up what the cooler lacks
+    expect(st.inventory.ice).toBe(3);
+    expect(machineIce(machine, LOTTIES_CORNER, st, 3)).toBe(0);
+  });
+
+  it('Auto-Restock buys no ice for a machine; under a Power Outage it buys Market ice, and the leftovers melt that night', () => {
+    const s = quietGame(62);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.level = 4;
+    st.autoRestock = true;
+    st.inventory.ice = 0;
+    const calm = clone(s);
+    calm.cash = 50000;
+    openStand(calm);
+    expect(calm.plots[LOTTIES_CORNER].stand!.inventory.ice).toBe(0);
+    const e = force(s, 'powerOutage');
+    expect(e.district).toBe('maple'); // where your machines are
+    expect(EVENT_DEFS.powerOutage.kind).toBe('harmful');
+    expect(s.news.some((n) => n.startsWith('POWER OUTAGE!') && n.includes('Buy Market ice for those stands'))).toBe(true);
+    expect(eventTickets(s).join('')).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    s.cash = 50000;
+    openStand(s);
+    expect(st.inventory.ice).toBeGreaterThan(0); // Auto-Restock covers it
+    simulateRestOfDay(s);
+    expect(st.inventory.ice).toBe(0); // melted
+    expect(s.today.iceMelted).toBeGreaterThan(0);
+    dawn(s, s.day + 1);
+    expect(iceMachineOn(s, LOTTIES_CORNER)).toBe(true);
+  });
+
+  it('no outage without a machine to stop', () => {
+    const s = quietGame(63);
+    expect(EVENT_DEFS.powerOutage.can!(s)).toBe(false);
+    s.plots[LOTTIES_CORNER].stand!.level = 4;
+    expect(EVENT_DEFS.powerOutage.can!(s)).toBe(true);
+  });
+});
+
+describe('Captain Squawk', () => {
+  /** A day on the clock up to the gull's minute, with yesterday's lemons and a fresh delivery this morning. */
+  function squawk(seed: number): { s: GameState; e: WorldEvent } {
+    const s = quietGame(seed);
+    const e = force(s, 'captainSquawk');
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    s.cash = 5000;
+    st.inventory.lemons = [{ qty: 20, day: s.day - 1, unitCost: 0.2 }, { qty: 40, day: s.day, unitCost: 0.2 }];
+    while (buySupply(s, 'sugar', 1, st));
+    openStand(s);
+    while (s.minute < e.at!) tickMinute(s);
+    return { s, e };
+  }
+
+  it('steals the newest lemon delivery at his minute; the stand stays short until restocked', () => {
+    const { s, e } = squawk(64);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    expect(e.stolen).toBe(40);
+    expect(stock(st, 'lemons')).toBeLessThanOrEqual(20);
+    expect(s.news).toContain("SQUAWK! Captain Squawk flies off with 40 lemons from Lottie's Corner. Restock; forgive him.");
+    expect(s.world!.breaks!.at(-1)!.text).toContain('SQUAWK!'); // a mid-day break-in on 101.5
+    const card = eventTickets(s).join('');
+    expect(card).toContain('data-event="captainSquawk"');
+    expect(card).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    expect(card).toContain('data-action="forgive"');
+    for (let i = 0; i < 30; i++) tickMinute(s);
+    expect(EVENT_DEFS.captainSquawk.over!(s, e)).toBe(false); // selling only takes it lower
+    buySupply(s, 'lemons', 1, st);
+    expect(EVENT_DEFS.captainSquawk.over!(s, e)).toBe(true);
+    expect(eventTickets(s).join('')).not.toContain('data-event="captainSquawk"');
+    tickMinute(s);
+    expect(e.low).toBe(-1); // restocked for good, however low it sells
+    simulateRestOfDay(s);
+    dawn(s, s.day + 1);
+    expect(liveEvent(s, 'captainSquawk')).toBeUndefined();
+    expect(eventsOf(s).past[0].id).toBe('captainSquawk');
+  });
+
+  it("Forgive him puts the card away; no lemons, no theft", () => {
+    const { s, e } = squawk(65);
+    expect(forgiveSquawk(s, LOTTIES_CORNER)).toBe(true);
+    expect(eventTickets(s).join('')).not.toContain('data-event="captainSquawk"');
+    expect(forgiveSquawk(s, LOTTIES_CORNER)).toBe(false);
+    expect(e.stolen).toBe(40);
+    const t = quietGame(66);
+    const f = force(t, 'captainSquawk');
+    t.plots[LOTTIES_CORNER].stand!.inventory.lemons = [];
+    openStand(t);
+    while (t.minute < f.at!) tickMinute(t);
+    expect(liveEvent(t, 'captainSquawk')).toBeUndefined(); // called off
+    expect(EVENT_DEFS.captainSquawk.kind).toBe('harmful');
   });
 });

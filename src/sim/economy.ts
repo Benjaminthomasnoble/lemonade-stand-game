@@ -14,6 +14,7 @@ import {
 import { cardFit, migrateWorld, seasonDemand, type WorldState } from './recipes.ts';
 import { calendarTraffic, festivalCrowd, worldAtClose, worldAtDawn } from './calendar.ts';
 import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
+import { iceMachineOn, machineIce } from './happenings.ts';
 import { groveTraffic, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
@@ -548,7 +549,7 @@ export function autoRestock(s: GameState, plotId: string): void {
   const want = Math.ceil(expectedCups(s, plotId) * 1.2);
   const n = pitcherNeeds(st);
   const pitchers = Math.ceil(want / CUPS_PER_PITCHER);
-  const targets: Record<SupplyId, number> = { lemons: pitchers * n.lemons, sugar: pitchers * n.sugar, ice: want * n.icePerCup };
+  const targets: Record<SupplyId, number> = { lemons: pitchers * n.lemons, sugar: pitchers * n.sugar, ice: iceMachineOn(s, plotId) ? 0 : want * n.icePerCup }; // world: the ice machine
   for (const id of Object.keys(targets) as SupplyId[]) {
     while (stock(st, id) < targets[id] && maxPacks(s, st, id) > 0) buySupply(s, id, 1, st);
   }
@@ -627,6 +628,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
   let cupCost = CUP_COST;
   if (isPlayer) {
     const ice = RECIPES[st.recipe].icePerCup;
+    cupCost += machineIce(s, plotId, st, ice); // world: an L4+ stand's ice machine makes what the cooler lacks
     warm = st.inventory.ice < ice;
     st.inventory.ice = Math.max(0, st.inventory.ice - ice);
     cupCost += RECIPES[st.recipe].extraPerCup;
@@ -716,8 +718,10 @@ function closeDay(s: GameState): void {
     if (ps.owner === 'player') {
       if (st) {
         t.upkeep += standLevel(st).upkeep;
-        t.iceMelted += st.inventory.ice;
-        st.inventory.ice = 0; // ice never keeps overnight
+        if (!iceMachineOn(s, p.id)) { // world: an ice machine keeps its ice (a Power Outage's leftovers melt)
+          t.iceMelted += st.inventory.ice;
+          st.inventory.ice = 0; // ice never keeps overnight
+        }
         st.pitcherCups = 0; // leftover lemonade is poured out
         satSum += st.day.satisfaction * st.day.customers;
         satN += st.day.customers;

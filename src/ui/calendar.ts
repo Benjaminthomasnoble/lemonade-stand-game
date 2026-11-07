@@ -91,5 +91,6 @@ export function tasteOffLine(s: GameState, day: number): string {
 /** The world lane's buttons, read off the clicked element's data attributes. */
 export function worldAction(d: DOMStringMap): Action {
   if (d.action === 'sponsor') return { type: 'sponsor', festival: d.festival as FestivalId };
+  if (d.action === 'forgive') return { type: 'forgive', plot: d.plot! };
   return { type: 'entry', recipe: d.recipe as RecipeId | undefined, sweetness: d.sweet as Sweetness | undefined, delta: d.delta ? Number(d.delta) : undefined };
 }

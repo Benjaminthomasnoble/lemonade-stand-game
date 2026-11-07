@@ -20,7 +20,7 @@ import {
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
-  tasteOffToday, type FestivalId, bugleHeadline,
+  tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
@@ -111,6 +111,7 @@ export type Action =
   | { type: 'priceCeiling' } // set the selected stand's price to its ceiling
   | { type: 'skipScene' }
   | { type: 'sceneReply'; text: string }
+  | { type: 'forgive'; plot: string } // Captain Squawk's card: let it go
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -364,7 +365,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'saveSlot': onAction({ type: 'saveSlot', slot: Number(d.slot) }); break;
       case 'loadSlot': onAction({ type: 'loadSlot', slot: Number(d.slot), dawn: d.dawn === '1' }); break;
       case 'borrow': onAction({ type: 'borrow', amount: Number(d.amount) }); break;
-      case 'entry': case 'sponsor': onAction(worldAction(d)); break;
+      case 'entry': case 'sponsor': case 'forgive': onAction(worldAction(d)); break;
       case 'skipScene': onAction({ type: 'skipScene' }); break;
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'start': if (hud.setup) { const st = hud.setup.settings; onAction({ type: 'start', settings: { ...st, ...(st.difficulty === 'custom' ? { custom: { ...customDefaults(), ...st.custom } } : {}) } }); } break;
@@ -540,7 +541,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const expiring = lemonsExpiringTomorrow(s, st);
     const short = (id: SupplyId) => {
       if (st.autoRestock) return false;
-      if (id === 'ice') return st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(cups, Math.max(servings, 1));
+      if (id === 'ice') return !iceMachineOn(s, plotId) && st.inventory.ice < RECIPES[st.recipe].icePerCup * Math.min(cups, Math.max(servings, 1)); // world: the L4+ ice machine
       return servings < cups * 0.8;
     };
     const lvl = SWEET.indexOf(st.sweetness);
@@ -550,7 +551,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const gauge = (id: SupplyId) => {
       const sp = SUPPLIES[id];
       const max = maxPacks(s, st, id);
-      const note = id === 'ice' ? 'melts tonight' : id === 'lemons' ? (expiring ? `${expiring} spoil tomorrow` : 'keep 3 days') : 'keeps';
+      const note = id === 'ice' ? (iceMachineOn(s, plotId) ? 'the ice machine makes it' : 'melts tonight') : id === 'lemons' ? (expiring ? `${expiring} spoil tomorrow` : 'keep 3 days') : 'keeps';
       return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${sl.storage[id]} (${note})">
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;

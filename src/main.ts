@@ -10,7 +10,7 @@ import {
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
-  setTasteOffEntry, sponsorFestival,
+  setTasteOffEntry, sponsorFestival, forgiveSquawk,
 } from './sim/economy.ts';
 import { createBattle } from './world/battle.ts';
 import { createAudio, type Stinger } from './audio.ts';
@@ -544,6 +544,7 @@ async function main() {
         if (kid) bubbles.say(kid, a.text, { who: 'You', height: 1.6 });
         break;
       }
+      case 'forgive': forgiveSquawk(state, a.plot); break;
       case 'refresh': break;
     }
     storyAfterAct(state); // a goal met by this tap ticks off now

@@ -1,7 +1,7 @@
 // The random events in the clay HUD's feed (spec: Random events, "each alert card names its counter-play"): a ticket
 // as each one starts, its counter-play under its name, and the buttons that play it (Go there, Restock now). A mid-day
 // event's ticket stays for as long as it runs; a dawn event's for its first day (the Bugle keeps count after that).
-import { eventDef, eventWhere, liveEvents, PLOT_BY_ID, playerStands, type GameState, type WorldEvent } from '../sim/economy.ts';
+import { eventDef, eventWhere, ICE_MACHINE_LEVEL, liveEvents, PLOT_BY_ID, playerStands, type GameState, type WorldEvent } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { btn, esc, once } from './recipes.ts';
 
@@ -9,6 +9,7 @@ const ART: Record<string, () => string> = {
   heatWave: once(() => A.skySVG('scorcher')), lemonBlight: once(() => A.lemonSourSVG()), sugarShortage: once(() => A.sugarSVG()),
   viralVideo: once(() => A.megaphoneSVG()), celebrity: once(() => A.rankSVG()), parade: once(() => A.crowdSVG()),
   roadworks: once(() => A.boardSVG()), touristBus: once(() => A.crowdSVG()), foodCritic: once(() => A.heartCupSVG()),
+  powerOutage: once(() => A.lampSVG()), captainSquawk: once(() => A.gooseSVG()),
 };
 const fallback = once(() => A.boardSVG());
 
@@ -31,6 +32,11 @@ function acts(s: GameState, e: WorldEvent): string {
     case 'viralVideo': return at.length ? goTo(at[0]) + restock(at[0]) : '';
     case 'parade': return at.slice(0, 2).map((id) => restock(id, at.length > 1 ? `Restock ${short(id)}` : 'Restock now')).join('');
     case 'foodCritic': case 'celebrity': case 'touristBus': case 'roadworks': return at.length ? goTo(at[0]) : '';
+    case 'powerOutage': { // "Buy Market ice for those stands": the machine stands in the dark
+      const dark = at.filter((id) => s.plots[id].stand!.level >= ICE_MACHINE_LEVEL).slice(0, 2);
+      return dark.map((id) => restock(id, dark.length > 1 ? `Ice ${short(id)}` : 'Buy ice')).join('');
+    }
+    case 'captainSquawk': return at.length ? restock(at[0]) + btn('forgive', 'Forgive him', { ok: true }, `data-plot="${at[0]}"`) : '';
     default: return '';
   }
 }

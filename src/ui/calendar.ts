@@ -1,21 +1,21 @@
 // The calendar in the clay HUD (spec: Events and the living world): tickets for
-// today's festivals (Event Sponsorship from Rank 5) and the next one coming, the
-// Taste-Off sheet with three judges' hints and your entry, the result on the
-// day's-end card, and the Bugle's calendar headlines.
+// today's festivals (Event Sponsorship from Rank 5), the Taste-Off sheet with
+// three judges' hints and your entry, the result on the day's-end card, and the
+// world lane's tabs (the Book, the Taste-Off and the Bugle's front page).
 import {
-  boothCeiling, canSponsor, CONTESTANT_NAME, DISTRICT_BY_ID, entryOf, festivalDays, FESTIVALS, festivalsOn, isSponsored, ownedRecipes,
-  RECIPES, seasonDay, SEGMENTS, sponsorCost, sponsorHalfPrice, storyFairs, TASTE_OFF, tasteOffResult, tasteOffToday, upcomingFestivals,
+  boothCeiling, canSponsor, CONTESTANT_NAME, DISTRICT_BY_ID, entryOf, FESTIVALS, festivalsOn, isSponsored, ownedRecipes,
+  RECIPES, seasonDay, SEGMENTS, sponsorCost, sponsorHalfPrice, TASTE_OFF, tasteOffToday,
   type FestivalId, type GameState, type Judge, type RecipeId, type SegmentId, type Stake, type Sweetness,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
 import * as A from './clay.ts';
-import { bookSheet, btn, card, cents, esc, locked, once, pageHeadline, pitcherArt, tape, whole } from './recipes.ts';
+import { bookSheet, btn, card, cents, esc, locked, once, pitcherArt, tape, whole } from './recipes.ts';
+import { bugleSheet } from './bugle.ts';
 
-export type WorldTab = 'book' | 'fair';
+export type WorldTab = 'book' | 'fair' | 'bugle';
 const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
 const rosetteArt = once(() => A.rosetteSVG());
 const crowdArt = once(() => A.crowdSVG());
-const eggArt = once(() => A.eggSVG());
 const cubeArt = once(() => A.cubeSVG());
 const judgeArt = once((i: number) => { const h = [['#F6C9A0', '#7CC47F'], ['#B9784F', '#E8704F'], ['#F8D3B0', '#3BB4C1']][i % 3]; return A.svg(A.headBlob(32, 26, 15, h[0], h[1])); });
 
@@ -28,14 +28,14 @@ const PRICE_HINT = { bargain: 'Easy on the wallet', fair: 'A fair price', extra:
 const hint = (j: Judge) => (j.kind === 'recipe' ? FOR[j.segment] : j.kind === 'sweet' ? SWEET_HINT[j.want] : PRICE_HINT[j.band]);
 const hintTip = (j: Judge) => (j.kind === 'recipe' ? `Pour a card ${SEGMENTS[j.segment].label.toLowerCase()} love` : j.kind === 'sweet' ? 'Mind the Sweetness' : "Price it against the booth's top price");
 
-/** The Book tab always; the Taste-Off tab on a fair's last morning. */
+/** The Book tab always; the Taste-Off tab on a fair's last morning; the Bugle's front page every morning. */
 export function worldTabs(s: GameState, tab: string): string {
   const t = (id: WorldTab, label: string) => `<button class="cl-tab${tab === id ? ' on' : ''}" data-action="tab" data-tab="${id}" data-testid="tab-${id}">${label}</button>`;
-  return t('book', 'Book') + (tasteOffToday(s) ? t('fair', 'Taste-Off') : '');
+  return t('book', 'Book') + (tasteOffToday(s) ? t('fair', 'Taste-Off') : '') + t('bugle', 'Bugle');
 }
 
 export function worldSheet(s: GameState, tab: WorldTab): string {
-  return tab === 'book' ? bookSheet(s) : fairSheet(s);
+  return tab === 'book' ? bookSheet(s) : tab === 'bugle' ? bugleSheet(s) : fairSheet(s);
 }
 
 /** Three judges' hints, then your answer: a card, a Sweetness setting and a price. */
@@ -61,13 +61,7 @@ function fairSheet(s: GameState): string {
 
 const STAKE: Record<Stake, string> = { strawberry: 'Brock stakes his Strawberry page', tilly: 'Win, and Tilly sells Fields at 1.5x' };
 
-/** One line of the week's calendar: the days, the name and the district. */
-function calendarLine(x: { id: FestivalId; from: number; to: number }): string {
-  const f = FESTIVALS[x.id];
-  return `${x.from === x.to ? `Day ${x.from}` : `Days ${x.from}-${x.to}`}: ${f.name}, ${DISTRICT_BY_ID[f.district].name}`;
-}
-
-/** Morning tickets: the Taste-Off, today's festivals (district, day of how many, Sponsor), and the week's calendar. */
+/** Morning tickets: the Taste-Off and today's festivals (district, day of how many, Sponsor). The week's calendar prints in the Bugle. */
 export function calendarTickets(s: GameState): string[] {
   const out: string[] = [];
   const t = tasteOffToday(s);
@@ -82,8 +76,6 @@ export function calendarTickets(s: GameState): string[] {
     const tip = `${f.name}, ${DISTRICT_BY_ID[f.district].name}, ${when}${f.crowd ? `. ${SEGMENTS[f.crowd].label} fill the street` : ''}`;
     out.push(`<div class="cl-ticket" data-testid="festival" title="${esc(tip)}">${crowdArt()}<b>${esc(f.name)}</b><span class="cl-note">${esc(`${DISTRICT_BY_ID[f.district].name}, ${when}`)}</span>${action}</div>`);
   }
-  const week = upcomingFestivals(s);
-  if (week.length) out.push(`<div class="cl-ticket" data-testid="calendar" title="The week's calendar">${eggArt()}<b>This week</b>${week.map((x) => `<span class="cl-note">${esc(calendarLine(x))}</span>`).join('')}</div>`);
   return out;
 }
 
@@ -94,23 +86,6 @@ export function tasteOffLine(s: GameState, day: number): string {
   const tip = `Your marks ${r.marks.map((m) => `×${m}`).join(' ')} = ${r.score.toFixed(2)}; best rival ${r.best.toFixed(2)}`;
   const line = r.winner === 'player' ? 'You won the Taste-Off!' : `${CONTESTANT_NAME[r.winner]} won the Taste-Off`;
   return `<div class="cl-lottie" data-testid="taste-off-result" title="${esc(tip)}"><span class="cl-doodle">${rosetteArt()}</span><span>${line}</span></div>`;
-}
-
-/** The Bugle's world headlines (big tape, small tape), ahead of the weather ones: the fairs, pages coming home, festivals. */
-export function calendarHeadline(s: GameState): [string, string] | null {
-  const campaign = storyFairs(s);
-  const act1 = tasteOffResult(s, 'summerFair', 1);
-  if (campaign && act1?.stake === 'strawberry' && act1.winner === 'player' && s.day === act1.day + 1) return ['FOLDING TABLE STUNS', 'Smoothie Empire at Summer Fair'];
-  const page = pageHeadline(s);
-  if (page) return page;
-  if (campaign && s.day === festivalDays('summerFair', 1).to - 2 && s.rivals.blenders.alive) return ['TASTE-OFF IN 2 DAYS', 'Bodine not worried, bro'];
-  const t = tasteOffToday(s);
-  if (t) return ['TASTE-OFF TODAY!', `${FESTIVALS[t.fair].name}, ${DISTRICT_BY_ID[t.district].name}`];
-  const opening = festivalsOn(s.day).find((id) => FESTIVALS[id].from === seasonDay(s.day));
-  if (!opening) return null;
-  const f = FESTIVALS[opening];
-  const n = f.to - f.from + 1;
-  return [`${f.name.toUpperCase()}!`, `${DISTRICT_BY_ID[f.district].name}, ${n === 1 ? 'today only' : `${n} days`}`];
 }
 
 /** The world lane's buttons, read off the clicked element's data attributes. */

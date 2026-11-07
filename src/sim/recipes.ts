@@ -11,6 +11,7 @@ import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
 import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
 import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
+import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -35,6 +36,9 @@ export interface WorldState {
   tillyWon?: boolean; // out-brewed Tilly at the County Fair: she sells Fields at 1.5×
   events?: EventsState; // random events: coming, running and past (events.ts)
   breaks?: BreakIn[]; // mid-day events as they broke in on 101.5 (today's and yesterday's)
+  paper?: Newsroom; // the Bugle's notes from this dawn (media.ts)
+  fights?: FightNote[]; // the latest fights, rival-vs-rival included, for the paper and the radio
+  newsMark?: [number, string]; // where s.news stood at closing: the morning wire is what came after (media.ts)
 }
 
 /** Fills in the world state for new games and old saves (idempotent; migrateSave calls it on every load). */
@@ -46,6 +50,7 @@ export function migrateWorld(s: GameState): GameState {
   w.boosts ??= [];
   w.sponsored ??= [];
   w.events ??= { on: [], past: [] };
+  w.paper ??= newsroomNow(s); // the Bugle's first notes: tomorrow's paper reports what changes from here
   for (const id of START_RECIPES) if (!w.pages.includes(id)) w.pages.push(id);
   for (const id of RECIPE_IDS) {
     if (w.pages.includes(id)) delete w.holders[id];

@@ -51,6 +51,7 @@ export * from './rivalAi.ts';
 export * from './schemes.ts';
 export * from './demand.ts';
 export * from './events.ts';
+export * from './media.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;

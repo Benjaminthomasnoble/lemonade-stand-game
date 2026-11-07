@@ -5,7 +5,7 @@
 // ahead each season, so the Radio Jingle's look-ahead sees it coming. Other lanes add theirs with registerEvent
 // (land's Hurricane and Health Inspection). Pure and seeded, like the rest of the sim.
 import { nextRandom } from './rng.ts';
-import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season } from './balance.ts';
+import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season, type SupplyId } from './balance.ts';
 import type { DistrictId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
 import { seasonDay, seasonOf } from './economy.ts';
@@ -59,6 +59,8 @@ export interface EventDef {
   end?(s: GameState, e: WorldEvent): void; // the dawn after its last day
   over?(s: GameState, e: WorldEvent): boolean; // done early? (Captain Squawk: once the stand is restocked)
   headline(s: GameState, e: WorldEvent): string; // how it's announced: the Bugle at dawn, 101.5 mid-day
+  bugle?(s: GameState, e: WorldEvent): [string, string]; // its front-page tapes (default: its name, where and how long)
+  shock?: SupplyId; // the Market price it doubles (the Bugle prints the shock and its days left)
 }
 
 export interface EventsState {

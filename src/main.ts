@@ -17,7 +17,7 @@ import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, clockText, isVip } from './sim/economy.ts';
+import { bySea, clockText, frontPage, isVip } from './sim/economy.ts';
 import { approveRepair } from './sim/economy.ts'; // Damaged buildings (src/sim/damage.ts)
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
@@ -43,7 +43,7 @@ import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady } from './sim/scenes.ts';
 import { takeCall } from './sim/phone.ts';
-import { lessonsOn, storyAfterAct, storyDateline, storyHeadline } from './sim/story.ts';
+import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { createGullFlight } from './world/gullflight.ts';
 
 // Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
@@ -174,8 +174,8 @@ async function main() {
     crowd.clear();
     morningLine();
     prepWait = 0;
-    const shot = bugle.best(state.day - 1), act = storyHeadline(state);
-    if (shot) bugle.show({ ...shot, edition: storyDateline(state), headline: act ? `${act[0]} ${act[1].toUpperCase()}` : shot.headline });
+    const shot = bugle.best(state.day - 1);
+    if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state)); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
   };
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);

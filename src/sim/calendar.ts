@@ -14,6 +14,7 @@ import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
 import { actOf, districtControl, isEndless } from './modes.ts';
 import { eventsAtClose, eventsAtDawn } from './events.ts';
+import { mediaAtClose, mediaAtDawn } from './media.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -364,6 +365,7 @@ export function worldAtDawn(s: GameState): void {
   if (w.tasteOff && w.tasteOff.day < s.day) delete w.tasteOff;
   pagesAtDawn(s);
   setupTasteOff(s);
+  mediaAtDawn(s);
   eventsAtDawn(s);
 }
 
@@ -372,4 +374,5 @@ export function worldAtClose(s: GameState): void {
   const t = tasteOffToday(s);
   if (t) judgeTasteOff(s, t);
   eventsAtClose(s);
+  mediaAtClose(s);
 }

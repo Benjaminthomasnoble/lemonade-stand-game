@@ -3,7 +3,7 @@
 // today, and the Book sheet with every page and who holds the rest. Also the few
 // clay-markup helpers the world lane's panels share (the same markup as hud.ts).
 import {
-  DISTRICT_BY_ID, fairWinPage, hqPlot, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle, PLOT_BY_ID, RECIPE_IDS, RECIPES, recipeCost, selectedStand,
+  DISTRICT_BY_ID, fairWinPage, hqPlot, ownedRecipes, PAGE_HOLDERS, pageHolder, PLOT_BY_ID, RECIPE_IDS, RECIPES, recipeCost, selectedStand,
   shineReason, tasteOffResult, type Blocker, type GameState, type PageHolder, type RecipeId, type ShineReason,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
@@ -85,11 +85,3 @@ export function bookSheet(s: GameState): string {
   return `<span class="cl-label">Lottie's book ${ownedRecipes(s).length}/${RECIPE_IDS.length}</span><div class="cl-cards" data-testid="recipe-book">${pages.join('')}</div>`;
 }
 
-/** The Bugle the morning after a page comes home (two at once when the Blenders fall: Strawberry and Frozen). */
-export function pageHeadline(s: GameState): [string, string] | null {
-  const ids = pagesInTheBugle(s);
-  if (!ids.length) return null;
-  if (ids.length === 1) return ['PAGE COMES HOME!', `${RECIPES[ids[0]].label} back in the book`];
-  const short = ids.map((id) => RECIPES[id].label.replace(/ (Hot )?Lemonade$/, ''));
-  return ['PAGES COME HOME!', `${short.slice(0, -1).join(', ')} and ${short[short.length - 1]} back in the book`];
-}

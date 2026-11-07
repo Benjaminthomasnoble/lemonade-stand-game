@@ -1,6 +1,12 @@
 // The Morning Bugle's front page with a photo: the game snaps yesterday's best
 // moment from the 3D scene (a rush, an upgrade, a raid held, a helicopter)
 // and the dawn paper prints it in halftone. Click to put the paper down.
+// The Bugle tab at Morning Prep prints the whole front page (sim/media.ts):
+// the headline and briefs, the forecast, the Market against normal, each
+// stand's cost per cup, the week's calendar and today's events.
+import { frontPage, marketText, PLOT_BY_ID, SUPPLIES, weatherText, type FrontPage, type GameState } from '../sim/economy.ts';
+import * as A from './clay.ts';
+import { cents, esc, once } from './recipes.ts';
 
 export interface Snapshot { url: string; headline: string; score: number; day: number; edition?: string /* the campaign's act, for the dateline */ }
 
@@ -9,8 +15,32 @@ export interface Bugle {
   offer(shot: Snapshot): void;
   /** Today's best moment, if any is worth printing. */
   best(day: number): Snapshot | null;
-  /** Show the front page; it folds itself away after a few seconds. */
-  show(shot: Snapshot): void;
+  /** Show the front page; it folds itself away after a few seconds. With this morning's page, its headline and briefs print under the photo. */
+  show(shot: Snapshot, page?: Pick<FrontPage, 'headline' | 'briefs'>): void;
+}
+
+// ---------- the front page at Morning Prep ----------
+
+const megaArt = once(() => A.megaphoneSVG());
+const skyArt = once((kind: string) => A.skySVG(kind));
+const lemonArt = once(() => A.lemonSVG());
+const eggArt = once(() => A.eggSVG());
+const boardArt = once(() => A.boardSVG());
+const short = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
+
+/** The Bugle tab: this morning's front page, read off the state. */
+export function bugleSheet(s: GameState): string {
+  const p = frontPage(s);
+  const head = `<div class="cl-card" data-testid="bugle-headline"><span class="cl-pic">${megaArt()}</span><span class="cl-txt"><b>${esc(p.headline[0])}</b><i>${esc(p.headline[1])}</i></span></div>`;
+  const briefs = p.briefs.map((b) => `<span class="cl-note" data-testid="bugle-brief">${esc(b)}</span>`).join('');
+  const ahead = p.ahead.map((a) => `<i>Day ${a.day}: ${esc(a.text)}</i>`).join('');
+  const sky = `<div class="cl-card" data-testid="bugle-weather" title="The forecast is right about 4 days in 5"><span class="cl-pic">${skyArt(p.forecast.kind)}</span><span class="cl-txt"><b>${esc(weatherText(p.forecast))}</b>${ahead}</span></div>`;
+  const rows = p.market.map((m) => `<tr><td>${SUPPLIES[m.id].label}${m.shock ? ` · ${esc(m.shock.name)}` : ''}</td><td class="${m.shock ? 'bad' : ''}">${m.text}${m.shock ? `, ${m.shock.left === 1 ? 'last day' : `${m.shock.left} days`}` : ''}</td></tr>`).join('');
+  const costs = p.costs.map((c) => `<tr><td>${esc(short(c.plot))}, a cup</td><td>${cents(c.cost)}</td></tr>`).join('');
+  const market = `<div class="cl-card" title="${esc(marketText(p.market))}"><span class="cl-pic">${lemonArt()}</span><span class="cl-txt"><b>The Market</b><table class="cl-books" data-testid="bugle-market">${rows}${costs}</table></span></div>`;
+  const week = p.calendar.length ? `<div class="cl-ticket" data-testid="calendar" title="The week's calendar">${eggArt()}<b>This week</b>${p.calendar.map((l) => `<span class="cl-note">${esc(l)}</span>`).join('')}</div>` : '';
+  const events = p.events.map((e) => `<div class="cl-card" data-testid="bugle-event" title="${esc(`How to play it: ${e.counter}`)}"><span class="cl-pic">${boardArt()}</span><span class="cl-txt"><b>${esc(e.name)}</b><i>${esc(e.where)}, ${e.left === e.days ? (e.days === 1 ? 'today only' : `${e.days} days`) : e.left === 1 ? 'last day' : `${e.left} days left`}</i><i>${esc(e.counter)}</i></span></div>`).join('');
+  return `<span class="cl-label" title="Morning edition · Day ${p.day} · 5¢">The Citrine Bay Bugle</span>${head}${briefs}${events}${sky}${market}${week}`;
 }
 
 /** Halftone the photo on a canvas: newsprint dots over a warm sepia wash. */
@@ -49,14 +79,27 @@ export function createBugle(root: HTMLElement): Bugle {
       if (!today || today.day !== shot.day || shot.score > today.score) today = shot;
     },
     best(day) { return today && today.day === day ? today : null; },
-    show(shot) {
+    show(shot, page) {
       halftone(shot.url, (photo) => {
         const el = document.createElement('div');
         el.className = 'frontpage';
-        el.innerHTML = `<div class="paper"><div class="mast">The Citrine Bay Bugle</div><div class="dateline"></div><img alt=""><div class="head"></div><div class="tap">tap to put it down</div></div>`;
+        el.innerHTML = `<div class="paper"><div class="mast">The Citrine Bay Bugle</div><div class="dateline"></div><div class="head"></div><img alt=""><div class="tap">tap to put it down</div></div>`;
         (el.querySelector('.dateline') as HTMLElement).textContent = `Morning edition · ${shot.edition ? `${shot.edition} · ` : ''}Day ${shot.day + 1} · 5¢`;
         (el.querySelector('img') as HTMLImageElement).src = photo;
-        (el.querySelector('.head') as HTMLElement).textContent = shot.headline;
+        const head = el.querySelector('.head') as HTMLElement;
+        if (!page) {
+          head.textContent = shot.headline;
+          head.before(el.querySelector('img')!); // the photo's caption under it
+        } else {
+          head.textContent = `${page.headline[0]} ${page.headline[1]}`;
+          // Under the photo: its own caption, then the briefs, in the dateline's small hand.
+          for (const text of [shot.headline, ...page.briefs]) {
+            const line = document.createElement('div');
+            line.className = 'dateline';
+            line.textContent = text;
+            el.querySelector('.tap')!.before(line);
+          }
+        }
         const close = () => { if (!el.isConnected) return; el.classList.add('leaving'); setTimeout(() => el.remove(), 300); };
         el.addEventListener('click', close);
         root.appendChild(el);

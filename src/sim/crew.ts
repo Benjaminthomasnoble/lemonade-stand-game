@@ -21,6 +21,7 @@ import { etaMinute, hhmm, onTheRoad, raidStart, sendRaid, travelMinutes } from '
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexLesson, hasStory } from './story.ts';
 import { alert } from './alerts.ts';
+import { bugleFight } from './media.ts';
 
 export interface Guard {
   id: string;
@@ -546,6 +547,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     s.battles.length = Math.min(s.battles.length, 6);
     s.news.push(battleHeadline(report));
   }
+  bugleFight(s, report); // world: the Bugle and 101.5 hear about every fight, rival-vs-rival included
   return report;
 }
 

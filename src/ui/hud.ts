@@ -20,7 +20,7 @@ import {
   isEndless, loanLimit, loanPayment, MAJORITY, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type CampaignId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
-  tasteOffToday, type FestivalId,
+  tasteOffToday, type FestivalId, bugleHeadline,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
@@ -31,7 +31,7 @@ import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
-import { calendarHeadline, calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
+import { calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
 import { tripLines, tripNote } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
@@ -40,7 +40,7 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
-import { storyDateline, storyHeadline, taught } from '../sim/story.ts';
+import { storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
 
 export type Action =
@@ -121,23 +121,6 @@ const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 function clock(min: number) {
   const h = Math.floor(min / 60) % 24, mm = min % 60;
   return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`;
-}
-
-function headline(s: GameState): [string, string] {
-  const act = storyHeadline(s); // a new act leads the morning paper
-  if (act) return act;
-  if (s.day === 1) return ["SCHOOL'S OUT!", 'Grandkid opens on Maple Row'];
-  const cal = calendarHeadline(s); if (cal) return cal;
-  const pool: Record<string, [string, string][]> = {
-    scorcher: [['SIZZLER!', 'Hot enough to fry an egg'], ['SCORCHER!', 'Town begs for shade']],
-    hot: [['HOT ONE!', 'Thirsty town expected'], ["SUN'S OUT!", 'Cups out']],
-    warm: [['PERFECT DAY!', 'Lemonade weather, says Lottie'], ['NICE ONE!', 'Strollers on Maple Row']],
-    cloudy: [['GRAY SKIES', 'Cool heads, cool cups'], ['CLOUDY', 'Thirst rolls out']],
-    rainy: [['PUDDLES!', 'Umbrellas outsell lemonade'], ['RAIN, RAIN', 'Go away, says every stand']],
-    storm: [['STORM!', 'Batten down the tables'], ['THUNDER!', 'Over Citrine Bay']],
-  };
-  const list = pool[s.forecast.kind];
-  return list[s.day % list.length];
 }
 
 // Every prop is drawn once and reused, so renders compare equal and nothing flickers.
@@ -234,12 +217,13 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
-        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: headline(s), goals: lottieGoals(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
+        : outcomeScreen(s) || (isFullMenu(hud.menu) ? menuScreen(s, hud.menu!, { head: bugleHeadline(s), goals: lottieGoals(s), crew: () => crewPanel(s) || defensePanel(s, s.selected), options: hud.options }) : '');
       root.toggleAttribute('data-night', s.phase === 'report' || s.phase === 'night');
       if (root.dataset.text !== String(hud.options.textSize)) root.dataset.text = String(hud.options.textSize);
       root.toggleAttribute('data-calm', hud.options.reducedMotion);
       set(topEl, modal && hud.setup ? '' : topbar(s));
-      set(dawnEl, !modal && s.phase === 'prep' ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(headline(s)[0], 'cl-big')}${tape(headline(s)[1], 'cl-sub')}</div>` : '');
+      const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
+      set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
       set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie())));
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
@@ -530,7 +514,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${taught(s, 'recipes') ? worldTabs(s, tab) : ''}
       ${standPicker(s)}</div>`;
     const sheet = tab === 'grow' ? `<div class="cl-sheet">${growPanel(s)}</div>` : tab === 'crew' ? `<div class="cl-sheet">${defensePanel(s, s.selected)}${crewPanel(s)}</div>`
-      : tab === 'book' || tab === 'fair' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
+      : tab === 'book' || tab === 'fair' || tab === 'bugle' ? `<div class="cl-sheet">${worldSheet(s, tab)}</div>` : '';
     return `<div class="cl-prep" data-testid="prep">${sheet}<div class="cl-bottom">${tabs}${dock(s)}</div></div>`;
   }
 

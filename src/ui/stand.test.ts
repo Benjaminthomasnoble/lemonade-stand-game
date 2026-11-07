@@ -169,10 +169,15 @@ describe('the stand panel', () => {
       'data-action="buy" data-id="lemons"', 'data-action="buy" data-id="sugar"', 'data-action="buy" data-id="ice"']) expect(html).toContain(a);
     expect(html).toContain(`top ${'$'}${priceCeiling(s, LOTTIES_CORNER).toFixed(2)}`);
     expect(html).not.toContain('data-action="upgrade"'); // upgrades and land stay Morning Prep only
-    s.day = 1; // before Day 2's recipe lesson the tray has the price and stock alone
+    s.day = 1; // before Day 2's recipe lesson and Day 3's Market the tray has the price alone: Lottie stocks the table
     expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-action="recipe"');
     expect(standPanel(s, LOTTIES_CORNER, false)).toContain('data-action="priceCeiling"');
+    expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-action="buy"');
+    s.day = 2;
+    expect(standPanel(s, LOTTIES_CORNER, false)).toContain('data-action="recipe"');
+    expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-action="buy"');
     s.day = 3;
+    expect(standPanel(s, LOTTIES_CORNER, false)).toContain('data-action="buy" data-id="lemons"');
     s.selected = 'maple-1n'; // another stand's card has Manage first
     expect(standPanel(s, LOTTIES_CORNER, false)).not.toContain('data-testid="nudges"');
   });

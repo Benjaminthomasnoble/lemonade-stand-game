@@ -128,8 +128,8 @@ const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
 /**
  * The mid-day nudges (spec: Nudge anything mid-day, and the stand panel answers within seconds): the morning
  * dock's card pitchers, Sweetness cubes, price tag and supply buttons, for the stand you're managing. Supplies
- * cost today's Market price, and a button wobbles when the stand will run dry before closing. Upgrades and
- * land stay Morning Prep only.
+ * cost today's Market price, and a button wobbles when the stand will run dry before closing; like the dock's,
+ * they wait for the Market's lesson (Lottie stocks your table on Days 1-2). Upgrades and land stay Morning Prep only.
  */
 function nudges(s: GameState, plotId: string, c: DemandChain): string {
   const st = s.plots[plotId].stand!;
@@ -153,7 +153,7 @@ function nudges(s: GameState, plotId: string, c: DemandChain): string {
     <div class="cl-sec cl-price"><div class="cl-row"><button class="cl-knob cl-minus" data-action="price" data-delta="-0.05" aria-label="Lower price"></button>
       <div class="cl-chalk${st.price < cost ? ' loss' : ''}${st.price > c.ceiling + 1e-9 ? ' over' : ''}" data-action="priceCeiling" title="Top price ${usd(c.ceiling)}: past it, buyers walk off. Costs you ${usd(cost)} a cup. Tap to price at the top"><b>${usd(st.price)}</b><i>top ${usd(c.ceiling)}</i></div>
       <button class="cl-knob cl-plus" data-action="price" data-delta="0.05" aria-label="Raise price"></button></div>${priceSwitch(s, plotId)}</div>
-    <div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div></div>
+    ${taught(s, 'market') ? `<div class="cl-sec cl-stock"><div class="cl-row">${(Object.keys(SUPPLIES) as SupplyId[]).map(gauge).join('')}</div></div>` : ''}
     ${bookingRow(s, plotId)}
   </div>`;
 }

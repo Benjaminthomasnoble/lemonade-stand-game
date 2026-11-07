@@ -9,6 +9,7 @@ export const START = {
   landValue: 300, // Lottie's Corner
   plotTraffic: 400, // passersby per business day on Lottie's Corner
   standLevel: 1,
+  tableInvested: 100, // Lottie's own Folding Table counts as $100 invested, not the $150 a new one costs (Appendix A)
 };
 
 // ---------- time ----------

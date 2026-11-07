@@ -116,9 +116,9 @@ describe('crew and raids', () => {
     const s = newGame(9);
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
     s.cash = 500;
-    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(23);
+    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(15); // Lottie's table counts as $100
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
-    expect(s.cash).toBe(477);
+    expect(s.cash).toBe(485);
   });
 
   it('the night is deterministic', () => {

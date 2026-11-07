@@ -34,7 +34,7 @@ describe('difficulty', () => {
     expect(b.busted).toBe(true);
     const ps = s.plots[LOTTIES_CORNER];
     expect(ps.busted).toBe(true);
-    expect(rebuildCost(ps)).toBe(Math.ceil(ps.invested * 0.1));
+    expect(rebuildCost(ps)).toBe(10); // 10% of Lottie's $100 table
     for (let i = 0; i < 4; i++) { s.cash = Math.max(s.cash, 50); s.phase = 'report'; sleepUntilDawn(s); }
     expect(s.plots[LOTTIES_CORNER].owner).toBe('player'); // a Wrecked stand would have lapsed by now
     s.cash = 100;
@@ -51,7 +51,7 @@ describe('difficulty', () => {
     const party = raidPartyFor(s, 'blenders').map((f) => ({ ...f, hit: 200, chop: 500, hp: 1000, nerve: 500 }));
     const b = fightRaid(s, { id: 'r1', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party, detected: true, eta: '23:00' }, true);
     expect(b.busted).toBeUndefined();
-    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(Math.ceil(s.plots[LOTTIES_CORNER].invested * 0.15));
+    expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(15); // 15% of Lottie's $100 table
     for (let i = 0; i < 3; i++) { s.cash = Math.max(s.cash, 50); s.phase = 'report'; sleepUntilDawn(s); }
     expect(s.plots[LOTTIES_CORNER].owner).not.toBe('player');
   });

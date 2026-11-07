@@ -10,7 +10,7 @@
 // fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes
 // the dawn's rng.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, STORM_DAMAGE,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, START, STORM_DAMAGE,
   type RivalId,
 } from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
@@ -39,11 +39,14 @@ const building = (ps: PlotState) => ps.stand ?? ps.facility ?? null;
 
 /**
  * What was invested in the building on a plot: the base for its rebuild and repair costs. A stand counts its level
- * steps (a Kiosk built on an empty plot: $150 + $400 + $3,500 = $4,050), a facility its tiers. Fences and gadgets
- * have their own repair rule (Defenses), and the plot's `invested` (Net Worth's figure, which counts them) is untouched.
+ * steps (a Kiosk built on an empty plot: $150 + $400 + $3,500 = $4,050), and Lottie's own Folding Table, the one the run
+ * starts with, counts as $100 (Appendix A), so it rebuilds for $15 and the Corner grown into a Kiosk has $4,000 in it. A
+ * facility counts its tiers. Fences and gadgets have their own repair rule (Defenses), and the plot's `invested` (Net
+ * Worth's figure, which counts them) is untouched.
  */
 export function buildingInvested(ps: PlotState): number {
-  if (ps.stand) return STAND_LEVELS.slice(0, ps.stand.level).reduce((a, l) => a + l.cost, 0);
+  const st = ps.stand;
+  if (st) return STAND_LEVELS.slice(0, st.level).reduce((a, l, i) => a + (i === 0 && st.startTable ? START.tableInvested : l.cost), 0);
   if (ps.facility) return FACILITIES[ps.facility.kind].costs.slice(0, ps.facility.level).reduce((a, c) => a + c, 0);
   return 0;
 }
@@ -401,5 +404,7 @@ export function migrateDamage(s: GameState): void {
     if (r !== undefined && (!r || typeof r !== 'object' || typeof r.by !== 'string' || typeof r.cost !== 'number' || typeof r.hp !== 'number' || !b
       || (r.rebuild !== undefined && r.rebuild !== true) || isWrecked(ps) !== !!r.rebuild)) delete ps.repair; // a rebuild waits on a wreck, a repair on a standing building
     if (ps.noAutoRepair !== undefined && (ps.noAutoRepair !== true || ps.owner !== 'player')) delete ps.noAutoRepair;
+    // Saves from before the starting table's own figure keep the $150 every table had then.
+    if (ps.stand && ps.stand.startTable !== undefined && ps.stand.startTable !== true) delete ps.stand.startTable;
   }
 }

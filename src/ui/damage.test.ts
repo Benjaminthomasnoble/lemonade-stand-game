@@ -3,12 +3,13 @@ import { approveRebuild, approveRepair, LESSON_DAY, LOTTIES_CORNER, newGame, PLO
 import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
-/** Lottie's Corner as a Kiosk ($4,050, 800 HP, 120 cups an hour) at Morning Prep. */
+/** Lottie's Corner as the spec's Kiosk ($4,050 from a table built new, 800 HP, 120 cups an hour) at Morning Prep. */
 function kiosk(): GameState {
   const s = newGame(21);
   s.rank = 6;
   s.cash = 100000;
   s.phase = 'prep';
+  delete s.plots[LOTTIES_CORNER].stand!.startTable; // not Lottie's own $100 table
   upgradeStand(s, LOTTIES_CORNER);
   upgradeStand(s, LOTTIES_CORNER);
   return s;

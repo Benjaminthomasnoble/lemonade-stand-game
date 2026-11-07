@@ -112,6 +112,7 @@ export interface Stand {
   day: StandDay;
   hp?: number; // HP left after a raid dented it (damage.ts): missing means full, a Wrecked stand has 0
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
+  startTable?: true; // Lottie's own Folding Table, the run's first stand: its L1 counts as START.tableInvested ($100) in rebuilds and repairs (damage.ts)
   lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)
   spoiledDay?: number; // a Sabotage spoiled the stock: no sales this day
 }
@@ -389,6 +390,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
   s.plots[LOTTIES_CORNER].stand!.price = priceCeiling(s, LOTTIES_CORNER); // the sweet spot (spec: Pricing)
+  s.plots[LOTTIES_CORNER].stand!.startTable = true; // counts as $100 invested in its rebuilds and repairs (damage.ts buildingInvested)
   seedRivals(s, rng);
   seedRivalDefenses(s, rng);
   seedRivalFacilities(s);

@@ -854,8 +854,8 @@ describe('Custom difficulty', () => {
       s.plots[LOTTIES_CORNER].stand!.hp = 40;
       return repairCost(s, LOTTIES_CORNER);
     };
-    expect(repairAt40({ bustOnly: true })).toBe(405);
-    expect(repairAt40({})).toBeGreaterThan(405);
+    expect(repairAt40({ bustOnly: true })).toBe(400); // 10% of the Corner's $4,000 Kiosk (Lottie's table counts $100)
+    expect(repairAt40({})).toBeGreaterThan(400);
   });
 
   it('the Cookie Jar slider: Always never ends the run; Never squeezes you out after 3 days In the Red', () => {

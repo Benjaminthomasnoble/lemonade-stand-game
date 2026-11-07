@@ -15,6 +15,7 @@ const art = (key: string, f: () => string) => { let v = memo.get(key); if (v ===
 const ICON = {
   foot: () => art('foot', A.footSVG), empty: () => art('empty', A.emptySVG), crate: () => art('crate', A.crateSVG),
   shield: () => art('shield', A.shieldSVG), lemon: () => art('lemon', A.lemonSVG),
+  boom: () => art('boom', A.boomSVG), bag: () => art('bag', A.moneyBagSVG),
   fence: (t: number) => art(`fence${t}`, () => A.fenceSVG(t)),
   weapon: (w: string) => art(`w-${w}`, w === 'hatchets' ? A.hatchetSVG : w === 'clubs' ? A.clubSVG : A.fistSVG),
 };
@@ -32,10 +33,12 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   const ps = s.plots[r.target];
   const left = minutesLeft(s, r);
   const seen = towerSees(s, r.target) && r.party?.length;
-  const them = seen ? r.party!.slice(0, 6).map((f) => ICON.weapon(f.weapon)).join('') : '';
+  // The makeup a Watchtower sees: what they're after, then each raider's weapon (six shown, the rest counted).
+  const them = seen ? `${r.objective === 'smash' ? ICON.boom() : ICON.bag()}${r.party!.slice(0, 6).map((f) => ICON.weapon(f.weapon)).join('')}${r.party!.length > 6 ? `<i>+${r.party!.length - 6}</i>` : ''}` : '';
   const guards = s.guards.filter((g) => g.post === r.target && guardReady(s, g)).length;
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
-  const tip = `${a.text}${seen ? ` ${r.party!.length} coming: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
+  const after = r.delivery ? 'the cargo' : r.objective === 'smash' ? 'a smash' : 'the till';
+  const tip = `${a.text}${seen ? ` ${r.party!.length} coming for ${after}: ${r.party!.map((f) => f.weapon).join(', ')}.` : ''}${r.detected ? '' : ' Undetected: they strike first.'}`;
   // The one action: Ring the Bell once combat's reserves merge (canRingBell / ringTheBell); until then, a fence.
   const next = PERIMETERS[ps.defense.tier];
   const pb = canBuyPerimeter(s, r.target);

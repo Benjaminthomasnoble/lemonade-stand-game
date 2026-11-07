@@ -54,6 +54,20 @@ describe('the raid warning card', () => {
     expect(card).toContain('Undetected: they strike first.');
   });
 
+  it("with a Watchtower: what they're after, and a count past six raiders", () => {
+    const { s, r } = warned();
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    const vs = (c: string) => c.slice(c.indexOf('cl-vs'));
+    const smash = alertCards(s)[0];
+    expect(smash).toContain(`${r.party!.length} coming for a smash`);
+    r.objective = 'shakedown';
+    r.party = Array.from({ length: 8 }, () => r.party![0]);
+    const card = alertCards(s)[0];
+    expect(vs(card).slice(0, 200)).not.toBe(vs(smash).slice(0, 200)); // a money bag, not a boom
+    expect(card).toContain('<i>+2</i>');
+    expect(card).toContain('8 coming for the till');
+  });
+
   it('goes when the raid hits', () => {
     const { s } = warned();
     while (s.minute < 22 * 60) nightStep(s);

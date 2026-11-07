@@ -514,12 +514,18 @@ export function reputationTarget(s: GameState, t: DayStats = s.today): number {
   return top - REP_DRIFT.dropPerShare * emptyHanded(t);
 }
 
-/** The nightly drift, at closing: 5% of the way to the target, within 1-5 stars. */
+const REP_GRAIN = 1e-4; // Reputation keeps four decimals
+
+/**
+ * The nightly drift, at closing: 5% of the way to the target, within 1-5 stars. Reputation keeps four decimals, so
+ * a night moves it at least 0.0001 toward the target (or onto it): a hair short, it still gets there.
+ */
 export function driftReputation(s: GameState, t: DayStats = s.today): void {
   const target = reputationTarget(s, t);
   t.repTarget = Math.round(target * 100) / 100;
-  const rep = s.reputation + REP_DRIFT.rate * (target - s.reputation);
-  s.reputation = Math.min(REP_DRIFT.max, Math.max(REP_DRIFT.min, Math.round(rep * 1e4) / 1e4));
+  const gap = target - s.reputation;
+  const step = Math.abs(gap) <= REP_GRAIN ? gap : Math.sign(gap) * Math.max(REP_GRAIN, Math.abs(REP_DRIFT.rate * gap));
+  s.reputation = Math.min(REP_DRIFT.max, Math.max(REP_DRIFT.min, Math.round((s.reputation + step) * 1e4) / 1e4));
 }
 
 // ---------- saves ----------

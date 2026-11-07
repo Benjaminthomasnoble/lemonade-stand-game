@@ -67,6 +67,14 @@ describe('Reputation drifts each night', () => {
     for (let n = 0; n < 200; n++) driftReputation(s);
     expect(s.reputation).toBeGreaterThan(3.79);
     expect(s.reputation).toBeLessThanOrEqual(3.8);
+    // A hair short, the four-decimal rounding never stalls it: 0.0004 below closes in four nights.
+    s.reputation = 3.7996;
+    for (let n = 0; n < 3; n++) driftReputation(s);
+    expect(s.reputation).toBe(3.7999);
+    driftReputation(s);
+    expect(s.reputation).toBe(3.8);
+    driftReputation(s);
+    expect(s.reputation).toBe(3.8);
     // About 19 nights from 3.0 to the 3.5 helicopter gate on an average of L3.
     s.reputation = 3.0;
     let nights = 0;

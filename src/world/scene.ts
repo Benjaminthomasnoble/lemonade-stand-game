@@ -44,8 +44,16 @@ export interface World {
   setWeather(kind: WeatherKind, dayFraction: number): void;
   /** The game clock for the lighting scripts: prep holds dawn, open follows the minute, report is night. */
   setClock(phase: Phase, minute: number): void;
-  /** Glide the camera to look at a point from a distance. */
+  /** Glide the camera to look at a point from a distance. A close look after Bay View turns back to the heading the
+   * camera had before it (unless the player turned the view meanwhile). */
   focus(x: number, z: number, distance: number): void;
+  /**
+   * Glide out to Bay View: the whole plinth on the table, squared to the screen (its long side across a landscape
+   * screen, up a portrait one) from as far back as this screen's aspect needs (bayDistance()).
+   */
+  bayView(): void;
+  /** How far back Bay View stands on this screen, so the plinth fits. */
+  bayDistance(): number;
   /** Slide the view along the ground (keys W A S D): `right` and `ahead` in screen terms, scaled by how far out the
    * camera is, per second held (pass the frame time). */
   panBy(right: number, ahead: number): void;
@@ -61,8 +69,20 @@ export interface World {
 }
 
 export const BOUNDS = { minX: -180, maxX: 170, minZ: -125, maxZ: 80 };
-/** Where Bay View looks from: the whole plinth on the kitchen table. */
-export const BAY_VIEW = { x: PLINTH.cx, z: PLINTH.cz + 6, distance: 400 };
+/** Where Bay View looks: the whole plinth on the kitchen table. `distance` is a landscape screen's; world.bayView()
+ * and world.bayDistance() fit the plinth to the screen's own aspect (a portrait phone stands about twice as far back). */
+export const BAY_VIEW = { x: PLINTH.cx, z: PLINTH.cz + 6, distance: 420 };
+/** Bay View's pitch: about 52 degrees above the table (the strata still show), 60 on a portrait screen, whose width
+ * sets the distance, so a steeper look fills more of its height with the bay. */
+const BAY_ELEV = { landscape: 0.9, portrait: 1.05 };
+/** The plinth's corners, at the lawn and at its foot on the table, with a little margin: what Bay View fits on screen. */
+const PLINTH_CORNERS = [0, -14].flatMap((y) => [-1, 1].flatMap((sx) => [-1, 1].map((sz) =>
+  new THREE.Vector3(PLINTH.cx + sx * (PLINTH.w / 2 + 4), y, PLINTH.cz + sz * (PLINTH.d / 2 + 4)))));
+/** A heading (radians about y, 0 looking toward +z from the -z side) as a camera direction (target to camera) at a pitch. */
+const dirOf = (heading: number, elev: number, out = new THREE.Vector3()) =>
+  out.set(Math.sin(heading) * Math.cos(elev), Math.sin(elev), -Math.cos(heading) * Math.cos(elev));
+const headingOf = (dir: THREE.Vector3) => Math.atan2(dir.x, -dir.z);
+const angleTo = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 export { SEA_X, SEA_Z } from '../sim/map.ts';
 export { TABLE_Y } from './diorama.ts';
 
@@ -146,7 +166,9 @@ export async function createWorld(container: HTMLElement): Promise<World> {
   scene.background = bgDay;
   scene.fog = new THREE.Fog(LOOKS.noon.fog, 120, 420);
 
-  const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 4000);
+  // The near plane follows the zoom (update()): a portrait phone's Bay View stands ~850 back, where a 0.5 near plane
+  // would leave the plot tiles z-fighting the lawn.
+  const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 6000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.minDistance = 5;
@@ -226,6 +248,40 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     if (specks.instanceColor) specks.instanceColor.needsUpdate = true;
   }
 
+  // Bay View fits the plinth to the screen: the nearest distance where every corner projects inside the frame (a
+  // little short of the edges, so the HUD's bars don't cover it). A plain search: projection isn't linear in distance.
+  const fitCam = new THREE.PerspectiveCamera(), fitP = new THREE.Vector3(), bayTarget = new THREE.Vector3(BAY_VIEW.x, 0.8, BAY_VIEW.z);
+  function fitDistance(dir: THREE.Vector3): number {
+    fitCam.fov = camera.fov; fitCam.aspect = camera.aspect; fitCam.near = 1; fitCam.far = 1e5; fitCam.updateProjectionMatrix();
+    let lo = 60, hi = 4000;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) / 2;
+      fitCam.position.copy(bayTarget).addScaledVector(dir, mid);
+      fitCam.lookAt(bayTarget);
+      fitCam.updateMatrixWorld();
+      const inside = PLINTH_CORNERS.every((c) => { fitP.copy(c).project(fitCam); return Math.abs(fitP.x) <= 0.94 && Math.abs(fitP.y) <= 0.8; });
+      if (inside) hi = mid; else lo = mid;
+    }
+    return Math.ceil(hi);
+  }
+  /** Bay View's heading: the long side across a landscape screen or up a portrait one, whichever of the two is nearer the camera's heading now. */
+  function bayDir(from: THREE.Vector3, out = new THREE.Vector3()) {
+    const base = camera.aspect < 1 ? Math.PI / 2 : 0, h = headingOf(from);
+    return dirOf(angleTo(h, base) <= angleTo(h, base + Math.PI) ? base : base + Math.PI, camera.aspect < 1 ? BAY_ELEV.portrait : BAY_ELEV.landscape, out);
+  }
+  /** Pinching out may go a little past Bay View at any heading or pitch (the far end of OrbitControls). */
+  function fitMaxDistance() {
+    let far = 0;
+    for (let k = 0; k < 8; k++) for (const e of [0.55, BAY_ELEV.landscape]) far = Math.max(far, fitDistance(dirOf((k * Math.PI) / 4, e)));
+    controls.maxDistance = Math.max(470, far * 1.12);
+  }
+  /** The heading a close look returns to after Bay View squared the camera (cleared once used, or once the player turns). */
+  let beforeBay: { dir: THREE.Vector3; bay: number } | null = null;
+  const curDir = (out = new THREE.Vector3()) => {
+    out.copy(camera.position).sub(controls.target).normalize();
+    if (out.y < 0.3) out.set(0.35, 0.75, 0.55).normalize();
+    return out;
+  };
   const post: ClayPost = createPost(renderer, scene, camera, phone ? 2 : 4);
   const onResize = () => {
     camera.aspect = container.clientWidth / container.clientHeight;
@@ -234,6 +290,7 @@ export async function createWorld(container: HTMLElement): Promise<World> {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, phone ? 1.5 : 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     post.setSize(container.clientWidth, container.clientHeight);
+    fitMaxDistance();
   };
   onResize();
   window.addEventListener('resize', onResize);
@@ -269,11 +326,23 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       hour = hourOf(phase, minute);
     },
     focus(x, z, distance) {
-      const dir = camera.position.clone().sub(controls.target).normalize();
-      if (dir.y < 0.3) dir.set(0.35, 0.75, 0.55).normalize();
+      let dir = curDir();
+      if (beforeBay && distance < DETAIL_AT.bay) {
+        // Back in close after Bay View: the pitch from before, and its heading too unless the player has turned the view since.
+        const h = headingOf(dir);
+        dir = dirOf(angleTo(h, beforeBay.bay) < 0.2 ? headingOf(beforeBay.dir) : h, Math.asin(beforeBay.dir.y), dir);
+        beforeBay = null;
+      }
       const to = new THREE.Vector3(x, 0.8, z);
       glide = { from: controls.target.clone(), to, camFrom: camera.position.clone(), camTo: to.clone().addScaledVector(dir, distance), t: 0 };
     },
+    bayView() {
+      const now = curDir(), dir = bayDir(now);
+      if (camera.position.distanceTo(controls.target) < DETAIL_AT.bay) beforeBay = { dir: now, bay: headingOf(dir) };
+      else if (beforeBay) beforeBay.bay = headingOf(dir);
+      glide = { from: controls.target.clone(), to: bayTarget.clone(), camFrom: camera.position.clone(), camTo: bayTarget.clone().addScaledVector(dir, fitDistance(dir)), t: 0 };
+    },
+    bayDistance: () => fitDistance(bayDir(curDir())),
     panBy(right, ahead) {
       glide = null;
       const fwd = controls.target.clone().sub(camera.position).setY(0);
@@ -317,6 +386,8 @@ export async function createWorld(container: HTMLElement): Promise<World> {
       if (detailCap !== null && dist < DETAIL_AT.show) detail = Math.max(byDist, Math.min(detail, detailCap)) as Detail;
       scene.userData.detail = detail;
       scene.userData.distance = dist;
+      const near = THREE.MathUtils.clamp(dist * 0.01, 0.5, 8);
+      if (Math.abs(near - camera.near) > camera.near * 0.15) { camera.near = near; camera.updateProjectionMatrix(); }
 
       // Lighting: the script for this hour plus weather, eased so phase changes glide.
       weatherOn(lookAt(hour, target), weather);

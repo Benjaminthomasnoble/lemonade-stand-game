@@ -116,6 +116,11 @@ with these pieces.
   `scene.userData.distance` is the camera distance, and
   `scene.userData.shadows` is false when the sun casts none (phones: show
   blob shadows instead).
+- `world.bayView()` glides out to the whole plinth, squared to the screen (its
+  long side across a landscape screen, up a portrait one) from the distance
+  this aspect needs (`world.bayDistance()`: about 420 on a laptop, 850 on a
+  portrait phone); the next close `focus()` turns back to the heading from
+  before. `controls.maxDistance` and the camera's near plane follow the fit.
 - At detail 2, every top-level object with `userData.limbs` draws as one
   instanced clay speck, so figures cost nothing at Bay View. bay.ts swaps
   each district's plots for one merged block and hides grass and flowers.

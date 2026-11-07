@@ -35,7 +35,7 @@ import {
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
-import { BAY_VIEW, createWorld } from './world/scene.ts';
+import { createWorld } from './world/scene.ts';
 import { createBay } from './world/bay.ts';
 import { CROWD_PHONE, CROWD_POOL, createCrowd, type Gait } from './world/people.ts';
 import { setBeatSource } from './world/beat.ts';
@@ -72,6 +72,9 @@ const RUSH_MS = 5000;
 /** Not every buyer says something, or the street turns into a wall of bubbles. */
 const SIP_CHANCE = 0.35;
 
+/** Street View's framing (focusPlot): the distance back, and how far from the street's centre line the camera aims. */
+const STREET_DIST = { landscape: 14, portrait: 17 };
+const STREET_AIM = { landscape: 7, portrait: 7.5 };
 /** Draw walkers only for plots this close to what the camera looks at, and only when zoomed in. */
 const STREET_VIEW_RADIUS = 45;
 const STREET_VIEW_MAX_DIST = 70;
@@ -195,10 +198,10 @@ async function main() {
   const bay = createBay(world.scene);
   bay.sync(state);
   const home = PLOT_BY_ID[LOTTIES_CORNER];
-  // Look from the street side, so the stand faces the player above the dock.
-  const homeZ = home.z - 3;
-  world.controls.target.set(home.x + 1, 0.8, homeZ);
-  world.camera.position.set(home.x + 6, 8.5, homeZ - 11);
+  // Look from the street side, so the stand faces the player above the dock (Street View's framing, as focusPlot).
+  const portrait = world.camera.aspect < 1;
+  world.controls.target.set(home.x + 1, 0.8, home.streetZ - home.facing * (portrait ? STREET_AIM.portrait : STREET_AIM.landscape));
+  world.camera.position.set(5, 7.7, -11).setLength(portrait ? STREET_DIST.portrait : STREET_DIST.landscape).add(world.controls.target);
 
   const tmp = new THREE.Vector3();
   const toScreen = (pos: THREE.Vector3) => {
@@ -472,9 +475,14 @@ async function main() {
     if (last) fanfare(last);
   };
 
-  const focusPlot = (id: string, distance = 22) => {
+  /** Look at a plot. Street View (no distance given) frames the stand, its queue and the sidewalk in the middle of
+   * the screen above the dock, close enough that the stand and its walkers fill about a third of it (spec "Camera");
+   * a portrait phone's narrow frame stands a little further back. The aim sits on the stand (7.5 from the street's
+   * centre line; the sidewalk is at 5.1), so the road stays at the bottom edge. */
+  const focusPlot = (id: string, distance?: number) => {
     const p = PLOT_BY_ID[id];
-    world.focus(p.x, (p.z + p.streetZ) / 2, distance);
+    const portrait = world.camera.aspect < 1;
+    world.focus(p.x, p.streetZ - p.facing * (portrait ? STREET_AIM.portrait : STREET_AIM.landscape), distance ?? (portrait ? STREET_DIST.portrait : STREET_DIST.landscape));
   };
 
   const act = (a: Action) => {
@@ -584,7 +592,7 @@ async function main() {
         break;
       case 'buyPlot': buyPlot(state, a.plot); break;
       case 'build': buildStand(state, a.plot); break;
-      case 'view': if (a.target === 'home') focusPlot(state.selected); else world.focus(BAY_VIEW.x, BAY_VIEW.z, BAY_VIEW.distance); break;
+      case 'view': if (a.target === 'home') focusPlot(state.selected); else world.bayView(); break;
       case 'perimeter': buyPerimeter(state, a.plot); break;
       case 'gadget': buyGadget(state, a.plot, a.id); break;
       case 'repairFence': repairFence(state, a.plot); break;
@@ -689,7 +697,7 @@ async function main() {
       if (stand?.lottie) stand.react(mood === 'grumpy' ? 'fist' : 'cheer');
     },
     camera: (where, plot) => {
-      if (where === 'bay') world.focus(BAY_VIEW.x, BAY_VIEW.z, BAY_VIEW.distance);
+      if (where === 'bay') world.bayView();
       else if (where === 'plot' && plot) focusPlot(plot, 26);
       else focusPlot(LOTTIES_CORNER, 16);
     },

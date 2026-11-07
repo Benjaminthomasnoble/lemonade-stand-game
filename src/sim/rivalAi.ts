@@ -5,7 +5,7 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, BRAND_TIERS, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, REPAIR_SHARE, RIVAL_RAID_AT, SEASON_DEMAND,
+  BOARDWALK_SEASON, BRAND_TIERS, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND,
   SEASON_WEATHER, SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
@@ -17,7 +17,9 @@ import {
   RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
-import { fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, threatLevel, type Raid } from './crew.ts';
+import {
+  fenceRepairCost, hasBuilding, NO_DEFENSE, raidPartyFor, rivalDefenseSpend, rivalFence, rivalKit, threatLevel, type GuardPurse, type Raid,
+} from './crew.ts';
 import { hhmm, raidStart, travelMinutes } from './night.ts';
 import { restoreHp } from './damage.ts';
 import { CALL_PRIORITY, phoneCall, raidCall } from './phone.ts';
@@ -471,7 +473,7 @@ export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
 // ---------- same costs as yours: wages, repairs, stock ----------
 
 /** The strength of the henchmen guarding a rival plot (the tier garrisonFighters fields there). */
-export const garrisonTier = (ps: PlotState) => Math.min(5, Math.max(1, Math.ceil((ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1)) / 1.2)));
+export const garrisonTier = (ps: PlotState) => rivalKit(ps).level;
 /** A rival henchman's daily wage: what you'd pay a guard of the same level. */
 export const henchWage = (ps: PlotState) => GUARD_WAGE[HENCHMEN[garrisonTier(ps) - 1].level - 1];
 
@@ -527,19 +529,18 @@ export function hayBales(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
   return ps?.owner === 'hollis' && ps.defense.tier > 0 && ps.defense.fenceHp > 0;
 }
-/** Patching a chopped rival fence back to full: your repair price, at Dig In's share and up to the bales for Hollis. */
+/** Patching a chopped rival fence back to full: your repair price (crew's flat fee a raid), at Dig In's share and up to the
+ * bales for Hollis. */
 function patchCost(id: RivalId, ps: PlotState): number {
-  if (id !== 'hollis') return fenceRepairCost(ps);
-  const full = fenceFull(ps);
-  if (!full || ps.defense.fenceHp >= full) return 0;
-  return Math.ceil(fencePrice(id, ps.defense.tier) * REPAIR_SHARE * (1 - ps.defense.fenceHp / full));
+  return id === 'hollis' ? Math.ceil(fenceRepairCost(ps, fenceFull(ps)) * DIG_IN.cost) : fenceRepairCost(ps);
 }
 
 /**
- * Guard spending at dawn (crewAtDawn), all from the Guard bucket: first patch chopped fences (the same repair price
- * as yours), then fences and henchmen on the three best stands. A henchman is hired only while Guard's share of what
- * the rival's trade nets each day covers his wage, which then comes out of its cash every dawn. Hollis digs in: its
- * fences cost less and carry hay bales, and it fences every Field it holds too (it holds the Field land).
+ * Guard spending at dawn (crewAtDawn), all from the Guard bucket. What it buys is crew's call (crew.ts
+ * rivalDefenseSpend): first the repairs (the same flat repair price as yours), then each of the three best plots' next
+ * step toward its kit. A henchman is hired only while Guard's share of what the rival's trade nets each day covers his
+ * wage, which then comes out of its cash every dawn. Hollis digs in: its fences cost less and carry hay bales, and it
+ * fences every Field it holds too (it holds the Field land).
  */
 export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
   void rng;
@@ -551,35 +552,17 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
     const extra = Math.max(0, wageBill(s, id) - (t?.days ? (t.wages ?? 0) / t.days : 0)); // wages beyond the crew it opened with
     return extra + wage <= FACTIONS[id].guard * Math.max(0, (t?.last ?? 0) + extra);
   };
-  const plots = ownedPlots(s, id).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
-  for (const p of plots) {
-    const ps = s.plots[p.id];
-    const cost = patchCost(id, ps);
-    if (cost > 0 && canSpend(s, id, 'guard', cost)) {
-      spend(s, id, 'guard', cost);
-      ps.defense.fenceHp = fenceFull(ps);
-    }
-  }
-  /** The next fence up, if it's within `cap` and Guard can pay: true when bought. */
-  const fence = (ps: PlotState, cap: number) => {
-    const next = PERIMETERS[ps.defense.tier];
-    const price = next ? fencePrice(id, next.tier) : 0;
-    if (!next || next.tier > cap || !canSpend(s, id, 'guard', price)) return false;
-    spend(s, id, 'guard', price);
-    ps.invested += price; // a fence counts in Net Worth at 75%, like yours
-    ps.defense = { ...ps.defense, tier: next.tier };
-    ps.defense.fenceHp = fenceFull(ps);
+  const pay = (cost: number) => {
+    if (!canSpend(s, id, 'guard', cost)) return false;
+    spend(s, id, 'guard', cost);
     return true;
   };
-  for (const p of plots.filter((q) => s.plots[q.id].stand).slice(0, 3)) {
-    const ps = s.plots[p.id];
-    if (fence(ps, Math.ceil(ps.stand!.level / 1.5) + 1)) continue;
-    if ((ps.garrison ?? 0) < ps.stand!.level + 1 && canSpend(s, id, 'guard', RIVAL_HIRE_FEE) && affords(henchWage(ps))) {
-      spend(s, id, 'guard', RIVAL_HIRE_FEE);
-      ps.garrison = (ps.garrison ?? 0) + 1;
-    }
-  }
-  if (id === 'hollis') for (const p of plots.filter((q) => q.type === 'field')) fence(s.plots[p.id], DIG_IN.fieldTier);
+  const purse: GuardPurse = {
+    pay, hire: (ps) => affords(henchWage(ps)) && pay(RIVAL_HIRE_FEE),
+    fencePrice: (tier) => fencePrice(id, tier), fenceFull, patchCost: (ps) => patchCost(id, ps), // Dig In for Hollis
+  };
+  rivalDefenseSpend(s, id, purse);
+  if (id === 'hollis') for (const p of ownedPlots(s, id).filter((q) => q.type === 'field')) rivalFence(s.plots[p.id], DIG_IN.fieldTier, purse);
 }
 
 // ---------- Night Shift: Cold Brew's quiet nights ----------

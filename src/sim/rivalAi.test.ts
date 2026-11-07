@@ -6,8 +6,8 @@ import {
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
-  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, REPAIR_SHARE, tauntsAtDawn, eliteStewards,
-  BRAND_TIERS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
+  CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, tauntsAtDawn, eliteStewards,
+  BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -533,14 +533,16 @@ describe('Dig In', () => {
 
   it('Hollis fences for 60% of your price, with hay bales that add half the fence\'s HP, and fences every Field it holds', () => {
     const s = bare(21);
-    const invested = Object.fromEntries(ownedPlots(s, 'hollis').map((p) => [p.id, s.plots[p.id].invested]));
+    const before = Object.fromEntries(ownedPlots(s, 'hollis').map((p) => [p.id, { invested: s.plots[p.id].invested, garrison: s.plots[p.id].garrison ?? 0 }]));
     rivalGuardSpend(s, 'hollis', { seed: 1 });
     rivalGuardSpend(s, 'hollis', { seed: 1 }); // a fence goes up one tier a dawn
     let paid = 0;
     for (const p of ownedPlots(s, 'hollis')) {
       const ps = s.plots[p.id];
-      for (let t = 1; t <= ps.defense.tier; t++) paid += fencePrice('hollis', t);
-      expect(ps.invested - invested[p.id]).toBe(Array.from({ length: ps.defense.tier }, (_, i) => fencePrice('hollis', i + 1)).reduce((a, b) => a + b, 0));
+      const fences = Array.from({ length: ps.defense.tier }, (_, i) => fencePrice('hollis', i + 1)).reduce((a, b) => a + b, 0);
+      const gadgets = ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].cost, 0); // crew's kit: once a stand's fence is up, its gadgets
+      paid += fences + gadgets + ((ps.garrison ?? 0) - before[p.id].garrison) * RIVAL_HIRE_FEE;
+      expect(ps.invested - before[p.id].invested).toBe(fences + gadgets);
       if (!ps.defense.tier) continue;
       expect(ps.defense.fenceHp).toBe(Math.round(PERIMETERS[ps.defense.tier - 1].hp * DIG_IN.hp));
       expect(hayBales(s, p.id)).toBe(true);
@@ -565,7 +567,7 @@ describe('Dig In', () => {
     const guard = budgetOf(s, 'hollis').guard;
     rivalGuardSpend(s, 'hollis', { seed: 1 });
     expect(ps.defense.fenceHp).toBe(full);
-    expect(guard - budgetOf(s, 'hollis').guard).toBeGreaterThanOrEqual(Math.ceil(fencePrice('hollis', ps.defense.tier) * REPAIR_SHARE * 0.5));
+    expect(guard - budgetOf(s, 'hollis').guard).toBeGreaterThanOrEqual(Math.ceil(PERIMETERS[ps.defense.tier - 1].repair * DIG_IN.cost)); // crew's flat repair
   });
 
   it('Tilly phones the morning after you raid her (the phone reads her Grudge jump)', () => {

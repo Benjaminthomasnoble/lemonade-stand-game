@@ -5,7 +5,7 @@
 // rest of the sim.
 import { SCOUT_DAYS, type GadgetId } from './balance.ts';
 import type { Blocker, GameState } from './economy.ts';
-import { guardReady, type Guard } from './crew.ts';
+import { guardReady, postsFor, type Guard } from './crew.ts';
 import { PLOT_BY_ID } from './map.ts';
 
 /** What a scout saw on a rival plot, and how long it stays fresh. */
@@ -58,7 +58,7 @@ export function scoutWithLookout(s: GameState, guardId: string, plotId: string):
 /** Write a fresh snapshot of a plot's defenses (Lookouts now, Gull Flight later). */
 export function recordScouting(s: GameState, plotId: string, by: Scouted['by']): void {
   const ps = s.plots[plotId];
-  (s.scouting ??= {})[plotId] = { day: s.day, until: s.day + SCOUT_DAYS - 1, by, tier: ps.defense.tier, gadgets: [...ps.defense.gadgets], garrison: ps.garrison ?? 0 };
+  (s.scouting ??= {})[plotId] = { day: s.day, until: s.day + SCOUT_DAYS - 1, by, tier: ps.defense.tier, gadgets: [...ps.defense.gadgets], garrison: Math.min(ps.garrison ?? 0, postsFor(s, plotId)) };
 }
 
 /** At dawn: stale scouting reports are dropped. */

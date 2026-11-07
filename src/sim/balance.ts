@@ -482,6 +482,18 @@ export const FIGHT_BUTTONS = {
 };
 /** Ring the Bell: the Clubhouse reserve reaches your plots in the same or a bordering district in 30–60 game minutes. */
 export const RESERVE_MINUTES = { same: 30, border: 60 }; // placeholder: spec gap. 30 from the same district, 60 from a bordering one
+/**
+ * What a rival builds up on a plot, by stand level (facilities count as their tier + 2): the fence tier, the gadgets
+ * (in buying order) and the henchmen on its posts (as many as the posts hold). The Kiosk row is the spec's Day 24
+ * Shakedown target (a Picket, cans, a goose and 3 Smoothie Bros with paddleboards); the other rows are placeholders.
+ */
+export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; weapons: [number, number, number]; gear: GearId }[] = [
+  { fence: 1, gadgets: [], level: 1, weapons: [1, 0, 0], gear: 'none' },
+  { fence: 1, gadgets: ['alarm'], level: 1, weapons: [0.5, 0.5, 0], gear: 'none' },
+  { fence: 1, gadgets: ['alarm', 'goose'], level: 1, weapons: [0, 1, 0], gear: 'none' },
+  { fence: 2, gadgets: ['alarm', 'goose', 'slick'], level: 2, weapons: [0, 1, 0], gear: 'vest' },
+  { fence: 3, gadgets: ['goose', 'slick', 'sprinkler'], level: 4, weapons: [0, 0.5, 0.5], gear: 'pro' },
+];
 /** Henchmen strength by Threat: level and padding. */
 export const HENCHMEN = [
   { level: 1, gear: 'none' as GearId },

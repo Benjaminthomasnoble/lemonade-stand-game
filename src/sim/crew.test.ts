@@ -2,18 +2,33 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClubhouse, buyGadget, buyPerimeter, canBuyGadget, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
   payCrew, planRaid, PLOTS, promote,
-  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex, type BattleReport, type GameState,
+  raidOdds, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, simulateRestOfDay, sleepUntilDawn, threatLevel, tickMinute, welcomeDex,
+  type BattleReport, type GameState,
 } from './economy.ts';
 import {
   availableRaiders, canPost, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  raidIsNight, raidIsNightAt, raidRepCost, repairFence, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
+  raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, squadFighters, strongholdTravelMult, towerCovers, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, PERIMETERS } from './balance.ts';
+import { CLOSE, GUARD_BASE, PERIMETERS } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
+
+/** A rival's Guard money for a test: what's left to spend, and whether its trade covers a new henchman's wage. */
+function guardPurse(left: number, wages = true) {
+  const purse = {
+    left,
+    pay: (cost: number) => {
+      if (cost > purse.left) return false;
+      purse.left -= cost;
+      return true;
+    },
+    hire: () => wages && purse.pay(RIVAL_HIRE_FEE),
+  };
+  return purse;
+}
 
 function playDay(s: GameState) {
   openStand(s);
@@ -516,22 +531,25 @@ describe('overnight repairs', () => {
     expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(3);
   });
 
-  it('rivals pay for their own repairs; a broke rival is left with a chopped fence', () => {
+  it('a rival pays its repairs from its Guard money; overnight repairs leave its plots alone', () => {
     const s = newGame(97);
     const id = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
     const ps = s.plots[id];
-    ps.defense = { tier: 2, fenceHp: 100, gadgets: ['slick'], repairs: 1, slickSprung: true };
+    ps.defense = { tier: 2, fenceHp: 100, gadgets: ['slick'], repairs: 2, slickSprung: true };
     s.rivals.blenders.cash = 1000;
     overnightRepairs(s);
+    expect(ps.defense.fenceHp).toBe(100);
+    expect(s.rivals.blenders.cash).toBe(1000);
+    const purse = guardPurse(2 * PERIMETERS[1].repair + 25, false);
+    rivalDefenseSpend(s, 'blenders', purse);
     expect(ps.defense.fenceHp).toBe(PERIMETERS[1].hp);
+    expect(ps.defense.repairs).toBeUndefined();
     expect(ps.defense.slickSprung).toBeUndefined();
-    expect(s.rivals.blenders.cash).toBe(1000 - PERIMETERS[1].repair - 25);
+    expect(purse.left).toBe(0); // the flat fee for each of the 2 raids, and the Slick's $25
     ps.defense.fenceHp = 50;
     ps.defense.repairs = 1;
-    s.rivals.blenders.cash = 50;
-    overnightRepairs(s);
-    expect(ps.defense.fenceHp).toBe(50);
-    expect(s.rivals.blenders.cash).toBe(50);
+    rivalDefenseSpend(s, 'blenders', guardPurse(PERIMETERS[1].repair - 1, false));
+    expect(ps.defense.fenceHp).toBe(50); // short of the repair, the fence stays chopped
   });
 
   it('an old save\'s chopped fence is queued for the next overnight repair', () => {
@@ -622,5 +640,63 @@ describe('guard posts', () => {
         if (ps.owner && ps.owner !== 'player' && ps.stand) expect(ps.garrison ?? 0).toBeLessThanOrEqual(postsFor(s, p.id));
       }
     }
+  });
+});
+
+describe('rival plot defenses', () => {
+  /** A rival's best plot, stripped bare and made a Kiosk, with deep pockets. */
+  const kiosk = (seed: number) => {
+    const s = newGame(seed);
+    const id = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
+    const ps = s.plots[id];
+    ps.stand!.level = 3;
+    ps.defense = { tier: 0, fenceHp: 0, gadgets: [] };
+    ps.garrison = 0;
+    ps.invested = 1e7;
+    s.rivals.blenders.cash = 1e6;
+    return { s, id, ps };
+  };
+
+  it('a Kiosk builds toward the spec\'s kit one step a dawn: a Picket, 3 henchmen, then cans and a goose', () => {
+    const { s, ps } = kiosk(110);
+    const steps: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      rivalDefenseSpend(s, 'blenders', guardPurse(1e6));
+      steps.push(`${ps.defense.tier}/${ps.defense.gadgets.join('+')}/${ps.garrison}`);
+    }
+    expect(steps).toEqual(['1//0', '1//1', '1//2', '1//3', '1/alarm/3', '1/alarm+goose/3', '1/alarm+goose/3']);
+  });
+
+  it('short of the next step, the money goes to the one after it; nothing past the Guard money', () => {
+    const { s, ps } = kiosk(111);
+    const purse = guardPurse(120);
+    rivalDefenseSpend(s, 'blenders', purse);
+    expect(purse.left).toBe(20); // no Picket for $120 and no henchman for his fee, but a Tin-Can for $100
+    expect(ps.defense.tier).toBe(0);
+    expect(ps.garrison).toBe(0);
+    expect(ps.defense.gadgets).toEqual(['alarm']);
+    rivalDefenseSpend(s, 'blenders', guardPurse(1e6, false)); // a Picket, and no henchman its trade can't pay
+    rivalDefenseSpend(s, 'blenders', guardPurse(1e6, false));
+    expect([ps.defense.tier, ps.garrison, ps.defense.gadgets.join('+')]).toEqual([1, 0, 'alarm+goose']);
+  });
+
+  it('only the 3 most valuable plots get the money', () => {
+    const s = newGame(112);
+    const mine = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq').slice(0, 4);
+    expect(mine.length).toBe(4);
+    mine.forEach((p, i) => Object.assign(s.plots[p.id], { invested: 1e6 - i, garrison: 0, defense: { tier: 0, fenceHp: 0, gadgets: [] } }));
+    s.rivals.blenders.cash = 1e6;
+    rivalDefenseSpend(s, 'blenders', guardPurse(1e6));
+    expect(mine.map((p) => s.plots[p.id].defense.tier)).toEqual([1, 1, 1, 0]);
+  });
+
+  it('the garrison fights with its kit row\'s weapons and padding, never more than its posts', () => {
+    const { s, id, ps } = kiosk(113);
+    ps.garrison = 9;
+    s.rank = 4;
+    welcomeDex(s);
+    const report = fightRaid(s, { id: 'r1', attacker: 'player', target: id, objective: 'shakedown', guards: [s.guards[0].id], detected: false, eta: '01:00' }, true);
+    expect(report.defenders).toHaveLength(3);
+    expect(report.defenders.every((f) => f.weapon === 'clubs' && f.hp === GUARD_BASE.hp && f.armor === 0)).toBe(true);
   });
 });

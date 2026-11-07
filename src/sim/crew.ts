@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  BUILDING_POSTS, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
+  BUILDING_POSTS, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, RIVAL_KIT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP, NEIGHBORHOOD_WATCH_DETECTION, OPEN, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, GADGET_SLOTS, GADGETS, GEAR,
   GUARD_BASE, GUARD_LEVEL_TITLES,
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
@@ -147,11 +147,12 @@ export function buyPerimeter(s: GameState, plotId: string): boolean {
   return true;
 }
 
-/** The fence's repair bill: its tier's flat repair (10% of its price) for every raid on the plot since the last repair, won or lost. */
-export function fenceRepairCost(ps: PlotState): number {
+/** The fence's repair bill: its tier's flat repair (10% of its price) for every raid on the plot since the last repair, won or
+ * lost. `full` is the fence's HP when whole (more on Hollis land, with the rivals lane's hay bales). */
+export function fenceRepairCost(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1]?.hp ?? 0): number {
   const per = PERIMETERS[ps.defense.tier - 1];
   if (!per) return 0;
-  return Math.max(ps.defense.repairs ?? 0, ps.defense.fenceHp < per.hp ? 1 : 0) * per.repair;
+  return Math.max(ps.defense.repairs ?? 0, ps.defense.fenceHp < full ? 1 : 0) * per.repair;
 }
 
 /** A Lemon-Peel Slick that went off costs its reset fee to lay again. */
@@ -173,28 +174,32 @@ export function repairFence(s: GameState, plotId: string): boolean {
   if (ps.owner !== 'player' || !cost || s.cash < cost) return false;
   s.cash = round2(s.cash - cost);
   s.today.upkeep = round2(s.today.upkeep + cost); // ledger: repairs
-  ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp;
-  delete ps.defense.repairs;
+  mendFence(ps);
   return true;
 }
 
-/** Overnight, every raided plot's fence is repaired and a sprung Slick re-laid, each owner paying from their own cash. Short of cash, it waits: the fence stays chopped, the Slick stays sprung. */
+/** A repaired fence: back to full HP (`full`: its tier's, or more with a rival's hay bales), with no raids left on its bill. */
+export function mendFence(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1].hp): void {
+  ps.defense.fenceHp = full;
+  delete ps.defense.repairs;
+}
+
+/** Overnight, each of your raided plots has its fence repaired and a sprung Slick re-laid, paid from your cash (rivals pay
+ * theirs from their Guard money: rivalDefenseSpend). Short of cash, it waits: the fence stays chopped, the Slick stays sprung. */
 export function overnightRepairs(s: GameState): void {
   let paid = 0;
   const short = new Set<string>();
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (!ps.owner) continue;
-    const rival = ps.owner === 'player' ? null : s.rivals[ps.owner as RivalId];
+    if (ps.owner !== 'player') continue;
     const spend = (cost: number): boolean => {
       if (!cost) return false;
-      if (rival) { if (rival.cash < cost) return false; rival.cash = round2(rival.cash - cost); return true; }
       if (s.cash < cost) { short.add(PLOT_BY_ID[p.id].name); return false; }
       s.cash = round2(s.cash - cost);
       paid += cost;
       return true;
     };
-    if (spend(fenceRepairCost(ps))) { ps.defense.fenceHp = PERIMETERS[ps.defense.tier - 1].hp; delete ps.defense.repairs; }
+    if (spend(fenceRepairCost(ps))) mendFence(ps);
     if (spend(slickResetCost(ps))) delete ps.defense.slickSprung;
   }
   if (paid) s.today.upkeep = round2(s.today.upkeep + paid); // ledger: repairs
@@ -529,12 +534,78 @@ function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng): Figh
   return Array.from({ length: n }, (_, i) => henchman(s, rival, threat, rng, i, 'att'));
 }
 
-/** A rival plot's defenders: its garrison, at the strength their Threat tier would field. */
+/** The kit row a rival plot builds toward: its stand's level, or a facility's tier + 2. */
+export const rivalKit = (ps: PlotState) => RIVAL_KIT[Math.min(5, Math.max(1, ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1))) - 1];
+
+/** A rival plot's defenders: its garrison (never more than its posts), armed and padded as its kit row says. */
 function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
   const ps = s.plots[plotId];
   const rival = ps.owner as RivalId;
-  const tier = Math.min(5, Math.max(1, Math.ceil((ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1)) / 1.2)));
-  return Array.from({ length: ps.garrison ?? 0 }, (_, i) => henchman(s, rival, tier, rng, i, 'def'));
+  const kit = rivalKit(ps);
+  const m = 1 + 0.1 * (kit.level - 1);
+  return Array.from({ length: Math.min(ps.garrison ?? 0, postsFor(s, plotId)) }, (_, i) => {
+    const r = nextRandom(rng);
+    const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
+    return {
+      id: `${rival}-def-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side: 'def' as const,
+      hp: (GUARD_BASE.hp + GEAR[kit.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
+      nerve: GUARD_BASE.nerve - 10, armor: GEAR[kit.gear].armor, weapon,
+    };
+  });
+}
+
+/** How a rival pays for its defenses: the rivals lane's Guard bucket (rivalAi.ts rivalGuardSpend), at its own prices. */
+export interface GuardPurse {
+  /** Pay this out of the Guard money if it covers it (false, and nothing moves, if not). */
+  pay: (cost: number) => boolean;
+  /** Take on one more henchman here if the Guard money covers his hire and his wage (it pays the hire). */
+  hire: (ps: PlotState) => boolean;
+  /** What this rival pays for a fence of `tier` (Hollis's Dig In: less). Your price if left out. */
+  fencePrice?: (tier: number) => number;
+  /** A plot's fence at full HP (Hollis's Dig In: hay bales behind it). The tier's HP if left out. */
+  fenceFull?: (ps: PlotState) => number;
+  /** Patching a plot's fence back to full (Hollis's Dig In: at its share). Your overnight bill if left out. */
+  patchCost?: (ps: PlotState) => number;
+}
+
+/** A rival puts up the next fence on a plot if it is no higher than `cap` and the Guard money covers it: true when it does. */
+export function rivalFence(ps: PlotState, cap: number, purse: GuardPurse): boolean {
+  const next = PERIMETERS[ps.defense.tier];
+  if (!next || next.tier > cap) return false;
+  const price = purse.fencePrice?.(next.tier) ?? next.cost;
+  if (!purse.pay(price)) return false;
+  ps.invested += price; // a fence counts in Net Worth at 75%, like yours
+  ps.defense = { ...ps.defense, tier: next.tier };
+  mendFence(ps, purse.fenceFull?.(ps)); // the new fence goes up whole
+  return true;
+}
+
+/**
+ * What a rival's Guard money buys at dawn. First the repairs on every plot it holds (each fence's flat repair for the
+ * raids since the last one, a sprung Slick's reset). Then its 3 most valuable standing plots (stands and facilities)
+ * each take one step toward their kit row: the fence first, else a henchman for a free post while his wage is
+ * covered, else the next gadget.
+ */
+export function rivalDefenseSpend(s: GameState, id: RivalId, purse: GuardPurse): void {
+  const plots = ownedPlots(s, id).sort((a, b) => s.plots[b.id].invested - s.plots[a.id].invested);
+  for (const p of plots) {
+    const ps = s.plots[p.id];
+    const patch = purse.patchCost ? purse.patchCost(ps) : fenceRepairCost(ps);
+    if (patch > 0 && purse.pay(patch)) mendFence(ps, purse.fenceFull?.(ps));
+    if (slickResetCost(ps) && purse.pay(slickResetCost(ps))) delete ps.defense.slickSprung;
+  }
+  for (const p of plots.filter((q) => q.type !== 'hq' && hasBuilding(s.plots[q.id])).slice(0, 3)) {
+    const ps = s.plots[p.id];
+    const kit = rivalKit(ps);
+    const gadget = kit.gadgets.find((g) => !ps.defense.gadgets.includes(g));
+    if (rivalFence(ps, kit.fence, purse)) continue;
+    if ((ps.garrison ?? 0) < postsFor(s, p.id) && purse.hire(ps)) {
+      ps.garrison = (ps.garrison ?? 0) + 1;
+    } else if (gadget && ps.defense.gadgets.length < GADGET_SLOTS(ps.stand?.level ?? 1) && purse.pay(GADGETS[gadget].cost)) {
+      ps.invested += GADGETS[gadget].cost; // like yours, a gadget counts as building investment
+      ps.defense.gadgets = [...ps.defense.gadgets, gadget];
+    }
+  }
 }
 
 function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng): Fighter[] {
@@ -856,7 +927,7 @@ export function crewAtDawn(s: GameState): void {
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
   plotsAtDawn(s, rng); // First Dibs, rival rebuilds and lapsed plots (damage.ts)
-  // Rivals spend their Guard bucket: fences and henchmen on their best stands.
+  // Rivals spend their Guard bucket (rivalAi.ts) on repairs and their kit (rivalDefenseSpend).
   for (const id of RIVALS) {
     rivalGuardSpend(s, id, rng);
   }
@@ -872,6 +943,8 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
     const f = FACTIONS[ps.owner as RivalId];
     if (nextRandom(rng) < f.guard + 0.2) { ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }; ps.invested += PERIMETERS[0].cost; }
     ps.garrison = Math.min(postsFor(s, p.id), Math.round(f.guard * 2 + nextRandom(rng) * ps.stand.level));
+    const first = rivalKit(ps).gadgets[0]; // the careful ones open with their first gadget too
+    if (first && nextRandom(rng) < f.guard) ps.defense.gadgets = [first];
   }
 }
 

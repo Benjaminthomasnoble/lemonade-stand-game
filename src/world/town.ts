@@ -105,6 +105,7 @@ const cottage: Style = (C, x, z, f, seed) => {
     add(C.props, cyl(0.8, 0.8, 0.05, 14), P.teal, { p: [x - 2.2, 0.2, z + f * (d / 2 + 1)], fx: GLOSS });
   }
   lumpBlock(C.block, w, h + 1.5, d, wall, x, 0, z, seed, 0.6);
+  blockLit(C, x, z, f, w, h + 1.5, d);
 };
 
 const brickFront: Style = (C, x, z, f, seed) => {
@@ -120,6 +121,7 @@ const brickFront: Style = (C, x, z, f, seed) => {
   // striped card awning
   for (let i = 0; i < 8; i++) add(C.props, box(1.1, 0.04, 1), i % 2 ? P.cream : [P.terra, P.green, '#7EA6D8'][seed % 3], { p: [x - 3.85 + i * 1.1, 2.3, z + f * (d / 2 + 0.45)], r: [f * 0.45, 0, 0], fx: PAPER });
   lumpBlock(C.block, w, h, d, wall, x, 0, z, seed, 0.5);
+  blockLit(C, x, z, f, w, h, d);
 };
 
 const sawtooth: Style = (C, x, z, f, seed) => {
@@ -137,11 +139,13 @@ const sawtooth: Style = (C, x, z, f, seed) => {
   add(C.props, cap(0.05, 3, 2, 5), P.chrome, { p: [x, 0.6, z + f * (d / 2 + 2)], r: [0, 0, Math.PI / 2], fx: GLOSS });
   for (const dx of [-1.4, 1.4]) add(C.props, cyl(0.05, 0.05, 0.6, 5), P.chrome, { p: [x + dx, 0.3, z + f * (d / 2 + 2)], fx: GLOSS });
   lumpBlock(C.block, w, h + 1, d, wall, x, 0, z, seed, 0.5);
+  blockLit(C, x, z, f, w, h + 1, d);
 };
 
 const tower: Style = (C, x, z, f, seed) => {
   const glass = ['#9FB4C8', '#AFC3D6', '#8EA5BD', '#B8C2CC'];
-  const w = 7, d = 6, h = 12 + (seed % 4) * 4;
+  // The camera-side row (fronts facing -z) stays low so it never hides the plots across the street.
+  const w = 7, d = 6, h = f < 0 ? 5 + (seed % 2) * 1.6 : 12 + (seed % 4) * 4;
   lumpBlock(C.full, w, h, d, glass[seed % 4], x, 0, z, seed, 0.3);
   // printed-card glass: window bands on the front and sides
   for (let y = 1.6; y < h - 0.6; y += 1.6) {
@@ -158,6 +162,7 @@ const tower: Style = (C, x, z, f, seed) => {
     for (let k = 0; k < 6; k++) add(C.props, new THREE.ConeGeometry(0.8, 0.35, 3, 1, true, (k / 6) * Math.PI * 2, Math.PI / 3), k % 2 ? P.cream : P.terra, { p: [cx, 2.3, cz], fx: PAPER });
   }
   lumpBlock(C.block, w, h, d, glass[seed % 4], x, 0, z, seed, 0.4);
+  blockLit(C, x, z, f, w, h, d);
 };
 
 const warehouse: Style = (C, x, z, f, seed) => {
@@ -173,6 +178,7 @@ const warehouse: Style = (C, x, z, f, seed) => {
   // crate stacks
   for (let k = 0; k < 5; k++) add(C.props, rbox(0.9, 0.8, 0.9, 0.06), [P.stick, '#C9A27A'][k % 2], { p: [x + 2.2 + (k % 3) * 0.95, 0.4 + Math.floor(k / 3) * 0.8, z + f * (d / 2 + 1.4)], fx: PAPER });
   lumpBlock(C.block, w, h + 1, d, wall, x, 0, z, seed, 0.5);
+  blockLit(C, x, z, f, w, h + 1, d);
 };
 
 const barn: Style = (C, x, z, f, seed) => {
@@ -189,6 +195,7 @@ const barn: Style = (C, x, z, f, seed) => {
   // hay bales
   for (let k = 0; k < 3; k++) add(C.props, lumpy(cyl(0.6, 0.6, 1, 10), 0.04, 2, k + seed), '#E8C36A', { p: [x - 2.6 + k * 1.3, 0.62, z + f * (d / 2 + 1.6)], r: [0, 0, Math.PI / 2] });
   lumpBlock(C.block, w + 2, h + 1.5, d, wall, x, 0, z, seed, 0.5);
+  blockLit(C, x, z, f, w + 2, h + 1.5, d);
 };
 
 const mansion: Style = (C, x, z, f, seed) => {
@@ -206,6 +213,7 @@ const mansion: Style = (C, x, z, f, seed) => {
     ball(C.props, 0.35, '#3F7F45', x + s * 5, 1.7, z + f * (d / 2 + 1), seed + s + 3, 7);
   }
   lumpBlock(C.block, w, h + 1.5, d, wall, x, 0, z, seed, 0.6);
+  blockLit(C, x, z, f, w, h + 1.5, d);
 };
 
 const beachHut: Style = (C, x, z, f, seed) => {
@@ -219,6 +227,7 @@ const beachHut: Style = (C, x, z, f, seed) => {
   // surfboards leaning on the wall
   for (let k = 0; k < 2; k++) add(C.props, lumpy(cap(0.32, 2.2, 3, 8), 0.02, 2, k), [P.terra, P.lemon, P.teal][(k + seed) % 3], { p: [x + 2 + k * 0.6, 1.5, z + f * 1.5], r: [f * 0.2, 0, 0.1], s: [1, 1, 0.25] });
   lumpBlock(C.block, 5, 3.4, 4, wall, x, 0, z, seed, 0.5);
+  blockLit(C, x, z, f, 5, 3.4, 4);
 };
 
 const STYLE: Record<string, Style> = {
@@ -500,19 +509,33 @@ export function createTown(scene: THREE.Scene): Town {
   };
 }
 
+/** Landmarks grow 1.5x so players navigate by them, and Bay View keeps their real silhouette. */
+const LANDMARK_SCALE: Record<string, number> = { 'The Country Club': 1.2, 'The Fairgrounds': 1.15, 'Fish Market': 1.3, 'The Quad': 1.2 };
 function landmark(name: string, x: number, z: number, f: number, C: Chunk, parts: THREE.Object3D[], greens: Col[]) {
-  if (name === 'The Pier') ferrisWheel(x, z, parts, C);
-  else if (name === 'The Bandstand') bandstand(x, z, C);
-  else if (name === 'Founders Fountain') fountain(x, z, C);
-  else if (name === 'The Quad') quad(x, z, C, greens);
-  else if (name === 'The Country Club') clubhouse(x, z, C);
-  else if (name === 'The Fairgrounds') fairTents(x, z, C);
-  else if (name === 'Fish Market') fishMarket(x, z, C);
+  const T = new Chunk();
+  if (name === 'The Bandstand') bandstand(0, 0, T);
+  else if (name === 'Founders Fountain') fountain(0, 0, T);
+  else if (name === 'The Quad') quad(0, 0, T, greens);
+  else if (name === 'The Country Club') clubhouse(0, 0, T);
+  else if (name === 'The Fairgrounds') fairTents(0, 0, T);
+  else if (name === 'Fish Market') fishMarket(0, 0, T);
   else if (name === 'Maple Park') {
-    for (let k = 0; k < 5; k++) tree(C, x - 4 + (k % 3) * 4, z - 2 + Math.floor(k / 3) * 4, 60 + k, greens, 1.3);
-    add(C.full, rbox(3, 0.6, 3, 0.2), '#F3DDA6', { p: [x, 0.2, z + f * 3] });
-    add(C.props, cone(1.2, 2.2, 4), P.terra, { p: [x + 3, 1.1, z + f * 2] });
-  } else lighthouse(x, z, C);
+    for (let k = 0; k < 5; k++) tree(T, -4 + (k % 3) * 4, -2 + Math.floor(k / 3) * 4, 60 + k, greens, 1.3);
+    add(T.full, rbox(3, 0.6, 3, 0.2), '#F3DDA6', { p: [0, 0.2, f * 3] });
+    add(T.full, cone(1.2, 2.2, 4), P.terra, { p: [3, 1.1, f * 2] });
+  } else lighthouse(0, 0, T);
+  void parts;
+  const k = LANDMARK_SCALE[name] ?? 1.5;
+  const m = new THREE.Matrix4().makeScale(k, k, k).setPosition(x, 0, z);
+  const full = T.full.build();
+  C.full.raw(full, m);
+  C.block.raw(full, m); // Bay View: the real silhouette, not a box
+  for (const key of ['props', 'win'] as const) if (T[key].size) { const g = T[key].build(); C[key].raw(g, m); g.dispose(); }
+  full.dispose();
+}
+/** Bay View night: a couple of window patches on a block's street face that glow after dark. */
+function blockLit(C: Chunk, x: number, z: number, f: number, w: number, h: number, d: number) {
+  for (const dx of [-0.25, 0.25]) add(C.block, new THREE.BoxGeometry(w * 0.22, Math.min(1.4, h * 0.22), 0.1), '#FFE2A8', { p: [x + dx * w, h * 0.5, z + f * (d / 2 + 0.05)], fx: 1 });
 }
 function bench(C: Chunk, x: number, z: number, s: number) {
   for (let k = 0; k < 3; k++) add(C.props, rbox(2.2, 0.06, 0.22, 0.03), P.stick, { p: [x, 0.55, z + s * (k * 0.26 - 0.26)], fx: PAPER });

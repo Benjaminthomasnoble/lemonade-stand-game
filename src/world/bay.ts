@@ -259,17 +259,26 @@ export function createBay(scene: THREE.Scene): Bay {
   // Owned tiles carry their owner's pattern pressed into the clay and a Plum ink outline
   // (one instanced draw per owner, one for the outlines); civic plots get a masking-tape border.
   const TW = PLOT_SPACING - 1.2, TD = 9.8, TOP = 0.04 + 0.08;
-  const patterns = Object.fromEntries((Object.keys(TILE_PATTERN) as (keyof typeof TILE_PATTERN)[]).map((o) => {
-    const m = new THREE.InstancedMesh(tilePattern(o, TW, TD, TOP), K.world, PLOTS.length);
-    m.count = 0;
-    m.receiveShadow = true; m.name = `plot-pattern:${o}`;
-    m.computeBoundingSphere();
+  // Street View patterns are split by district so each list frustum-culls; Bay View swaps in a set of
+  // fewer, fatter motifs and a thicker outline that stay readable when a tile is a few pixels wide.
+  type OwnerKey = keyof typeof TILE_PATTERN;
+  const OWNERS = Object.keys(TILE_PATTERN) as OwnerKey[];
+  const pmesh = (geo: THREE.BufferGeometry, cap: number, name: string) => {
+    const m = new THREE.InstancedMesh(geo, K.world, Math.max(1, cap));
+    m.count = 0; m.receiveShadow = true; m.name = name;
     scene.add(m);
-    return [o, m];
-  })) as unknown as Record<keyof typeof TILE_PATTERN, THREE.InstancedMesh>;
+    return m;
+  };
+  const nearGeo = Object.fromEntries(OWNERS.map((o) => [o, tilePattern(o, TW, TD, TOP)])) as Record<OwnerKey, THREE.BufferGeometry>;
+  const patternSets: { district: DistrictId | 'far'; meshes: Record<OwnerKey, THREE.InstancedMesh> }[] = DISTRICTS.map((d) => {
+    const cap = PLOTS.filter((p) => p.district === d.id).length;
+    return { district: d.id, meshes: Object.fromEntries(OWNERS.map((o) => [o, pmesh(nearGeo[o], cap, `plot-pattern:${d.id}:${o}`)])) as unknown as Record<OwnerKey, THREE.InstancedMesh> };
+  });
+  const farPatterns = { district: 'far' as const, meshes: Object.fromEntries(OWNERS.map((o) => [o, pmesh(tilePattern(o, TW, TD, TOP, true), PLOTS.length, `plot-pattern-far:${o}`)])) as unknown as Record<OwnerKey, THREE.InstancedMesh> };
+  const farOutlines = pmesh(tileOutline(TW, TD, TOP + 0.03, 0.34), PLOTS.length, 'plot-outlines-far');
   const outlines = new THREE.InstancedMesh(tileOutline(TW, TD, TOP), K.world, PLOTS.length);
   const ownerAt: (string | null)[] = PLOTS.map(() => null);
-  let patternsDirty = true;
+  let patternsDirty = true, patternLevel = -1;
   outlines.name = 'plot-outlines'; outlines.receiveShadow = true;
   const civics = PLOTS.filter((p) => p.type === 'civic');
   const tape = new THREE.InstancedMesh(tapeBorder(TW, TD, TOP), K.world, Math.max(1, civics.length));
@@ -368,7 +377,10 @@ export function createBay(scene: THREE.Scene): Bay {
     keepStand?.group.removeFromParent();
     if (v.stand && !keepStand) v.stand.dispose();
     // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
-    v.root.traverse((o) => { if (o.name === 'baked' || o.userData.disposable) (o as THREE.Mesh).geometry.dispose(); });
+    v.root.traverse((o) => {
+      if (o.name === 'baked' || o.userData.disposable) (o as THREE.Mesh).geometry.dispose();
+      if (o.userData.ownFar) (o.userData.far as THREE.BufferGeometry).dispose();
+    });
     movers.delete(v);
     v.root.clear();
     if (saleAt[v.tile]) { saleAt[v.tile] = false; salesDirty = true; }
@@ -487,20 +499,17 @@ export function createBay(scene: THREE.Scene): Bay {
         // Only owned tiles are drawn: each owner's pattern and the outlines are packed instance lists.
         patternsDirty = false;
         let n = 0;
-        const counts: Record<string, number> = {};
+        for (const set of [...patternSets, farPatterns]) for (const m of Object.values(set.meshes)) m.count = 0;
         PLOTS.forEach((p, i) => {
-          const o = ownerAt[i];
+          const o = ownerAt[i] as OwnerKey | null;
           if (!o) return;
           m4.makeTranslation(p.x, 0, p.z);
-          outlines.setMatrixAt(n++, m4);
-          const m = patterns[o as keyof typeof patterns];
-          m.setMatrixAt(counts[o] = (counts[o] ?? 0), m4);
-          counts[o]++;
+          outlines.setMatrixAt(n, m4);
+          farOutlines.setMatrixAt(n++, m4);
+          for (const m of [patternSets.find((x) => x.district === p.district)!.meshes[o], farPatterns.meshes[o]]) m.setMatrixAt(m.count++, m4);
         });
-        outlines.count = n;
-        outlines.instanceMatrix.needsUpdate = true;
-        outlines.computeBoundingSphere();
-        for (const [o, m] of Object.entries(patterns)) { m.count = counts[o] ?? 0; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
+        for (const m of [outlines, farOutlines]) { m.count = n; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
+        for (const set of [...patternSets, farPatterns]) for (const m of Object.values(set.meshes)) { m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
       }
     },
     update(s, time, ringing = false) {
@@ -510,6 +519,13 @@ export function createBay(scene: THREE.Scene): Bay {
       tufts.visible = level < 2;
       blobs.visible = scene.userData.shadows === false;
       wet.visible = s.weather.kind === 'rainy' || s.weather.kind === 'storm';
+      if (level !== patternLevel) {
+        patternLevel = level;
+        for (const set of patternSets) for (const m of Object.values(set.meshes)) m.visible = level < 2;
+        outlines.visible = level < 2;
+        for (const m of Object.values(farPatterns.meshes)) m.visible = level >= 2;
+        farOutlines.visible = level >= 2;
+      }
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4));
       const mf = Math.floor(time * 12);
       if (mf !== moverF && level < 2) {

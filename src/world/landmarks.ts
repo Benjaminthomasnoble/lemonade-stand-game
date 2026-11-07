@@ -21,6 +21,8 @@ class Model {
   B = new Baker();
   W = new Baker();
   extras: THREE.Object3D[] = [];
+  /** Colour of the one-block Bay View version (userData.far). */
+  farColor: Col = '#FFF1D6';
   add(geo: THREE.BufferGeometry, color: Col, o: Opt = {}) { this.B.add(geo, color, o); return this; }
   win(geo: THREE.BufferGeometry, o: Opt = {}) { this.W.add(geo, '#ffffff', o); return this; }
   /** A part that moves: baked on its own, pivoting at `at`. */
@@ -50,6 +52,15 @@ class Model {
       g.add(w);
     }
     for (const e of this.extras) g.add(e);
+    // Bay View draws this model as one rounded block of its footprint, with lit window patches on the front.
+    const bb = body.geometry.boundingBox!;
+    const size = bb.getSize(new THREE.Vector3()), mid = bb.getCenter(new THREE.Vector3());
+    const F = new Baker();
+    F.add(coreRbox(Math.max(0.3, size.x * 0.92), Math.max(0.2, size.y * 0.92), Math.max(0.3, size.z * 0.92), Math.min(0.5, size.y * 0.3), 1), this.farColor, { p: [mid.x, mid.y * 0.92, mid.z] });
+    if (this.W.list.length || name === 'civic' || name === 'hq') for (let k = 0; k < 3 && size.y > 2; k++)
+      F.add(new THREE.BoxGeometry(size.x * 0.18, Math.min(1.2, size.y * 0.15), 0.1), '#FFE2A8', { p: [mid.x + (k - 1) * size.x * 0.28, size.y * 0.5, mid.z + size.z * 0.46 + 0.05], fx: 1 });
+    g.userData.far = F.build();
+    g.userData.ownFar = true;
     return g;
   }
 }
@@ -249,6 +260,7 @@ export function civicBuilding(name: string): THREE.Group {
 /** Rival HQs; a captured HQ is smoothed over in lemon clay and an empty one fades to grey. */
 export function hqBuilding(owner: RivalId | 'player' | null, name: string): THREE.Group {
   const M = new Model();
+  M.farColor = owner === 'player' ? '#F6D33C' : owner ? TILE_PATTERN[owner].main : '#B9B4C4';
   const fz = -0.5;
   const own = owner === 'player' ? { main: '#F6D33C', accent: '#FFFFFF' } : owner ? ownerCols(owner) : { main: '#A9A3B5', accent: '#D8D3DE' };
   // A captured HQ wears the player's lemon clay over its own shape.
@@ -363,6 +375,7 @@ function ownerCols(id: RivalId) {
 /** A Field plot's crop, chosen by its name. */
 export function fieldRows(name = ''): THREE.Group {
   const M = new Model();
+  M.farColor = name === 'Hay Meadow' ? '#E8C36A' : '#5FA35A';
   // tilled soil bed
   M.add(lumpy(rbox(8.8, 0.25, 8.0, 0.12), 0.03, 1, 3), '#A7744F', { p: [0, 0.08, -2.5] }); // inset: the owner's tile shows round it
   if (name === 'Polo Lawn') {
@@ -399,6 +412,7 @@ export function fieldRows(name = ''): THREE.Group {
 /** An unbuilt Dock plot: a popsicle-stick pier `len` long, out over the water behind the plot. */
 export function pierModel(len = 12): THREE.Group {
   const M = new Model();
+  M.farColor = P.stick;
   const n = Math.round(len / 0.5);
   for (let k = 0; k < n; k++) M.add(rbox(3.6, 0.1, 0.42, 0.03), P.stick, { p: [0, 0.4, -k * 0.5], r: [0, (hash(k, 3) - 0.5) * 0.05, 0], fx: PAPER });
   for (let z = -1; z > -len; z -= 3.4) for (const s of [-1, 1]) M.add(cyl(0.14, 0.14, 1.8, 7), P.walnut, { p: [s * 1.6, -0.4, z], fx: PAPER });
@@ -427,6 +441,7 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove', l
   const M = new Model();
   const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
   const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
+  M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? '#C8325A' : '#F3E9D6';
   if (kind === 'grove') {
     // flowering lemon trees on clay mounds, three rows
     for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
@@ -522,31 +537,57 @@ const INK = '#2E2A4F';
  * Blenders teal wave snakes. Patterns differ in shape and direction so a
  * grayscale screenshot still shows the owner.
  */
-export function tilePattern(owner: 'player' | RivalId, W: number, D: number, top: number): THREE.BufferGeometry {
+export function tilePattern(owner: 'player' | RivalId, W: number, D: number, top: number, far = false): THREE.BufferGeometry {
+  // `far` is the Bay View set: fewer, fatter motifs that stay readable when a tile is a few pixels wide.
   const B = new Baker();
   const t = TILE_PATTERN[owner];
-  const y = top + 0.012;
+  const y = top + (far ? 0.03 : 0.012);
   const glow = 0.4; // owner tints glow at night
+  const k = far ? 2.4 : 1; // stroke weight
   const pressed = (geo: THREE.BufferGeometry, x: number, z: number, o: Opt = {}) => {
     if (t.edge) B.add(geo.clone(), INK, { ...o, p: [x, y - 0.01, z], s: scaleBy(o.s, 1.14, 0.9) });
     B.add(geo, t.accent, { ...o, p: [x, y, z], fx: (o.fx ?? 0) + glow });
   };
   const hw = W / 2 - 0.5, hd = D / 2 - 0.5;
-  if (owner === 'player') for (let i = 0; i < 4; i++) pressed(box(1.1, 0.04, D - 1.1), -hw + 0.9 + i * ((2 * hw - 1.8) / 3), 0);
-  else if (owner === 'sourwood') for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) pressed(new THREE.OctahedronGeometry(0.3, 0), -hw + 0.7 + c * ((2 * hw - 1.4) / 4) + (r % 2 ? 0.5 : -0.5), -hd + 0.8 + r * ((2 * hd - 1.6) / 3), { s: [1, 0.25, 1.4], fx: GLOSS });
-  else if (owner === 'hollis') { const n = 6, m = 5, cw = (2 * hw) / n, cd = (2 * hd) / m; for (let r = 0; r < m; r++) for (let c = 0; c < n; c++) if ((r + c) % 2) pressed(box(cw * 0.92, 0.04, cd * 0.92), -hw + cw * (c + 0.5), -hd + cd * (r + 0.5)); }
-  else if (owner === 'fizzco') for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) B.add(sph(0.36, 6, 3), t.accent, { p: [-hw + 0.7 + c * ((2 * hw - 1.4) / 4) + (r % 2) * 0.8 - 0.4, y - 0.12, -hd + 0.8 + r * ((2 * hd - 1.6) / 3)], s: [1, 0.5, 1], fx: GLOSS + glow });
-  else if (owner === 'coldbrew') for (let r = 0; r < 3; r++) {
-    // diagonal zigzag: rises toward +x
-    const pts: [number, number, number][] = [];
-    for (let k = 0; k <= 9; k++) pts.push([-hw + k * ((2 * hw) / 9), y, -hd + 1 + r * ((2 * hd - 2) / 2) + (k % 2 ? 0.55 : -0.55) - (k - 4.5) * 0.14]);
-    B.add(snake(pts, 0.15, 20, 4), t.accent, { s: [1, 0.45, 1], fx: 0.8 });
-  } else for (let r = 0; r < 4; r++) {
+  if (owner === 'player') {
+    // wide vertical stripes (running toward the street)
+    const n = far ? 2 : 4, sw = far ? 2.6 : 1.1;
+    for (let i = 0; i < n; i++) pressed(box(sw, 0.04 * k, D - 1.1), -hw + sw / 2 + 0.3 + i * ((2 * hw - sw - 0.6) / (n - 1)), 0);
+  } else if (owner === 'sourwood') {
+    // diamond damask: a lattice of gold rhombus outlines (lines at 45°, unlike FizzCo's round dots)
+    const cols = far ? 2 : 3, rows = far ? 1 : 2;
+    const cw = (2 * hw) / cols, cd = (2 * hd) / rows, bw = 0.16 * k;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const cx = -hw + cw * (c + 0.5), cz = -hd + cd * (r + 0.5), ax = cw * 0.42, az = cd * 0.42;
+      for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+        const len = Math.hypot(ax, az);
+        pressed(box(bw, 0.04 * k, len), cx + sx * ax / 2, cz + sz * az / 2, { r: [0, Math.atan2(ax * -sx, az * sz) * 1, 0], fx: GLOSS });
+      }
+      pressed(new THREE.OctahedronGeometry(0.22 * k, 0), cx, cz, { s: [1, 0.3, 1.3], fx: GLOSS });
+    }
+  } else if (owner === 'hollis') {
+    const n = far ? 3 : 6, m = far ? 3 : 5, cw = (2 * hw) / n, cd = (2 * hd) / m;
+    for (let r = 0; r < m; r++) for (let c = 0; c < n; c++) if ((r + c) % 2 === (far ? 0 : 1)) pressed(box(cw * 0.92, 0.04 * k, cd * 0.92), -hw + cw * (c + 0.5), -hd + cd * (r + 0.5));
+  } else if (owner === 'fizzco') {
+    const cols = far ? 2 : 5, rows = far ? 2 : 4, r0 = far ? 1.3 : 0.36;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) B.add(sph(r0, 8, 4), t.accent, { p: [-hw + hw * 2 * (c + 0.5) / cols + (far ? 0 : (r % 2) * 0.8 - 0.4), y - r0 * 0.3, -hd + hd * 2 * (r + 0.5) / rows], s: [1, 0.45, 1], fx: GLOSS + glow });
+  } else if (owner === 'coldbrew') {
+    for (let r = 0; r < (far ? 1 : 3); r++) {
+      // diagonal zigzag: rises toward +x
+      const pts: [number, number, number][] = [];
+      const n = far ? 5 : 9;
+      for (let i = 0; i <= n; i++) pts.push([-hw + i * ((2 * hw) / n), y, (far ? 0 : -hd + 1 + r * ((2 * hd - 2) / 2)) + (i % 2 ? 0.55 : -0.55) * (far ? 3 : 1) - (i - n / 2) * 0.14 * (far ? 2 : 1)]);
+      B.add(snake(pts, 0.15 * k, far ? 12 : 20, 4), t.accent, { s: [1, 0.45, 1], fx: 0.8 });
+    }
+  } else {
     // Blenders: horizontal waves
-    const pts: [number, number, number][] = [];
-    for (let k = 0; k <= 20; k++) pts.push([-hw + k * ((2 * hw) / 20), y, -hd + 0.6 + r * ((2 * hd - 1.2) / 3) + Math.sin(k * 0.95) * 0.32]);
-    B.add(snake(pts, 0.21, 16, 3), INK, { s: [1, 0.35, 1] });
-    B.add(snake(pts, 0.15, 16, 4), t.accent, { s: [1, 0.5, 1], fx: glow });
+    const rows = far ? 2 : 4;
+    for (let r = 0; r < rows; r++) {
+      const pts: [number, number, number][] = [];
+      for (let i = 0; i <= 12; i++) pts.push([-hw + i * ((2 * hw) / 12), y, -hd + (far ? 2 : 0.6) + r * ((2 * hd - (far ? 4 : 1.2)) / Math.max(1, rows - 1)) + Math.sin(i * 1.3) * 0.32 * (far ? 2 : 1)]);
+      if (t.edge) B.add(snake(pts, 0.21 * k, 16, 3), INK, { s: [1, 0.35, 1] });
+      B.add(snake(pts, 0.15 * k, 16, 4), t.accent, { s: [1, 0.5, 1], fx: glow });
+    }
   }
   return B.build();
 }
@@ -555,11 +596,11 @@ function scaleBy(s: Opt['s'], k: number, ky: number): [number, number, number] {
   return [v[0] * k, v[1] * ky, v[2] * k];
 }
 /** A Plum ink clay snake round a tile's edge. */
-export function tileOutline(W: number, D: number, top: number): THREE.BufferGeometry {
+export function tileOutline(W: number, D: number, top: number, r = 0.11): THREE.BufferGeometry {
   const B = new Baker();
   const hw = W / 2 - 0.12, hd = D / 2 - 0.12;
   for (const [x, z, len, along] of [[0, -hd, 2 * hw, true], [0, hd, 2 * hw, true], [-hw, 0, 2 * hd, false], [hw, 0, 2 * hd, false]] as const)
-    B.add(cap(0.11, len, 1, 5), INK, { p: [x, top + 0.02, z], r: along ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0], s: along ? [1, 1, 0.55] : [1, 0.55, 1] });
+    B.add(cap(r, len, 1, 5), INK, { p: [x, top + 0.02, z], r: along ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0], s: along ? [1, 1, 0.55] : [1, 0.55, 1] });
   return B.build();
 }
 /** A masking-tape border for civic plots. */

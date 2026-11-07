@@ -17,7 +17,7 @@ import { createStand, type Stand as StandModel } from './stand.ts';
 import { civicBuilding, facilityModel, fenceModel, fieldRows, forSaleSign, gadgetModels, hqBuilding, pierModel, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
 import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
-import { stock } from '../sim/economy.ts';
+import { lemonsExpiringTomorrow, stock } from '../sim/economy.ts';
 import { makePerson } from './people.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
 import { bakeGroup, collectClay } from './clay/bake.ts';
@@ -399,7 +399,7 @@ export function createBay(scene: THREE.Scene): Bay {
         v.stand.update({
           price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report', ringing,
           recipe: st.recipe, sweetness: st.sweetness, stars: s.reputation,
-          stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice },
+          stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice, spoiling: stock(st, 'lemons') ? lemonsExpiringTomorrow(s, st) / stock(st, 'lemons') : 0 },
         });
       }
     },

@@ -18,8 +18,8 @@ export interface PropState {
   pitcherFill: number;
   recipe: string;
   sweetness: 'less' | 'classic' | 'extra';
-  /** 0..1 of the level's storage. */
-  stock: { lemons: number; sugar: number; ice: number };
+  /** 0..1 of the level's storage; `spoiling` is the share of the lemons that spoil tonight (they turn brown). */
+  stock: { lemons: number; sugar: number; ice: number; spoiling?: number };
   /** Reputation, 1..5 stars. */
   stars: number;
   open: boolean;
@@ -42,6 +42,7 @@ export interface StandProps {
 
 const SWEET_CUBES = { less: 1, classic: 2, extra: 3 } as const;
 const LEMONS = 24, ICE = 16, CONFETTI = 60;
+const BROWN = new THREE.Color('#8f6a2a'), WHITE = new THREE.Color('#ffffff');
 
 export function createStandProps(): StandProps {
   const K = kit();
@@ -205,6 +206,10 @@ export function createStandProps(): StandProps {
     liquid.scale.y = f;
     cubes.count = SWEET_CUBES[st.sweetness] ?? 2;
     lemons.count = Math.round(Math.max(0, Math.min(1, st.stock.lemons)) * LEMONS);
+    // The oldest lemons sit on top of the heap: the spoiling share turns brown.
+    const bad = Math.round(Math.max(0, Math.min(1, st.stock.spoiling ?? 0)) * lemons.count);
+    for (let k = 0; k < LEMONS; k++) lemons.setColorAt(k, k >= lemons.count - bad && k < lemons.count ? BROWN : WHITE);
+    if (lemons.instanceColor) lemons.instanceColor.needsUpdate = true;
     ice.count = Math.round(Math.max(0, Math.min(1, st.stock.ice)) * ICE);
     const s = Math.max(0, Math.min(1, st.stock.sugar));
     sack.scale.set(1 + (1 - s) * 0.25, 0.3 + s * 0.7, 1 + (1 - s) * 0.25);

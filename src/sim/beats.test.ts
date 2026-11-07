@@ -2,13 +2,13 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  buildStand, buyPlot, BUILDING_VALUE_SHARE, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame,
-  openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, PLOTS, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock,
-  threatLevel, type GameState,
+  BRAND_TIERS, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, LOTTIES_CORNER, LOTTIES_SIDE_LOT,
+  nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS, servingsAvailable, SIDE_LOT,
+  simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type CampaignId, type GameState,
 } from './economy.ts';
 import { goalsNow } from './goals.ts';
-import { beginScene, endScene } from './scenes.ts';
-import { lottieStocks, storyAfterAct, storyAtDawn, taught } from './story.ts';
+import { beginScene, endScene, migrateScenes, playScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
+import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, taught } from './story.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 function nextDawn(s: GameState) {
@@ -170,5 +170,155 @@ describe('the Day 5 Steward', () => {
     day5(sb);
     expect(stock(corner(sb), 'lemons')).toBe(40);
     expect(sb.scenes!.queue).toHaveLength(0);
+  });
+});
+
+describe('Day 4: Lottie nudges the Wooden Stand', () => {
+  const dawnOf = (s: GameState, day: number) => { s.day = day - 1; nextDawn(s); expect(s.day).toBe(day); };
+  const nudge = (s: GameState) => s.news.find((n) => n.startsWith('Lottie: "Time that table grew up.'));
+  it("says what it does and costs, from the level table, unless you've built one", () => {
+    const s = newGame(60);
+    dawnOf(s, 4);
+    expect(nudge(s)).toBe('Lottie: "Time that table grew up. A Wooden Stand draws 1.5× the walkers and pours 2.5× as fast: $400, back in 2-4 days."');
+    expect(goalsNow(s)[1].text).toBe('Build the Wooden Stand');
+    const built = newGame(61);
+    corner(built).level = 2; // a curious player tapped the table early
+    dawnOf(built, 4);
+    expect(nudge(built)).toBeUndefined();
+    const off = newGame(62, { lessons: false });
+    dawnOf(off, 4);
+    expect(nudge(off)).toBeUndefined();
+  });
+});
+
+describe('Benny Buzz and the first sign (Day 7)', () => {
+  const day7 = (s: GameState) => { s.day = 6; nextDawn(s); expect(s.day).toBe(7); };
+  it('pitches it at dawn, and buying it brings him to paint it (his scene, staged by speaker)', () => {
+    const s = newGame(63);
+    s.scenes!.seen.push('opening', 'steward', 'dex');
+    day7(s);
+    expect(s.news).toContain(`Benny Buzz: "You're not selling lemonade. You're selling sunshine in a cup! One sign, $100!"`);
+    expect(goalsNow(s).map((g) => g.text)).toContain('Paint your first sign');
+    s.cash = 500;
+    expect(buyBrand(s)).toBe(true);
+    storyAfterAct(s);
+    expect(goalsNow(s).map((g) => g.text)).not.toContain('Paint your first sign');
+    const sc = beginScene(s)!;
+    expect(sc).toMatchObject({ id: 'benny', speaker: 'benny' });
+    expect(sc.plot).toBeUndefined(); // at the Corner
+    expect(sc.lines.filter((l) => l.who !== 'Lottie').every((l) => l.who === SPEAKERS.benny)).toBe(true);
+    expect(sc.lines[0].text).toBe(bennyPitch(1)); // his signature line
+    endScene(s, true);
+    expect(s.news).toContain('Benny Buzz painted your first sign: +5% foot traffic at every stand.');
+    storyAfterAct(s);
+    expect(s.scenes!.queue).toHaveLength(0); // once a run
+  });
+
+  it("pitches every brand tier and campaign in a slogan, and stays out of Sandbox's scenes", () => {
+    for (const t of BRAND_TIERS) expect(bennyPitch(t.tier)).toMatch(/!$/);
+    for (const id of Object.keys(CAMPAIGNS) as CampaignId[]) expect(bennyPitch(id)).toMatch(/!$/);
+    const sb = newGame(64, { mode: 'sandbox' });
+    day7(sb);
+    expect(sb.news.some((n) => n.startsWith('Benny Buzz:'))).toBe(true); // the lesson still comes
+    sb.cash = 500;
+    buyBrand(sb);
+    storyAfterAct(sb);
+    expect(sb.scenes!.queue).toHaveLength(0);
+  });
+
+  it("doesn't paint a sign an older run put up long ago", () => {
+    const s = newGame(65);
+    s.day = 30;
+    s.brandTier = 2;
+    delete s.scenes;
+    migrateStory(s);
+    storyAfterAct(s);
+    expect(s.scenes!.queue).toHaveLength(0);
+    expect(s.scenes!.seen).toContain('benny');
+  });
+});
+
+describe("Week 2: Skip Larkin's Old Town corner", () => {
+  const week2 = (s: GameState, rank = 2) => { s.rank = rank; s.day = 7; nextDawn(s); expect(s.day).toBe(8); };
+  const skipQueued = (s: GameState) => s.scenes!.queue.find((q) => q.id === 'skip');
+  it('stands Skip on the cheapest open Old Town street plot, with its price, and points the feed there', () => {
+    const s = newGame(66);
+    s.scenes!.seen.push('opening', 'steward', 'dex', 'benny');
+    week2(s);
+    const q = skipQueued(s)!;
+    const lot = PLOT_BY_ID[q.data!.plot!];
+    expect(lot).toMatchObject({ district: 'oldtown', type: 'street' });
+    expect(s.plots[lot.id].owner).toBeFalsy();
+    const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner);
+    expect(Math.min(...open.map((p) => plotPrice(s, p.id)))).toBe(plotPrice(s, lot.id));
+    const price = `$${plotPrice(s, lot.id).toLocaleString('en-US')}`;
+    expect(q.data!.lines![1].text).toContain(price);
+    expect(s.alerts?.some((a) => a.plot === lot.id && a.text.startsWith('Skip:'))).toBe(true);
+    expect(goalsNow(s).map((g) => g.text)).toContain('Open a stand in Old Town');
+    expect(taught(s, 'land')).toBe(true);
+    const sc = beginScene(s)!;
+    expect(sc).toMatchObject({ id: 'skip', speaker: 'skip', plot: lot.id }); // the world stages him at that plot
+    expect(sc.recap).toContain(price);
+  });
+
+  it('waits for Rank 2, and never comes for a player already in Old Town, after Act 1 or outside the campaign', () => {
+    const early = newGame(67);
+    week2(early, 1);
+    expect(skipQueued(early)).toBeUndefined();
+    early.rank = 2;
+    nextDawn(early);
+    expect(skipQueued(early)).toBeDefined();
+    const owner = newGame(68);
+    const ot = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !owner.plots[p.id].owner)!;
+    owner.plots[ot.id].owner = 'player';
+    week2(owner);
+    expect(skipQueued(owner)).toBeUndefined();
+    const late = newGame(69);
+    late.story!.act = 2;
+    week2(late);
+    expect(skipQueued(late)).toBeUndefined();
+    const sb = newGame(70, { mode: 'sandbox' });
+    week2(sb);
+    expect(sb.scenes!.queue).toHaveLength(0);
+  });
+});
+
+describe("Day 1's opening scene", () => {
+  it('opens the campaign at the first Morning Prep: the table, the pitcher, three pages and a spare', () => {
+    const s = newGame(71);
+    expect(sceneReady(s)).toBe(true);
+    const sc = beginScene(s)!;
+    expect(sc.id).toBe('opening');
+    expect(sc.world).toBeUndefined(); // captions, with Lottie saying her lines at the Corner
+    expect(sc.lines.some((l) => l.text === 'When life gives you lemons, you take the whole town.')).toBe(true);
+    expect(sc.replies).toContain('Okay, Grandma. One town, coming up.');
+    endScene(s, true);
+    expect(s.news.at(-1)).toBe('Lottie handed you her folding table, her pitcher and her 3 recipe pages: Classic, Pink and Mint.');
+    expect(goalsNow(s)[0].text).toBe('Sell out your first pitcher'); // it ends on the pricing lesson
+    expect(newGame(72, { mode: 'sandbox' }).scenes!.queue).toHaveLength(0);
+  });
+
+  it('plays on Day 1 or not at all: a run moved on from Day 1 drops it, unplayed and without a recap', () => {
+    const s = newGame(73);
+    s.day = 12; // e.g. an older save rebuilt from a fresh run (src/sim/legacy.ts)
+    expect(sceneReady(s)).toBe(false);
+    expect(beginScene(s)).toBeNull();
+    migrateScenes(s);
+    expect(s.scenes!.queue).toHaveLength(0);
+    expect(s.scenes!.seen).toContain('opening');
+    expect(s.news).not.toContain('Lottie handed you her folding table, her pitcher and her 3 recipe pages: Classic, Pink and Mint.');
+    expect(playScene(s, 'opening')).toBe(false);
+  });
+});
+
+describe('townsfolk scenes, staged by speaker', () => {
+  it("let any lane queue a speaker's scene at a plot, and keep its speaker, plot and lines", () => {
+    const s = newGame(74);
+    s.scenes!.queue = []; // past the opening
+    const lines = [{ who: SPEAKERS.budd, text: "I'm not mad. I'm writing you a Citation. Is that Mint?", at: 3 }];
+    expect(playScene(s, 'citation-12', { speaker: 'budd', plot: LOTTIES_SIDE_LOT, lines, recap: 'Sheriff Budd wrote you a Citation.', seconds: 9 })).toBe(true);
+    expect(beginScene(s)).toMatchObject({ id: 'citation-12', speaker: 'budd', plot: LOTTIES_SIDE_LOT, lines, seconds: 9 });
+    expect(sceneDef('budd')).toMatchObject({ speaker: 'budd' }); // ready-made: the first Citation...
+    expect(sceneDef('fontaine')).toMatchObject({ speaker: 'fontaine' }); // ...and Vera's fine from Town Hall
   });
 });

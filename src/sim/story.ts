@@ -7,15 +7,19 @@
 // at the next dawn. Sandbox and Endless have no acts. This module also holds
 // the lessons (Act 1's one system a day) and the story's hooks into the day:
 // dawn, every few minutes, closing. Pure, like the rest of the sim.
-import { ACT_BY_RANK, ACTS, CUPS_PER_PITCHER, LESSON_DAY, type RivalId, type SupplyId } from './balance.ts';
+import {
+  ACT_BY_RANK, ACTS, BRAND_TIERS, CUPS_PER_PITCHER, DISTRICT_RANK, LESSON_DAY, STAND_LEVELS, type CampaignId, type RivalId, type SupplyId,
+} from './balance.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
-import { LOTTIES_CORNER, PLOT_BY_ID } from './map.ts';
+import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { alert } from './alerts.ts';
 import type { GameState, Stand } from './economy.ts';
-import { expectedCups, pitcherNeeds, playerStands, standLevel, stock } from './economy.ts';
+import { expectedCups, pitcherNeeds, playerStands, plotPrice, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
-import { migrateScenes, playScene, scenesAtDawn } from './scenes.ts';
+import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 export interface StoryState {
   act: number; // 1-5
@@ -172,10 +176,57 @@ function stewardVisit(s: GameState): void {
   }
 }
 
+/** Benny Buzz pitches every brand tier and local campaign in a slogan (spec "Marketing"): he talks in nothing else. */
+export const BENNY_SLOGANS = {
+  brand: [
+    "You're not selling lemonade. You're selling sunshine in a cup!",
+    'Chalk it up to thirst!',
+    'Hum it. Crave it. Buy it!',
+    'Bigger signs, bigger sips!',
+    "The sky's the limit. Literally!",
+  ],
+  sandwichBoard: 'Walk the board, win the block!',
+  freeSamples: "The first sip's free. The second's a habit!",
+} as const;
+/** Benny's pitch for a brand tier (1-5) or a local campaign. */
+export const bennyPitch = (what: number | CampaignId): string => (typeof what === 'number' ? BENNY_SLOGANS.brand[what - 1] ?? '' : BENNY_SLOGANS[what]);
+
+/**
+ * Act 1's lesson lines, the morning each system's button appears: Day 3's Market, Day 4's Wooden Stand (a tap on the
+ * table answered from Day 1; now Lottie nudges it), Day 7's first sign, which Benny Buzz pitches himself.
+ */
+function lessonLines(s: GameState): void {
+  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today you buy your own. Or flip on Auto, and I\'ll do the market runs."');
+  const [table, wooden] = STAND_LEVELS;
+  if (lessonsOn(s) && s.day === LESSON_DAY.upgrade && !playerStands(s).some((p) => s.plots[p.id].stand!.level >= wooden.level)) {
+    s.news.push(`Lottie: "Time that table grew up. A Wooden Stand draws ${wooden.draw / table.draw}× the walkers and pours ${wooden.capacityPerHour / table.capacityPerHour}× as fast: ${money(wooden.cost)}, back in 2-4 days."`);
+  }
+  if ((lessonsOn(s) || hasStory(s)) && s.day === LESSON_DAY.marketing && !s.brandTier) s.news.push(`Benny Buzz: "${bennyPitch(1)} One sign, ${money(BRAND_TIERS[0].cost)}!"`);
+}
+
+/**
+ * Week 2's land lesson (campaign): Skip Larkin finds you an open Old Town street plot, the cheapest going, and stands on
+ * it in his scene; its card points there, and the Land Registry opens with the lesson. Old Town needs Rank 2, so he
+ * waits for it through the rest of Act 1. If you already hold land in Old Town, there's nothing left to find.
+ */
+function skipFindsACorner(s: GameState): void {
+  if (!hasStory(s) || s.day < LESSON_DAY.land || storyAct(s) > 1 || s.rank < DISTRICT_RANK.oldtown) return;
+  if (s.scenes?.seen.includes('skip') || s.scenes?.queue.some((q) => q.id === 'skip')) return;
+  if (PLOTS.some((p) => p.district === 'oldtown' && s.plots[p.id].owner === 'player')) return;
+  const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner && (!s.plots[p.id].dibs || s.plots[p.id].dibs!.who === 'player'));
+  if (!open.length) return;
+  const lot = open.reduce((a, b) => (plotPrice(s, b.id) < plotPrice(s, a.id) ? b : a));
+  const price = money(plotPrice(s, lot.id)), name = lot.name.replace(/ lot /, ' ');
+  const lines = SCENES.skip.lines.map((l, i) => (i === 1 ? { ...l, text: `${name}: ${price}, fair crowds and all!` } : l));
+  if (!playScene(s, 'skip', { plot: lot.id, lines, recap: `Skip Larkin found you an Old Town corner: ${name}, ${price}. The Land Registry is open.` })) return;
+  alert(s, { kind: 'note', text: `Skip: "${name}, ${price}. Snap it up!"`, plot: lot.id });
+}
+
 /** A new run's first Morning Prep (newGame): Lottie stocks the Corner, and the campaign opens on her scene. */
 export function storyAtStart(s: GameState): void {
   migrateStory(s);
   lottieStocksStands(s);
+  if (hasStory(s)) playScene(s, 'opening'); // her table, her pitcher and her 3 pages; it plays on Day 1 or not at all
   scenesAtDawn(s);
 }
 
@@ -184,9 +235,9 @@ export function storyAtDawn(s: GameState): void {
   migrateStory(s);
   advanceAct(s);
   lottieStocksStands(s);
-  // Day 3's lesson: the Market opens, and Auto-Restock with it.
-  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today you buy your own. Or flip on Auto, and I\'ll do the market runs."');
+  lessonLines(s);
   stewardVisit(s);
+  skipFindsACorner(s);
   goalsAtDawn(s);
   scenesAtDawn(s);
   phoneCheck(s, true);
@@ -206,9 +257,13 @@ export function storyAtClose(s: GameState): void {
   phoneAtClose(s);
 }
 
-/** After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Days 1–2 gets Lottie's stock. */
+/**
+ * After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Days 1–2 gets
+ * Lottie's stock; the first brand tier brings Benny Buzz to paint the sign (his scene, at the next lull).
+ */
 export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);
+  if (s.brandTier >= 1) playScene(s, 'benny'); // once a run, campaign only
   checkGoals(s);
   phoneCheck(s);
 }

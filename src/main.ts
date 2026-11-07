@@ -48,7 +48,7 @@ import { createBugle } from './ui/bugle.ts';
 import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
-import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady } from './sim/scenes.ts';
+import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
 import { takeCall } from './sim/phone.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { createGullFlight } from './world/gullflight.ts';
@@ -306,23 +306,34 @@ async function main() {
     say: (who, line, speaker, color) => { bubbles.say(who, line, { who: speaker, color, height: 2.1 }); audio.babble(line, speaker === 'Dex' ? 1.2 : 0.9, 'flat'); },
     lottie: (line, react) => lottieSays('morning', { text: line, react }),
     // No ring hook: a scene's follow-up call (Vera after the Steward) is queued by the sim when the scene ends.
-    done: (id) => { if (playingScene(state)?.world === id) finishScene(false); },
+    done: (id) => { const sc = playingScene(state); if (sc && (id === 'visit' ? !!sc.speaker : sc.world === id)) finishScene(false); },
     driven: true, // the story's scene queue (src/sim/scenes.ts) says when
   });
 
   // Story scenes wait for a lull: Morning Prep with nothing else on screen. One plays at a time, under a minute.
-  let sceneT = 0, sceneWorld = false;
+  let sceneT = 0, sceneWorld = false, sceneSaid = 0;
   const busy = () => !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || battle.active() || vip.active() || !!vipResume || phone.ringing() || flight.active() || !!document.querySelector('.frontpage');
   const lull = () => !busy() && !scenes.active() && speed !== 0; // a paused game starts no scene
   const startScene = () => {
     const sc = beginScene(state);
     if (!sc) return;
     sceneT = 0;
+    sceneSaid = 0;
     crowd.clear();
-    focusPlot(LOTTIES_CORNER);
-    sceneWorld = !!sc.world && !!bay.views[LOTTIES_CORNER]?.stand;
-    if (sceneWorld) scenes.play(sc.world as SceneId);
+    // A townsperson's scene (its speaker) is staged at its plot; the Steward and Dex have their own at the Corner.
+    const at = sc.plot && bay.views[sc.plot] ? sc.plot : LOTTIES_CORNER;
+    focusPlot(at);
+    sceneWorld = sc.speaker ? !!bay.views[at] : !!sc.world && !!bay.views[LOTTIES_CORNER]?.stand;
+    if (sceneWorld && sc.speaker) scenes.visit({ who: sc.speaker, plot: at, lines: sc.lines });
+    else if (sceneWorld) scenes.play(sc.world as SceneId);
     saveGame(state);
+  };
+  /** A captions-only scene (Day 1's opening): Lottie says her lines at the Corner as they come up. */
+  const sayScene = (sc: Scene) => {
+    while (sceneSaid < sc.lines.length && sc.lines[sceneSaid].at <= sceneT) {
+      const l = sc.lines[sceneSaid++];
+      if (l.who === 'Lottie') lottieSays('morning', { text: l.text });
+    }
   };
   const finishScene = (skipped: boolean) => {
     if (skipped) scenes.stop();
@@ -334,7 +345,7 @@ async function main() {
   /** A fight replay or a VIP show cuts a scene short. */
   const cutScene = () => { if (playingScene(state)) finishScene(true); };
   /** A new run or a loaded game: the world's actors leave, and a scene saved mid-play replays from its first line. */
-  const resetScene = () => { scenes.stop(); sceneT = 0; sceneWorld = false; };
+  const resetScene = () => { scenes.stop(); sceneT = 0; sceneSaid = 0; sceneWorld = false; };
   let callsQuietUntil = 0; // a rank-up's fanfare outranks a boss's call
 
   let vipHeadline = '';
@@ -913,6 +924,7 @@ async function main() {
     const sc = playingScene(state);
     if (sc) {
       if (!frozen) sceneT += dt;
+      if (!sceneWorld) sayScene(sc);
       if ((!sceneWorld && sceneT >= sc.seconds) || sceneT >= SCENE_MAX_SECONDS) finishScene(false);
     } else if (sceneReady(state) && lull()) startScene();
     hud.sceneTime = sceneT;

@@ -4,15 +4,27 @@
 // warning, and at most one a game day (extra scenes roll to later days).
 // Skipping posts the one-line recap. Boss exit scenes also play in Sandbox and
 // Endless. Pure state, saved with the run so a reload never replays a scene.
-import type { RivalId } from './balance.ts';
+import { BRAND_TIERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { CALL_PRIORITY, LINES, phoneCall } from './phone.ts';
+
+/**
+ * Townsfolk the world stages by speaker (src/world/scenes.ts walks them on in their clay look): queue a scene with
+ * `speaker` set, and they walk on to its plot, say every line that isn't Lottie's, and walk off. No world code needed.
+ */
+export const SPEAKERS = { marisol: 'Marisol', skip: 'Skip Larkin', benny: 'Benny Buzz', budd: 'Sheriff Budd', fontaine: 'Mayor Fontaine' } as const;
+export type Speaker = keyof typeof SPEAKERS;
 
 export interface SceneLine { who: string; text: string; at: number }
 export interface SceneDef {
   /** Acted out in the world under this id (src/world/scenes.ts); otherwise it plays as captions. */
   world?: string;
+  /** A townsperson who acts it out in the world (see SPEAKERS), at `plot`: Lottie's Corner if not given. */
+  speaker?: Speaker;
+  plot?: string;
+  /** The last game day it may start: a scene still queued after that leaves unplayed, with no recap (Day 1's opening). */
+  until?: number;
   /** How long the captions run when there's no world scene to wait for (never over SCENE_MAX_SECONDS). */
   seconds: number;
   lines: SceneLine[];
@@ -38,6 +50,19 @@ export interface SceneState {
 export const SCENE_MAX_SECONDS = 60;
 
 export const SCENES: Record<string, SceneDef> = {
+  // Day 1, the first Morning Prep: Lottie hands over the table, her pitcher and her 3 pages (spec Act 1, Day 1).
+  opening: {
+    seconds: 21, until: 1,
+    lines: [
+      { who: 'Lottie', text: 'My folding table. My pitcher. And three pages.', at: 0.5 },
+      { who: 'Lottie', text: "Classic, Pink and Mint: all Vera didn't steal.", at: 4.6 },
+      { who: 'Lottie', text: 'And a spare lemon. I keep one in my cardigan.', at: 8.8 },
+      { who: 'Lottie', text: 'When life gives you lemons, you take the whole town.', at: 13 },
+      { who: 'Lottie', text: 'Now price a cup, and sell me a pitcher.', at: 17.2 },
+    ],
+    replies: ['Okay, Grandma. One town, coming up.', 'Why a spare lemon?'],
+    recap: 'Lottie handed you her folding table, her pitcher and her 3 recipe pages: Classic, Pink and Mint.',
+  },
   steward: {
     world: 'steward', seconds: 14,
     lines: [
@@ -59,6 +84,49 @@ export const SCENES: Record<string, SceneDef> = {
     replies: ['Welcome aboard!', 'Paid in lemonade?'],
     recap: 'Dex Moody joins the crew, paid in lemonade. Station him for the night.',
   },
+  // Buying the first brand tier (the Day 7 lesson): Benny Buzz paints your first sign.
+  benny: {
+    speaker: 'benny', seconds: 17,
+    lines: [
+      { who: SPEAKERS.benny, text: "You're not selling lemonade. You're selling sunshine in a cup!", at: 3.6 },
+      { who: 'Lottie', text: 'He talks in slogans, kid. Just nod.', at: 7.6 },
+      { who: SPEAKERS.benny, text: 'Today, a sign. Tomorrow, a jingle on 101.5!', at: 10.6 },
+    ],
+    replies: ['Looks great!', 'Sunshine in a cup?'],
+    recap: `Benny Buzz painted your first sign: +${Math.round(BRAND_TIERS[0].traffic * 100)}% foot traffic at every stand.`,
+  },
+  // Week 2's land lesson: Skip Larkin stands on an open Old Town corner (story.ts fills in the plot and its price).
+  skip: {
+    speaker: 'skip', seconds: 17,
+    lines: [
+      { who: SPEAKERS.skip, text: "Kid, they're not making any more land. I checked.", at: 3.6 },
+      { who: SPEAKERS.skip, text: 'An Old Town corner, fair crowds and all!', at: 7.4 },
+      { who: 'Lottie', text: "Old Town. Now we're cooking.", at: 11 },
+    ],
+    replies: ['How much?', "Let's buy it!"],
+    recap: 'Skip Larkin found you an Old Town corner. The Land Registry is open.',
+  },
+  // For other lanes' moments, keyed by speaker (play with { plot } to stand them somewhere else): a Citation...
+  budd: {
+    speaker: 'budd', seconds: 15,
+    lines: [
+      { who: SPEAKERS.budd, text: "I'm not mad. I'm writing you a Citation.", at: 3.6 },
+      { who: SPEAKERS.budd, text: 'Is that Mint?', at: 7 },
+      { who: 'Lottie', text: "On the house, Dolores. Not the Citation, I'm guessing.", at: 9.4 },
+    ],
+    replies: ['Sorry, Sheriff.', 'Want a cup?'],
+    recap: 'Sheriff Budd wrote you a Citation for a daytime raid.',
+  },
+  // ...and one of Vera's fines from Town Hall.
+  fontaine: {
+    speaker: 'fontaine', seconds: 15,
+    lines: [
+      { who: SPEAKERS.fontaine, text: 'I represent all of Citrine Bay.', at: 3.6 },
+      { who: SPEAKERS.fontaine, text: "Some of it more than others. Here's your fine.", at: 6.8 },
+      { who: 'Lottie', text: "Vera's errand boy. Pay it, kid. We'll remember.", at: 10.4 },
+    ],
+    recap: "Mayor Fontaine delivered one of Vera's fines.",
+  },
 };
 
 const DEX = 'Dex Moody';
@@ -73,6 +141,21 @@ export function migrateScenes(s: GameState): void {
   }
   // A scene cut off by a reload (or still marked as playing at the next dawn) counts as seen and leaves its recap.
   if (s.scenes.playing) endScene(s, true);
+  // The first sign was painted before Benny's scene existed: don't play it now.
+  if (s.brandTier >= 1 && !queued(s, 'benny')) s.scenes.seen.push('benny');
+  dropStale(s);
+}
+
+const queued = (s: GameState, id: string) => !!s.scenes && (s.scenes.seen.includes(id) || s.scenes.playing?.id === id || s.scenes.queue.some((q) => q.id === id));
+const stale = (s: GameState, q: { id: string; data?: SceneData }) => {
+  const def = sceneDef(q.id, q.data);
+  return !def || (def.until !== undefined && s.day > def.until);
+};
+/** A scene whose day has passed leaves the queue unplayed (marked seen, no recap). */
+function dropStale(s: GameState): void {
+  const sc = s.scenes!;
+  for (const q of sc.queue.filter((e) => stale(s, e))) if (!sc.seen.includes(q.id)) sc.seen.push(q.id);
+  sc.queue = sc.queue.filter((e) => !stale(s, e));
 }
 
 export function sceneDef(id: string, data?: SceneData): Scene | null {
@@ -91,10 +174,10 @@ export function playScene(s: GameState, id: string, data?: SceneData): boolean {
   const def = sceneDef(id, data);
   if (!def) return false;
   if (!def.exit && s.settings.mode !== 'campaign') return false;
+  if (def.until !== undefined && s.day > def.until) return false;
   s.scenes ??= { seen: [], queue: [] };
-  const sc = s.scenes;
-  if (sc.seen.includes(id) || sc.playing?.id === id || sc.queue.some((q) => q.id === id)) return false;
-  sc.queue.push(data ? { id, data } : { id });
+  if (queued(s, id)) return false;
+  s.scenes.queue.push(data ? { id, data } : { id });
   return true;
 }
 
@@ -107,13 +190,14 @@ export function playingScene(s: GameState): Scene | null {
 export function sceneReady(s: GameState): boolean {
   const sc = s.scenes;
   const over = gameOver(s) || (s.outcome?.result === 'won' && !isEndless(s));
-  return !!sc && !sc.playing && sc.queue.length > 0 && s.phase === 'prep' && sc.lastDay !== s.day && !over;
+  return !!sc && !sc.playing && sc.queue.some((q) => !stale(s, q)) && s.phase === 'prep' && sc.lastDay !== s.day && !over;
 }
 
 /** Start the next queued scene (the UI calls this once the screen is quiet too). */
 export function beginScene(s: GameState): Scene | null {
   if (!sceneReady(s)) return null;
   const sc = s.scenes!;
+  dropStale(s);
   while (sc.queue.length) {
     const next = sc.queue.shift()!;
     const def = sceneDef(next.id, next.data);

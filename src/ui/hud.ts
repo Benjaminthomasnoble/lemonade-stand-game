@@ -40,7 +40,7 @@ import { attachTips } from './tips.ts';
 import { cashTip, dayTip, repTip, scoreTip, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
-import { storyDateline, taught } from '../sim/story.ts';
+import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
 import { goalCard, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
@@ -602,10 +602,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const c = CAMPAIGNS[id], b = canRunCampaign(s, id);
       if (locked(b) || (!b.ok && /Only for/.test(b.why)) || !taught(s, 'marketing')) continue;
       const cost = campaignCost(s, id); // Word of Mouth halves it
-      out.push(card(id === 'sandwichBoard' ? ART.board() : ART.sample(), c.name.replace('Sandwich-Board Kid', 'Sign kid').replace('Free Sample Day', 'Free samples'), `${c.costPerDay ? `${whole(cost.cash)} a day` : `${cost.samples} cups`}${cost.half ? ' · half off' : ''}`, btn('campaign', 'Run', b, `data-id="${id}"`), `${c.blurb}${cost.half ? '. Word of Mouth: half price' : ''}`));
+      out.push(card(id === 'sandwichBoard' ? ART.board() : ART.sample(), c.name.replace('Sandwich-Board Kid', 'Sign kid').replace('Free Sample Day', 'Free samples'), `${c.costPerDay ? `${whole(cost.cash)} a day` : `${cost.samples} cups`}${cost.half ? ' · half off' : ''}`, btn('campaign', 'Run', b, `data-id="${id}"`), `Benny: "${bennyPitch(id)}"\n${c.blurb}${cost.half ? '. Word of Mouth: half price' : ''}`));
     }
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
-    if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
+    if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever`));
     out.push(bank(s));
     return `<div class="cl-cards">${out.join('')}</div>`;
   }

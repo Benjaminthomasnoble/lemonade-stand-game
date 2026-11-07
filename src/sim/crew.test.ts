@@ -368,6 +368,24 @@ describe('day and night raids', () => {
     expect(s.reputation).toBeCloseTo(3.8, 5); // the Giant's raid cost nothing, the other a Smash's 0.2
   });
 
+  it('a Sneaky raider takes 25 more points off, once, down to 0%, and the planner knows', () => {
+    const s = crew(83);
+    s.guards[0].trait = 'Sneaky';
+    const sneak = s.guards[0].id;
+    const target = raidTargets(s).find((p) => !s.plots[p.id].defense.gadgets.length)!.id;
+    expect(detectionChance(s, target, false, true)).toBe(0.25);
+    expect(detectionChance(s, target, true, true)).toBe(0);
+    s.plots[target].defense.gadgets = ['alarm', 'goose'];
+    expect(detectionChance(s, target, true, true)).toBe(0.3);
+    s.plots[target].defense.gadgets = [];
+    expect(planRaid(s, target, [sneak, 'gb'], 'shakedown', 'tonight')).toBe(true);
+    const raid = s.raids.find((r) => r.attacker === 'player')!;
+    openStand(s);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    expect(raid.detected).toBe(false); // 0% at night with a Sneaky raider
+  });
+
   it('Gentle Giants have +50% HP and 30% less Hit', () => {
     const f = guardFighter({ id: 'gg', name: 'Gentle G', trait: 'Gentle Giant', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 }, 'att', false);
     expect(f.hp).toBeCloseTo(150);

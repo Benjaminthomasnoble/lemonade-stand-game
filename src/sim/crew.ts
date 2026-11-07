@@ -8,7 +8,7 @@ import {
   GUARD_FEE, GUARD_WAGE, GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NIGHT_STEALTH, NO_RAID_DAYS, PERIMETERS, PROMOTE_LEVEL,
   RAID_PARTY, RAID_RANK, RAID_LEAVE,
   RAIDS_PER_WEEK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL, REPAIR_SHARE, RIVAL_RAID_AT, ROSTER_BASE, BUSTED_REPAIR_SHARE, SIDE_LOT,
-  SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS, WRECKER_CHOP,
+  SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP, STAND_HP, STAND_LEVELS, TRAITS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective } from './combat.ts';
@@ -460,8 +460,11 @@ export function presentGuards(s: GameState, plotId: string): Guard[] {
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 
-/** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights). Never below 0%. */
-export function detectionChance(s: GameState, plotId: string, night: boolean): number {
+/** Is there a Sneaky guard in this raiding party? (Their stealth counts once per raid.) */
+export const sneakyIn = (s: GameState, guardIds: string[]) => s.guards.some((g) => guardIds.includes(g.id) && g.trait === 'Sneaky');
+
+/** The chance a raid on this plot is spotted: 50% plus gadgets and watchers, capped at 95%; then night takes 25 points off (unless Floodlights) and a Sneaky raider 25 more. Never below 0%. */
+export function detectionChance(s: GameState, plotId: string, night: boolean, sneaky = false): number {
   const ps = s.plots[plotId];
   const here = ps.owner === 'player' ? presentGuards(s, plotId) : [];
   let d = DETECTION_BASE + ps.defense.gadgets.reduce((a, g) => a + GADGETS[g].detection, 0);
@@ -469,6 +472,7 @@ export function detectionChance(s: GameState, plotId: string, night: boolean): n
   if (here.some((g) => g.specialty === 'lookout')) d += LOOKOUT_DETECTION;
   d = Math.min(DETECTION_CAP, d);
   if (night && !ps.defense.gadgets.includes('floodlights')) d -= NIGHT_STEALTH;
+  if (sneaky) d -= SNEAKY_STEALTH;
   return Math.max(0, Math.round(d * 1000) / 1000);
 }
 
@@ -518,8 +522,11 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
   const squad = squadFighters(s.guards.filter((g) => guardIds.includes(g.id)), 'att', night);
   const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective, detected: false, eta: '' };
   const input = battleInput(s, raid, squad, night, new Set(), rng);
-  input.detected = nextRandom(rng) < 0.5; // unknown: call it a coin flip
-  return winChance(input, rng.seed, 80);
+  // Spotted or not decides who strikes first: weigh both by the target's real detection chance (Sneaky included).
+  const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
+  const spotted = seen > 0 ? winChance({ ...input, detected: true }, rng.seed, 40) : 0;
+  const unseen = seen < 1 ? winChance({ ...input, detected: false }, rng.seed ^ 0x5eed, 40) : 0;
+  return seen * spotted + (1 - seen) * unseen;
 }
 
 export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: Objective, when: 'now' | 'tonight'): BattleReport | boolean {
@@ -602,7 +609,7 @@ export function raidInput(s: GameState, raid: Raid, night: boolean, rng: Rng): B
   const attackers = raid.attacker === 'player'
     ? squadFighters(raidSquad(s, raid.guards!), 'att', night)
     : raid.party!;
-  if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night);
+  if (raid.attacker === 'player') raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night, sneakyIn(s, raid.guards!));
   return withBell(s, raid, battleInput(s, raid, attackers, night, away, rng), night); // Ring the Bell: the reserve on its way
 }
 

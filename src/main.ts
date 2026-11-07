@@ -301,7 +301,7 @@ async function main() {
       winners.slice(0, 2).forEach((w, i) => setTimeout(() => bubbles.say(w, i ? pick(BRAWL.win[owner]) : l, { ms: 1800, color: sideColor(owner), height: 1.9 }), i * 350));
       audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
     },
-  });
+  }, { phone: world.quality === 'phone' });
   /** Play a brawl. live: it's happening now, so the clock runs at fight speed and the next one waits its turn. */
   const playBattle = (b: BattleReport, live = false) => {
     crowd.clear();
@@ -598,7 +598,7 @@ async function main() {
     crowd.update(frozen ? 0 : dt, state.phase === 'open' ? Math.max(speed, 1) : 1);
     battle.update(frozen ? 0 : dt);
     vip.update(frozen ? 0 : Math.min(realDt, 0.5)); // VIP pickups play in real time even when frames are slow
-    traffic.update(state, dt, world.controls.target);
+    traffic.update(state, frozen ? 0 : dt, world.controls.target, { hold: battle.active() || vip.active(), camera: world.camera }); // paused: traffic holds still too
     ambient.update(state, dt, timer.getElapsed(), world.controls.target, bay.views);
     flight.update(dt);
     if (!flight.active()) gullBtn.classList.remove('on');

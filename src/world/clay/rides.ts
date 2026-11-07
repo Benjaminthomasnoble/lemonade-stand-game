@@ -39,12 +39,14 @@ function lolly(B: Baker, x: number, y: number, z: number, c: string) {
 // ---------- choppers ----------
 /** A VIP client's comic paint job. */
 export interface Paint { body: string; trim: string; mark: 'star' | 'heart' | 'bolt' | 'note' | 'crown'; vip: string; hat: string }
+// Clients are neutral: no owner colours (plum and gold, neon pink, chrome, mango, cola) and no lemon,
+// which belongs to lemons, coins, the player's things and the Lemon Blimp (spec "Palette and patterns").
 export const PAINTS: Paint[] = [
-  { body: '#F49AB8', trim: '#FFFFFF', mark: 'star', vip: '#F3D9C4', hat: '#FF4FA3' }, // a movie star's pool party: the pink chopper with a star on its tail
-  { body: '#3BB4C1', trim: '#B8C2CC', mark: 'bolt', vip: '#E3A27A', hat: '#2E2A4F' }, // a tech mogul
-  { body: '#FFFDF6', trim: '#F4A3B5', mark: 'heart', vip: '#F6C9A0', hat: '#FFFFFF' }, // a celebrity wedding
-  { body: '#9C8AD0', trim: '#FF9F1C', mark: 'note', vip: '#B9784F', hat: '#7CC47F' }, // the music festival
-  { body: '#5B2A6E', trim: '#C9A227', mark: 'crown', vip: '#F3D9C4', hat: '#2A1F3A' }, // the Governor's Gala
+  { body: P.blush, trim: P.white, mark: 'star', vip: '#F3D9C4', hat: P.terra }, // a movie star's pool party: the pink chopper with a star on its tail
+  { body: P.teal, trim: P.cream, mark: 'bolt', vip: '#E3A27A', hat: P.green }, // a tech mogul
+  { body: P.white, trim: P.blush, mark: 'heart', vip: '#F6C9A0', hat: P.blush }, // a celebrity wedding
+  { body: '#9C8AD0', trim: P.green, mark: 'note', vip: '#B9784F', hat: P.terra }, // the music festival
+  { body: P.green, trim: P.cream, mark: 'crown', vip: '#F3D9C4', hat: P.teal }, // the Governor's Gala
 ];
 /** Pick a paint job that stays the same for a client. */
 export function paintFor(client = ''): Paint {
@@ -73,15 +75,18 @@ export interface Chopper {
   hang(top: THREE.Vector3): void;
 }
 
-export function chopper(paint: Paint = PAINTS[0], big = false): Chopper {
+/** `scale` follows the pad: a small chopper at a Pad, bigger at a Helipad, biggest at a Heliport. */
+export function chopper(paint: Paint = PAINTS[0], scale = 1.4): Chopper {
   const g = new THREE.Group();
   const body = new THREE.Group();
   body.position.y = 0.94; // skids rest on the group's origin
   g.add(body);
   const B = new Baker();
   B.add(lumpy(sph(0.9, 24, 18), 0.03, 2, 1), paint.body, { s: [1.0, 0.86, 1.3] });
-  B.add(sph(0.66, 18, 12), GLASS, { p: [0, 0.16, 0.62], s: [0.95, 0.75, 0.7], fx: GLOSS });
-  B.add(sph(0.18, 8, 6), '#FFFFFF', { p: [-0.25, 0.4, 0.98], s: [1, 0.6, 0.3], fx: GLOSS + 1 });
+  // a shallow glossy windscreen pressed into the nose, under an open cockpit
+  B.add(sph(0.5, 16, 10), GLASS, { p: [0, 0.3, 0.92], s: [1.05, 0.62, 0.42], fx: GLOSS });
+  B.add(sph(0.14, 8, 6), '#FFFFFF', { p: [-0.22, 0.48, 1.08], s: [1, 0.6, 0.3], fx: GLOSS + 1 });
+  B.add(tor(0.36, 0.06, 6, 20), paint.trim, { p: [0, 0.71, 0.42], r: [Math.PI / 2, 0, 0], s: [1, 1.15, 1] });
   B.add(tor(0.93, 0.07, 8, 32), paint.trim, { r: [0, Math.PI / 2, 0], s: [1.32, 0.88, 1], p: [0, -0.05, 0] });
   B.add(cyl(0.1, 0.26, 2.0, 12), paint.body, { p: [0, 0.2, -1.85], r: [Math.PI / 2 + 0.12, 0, 0] });
   B.add(rbox(0.08, 0.7, 0.5, 0.04, 2), paint.trim, { p: [0, 0.55, -2.75] });
@@ -91,20 +96,21 @@ export function chopper(paint: Paint = PAINTS[0], big = false): Chopper {
     : paint.mark === 'bolt'
       ? new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(0.05, 0.25), new THREE.Vector2(-0.12, -0.02), new THREE.Vector2(0.02, -0.02), new THREE.Vector2(-0.05, -0.25), new THREE.Vector2(0.14, 0.04), new THREE.Vector2(0.0, 0.04)]), { depth: 0.04, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 })
       : star(0.24, paint.mark === 'crown' ? 0.16 : 0.11);
-  const markColor = paint.mark === 'star' ? P.lemon : paint.mark === 'heart' ? '#C8325A' : paint.mark === 'bolt' ? P.lemon : paint.mark === 'note' ? INK : P.gold;
+  const markColor = paint.mark === 'star' ? P.white : paint.mark === 'heart' ? '#C8325A' : paint.mark === 'bolt' ? P.terra : paint.mark === 'note' ? INK : P.terra;
   for (const s of [-1, 1]) B.add(markGeo(), markColor, { p: [s * 0.88, 0.05, -0.2], r: [0, s * Math.PI / 2, 0], fx: GLOSS });
   B.add(markGeo(), markColor, { p: [0.06, 0.6, -2.75], r: [0, Math.PI / 2, 0], s: 0.8, fx: GLOSS });
-  B.add(cyl(0.08, 0.1, 0.35, 10), INK, { p: [0, 0.82, 0] });
+  B.add(cyl(0.08, 0.1, 0.8, 10), INK, { p: [0, 1.05, 0] });
   for (const s of [-1, 1]) {
     B.add(rbox(0.1, 0.06, 2.2, 0.03, 2), P.stick, { p: [s * 0.62, -0.88, 0.05], fx: PAPER });
     B.add(snake([[s * 0.62, -0.88, 1.15], [s * 0.62, -0.8, 1.3]], 0.04, 4, 5), P.stick, { fx: PAPER });
     for (const z of [-0.5, 0.55]) B.add(cyl(0.035, 0.035, 0.5, 6), INK, { p: [s * 0.5, -0.66, z], r: [0, 0, -s * 0.45] });
   }
-  // a tiny clay VIP in the window, with a party hat
-  B.add(sph(0.22, 14, 10), paint.vip, { p: [0, 0.22, 0.42] });
-  for (const s of [-1, 1]) B.add(sph(0.03, 6, 4), INK, { p: [s * 0.08, 0.26, 0.62], fx: GLOSS });
-  B.add(cone(0.14, 0.3, 12), paint.hat, { p: [0, 0.54, 0.42] });
-  B.add(sph(0.05, 6, 4), P.lemon, { p: [0, 0.7, 0.42] });
+  // a tiny clay VIP in the open cockpit, head and party hat sitting proud of the canopy, facing forward
+  B.add(sph(0.26, 14, 10), paint.vip, { p: [0, 0.8, 0.45] });
+  for (const s of [-1, 1]) B.add(sph(0.035, 6, 4), INK, { p: [s * 0.09, 0.85, 0.69], fx: GLOSS });
+  B.add(sph(0.05, 6, 4), P.blush, { p: [0, 0.77, 0.71] });
+  B.add(cone(0.14, 0.28, 12), paint.hat, { p: [0, 1.17, 0.42], r: [0.15, 0, 0] });
+  B.add(sph(0.045, 6, 4), P.white, { p: [0, 1.31, 0.44] });
   body.add(mesh(B.build()));
   const R = new Baker();
   for (const a of [0, Math.PI / 2]) {
@@ -113,7 +119,7 @@ export function chopper(paint: Paint = PAINTS[0], big = false): Chopper {
   }
   R.add(sph(0.14, 10, 8), P.terra, { fx: GLOSS });
   const rotor = mesh(R.build());
-  rotor.position.y = 1.0;
+  rotor.position.y = 1.45; // high enough to clear the VIP's party hat
   body.add(rotor);
   const T = new Baker();
   T.add(cap(0.03, 0.8, 2, 5), '#FFFAF0', { r: [0, 0, Math.PI / 2], fx: PAPER });
@@ -125,7 +131,7 @@ export function chopper(paint: Paint = PAINTS[0], big = false): Chopper {
   tail.rotation.y = Math.PI / 2;
   body.add(tail);
   // the clay model is about a third the size of the old placeholder chopper; the scene scales it to fit the pad
-  g.scale.setScalar(big ? 1.75 : 1.4);
+  g.scale.setScalar(scale);
   const lineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 1, 0], 3));
   const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.65 }));
   line.frustumCulled = false;
@@ -161,7 +167,7 @@ function hullGeo(L: number, W: number, depth: number) {
   g.rotateX(-Math.PI / 2);
   return g;
 }
-const SOAP = { yacht: '#BFE8D8', cruise: '#F9D6E0', freighter: '#E9D3A8' };
+const SOAP = { yacht: '#F7C6CF', cruise: '#F9D6E0', freighter: '#E9D3A8' }; // a blush-soap yacht stands out from the teal resin
 
 export function ship(kind: ShipKind): Ship {
   const g = new THREE.Group(), B = new Baker();
@@ -177,7 +183,7 @@ export function ship(kind: ShipKind): Ship {
     B.add(rbox(1.25, 0.12, 1.25, 0.06, 2), P.terra, { p: [0, 1.0, -0.35] });
     for (const s of [-1, 1]) { B.add(cyl(0.13, 0.13, 0.05, 14), GLASS, { p: [s * 0.56, 0.62, -0.35], r: [0, 0, Math.PI / 2], fx: GLOSS }); B.add(tor(0.14, 0.03, 6, 14), P.gold, { p: [s * 0.57, 0.62, -0.35], r: [0, Math.PI / 2, 0], fx: GLOSS }); }
     B.add(cyl(0.03, 0.03, 1.2, 6), P.walnut, { p: [0, 1.6, -0.35], fx: PAPER });
-    B.add(cone(0.25, 0.5, 3), P.lemon, { p: [0.22, 1.95, -0.35], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
+    B.add(cone(0.25, 0.5, 3), P.terra, { p: [0.22, 1.95, -0.35], r: [0, 0, -Math.PI / 2], s: [1, 1, 0.12], fx: PAPER });
     B.add(tor(0.22, 0.07, 6, 14), P.terra, { p: [0, 0.4, 0.9], r: [0.2, 0, 0] });
   } else if (kind === 'cruise') {
     // three pastel decks stepping up, rows of bead portholes, a striped funnel
@@ -190,7 +196,7 @@ export function ship(kind: ShipKind): Ship {
     });
     for (let k = 0; k < 3; k++) B.add(cyl(0.42, 0.45, 0.32, 16), k % 2 ? '#FFFFFF' : P.terra, { p: [0, 2.75 + k * 0.32, -1.6] });
     B.add(sph(0.4, 12, 8), P.cream, { p: [0, 3.9, -1.6], s: [1, 0.35, 1] });
-    for (let k = 0; k < 7; k++) B.add(sph(0.09, 6, 5), [P.lemon, P.blush, P.teal, P.green][k % 4], { p: [0, 2.6 + Math.sin((k / 6) * Math.PI) * 0.6, 3.2 - k * 1.0], fx: GLOSS + 0.6 }); // bunting beads
+    for (let k = 0; k < 7; k++) B.add(sph(0.09, 6, 5), [P.terra, P.blush, P.teal, P.green][k % 4], { p: [0, 2.6 + Math.sin((k / 6) * Math.PI) * 0.6, 3.2 - k * 1.0], fx: GLOSS + 0.6 }); // bunting beads
     B.add(lumpy(tor(0.35, 0.09, 6, 16), 0.02, 4, 2), P.terra, { p: [W * 0.5 + 0.02, 0.5, 1.8], r: [0, Math.PI / 2, 0] }); // life ring
   } else {
     // a freighter: bridge at the stern, a deck piled with popsicle-stick citrus crates, a crane
@@ -198,7 +204,7 @@ export function ship(kind: ShipKind): Ship {
     B.add(rbox(2.6, 0.12, 1.8, 0.05, 2), P.terra, { p: [0, 1.85, -L / 2 + 1.2] });
     for (let k = 0; k < 4; k++) B.add(rbox(0.4, 0.28, 0.06, 0.04, 1), GLASS, { p: [-0.75 + k * 0.5, 1.45, -L / 2 + 2.02], fx: GLOSS });
     B.add(cyl(0.3, 0.34, 0.8, 14), '#5F5A74', { p: [0, 2.3, -L / 2 + 1.0] });
-    B.add(cyl(0.31, 0.31, 0.16, 14), P.lemon, { p: [0, 2.45, -L / 2 + 1.0] });
+    B.add(cyl(0.31, 0.31, 0.16, 14), P.teal, { p: [0, 2.45, -L / 2 + 1.0] });
     const crateCols = ['#C79A62', '#D9AE72', '#B88A55'];
     for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) for (let h = 0; h < ((r + c) % 3 === 0 ? 2 : 3 - ((r + c) % 2)); h++) {
       const x = -0.62 + c * 1.24, z = -L / 2 + 3.0 + r * 1.35, y = 0.85 + h * 0.75;
@@ -240,7 +246,8 @@ export function blimp(): Blimp {
   for (const s of [-1, 1]) B.add(leaf(0.75), P.green, { p: [s * 1.3, 0, -3.2], r: [0, Math.PI / 2, s * 1.4] });
   B.add(snake([[0, 1.95, -2.6], [0, 2.35, -2.2]], 0.07, 6, 5), P.walnut);
   // a LOTTIE'S stripe band
-  B.add(lumpy(tor(2.12, 0.1, 8, 40), 0.01, 4, 2), '#FFFFFF', { s: [1, 1, 1.9 * 0.97], r: [0, 0, 0], p: [0, -0.1, 0] });
+  // (a torus round the belly, following the hull's cross-section; paper, and it glows with the body at night)
+  B.add(lumpy(tor(2.12, 0.1, 8, 40), 0.01, 4, 2), '#FFFFFF', { s: [2.24 / 2.12, 2.06 / 2.12, 1], p: [0, 0, 0], fx: PAPER + 0.75 });
   // the gondola: a straw sun hat with a terracotta band, hung under the belly
   B.add(lumpy(cyl(1.0, 1.0, 0.07, 26), 0.015, 3, 4), P.straw, { p: [0, -2.7, 0.2], fx: PAPER });
   B.add(new THREE.SphereGeometry(0.6, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), P.straw, { p: [0, -2.68, 0.2], s: [1, 0.85, 1], fx: PAPER });
@@ -274,7 +281,13 @@ export function truck(cab: string = P.terra): Truck {
   const B = new Baker();
   B.add(lumpy(rbox(1.7, 1.3, 1.5, 0.35, 4), 0.02, 2, 1), cab, { p: [0, 1.05, 1.0] });
   B.add(lumpy(rbox(1.6, 0.75, 0.95, 0.3, 4), 0.02, 2, 2), cab, { p: [0, 0.75, 2.05] });
-  B.add(rbox(1.3, 0.55, 0.08, 0.08, 2), GLASS, { p: [0, 1.35, 1.75], r: [-0.2, 0, 0], fx: GLOSS });
+  // an open windscreen with the driver looking out: a clay head and a cream cap
+  B.add(rbox(1.3, 0.55, 0.08, 0.08, 2), '#3d3a5c', { p: [0, 1.35, 1.72], r: [-0.2, 0, 0] });
+  B.add(rbox(1.38, 0.62, 0.06, 0.05, 2), P.cream, { p: [0, 1.35, 1.7], r: [-0.2, 0, 0], s: [1, 1, 0.6] });
+  B.add(lumpy(sph(0.2, 12, 9), 0.01, 8, 5), P.skin, { p: [0.3, 1.32, 1.72] });
+  for (const e of [-1, 1]) B.add(sph(0.025, 6, 4), INK, { p: [0.3 + e * 0.07, 1.36, 1.9], fx: GLOSS });
+  B.add(sph(0.2, 12, 8, ), P.cream, { p: [0.3, 1.45, 1.7], s: [1.05, 0.5, 1.05] });
+  B.add(cyl(0.16, 0.16, 0.03, 12), P.cream, { p: [0.3, 1.45, 1.86], s: [1, 1, 0.8] });
   for (const s of [-1, 1]) {
     B.add(sph(0.16, 12, 9), '#FFF3C4', { p: [s * 0.55, 0.85, 2.5], s: [1, 1, 0.5], fx: GLOSS + 0.8 });
     B.add(tor(0.17, 0.035, 6, 14), P.chrome, { p: [s * 0.55, 0.85, 2.52], fx: GLOSS });
@@ -319,13 +332,9 @@ export function bike(frame: string = P.blush): Bike {
   B.add(lumpy(sph(0.13, 10, 8), 0.01, 8, 4), '#FFF3E0', { p: [0.12, 1.3, 1.2] });
   B.add(cone(0.09, 0.22, 10), P.stick, { p: [-0.15, 1.2, 1.15], r: [Math.PI, 0, 0] });
   B.add(cyl(0.025, 0.025, 1.2, 6), P.cream, { p: [0.25, 1.75, 1.2] });
-  for (let k = 0; k < 8; k++) B.add(new THREE.ConeGeometry(0.75, 0.32, 3, 1, true, (k / 8) * Math.PI * 2, Math.PI / 4), k % 2 ? P.lemon : '#FFFFFF', { p: [0.25, 2.4, 1.2], fx: PAPER });
+  for (let k = 0; k < 8; k++) B.add(new THREE.ConeGeometry(0.75, 0.32, 3, 1, true, (k / 8) * Math.PI * 2, Math.PI / 4), k % 2 ? P.terra : P.cream, { p: [0.25, 2.4, 1.2], fx: PAPER }); // terracotta and cream: the parasol isn't the player's
   g.add(mesh(B.build()));
-  const Wb = new Baker();
-  Wb.add(tor(0.38, 0.07, 8, 26), INK, { r: [0, Math.PI / 2, 0] });
-  for (let k = 0; k < 6; k++) Wb.add(cap(0.022, 0.66, 2, 4), P.lemon, { r: [k * 0.52, 0, 0] });
-  Wb.add(cyl(0.08, 0.08, 0.1, 10), P.terra, { r: [0, 0, Math.PI / 2] });
-  const wg = Wb.build();
+  const wg = buttonWheel(0.38); // button wheels, like the trucks'
   const wheels: THREE.Object3D[] = [];
   for (const z of [-0.65, 0.75]) { const w = new THREE.Mesh(wg, kit().fig); w.castShadow = true; w.position.set(0, 0.45, z); g.add(w); wheels.push(w); }
   return { group: g, wheels };

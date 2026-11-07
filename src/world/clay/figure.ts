@@ -644,6 +644,22 @@ export interface FigureOptions {
   detail?: number;
 }
 
+/**
+ * Just a figure's hat (with any hair it carries), sitting where it would on the head, which is the origin.
+ * The brawl cloud throws these: each crew's real hat tumbling out of the dust.
+ */
+export function hatGeometry(spec: FigureSpec, detail = 0.5): THREE.BufferGeometry {
+  const kind = spec.kind ?? 'pear';
+  const sp = { kind, skin: P.skin, shirt: P.terra, pants: P.denim, shoes: P.plum, hairColor: P.walnut, eyes: 'bead', brows: 'up', mouth: 'smile', nose: 'button', ...spec } as Spec;
+  sp.seed = spec.seed ?? 1;
+  sp.R = spec.R || KINDS[kind].R;
+  sp.skin2 = sp.skin;
+  const B = new Baker();
+  DETAIL = detail;
+  try { headwear(B, sp.R, sp); } finally { DETAIL = 1; }
+  return B.build();
+}
+
 export class Figure {
   readonly sp: Spec;
   readonly K: Kind;

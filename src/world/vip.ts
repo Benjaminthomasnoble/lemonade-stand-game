@@ -8,9 +8,14 @@ import type { PlotView } from './bay.ts';
 import { chopper, ship, paintFor, type Chopper, type Ship, type ShipKind } from './clay/rides.ts';
 import { createFx } from './clay/fx.ts';
 import { kit } from './clay/kit.ts';
+import { PLINTH } from './diorama.ts';
+import { SEA_X, SEA_Z } from '../sim/map.ts';
 
 export interface VipView {
-  /** `level` is the facility tier (Jetty, Pier, Cargo Terminal choose the ship); `client` picks the chopper's paint job. */
+  /**
+   * `level` is the facility tier: Pad, Helipad, Heliport size the chopper (small, bigger, biggest);
+   * Jetty, Pier, Cargo Terminal choose the ship. `client` picks the chopper's paint job.
+   */
   play(kind: 'heli' | 'ship', view: PlotView, big: boolean, level?: number, client?: string): void;
   update(dt: number): void;
   active(): boolean;
@@ -31,10 +36,15 @@ interface Job {
   heli?: Chopper;
   ship?: Ship;
   t: number;
-  path: (t: number) => { pos: THREE.Vector3; yaw: number; sq: number; tilt: number };
+  path: (t: number) => { pos: THREE.Vector3; yaw: number; sq: number; tilt: number; grow?: number };
   length: number;
   pad: THREE.Vector3;
   horns: number[];
+  /** Choppers: the cap's rim radius and the lawn under it (the wash flattens the grass outside the rim). */
+  ring?: number;
+  ground?: THREE.Vector3;
+  /** Ships: the model's full scale (it grows in from the far water and shrinks away). */
+  scale?: number;
 }
 
 export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
@@ -47,8 +57,20 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
   const drop = () => {
     if (!job) return;
     scene.remove(job.obj);
-    if (job.heli) scene.remove(job.heli.line);
+    if (job.heli) { scene.remove(job.heli.line); job.heli.line.geometry.dispose(); (job.heli.line.material as THREE.Material).dispose(); }
+    // each pickup builds its own ride: free its geometry when it leaves
+    job.obj.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     job = null;
+  };
+  /** Keep a point on the resin sea: inside the plinth, `margin` in from its edge. */
+  const onPlinth = (p: THREE.Vector3, margin: number) => {
+    p.x = THREE.MathUtils.clamp(p.x, PLINTH.cx - PLINTH.w / 2 + margin, PLINTH.cx + PLINTH.w / 2 - margin);
+    p.z = THREE.MathUtils.clamp(p.z, PLINTH.cz - PLINTH.d / 2 + margin, PLINTH.cz + PLINTH.d / 2 - margin);
+    return p;
+  };
+  const bez = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, t: number, out = new THREE.Vector3()) => {
+    const u = 1 - t;
+    return out.set(u * u * a.x + 2 * u * t * b.x + t * t * c.x, 0, u * u * a.z + 2 * u * t * b.z + t * t * c.z);
   };
 
   return {
@@ -58,8 +80,12 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
       const at = (x: number, y: number, z: number) => view.root.localToWorld(new THREE.Vector3(x, y, z));
       const yaw0 = view.root.rotation.y;
       if (kind === 'heli') {
-        const heli = chopper(paintFor(client), big);
-        const pad = at(0, 0.3, -2.5);
+        // Pad: a small chopper; Helipad: a bigger one; Heliport: the biggest
+        const lv = Math.max(1, Math.min(3, level));
+        const heli = chopper(paintFor(client), [1.25, 1.5, 1.75][lv - 1]);
+        const deck = lv >= 2 ? 0.9 : 0;
+        const pad = at(0, deck + 0.45, -2.5); // on the bottle cap's top (the cap sits on a raised deck from Helipad up)
+        const capR = 3 + lv * 0.6;
         const from = at(-60, 40, -80), to = at(70, 45, -90);
         const hover = pad.clone().setY(pad.y + 6);
         // swing in 4 s and hover, settle 1.5 s, load 4 s, lift off 4 s
@@ -75,7 +101,7 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
           return { pos: pad.clone().setY(pad.y + 8 * Math.min(1, k * 2)).lerp(to, e), yaw: yaw0 - 0.8 * k, sq: -0.12 * Math.max(0, 1 - k * 3), tilt: -0.2 * Math.min(1, k * 3) };
         };
         scene.add(heli.group, heli.line);
-        job = { kind, obj: heli.group, heli, t: 0, path, length: 13.5, pad, horns: [] };
+        job = { kind, obj: heli.group, heli, t: 0, path, length: 13.5, pad, horns: [], ring: capR, ground: at(0, 0, -2.5) };
       } else {
         const sk = SHIPS[Math.max(0, Math.min(2, level - 1))];
         const sh = ship(big && sk === 'yacht' ? 'cruise' : sk);
@@ -84,18 +110,36 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
         const len = sh.length * scale;
         const pierLen = 12 + level * 6, pierW = 3 + level;
         const side = pierW / 2 + (sh.beam * scale) / 2 + 0.4;
-        const berth = at(side, 0, -Math.max(pierLen - len / 2 + 1, 16 + len / 2)); // moored at the pier head, clear of the beach
-        const far = at(side, 0, -160);
+        // moored alongside the pier, its bow well clear of the beach's foam line
+        const margin = len / 2 + 3;
+        const berth = onPlinth(at(side, 0, -(Math.max(pierLen * 0.55, 10) + len / 2)), margin);
+        // The whole voyage stays on the resin: it slides in along the coast, swings round to the berth,
+        // and leaves the other way, growing out of the far water and shrinking back into it (never over the tablecloth).
+        const out = at(side, 0, -(pierLen + len)), seaward = out.clone().sub(at(side, 0, 0)).normalize();
+        // push the berth out until the bow clears the foam line by a clear gap of water
+        const bow = berth.clone().addScaledVector(seaward, -len / 2);
+        const short = Math.abs(seaward.z) > Math.abs(seaward.x) ? (SEA_Z + 5 - bow.z) * Math.sign(seaward.z) : (SEA_X + 5 - bow.x) * Math.sign(seaward.x);
+        if (short > 0) onPlinth(berth.addScaledVector(seaward, short), margin);
+        const along = new THREE.Vector3(-seaward.z, 0, seaward.x);
+        const turn = onPlinth(berth.clone().addScaledVector(seaward, len * 0.9), margin);
+        const inFrom = onPlinth(turn.clone().addScaledVector(along, 70).addScaledVector(seaward, 6), margin);
+        const outTo = onPlinth(turn.clone().addScaledVector(along, -70).addScaledVector(seaward, 6), margin);
+        const tan = new THREE.Vector3(), q0 = new THREE.Vector3(), q1 = new THREE.Vector3();
+        const heading = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, k: number) => { bez(a, b, c, Math.max(0, k - 0.01), q0); bez(a, b, c, Math.min(1, k + 0.01), q1); tan.subVectors(q1, q0); return Math.atan2(tan.x, tan.z); };
         const path = (t: number) => {
-          if (t < 6) { const k = t / 6, e = 1 - (1 - k) ** 3; return { pos: far.clone().lerp(berth, e), yaw: yaw0, sq: 0, tilt: 0 }; }
+          if (t < 6) {
+            const k = t / 6, e = 1 - (1 - k) ** 3;
+            return { pos: bez(inFrom, turn, berth, e), yaw: heading(inFrom, turn, berth, e), sq: 0, tilt: 0, grow: Math.min(1, t / 1.2) };
+          }
           // tying up: the hull squashes a hair as it nudges the pier
           if (t < 6.6) { const k = (t - 6) / 0.6; return { pos: berth.clone(), yaw: yaw0, sq: Math.sin(k * Math.PI) * 0.06, tilt: 0 }; }
           if (t < 11) return { pos: berth.clone().setY(Math.sin(t * 2) * 0.05), yaw: yaw0, sq: 0, tilt: Math.sin(t * 1.4) * 0.02 };
+          // backs out and steams off along the coast
           const k = (t - 11) / 6, e = k * k;
-          return { pos: berth.clone().lerp(far, e), yaw: yaw0 + Math.PI * Math.min(1, k * 1.5), sq: -0.04 * Math.max(0, 1 - k * 4), tilt: 0 };
+          return { pos: bez(berth, turn, outTo, e), yaw: heading(berth, turn, outTo, e) + (e < 0.3 ? Math.PI * (1 - e / 0.3) : 0), sq: -0.04 * Math.max(0, 1 - k * 4), tilt: 0, grow: Math.min(1, (17 - t) / 1.2) };
         };
         scene.add(sh.group);
-        job = { kind, obj: sh.group, ship: sh, t: 0, path, length: 17, pad: berth, horns: [5.2, 11.2] };
+        job = { kind, obj: sh.group, ship: sh, t: 0, path, length: 17, pad: berth, horns: [5.2, 11.2], scale };
       }
       const p0 = job.path(0);
       job.obj.position.copy(p0.pos);
@@ -127,13 +171,14 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
         h.group.updateMatrixWorld();
         top.set(h.group.position.x, h.group.position.y + LINE_TOP, h.group.position.z);
         h.hang(top);
-        // rotor wash flattens the grass tufts into rings
+        // rotor wash flattens the clay grass tufts on the lawn into rings, just outside the cap's rim
         const low = h.group.position.y - job.pad.y;
-        if (low < 5 && job.t - ringAt > 0.35) { ringAt = job.t; fx.ring(job.pad, 1.6 + (5 - low) * 0.5); if (low < 1) fx.dust(job.pad, 3, 2.2); }
+        if (low < 6 && job.t - ringAt > 0.4) { ringAt = job.t; fx.ring(job.ground!, job.ring! + 0.2 + Math.max(0, low) * 0.15); if (low < 1) fx.dust(job.pad, 3, 2.2); }
       } else if (job.ship) {
         const s = job.ship;
         s.hull.scale.set(1 + p.sq * 0.4, 1 - p.sq, 1 + p.sq * 0.2);
         s.group.rotation.z = p.tilt;
+        s.group.scale.setScalar(job.scale! * Math.max(0.02, p.grow ?? 1));
         const speed = job.obj.position.distanceTo(prev) / Math.max(1 / 12, dt);
         s.wake.visible = speed > 0.4;
         s.wake.scale.set(1, 1, Math.min(1.3, 0.5 + speed * 0.05));

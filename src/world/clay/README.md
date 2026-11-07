@@ -75,6 +75,29 @@ with these pieces.
   and a henchman), `CREWS` the six crew looks and `customerSpec(pick, kind)`
   the customers. `GAIT_OF` gives each body kind's walk.
 
+## Vehicles, animals and effects (rides.ts, creatures.ts, fx.ts)
+
+- `rides.ts`: `chopper(paint, scale)` (client paint jobs from `paintFor(client)`,
+  a tiny VIP in the open cockpit, `spin(f)` on twos, `hang(top)` runs the
+  fishing line), `ship('yacht' | 'cruise' | 'freighter')` (soap hull plus a
+  separate clay `wake`), `blimp()`, `truck(cab)` (with a driver) and
+  `bike(frame)`, both on button wheels. Neutral vehicles never wear owner
+  colours or lemon. Each model is one or two draws; the caller disposes it.
+- `creatures.ts`: `gull(captain)` (Captain Squawk gets the cap and lemon
+  wedge), `dog()` and `goose()` (Honkers). Their `userData` names the parts
+  that animate (wings, tail, neck).
+- `fx.ts`: `createFx(scene)` gives `dust`, `chips`, `stars`, `pellets`,
+  `splash`, `ring(at, radius)` (rotor wash: grass tufts pressed flat just
+  outside `radius`, then springing back) and `word(at, text, fill, edge)`
+  (sound words on cut-paper starbursts). Each kind is one instanced draw that
+  hides when idle, and everything steps on twos. Pieces fade by shrinking,
+  never by going see-through.
+- The scenes that use them live one level up: `vip.ts` (chopper and ship
+  pickups; ships stay on the resin and grow in from the far water),
+  `traffic.ts` (street traffic, which clears for brawls and VIPs, and the
+  blimp) and `battle.ts` (brawl replays: fighters draw through one figure
+  batch; breach and gadget looks, night flashlights; `BattleHooks` for barks).
+
 ## Scene services (scene.ts, lighting.ts, diorama.ts, post.ts)
 
 - `world.render()` draws a frame: the scene, the tilt-shift and the warm

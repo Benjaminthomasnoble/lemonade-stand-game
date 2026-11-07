@@ -14,7 +14,7 @@
 // plot, z out from the stand's front (z = 0) toward the street.
 import {
   COMBAT, FENCE_DEFENDER_BONUS, FIGHT_SECONDS_PER_GAME_MINUTE, GUARD_BASE, PERIMETERS, WEAPONS,
-  type GadgetId, type Trait, type WeaponId,
+  type GadgetId, type GearId, type Trait, type WeaponId,
 } from './balance.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
@@ -34,6 +34,8 @@ export interface Fighter {
   weapon: WeaponId;
   speed?: number; // plot-lengths a second (COMBAT.speed when unset; Sprinters +25%)
   trait?: Trait; // Butterfingers and Goose Whisperer act inside the fight
+  gear?: GearId; // what they wear (for the replay: vests, Pro Gear)
+  level?: number; // 1 Rookie .. 5 Legend (for the replay's sleeve chevrons)
 }
 
 export interface BattleInput {

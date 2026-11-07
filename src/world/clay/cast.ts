@@ -272,6 +272,8 @@ export interface CrewLook {
   onGuard?: boolean;
   /** a little variety between crew members (skin from the ramp, hair) */
   seed?: number;
+  /** Lanky Dex: 3 heads tall in his lemon guard vest (your crew only) */
+  dex?: boolean;
 }
 const CLUB: Record<Side, string> = { player: 'bat', sourwood: 'cane', hollis: 'shovel', fizzco: 'baton', coldbrew: 'heldboard', blenders: 'paddle' };
 const HATCHET: Record<Side, string> = { player: 'hatchetPlayer', sourwood: 'hatchetSourwood', hollis: 'hatchetHollis', fizzco: 'hatchetFizzco', coldbrew: 'hatchetColdbrew', blenders: 'hatchetBlenders' };
@@ -311,6 +313,7 @@ export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
   if (look.role === 'wrecker') sp.toolbelt = true;
   if (look.role === 'captain') sp.whistle = true;
   if (look.onGuard && side === 'player') sp.crossed = true;
+  if (look.dex && side === 'player') Object.assign(sp, { kind: TOWNSFOLK.dex.kind, skin: TOWNSFOLK.dex.skin, hairColor: TOWNSFOLK.dex.hairColor, vest: P.lemon, seed: undefined });
   return sp;
 }
 /** Put the crew member's weapon in hand, or, arms crossed on guard, leaning against a leg. */

@@ -65,6 +65,9 @@ export interface BattleReport {
   defenders: Fighter[];
   perimeter: number;
   standLevel: number;
+  /** The defender's gadgets and whether it was dark, for the replay. */
+  gadgets?: GadgetId[];
+  night?: boolean;
   events: BattleEvent[];
   duration: number;
   koed: string[];
@@ -296,7 +299,7 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean): Fig
   if (g.trait === 'Lumberjack') chop *= 1.5;
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
   if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
-  return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait };
+  return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait, gear: g.gear, level: g.level };
 }
 
 // ---------- henchmen ----------
@@ -312,7 +315,7 @@ function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: num
   return {
     id: `${rival}-${side}-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side,
     hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
-    nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon,
+    nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon, gear: h.gear, level: h.level,
   };
 }
 
@@ -531,6 +534,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean): BattleRepor
     day: s.day, attacker: raid.attacker, defender, target: raid.target, objective: raid.objective, outcome: res.outcome, loot,
     attackers: input.attackers, defenders: input.defenders, perimeter: input.perimeter, standLevel: ps.stand?.level ?? 0,
     events: res.events, duration: res.duration, koed: res.koed, fled: res.fled,
+    gadgets: input.gadgets.length ? input.gadgets : undefined, night: night || undefined,
   };
   if (raid.attacker === 'player' || defender === 'player') {
     s.battles.unshift(report);

@@ -161,6 +161,9 @@ export function grudgeToward(s: GameState, id: RivalId, at: FactionId): number {
   return at === 'player' ? r.grudge : (r.grudges?.[at as RivalId] ?? 0);
 }
 
+/** Seam for taunts and rival-versus-rival raids: rival `from`'s Grudge toward faction `to`. */
+export const grudge = (s: GameState, from: RivalId, to: FactionId) => grudgeToward(s, from, to);
+
 function setGrudge(s: GameState, id: RivalId, at: FactionId, n: number): void {
   const r = s.rivals[id];
   const g = Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
@@ -217,14 +220,23 @@ function coolGrudges(s: GameState, id: RivalId): void {
   }
 }
 
+/**
+ * Seam for planNight: how tempting a plot is for `attacker` to raid, its worth over its defense (fence, gadgets, and
+ * your posted guards or a rival's garrison). 0 when it can't be raided: its own, empty, or another rival's HQ.
+ */
+export function targetScore(s: GameState, attacker: RivalId, plotId: string): number {
+  const ps = s.plots[plotId];
+  if (!ps?.owner || ps.owner === attacker || !hasBuilding(ps)) return 0;
+  if (ps.owner !== 'player' && PLOT_BY_ID[plotId].type === 'hq') return 0;
+  const guards = ps.owner === 'player' ? s.guards.filter((g) => g.post === plotId).length : ps.garrison ?? 0;
+  return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
+}
+
 /** Rival-versus-rival targets: Grudge picks the faction (the one the attacker is angriest with, if any), then the weakest valuable building of theirs near the attacker's turf. */
 export function rivalTarget(s: GameState, attacker: RivalId): Plot | null {
   const turf = turfOf(s, attacker);
   const near = (p: Plot) => turf.has(p.district) || BORDERS[p.district].some((d) => turf.has(d));
-  const score = (p: Plot) => {
-    const ps = s.plots[p.id];
-    return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + (ps.garrison ?? 0) * 3 + ps.defense.gadgets.length);
-  };
+  const score = (p: Plot) => targetScore(s, attacker, p.id);
   const anger = (p: Plot) => grudgeToward(s, attacker, s.plots[p.id].owner!);
   const targets = PLOTS.filter((p) => {
     const o = s.plots[p.id].owner;
@@ -385,17 +397,21 @@ export function sharedBorders(s: GameState, id: RivalId): number {
   return [...mine].filter((d) => turf.has(d) || BORDERS[d].some((e) => turf.has(e))).length;
 }
 
-/** Your share of the cups sold on a rival's turf today (0..1): the customers you take from them. */
+/** passerby: someone walking past a rival's stand bought from you instead (Attention: the customers you take). */
+export function tookCustomer(s: GameState, id: RivalId): void {
+  const r = s.rivals[id];
+  if (!r) return;
+  if (r.taken?.day !== s.day) r.taken = { day: s.day, n: 0 };
+  r.taken.n++;
+}
+
+/** The share of passers-by at a rival's stands on the last day of trade who bought from you instead (0..1). */
 export function customersTaken(s: GameState, id: RivalId): number {
-  const turf = turfOf(s, id);
-  let mine = 0, theirs = 0;
-  for (const p of PLOTS) {
-    const ps = s.plots[p.id];
-    if (!ps.stand || !turf.has(p.district)) continue;
-    if (ps.owner === 'player') mine += ps.stand.day.customers;
-    else if (ps.owner === id) theirs += ps.stand.day.customers;
-  }
-  return mine + theirs > 0 ? mine / (mine + theirs) : 0;
+  const t = s.rivals[id].taken;
+  if (!t || t.day < s.day - 1) return 0; // dawn reads yesterday's, the night plan today's
+  let passed = 0;
+  for (const p of ownedPlots(s, id)) passed += s.plots[p.id].stand?.day.passersby ?? 0;
+  return passed > 0 ? Math.min(1, t.n / passed) : 0;
 }
 
 /** A boss's Attention on you (spec: How rivals think): it rises with Threat, shared borders, the customers you take and Grudge. */

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
+  addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
-  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, type BattleReport, type GameState, type RivalId,
+  RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, grudge, targetScore, type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 
@@ -237,11 +237,31 @@ describe('rival attention', () => {
     expect(sharedBorders(s, 'blenders')).toBe(borders + 1);
     const withBorder = attentionOf(s, 'blenders');
     expect(withBorder).toBeGreaterThan(base + 2 * ATTENTION.threat);
-    s.plots[pier.id].stand!.day.customers = 300;
-    expect(customersTaken(s, 'blenders')).toBe(1); // they sold nothing today
-    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + ATTENTION.customers, 5);
+    // Passers-by at the Blenders' stands who bought from you instead: a quarter of them today.
+    const theirs = ownedPlots(s, 'blenders').filter((p) => s.plots[p.id].stand);
+    for (const p of theirs) s.plots[p.id].stand!.day.passersby = 40;
+    for (let i = 0; i < theirs.length * 10; i++) tookCustomer(s, 'blenders');
+    expect(customersTaken(s, 'blenders')).toBeCloseTo(0.25, 5);
+    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + 0.25 * ATTENTION.customers, 0);
     s.rivals.blenders.grudge = 40;
-    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + ATTENTION.customers + 40 * ATTENTION.grudge, 5);
+    expect(attentionOf(s, 'blenders')).toBeCloseTo(withBorder + 0.25 * ATTENTION.customers + 40 * ATTENTION.grudge, 0);
+    s.day += 2; // two days on, that day's customers are old news
+    expect(customersTaken(s, 'blenders')).toBe(0);
+  });
+
+  it('scores raid targets by worth over defense, never their own land or a rival HQ', () => {
+    const s = newGame(16);
+    const own = ownedPlots(s, 'fizzco')[0];
+    expect(targetScore(s, 'fizzco', own.id)).toBe(0);
+    const hq = PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === 'hollis')!;
+    expect(targetScore(s, 'fizzco', hq.id)).toBe(0);
+    expect(targetScore(s, 'fizzco', LOTTIES_CORNER)).toBeGreaterThan(0); // your Corner is fair game
+    const theirs = ownedPlots(s, 'hollis').find((p) => p.type !== 'hq' && s.plots[p.id].stand)!;
+    const open = targetScore(s, 'fizzco', theirs.id);
+    s.plots[theirs.id].garrison = (s.plots[theirs.id].garrison ?? 0) + 2;
+    expect(targetScore(s, 'fizzco', theirs.id)).toBeLessThan(open);
+    addGrudge(s, 'fizzco', 'hollis', 30);
+    expect(grudge(s, 'fizzco', 'hollis')).toBe(30);
   });
 
   it('the boss with the most Attention sends the raid, and the next-angriest goes when they are broke', () => {

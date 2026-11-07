@@ -65,7 +65,7 @@ export const GRUDGE = { raided: 10, smashed: 10, land: 15, outbid: 10, cool: 1, 
  * the customers you take (your share of the cups sold on their turf today) and Grudge (per point). The keenest
  * boss who can pay sends the raid; `jitter` lets near-ties go either way (placeholders: the spec gives no weights).
  */
-export const ATTENTION = { threat: 1, border: 0.5, customers: 3, grudge: 0.1, jitter: 1 };
+export const ATTENTION = { threat: 1, border: 0.5, customers: 10, grudge: 0.1, jitter: 1 };
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 

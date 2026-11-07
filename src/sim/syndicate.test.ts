@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   actOf, CLOSE, eliminate, hqPlot, migrateSave, newGame, pactHeadline, sleepUntilDawn, SYNDICATE_CALL, syndicateAtDawn, syndicateFormed,
   syndicateLeader, syndicateMembers, threatLevel, type Difficulty, type GameState, type Mode,
-  deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Raid, type RivalId,
+  deliveryRaidChance, festivalDays, HQS, newStand, onYou, planNight, PLOTS, raidsCounted, weeklyRaids, type Order, type Raid, type RivalId,
 } from './economy.ts';
 import { CALL_PRIORITY } from './phone.ts';
 
@@ -179,12 +179,14 @@ describe("the Syndicate's strikes", () => {
   it("during Harbor Fest its crews go after every VIP pickup; otherwise it's the usual 30%", () => {
     const s = pactEvening('classic');
     const fest = festivalDays('harborFest', 2); // Days 82–84, after it formed on Day 53
+    const heli: Order = { id: 'h', tier: 'heli', client: 'Test Star', qty: 2000, pay: 60000, due: fest.to, expires: fest.to, accepted: true };
+    const ship: Order = { ...heli, id: 's', tier: 'ship' };
     s.day = fest.from;
-    expect(deliveryRaidChance(s)).toBe(1);
+    expect([deliveryRaidChance(s, heli), deliveryRaidChance(s, ship)]).toEqual([1, 1]); // world's syndicateFestRaid (vip.ts)
     s.day = fest.to + 1;
-    expect(deliveryRaidChance(s)).toBe(0.3);
+    expect(deliveryRaidChance(s, heli)).toBe(0.3);
     s.day = fest.to;
     delete s.syndicate;
-    expect(deliveryRaidChance(s)).toBe(0.3);
+    expect(deliveryRaidChance(s, heli)).toBe(0.3);
   });
 });

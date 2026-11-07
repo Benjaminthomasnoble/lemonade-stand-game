@@ -25,8 +25,7 @@ import { alert, isMajor, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, mayRaidYou, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
 import { siegeFought, squeezeAtDawn } from './squeeze.ts';
-import { isEventDay } from './calendar.ts';
-import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, type Order, type Pickup } from './vip.ts';
+import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, syndicateFestRaid, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
 import { nightShiftStealth } from './rivalAi.ts';
@@ -406,7 +405,7 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   const pick = rivals[Math.floor(nextRandom(rng) * rivals.length)];
   s.seed = rng.seed;
   // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
-  const rival = scriptedRaider(s, o) ?? (roll < deliveryRaidChance(s) ? pick : undefined);
+  const rival = scriptedRaider(s, o) ?? (roll < deliveryRaidChance(s, o) ? pick : undefined);
   if (!rival) return null;
   // They set out as loading starts and hit inside the 2-hour window (world's loading windows: relative to PICKUP_MINUTE until then).
   const leave = s.minute;
@@ -415,9 +414,9 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
   return held();
 }
 
-/** A VIP pickup's chance of a Delivery Raid: 30%, and all of them while the Syndicate stands during Harbor Fest (its
- * crews go after every delivery). */
-export const deliveryRaidChance = (s: GameState) => (syndicateFormed(s) && isEventDay(s, 'harborFest') ? 1 : DELIVERY_RAID_CHANCE);
+/** A VIP pickup's chance of a Delivery Raid: 30%, or every one while the Syndicate stands during Harbor Fest (its crews
+ * go after every delivery: world's syndicateFestRaid, vip.ts). */
+export const deliveryRaidChance = (s: GameState, o: Order) => (syndicateFestRaid(s, o, syndicateFormed(s)) ? 1 : DELIVERY_RAID_CHANCE);
 
 /** Could a Delivery Raid hit this pickup? (Order Book cards flag it.) */
 export const deliveryRaidRisk = (s: GameState, o: Order) => isVip(o.tier) && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s);

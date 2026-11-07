@@ -39,7 +39,7 @@ export function radioTicket(s: GameState, captions = true, celsius = false): str
   const show = lines(s, celsius);
   if (!show.length) return '';
   const all = soundtrack();
-  const toggle = `<button class="cl-b ghost tiny" data-action="radio" aria-pressed="${all}" title="${all ? 'Back to mornings and L3+ stand radios' : 'Keep 101.5 on all day'}">All day${all ? ' ✓' : ''}</button>`;
+  const toggle = `<button class="cl-b ghost tiny" data-action="radio" aria-pressed="${all}" title="${all ? 'Back to mornings and L3+ stand radios' : 'Keep 101.5 on all day'}">All day${all ? ` ${A.glyph('check')}` : ''}</button>`;
   return `<div class="cl-ticket" data-testid="radio"${s.phase === 'prep' ? ` data-show="${esc(JSON.stringify(show))}"` : ''} title="101.5 The Squeeze, with Cal Clementine">`
     + `${art()}<b>101.5 The Squeeze</b><span class="cl-note" data-testid="radio-line">${esc(show[0])}</span><span class="cl-acts">${toggle}</span></div>`;
 }

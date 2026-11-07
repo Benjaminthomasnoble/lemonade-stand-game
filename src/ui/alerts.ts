@@ -59,19 +59,30 @@ function card(a: Alert): string {
   const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
   // The one action: Restock now on a sold-out stand; Watch on a VIP card (a first arrival's show waits for it).
   const act = a.kind === 'soldout' && a.plot ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')
-    : vip && a.scene ? btn('watch', '▶ Watch', `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
+    : vip && a.scene ? btn('watch', `${A.glyph('play')} Watch`, `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
   return `<div class="cl-ticket" title="${esc(a.text)}">${icon}<b>${esc(a.text.replace(/!$/, ''))}</b>
-    <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', '✕', `data-id="${a.id}" title="Dismiss"`, 'tiny ghost')}</span></div>`;
+    <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', A.glyph('close'), `data-id="${a.id}" title="Dismiss" aria-label="Dismiss"`, 'tiny ghost')}</span></div>`;
 }
 
-/** The alert cards, newest first. Raid warnings stay until the raid hits; the rest until dismissed (or dawn). */
+/** Small news (sold out, notes, pickups) melts off the feed after this many game minutes; it stays in the log. */
+export const ALERT_LIFE = 90;
+/** Cards past this many shrink to a small stack of icon blobs (the words stay on hover). */
+export const ALERT_FULL = 2;
+
+/** The alert cards, newest first. Raid warnings stay until the raid hits; big news until dismissed (or dawn); small news melts. */
 export function alertCards(s: GameState): string[] {
   const out: string[] = [];
   for (const a of [...(s.alerts ?? [])].reverse()) {
     if (a.raid) {
       const r = s.raids.find((x) => x.id === a.raid);
       if (r) out.push(warning(s, a, r));
-    } else out.push(card(a));
+      continue;
+    }
+    const small = a.kind === 'soldout' || a.kind === 'note' || (a.kind === 'pickup' && !a.scene);
+    if (small && (a.day !== s.day || s.minute - a.minute > ALERT_LIFE)) continue;
+    out.push(card(a));
   }
-  return out;
+  // A raid warning or a VIP's Watch keeps its strip: the one tap it offers can't hide.
+  let shown = 0;
+  return out.map((h) => (/data-testid="(raid-warning|vip-watch)"/.test(h) || shown++ < ALERT_FULL ? h : h.replace('class="cl-ticket', 'tabindex="0" class="cl-ticket mini')));
 }

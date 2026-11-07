@@ -9,6 +9,7 @@
 // they cover and open each one's plot card on the map; the Corkboard is the
 // rivals lane's board (corkboard.ts); Rank and Perks shows the rank ladder
 // (Lottie's tips join it later).
+import { glyph } from './clay.ts';
 import {
   canBuyPlot, deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, PLOTS, RAID_RANK, RANKS, RECIPES,
   peaceful, plotPrice, raidTargets, successScore, SUPPLIES, WEATHER, DISTRICT_BY_ID, FESTIVALS, festivalsOn, upcomingFestivals,
@@ -117,7 +118,7 @@ function orders(s: GameState): string {
     const recipe = RECIPES[recipeOf(s, o)].label; // world: the client's recipe, a Local Order its stand's (src/ui/orders.ts)
     const due = orderWhen(s, o, waiting); // world: the deadline, or how far a job you took has loaded
     const risk = deliveryRaidRisk(s, o);
-    const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button>${matchButton(s, o)}<button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks">✕</button></span>` : '';
+    const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button>${matchButton(s, o)}<button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks" aria-label="No thanks">${glyph('close')}</button></span>` : '';
     return `<div class="cl-ticket order${risk ? ' warn' : ''}" data-testid="order-card" title="${esc(`${ORDER_TIERS[o.tier].label} for ${o.client}${waiting ? `; offer good till day ${o.expires}` : '; accepted'}`)}">
       <b>${esc(o.client)}: ${whole(o.pay)}</b><span class="cl-note">${o.qty.toLocaleString('en-US')} ${unit} of ${recipe} · ${due}${risk ? ' · Delivery Raid possible' : ''}${esc(orderNote(s, o, waiting))}</span>${acts}</div>`;
   };

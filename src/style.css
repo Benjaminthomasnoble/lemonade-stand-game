@@ -84,11 +84,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
 .phonecall {
   --side: #2E2A4F;
   position: absolute; left: 16px; bottom: 76px; display: flex; align-items: center; gap: 10px; pointer-events: none;
-  max-width: min(420px, calc(100% - 32px)); animation: call-in 0.36s steps(3, jump-end) both;
+  max-width: min(420px, calc(100% - 32px)); animation: call-in 0.36s cubic-bezier(.3,1.4,.5,1) both;
 }
 .phonecall .ring {
   position: absolute; top: -20px; left: 4px; font: 16px/1 Chewy, 'Comic Sans MS', cursive; color: #E8704F;
-  -webkit-text-stroke: 1px #2E2A4F; animation: ring-shake 0.12s steps(2) 6;
+  -webkit-text-stroke: 1px #2E2A4F; animation: ring-shake 0.12s ease-in-out 6;
 }
 .phonecall .polaroid {
   background: #FFFDF6; padding: 6px 6px 4px; border: 3px solid #2E2A4F; border-radius: 6px; transform: rotate(-5deg);
@@ -101,7 +101,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
   border: 3px solid var(--side); border-radius: 20px 16px 22px 14px / 16px 22px 14px 20px; padding: 8px 12px;
   font: 600 15px/1.25 Fredoka, 'Trebuchet MS', system-ui, sans-serif; box-shadow: 0 3px 0 rgba(46, 42, 79, 0.25);
 }
-.phonecall.leaving { animation: call-out 0.3s steps(3, jump-end) both; }
+.phonecall.leaving { animation: call-out 0.3s ease-in both; }
 @keyframes call-in { 0% { opacity: 0; transform: translateX(-60px) rotate(-6deg); } 67%, 100% { opacity: 1; transform: none; } }
 @keyframes call-out { to { opacity: 0; transform: translateX(-60px); } }
 @keyframes ring-shake { 50% { transform: rotate(6deg) translateX(2px); } }
@@ -119,7 +119,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
 .frontpage .paper {
   background: #f4ead2; color: #2E2A4F; width: min(400px, calc(100% - 32px)); padding: 14px 16px 10px;
   border: 3px solid #2E2A4F; border-radius: 4px; box-shadow: 0 8px 0 rgba(46, 42, 79, 0.25);
-  animation: spin-in 0.5s steps(6, jump-end) both;
+  animation: spin-in 0.5s cubic-bezier(.2,.8,.3,1.1) both;
 }
 .frontpage .mast { font: 30px/1 Chewy, Georgia, serif; text-align: center; border-bottom: 3px double #2E2A4F; padding-bottom: 6px; }
 .frontpage .dateline { font: 12px/1.6 'Gochi Hand', 'Comic Sans MS', cursive; text-align: center; border-bottom: 1px solid #2E2A4F; margin-bottom: 8px; }
@@ -176,3 +176,5 @@ body.gull-flight .cl-plot { display: none; } /* Lottie's goal card stays up, eve
   font-variant-numeric: tabular-nums; animation: mk-tick 1s steps(2) infinite; }
 #ui .mk-eta img { width: 24px; height: 24px; }
 @keyframes mk-tick { 50% { rotate: -4deg; } }
+/* District names hide while full-screen paper or a modal card is up. */
+#ui:has(.cl-modal-bg) .district-label, #ui:has(.frontpage) .district-label { display: none; }

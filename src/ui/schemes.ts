@@ -45,7 +45,7 @@ function posters(s: GameState, job: Scheme): string {
   const samples = s.phase === 'prep' && !/Rank \d/.test(b.ok ? '' : b.why)
     ? btn('campaign', 'Free samples', `data-id="freeSamples" data-plot="${where}"`, 'tiny go', b.ok ? undefined : b.why) : '';
   const tip = `Cold Brew's poster crew hit ${place(where)} last night: −${SCHEMES.posters.stars} star. Free samples there win it back; floodlights catch night crews.`;
-  return `<div class="cl-ticket red" data-testid="posters" title="${esc(tip)}">${ICON.sour()}<b>Smear posters! −${SCHEMES.posters.stars}★</b>
+  return `<div class="cl-ticket red" data-testid="posters" title="${esc(tip)}">${ICON.sour()}<b>Smear posters! −${SCHEMES.posters.stars}${A.glyph('star')}</b>
     <span class="cl-acts">${samples}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }
 

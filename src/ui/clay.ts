@@ -111,3 +111,35 @@ export function faceSVG(id: string): string {
   ];
   return svg(headBlob(32, 26, 14, skins[h % 5], shirts[(h >> 3) % 6], hats[(h >> 6) % 5]));
 }
+
+// ---------- small control icons (corner knobs, speed, close, check) ----------
+// Drawn on a 32 grid with the same plum-ink edge and white sheen as the props, so no stock glyph or emoji shows.
+const G = `stroke="${INK}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"`;
+const gsvg = (body: string): string => `<svg class="cl-ico" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${body}</svg>`;
+const tri = (x: number, c = '#7CC47F'): string => `<path d="M${x} 9.5q0-2 1.8-1l8.6 6.3q1.4 1.2 0 2.4l-8.6 6.3q-1.8 1-1.8-1z" fill="${c}" ${G}/><ellipse cx="${x + 2.6}" cy="12.6" rx="1.3" ry="2.2" fill="#fff" opacity=".6"/>`;
+export const GLYPHS: Record<string, () => string> = {
+  home: () => gsvg(`<path d="M6 15.5 16 7l10 8.5" fill="none" ${G}/><path d="M9 14v11h14V14" fill="#F7C948" ${G}/><path d="M14 25v-6h4v6" fill="#E8704F" ${G}/>${sheenE(12, 17, 1.4, 2.4, 0)}`),
+  bay: () => gsvg(`<circle cx="16" cy="16" r="10" fill="#3BB4C1" ${G}/><path d="M9 17q3.5-3 7 0t7 0" fill="none" stroke="#FFF1D6" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="11.5" r="2.4" fill="#F7C948" ${G}/>${sheenE(11.5, 11, 1.6, 2.6)}`),
+  turnL: () => gsvg(`<path d="M24 19a8 8 0 1 1-3-9.5" fill="none" ${G} stroke-width="3.2"/><path d="M24 19a8 8 0 1 1-3-9.5" fill="none" stroke="#F7C948" stroke-width="1.2" stroke-linecap="round"/><path d="M17.5 6.5 23 9.5l-4.6 4.2z" fill="#E8704F" ${G}/>`),
+  turnR: () => gsvg(`<g transform="matrix(-1 0 0 1 32 0)"><path d="M24 19a8 8 0 1 1-3-9.5" fill="none" ${G} stroke-width="3.2"/><path d="M24 19a8 8 0 1 1-3-9.5" fill="none" stroke="#F7C948" stroke-width="1.2" stroke-linecap="round"/><path d="M17.5 6.5 23 9.5l-4.6 4.2z" fill="#E8704F" ${G}/></g>`),
+  menu: () => gsvg([9, 16, 23].map((y, i) => `<rect x="7" y="${y - 2.4}" width="18" height="4.8" rx="2.4" fill="${['#F7C948', '#7CC47F', '#3BB4C1'][i]}" ${G}/>`).join('')),
+  music: () => gsvg(`<path d="M13 22V8l11-2.5v13" fill="none" ${G} stroke-width="2.8"/><ellipse cx="10.5" cy="22.5" rx="4" ry="3.2" fill="#E8704F" ${G}/><ellipse cx="21.5" cy="19" rx="4" ry="3.2" fill="#E8704F" ${G}/>${sheenE(9.5, 21.5, 1, 1.6, -50)}`),
+  musicOff: () => gsvg(`<g opacity=".55"><path d="M13 22V8l11-2.5v13" fill="none" ${G} stroke-width="2.8"/><ellipse cx="10.5" cy="22.5" rx="4" ry="3.2" fill="#d8cfc0" ${G}/><ellipse cx="21.5" cy="19" rx="4" ry="3.2" fill="#d8cfc0" ${G}/></g><path d="M6 6l20 20" stroke="#E8704F" stroke-width="3.4" stroke-linecap="round"/><path d="M6 6l20 20" fill="none" ${G} stroke-width="1"/>`),
+  gear: () => gsvg(`<path d="${Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2, b = a + 0.32, c = a + 0.47, d = a + 0.79; const p = (r: number, t: number) => `${(16 + r * Math.cos(t)).toFixed(1)} ${(16 + r * Math.sin(t)).toFixed(1)}`; return `${i ? 'L' : 'M'}${p(11, a)}L${p(11, b)}L${p(8, c)}L${p(8, d)}`; }).join('')}z" fill="#8B5E3C" ${G}/><circle cx="16" cy="16" r="3.4" fill="#FFF1D6" ${G}/>${sheenE(12, 11.5, 1.4, 2.2)}`),
+  plus: () => gsvg(`<path d="M13 6.5h6v6.5h6.5v6H19v6.5h-6V19H6.5v-6H13z" fill="#7CC47F" ${G}/>${sheenE(14.5, 10, 1, 2, 0)}`),
+  pause: () => gsvg(`<rect x="8" y="7.5" width="5.5" height="17" rx="2.2" fill="#E8704F" ${G}/><rect x="18.5" y="7.5" width="5.5" height="17" rx="2.2" fill="#E8704F" ${G}/>${sheenE(10, 11, 0.9, 2, 0)}${sheenE(20.5, 11, 0.9, 2, 0)}`),
+  play: () => gsvg(tri(10.5)),
+  play2: () => gsvg(tri(4.5) + tri(14.5)),
+  play3: () => gsvg(`<g transform="translate(0 2) scale(.92)">${tri(0.5)}${tri(9.5)}${tri(18.5)}</g>`),
+  skip: () => gsvg(tri(5, '#3BB4C1') + `<rect x="20" y="8" width="5" height="16" rx="2" fill="#3BB4C1" ${G}/>`),
+  close: () => gsvg(`<path d="M9 9l14 14M23 9 9 23" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><path d="M9 9l14 14M23 9 9 23" stroke="#E8704F" stroke-width="2.6" stroke-linecap="round"/>`),
+  check: () => gsvg(`<path d="M7 16.5l6 6L25.5 9" fill="none" stroke="${INK}" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 16.5l6 6L25.5 9" fill="none" stroke="#7CC47F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
+  up: () => gsvg(`<path d="M7 20 16 10l9 10z" fill="#F7C948" ${G}/>`),
+  more: () => gsvg([9, 16, 23].map((x) => `<circle cx="${x}" cy="16" r="3" fill="#F7C948" ${G}/>`).join('')),
+  dot: () => gsvg(`<circle cx="16" cy="16" r="5" fill="#F7C948" ${G}/>`),
+  star: () => gsvg(`<path d="M16 5l3.3 6.9 7.5 1-5.5 5.2 1.4 7.5L16 22l-6.7 3.6 1.4-7.5-5.5-5.2 7.5-1z" fill="#F7C948" ${G}/>${sheenE(13.5, 12.5, 1.2, 2.2)}`),
+  pin: () => gsvg(`<path d="M16 28s-8-8.5-8-14a8 8 0 0 1 16 0c0 5.5-8 14-8 14z" fill="#E8704F" ${G}/><circle cx="16" cy="13.5" r="3" fill="#FFF1D6" ${G}/>${sheenE(12, 10, 1.2, 2.4)}`),
+};
+const GCACHE: Record<string, string> = {};
+/** A small clay control icon by name (cached so HUD render strings stay equal). */
+export const glyph = (name: keyof typeof GLYPHS): string => (GCACHE[name] ??= GLYPHS[name]());

@@ -431,7 +431,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const cash = `<div class="cl-chip cl-cash${s.redDays ? ' red' : ''}" title="${esc(cashTip(s))}" data-testid="cash"${opens('ledger')}>${ART.jar()}${tape(`<b>${whole(s.cash)}</b>`, 'cl-t-cash')}</div>`;
     const dateline = storyDateline(s); // the campaign's act
     const day = `<div class="cl-chip cl-day" title="${esc(dayTip(s, mode) + (dateline ? `\n${dateline}` : ''))}"${opens('bugle')}>${ART.egg()}${tape(time && phone ? time : time ? `Day ${s.day} · ${time}` : `Day ${s.day}`)}</div>`;
-    const fold = (open: boolean) => `<button class="cl-knob-s" data-action="fold" data-testid="topbar-fold" title="${open ? 'Fold the top bar' : 'The whole top bar'}" aria-label="${open ? 'Fold the top bar' : 'Show the whole top bar'}" aria-expanded="${open}">${open ? '▴' : '⋯'}</button>`;
+    const fold = (open: boolean) => `<button class="cl-knob-s" data-action="fold" data-testid="topbar-fold" title="${open ? 'Fold the top bar' : 'The whole top bar'}" aria-label="${open ? 'Fold the top bar' : 'Show the whole top bar'}" aria-expanded="${open}">${A.glyph(open ? 'up' : 'more')}</button>`;
     // Folded, Lottie's goal card still sits at the right edge: there's always a next goal in view.
     if (folded) return `<div class="cl-left">${cash}</div><div class="cl-right">${day}${goalCard(s, goalsOpen, ART.lottie())}${fold(false)}</div>`;
     const temp = tempText(hud.options, w.temp);
@@ -454,17 +454,17 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- bottom right: views, sound, options, new game and (while the clock runs) speed ----------
   function corner(s: GameState, speed: number) {
     const k = (action: string, inner: string, title: string, extra = '', on = false) => `<button class="cl-knob-s${on ? ' on' : ''}" data-action="${action}" ${extra} title="${title}" aria-label="${title}">${inner}</button>`;
-    const views = k('view', '⌂', 'Back to your stand', 'data-target="home"') + k('view', '◎', 'Bay View', 'data-target="bay"')
-      + k('turn', '⟲', 'Turn the view left (Q)', 'data-dir="-1"') + k('turn', '⟳', 'Turn the view right (E)', 'data-dir="1"')
-      + k('menu', '☰', 'Menus', 'data-menu="index" data-testid="menus"') + k('mute', hud.muted ? '♪̸' : '♪', 'Music on/off') + k('options', '⚙', 'Options', 'data-testid="options-open"') + k('setup', '✚', 'New game');
+    const views = k('view', A.glyph('home'), 'Back to your stand', 'data-target="home"') + k('view', A.glyph('bay'), 'Bay View', 'data-target="bay"')
+      + k('turn', A.glyph('turnL'), 'Turn the view left (Q)', 'data-dir="-1"') + k('turn', A.glyph('turnR'), 'Turn the view right (E)', 'data-dir="1"')
+      + k('menu', A.glyph('menu'), 'Menus', 'data-menu="index" data-testid="menus"') + k('mute', A.glyph(hud.muted ? 'musicOff' : 'music'), 'Music on/off') + k('options', A.glyph('gear'), 'Options', 'data-testid="options-open"') + k('setup', A.glyph('plus'), 'New game');
     // Pause anywhere the clock (or a show) runs: business hours, the night, the Evening's moment on the map, Morning
     // Prep when it starts the day by itself, and any brawl or VIP scene on screen.
     const counting = !s.outcome && (s.phase === 'prep' ? hud.options.autoContinue : s.phase === 'report' && (!hud.ledger || hud.options.autoContinue));
     const running = s.phase === 'open' || s.phase === 'night' || counting || hud.playing;
     if (!running) return `<div class="cl-corner">${views}</div>`;
     const sb = (v: number, label: string) => k('speed', label, `Speed ${v ? v + '×' : 'pause'} (keys: space, 1, 2, 3)`, `data-value="${v}"`, speed === v);
-    const skip = s.phase === 'open' ? k('skip', '⏭', 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', '⏭', 'Skip to dawn (stops at big alerts)', 'data-testid="next"') : '';
-    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, '❚❚')}${sb(1, '▶')}${sb(2, '▶▶')}${sb(3, '▶▶▶')}${skip}</div>`;
+    const skip = s.phase === 'open' ? k('skip', A.glyph('skip'), 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', A.glyph('skip'), 'Skip to dawn (stops at big alerts)', 'data-testid="next"') : '';
+    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, A.glyph('pause'))}${sb(1, A.glyph('play'))}${sb(2, A.glyph('play2'))}${sb(3, A.glyph('play3'))}${skip}</div>`;
   }
 
   // ---------- left feed: little tickets for whatever needs you this morning ----------
@@ -477,7 +477,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
         const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
-        t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
+        t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
       }
       return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
     }
@@ -496,7 +496,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     t.push(...damageTickets(s)); // Damaged buildings: the HP left and a repair (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
       const good = (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
-      t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', '▶ Watch', { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
+      t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
     }
     t.push(...calendarTickets(s));
     if (s.today.lemonsSpoiled) t.push(`<div class="cl-ticket">${ART.lemon()}<b>${s.today.lemonsSpoiled} lemons went bad</b></div>`);
@@ -506,7 +506,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const fit = o.tier === 'deal' ? (short > 0 ? `. Your bottling is ${short.toLocaleString('en-US')} a day short` : '. Your bottling covers it') : '';
       const risk = deliveryRaidRisk(s, o) ? `<span class="cl-short" title="Rivals may raid this pickup">${ART.raid()}</span>` : '';
       t.push(`<div class="cl-ticket order${short > 0 ? ' warn' : ''}" data-testid="orders" title="${esc(o.client)}: ${esc(orderGoods(s, o))} ${when}${fit}${risk ? '. Rivals may raid the pickup' : ''}">${ART.crate()}<b>${ORDER_TIERS[o.tier].label}: ${whole(o.pay)}</b>${short > 0 ? `<span class="cl-short" title="Bottling too slow">${ART.sour()}</span>` : ''}${risk}
-        <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${matchButton(s, o)}${btn('decline', '✕', { ok: true }, `data-id="${o.id}" title="No thanks"`, 'ghost')}</span></div>`);
+        <span class="cl-acts">${btn('accept', 'Take it', { ok: true }, `data-id="${o.id}" data-testid="accept"`)}${matchButton(s, o)}${btn('decline', A.glyph('close'), { ok: true }, `data-id="${o.id}" title="No thanks" aria-label="No thanks"`, 'ghost')}</span></div>`);
     }
     for (const o of s.orders) t.push(orderTicket(s, o)); // world: due when, and how far its pickups have loaded (src/ui/orders.ts)
     const servings = servingsAvailable(st);
@@ -660,10 +660,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return `<div class="cl-guard" data-testid="guard" title="${esc(tip)}">${guardFace(s, g)}
       <span class="cl-name">${esc(g.name.split(' ')[0])}</span>${pips(g.level, 5)}
       <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Posted at ${g.post ? esc(PLOT_BY_ID[g.post].name) : 'the Clubhouse'}: tap to move">📍</button>
+        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost?.id ?? ''}" title="Posted at ${g.post ? esc(PLOT_BY_ID[g.post].name) : 'the Clubhouse'}: tap to move" aria-label="Move post">${A.glyph('pin')}</button>
         ${nextWeapon && wb && !locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${esc(wb.why)})`}">${WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${esc(gb.why)})`}">${ART.shield()}</button>` : ''}
-        ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${esc(g.name)} go">✕</button>`}
+        ${g.name === 'Dex Moody' ? '' : `<button class="cl-b ghost tiny" data-action="fire" data-id="${g.id}" title="Let ${esc(g.name)} go" aria-label="Let ${esc(g.name)} go">${A.glyph('close')}</button>`}
       </span></div>`;
   }
 
@@ -787,7 +787,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good">${ps.dibs.price !== undefined ? `Fire Sale ${whole(ps.dibs.price)}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
-      <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">✕</button></div>
+      <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
       ${dibs}${schemeNote(s, id)}${ps.facility?.wrecked || st?.wrecked ? `<span class="cl-note bad">${ps.busted ? 'Busted' : 'Wrecked'}</span>` : ''}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
@@ -851,7 +851,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       <div class="cl-acts">${btn('raid', `${ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight" title="${Math.round(night * 100)}% to win"`, 'go')}
-      ${s.phase === 'report' || s.phase === 'night' ? '' : btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}★`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
+      ${s.phase === 'report' || s.phase === 'night' ? '' : btn('raid', `Now −${objective === 'smash' ? '0.2' : '0.1'}${A.glyph('star')}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now" title="${Math.round(day * 100)}% to win in daylight; costs a little Reputation"`)}</div></div>`;
   }
 
   // ---------- New Game, victory and game over ----------

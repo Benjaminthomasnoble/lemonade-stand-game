@@ -716,7 +716,8 @@ describe("Kids' Lemonade Day", () => {
     const plain = PLOTS.find((q) => !e.kids!.includes(q.id))!.id;
     expect(canRaidKids(s, plain)).toEqual({ ok: false, why: 'No kid stand here' });
     const card = kidStandCard(s, kid);
-    expect(card).toContain(`<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}★, front page, Lottie's respect</span>`);
+    expect(card).toContain(`<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}<svg class="cl-ico"`); // a clay star
+    expect(card).toContain(`</svg>, front page, Lottie's respect</span>`);
     expect(card.indexOf('kid-cost')).toBeLessThan(card.indexOf('Kid stand</b>')); // the cost comes first
     expect(card).toContain(`data-action="kidRaid" data-plot="${kid}"`);
     const rep = s.reputation;

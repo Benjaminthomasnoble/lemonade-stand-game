@@ -58,7 +58,7 @@ export function kidStandCard(s: GameState, plotId: string): string {
   if (e.raided?.includes(plotId)) return '<span class="cl-note bad" data-testid="kid-stand">Kid stand raided</span>';
   const b = canRaidKids(s, plotId);
   const open = !locked(b) && !peaceful(s);
-  const cost = open ? `<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}★, front page, Lottie's respect</span>` : '';
+  const cost = open ? `<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}${A.glyph('star')}, front page, Lottie's respect</span>` : '';
   const raid = open ? `<div class="cl-acts">${btn('kidRaid', 'Raid the kid stand', b, `data-plot="${plotId}" data-testid="kid-raid"`)}</div>` : '';
   return `<div class="cl-planner" data-testid="kid-stand" title="${esc(eventDef(e)!.counter)}">${cost}<b>${A.standSVG(1)}Kid stand</b>`
     + `<span class="cl-note">$${KIDS_DAY.price.toFixed(2)} a cup, until dusk</span>${raid}</div>`;

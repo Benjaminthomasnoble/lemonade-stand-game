@@ -405,7 +405,7 @@ describe('on the HUD', () => {
         continue;
       }
       expect(ticket).toContain('cl-ticket red');
-      expect(ticket).toContain('Smear posters! −0.1★');
+      expect(ticket).toContain('Smear posters! −0.1<svg class="cl-ico"'); // a clay star
       expect(ticket).not.toContain('data-id="freeSamples"'); // Rank 1: Free Sample Day is still locked
       s.rank = 2;
       expect(schemeTickets(s)[0]).toContain(`data-action="campaign" data-id="freeSamples" data-plot="${job.plots[0]}"`); // at the stand they hit

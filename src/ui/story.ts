@@ -6,7 +6,7 @@
 import type { GameState, Goal } from '../sim/economy.ts';
 import { goalsNow } from '../sim/goals.ts';
 import { playingScene, sceneLine } from '../sim/scenes.ts';
-import { INK, S, svg } from './clay.ts';
+import { glyph, INK, S, svg } from './clay.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const whole = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -15,7 +15,7 @@ const meter = (v: number, cls = '') => `<span class="cl-snake ${cls}" style="--v
 /** A story goal's mark: a page with a folded corner and two lines of writing. */
 const PAGE = svg(`<path d="M15 6h24l11 11v41H15z" fill="#fffdf6" ${S}/><path d="M39 6v11h11" fill="#f6ead0" ${S}/><path d="M22 30h21M22 39h21M22 48h12" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/>`)
   .replace('<svg ', '<svg width="1.1em" height="1.1em" ');
-const mark = (g: Goal) => (g.done ? '✓' : g.story ? PAGE : '•');
+const mark = (g: Goal) => (g.done ? glyph('check') : g.story ? PAGE : glyph('dot'));
 
 /** Lottie's goal card: the first goal still open, and all 3 when it's tapped open. Exact numbers live in the tooltip. */
 export function goalCard(s: GameState, open: boolean, doodle: string): string {

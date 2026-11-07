@@ -26,7 +26,7 @@
 .clay .cl-big { font:400 calc(var(--u) * 4.2)/1 'Chewy', 'Fredoka', cursive; letter-spacing:.02em; color:#c8325a; padding:calc(var(--u) * 0.5) calc(var(--u) * 2.4) calc(var(--u) * 0.3); transform:rotate(-3deg); animation:cl-slap .9s cubic-bezier(.3,1.4,.5,1) both .2s }
 .clay .cl-big::before { background:repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 6px), linear-gradient(180deg, #f6edd3, #e7d6ab) }
 .clay .cl-sub { font-size:calc(var(--u) * 1.9); transform:rotate(1.5deg); animation:cl-slap2 .7s cubic-bezier(.3,1.5,.5,1) both .75s }
-.clay .cl-day > svg { animation:cl-tick 2s steps(2) infinite }
+.clay .cl-day > svg { animation:cl-tick 1s ease-in-out infinite alternate }
 .clay .cl-wx > svg { width:calc(var(--u) * 6.2); height:calc(var(--u) * 6.2) }
 .clay .cl-sticky { position:relative; display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; align-items:center; column-gap:calc(var(--u) * 0.6); padding:calc(var(--u) * 0.8) calc(var(--u) * 1.2) calc(var(--u) * 1) calc(var(--u) * 0.7); width:calc(var(--u) * 15.5); background:linear-gradient(170deg, #fff3a6, #ffe266 60%, #f7d24a); transform:rotate(2.5deg); box-shadow:0 calc(var(--u) * 0.5) calc(var(--u) * 0.7) rgba(46,42,79,.3); clip-path:polygon(0 0,100% 0,100% 86%,90% 100%,0 100%) }
 .clay .cl-sticky::after { content:''; position:absolute; right:0; bottom:0; width:10%; height:14%; background:linear-gradient(135deg, #e3c13a 50%, transparent 50%); }
@@ -364,3 +364,29 @@
 /* The price tag marks the stand's top price (red once the price is past it). */
 .clay .cl-chalk i { display: block; font: 400 calc(var(--u) * 1.4)/1 'Gochi Hand', cursive; color: #F7C948; }
 .clay .cl-chalk.over i { color: #ff9a8a; }
+/* Clay control icons (src/ui/clay.ts glyph()) inside knobs and buttons. */
+.clay .cl-ico { width: 1.25em; height: 1.25em; vertical-align: -0.28em; flex: none; }
+.clay .cl-knob-s .cl-ico { width: 72%; height: 72%; display: block; margin: auto; }
+.clay .cl-b .cl-ico { width: 1.1em; height: 1.1em; }
+.clay .cl-x .cl-ico { width: 80%; height: 80%; }
+
+/* Alerts are masking-tape strips slapped on the screen; raid alerts get a red torn edge. */
+.clay .cl-ticket { border: 0; border-radius: 0; box-shadow: none; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4);
+  background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab);
+  clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
+  filter: drop-shadow(0 calc(var(--u) * .25) calc(var(--u) * .2) rgba(46,42,79,.35)); }
+.clay .cl-ticket b { font: 400 calc(var(--u) * 2.1)/1.05 'Gochi Hand', 'Comic Sans MS', cursive; color: #2E2A4F; }
+.clay .cl-ticket.good { background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #e3f4d6, #c5e3b2); }
+.clay .cl-ticket.red { background: repeating-linear-gradient(97deg, rgba(255,255,255,.18) 0 2px, transparent 2px 7px), linear-gradient(180deg, #fbe2d6, #f2c3b0); padding-left: calc(var(--u) * 2.4); }
+.clay .cl-ticket.red::before { left: 0; top: 0; bottom: 0; width: calc(var(--u) * 1.3); border-radius: 0; background: #E8704F;
+  clip-path: polygon(0 0, 70% 0, 100% 6%, 55% 14%, 95% 24%, 60% 33%, 100% 44%, 55% 53%, 90% 63%, 58% 72%, 100% 82%, 62% 91%, 85% 100%, 0 100%); }
+/* Older alerts shrink to a stack of icon blobs; hover or focus shows the strip again. */
+.clay .cl-feed { flex-flow: row wrap; align-content: flex-start; }
+.clay .cl-feed > * { flex: 1 1 100%; }
+.clay .cl-ticket.mini { flex: 0 0 auto; display: block; padding: calc(var(--u) * .4); clip-path: none; background: none; filter: drop-shadow(0 calc(var(--u) * .2) calc(var(--u) * .15) rgba(46,42,79,.35)); }
+.clay .cl-ticket.mini::before { display: none; }
+.clay .cl-ticket.mini > svg { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); display: block; }
+.clay .cl-ticket.mini > :not(svg) { display: none; }
+.clay .cl-ticket.mini:hover, .clay .cl-ticket.mini:focus-within { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
+  background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab); }
+.clay .cl-ticket.mini:hover > :not(svg), .clay .cl-ticket.mini:focus-within > :not(svg) { display: revert; }

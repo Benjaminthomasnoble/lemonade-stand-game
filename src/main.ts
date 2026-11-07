@@ -748,7 +748,7 @@ async function main() {
     const el = document.createElement('div');
     el.className = 'district-label';
     el.textContent = d.name;
-    document.getElementById('ui')!.appendChild(el);
+    document.getElementById('ui')!.prepend(el); // under the HUD, so cards and paper cover it
     return { el, pos: new THREE.Vector3(d.origin[0] + (d.cols * PLOT_SPACING) / 2, 2, d.origin[1]) };
   });
 

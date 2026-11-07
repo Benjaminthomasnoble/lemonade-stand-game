@@ -45,6 +45,7 @@ import { goalCard, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom, nextClubhouse, type ClubKit } from './clubhouse.ts';
+import { fightBar } from './fight.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -76,6 +77,7 @@ export type Action =
   | { type: 'equip'; id: string; item: WeaponId | GearId }
   | { type: 'clubhouse'; plot?: string } // the next beds: a new Clubhouse, or a level on this one
   | { type: 'club'; id: string; plot: string } // a guard off post waits at this Clubhouse
+  | { type: 'fight'; cmd: 'rally' | 'fallBack' } // a button on the live fight (src/ui/fight.ts)
   | { type: 'raid'; plot: string; guards: string[]; objective: Objective; when: 'now' | 'tonight' }
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
@@ -233,7 +235,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie())));
       tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
-      set(phaseEl, modal || (s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
+      set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
       set(plotEl, hud.inspected && !(s.phase === 'report' && hud.ledger) && !modal ? plotCard(s, hud.inspected) : '');
     },
     popup(x, y, text, kind) {
@@ -348,6 +350,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'equip': onAction({ type: 'equip', id: d.id!, item: d.item as WeaponId | GearId }); break;
       case 'clubhouse': onAction({ type: 'clubhouse', plot: d.plot }); break;
       case 'club': onAction({ type: 'club', id: d.id!, plot: d.plot! }); break;
+      case 'fight': onAction({ type: 'fight', cmd: d.cmd as 'rally' | 'fallBack' }); break;
       case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); redraw(); break;
       case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); break; }
       case 'objective': objective = d.value as Objective; redraw(); break;

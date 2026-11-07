@@ -23,7 +23,7 @@ try {
   const scale = Number(process.env.SMOKE_SCALE ?? 1) || 1;
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: scale });
   // Software WebGL with the clay HUD can take many seconds a frame on a busy container: give screenshots room.
-  page.setDefaultTimeout(180000);
+  page.setDefaultTimeout(600000); // ten minutes: several headless runs can share the container
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -39,7 +39,8 @@ try {
   await page.click('[data-testid="open"]');
   await page.waitForSelector('[data-testid="daybar"]');
   await page.click('[data-action="speed"][data-value="3"]');
-  await page.waitForTimeout(6000);
+  // Walkers appear as game time passes, and game time advances per frame: wait for them rather than a fixed time.
+  await page.waitForFunction(() => window.__game.crowd() > 0, null, { timeout: 180000 }).catch(() => {});
   const mid = await page.evaluate(() => ({ crowd: window.__game.crowd(), sold: window.__game.state.today.customers }));
   console.log('mid-day:', mid);
   await page.screenshot({ path: 'test-results/2-open.png' });
@@ -144,9 +145,10 @@ try {
   }
   const built = await page.evaluate((x) => [window.__game.state.plots[x.field].facility?.kind, window.__game.state.plots[x.dock].facility?.kind].join(','), sites);
   if (built !== 'helipad,pier') fail(`facilities not built: ${built}`);
+  // These waits run on game time, which advances per rendered frame: when other headless runs share the
+  // container, software WebGL can drop well under 1 fps, so they get minutes, not seconds.
   for (const [tier, plot, minute, shot] of [['heli', sites.field, 14 * 60, '12-helicopter'], ['ship', sites.dock, 10 * 60, '13-ship']]) {
-    // VIP scenes advance per rendered frame, and SwiftShader can drop under 1 fps on a busy container.
-    await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 90000 });
+    await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
     await page.evaluate(([tier, plot]) => {
       const g = window.__game, st = g.state;
       if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
@@ -159,15 +161,14 @@ try {
     }, [tier, plot]);
     await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
-    // The last game minute ticks in real frames; SwiftShader can drop under 1 fps on a busy container.
-    await page.waitForFunction(() => window.__game.vip(), null, { timeout: 45000 });
+    await page.waitForFunction(() => window.__game.vip(), null, { timeout: 90000 });
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 0 }));
-    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 90000 });
+    await page.waitForFunction((t) => (window.__game.vipWhere()?.[3] ?? 99) > t, tier === 'heli' ? 5 : 7, { timeout: 180000 });
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
 
   // Rival endgame: buy a plot at a sit-down, then storm the weakened Blend Shack with a full squad.
-  await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 90000 });
+  await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
     if (st.phase !== 'prep') { if (st.phase === 'open') g.act({ type: 'skip' }); g.act({ type: 'sleep' }); }
@@ -188,7 +189,7 @@ try {
   await page.screenshot({ path: 'test-results/14-hq-panel.png' });
   for (let i = 0; i < 12; i++) await page.click(`[data-testid="hq-assault"] [data-action="squad"][data-id="sg${i}"]`);
   await page.click('[data-testid="assault"]');
-  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 60000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'test-results/15-hq-assault.png' });
   const out = await page.evaluate(() => [window.__game.state.rivals.blenders.alive, window.__game.state.battles[0]?.hq].join(','));

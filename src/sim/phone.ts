@@ -101,16 +101,18 @@ export function phoneCall(s: GameState, who: RivalId, text: string, opts: { mood
   return true;
 }
 
-/** What a raiding boss says on the phone: Brock's scripted lines for tonight's raid (a Blender Rush), else the boss's own pool. */
-const raidLine = (s: GameState, r: Raid) =>
-  r.attacker === 'blenders' && !r.delivery ? (s.plots[r.target].defense.tier ? LINES.brockFence : LINES.brockBlend) : '';
+/** What a raiding boss says on the phone: Brock's scripted line before tonight's Blender Rush, else the boss's own pool. */
+const raidLine = (r: Raid) => (r.attacker === 'blenders' && !r.delivery ? LINES.brockBlend : '');
+/** Brock's raid warning (spec tone guide) when his mood turns while a stand of yours has a fence; else his own pool. */
+const fenced = (s: GameState) => Object.values(s.plots).some((ps) => ps.owner === 'player' && ps.defense.tier > 0);
+const warnLine = (s: GameState, r: RivalId) => (r === 'blenders' && fenced(s) ? LINES.brockFence : '');
 
 /**
  * The raiding boss's call about a raid on you (src/sim/rivalAi.ts places it as a Blender Rush is planned): it rings
  * once the raid's warning is out, and drops once the raid is gone.
  */
 export function raidCall(s: GameState, r: Raid): boolean {
-  return phoneCall(s, r.attacker as RivalId, raidLine(s, r), { mood: 'warn', priority: CALL_PRIORITY.raid, until: s.day, raid: r.id });
+  return phoneCall(s, r.attacker as RivalId, raidLine(r), { mood: 'warn', priority: CALL_PRIORITY.raid, until: s.day, raid: r.id });
 }
 
 /** Every raid on you whose warning is out gets its boss's call, including raids planned after closing (a Delivery Raid). */
@@ -185,11 +187,11 @@ export function phoneCheck(s: GameState, dawn = false): void {
       // Most jumps follow a raid of yours on them: they call about it at the next dawn ("at dawn he calls").
       const fight = s.battles.find((b) => b.day >= s.day - 1 && b.attacker === 'player' && b.defender === r);
       const won = !!fight && (fight.outcome === 'smashed' || fight.outcome === 'robbed');
-      const text = r === 'blenders' && fight?.outcome === 'robbed' ? LINES.brockRent : r === 'hollis' && fight ? LINES.tillyRaided : '';
+      const text = r === 'blenders' && fight?.outcome === 'robbed' ? LINES.brockRent : r === 'hollis' && fight ? LINES.tillyRaided : fight ? '' : warnLine(s, r);
       const from = fight && fight.day === s.day ? s.day + 1 : s.day; // a daytime raid: tomorrow's dawn; last night's: now
       phoneCall(s, r, text, { mood: !fight ? 'warn' : won ? 'smashed' : 'gloat', priority: fight ? CALL_PRIORITY.raid : CALL_PRIORITY.mood, from });
     } else if (dawn && a0 !== undefined && jumped(a0, a, PHONE_ATTENTION_JUMP)) {
-      phoneCall(s, r, '', { mood: 'warn' });
+      phoneCall(s, r, warnLine(s, r), { mood: 'warn' });
     }
   }
   // A boss who hit you last night calls at dawn: gloating, or sore that you held.

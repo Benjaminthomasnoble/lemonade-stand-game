@@ -28,7 +28,7 @@ export const LOTTIE: Record<BarkMoment, string[]> = {
 export type BossMood = 'warn' | 'sore' | 'smashed' | 'gloat';
 export const BOSS: Record<RivalId, Record<BossMood, string[]>> = {
   blenders: {
-    warn: ['Your fence is cute, bro. My guys are gonna do pull-ups on it.', 'Bro. Your stand is in my sun.', 'Leg day is tonight, bro. Your stand is the legs.'],
+    warn: ['Bro. Your stand is in my sun.', 'Leg day is tonight, bro. Your stand is the legs.'], // the fence line: src/sim/phone.ts, with a fence up
     sore: ['That was a warm-up, bro.', 'My bros slipped. On purpose.', 'Rematch. Tonight. Bring a smoothie.'],
     smashed: ['BROOO. My hut!', 'Not the blender, bro!', 'Okay. Okay. Respect. Still hate you.'],
     gloat: ['Brooo! Blended.', 'Should\'ve done more pull-ups, bro.'],

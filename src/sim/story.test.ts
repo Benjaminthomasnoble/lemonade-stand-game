@@ -5,6 +5,7 @@ import {
   type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { sharedBorders } from './rivalAi.ts';
+import { BLENDER_RUSH } from './rivals.ts';
 import { startScheme } from './schemes.ts';
 import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTarget } from './goals.ts';
 import { ownedRecipes } from './recipes.ts';
@@ -220,10 +221,20 @@ describe('boss phone taunts', () => {
     s.phone!.queue = [];
     s.phone!.lastDay = undefined;
     phoneAtClose(s);
-    expect(s.phone!.queue[0].text).toBe(LINES.brockFence);
+    expect(s.phone!.queue[0].text).toBe(LINES.brockBlend); // a fence doesn't call off the Rush's line
+    expect(LINES.brockBlend).toBe(BLENDER_RUSH.taunt);
     s.raids.length = 0; // it hit (or was called off) before the call rang
     expect(takeCall(s)).toBeNull();
     expect(s.phone!.queue).toEqual([]);
+    // The fence line is Brock's raid warning: his mood turns while a stand of yours has a fence.
+    s.rivals.blenders.grudge += 10;
+    phoneCheck(s);
+    expect(s.phone!.queue[0]).toMatchObject({ who: 'blenders', text: LINES.brockFence, mood: 'warn' });
+    const t = newGame(20, { mode: 'sandbox' });
+    phoneCheck(t);
+    t.rivals.blenders.grudge += 10;
+    phoneCheck(t);
+    expect(t.phone!.queue[0]).toMatchObject({ who: 'blenders', text: '', mood: 'warn' }); // no fence: his own pool
   });
 
   it("a lesser call waits while tonight's raid call waits for its warning; a raid planned after closing calls at its warning too", () => {

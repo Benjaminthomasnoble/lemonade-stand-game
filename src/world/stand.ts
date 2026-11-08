@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { idlePose, MOTION } from './people.ts';
 import { Figure, SPECS, heroDetail } from './clay/figure.ts';
 import { holdProp } from './clay/cast.ts';
-import { Baker, GLOSS, PAPER, box, canvasTex, cap, cyl, rbox, tor, type Redraw } from './clay/core.ts';
+import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
+import { fxOf } from './clay/bake.ts';
 import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.ts';
@@ -16,37 +17,18 @@ import { createRevealCrate } from './clay/crate.ts';
 import { specGeometry } from './clay/specs.ts';
 import type { SpecId } from '../sim/balance.ts';
 import { wreckPile } from './clay/defenses.ts';
-import { cardFlap, cardPlane, clayMesh, crayonSign, stick, whenFonts } from './clay/standKit.ts';
+import { cardFlap, cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
 
 export interface StandUpdate {
   price: number; pitcherFill: number; open: boolean; time: number; hot?: boolean; night?: boolean; ringing?: boolean;
   recipe?: string; sweetness?: PropState['sweetness']; stock?: PropState['stock']; stars?: number;
   /** The stand's price ceiling, marked on the chalkboard under the price. */
   ceiling?: number;
-  /** People in line right now (the sim's Stand.queue): the queue counter over the counter shows it while open. */
-  queue?: number;
   /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
   detail?: number;
   /** Storm: an L1-L2's card skirt or awning flaps. Scorcher: the ice pops sag in the cooler. */
   storm?: boolean;
   scorcher?: boolean;
-}
-
-/** The queue counter: a cream clay tag with a little row of heads and the count, the way the spec's mid zoom shows lines. */
-function drawQueue(n: number) {
-  return (c: CanvasRenderingContext2D, w: number, h: number) => {
-    c.fillStyle = '#FFF1D6';
-    c.beginPath(); c.roundRect(5, 5, w - 10, h - 10, 22); c.fill();
-    c.lineWidth = 7; c.strokeStyle = P.ink; c.stroke();
-    for (let i = 0; i < 3; i++) { // three little heads in a line
-      c.fillStyle = ['#E8704F', '#3BB4C1', '#7CC47F'][i];
-      c.beginPath(); c.arc(w * 0.17 + i * 15, h * 0.5 + (i % 2) * 3, 10, 0, 6.3); c.fill();
-      c.lineWidth = 3; c.stroke();
-    }
-    c.fillStyle = P.ink; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `${n > 99 ? 46 : 58}px "Chewy", "Comic Sans MS", cursive`;
-    c.fillText(String(n), w * 0.7, h * 0.54);
-  };
 }
 
 export interface Stand {
@@ -241,18 +223,50 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   tape.visible = false;
   group.add(tape);
 
-  // The queue counter over the counter (spec: mid zoom shows queue counters): drawn again only when the line moves.
-  let queueNow = 0;
-  const queueTex = canvasTex(128, 88, drawQueue(0));
-  const queueTag = new THREE.Sprite(new THREE.SpriteMaterial({ map: queueTex, transparent: true, depthWrite: false }));
-  queueTag.scale.set(0.62, 0.43, 1);
-  queueTag.position.set(1.1, 1.7, 1.0);
-  queueTag.visible = false;
-  queueTag.renderOrder = 4;
-  group.add(queueTag);
-  whenFonts(() => (queueTex.userData.redraw as Redraw)(drawQueue(queueNow)));
+  // ---------- mid-zoom bake ----------
+  // From mid zoom out, every still clay part of the stand (the level, the props' body, the
+  // specializations, the settled awning, the chair, the Busted tape, and the kid and Lottie
+  // held in their current pose) draws as one baked mesh on the level root. What keeps moving
+  // (the ringing phone, the spinning lemon, a storm-flapped skirt or awning) stays apart, and so
+  // do textured, glass and instanced parts. Any change unbakes first; opening and closing too.
+  let midMesh: THREE.Mesh | null = null, midHidden: THREE.Object3D[] = [], bakedOpen = false, bakedFlap = false;
+  function unbake() {
+    for (const o of midHidden) o.visible = true;
+    midHidden = [];
+    if (midMesh) { midMesh.removeFromParent(); midMesh.geometry.dispose(); midMesh = null; }
+  }
+  function bakeMid() {
+    if (!model || midMesh) return;
+    const live = new Set<THREE.Object3D | undefined>([spin, phone, crate.group, brandSigns]);
+    if (flapNow) { live.add(model.awning?.hinge); live.add(model.awning?.lights); }
+    if (flapNow && model.tearable) { live.add(model.tearable.intact); live.add(model.tearable.torn); }
+    bakedOpen = openNow; bakedFlap = !!flapNow;
+    group.updateMatrixWorld(true);
+    const inv = levelRoot.matrixWorld.clone().invert();
+    const B = new Baker();
+    const visit = (o: THREE.Object3D) => {
+      if (!o.visible || live.has(o)) return;
+      for (const c of o.children) visit(c);
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || Array.isArray(mesh.material)) return;
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (!mat?.isMeshStandardMaterial || !mat.visible || mat.map || mat.transparent || mat.opacity < 1) return;
+      const g = mesh.geometry, c = g.getAttribute('color');
+      const m = mesh.matrixWorld.clone().premultiply(inv);
+      if (mat.vertexColors) { if (!c || c.itemSize !== 4 || !g.index || g.drawRange.count !== Infinity) return; B.raw(g, m); }
+      else B.add(g.clone(), mat.color, { m, fx: fxOf(mat) });
+      mesh.visible = false;
+      midHidden.push(mesh);
+    };
+    for (const r of [levelRoot, props.group, chair, tape, kid, lottie]) if (r.parent) visit(r);
+    if (!midHidden.length) return;
+    midMesh = clayMesh(B.build(), kit().world);
+    midMesh.name = 'standMid';
+    levelRoot.add(midMesh);
+  }
   function applyDamage() {
     if (!model) return;
+    unbake();
     const hp = busted ? Math.min(hpNow, 0.25) : hpNow;
     if (model.awning) { model.awning.intact.visible = hp > 0.75; model.awning.torn.visible = hp <= 0.75; }
     if (model.tearable) { model.tearable.intact.visible = hp > 0.75; model.tearable.torn.visible = hp <= 0.75; }
@@ -277,7 +291,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   let springHold = -1;
   let flapNow = 0;
   function poseAwning(u: number) {
-    if (!model?.awning) return;
+    if (!model?.awning || midMesh) return; // baked: settled, and its parts are hidden in the bake
     const { hinge, open } = model.awning;
     // Furled: rolled up tight at the hinge, a fat card roll rather than a sliver. Open, it flaps in a storm.
     hinge.rotation.x = open - (1 - u) * 0.5 + flapNow * Math.max(0, Math.min(1, u));
@@ -461,13 +475,14 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     props,
     lottie: opts.lottie !== false ? lottie : undefined,
     react(kind) { pendingReaction = kind; },
-    reveal() { if (!model || wrecked) return; revealT = 0; flourishFrom = -1; levelRoot.visible = false; props.group.visible = false; listen(false); listen(true); },
+    reveal() { if (!model || wrecked) return; unbake(); revealT = 0; flourishFrom = -1; levelRoot.visible = false; props.group.visible = false; listen(false); listen(true); },
     skipReveal() { if (revealT >= 0) endReveal(); listen(false); },
-    knock() { knockT = 0; },
+    knock() { unbake(); knockT = 0; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
     setLevel(l, gilded = false) {
       if (l === level && gilded === gilt) return;
       level = l; gilt = gilded;
+      unbake();
       disposeTree(levelRoot);
       levelRoot.clear();
       model = buildLevel(l, 'player', { gilded });
@@ -486,13 +501,12 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       lottie.position.x = model.chairX; lottie.position.z = cz + 0.05;
       phone.position.set(model.chairX - 0.55, 0.4, cz + 0.45);
       stand.servePoint.z = model.serveZ;
-      queueTag.position.set(1.1, model.anchors.counterY + 1.0, model.serveZ - 0.25);
       spring.x = openNow ? 1 : 0; spring.v = 0;
       poseAwning(spring.x);
       applyDamage();
       if (wreck) { wreck.removeFromParent(); disposeTree(wreck); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
     },
-    setSpecs(ids) { specIds = [...ids]; fitSpecs(); },
+    setSpecs(ids) { unbake(); specIds = [...ids]; fitSpecs(); },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },
@@ -503,6 +517,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       applyDamage();
     },
     setWrecked(w) {
+      unbake();
       wrecked = w;
       if (w && !wreck) { wreck = wreckPile(level || 1, 'player'); group.add(wreck); }
       if (wreck) wreck.visible = w;
@@ -514,20 +529,18 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     },
     setBusted(b) {
       if (b === busted) return;
+      unbake();
       busted = b;
       applyDamage();
     },
     dispose() {
       listen(false);
+      unbake();
       disposeTree(group, new Set([kid, lottie]));
-      queueTex.dispose(); queueTag.material.dispose();
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, queue = 0, detail = 0, storm, scorcher }) {
-      if (detail !== detailNow) { detailNow = detail; showSmall(); }
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0, storm, scorcher }) {
+      if (detail !== detailNow) { unbake(); detailNow = detail; showSmall(); }
       if (busted) open = false; // closed for repairs
-      const line = open && !wrecked && detail < 2 ? Math.ceil(queue - 1e-9) : 0;
-      queueTag.visible = line > 0 && revealT < 0;
-      if (line > 0 && line !== queueNow) { queueNow = line; (queueTex.userData.redraw as Redraw)(drawQueue(line)); }
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}), ...(ceiling !== undefined ? { ceiling } : {}) });
       openNow = open;
       props.setScorcher(!!scorcher);
@@ -552,12 +565,17 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
         if (revealT < 0 && knockT < 0) levelRoot.scale.set(b.sx, b.sy, b.sx);
         if (spin) spin.rotation.y = tq * 0.8;
       }
-      animateKid(time, open);
+      // Baked into the mid-zoom mesh, the kid and Lottie hold their pose.
+      if (!midMesh) animateKid(time, open);
       const dt = Math.min(0.25, Math.max(0, time - lastTime));
       animateReveal(dt);
       animateKnock(dt);
       lastTime = time;
-      if (opts.lottie !== false) animateLottie(time, !night, hot ?? false);
+      // Mid zoom and out: bake the still parts into one draw once nothing is moving them.
+      if (midMesh && (open !== bakedOpen || !!flapNow !== bakedFlap)) unbake();
+      const settled = Math.abs(spring.v) < 1e-3 && Math.abs((open ? 1 : 0) - spring.x) < 1e-2;
+      if (detailNow >= 1 && revealT < 0 && knockT < 0 && !midMesh && (settled || !model?.awning)) bakeMid();
+      if (opts.lottie !== false && !midMesh) animateLottie(time, !night, hot ?? false);
       // Ringing: the handset hops on its cradle.
       const r = ringing ? Math.abs(Math.sin(time * 40)) * 0.05 * MOTION + 0.02 : 0;
       handset.position.y = 0.21 + r;

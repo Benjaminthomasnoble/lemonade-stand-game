@@ -435,13 +435,16 @@ function neonSign(c: Ctx, at: V3, maxW: number, hMax = 0.62, board = false): { g
   const w = neon.width;
   for (const s of [-1, 1]) stick(c.B, 0.75, [at[0] + s * (w / 2 - 0.15), at[1] + 0.05, at[2] - 0.06], [0, 0, 0], P.walnut, 0.08, 0.05);
   const RB = new Baker();
-  RB.add(rbox(w + 0.3, 0.06, 0.06, 0.02), P.walnut, { p: [0, 0.05, -0.06], fx: PAPER });
+  // Lottie's mascot rides the rail clear of the word: sized to the letters, and centred its own
+  // half-width (arms and hat brim reach about 0.49 x its scale) plus a gap left of the first letter.
+  const ms = 1.25 * Math.min(1, h / 0.62), mx = -w / 2 - 0.49 * ms - 0.08, ext = player ? 0.98 * ms + 0.1 : 0;
+  RB.add(rbox(w + 0.3 + ext, 0.06, 0.06, 0.02), P.walnut, { p: [-ext / 2, 0.05, -0.06], fx: PAPER });
   // A dark board behind the letters (Sourwood's framed in its gold), and behind
   // LOTTIE'S too on the Palace, where lemon letters would vanish into the dome.
-  if (!player || board) RB.add(rbox(w + 0.36, h + 0.34, 0.05, 0.06), player ? P.plum : '#2b2b38', { p: [0, h / 2 + 0.02, -0.07], fx: PAPER });
+  if (!player || board) RB.add(rbox(w + 0.36 + ext, h + 0.34, 0.05, 0.06), player ? P.plum : '#2b2b38', { p: [-ext / 2, h / 2 + 0.02, -0.07], fx: PAPER });
   if (c.d.owner === 'sourwood') RB.add(rbox(w + 0.48, h + 0.46, 0.03, 0.08), '#C9A227', { p: [0, h / 2 + 0.02, -0.1], fx: GLOSS });
   // Lottie's mascot rides the rail beside the word.
-  if (player) mascot(RB, [-w / 2 - 0.32, h * 0.45, 0.02], 1.25);
+  if (player) mascot(RB, [mx, h * 0.45, 0.02], ms);
   const g = new THREE.Group();
   g.position.set(...at);
   if (c.hp <= 0.5) fallSign(g, at);

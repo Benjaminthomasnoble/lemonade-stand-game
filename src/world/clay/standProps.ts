@@ -259,7 +259,7 @@ export function createStandProps(): StandProps {
     if (!force && key === shownKey) return;
     shownKey = key;
     liqMat.color.set(RECIPE_COLOR[st.recipe] ?? RECIPE_COLOR.classic);
-    for (const [k, g] of Object.entries(garnishes)) g.visible = k === st.recipe;
+    for (const [k, g] of Object.entries(garnishes)) g.visible = k === st.recipe && smallOn;
     const f = Math.max(0.02, Math.min(1, st.pitcherFill));
     liquid.scale.y = f;
     cubes.count = SWEET_CUBES[st.sweetness] ?? 2;
@@ -302,7 +302,9 @@ export function createStandProps(): StandProps {
     group,
     showSmall(on, starsOn) {
       smallOn = on;
-      for (const o of [smallBody, cubes, sackRoot]) o.visible = on;
+      // Mid zoom also drops the garnish and the chalked price: two draws nobody can read from there.
+      for (const o of [smallBody, cubes, sackRoot, board]) o.visible = on;
+      for (const [k, g] of Object.entries(garnishes)) g.visible = on && k === st.recipe;
       pops.visible = on && scorcher;
       stars.visible = starsOn; // one instanced draw: phones keep the reputation on the sign
       glass.geometry.setDrawRange(0, on ? Infinity : pitcherGlassEnd);

@@ -105,7 +105,8 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
               const t = tag(`q:${id}`, 'mk-tape');
               const text = `${n} in line`;
               if (t.text !== text) { t.text = text; t.el.textContent = text; t.el.dataset.n = String(n); }
-              p2.copy(v.serve).setY(3.4);
+              // Beside the counter, below every level's sign and neon, so it never covers LOTTIE'S.
+              p2.copy(v.serve).setY(2.2); p2.x += 1.5;
               if (place(t.el, p2, camera, w, h)) tapes++;
             }
           }

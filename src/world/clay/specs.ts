@@ -2,10 +2,10 @@
 // fit-outs a Kiosk and a Citrus Palace slot in, each shown as clay on the stand.
 // - Express Window: a pass-through hatch on the side wall with a striped flap,
 //   a pick-up shelf with a bell, and a lightning-bolt badge.
-// - Fancy Menu: a gold-framed plum easel menu with a crown, beside two gold
-//   stanchions on a red velvet rope.
-// - Fortified Frame: riveted steel corner plates, a steel band across the top,
-//   cross-braces on the side walls and sandbags at the front corners.
+// - Fancy Menu: a walnut-framed raspberry easel menu with a lemon crown, beside
+//   two lemon stanchions on a raspberry velvet rope.
+// - Fortified Frame: wide riveted steel corner plates, a steel skirt across the
+//   lower front, side cross-braces and a knee-high sandbag wall at each corner.
 // - Billboard Roof: a lit billboard on stilts above the roof, with a big clay
 //   lemon and the mascot on it.
 // All of a stand's fit-outs bake into one clay draw, with a box-silhouette far
@@ -19,7 +19,7 @@ import { mascot } from './stands.ts';
 
 type V3 = [number, number, number];
 
-const STEEL = '#8d96a3', RIVET = '#5f6773', SAND = '#cdb57e', RED = '#d6455e', BOLT = '#ff6a4d';
+const STEEL = '#8d96a3', RIVET = '#5f6773', SAND = '#cdb57e', RASP = '#C8325A', BOLT = '#ff6a4d';
 
 /** Where each fit-out goes on the Kiosk (L3), the Shack (L4) and the Palace (L5). */
 interface Layout {
@@ -27,15 +27,15 @@ interface Layout {
   hatch: V3; hatchRy: number;
   /** Fancy Menu easel on the ground at the front left. */
   easel: V3;
-  /** Front corners (x half-width, front z), wall height, back z (no side braces when null). */
-  hw: number; zf: number; h: number; zb: number | null;
+  /** Front corners (x half-width, front z), wall height, back z (no side braces when null), and the steel skirt's z. */
+  hw: number; zf: number; h: number; zb: number | null; skirtZ: number;
   /** Billboard: its centre, width, and how far down its stilts reach. */
   board: V3; bw: number; legTo: number;
 }
 const LAYOUT: Record<3 | 4 | 5, Layout> = {
-  3: { hatch: [-1.8, 1.45, -0.75], hatchRy: -Math.PI / 2, easel: [-1.15, 0, 1.4], hw: 1.8, zf: 0.6, h: 2.7, zb: -1.8, board: [0, 4.05, -1.15], bw: 2.6, legTo: 2.9 },
-  4: { hatch: [-2.53, 1.45, -1.75], hatchRy: -Math.PI / 2, easel: [-1.45, 0, 1.55], hw: 2.5, zf: 0.5, h: 3.0, zb: -2.5, board: [0, 5.25, -2.0], bw: 3.2, legTo: 3.3 },
-  5: { hatch: [-2.47, 1.45, -2.3], hatchRy: -Math.PI / 2, easel: [-1.0, 0, 1.55], hw: 2.0, zf: 0.3, h: 2.7, zb: null, board: [0, 5.55, -3.6], bw: 3.4, legTo: 2.8 },
+  3: { hatch: [-1.8, 1.45, -0.75], hatchRy: -Math.PI / 2, easel: [-1.15, 0, 1.4], hw: 1.8, zf: 0.6, h: 2.7, zb: -1.8, skirtZ: 0.7, board: [0, 4.05, -1.15], bw: 2.6, legTo: 2.9 },
+  4: { hatch: [-2.53, 1.45, -1.75], hatchRy: -Math.PI / 2, easel: [-1.45, 0, 1.55], hw: 2.5, zf: 0.5, h: 3.0, zb: -2.5, skirtZ: 0.6, board: [0, 5.25, -2.0], bw: 3.2, legTo: 3.3 },
+  5: { hatch: [-2.47, 1.45, -2.3], hatchRy: -Math.PI / 2, easel: [-1.0, 0, 1.55], hw: 2.0, zf: 0.3, h: 2.7, zb: null, skirtZ: 0.4, board: [0, 5.55, -3.6], bw: 3.4, legTo: 2.8 },
 };
 
 const at = (p: V3, ry = 0) => new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(1, 1, 1));
@@ -62,63 +62,67 @@ function expressWindow(): THREE.BufferGeometry {
   return B.build();
 }
 
-/** The easel menu and the velvet rope, standing at the origin, facing +z. */
+/** The easel menu and the velvet rope, standing at the origin, facing +z: raspberry, walnut and lemon, never a rival's livery. */
 function fancyMenu(): THREE.BufferGeometry {
   const B = new Baker();
   for (const s of [-1, 1]) stick(B, 1.5, [s * 0.32, 0.72, 0.05], [-0.12, 0, s * -0.08], P.walnut, 0.07, 0.05);
   stick(B, 1.4, [0, 0.68, -0.25], [0.3, 0, 0], P.walnut, 0.06, 0.04);
   const tilt: V3 = [-0.12, 0, 0];
-  B.add(rbox(0.78, 0.98, 0.06, 0.03), P.sw, { p: [0, 1.0, 0.12], r: tilt });
-  // Gold frame, cursive menu lines and a gold crown on top.
-  for (const y of [0.52, 1.48]) B.add(box(0.86, 0.06, 0.08), P.gold, { p: [0, y, 0.12 + (y - 1) * 0.12], r: tilt, fx: GLOSS });
-  for (const s of [-1, 1]) B.add(box(0.06, 1.0, 0.08), P.gold, { p: [s * 0.42, 1.0, 0.12], r: tilt, fx: GLOSS });
+  B.add(rbox(0.78, 0.98, 0.06, 0.03), RASP, { p: [0, 1.0, 0.12], r: tilt });
+  // A walnut frame, cream script menu lines with lemon price dots, and a lemon crown on top.
+  for (const y of [0.52, 1.48]) B.add(box(0.86, 0.07, 0.09), P.walnut, { p: [0, y, 0.12 + (y - 1) * 0.12], r: tilt, fx: PAPER });
+  for (const s of [-1, 1]) B.add(box(0.07, 1.0, 0.09), P.walnut, { p: [s * 0.42, 1.0, 0.12], r: tilt, fx: PAPER });
   for (let k = 0; k < 4; k++) {
     const y = 1.28 - k * 0.2, z = 0.17 + (y - 1) * 0.12, w = k === 0 ? 0.26 : 0.22;
     const pts: V3[] = [];
     for (let i = 0; i <= 8; i++) pts.push([-w + (i / 8) * w * 2, y + Math.sin(i * 1.9 + k) * 0.025, z]);
-    B.add(rope(pts, 0.012, 10, 4), k === 0 ? P.gold : P.cream);
-    if (k) B.add(sph(0.025, 6, 4), P.gold, { p: [w + 0.07, y, z] });
+    B.add(rope(pts, k === 0 ? 0.016 : 0.012, 10, 4), P.cream);
+    if (k) B.add(sph(0.03, 6, 4), P.lemon, { p: [w + 0.07, y, z] });
   }
-  B.add(cyl(0.13, 0.13, 0.06, 12), P.gold, { p: [0, 1.56, 0.05], fx: GLOSS });
-  for (const x of [-0.1, 0, 0.1]) B.add(cone(0.04, 0.12, 5), P.gold, { p: [x, 1.65, 0.05], fx: GLOSS });
-  B.add(sph(0.03, 6, 4), RED, { p: [0, 1.73, 0.05], fx: GLOSS });
-  // Two gold stanchions and a sagging red velvet rope.
+  B.add(cyl(0.13, 0.13, 0.06, 12), P.lemon, { p: [0, 1.56, 0.05], fx: GLOSS });
+  for (const x of [-0.1, 0, 0.1]) B.add(cone(0.04, 0.12, 5), P.lemon, { p: [x, 1.65, 0.05], fx: GLOSS });
+  B.add(sph(0.03, 6, 4), RASP, { p: [0, 1.73, 0.05], fx: GLOSS });
+  // Two lemon-clay stanchions and a sagging raspberry velvet rope.
   for (const x of [-0.8, -1.6]) {
-    B.add(cyl(0.16, 0.18, 0.05, 12), P.gold, { p: [x, 0.03, 0.1], fx: GLOSS });
-    B.add(cyl(0.035, 0.035, 0.85, 8), P.gold, { p: [x, 0.45, 0.1], fx: GLOSS });
-    B.add(sph(0.07, 8, 6), P.gold, { p: [x, 0.9, 0.1], fx: GLOSS });
+    B.add(cyl(0.16, 0.18, 0.05, 12), P.lemon, { p: [x, 0.03, 0.1], fx: GLOSS });
+    B.add(cyl(0.035, 0.035, 0.85, 8), P.lemon, { p: [x, 0.45, 0.1], fx: GLOSS });
+    B.add(sph(0.07, 8, 6), P.lemon, { p: [x, 0.9, 0.1], fx: GLOSS });
   }
   const sag: V3[] = [];
   for (let i = 0; i <= 8; i++) { const u = i / 8; sag.push([-0.8 - u * 0.8, 0.84 - Math.sin(u * Math.PI) * 0.2, 0.1]); }
-  B.add(rope(sag, 0.035, 10, 5), RED);
+  B.add(rope(sag, 0.035, 10, 5), RASP);
   return B.build();
 }
 
-/** Steel plates, bands, braces and sandbags in the stand's own frame. */
+/** Steel plates, a riveted skirt, braces and sandbag walls in the stand's own frame: chunky enough to read from mid zoom. */
 function fortifiedFrame(L: Layout): THREE.BufferGeometry {
   const B = new Baker();
-  const { hw, zf, h, zb } = L;
+  const { hw, zf, h, zb, skirtZ } = L;
+  const rivet = (p: V3) => B.add(sph(0.05, 6, 4), P.lemon, { p, s: [1.3, 1, 0.7], fx: GLOSS }); // lemon-shaped rivet heads
   for (const s of [-1, 1]) {
-    // An angle plate wrapping each front corner, riveted.
-    B.add(box(0.36, h, 0.06), STEEL, { p: [s * (hw - 0.12), h / 2, zf + 0.06], fx: GLOSS });
-    B.add(box(0.06, h, 0.36), STEEL, { p: [s * (hw + 0.03), h / 2, zf - 0.12], fx: GLOSS });
-    for (let y = 0.3; y < h - 0.1; y += 0.5) B.add(sph(0.035, 6, 4), RIVET, { p: [s * (hw - 0.12), y, zf + 0.1], fx: GLOSS });
+    // A wide angle plate wrapping each front corner, riveted.
+    B.add(box(0.72, h, 0.08), STEEL, { p: [s * (hw - 0.3), h / 2, zf + 0.07], fx: GLOSS });
+    B.add(box(0.08, h, 0.6), STEEL, { p: [s * (hw + 0.04), h / 2, zf - 0.22], fx: GLOSS });
+    for (let y = 0.35; y < h - 0.1; y += 0.45) for (const dx of [0.12, 0.48]) rivet([s * (hw - dx), y, zf + 0.12]);
     // Cross-braces on the side walls.
     if (zb !== null) {
-      const x = s * (hw + 0.07);
-      rod(B, [x, 0.2, zf - 0.15], [x, h - 0.2, zb + 0.15], 0.05, STEEL, 6);
-      rod(B, [x, h - 0.2, zf - 0.15], [x, 0.2, zb + 0.15], 0.05, STEEL, 6);
-      B.add(sph(0.08, 8, 6), RIVET, { p: [x, h / 2, (zf + zb) / 2], s: [0.6, 1, 1], fx: GLOSS });
+      const x = s * (hw + 0.09);
+      rod(B, [x, 0.2, zf - 0.15], [x, h - 0.2, zb + 0.15], 0.07, STEEL, 6);
+      rod(B, [x, h - 0.2, zf - 0.15], [x, 0.2, zb + 0.15], 0.07, STEEL, 6);
+      B.add(sph(0.1, 8, 6), RIVET, { p: [x, h / 2, (zf + zb) / 2], s: [0.6, 1, 1], fx: GLOSS });
     }
-    // Sandbags heaped at the corner.
-    for (let k = 0; k < 3; k++) {
-      const y = k < 2 ? 0.14 : 0.38, dx = k < 2 ? (k - 0.5) * 0.48 : 0;
-      B.add(lumpy(sph(0.24, 10, 7), 0.02, 6, k + (s > 0 ? 3 : 0)), SAND, { p: [s * (hw + 0.1) + dx * s, y, zf + 0.35], s: [1.25, 0.6, 0.85] });
+    // A knee-high sandbag wall at the corner: three bags, two on top.
+    for (let k = 0; k < 5; k++) {
+      const top = k >= 3, i = top ? k - 3 : k;
+      const dx = top ? (i - 0.5) * 0.5 : (i - 1) * 0.5;
+      B.add(lumpy(sph(0.26, 10, 7), 0.02, 6, k + (s > 0 ? 5 : 0)), SAND, { p: [s * (hw + 0.45) + dx, top ? 0.42 : 0.16, zf + 0.55], s: [1.05, 0.62, 0.8], r: [0, (k - 2) * 0.15, 0] });
+      B.add(box(0.05, 0.02, 0.3), '#a8925f', { p: [s * (hw + 0.45) + dx, top ? 0.58 : 0.32, zf + 0.55] }); // the tie
     }
   }
-  // A steel band across the top of the front.
-  B.add(box(hw * 2 + 0.12, 0.16, 0.06), STEEL, { p: [0, h - 0.1, zf + 0.08], fx: GLOSS });
-  for (let x = -hw + 0.3; x < hw - 0.1; x += 0.45) B.add(sph(0.03, 6, 4), RIVET, { p: [x, h - 0.1, zf + 0.12], fx: GLOSS });
+  // A riveted steel skirt across the lower front, under the counter.
+  B.add(box(hw * 2 - 0.5, 0.5, 0.06), STEEL, { p: [0, 0.36, skirtZ], fx: GLOSS });
+  B.add(box(hw * 2 - 0.5, 0.06, 0.08), RIVET, { p: [0, 0.6, skirtZ + 0.01], fx: GLOSS });
+  for (let x = -hw + 0.55; x < hw - 0.5; x += 0.42) for (const y of [0.2, 0.48]) rivet([x, y, skirtZ + 0.04]);
   return B.build();
 }
 
@@ -158,7 +162,8 @@ export function specGeometry(level: number, ids: readonly SpecId[]): { geo: THRE
       out.raw(fancyMenu(), at(L.easel));
     } else if (id === 'fortified') {
       out.raw(fortifiedFrame(L));
-      far.add(box(L.hw * 2 + 0.12, 0.16, 0.08), STEEL, { p: [0, L.h - 0.1, L.zf + 0.08] });
+      far.add(box(L.hw * 2 - 0.5, 0.5, 0.08), STEEL, { p: [0, 0.36, L.skirtZ] });
+      for (const s of [-1, 1]) far.add(box(0.72, L.h, 0.1), STEEL, { p: [s * (L.hw - 0.3), L.h / 2, L.zf + 0.07] });
     } else if (id === 'roof') {
       const legDown = L.board[1] - 0.65 - L.legTo;
       out.raw(billboard(L.bw, legDown), at(L.board));

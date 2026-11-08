@@ -115,7 +115,7 @@ class Chunks {
   }
 }
 
-export function createBay(scene: THREE.Scene): Bay {
+export function createBay(scene: THREE.Scene, phone = false): Bay {
   const K = kit();
   const rng = lcg(4242);
   const town = new Chunks(90); // lawns, roads, sidewalks: receive shadows only
@@ -221,7 +221,7 @@ export function createBay(scene: THREE.Scene): Bay {
     blobAt.push([x, z, 1.3]);
   }
   town.build(scene, K.world, 'town', false);
-  const wet = new THREE.Mesh(wetB.build(), reflective(new THREE.MeshStandardMaterial({ color: '#2a2746', roughness: 0.06, metalness: 0.1, transparent: true, opacity: 0.42, depthWrite: false, envMapIntensity: 1.8, polygonOffset: true, polygonOffsetFactor: -1 })));
+  const wet = new THREE.Mesh(wetB.build(), reflective(new THREE.MeshStandardMaterial({ color: '#2a2746', roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.42, depthWrite: false, envMapIntensity: 1.1, polygonOffset: true, polygonOffsetFactor: -1 })));
   wet.name = 'wet-streets';
   wet.visible = false;
   wet.renderOrder = 1;
@@ -350,10 +350,11 @@ export function createBay(scene: THREE.Scene): Bay {
     return geo;
   }
   let idleTick = 0;
+  const awayTown = new Set<string>(); // districts far from the focus: the town draws their block chunks
   /** Districts with no plot within this of the camera's focus draw as their Bay View block. */
   const NEAR_DETAIL = 75;
   /** Within a near district, plots farther than this from the focus draw as their lite (Bay View) clay. */
-  const PLOT_NEAR = 42;
+  const PLOT_NEAR = phone ? 42 : 56; // laptops keep full clay farther out, so the swap sits past the Street View frame
   const liteMesh = new Map<PlotView, THREE.Mesh>();
   let liteBuilds = 0;
   /** Make sure a plot's lite mesh is current; at most a few new collections a frame. Returns whether it's ready. */
@@ -362,7 +363,9 @@ export function createBay(scene: THREE.Scene): Bay {
     if ((!cached || cached.key !== v.key) && liteBuilds-- <= 0) return false;
     const geo = plotFar(v);
     let m = liteMesh.get(v);
-    if (!geo) { if (m) m.visible = false; return true; } // nothing here: hide the root too
+    // Nothing to collect (an empty lot, or just its FOR SALE tape): drop any old lite mesh and keep the root,
+    // which costs next to nothing and keeps the tape words up.
+    if (!geo) { if (m) { m.removeFromParent(); liteMesh.delete(v); } return false; }
     if (!m) {
       m = new THREE.Mesh(geo, K.world);
       m.name = 'plot-lite';
@@ -679,7 +682,6 @@ export function createBay(scene: THREE.Scene): Bay {
       }
       if (s.outcome?.result === 'won' && s.outcome.how === 'domination') { const c = PLOTS.find((q) => q.id === LOTTIES_CORNER)!; lemon.dominate(c.x, c.z); }
       lemon.update(time);
-      townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm');
       const mf = Math.floor(time * 12);
       sentries.setVisible(level < 2);
       if (mf !== moverF && level < 2) {
@@ -688,12 +690,13 @@ export function createBay(scene: THREE.Scene): Bay {
         for (const parts of movers.values()) for (const o of parts) animatePart(o, mf / 12, minute);
         // Only the watches near the camera move; the rest hold their last pose (late game posts 150+ guards).
         const near: THREE.Object3D[] = [];
+        // (a plot drawn as its lite clay hides its root, and its watches with it: no need to pose those)
         for (const [v, list] of watches) {
-          if (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR) continue;
+          if (!v.root.visible || (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR)) continue;
           for (const g of list) near.push(g.fig.root);
         }
         for (const [v, list] of watches) for (const g of list) {
-          if (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR) continue;
+          if (!v.root.visible || (focus && Math.hypot(v.plot.x - focus.x, v.plot.z - focus.z) > POSE_NEAR)) continue;
           const t = mf / 12 + g.i * 0.73, root = g.fig.root;
           if (g.dex) {
             // Dex scans the street in held beats, and hops sideways when the goose waddles by.
@@ -730,8 +733,10 @@ export function createBay(scene: THREE.Scene): Bay {
       const fx = focus?.x ?? 0, fz = focus?.z ?? 0;
       let merges = level >= 2 || ++idleTick % 30 === 0 ? 1 : 0, awayBudget = 1;
       liteBuilds = 2;
+      awayTown.clear();
       for (const [id, f] of farList) {
         const away = level >= 2 || (!!focus && f.views.every((v) => Math.hypot(v.plot.x - fx, v.plot.z - fz) > NEAR_DETAIL));
+        if (away) awayTown.add(id);
         if (f.dirty && (merges > 0 || (away && awayBudget > 0))) { buildFar(id, f); if (merges > 0) merges--; else awayBudget--; }
         const block = away && !!f.mesh;
         if (f.mesh) f.mesh.visible = block;
@@ -743,6 +748,7 @@ export function createBay(scene: THREE.Scene): Bay {
           if (m) m.visible = lite;
         }
       }
+      townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm', awayTown);
       for (const v of viewList) {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;

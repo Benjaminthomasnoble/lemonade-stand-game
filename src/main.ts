@@ -210,7 +210,7 @@ async function main() {
   };
 
   const world = await createWorld(document.getElementById('app')!);
-  const bay = createBay(world.scene);
+  const bay = createBay(world.scene, world.quality === 'phone');
   bay.sync(state);
   /** Street View's shot of a plot: where the camera aims, how far back it stands (by the stand's level), and the
    * heading that looks at the stand's front from the street. */

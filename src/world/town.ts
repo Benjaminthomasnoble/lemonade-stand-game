@@ -11,7 +11,9 @@ import { Baker, sph, cap, cyl, box, rbox as coreRbox, cone, tor, snake, lumpy, h
 import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
 import { DISTRICTS, PLOT_SPACING, SEASONS, STREET_HALF, type District, type Season } from '../sim/economy.ts';
-import { SEA_X, SEA_Z } from '../sim/map.ts';
+import { LOTTIES_CORNER, PLOT_BY_ID, SEA_X, SEA_Z } from '../sim/map.ts';
+
+const HOME = PLOT_BY_ID[LOTTIES_CORNER];
 
 type Col = string | number;
 /** Rounded clay blocks at one bevel segment; thin parts are plain boxes (cheap: 12 vs 108 triangles). */
@@ -25,7 +27,8 @@ const BACK = 21;
 
 export interface Town {
   /** Animate eye music on twos and switch detail levels. */
-  update(time: number, detail: number, night: number, season?: Season, storm?: boolean): void;
+  /** `away`: districts far from the camera's focus, which draw their block chunk even when zoomed in. */
+  update(time: number, detail: number, night: number, season?: Season, storm?: boolean, away?: ReadonlySet<string>): void;
 }
 
 /** A set of bakers for one chunk of town. */
@@ -582,7 +585,7 @@ export function createTown(scene: THREE.Scene): Town {
   const K = kit();
   let parts: THREE.Object3D[] = [];
   let meshes: THREE.Mesh[] = [];
-  let chunks: Record<'full' | 'props' | 'win' | 'block', THREE.Mesh | null>[] = [];
+  let chunks: (Record<'full' | 'props' | 'win' | 'block', THREE.Mesh | null> & { id: string; far: boolean })[] = [];
   let flocks: { kind: MoverKind; list: Mover[]; im: THREE.InstancedMesh }[] = [];
   let built: Season | null = null;
   let stormy = false;
@@ -626,7 +629,8 @@ export function createTown(scene: THREE.Scene): Town {
         if (d.id === 'hilltop' && col < d.cols) for (const t of [-1, 1]) { add(C.props, cyl(0.1, 0.12, 0.5, 6), P.walnut, { p: [gx + 1.5, 0.25, z + t * (SIDEWALK_OFFSET + 1.6)] }); ball(C.props, 0.5, '#3F7F45', gx + 1.5, 0.9, z + t * (SIDEWALK_OFFSET + 1.6), col + t, 7); }
         if ((d.id === 'campus' || d.id === 'maple' || d.id === 'downtown') && col % 3 === 1) hydrant(C, gx - 1.4, z + s * (SIDEWALK_OFFSET + 0.3));
         // summer bunting and winter string lights across the busy streets
-        if ((d.id === 'oldtown' || d.id === 'boardwalk' || d.id === 'maple') && col % 2 === 1 && col < d.cols && (season === 'summer' || season === 'winter')) streetLine(C, gx, z, season, col);
+        // (none beside Lottie's Corner, where the opening Street View would look straight along the line)
+        if ((d.id === 'oldtown' || d.id === 'boardwalk' || d.id === 'maple') && col % 2 === 1 && col < d.cols && (season === 'summer' || season === 'winter') && !(Math.abs(gx - HOME.x) < PLOT_SPACING && Math.abs(z - HOME.z) < 20)) streetLine(C, gx, z, season, col);
         // spring kites over the open ground
         if (season === 'spring' && (d.id === 'maple' || d.id === 'boardwalk' || d.id === 'campus') && col % 3 === 1 && col < d.cols)
           movers.push({ kind: 'kite', x: gx + 6, y: 11 + (col % 2) * 2, z: d.id === 'boardwalk' ? SEA_Z - 6 : z - 16, ph: col + d.origin[0] });
@@ -659,7 +663,7 @@ export function createTown(scene: THREE.Scene): Town {
       if (block) block.visible = false;
       const full = mk(C.full, K.world, true, 'full');
       if (full && canopy.length) full.userData.canopy = canopy;
-      chunks.push({ full, props: mk(C.props, K.world, true, 'props'), win: mk(C.win, K.window, false, 'win'), block });
+      chunks.push({ full, props: mk(C.props, K.world, true, 'props'), win: mk(C.win, K.window, false, 'win'), block, id: d.id, far: false });
     }
     for (const p of parts) { scene.add(p); p.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); }); }
     for (const kind of MOVER_KINDS) {
@@ -684,18 +688,24 @@ export function createTown(scene: THREE.Scene): Town {
   let shownDetail = -1;
   build('summer');
   return {
-    update(time, detail, night, season = 'summer', storm = false) {
+    update(time, detail, night, season = 'summer', storm = false, away) {
       if (season !== built) { stormy = storm; build(season); } else if (storm !== stormy) { stormy = storm; treeWeather(scene, season, storm); }
-      if (detail !== shownDetail) {
+      // Distance detail: a district far from the camera's focus shows its block chunk (one clay block per
+      // building) even at Street View, as bay.ts does for its plots (a low pitch sees the whole bay).
+      let farChanged = false;
+      for (const m of chunks) { const f = detail >= 2 || !!away?.has(m.id); if (f !== m.far) { m.far = f; farChanged = true; } }
+      if (detail !== shownDetail || farChanged) {
+        const first = detail !== shownDetail;
         shownDetail = detail;
         for (const m of chunks) {
-          if (m.full) m.full.visible = detail < 2;
-          if (m.win) m.win.visible = detail < 2;
-          if (m.props) m.props.visible = detail < 1;
-          if (m.block) m.block.visible = detail >= 2;
+          const far = m.far && !!m.block;
+          if (m.full) m.full.visible = !far && detail < 2;
+          if (m.win) m.win.visible = !far && detail < 2;
+          if (m.props) m.props.visible = !far && detail < 1;
+          if (m.block) m.block.visible = far;
         }
-        for (const p of parts) p.visible = detail < 2;
-        for (const f of flocks) f.im.visible = detail < 2;
+        if (first) for (const p of parts) p.visible = detail < 2;
+        if (first) for (const f of flocks) f.im.visible = detail < 2;
       }
       if (detail >= 2) return;
       const f12 = Math.floor(time * 12);

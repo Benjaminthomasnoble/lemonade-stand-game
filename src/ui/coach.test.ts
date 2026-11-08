@@ -20,7 +20,7 @@ const ids = (s: GameState, mem: CoachMemory, e: CoachEnv = all) => {
 describe("Lottie's tour", () => {
   it('opens Day 1 with the bay, the rivals and the goal, then walks the morning in order', () => {
     const s = newGame(1);
-    expect(ids(s, fresh()).slice(0, 10)).toEqual(['intro-hello', 'intro-bay', 'intro-rivals', 'intro-goal', 'd1-lemons', 'd1-sugar', 'd1-ice', 'd1-price', 'd1-crowd', 'd1-open']);
+    expect(ids(s, fresh()).slice(0, 13)).toEqual(['intro-hello', 'intro-vera', 'intro-bay', 'intro-rivals', 'intro-fair', 'intro-goal', 'd1-bosses', 'd1-lemons', 'd1-sugar', 'd1-ice', 'd1-price', 'd1-crowd', 'd1-open']);
   });
 
   it('every line stays short (show, do not tell)', () => {
@@ -34,7 +34,7 @@ describe("Lottie's tour", () => {
   it('skips what the player already did', () => {
     const s = newGame(1);
     const mem = fresh();
-    for (const id of ['intro-hello', 'intro-bay', 'intro-rivals', 'intro-goal']) mem.seen.add(id);
+    for (const id of ['intro-hello', 'intro-vera', 'intro-bay', 'intro-rivals', 'intro-fair', 'intro-goal', 'd1-bosses']) mem.seen.add(id);
     s.plots[s.selected].stand!.inventory.lemons = []; // Lottie stocks Days 1-2 (src/sim/story.ts): make room to buy
     expect(buySupply(s, 'lemons', 1)).toBe(true);
     const lemonsFull: CoachEnv = { has: (sel) => !sel.includes(':disabled') && !sel.includes('[data-fill="lemons"][data-low]'), speed: 1 };
@@ -46,7 +46,7 @@ describe("Lottie's tour", () => {
   it('waits for the thing it points at to be on screen', () => {
     const s = newGame(1);
     const mem = fresh();
-    for (const id of ['intro-hello', 'intro-bay', 'intro-rivals', 'intro-goal']) mem.seen.add(id);
+    for (const id of ['intro-hello', 'intro-vera', 'intro-bay', 'intro-rivals', 'intro-fair', 'intro-goal', 'd1-bosses']) mem.seen.add(id);
     const none: CoachEnv = { has: () => false, speed: 1 };
     expect(pickStep(s, none, mem).step).toBeNull();
   });

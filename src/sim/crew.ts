@@ -3,7 +3,7 @@
 // when the stands close and fought on the night's clock (night.ts), each at
 // its arrival minute, after a warning.
 import {
-  BUILDING_POSTS, BUSTED_REPAIR_SHARE, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
+  BUILDING_POSTS, BUSTED_REPAIR_SHARE, LESSON_DAY, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
   DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, FORMER_RIVAL, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
   GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, OPEN, PERIMETERS,
   PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
@@ -131,7 +131,7 @@ export function buildingHp(ps: PlotState): number {
   return 0;
 }
 export const SIDE_LOT_PRICE = SIDE_LOT.price;
-export const TUTORIAL_RAID_DAY = 15; // the night after the Summer Fair
+export const TUTORIAL_RAID_DAY = 3; // Night 3: Brock's Bros come for the till, the night after the Steward's visit
 export const PLAYER_REBUILD_DAYS = 1; // a smashed plot of yours goes For Sale if it isn't rebuilt by the next dawn but one
 
 // ---------- Threat ----------
@@ -808,6 +808,8 @@ export function planNight(s: GameState): void {
   s.raids.push(...rivalRaids(s, rng)); // threat.ts: rivals raid each other too (30% of their raids, 15% at Threat 4; none once the Syndicate forms)
   s.seed = rng.seed;
   s.raids.push(...signatureRaids(s));
+  if (s.raids.some((r) => r.attacker !== 'player' && s.plots[r.target]?.owner === 'player')) s.lastRaidOnYou = s.day; // threat.ts: the quiet-night cap
+  else if (s.lastRaidOnYou === undefined && tutorialDone(s)) s.lastRaidOnYou = s.day;
   // Sabotage is the call of the boss who ends up leading the raid (signatureRaids may hand it to another), and none
   // comes before the tutorial raid is fought. A raid on several plots goes for the stock at each of them. Threat 5's
   // raids are all Smash, 0% Shakedown (threat.ts): the Syndicate's strikes and the Big Squeeze's siege at any Threat,
@@ -974,7 +976,7 @@ export function crewAtDawn(s: GameState): void {
   overnightRepairs(s);
   dutyXp(s);
   scoutingAtDawn(s);
-  if (s.day >= 6) welcomeDex(s);
+  if (s.day >= LESSON_DAY.crew) welcomeDex(s);
   if (s.day === 3) offerSideLot(s);
   refreshRecruits(s);
   trainingYard(s); // the reserve at an L2+ Clubhouse earns a day's XP (clubhouse.ts)
@@ -1047,7 +1049,7 @@ export function welcomeDex(s: GameState): void {
   const dex = makeGuard(s, rng);
   dex.name = 'Dex Moody';
   dex.trait = 'Loyal';
-  // With the lessons on, stationing him is Day 6's lesson ("Station Dex for the night"); story.ts posts him at closing if nobody did.
+  // With the lessons on, stationing him is Day 4's lesson ("Station Dex for the night"); story.ts posts him at closing if nobody did.
   dex.post = !dexLesson(s) && s.plots[s.selected]?.owner === 'player' ? s.selected : null;
   s.guards.push(dex);
   // A card in the feed (Go There: where he stands, or the Corner to station him). In the campaign his arrival is a

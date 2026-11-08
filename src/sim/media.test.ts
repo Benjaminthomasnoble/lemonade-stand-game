@@ -133,7 +133,7 @@ describe('the Morning Bugle', () => {
     sleepUntilDawn(s);
     s.world!.paper!.moves = [];
     s.world!.fights = [];
-    expect(s.world!.paper!.wire).toEqual(['OUT-OF-TOWNER! A food truck rolls into Downtown. Nobody knows who sent it.', 'Dot says the pie case is empty again.']);
+    expect(s.world!.paper!.wire.filter((l) => !l.startsWith("Dex Moody joins"))).toEqual(['OUT-OF-TOWNER! A food truck rolls into Downtown. Nobody knows who sent it.', 'Dot says the pie case is empty again.']);
     expect(bugleHeadline(s)).toEqual(['OUT-OF-TOWNER!', 'A food truck rolls into Downtown']);
     expect(frontPage(s).briefs).toContain('Dot says the pie case is empty again.');
     expect(frontPage(s).briefs.join(' ')).not.toContain('Daytime gossip');

@@ -68,7 +68,8 @@ export const SCENES: Record<string, SceneDef> = {
     lines: [
       { who: 'Steward', text: 'A reminder. From Mrs. Sourwood.', at: 4.2 },
       { who: 'Lottie', text: 'Well. Guess she remembers me.', at: 6.6 },
-      { who: 'Lottie', text: "Kid, we're gonna need a fence.", at: 12 },
+      { who: 'Lottie', text: "And Brock's boys come for the till tonight.", at: 9.4 },
+      { who: 'Lottie', text: "Kid, we're gonna need a fence. Today.", at: 12 },
     ],
     replies: ['Hey! My table!', 'Who was that?'],
     recap: 'A Sourwood Steward knocked over the table "as a reminder." Lottie wants a fence.',

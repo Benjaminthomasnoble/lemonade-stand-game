@@ -2,6 +2,7 @@
 // minute, all randomness from a per-run seed). Pure data + functions:
 // no DOM or three.js, so it runs the same in the browser, Vitest and Node.
 // Covers every stand on the Citrine Bay map: the player's and the rivals'.
+import { callsOnTheClock, type CallsState } from './calls.ts';
 import { nextRandom, randomRange } from './rng.ts';
 import {
   BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
@@ -272,6 +273,8 @@ export interface GameState {
   control?: Partial<Record<DistrictId, ControlTier>>; // each district's control tier at the last check (for the headlines)
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
+  calls?: CallsState; // today's day calls (calls.ts)
+  lastRaidOnYou?: number; // the last night a raid on you was planned (threat.ts caps the quiet nights in a row)
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
   syndicate?: SyndicateState; // the rivals' Pact against you: Act 5's first day and the day it formed (syndicate.ts)
   squeeze?: SqueezeState; // campaign: the Big Squeeze, its 7-night siege of Sourwood Manor and what it won (squeeze.ts)
@@ -762,6 +765,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   s.minute++;
   events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
   storyMinute(s);
+  callsOnTheClock(s); // a day call breaks in at its minute (calls.ts)
   eventsOnTheClock(s); // world: mid-day events break in on 101.5
   if (s.minute >= CLOSE) {
     closeDay(s);

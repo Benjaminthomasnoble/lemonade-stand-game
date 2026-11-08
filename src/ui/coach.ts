@@ -84,10 +84,16 @@ const sideLot = (s: GameState) => PLOTS.find((p) => s.plots[p.id]?.dibs?.who ===
 /** In order: the first one that's due and unseen shows. */
 export const STEPS: Step[] = [
   // The opening: who Lottie is, the bay, the rivals, the goal.
+  // The story in five beats (Ben, 2026-11-08: "WHY am I playing?"): the stolen recipes, the gangs, the first rival,
+  // the deadline, the goal. Story Campaign only for the recipe beats; every mode meets the rivals and the board.
   { id: 'intro-hello', intro: true, when: (s) => prep(s, 1), camera: 'home', say: "Summer's here, kid! This is my corner.", tap: 'Hi, Grandma!', mood: 'happy' },
-  { id: 'intro-bay', intro: true, when: (s) => prep(s, 1), camera: 'bay', say: 'Citrine Bay. A whole town of thirsty folks.', tap: 'Whoa!' },
-  { id: 'intro-rivals', intro: true, when: (s) => prep(s, 1) && !!rivalNear(s), camera: 'plot', plot: (s) => rivalNear(s)?.plot ?? null, say: (s) => `${rivalName(s)} sell here too. Mean ones.`, tap: 'Uh oh', mood: 'grumpy' },
-  { id: 'intro-goal', intro: true, when: (s) => prep(s, 1), camera: 'home', say: 'Sell lemonade. Grow big. Own the bay!', tap: "Let's go!", mood: 'happy' },
+  { id: 'intro-vera', intro: true, when: (s) => prep(s, 1) && s.settings.mode === 'campaign', camera: 'bay', say: 'Forty years ago, Vera Sourwood stole my recipes.', tap: 'She what?!', mood: 'grumpy' },
+  { id: 'intro-bay', intro: true, when: (s) => prep(s, 1), camera: 'bay', say: 'Now five drink gangs run Citrine Bay.', tap: 'Five?!' },
+  { id: 'intro-rivals', intro: true, when: (s) => prep(s, 1) && !!rivalNear(s), camera: 'plot', plot: (s) => rivalNear(s)?.plot ?? null, say: (s) => `${rivalName(s)}. They want this corner.`, tap: 'No way', mood: 'grumpy' },
+  { id: 'intro-fair', intro: true, when: (s) => prep(s, 1) && s.settings.mode === 'campaign', camera: 'home', say: 'Beat Brock at the Summer Fair, Day 14!', tap: 'Then what?' },
+  { id: 'intro-goal', intro: true, when: (s) => prep(s, 1), camera: 'home', say: (s) => (s.settings.mode === 'campaign' ? 'Then all five. And my recipes come home.' : 'Knock out all five. Own the bay!'), tap: "Let's go!", mood: 'happy' },
+
+  { id: 'd1-bosses', when: (s) => prep(s, 1), at: '[data-testid="bosses"]', say: 'The five gang bosses. Cross them all out!', tap: 'Got it', mood: 'grumpy' },
 
   // Day 1, the morning: stock, price, open.
   // The supply buttons wear a "!" while today's stock runs short: tap until it pops off (or you can't afford more).
@@ -105,7 +111,7 @@ export const STEPS: Step[] = [
 
   // Day 1, the evening card.
   { id: 'd1-report', when: (s) => s.phase === 'report', at: '[data-testid="report"] .cl-end-row', say: 'Cups sold, folks missed, your stars.', tap: 'Got it' },
-  { id: 'd1-sleep', when: (s) => s.phase === 'report', at: '[data-testid="report"] [data-testid="night"]', say: 'Sleep. Tomorrow we do better.', done: (s) => s.phase !== 'report', doneOnClick: '[data-action="night"],[data-action="sleep"]' },
+  { id: 'd1-sleep', when: (s) => s.phase === 'report', at: '[data-testid="report"] [data-testid="night"]', say: 'Sleep. Quiet nights fly by.', done: (s) => s.phase !== 'report', doneOnClick: '[data-action="night"],[data-action="sleep"]' },
 
   // Day 2: weather and recipes.
   { id: 'd2-sky', when: (s) => s.day >= LESSON_DAY.forecast && s.phase === 'prep', at: '.cl-wx', say: 'Check the sky every morning.', tap: 'Got it' },
@@ -124,14 +130,15 @@ export const STEPS: Step[] = [
   { id: 'd4-rank', when: () => true, at: '.cl-left .cl-rank', say: 'Your rank. It unlocks new stuff.', tap: 'Got it' },
 
   // Day 5 on: trouble, fences and Dex.
-  { id: 'd5-threat', when: () => true, at: '[data-testid="threat"]', say: 'Sour lemons: how mad the rivals are.', tap: 'Yikes', mood: 'grumpy' },
+  { id: 'd5-threat', when: () => true, at: '[data-testid="threat"]', say: 'Sour lemons: how mad the gangs are.', tap: 'Yikes', mood: 'grumpy' },
   { id: 'd5-defend', when: (s) => s.phase === 'prep', at: '[data-testid="tab-crew"]', say: 'Trouble coming. Defend tab!', done: (_s, e) => e.has('[data-testid="tab-crew"].on'), doneOnClick: '[data-testid="tab-crew"]', tap: 'Later', mood: 'grumpy' },
   { id: 'd5-fence', when: (s) => s.phase === 'prep', at: '[data-testid="perimeter"]', say: 'A fence keeps raiders out.', doneOnClick: '[data-testid="perimeter"]', tap: 'Got it' },
   { id: 'd6-dex', when: (s) => s.guards.length > 0, at: '[data-testid="post-here"]', say: 'Post Dex here for the night.', doneOnClick: '[data-testid="post-here"]', tap: 'Got it' },
   { id: 'd7-sign', when: (s) => s.phase === 'prep', at: '[data-testid="brand"]', say: 'Paint a sign. Folks notice!', doneOnClick: '[data-testid="brand"]', tap: 'Got it' },
 
   // Whenever they first show up.
-  { id: 'h-raid', when: () => true, at: '[data-testid="raid-warning"]', say: 'Raiders tonight! Check your defenses.', tap: 'On it', mood: 'grumpy' },
+  { id: 'h-call', when: () => true, at: '[data-testid="day-call"]', say: 'Your call, kid. Every choice costs something.', doneOnClick: '[data-action="call"]', tap: 'Got it' },
+  { id: 'h-raid', when: () => true, at: '[data-testid="raid-warning"]', say: 'Raiders coming! Fence it, or lose the till.', tap: 'On it', mood: 'grumpy' },
   { id: 'h-replay', when: () => true, at: '[data-testid="replay"]', say: 'A fight! Tap to watch it.', doneOnClick: '[data-testid="replay"]', tap: 'Later' },
   { id: 'h-damaged', when: () => true, at: '[data-testid="damaged"]', say: 'Busted up. Fix it, it sells more.', tap: 'Got it' },
   { id: 'h-red', when: () => true, at: '[data-testid="in-the-red"]', say: "We're broke! Sell more, or borrow.", tap: 'Got it', mood: 'grumpy' },

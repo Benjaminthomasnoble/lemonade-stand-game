@@ -68,22 +68,25 @@ describe('crew and raids', () => {
     expect(buyGadget(s, LOTTIES_CORNER, 'slick')).toBe(false); // Rank 4 and no slot
   });
 
-  it('no raids on the player in days 1-5, then they come', () => {
+  it('no raids on the player on nights 1-2, then they come, never more than 2 quiet nights in a row', () => {
     const s = newGame(7);
     s.reputation = 4;
     s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // a bare stand all along: this test is about raids
-    let early = 0, later = 0;
+    let early = 0, later = 0, lastNight = 3, maxQuiet = 0;
     for (let d = 0; d < 40; d++) {
       s.cash = Math.max(s.cash, 200); // stay out of the red: this test is about raids, not going broke
       openStand(s);
       simulateRestOfDay(s);
       const incoming = s.raids.filter((r) => r.attacker !== 'player' && s.plots[r.target].owner === 'player').length;
-      if (s.day <= 5) early += incoming; else later += incoming;
+      if (s.day <= 2) early += incoming; else later += incoming;
+      if (incoming) lastNight = s.day;
+      if (s.day > 3) maxQuiet = Math.max(maxQuiet, s.day - lastNight - 1);
       sleepUntilDawn(s);
       for (const p of Object.keys(s.plots)) if (s.plots[p].owner === 'player' && s.plots[p].stand?.wrecked) { s.cash += 1000; rebuildStand(s, p); }
     }
     expect(early).toBe(0);
-    expect(later).toBeGreaterThan(1);
+    expect(later).toBeGreaterThan(10);
+    expect(maxQuiet).toBeLessThanOrEqual(2 + 3); // the cap, plus a Respect stretch when every rival is backing off
     expect(threatLevel(s)).toBeGreaterThanOrEqual(1);
   }, 90_000); // 40 whole days: about 15 s alone, much longer while other checks share the machine
 

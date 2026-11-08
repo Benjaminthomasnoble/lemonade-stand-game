@@ -74,7 +74,7 @@ describe('economy', () => {
   });
 
   it('lemons spoil after 3 days', () => {
-    const s = newGame(9, { lessons: false }); // you buy your own from Day 1
+    const s = newGame(9, { lessons: false, mode: 'sandbox', peaceful: true }); // you buy your own from Day 1; no Night 3 raid takes stock
     selectedStand(s).autoRestock = false; // and no fresh lemons from Auto-Restock
     buySupply(s, 'lemons', 1);
     for (let d = 0; d < 3; d++) { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); }

@@ -4,7 +4,7 @@
 // and the scripted tutorial raid that always bounces.
 // Pure and seeded, like the rest of the sim.
 import {
-  FACTIONS, GUARD_BASE, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
+  FACTIONS, GUARD_BASE, MAX_QUIET_NIGHTS, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
   SMASH_SHARE, SYNDICATE_RAIDS_PER_WEEK, SYNDICATE_TIER, type RivalId,
 } from './balance.ts';
 import type { BattleInput, BattleResult, Fighter, Objective } from './combat.ts';
@@ -19,6 +19,7 @@ import { difficulty } from './modes.ts';
 import { hhmm, onYou, raidStart, travelMinutes } from './night.ts';
 import { syndicateFormed, syndicateLeader, syndicateMembers } from './syndicate.ts';
 import { siegeTargets, siegeTonight } from './squeeze.ts';
+import { rumorTonight } from './calls.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
@@ -108,13 +109,18 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   }
   if (siegeTonight(s)) return siegeStrike(s, rng);
   const pact = syndicateFormed(s);
-  const n = Math.max(pact && s.syndicate!.formed === s.day ? 1 : 0, raidCount(weeklyRaids(s) / 7, u)); // its first strike: the night it forms
+  // Its first strike comes the night the Syndicate forms; and after too many quiet nights in a row, somebody comes.
+  const quiet = s.day - (s.lastRaidOnYou ?? s.day);
+  const due = quiet > MAX_QUIET_NIGHTS[s.settings.difficulty] ? 1 : 0;
+  const n = Math.max(pact && s.syndicate!.formed === s.day ? 1 : 0, due, raidCount(weeklyRaids(s) / 7, u));
   const out: Raid[] = [];
   const taken = new Set<string>();
-  for (let i = 0; i < n; i++) {
-    const rival = pickRival(s, rng);
+  const rumor = rumorTonight(s); // a day call's rumor (calls.ts): that rival comes for that plot tonight
+  const rumored = rumor && mayRaidYou(s, rumor.rival) && mine.some((p) => p.id === rumor.plot) ? rumor : undefined;
+  for (let i = 0; i < Math.max(n, rumored ? 1 : 0); i++) {
+    const rival = i === 0 && rumored ? rumored.rival : pickRival(s, rng);
     if (!rival) break;
-    const target = weakest(s, rival, mine, taken);
+    const target = i === 0 && rumored ? PLOT_BY_ID[rumored.plot] : weakest(s, rival, mine, taken);
     const raid = pact ? syndicateStrike(s, rng, rival, target) : raidOnYou(s, rng, rival, target, threatLevel(s));
     if (!raid) continue;
     taken.add(target.id);
@@ -292,20 +298,22 @@ function dexFighter(s: GameState, raid: Raid, night: boolean): Fighter {
   return guardFighter(dex ?? standIn, 'def', night);
 }
 
-/** battleInput's defenders: the tutorial raid always finds Dex at the stand, wherever he's posted (moved off after the
- * warning, out of action, or let go), so it bounces off him and the fence. Every other raid fights who's there. */
+/** battleInput's defenders: once Dex is on your crew, the tutorial raid finds him at the stand wherever he's posted.
+ * Before he joins (the raid comes on Night 3, Dex on Day 4) it fights who's there: a fence, or nobody. */
 export function withDex(s: GameState, raid: Raid, defenders: Fighter[], night: boolean): Fighter[] {
   if (!raid.tutorial) return defenders;
   const dex = s.guards.find((g) => g.name === DEX);
-  if (dex && defenders.some((f) => f.id === dex.id)) return defenders;
+  if (!dex || defenders.some((f) => f.id === dex.id)) return defenders;
   return [dexFighter(s, raid, night), ...defenders];
 }
 
-/** fightRaid's tutorial branch: the first raid on you ends repelled whatever the dice did (with Dex there it all but
- * always does on its own), the stand untouched; and the run's tutorial is done. */
+/** fightRaid's tutorial branch: the first raid on you bounces whatever the dice did if you defended the plot at all
+ * (a fence, or anyone standing guard), the stand untouched. Undefended, Brock's Bros take the till: the first lesson
+ * in what a night costs. Either way the run's tutorial is done. */
 export function tutorialBounce(s: GameState, input: BattleInput, res: BattleResult): void {
   s.tutorialRaidDone = true;
   if (res.outcome === 'repelled') return;
+  if (!input.perimeter && !input.defenders.length) return;
   res.winner = 'def';
   res.outcome = 'repelled';
   res.standHpLeft = input.standHp;

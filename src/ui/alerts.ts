@@ -42,7 +42,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
   // raids by then leaves its posts empty; a Lookout out scouting isn't there either), and Dex on the first raid.
   const away = awayAt(s, r.at ?? s.minute);
   const there = s.guards.filter((g) => g.post === r.target && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
-  const guards = there.length + (r.tutorial && !there.some((g) => g.name === DEX) ? 1 : 0); // Dex always meets the first raid
+  const guards = there.length + (r.tutorial && s.guards.some((g) => g.name === DEX) && !there.some((g) => g.name === DEX) ? 1 : 0); // Dex meets the first raid once he's hired
   const us = `${Array.from({ length: Math.min(4, guards) }, () => ICON.shield()).join('')}${ps.defense.tier ? ICON.fence(ps.defense.tier) : ''}`;
   const after = r.delivery ? 'the cargo' : r.sabotage ? 'the stock' : r.objective === 'smash' ? 'a smash' : 'the till'; // crew: Sabotage spoils the stock
   // What a tower sees besides the weapons: the boss at the head (Threat 5, the Syndicate) and any lookouts.

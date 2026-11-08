@@ -6,6 +6,7 @@
 // (land's Hurricane and Health Inspection). Pure and seeded, like the rest of the sim.
 import { EVENT_DEFS, registerEvent } from './eventTable.ts'; // first: a module can register as it loads
 import { nextRandom } from './rng.ts';
+import { callTraffic } from './calls.ts';
 import { EVENTS, HEAT_WAVE, SEASON_DAYS, SEASON_WEATHER, SEASONS, WEATHER, type Season, type SegmentId, type SupplyId } from './balance.ts';
 import type { DistrictId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
@@ -105,8 +106,8 @@ const seasonStart = (day: number) => day - seasonDay(day) + 1;
  * Runs for every stand every minute, so it walks the list without building one. */
 export function eventTraffic(s: GameState, plotId: string): number {
   const on = s.world?.events?.on;
-  if (!on?.length) return 1;
-  let m = 1;
+  let m = callTraffic(s, plotId); // and today's answered day calls (calls.ts)
+  if (!on?.length) return m;
   for (const e of on) {
     const t = e.live && runsOn(e, s.day) ? EVENT_DEFS[e.id]?.traffic : undefined;
     if (t) m *= t(s, e, plotId);

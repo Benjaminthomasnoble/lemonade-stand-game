@@ -312,12 +312,11 @@ describe('the tutorial raid', () => {
     expect(s.phone!.queue[0]).toMatchObject({ who: 'blenders', text: LINES.brockFirst });
   });
 
-  it('bounces wherever Dex is: moved off after the warning, out of action, or let go, with no fence', () => {
+  it('once Dex is hired it bounces wherever he is: moved off after the warning or out of action, with no fence', () => {
     const moves: ((s: GameState, side: string) => void)[] = [
       (s, side) => postGuard(s, dexOf(s)!.id, side), // the plot card's +shield, after the warning
       (s) => postGuard(s, dexOf(s)!.id, null),
       (s) => { dexOf(s)!.outUntil = s.day + 2; }, // knocked out
-      (s) => fireGuard(s, dexOf(s)!.id),
     ];
     let n = 0;
     for (const move of moves) {
@@ -336,7 +335,29 @@ describe('the tutorial raid', () => {
         n++;
       }
     }
-    expect(n).toBe(40);
+    expect(n).toBe(30);
+  });
+
+  it('undefended (no Dex yet, no fence) the Bros take the till; any fence sends them home', () => {
+    let robbed = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const { s } = fairNight(seed);
+      fireGuard(s, dexOf(s)!.id);
+      const r = tutorialRaid(s);
+      startNight(s);
+      while (s.raids.includes(r)) nightStep(s);
+      if (s.battles.find((x) => x.defender === 'player')!.outcome !== 'repelled') robbed++;
+      expect(s.tutorialRaidDone).toBe(true);
+    }
+    expect(robbed).toBeGreaterThan(5);
+    const { s } = fairNight(3);
+    fireGuard(s, dexOf(s)!.id);
+    s.plots[LOTTIES_CORNER].defense.tier = 1;
+    s.plots[LOTTIES_CORNER].defense.fenceHp = 1;
+    const r = tutorialRaid(s);
+    startNight(s);
+    while (s.raids.includes(r)) nightStep(s);
+    expect(s.battles.find((x) => x.defender === 'player')!.outcome).toBe('repelled');
   });
 
   it('played live as it arrives (the game watching), it bounces all the same, and the tutorial is done', () => {

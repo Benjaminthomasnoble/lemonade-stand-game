@@ -38,7 +38,7 @@ describe("the Grow tab's campaign cards", () => {
     const cards = campaignCards(kit, s).join('');
     expect(cards).not.toContain('Sign kid');
     expect(cards).toContain('Sunny');
-    expect(campaignCards(kit, { ...prep(4), day: 6 })).toEqual([]); // before Day 7's lesson
+    expect(campaignCards(kit, { ...prep(4), day: 5 })).toEqual([]); // before Day 6's lesson
   });
 
   it('shows a running campaign as done for the day', () => {

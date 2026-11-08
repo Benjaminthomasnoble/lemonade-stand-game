@@ -257,7 +257,7 @@ The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the referenc
 | 4 | 4 | 8–12 | Hatchets appear | 1–2 | 30% | 70% |
 | 5 (Syndicate) | 6 | 12–20, boss-led | Full kit | 2–3 | 0% | 100% |
 
-Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Days 1–5. The first raid on you, Brock's, comes the night your first Kiosk opens or the night after the Summer Fair (Day 15), whichever comes first (Days 14–15 in the simulation), and is scripted to bounce off your fence and Dex. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's two Smoothie Bros, comes on Night 3 (or the night your first Kiosk opens, if sooner) for a Shakedown; any fence or guard bounces it, undefended it takes the till. After it, the quiet-night cap: at most 2 raid-free nights in a row on Classic (Laid Back 4, Cutthroat 1, Custom 2), then a rival who may raid you comes. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
 
 ### Difficulty
 
@@ -346,3 +346,15 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Crew and defenses | None (Dex joins on Day 6) |
 | Starting Net Worth | About $525 |
 | Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
+
+### Day calls (src/sim/calls.ts `CALLS`)
+
+One call on Day 1 (a rival undercut), two on every later business day (Day 3: a rush or a heckler, then the rumor of Night 3's raid). Unanswered calls lapse after 60 game minutes with no effect (only without a player: the game waits for a pick).
+
+| Call | Choices and what they cost |
+| --- | --- |
+| Rival undercut | Cut your price 25¢ · Free samples $10, +20% walkers today · Hold firm, −20% walkers today |
+| Rival heckler | Pay him off $8 · Chase him off, +6 Grudge with that gang · Ignore him, −15% walkers today |
+| Thirsty rush (+30% walkers today either way) | Raise the price 50¢ · Keep it fair, +0.03 stars |
+| Sheriff's permit | Pay $15 · Talk her down: half the time nothing, else a $30 fine |
+| Raid rumor | Rush the next fence in at 1.5× its price · Post your free guards · Bring it on. Any answer: that gang comes for that plot tonight |

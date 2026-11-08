@@ -1,4 +1,5 @@
 import './style.css';
+import { answerCall, liveCall } from './sim/calls.ts';
 import './screens.css';
 import './coach.css';
 import { createCoach } from './ui/coach.ts';
@@ -7,7 +8,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, nothingTonight, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, makeTruce, plotBuyout, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
@@ -544,6 +545,7 @@ async function main() {
     if (state.phase === 'report') eveningWait = 0; // the Evening is a moment after the last thing you did
     switch (a.type) {
       case 'buy': buySupply(state, a.id, a.packs); break;
+      case 'call': answerCall(state, a.pick, { postGuards: (p) => fillPosts(state, p) }); break;
       case 'recipe': if (pickRecipe(state, st, a.id)) setByHand(state, state.selected, 'card'); break;
       case 'sweet': setSweetness(st, a.value); setByHand(state, state.selected, 'card'); break;
       case 'price': setPrice(st, st.price + a.delta); setByHand(state, state.selected, 'price'); break;
@@ -555,7 +557,11 @@ async function main() {
       case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
       case 'skip': { resume(); settleFight(); const ev = atOnce(() => simulateRestOfDay(state, true)); crowd.clear(); drawEvents(ev, false); break; }
-      case 'night': hud.ledger = false; if (startNight(state)) { acc = 0; eveningWait = 0; resume(); } break;
+      case 'night': // nothing coming tonight: Sleep skips to dawn; a raid night plays, racing to the warning
+        hud.ledger = false;
+        if (state.phase === 'report' && nothingTonight(state)) { act({ type: 'sleep' }); break; }
+        if (startNight(state)) { acc = 0; eveningWait = 0; resume(); }
+        break;
       case 'evening': hud.ledger = false; eveningWait = 0; break;
       case 'ledger': hud.ledger = true; break;
       case 'sleep': {
@@ -925,7 +931,8 @@ async function main() {
     // first visit's New Game hold everything.
     const paper = !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || !!uiRoot.querySelector('.frontpage');
     if (paperKnob(knob, paper, (state.phase === 'open' || state.phase === 'night') && options.autoPause && options.pause.screens)) vipPaused = '';
-    const frozen = knob.speed === 0 || outcomeUp() || (!!hud.setup && !hud.setup.cancel); // the clock, the brawl and the scenes hold still
+    const frozen = knob.speed === 0 || outcomeUp() || (!!hud.setup && !hud.setup.cancel) // the clock, the brawl and the scenes hold still
+      || (!!liveCall(state) && !state.fight); // a day call waits for your pick (src/sim/calls.ts)
     if (panning.size && !flight.active()) {
       const has = (k: KeyAction) => (panning.has(k) ? 1 : 0);
       world.panBy((has('panRight') - has('panLeft')) * Math.min(realDt, 0.1), (has('panUp') - has('panDown')) * Math.min(realDt, 0.1));

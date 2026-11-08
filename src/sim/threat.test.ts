@@ -78,9 +78,9 @@ describe('raids on you per week', () => {
     expect(nights(base, 200).filter((raids) => raids.length).length).toBeGreaterThan(40);
   });
 
-  it('none in the first five days', () => {
+  it('none on the first two nights', () => {
     const base = evening(3);
-    base.day = 5;
+    base.day = 2;
     expect(nights(base, 100).every((raids) => !raids.length)).toBe(true);
   });
 });
@@ -275,8 +275,8 @@ describe('the tutorial raid comes once a run', () => {
     sleepUntilDawn(s);
     expect(migrateSave(JSON.parse(JSON.stringify(s)))!.tutorialRaidDone).toBe(true);
     const old = (day: number) => { const t = JSON.parse(JSON.stringify(fair(47))); delete t.tutorialRaidDone; t.day = day; return t; };
-    expect(migrateSave(old(20))!.tutorialRaidDone).toBe(true); // past Day 15: it has been
-    expect(migrateSave(old(9))!.tutorialRaidDone).toBe(false);
+    expect(migrateSave(old(20))!.tutorialRaidDone).toBe(true); // past Night 3: it has been
+    expect(migrateSave(old(2))!.tutorialRaidDone).toBe(false);
     const evening15 = fair(49);
     planNight(evening15);
     const raw = JSON.parse(JSON.stringify(evening15));

@@ -14,6 +14,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
   color: #2f7d33; -webkit-text-stroke: 1px #fff; paint-order: stroke; text-shadow: 0 2px 0 #fff, 0 3px 6px rgba(46,42,79,.3); animation: rise 1.3s cubic-bezier(.3,1.5,.5,1) forwards;
 }
 .pop.miss, .pop.soldout { color: #c8325a; font-size: 18px; }
+.pop.spent { color: #c8325a; font-size: 26px; font-weight: 700; }
 @keyframes rise { 0% { opacity: 0; margin-top: 10px; transform: translate(-50%, -50%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15, .9); } 30% { transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; margin-top: -60px; } }
 .confetti { position: absolute; top: -40px; width: 34px; height: 34px; pointer-events: none; animation: fall linear forwards; }
 .confetti svg { width: 100%; height: 100%; }

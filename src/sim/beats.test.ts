@@ -28,8 +28,8 @@ function playDay(s: GameState) {
 }
 const corner = (s: GameState) => s.plots[LOTTIES_CORNER].stand!;
 
-describe("Lottie's stock on Days 1-2", () => {
-  it('fills the table to the forecast day, free, while the Market waits for Day 3', () => {
+describe("Lottie's stock on Day 1", () => {
+  it('fills the table to the forecast day, free, while the Market waits for Day 2', () => {
     const s = newGame(41);
     expect(lottieStocks(s)).toBe(true);
     expect(taught(s, 'market')).toBe(false);
@@ -41,14 +41,10 @@ describe("Lottie's stock on Days 1-2", () => {
     expect(s.today.supplies).toBe(0);
     const bare = newGame(41, { lessons: false });
     expect(netWorth(s)).toBe(netWorth(bare)); // ...and so does Net Worth (the stock costs you nothing)
-    playDay(s); // Day 2: she stocks it again at dawn
-    expect(s.day).toBe(2);
-    expect(servingsAvailable(corner(s))).toBeGreaterThanOrEqual(expectedCups(s, LOTTIES_CORNER, s.forecast));
-    expect(s.today.supplies).toBe(0);
     s.plots[LOTTIES_CORNER].stand!.inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 };
-    corner(s).autoRestock = false; // Auto-Restock would stock it at Day 3's dawn, paid (automation.ts)
-    playDay(s); // Day 3: from today you buy your own
-    expect(s.day).toBe(3);
+    corner(s).autoRestock = false; // Auto-Restock would stock it at Day 2's dawn, paid (automation.ts)
+    playDay(s); // Day 2: from today you buy your own (Ben, 2026-11-08: buying has to cost something)
+    expect(s.day).toBe(2);
     expect(taught(s, 'market') && !lottieStocks(s)).toBe(true);
     expect(servingsAvailable(corner(s))).toBe(0);
     expect(s.news.some((n) => n.startsWith('Lottie: "From today'))).toBe(true);
@@ -133,14 +129,14 @@ describe("Lottie's side lot (Day 3)", () => {
   });
 });
 
-describe('the Day 5 Steward', () => {
-  /** Day 4's stock (bought that morning, so nothing spoils overnight), then Day 5's dawn. */
+describe('the Day 3 Steward', () => {
+  /** Day 2's stock (bought that morning, so nothing spoils overnight), then Day 3's dawn. */
   const day5 = (s: GameState, lemons = 40, sugar = 100) => {
-    s.day = 4;
+    s.day = 2;
     corner(s).autoRestock = false; // Auto-Restock would top the table up after the spill, at the dawn's end (automation.ts)
-    corner(s).inventory = { lemons: lemons ? [{ qty: lemons, day: 4, unitCost: 0.2 }] : [], sugar, ice: 0, sugarCost: 0.03, iceCost: 0 };
+    corner(s).inventory = { lemons: lemons ? [{ qty: lemons, day: 2, unitCost: 0.2 }] : [], sugar, ice: 0, sugarCost: 0.03, iceCost: 0 };
     nextDawn(s);
-    expect(s.day).toBe(5);
+    expect(s.day).toBe(3);
   };
   it('kicks over the table at dawn: a scene, not a raid, that spills one pitcher', () => {
     const s = newGame(48);
@@ -181,26 +177,27 @@ describe('the Day 5 Steward', () => {
   });
 });
 
-describe('Day 4: Lottie nudges the Wooden Stand', () => {
+describe('Day 5: Lottie nudges the Wooden Stand', () => {
   const dawnOf = (s: GameState, day: number) => { s.day = day - 1; nextDawn(s); expect(s.day).toBe(day); };
   const nudge = (s: GameState) => s.news.find((n) => n.startsWith('Lottie: "Time that table grew up.'));
   it("says what it does and costs, from the level table, unless you've built one", () => {
     const s = newGame(60);
-    dawnOf(s, 4);
+    s.plots[LOTTIES_CORNER].defense.tier = 1; // Day 3's fence is up, so the stand is the next goal
+    dawnOf(s, 5);
     expect(nudge(s)).toBe('Lottie: "Time that table grew up. A Wooden Stand draws 1.5× the walkers and pours 2.5× as fast: $400, back in 2-4 days."');
     expect(goalsNow(s)[1].text).toBe('Build the Wooden Stand');
     const built = newGame(61);
     corner(built).level = 2; // a curious player tapped the table early
-    dawnOf(built, 4);
+    dawnOf(built, 5);
     expect(nudge(built)).toBeUndefined();
     const off = newGame(62, { lessons: false });
-    dawnOf(off, 4);
+    dawnOf(off, 5);
     expect(nudge(off)).toBeUndefined();
   });
 });
 
-describe('Benny Buzz and the first sign (Day 7)', () => {
-  const day7 = (s: GameState) => { s.day = 6; nextDawn(s); expect(s.day).toBe(7); };
+describe('Benny Buzz and the first sign (Day 6)', () => {
+  const day7 = (s: GameState) => { s.day = 5; nextDawn(s); expect(s.day).toBe(6); };
   it('pitches it at dawn, and buying it brings him to paint it (his scene, staged by speaker)', () => {
     const s = newGame(63);
     s.scenes!.seen.push('opening', 'steward', 'dex');

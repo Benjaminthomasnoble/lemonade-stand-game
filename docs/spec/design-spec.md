@@ -200,7 +200,7 @@ Four nested loops run on one clock, and a game day takes about 5 real minutes at
 
 The clock runs at 1×, 2× or 3× and pauses any time; each tick is one game minute, 1,440 a day. At 1×, business hours (08:00–20:00) take about 3.5 minutes and night (20:00–08:00) about 1.5 minutes. A game hour lasts about 18 real seconds by day and 8 at night.
 
-When a brawl starts, the clock slows to 1 game minute per real second, so most fights last 30–90 real seconds at any speed. Raid warnings auto-pause by default on Laid Back and Classic, because 15 game minutes of night pass in about 2 real seconds. On Cutthroat, where warnings don't pause, the clock drops to fight speed while a warning counts down, so its 5-minute notice lasts 5 real seconds. Quiet nights fly by: from closing time until an alert arrives, the night runs at 3× by itself (a setting).
+When a brawl starts, the clock slows to 1 game minute per real second, so most fights last 30–90 real seconds at any speed. Raid warnings auto-pause by default on Laid Back and Classic, because 15 game minutes of night pass in about 2 real seconds. On Cutthroat, where warnings don't pause, the clock drops to fight speed while a warning counts down, so its 5-minute notice lasts 5 real seconds. Quiet nights are skipped: when nothing is coming for you, Sleep goes straight to dawn. A raid night plays, at 12× until the warning (a setting).
 
 Seasons last 14 days, so a year is 56 days: Summer, Fall, Winter, Spring. Play opens on Summer Day 1, the first day of summer vacation, and the campaign spans about three years. Summer demand runs ×1.2 and Winter ×0.6, so each year breathes: grow in the sun, fortify in the cold.
 
@@ -1186,9 +1186,9 @@ Every rank opens new toys, and on Classic something new arrives about once a wee
 
 ### The first week
 
-Act 1 adds one system a day, each with its own button (see Player experience). Prices come on Day 1, recipes and weather on Day 2, and on Day 3 supplies, Auto-Restock and a second stand on Lottie's $300 side lot. The Wooden Stand and Rank 2 land together on Day 4, about 30 minutes in.
+Act 1 adds one system a day, each with its own button (see Player experience). Prices come on Day 1 (Lottie stocks that first table free), and on Day 2 recipes, weather and the Market: from then on every lemon costs you. On Day 3 the Steward's visit brings the Picket Fence and Lottie's $300 side lot, and that night Brock's Bros come for the till: any fence or guard sends them home, and an undefended stand loses a day's takings. Dex joins on Day 4, the Wooden Stand and Rank 2 land on Day 5, the first sign goes up on Day 6, and Day 7 opens the Land Registry.
 
-The Steward's visit brings the Picket Fence on Day 5, Dex joins on Day 6 and the first sign goes up on Day 7. Week 2 opens the Land Registry. The first raid waits for your first Kiosk or Day 15, whichever comes first, and it is a tutorial raid that bounces off your fence and Dex, so the first hour or more is pure business and the first fight is a win.
+After the first raid, nights stay dangerous: on Classic no more than two nights in a row pass without one. Every business day also brings one or two day calls, small decisions with a price (see Running the business), and Lottie's opening tour tells the story and shows the boss board before the first cup is poured. (Revised 2026-11-08: the earlier plan kept the first hour raid-free, and players found it had no stakes.)
 
 ### What unlocks when
 
@@ -1254,6 +1254,8 @@ From Act 4 on, ranks come three to four weeks apart, so the late game leans on V
 
 ## Narrative
 
+**The pitch, as the game opens it (2026-11-08):** Forty years ago Vera Sourwood stole Grandma Lottie's recipes. Now five drink gangs run Citrine Bay, and the nearest one wants Lottie's corner. Beat Brock at the Summer Fair on Day 14, then knock out all five, and the recipes come home. Lottie tells it in five taps before the first cup, and the boss board keeps it on screen.
+
 In one line: Lottie's grandkid takes Citrine Bay from five drink families, recovers 7 stolen recipe pages and reunites two feuding grandmas. The story rides inside play: about 20 short, skippable scenes, with everything else told by newspaper, phone and radio.
 
 ### Premise and backstory
@@ -1303,9 +1305,9 @@ Maple Row → Old Town · Days 1–15 · Ranks 1–3. **Goal:** learn the trade,
 
 1. **Day 1:** Lottie hands you the table, her pitcher and 3 pages, then pulls a spare from her cardigan. *Teaches pricing.*
 2. Day 3: Lottie sells you the side lot by the Corner for $300, card table included: "Two tables, twice the trouble. You'll love it." Teaches a second stand and Auto-Restock.
-3. **Day 5:** at dawn a Sourwood Steward kicks over your table "as a reminder." Lottie: "Well. Guess she remembers me." It's a scene, not a raid, and costs one spilled pitcher. *Teaches the Picket Fence.*
-4. **Days 6–7:** Dex volunteers and moves into the shed, and Benny Buzz paints your first sign. *Teaches guards and marketing.*
-5. **Week 2:** Skip finds you an Old Town corner. *Teaches land.*
+3. **Day 3:** at dawn a Sourwood Steward kicks over your table "as a reminder." Lottie: "Well. Guess she remembers me." It's a scene, not a raid, and costs one spilled pitcher. Lottie: "And Brock's boys come for the till tonight." That night they do. *Teaches the Picket Fence.*
+4. **Day 4 and Day 6:** Dex volunteers and moves into the shed, and Benny Buzz paints your first sign. *Teaches guards and marketing.*
+5. **Day 7:** Skip finds you an Old Town corner. *Teaches land.*
 
 **Climax:** the Summer Fair taste-off. Brock stakes his Strawberry page against one of Lottie's pies; win, and he swears revenge live on 101.5.
 
@@ -1612,14 +1614,13 @@ Lottie teaches one system a day, and its button appears that day. At about 8 rea
 
 | Day | Lottie teaches | What appears | Her goal |
 | --- | --- | --- | --- |
-| 1 | Price | The price tag, Cash, the alert feed | Sell out your first pitcher |
-| 2 | Recipes and weather | Recipe cards, the Sweetness dial, the forecast | Match a recipe to the weather |
-| 3 | Supplies and a second stand | The Market (Lottie stocked Days 1–2), Auto-Restock, and Lottie's $300 side lot by the Corner, table included | Run both stands for a day without selling out |
-| 4 | Upgrades | The upgrade button, the Rank badge | Build the Wooden Stand |
-| 5 | Defense | Threat lemons, the Picket Fence | Fence the Corner |
-| 6 | Guards | The Crew roster, with Dex | Station Dex for the night |
-| 7 | Marketing | Hand-Painted Signs | Paint your first sign |
-| Week 2 | Land | The Land Registry | Open a stand in Old Town |
+| 1 | Price, the story and the rivals | The price tag, Cash, the alert feed, the boss board, Brock's first call, the first day call | Sell out your first pitcher |
+| 2 | Recipes, weather and supplies | Recipe cards, the Sweetness dial, the forecast, the Market (Lottie stocked Day 1 only), Auto-Restock | Match a recipe to the weather |
+| 3 | Defense and a second stand | Threat lemons, the Picket Fence, Lottie's $300 side lot by the Corner; that night, the first raid | Fence the Corner |
+| 4 | Guards | The Crew roster, with Dex | Station Dex for the night |
+| 5 | Upgrades | The upgrade button, the Rank badge | Build the Wooden Stand |
+| 6 | Marketing | Hand-Painted Signs | Paint your first sign |
+| 7 | Land | The Land Registry | Open a stand in Old Town |
 
 Curious players need not wait: Rank 1 systems, such as upgrades and Maple Row's For Sale signs, answer a tap from Day 1. Returning players can switch the lessons off, and buttons then follow rank unlocks alone.
 

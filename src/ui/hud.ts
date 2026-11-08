@@ -3,6 +3,7 @@
 // a day's-end card and picture-card sheets for Grow and Defend. Words are kept
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
+import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
@@ -44,7 +45,7 @@ import { specCards } from './specializations.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 import { booksRows } from './ledger.ts';
 import { bennyPitch, storyDateline, taught } from '../sim/story.ts';
-import { goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
+import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { eventTickets, kidStandCard } from './events.ts';
 import { radioTicket, toggleSoundtrack, tuneRadio } from './radio.ts';
 import { clubhouseRoom } from './clubhouse.ts';
@@ -62,6 +63,7 @@ import {
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
+  | { type: 'call'; pick: number } // answer the day call on the feed (src/sim/calls.ts)
   | { type: 'recipe'; id: RecipeId }
   | { type: 'sweet'; value: Sweetness }
   | { type: 'price'; delta: number }
@@ -247,6 +249,21 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const set = (el: HTMLElement, html: string) => { if (last.get(el) !== html && !(pressed && el.contains(pressed))) { el.innerHTML = html; last.set(el, html); } };
   const redraw = () => onAction({ type: 'refresh' });
 
+  let lastCash: number | null = null, lastDay = 0;
+  /** A spend drops off the cash jar as a red "−$12". */
+  const spentPop = (amount: number) => {
+    const cash = topEl.querySelector('[data-testid="cash"]') as HTMLElement | null;
+    if (!cash) return;
+    const r = cash.getBoundingClientRect(), box = root.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'pop spent';
+    el.dataset.testid = 'spent';
+    el.textContent = `−${amount >= 100 ? whole(amount) : money(amount)}`;
+    el.style.left = `${r.right - box.left + 18}px`;
+    el.style.top = `${r.top - box.top + r.height / 2}px`;
+    pops.appendChild(el);
+    setTimeout(() => el.remove(), 1300);
+  };
   const hud: Hud = {
     inspected: null,
     muted: false,
@@ -264,6 +281,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     sceneTime: 0,
     render(s, speed) {
       if (s.phase === 'report' && ledgerDay !== s.day) { ledgerDay = s.day; hud.ledger = true; }
+      // Every purchase shows what it cost: a red "−$12" drops off the cash jar when the cash goes down by your hand
+      // (prep and the Evening; during business hours and the night the clock moves cash too, so only big drops pop).
+      if (lastCash !== null && lastDay === s.day && s.cash < lastCash - 0.005 && (s.phase === 'prep' || s.phase === 'report' || lastCash - s.cash >= 5)) spentPop(lastCash - s.cash);
+      lastCash = s.cash; lastDay = s.day;
       const modal = hud.setup ? setupScreen(hud.setup.settings, hud.setup.cancel)
         : hud.optionsOpen ? optionsScreen(hud.options, s, savesPanel(s, hud.slots), keysPanel(hud.options, hud.remap))
         : outcomeScreen(s) || (hud.menu === 'registry' ? registryScreen(s, registryTab) // the Land Registry (src/ui/registry.ts)
@@ -365,6 +386,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const d = el.dataset;
     switch (d.action) {
       case 'buy': onAction({ type: 'buy', id: d.id as SupplyId, packs: Number(d.packs) }); break;
+      case 'call': onAction({ type: 'call', pick: Number(d.pick) }); break;
       case 'recipe': onAction({ type: 'recipe', id: d.id as RecipeId }); break;
       case 'sweet': onAction({ type: 'sweet', value: d.value as Sweetness }); break;
       case 'price': onAction({ type: 'price', delta: Number(d.delta) }); break;
@@ -490,6 +512,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const temp = tempText(hud.options, w.temp);
     return `<div class="cl-left">
         ${cash}
+        ${bossBoard(s, opens('corkboard'))}
         ${taught(s, 'rank') ? `<div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>` : ''}
         ${threat >= 2 && !peaceful(s) && taught(s, 'threat') ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
         ${s.bottles ? `<div class="cl-chip" title="Bottles ready for big orders: ${esc(bottleStock(s))}"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
@@ -522,6 +545,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   // ---------- left feed: little tickets for whatever needs you this morning ----------
   function feed(s: GameState) {
     const t: string[] = alertCards(s); // the alert feed (src/ui/alerts.ts), in every phase
+    const call = liveCall(s); // a day call waits on top, the clock held till you pick (src/sim/calls.ts)
+    if (call) {
+      const art = call.kind === 'rush' ? ART.sky('hot') : call.kind === 'permit' ? ART.board() : call.kind === 'rumor' ? ART.raid() : call.kind === 'heckler' ? ART.megaphone() : ART.sour();
+      const picks = callChoices(s, call).map((c, i) => btn('call', `${esc(c.label)}${c.cost ? ` <i class="cl-cost-in">${whole(c.cost)}</i>` : ''}`, c.ok ? { ok: true } : { ok: false, why: c.cost ? `Needs ${whole(c.cost)}` : "Can't now" }, `data-pick="${i}" data-testid="call-${i}" title="${esc(choiceTip(call, c.label))}"`, `tiny ${c.tone ?? ''}`)).join('');
+      t.unshift(`<div class="cl-ticket cl-call" data-testid="day-call" data-kind="${call.kind}">${art}<b>${esc(callLine(s, call))}</b><span class="cl-acts">${picks}</span></div>`);
+    }
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
     t.push(...stormTicket(s)); // a Storm: the forecast at Morning Prep, then the counter-play and the repair all day (src/ui/damage.ts)
@@ -620,7 +649,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const note = id === 'ice' ? (iceMachineOn(s, plotId) ? 'the ice machine makes it' : 'melts tonight') : id === 'lemons' ? (expiring ? `${expiring} spoil tomorrow` : 'keep 3 days') : 'keeps';
       return `<div class="cl-gauge" title="${sp.label}: ${stock(st, id)}/${storageFor(st, id)} (${note})">
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
-        <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button></div>`;
+        <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button><span class="cl-cost" data-testid="cost-${id}">${money(sp.pack * s.market[id])}</span></div>`;
     };
     const restock = restockControl(s, plotId); // Auto-Restock's switch and target, from Day 3 (src/ui/automation.ts)
     const n = playerStands(s).length;
@@ -721,7 +750,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       ${tasteOffLine(s, t.day)}
       ${tonight(s)}
       ${books ? bookTable : ''}
-      <button class="cl-sleep" data-action="night" data-testid="night" title="Night falls: it runs on the clock, quiet nights at 3×">${ART.moon()}<span>Sleep</span></button>
+      <button class="cl-sleep" data-action="night" data-testid="night" title="Nothing coming tonight: straight to morning. Raiders on the way: the night plays until they show.">${ART.moon()}<span>Sleep</span></button>
       <span class="cl-acts"><button class="cl-link" data-action="sleep" data-testid="next" title="Skip ahead; stops at any big alert">Skip to dawn</button>
       <button class="cl-link" data-action="evening" data-testid="evening-map" title="Station guards, approve repairs and send tonight's raids">To the map</button>
       <button class="cl-link" data-action="books">${books ? 'Close the books' : 'See the books'}</button></span>
@@ -840,6 +869,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <h1 class="cl-title">Lemonade Stand Wars</h1>
       <div class="cl-modes">${modes}</div>
       <div class="cl-diffs">${diffs}</div>
+      <p class="cl-blurb" data-testid="setup-blurb"><b>${esc(MODES[st.mode].label.replace('Sandbox: ', ''))}:</b> ${esc(MODES[st.mode].blurb)}<br><b>${esc(DIFFICULTY[st.difficulty].label)}:</b> ${esc(DIFFICULTY[st.difficulty].blurb)}</p>
       ${st.difficulty === 'custom' ? customPanel(st) : ''}
       ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${toggle('lessons', st.lessons !== false, 'Lessons', 'Lottie teaches one system a day. Off: buttons follow rank alone.')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>

@@ -11,10 +11,10 @@
 import { FACTIONS, PHONE_ATTENTION_JUMP, PHONE_GRUDGE_JUMP, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
-import { threatLevel, TUTORIAL_RAID_DAY, type Raid } from './crew.ts';
+import { threatLevel, type Raid } from './crew.ts';
 import { onYou } from './night.ts';
 import { gameOver, isEndless } from './modes.ts';
-import { hasStory, storyAct } from './story.ts';
+import { hasStory } from './story.ts';
 
 export type BossMood = 'warn' | 'sore' | 'smashed' | 'gloat';
 /**
@@ -41,7 +41,7 @@ const jumped = (from: number, to: number, by: number) => to - from >= by - 1e-6;
 
 /** The lines the spec scripts. */
 export const LINES = {
-  brockFirst: 'Bro. Your stand is in my sun.',
+  brockFirst: 'Bro. Your stand is in my sun. Summer Fair, Day 14. You lose, you leave.',
   brockRent: 'Bro. That was my rent money.',
   brockBlend: 'Bro. Tonight we blend your stand. Smoothie or chunky, your call.',
   brockFence: 'Your fence is cute, bro. My guys are gonna do pull-ups on it.',
@@ -63,15 +63,15 @@ export function migratePhone(s: GameState): void {
   ph.threat = threatLevel(s);
   for (const r of RIVALS) ph.grudge[r] = s.rivals[r].grudge; // Attention: read at the next dawn, when the rivals' dawn works it out
   ph.groves = grovePlots(s);
-  ph.brock = s.day > TUTORIAL_RAID_DAY; // an older run is past Brock's first call
+  ph.brock = s.day > 1; // an older run is past Brock's first call
   s.phone = ph;
 }
 
 const grovePlots = (s: GameState) => Object.keys(s.plots).filter((id) => id.startsWith('groves') && s.plots[id].owner === 'player').length;
 const plotsOf = (s: GameState, who: RivalId) => PLOTS.filter((p) => s.plots[p.id].owner === who).length;
 const maxStandLevel = (s: GameState) => Object.values(s.plots).reduce((m, p) => (p.owner === 'player' && p.stand ? Math.max(m, p.stand.level) : m), 0);
-/** In the campaign Brock's taunts unlock at the Act 1 climax (his first call is scripted separately). */
-const brockLocked = (s: GameState) => hasStory(s) && !isEndless(s) && storyAct(s) < 2;
+/** Brock taunts from Day 1 (Ben, 2026-11-08: the competition shows up at once); kept as a seam for a quieter mode. */
+const brockLocked = (_s: GameState) => false;
 
 /**
  * Ring the Corner's phone (other systems call this for their taunts). Empty text: the boss's own pool by mood.
@@ -162,8 +162,8 @@ export function phoneCheck(s: GameState, dawn = false): void {
   migratePhone(s);
   const ph = s.phone!;
   if (dawn) { const brief = bossBrief(s); if (brief) s.news.push(brief); }
-  // Brock's first call: the day your first Kiosk opens, or after the Summer Fair, whichever comes first.
-  if (!ph.brock && s.rivals.blenders.alive && ((hasStory(s) ? storyAct(s) >= 2 : s.day >= TUTORIAL_RAID_DAY) || maxStandLevel(s) >= 3)) {
+  // Brock's first call: Day 1, once your stand opens, so you know from the start who you're up against.
+  if (!ph.brock && s.rivals.blenders.alive && (s.day > 1 || s.phase === 'open' || maxStandLevel(s) >= 3)) {
     ph.brock = true;
     phoneCall(s, 'blenders', LINES.brockFirst, { priority: CALL_PRIORITY.story, scripted: true });
   }

@@ -130,8 +130,13 @@ describe('the raid warning card', () => {
     expect(shields()).toBe(1);
   });
 
-  it('on the tutorial raid Dex is among the shields, wherever he is posted', () => {
+  it('on the tutorial raid Dex is among the shields once hired, wherever he is posted', () => {
     const { s } = warned({ tutorial: true });
+    const mark0 = 'M32 6l20 8v14c0 13-8 23-20 28-12-5-20-15-20-28V14z';
+    s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
+    expect(alertCards(s)[0].split(mark0).length - 1).toBe(0); // Night 3 comes before Dex (Day 4): nobody's there
+    s.plots[LOTTIES_CORNER].defense.gadgets.pop();
+    s.guards.push({ id: 'dex-moody', name: 'Dex Moody', trait: 'Loyal', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 0 } as never);
     s.plots[LOTTIES_CORNER].defense.gadgets.push('watchtower');
     const mark = 'M32 6l20 8v14c0 13-8 23-20 28-12-5-20-15-20-28V14z'; // the shield's outline (clay.ts shieldSVG)
     expect(A.shieldSVG()).toContain(mark);

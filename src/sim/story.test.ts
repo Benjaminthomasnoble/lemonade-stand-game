@@ -110,9 +110,9 @@ describe('story acts', () => {
 describe('story scenes', () => {
   it('wait for Morning Prep, play one a day, and leave a recap when skipped', () => {
     const s = newGame(14);
-    s.day = 4;
-    nextDawn(s); // Day 5: the Steward's reminder
-    expect(s.day).toBe(5);
+    s.day = 2;
+    nextDawn(s); // Day 3: the Steward's reminder
+    expect(s.day).toBe(3);
     expect(sceneReady(s)).toBe(true);
     playScene(s, 'dex'); // a second beat the same day waits
     const sc = beginScene(s)!;
@@ -135,7 +135,7 @@ describe('story scenes', () => {
 
   it('a scene cut off by a reload counts as seen, and only boss exits play outside the campaign', () => {
     const s = newGame(15);
-    s.day = 4;
+    s.day = 2;
     nextDawn(s);
     beginScene(s);
     const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
@@ -150,8 +150,9 @@ describe('story scenes', () => {
   it("the Steward's scene ends with Vera on the phone, watched or skipped; no scene runs over a minute", () => {
     for (const skipped of [false, true]) {
       const s = newGame(33);
-      s.day = 4;
+      s.day = 2;
       nextDawn(s);
+      s.phone!.queue = s.phone!.queue.filter((c) => c.text !== LINES.brockFirst); // Brock's Day 1 call aside
       beginScene(s);
       expect(s.phone!.queue.some((c) => c.text === LINES.veraSteward)).toBe(false); // not before the scene is over
       endScene(s, skipped);
@@ -174,7 +175,7 @@ describe('boss phone taunts', () => {
     expect(s.phone!.log.map((c) => c.who)).toEqual(['coldbrew', 'sourwood']);
   });
 
-  it('follow Grudge and Threat jumps; Brock waits for Act 2 in the campaign; the fallen never call', () => {
+  it('follow Grudge and Threat jumps; Brock taunts from Day 1; the fallen never call', () => {
     const s = newGame(18);
     s.rivals.coldbrew.grudge += 12;
     phoneCheck(s);
@@ -183,12 +184,12 @@ describe('boss phone taunts', () => {
     expect(threatLevel(s)).toBe(2);
     phoneCheck(s);
     expect(s.phone!.queue.some((c) => c.who === 'sourwood' && c.text === LINES.veraThreat)).toBe(true);
-    expect(phoneCall(s, 'blenders', '', { mood: 'warn' })).toBe(false); // Act 1
+    expect(phoneCall(s, 'blenders', '', { mood: 'warn' })).toBe(true); // Act 1 too (Ben, 2026-11-08)
     expect(phoneCall(newGame(19, { mode: 'sandbox' }), 'blenders', '', { mood: 'warn' })).toBe(true);
     eliminate(s, 'coldbrew', 'buyout');
     const rang: string[] = [];
     for (let call = takeCall(s); call; call = takeCall(s)) { rang.push(call.who); s.day++; }
-    expect(rang).toEqual(['sourwood']);
+    expect(rang).toEqual(['sourwood', 'blenders']);
   });
 
   it('a raid on you tonight gets its taunt once its warning is out, never before, and none once it has hit', () => {
@@ -235,7 +236,7 @@ describe('boss phone taunts', () => {
     const camp = newGame(36);
     playDay(camp);
     playDay(camp);
-    expect(camp.phone!.queue).toEqual([]); // the first dawn only reads their moods: Days 2 and 3 are quiet
+    expect(camp.phone!.queue.filter((c) => c.who !== 'blenders')).toEqual([]); // the first dawn only reads their moods: Days 2 and 3 are quiet but for Brock
     const s = newGame(37, { mode: 'sandbox' });
     playDay(s);
     const rivals = Object.keys(s.rivals) as RivalId[];
@@ -250,6 +251,7 @@ describe('boss phone taunts', () => {
     })!;
     s.plots[lot.id].owner = 'player'; // land of yours on a boss's border (src/sim/rivalAi.ts): their Attention jumps
     const keen = rivals.filter((r, i) => sharedBorders(s, r) > before[i]);
+    s.phone!.queue = s.phone!.queue.filter((c) => c.text !== LINES.brockFirst); // Brock's Day 1 call aside
     expect(takeCall(s)).toBeNull();
     playDay(s);
     // (Vera may ring first about your Threat: more land can lift it.) The boss's own pool fills the line in.
@@ -444,12 +446,13 @@ describe('lessons and Dex', () => {
     expect(taught(s, 'recipes')).toBe(false);
     s.day = 2;
     expect(taught(s, 'recipes')).toBe(true);
-    expect(taught(s, 'upgrade')).toBe(false);
-    s.day = 4;
-    expect(taught(s, 'upgrade')).toBe(true);
+    expect(taught(s, 'market')).toBe(true); // you buy your own from Day 2
     expect(taught(s, 'threat')).toBe(false);
+    s.day = 3;
+    expect(taught(s, 'threat') && taught(s, 'defense')).toBe(true); // Threat lemons and the Picket Fence come together, before Night 3's raid
+    expect(taught(s, 'upgrade')).toBe(false);
     s.day = 5;
-    expect(taught(s, 'threat') && taught(s, 'defense')).toBe(true); // Threat lemons and the Picket Fence come together
+    expect(taught(s, 'upgrade')).toBe(true);
     expect(taught(newGame(25, { lessons: false }), 'land')).toBe(true);
     s.settings.lessons = false; // the Options switch, mid-run: every button follows rank alone
     expect(taught(s, 'land')).toBe(true);
@@ -469,7 +472,8 @@ describe('lessons and Dex', () => {
     const lot = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
     s.plots[lot.id].owner = 'player';
     s.plots[lot.id].stand = structuredClone(s.plots[LOTTIES_CORNER].stand);
-    s.day = 5;
+    s.day = 3;
+    s.tutorialRaidDone = false;
     nextDawn(s);
     s.news.length = 0;
     openStand(s);
@@ -486,14 +490,14 @@ describe('lessons and Dex', () => {
     expect(s.raids.find((r) => s.plots[r.target].owner === 'player')).toMatchObject({ attacker: 'blenders', target: lot.id, detected: true });
   });
 
-  it('Dex joins on Day 6, not at the first rank-up, and takes the Corner himself if nobody stations him', () => {
+  it('Dex joins on Day 4, not at the first rank-up, and takes the Corner himself if nobody stations him', () => {
     const s = newGame(26);
     s.cash = 2500; // enough Success Score for Rank 2 at the first closing
     playDay(s);
     expect(s.rank).toBeGreaterThanOrEqual(2);
     expect(s.guards).toHaveLength(0);
     expect(s.recruits.length).toBeGreaterThan(0); // the Hiring Hall opens with the rank
-    s.day = 5;
+    s.day = 3;
     nextDawn(s);
     const dex = s.guards.find((g) => g.name === 'Dex Moody')!;
     expect(dex.post).toBeNull(); // stationing him is today's lesson
@@ -503,7 +507,7 @@ describe('lessons and Dex', () => {
     playDay(s);
     expect(dex.post).toBe(LOTTIES_CORNER);
     const t = newGame(27, { lessons: false });
-    t.day = 5;
+    t.day = 3;
     nextDawn(t);
     expect(t.guards.find((g) => g.name === 'Dex Moody')?.post).toBe(t.selected);
   });
@@ -519,7 +523,7 @@ describe('lessons and Dex', () => {
 
   it('stationing Dex on his day ticks the lesson off', () => {
     const s = newGame(28);
-    s.day = 5;
+    s.day = 3;
     nextDawn(s);
     const dex = s.guards.find((g) => g.name === 'Dex Moody')!;
     const cash = s.cash;

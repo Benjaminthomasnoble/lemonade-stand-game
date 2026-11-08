@@ -161,6 +161,9 @@ export const emptyPosts = (s: GameState, guardIds: string[]) =>
 
 /** A rival raid on one of your plots: these are always warned. */
 export const onYou = (s: GameState, r: Raid) => r.attacker !== 'player' && s.plots[r.target]?.owner === 'player';
+/** Nothing of yours is in play tonight: no raid is coming for you and none of your squads is out. Sleep then skips
+ * straight to dawn instead of playing out an empty night (Ben, 2026-11-08). */
+export const nothingTonight = (s: GameState) => !s.raids.some((r) => onYou(s, r) || r.attacker === 'player') && !s.fight;
 
 /** Raids planned with only an eta (old saves) get their minutes. */
 function fillTimes(s: GameState, r: Raid): void {

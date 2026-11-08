@@ -23,7 +23,7 @@ export const NIGHT_END = MINUTES_PER_DAY + DAWN;
 /** At night a game hour lasts about 8 real seconds at 1×: 20:00 to 07:00 takes about 1.5 real minutes. */
 export const NIGHT_REAL_SECONDS_PER_MINUTE = 8 / 60;
 /** Quiet nights: from closing until an alert, the night runs at 3× by itself (a setting, on by default). */
-export const QUIET_NIGHT_SPEED = 3;
+export const QUIET_NIGHT_SPEED = 12; // a raid night races to its warning (a night with nothing coming is skipped outright)
 /** The Evening is a moment: off the Ledger, on the live map, the night starts by itself after this many real seconds at 1×. */
 export const EVENING_REAL_SECONDS = 6; // placeholder: spec gap ("a moment")
 export const SEASON_DAYS = 14;
@@ -338,7 +338,7 @@ export const RANKS = [
 export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops
 /** Development counts each facility tier as this many stand levels. */
 export const FACILITY_DEVELOPMENT = 2;
-export const AUTO_RESTOCK_DAY = 3; // the Market and Auto-Restock open with Day 3's lesson; Lottie stocks your stands before it
+export const AUTO_RESTOCK_DAY = 2; // the Market and Auto-Restock open with Day 2's lesson; Lottie stocks your table on Day 1 only
 /** Lottie's side lot next to the Corner, sold to you on Day 3 with an L1 table: fixed values, like the Corner (spec Appendix A). */
 export const SIDE_LOT = { land: 300, traffic: 300, price: 300 } as const;
 /** Marisol's Auto-Price arrives at Rank 3, Block Boss (spec: Helpers that keep a big empire calm). */
@@ -498,7 +498,10 @@ export const AUTO_REPAIR_RANK = 3;
 export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
-export const NO_RAID_DAYS = 5;
+export const NO_RAID_DAYS = 2;
+/** After the first raid, no more than this many nights in a row pass with no raid on you (Ben, 2026-11-08: the
+ * rivals must actually come). The next night a rival who may raid you does. */
+export const MAX_QUIET_NIGHTS: Record<Difficulty, number> = { laidback: 4, classic: 2, cutthroat: 1, custom: 2 };
 export const RESPECT_DAYS = 3;
 /** Rival raids on the player per week, by Threat (Classic). */
 export const RAIDS_PER_WEEK = [1, 2, 3, 4, 6];
@@ -651,9 +654,9 @@ export type Mode = 'campaign' | 'sandbox' | 'endless';
 export type Difficulty = 'laidback' | 'classic' | 'cutthroat' | 'custom';
 export type WinCondition = 'domination' | 'economic' | 'none';
 export const MODES: Record<Mode, { label: string; blurb: string }> = {
-  campaign: { label: 'Story Campaign', blurb: 'Lottie\'s Corner to the whole Bay. Win by Domination, then keep squeezing.' },
-  sandbox: { label: 'Sandbox: Turf War', blurb: 'Your rules: pick the win condition, or turn combat off with Peaceful.' },
-  endless: { label: 'Endless Summer', blurb: 'No finish line. Play for the highest Peak Success Score.' },
+  campaign: { label: 'Story Campaign', blurb: 'The story. Beat 5 drink gangs and win back Grandma\'s stolen recipes.' },
+  sandbox: { label: 'Sandbox: Turf War', blurb: 'No story. Pick how you win, or switch the fighting off.' },
+  endless: { label: 'Endless Summer', blurb: 'No story, no finish line. Grow forever and chase a high score.' },
 };
 /** Difficulty changes how often rivals come and how hard setbacks land, never the rules. */
 export const DIFFICULTY: Record<Difficulty, {
@@ -667,12 +670,12 @@ export const DIFFICULTY: Record<Difficulty, {
   notice: number; // an undetected raid still warns this many game minutes before it hits
   raidPause: boolean; // raid warnings auto-pause by default
 }> = {
-  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get Busted, never Wrecked. No game over.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true },
-  classic: { label: 'Classic', blurb: 'The intended balance. Lottie\'s Cookie Jar bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
-  cutthroat: { label: 'Cutthroat', blurb: 'Half again as many raids, a 1-day Respect cooldown, no Cookie Jar.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false },
+  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get dented, never wrecked. You can\'t lose.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true },
+  classic: { label: 'Classic', blurb: 'Fair fights. Go broke and Grandma bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
+  cutthroat: { label: 'Cutthroat', blurb: 'More raids, less warning, no bailouts. Go broke and it\'s over.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false },
   // Custom starts from Classic; Settings.custom holds the sliders (modes.ts difficultyOf). No Threat nudge, and a run
   // can be lost unless the Cookie Jar is always there (placeholders: the spec leaves both open).
-  custom: { label: 'Custom', blurb: 'Your own sliders, anywhere from Laid Back to Cutthroat.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
+  custom: { label: 'Custom', blurb: 'Set your own raid rate, warning time and cooldown.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
 };
 /** Custom's sliders (spec: Custom: raids ×0.5 to ×1.5; notice and Respect cooldown anywhere from Laid Back's to
  * Cutthroat's): [lowest, highest, step]. */
@@ -702,7 +705,7 @@ export const GOAL_REWARD = { short: { share: 0.1, min: 5 }, medium: { share: 0.2
 /** The day's short goal: sell this share of the cups every stand should sell on the forecast. */
 export const SALES_GOAL_SHARE = 0.9; // placeholder: spec gap (the walkthrough's 1,200 cups across 5 stands on Day 12)
 /** Lessons (spec "One system a day"): the day each system's buttons appear. Switched off, buttons follow rank alone. */
-export const LESSON_DAY = { recipes: 2, forecast: 2, market: AUTO_RESTOCK_DAY, upgrade: 4, rank: 4, threat: 5, defense: 5, crew: 6, marketing: 7, land: 8 } as const;
+export const LESSON_DAY = { recipes: 2, forecast: 2, market: AUTO_RESTOCK_DAY, upgrade: 5, rank: 5, threat: 3, defense: 3, crew: 4, marketing: 6, land: 7 } as const;
 /** A boss phones when their Grudge toward you jumps this much at once (a raid on them adds 8 or 20). */
 export const PHONE_GRUDGE_JUMP = 8; // placeholder: spec gap ("a mood shift")
 /** ...or their Attention on you, beyond Threat, rises this much from one dawn to the next (one more district of yours on their border). */

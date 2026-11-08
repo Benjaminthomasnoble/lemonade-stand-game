@@ -1003,9 +1003,12 @@ async function main() {
     world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
-    document.body.classList.toggle('bay-view', dist > 90); // the HUD tucks its feed into icons so the whole plinth shows
+    // Far out (Bay View, or Gull Flight up high, judged by altitude not the take-off target): the HUD tucks its feed
+    // into icons so the whole plinth shows, and district names float over the map.
+    const far = flight.active() ? world.camera.position.y > 40 : dist > 90;
+    document.body.classList.toggle('bay-view', far);
     for (const l of labels) {
-      const show = dist > 90;
+      const show = far;
       l.el.style.display = show ? '' : 'none';
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }

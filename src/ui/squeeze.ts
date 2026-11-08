@@ -2,6 +2,7 @@
 // Call the Big Squeeze button, at Morning Prep; through the siege, its night, the Manor as it stands (Gate HP, Yard
 // elites, Boss Room Stewards) and tonight's targets, each a Go There; once the siege is done, the Manor as it left it
 // above the HQ assault. Plain controls on the HUD's existing classes; clicks go through the HUD's one listener.
+import { glyph } from './clay.ts';
 import {
   BIG_SQUEEZE, canCallBigSqueeze, manorStewards, PLOT_BY_ID, siegeDone, siegeNight, siegeTargets, squeezedHq, squeezeOpen,
   type GameState, type RivalId,
@@ -14,7 +15,7 @@ const RULES = `${BIG_SQUEEZE.nights} siege nights, then storm the Manor. Each da
 /** The Manor as the siege has left it so far: Gate HP, Yard elites, and the Stewards beside Vera. */
 function manor(s: GameState): string {
   const hq = squeezedHq(s, 'sourwood');
-  return `<span class="cl-stages" title="Gate HP, Yard elites, Stewards with Vera"><i>Gate ${hq.gate.toLocaleString('en-US')}</i>▸<i>Yard ${hq.yard}</i>▸<i>Vera +${manorStewards(s, 'sourwood')}</i></span>`;
+  return `<span class="cl-stages" title="Gate HP, Yard elites, Stewards with Vera"><i>Gate ${hq.gate.toLocaleString('en-US')}</i>${glyph('arrow')}<i>Yard ${hq.yard}</i>${glyph('arrow')}<i>Vera +${manorStewards(s, 'sourwood')}</i></span>`;
 }
 
 /** Below the sit-downs on an HQ card (hud.ts hqPanel): on the campaign's Sourwood Manor from Rank 9 in Act 5, the Big
@@ -27,7 +28,7 @@ export function squeezePanel(s: GameState, id: RivalId, assault: string): string
   if (q?.called === undefined) {
     const b = canCallBigSqueeze(s);
     return `<div class="cl-planner" data-testid="big-squeeze"><b title="${esc(RULES)}">The Big Squeeze</b>
-      <span class="cl-stages"><i>${BIG_SQUEEZE.nights} nights</i>▸<i>Gate</i>▸<i>Yard</i>▸<i>Vera</i></span>
+      <span class="cl-stages"><i>${BIG_SQUEEZE.nights} nights</i>${glyph('arrow')}<i>Gate</i>${glyph('arrow')}<i>Yard</i>${glyph('arrow')}<i>Vera</i></span>
       <button class="cl-b go" data-action="callSqueeze" data-testid="call-squeeze" ${b.ok ? `title="${esc(RULES)}"` : `disabled title="${esc(b.why)}"`}>Call the Big Squeeze</button></div>`;
   }
   const targets = siegeTargets(s);

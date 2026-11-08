@@ -34,7 +34,7 @@ export function tripNote(s: GameState, target: string, guardIds: string[]): stri
 export function tripLines(s: GameState): string[] {
   const out = raidsOut(s).map((r) => {
     const tip = `Your crew raids ${PLOT_BY_ID[r.target].name} (${r.sabotage ? 'sabotage' : r.objective}): sets out ${clockText(r.leave ?? s.minute)}, there about ${clockText(r.at ?? s.minute)}`;
-    return `<div class="cl-raidwarn mine" title="${esc(tip)}">${art('raid', A.raidSVG)}<b>${r.guards?.length ?? 0} → ${esc(place(r.target))}</b><span class="cl-note">${clockText(r.at ?? s.minute)}</span></div>`;
+    return `<div class="cl-raidwarn mine" title="${esc(tip)}">${art('raid', A.raidSVG)}<b>${r.guards?.length ?? 0} ${A.glyph('arrow')} ${esc(place(r.target))}</b><span class="cl-note">${clockText(r.at ?? s.minute)}</span></div>`;
   });
   for (const r of squadsHomeward(s)) {
     out.push(`<div class="cl-raidwarn mine" title="${esc(`Your squad is walking home from ${PLOT_BY_ID[r.target].name}`)}">${art('foot', A.footSVG)}<b>Home ~${clockText(r.back!)}</b></div>`);

@@ -397,14 +397,16 @@
 .clay .cl-ticket.mini:hover, .clay .cl-ticket.mini:focus-within { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
   background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab); }
 .clay .cl-ticket.mini:hover > :not(svg), .clay .cl-ticket.mini:focus-within > :not(svg) { display: revert; }
-/* Bay View: every card but a raid warning tucks into an icon blob, so the whole plinth shows. */
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) { flex: 0 0 auto; display: block; padding: calc(var(--u) * .4); clip-path: none; background: none; }
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"])::before { display: none; }
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) > svg { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); display: block; }
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]) > :not(svg) { display: none; }
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]):hover { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
+/* Bay View: feed cards but raid warnings, the story scene and a VIP's Watch tuck into icon blobs, so the whole
+   plinth shows. A tap, Tab or hover opens one again. Scoped to the feed: tooltips and captions keep their paper. */
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])) { flex: 0 0 auto; display: block; padding: calc(var(--u) * .4); clip-path: none; background: none; }
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"]))::before { display: none; }
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])) > svg { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); display: block; }
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])) > :not(svg) { display: none; }
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])):hover,
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])):focus-within { flex-basis: 100%; display: grid; padding: calc(var(--u) * .8) calc(var(--u) * 1.6) calc(var(--u) * .7) calc(var(--u) * 1.4); clip-path: polygon(1.5% 0, 98.5% 0, 100% 12%, 98% 26%, 100% 40%, 98% 54%, 100% 68%, 98% 82%, 100% 100%, 1.5% 100%, 0 86%, 2% 72%, 0 58%, 2% 44%, 0 30%, 2% 16%);
   background: repeating-linear-gradient(97deg, rgba(255,255,255,.2) 0 2px, transparent 2px 7px), linear-gradient(180deg, #f6edd2, #e6d6ab); }
-body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"]):hover > :not(svg) { display: revert; }
+body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])):hover > :not(svg), body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [data-testid="scene"], :has([data-testid="vip-watch"])):focus-within > :not(svg) { display: revert; }
 /* The boss board: five gang heads, crossed out as each falls, the next one ringed. */
 .clay .cl-bosses { display: flex; align-items: center; gap: calc(var(--u) * .1); }
 .clay .cl-boss { position: relative; display: inline-block; width: calc(var(--u) * 3); height: calc(var(--u) * 3); }
@@ -416,3 +418,20 @@ body.bay-view .clay .cl-ticket:not([data-testid="raid-warning"], [data-testid="s
 .clay .cl-fairtag { margin-left: calc(var(--u) * .4); padding: 0 calc(var(--u) * .5); border-radius: calc(var(--u) * .5); background: #E8704F; color: #FFF1D6; font: 700 calc(var(--u) * 1.2)/1.6 'Fredoka', sans-serif; white-space: nowrap; transform: rotate(-3deg); }
 @keyframes cl-boss-bob { 50% { transform: scale(1.22) translateY(calc(var(--u) * -.25)); } }
 @media (max-width: 640px) { .clay .cl-boss { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); } }
+
+/* Knob icons fill the knob on every screen (no button padding squeezing them to a few pixels). */
+.clay .cl-knob-s { padding: 0; box-sizing: border-box; display: inline-grid; place-items: center; }
+.clay .cl-knob-s .cl-ico { width: 70%; height: 70%; margin: 0; }
+@media (max-width: 640px) { .clay .cl-knob-s { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); } }
+/* Feed cards never cut off: replies and buttons wrap inside the strip. */
+.clay .cl-feed { overflow-x: hidden; }
+.clay .cl-ticket > * { min-width: 0; }
+.clay .cl-ticket .cl-acts { flex-wrap: wrap; }
+.clay .cl-ticket .cl-b { white-space: normal; text-align: left; max-width: 100%; }
+.clay .cl-ticket b { overflow-wrap: anywhere; }
+/* Clay arrows between stages and in raid lines. */
+.clay .cl-stages .cl-ico { width: 1em; height: 1em; vertical-align: -0.15em; }
+/* Specialization picker: picture buttons that match the fit-outs on the stand. */
+.clay .cl-b.cl-spec { display: inline-flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .2); padding: calc(var(--u) * .4) calc(var(--u) * .5); }
+.clay .cl-b.cl-spec > svg { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }
+.clay .cl-b.cl-spec > span { font-size: calc(var(--u) * 1.3); }

@@ -17,7 +17,7 @@ const SHORT: Record<SpecId, string> = { express: 'Express', fancy: 'Fancy', fort
 let icons: Record<SpecId | 'empty', string> | null = null;
 /** Each prop is drawn once and reused, so renders compare equal and nothing flickers. */
 const icon = (id: SpecId | 'empty') =>
-  (icons ??= { express: A.cupSVG(), fancy: A.starSVG(), fortified: A.shieldSVG(), roof: A.megaphoneSVG(), empty: A.starSVG(false) })[id];
+  (icons ??= { express: A.specExpressSVG(), fancy: A.specFancySVG(), fortified: A.specFortifiedSVG(), roof: A.specRoofSVG(), empty: A.starSVG(false) })[id];
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const lowerFirst = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 /** "Express Window: +30% service (cups/hour). Best on a stand with a line out the door" */
@@ -38,7 +38,7 @@ export function specCards(k: SpecKit, s: GameState): string[] {
       const b = canFitSpec(s, plotId, slot, id);
       const on = cur === id;
       const what = on ? 'Fitted here' : b.ok ? `${cur ? 'Swap it in' : 'Fit it'} for ${cost}` : b.why;
-      return `<button class="cl-b tiny" data-action="spec" data-slot="${slot}" data-id="${id}" data-testid="spec-${n}-${id}" aria-pressed="${on}" title="${esc(`${about(id)}. ${what}`)}"${b.ok ? '' : ' disabled'}>${SHORT[id]}</button>`;
+      return `<button class="cl-b tiny cl-spec" data-action="spec" data-slot="${slot}" data-id="${id}" data-testid="spec-${n}-${id}" aria-label="${SPECIALIZATIONS[id].name}" aria-pressed="${on}" title="${esc(`${about(id)}. ${what}`)}"${b.ok ? '' : ' disabled'}>${icon(id)}<span>${SHORT[id]}</span></button>`;
     });
     const title = cur ? `Slot ${n}: ${SPECIALIZATIONS[cur].name}` : `Slot ${n}: empty`;
     const sub = cur ? SPECIALIZATIONS[cur].effect : `Fit one for ${cost}`;

@@ -136,6 +136,9 @@ export const GLYPHS: Record<string, () => string> = {
   check: () => gsvg(`<path d="M7 16.5l6 6L25.5 9" fill="none" stroke="${INK}" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 16.5l6 6L25.5 9" fill="none" stroke="#7CC47F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`),
   up: () => gsvg(`<path d="M7 20 16 10l9 10z" fill="#F7C948" ${G}/>`),
   more: () => gsvg([9, 16, 23].map((x) => `<circle cx="${x}" cy="16" r="3" fill="#F7C948" ${G}/>`).join('')),
+  down: () => gsvg(`<path d="M7 12 16 22l9-10z" fill="#E8704F" ${G}/>`),
+  arrow: () => gsvg(`<path d="M5 16h15" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><path d="M5 16h15" stroke="#F7C948" stroke-width="2.6" stroke-linecap="round"/><path d="M18 9.5 27 16l-9 6.5z" fill="#F7C948" ${G}/>`),
+  trophy: () => gsvg(`<path d="M10 6h12v6a6 6 0 0 1-12 0z" fill="#F7C948" ${G}/><path d="M10 8H6.5q0 6 4.5 6M22 8h3.5q0 6-4.5 6" fill="none" ${G}/><path d="M14.5 18h3v4h-3z" fill="#F7C948" ${G}/><rect x="10" y="22" width="12" height="4.5" rx="1.5" fill="#8B5E3C" ${G}/>${sheenE(13, 9.5, 1, 2.2, 0)}`),
   dot: () => gsvg(`<circle cx="16" cy="16" r="5" fill="#F7C948" ${G}/>`),
   star: () => gsvg(`<path d="M16 5l3.3 6.9 7.5 1-5.5 5.2 1.4 7.5L16 22l-6.7 3.6 1.4-7.5-5.5-5.2 7.5-1z" fill="#F7C948" ${G}/>${sheenE(13.5, 12.5, 1.2, 2.2)}`),
   pin: () => gsvg(`<path d="M16 28s-8-8.5-8-14a8 8 0 0 1 16 0c0 5.5-8 14-8 14z" fill="#E8704F" ${G}/><circle cx="16" cy="13.5" r="3" fill="#FFF1D6" ${G}/>${sheenE(12, 10, 1.2, 2.4)}`),
@@ -143,3 +146,33 @@ export const GLYPHS: Record<string, () => string> = {
 const GCACHE: Record<string, string> = {};
 /** A small clay control icon by name (cached so HUD render strings stay equal). */
 export const glyph = (name: keyof typeof GLYPHS): string => (GCACHE[name] ??= GLYPHS[name]());
+
+// ---------- specialization fit-outs (match the clay models on the stand) ----------
+/** Express Window: a striped serving hatch with a lightning-bolt badge. */
+export function specExpressSVG(): string {
+  const a = uid();
+  return svg(`<defs>${gr(a, '#F7C948')}</defs><rect x="8" y="14" width="44" height="40" rx="4" fill="#FFF1D6" ${S}/>
+    <path d="M8 14h44v10H8z" fill="url(#${a})" ${S}/><path d="M16 14v10M24 14v10M32 14v10M40 14v10" stroke="#E8704F" stroke-width="4"/>
+    <rect x="15" y="30" width="30" height="16" rx="2" fill="#3BB4C1" ${S}/>${sheenE(20, 34, 2, 4, 0)}
+    <circle cx="49" cy="15" r="10" fill="#E8704F" ${S}/><path d="M50 7l-5 9h5l-2 8 6-10h-5z" fill="#FFF1D6" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/>`);
+}
+/** Fancy Menu: an easel menu board with a little crown. */
+export function specFancySVG(): string {
+  const a = uid();
+  return svg(`<defs>${gr(a, '#C8325A')}</defs><path d="M20 58 27 18M44 58 37 18M32 40v18" stroke="#8B5E3C" stroke-width="5" stroke-linecap="round"/><path d="M20 58 27 18M44 58 37 18" fill="none" ${S}/>
+    <rect x="14" y="16" width="36" height="28" rx="3" fill="url(#${a})" ${S}/><path d="M20 25h24M20 31h18M20 37h21" stroke="#FFF1D6" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M23 13l3-8 6 5 6-5 3 8z" fill="#F7C948" ${S}/>${sheenE(18, 21, 1.6, 3)}`);
+}
+/** Fortified Frame: riveted plates with a heap of sandbags. */
+export function specFortifiedSVG(): string {
+  const a = uid(), b = uid();
+  return svg(`<defs>${gr(a, '#9AA3B5')}${gr(b, '#D9B77E')}</defs><rect x="10" y="8" width="44" height="32" rx="3" fill="url(#${a})" ${S}/><path d="M32 8v32M10 24h44" stroke="${INK}" stroke-width="2.4"/>
+    ${[[15, 13], [27, 13], [37, 13], [49, 13], [15, 35], [49, 35]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="${INK}"/>`).join('')}
+    ${[[8, 48], [22, 48], [36, 48], [50, 48], [15, 38], [29, 38], [43, 38]].map(([x, y]) => `<ellipse cx="${x + 6}" cy="${y + 6}" rx="8" ry="5.5" fill="url(#${b})" ${S}/>`).join('')}${sheenE(16, 14, 2, 4)}`);
+}
+/** Billboard Roof: a billboard up on stilts. */
+export function specRoofSVG(): string {
+  const a = uid();
+  return svg(`<defs>${gr(a, '#7CC47F')}</defs><path d="M18 34v24M46 34v24M18 50h28" stroke="#8B5E3C" stroke-width="5" stroke-linecap="round"/><path d="M18 34v24M46 34v24" fill="none" ${S}/>
+    <rect x="6" y="8" width="52" height="28" rx="3" fill="url(#${a})" ${S}/><ellipse cx="22" cy="22" rx="7" ry="7.5" fill="#F7C948" ${S}/><path d="M33 17h18M33 24h14" stroke="#FFF1D6" stroke-width="3" stroke-linecap="round"/>${sheenE(12, 13, 2, 3.5)}`);
+}

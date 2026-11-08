@@ -60,7 +60,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
     : next && pb.ok ? btn('perimeter', `${next.name.split(' ')[0]} ${whole(next.cost)}`, `data-plot="${r.target}"`, 'tiny go')
     : fenceRepairCost(ps) && s.cash >= fenceRepairCost(ps) ? btn('repairFence', `Patch ${whole(fenceRepairCost(ps))}`, `data-plot="${r.target}"`) : '';
   return `<div class="cl-ticket red" data-testid="raid-warning" data-raid="${r.id}" title="${esc(tip)}">${ICON.foot()}
-    <b>${r.siege ? 'Siege' : r.syndicate ? 'Syndicate' : SHORT[r.attacker as RivalId] ?? 'Raiders'} → ${esc(place(r.target))}</b>
+    <b>${r.siege ? 'Siege' : r.syndicate ? 'Syndicate' : SHORT[r.attacker as RivalId] ?? 'Raiders'} ${A.glyph('arrow')} ${esc(place(r.target))}</b>
     <span class="cl-acts"><span class="cl-note">${clockText(r.at ?? s.minute)} · ${left} min</span>${them ? `<span class="cl-vs">${them}<i>vs</i>${us}</span>` : ''}</span>
     <span class="cl-acts">${btn('goto', 'Go there', `data-plot="${r.target}"`)}${fix}</span></div>`;
 }

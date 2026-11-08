@@ -19,7 +19,7 @@ export function restockControl(s: GameState, plotId: string): string {
   if (!st || !taught(s, 'market')) return ''; // the Market's lesson (Day 3; Day 1 with the lessons off)
   const on = st.autoRestock;
   const sw = `<button class="cl-auto${on ? ' on' : ''}" data-action="restock" data-testid="auto-restock" aria-pressed="${on}" title="${on
-    ? 'Auto-Restock: Lottie stocks this stand every dawn. Tap to buy your own' : 'Auto-Restock is off here. Tap and Lottie stocks it every dawn'}">${tape(on ? 'Auto ✓' : 'Auto')}</button>`;
+    ? 'Auto-Restock: Lottie stocks this stand every dawn. Tap to buy your own' : 'Auto-Restock is off here. Tap and Lottie stocks it every dawn'}">${tape(on ? `Auto ${A.glyph('check')}` : 'Auto')}</button>`;
   if (!on) return sw;
   const own = st.stockTarget !== null && st.stockTarget !== undefined;
   const suggested = suggestedTarget(s, plotId);
@@ -39,7 +39,7 @@ export function priceSwitch(s: GameState, plotId: string): string {
   const tip = !on ? 'Auto-Price is off: you price this stand. Tap and Marisol takes it over each dawn'
     : st.ownCard ? 'Auto-Price: Marisol prices your card at the top. Change the price and she lets go'
     : 'Auto-Price: each dawn Marisol picks the card and Sweetness for the forecast and prices it at the top. Set it by hand and she lets go';
-  return `<button class="cl-auto${on ? ' on' : ''}" data-action="autoPrice" data-testid="auto-price" aria-pressed="${on}" title="${esc(tip)}">${tape(on ? 'Auto ✓' : 'Auto')}</button>`;
+  return `<button class="cl-auto${on ? ' on' : ''}" data-action="autoPrice" data-testid="auto-price" aria-pressed="${on}" title="${esc(tip)}">${tape(on ? `Auto ${A.glyph('check')}` : 'Auto')}</button>`;
 }
 
 // The preview works out each stand's restock, so it's redone only when something it reads changes.

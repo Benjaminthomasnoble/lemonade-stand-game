@@ -295,7 +295,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(topEl, modal && hud.setup ? '' : topbar(s));
       const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
       set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
-      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s)));
+      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s)).replace(/<div class="cl-ticket/g, '<div tabindex="0" class="cl-ticket')); // a tap or Tab opens a tucked card
       tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
@@ -343,7 +343,10 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       el.className = 'cl-toast';
       el.setAttribute('role', 'status');
       el.innerHTML = tape('', 'cl-big');
-      (el.querySelector('.cl-big') as HTMLElement).textContent = text;
+      const big = el.querySelector('.cl-big') as HTMLElement;
+      const done = text.startsWith('✓ '); // Lottie ticks a goal off: a clay check, not the glyph
+      big.textContent = done ? text.slice(2) : text;
+      if (done) big.insertAdjacentHTML('afterbegin', `${A.glyph('check')} `);
       root.appendChild(el);
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !hud.options.reducedMotion && /RANK UP|makeover/.test(text)) {
         const bits = [ART.lemon(), ART.star(true), ART.coin()];
@@ -744,7 +747,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-end-day">${tape(`Day ${t.day}`)}</div>
       <div class="cl-profit ${profit >= 0 ? 'up' : 'down'}" title="Income ${money(dayIncomeCosts(t).income)}, costs ${money(dayIncomeCosts(t).costs)}">${profit >= 0 ? '+' : '-'}${whole(Math.abs(profit)).replace('-', '')}</div>
       <div class="cl-end-row"><span title="Cups sold">${ART.cup()}<b>${t.customers}</b></span>${away ? `<span class="bad" title="Turned away: ${w.soldOut} sold out, ${w.line} line too long">${ART.empty()}<b>${away}</b></span>` : ''}</div>
-      <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? '▲' : repDelta < -0.004 ? '▼' : ''}</span>
+      <div class="cl-end-row"><span class="cl-stars" title="Reputation ${t.reputationAfter.toFixed(2)} stars">${[0, 1, 2, 3, 4].map((i) => ART.star(i < stars)).join('')}</span><span class="cl-tick ${repDelta >= 0 ? 'up' : 'down'}">${repDelta > 0.004 ? A.glyph('up') : repDelta < -0.004 ? A.glyph('down') : ''}</span>
         ${taught(s, 'rank') ? `<span class="cl-chip cl-rank sm" title="${r.title}: ${whole(ss)} (${ssDelta >= 0 ? '+' : ''}${Math.round(ssDelta)})">${ART.rosette()}${meter(rv)}</span>` : ''}</div>
       <div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>${tip}</span></div>
       ${tasteOffLine(s, t.day)}
@@ -849,7 +852,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const ids = [...planner.squad];
     const ab = canAssault(s, id, ids);
     const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>
-      <span class="cl-stages"><i>Gate</i>▸<i>Yard</i>▸<i>Boss</i></span>${planner.picker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
+      <span class="cl-stages"><i>Gate</i>${A.glyph('arrow')}<i>Yard</i>${A.glyph('arrow')}<i>Boss</i></span>${planner.picker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
       ${btn('assault', 'Storm it!', ab, `data-rival="${id}" data-testid="assault"`, 'go')}</div>`;
     return head + sit + squeezePanel(s, id, assault); // the campaign's Sourwood Manor: the Big Squeeze first (src/ui/squeeze.ts)
   }
@@ -864,7 +867,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         ${([['domination', 'Domination', 'Every rival out, a Majority in every district'], ['economic', 'Score target', 'Reach a Success Score'], ['none', 'No end', 'Just build']] as const).map(([v, l, t]) => `<button class="cl-b ${st.win === v ? 'go' : 'ghost'}" data-action="pick" data-key="win" data-value="${v}" title="${t}">${l}</button>`).join('')}</div>
       ${st.win === 'economic' ? `<div class="cl-row wrap">${RANKS.slice(3).map((r) => `<button class="cl-b tiny ${st.target === r.ss ? 'go' : 'ghost'}" data-action="pick" data-key="target" data-value="${r.ss}" title="${r.title}">${whole(r.ss)}</button>`).join('')}</div>` : ''}
       ${toggle('peaceful', st.peaceful, 'Peaceful', 'No raids, Sabotage or HQ assaults for anyone. Rivals fall to buyouts or bankruptcy, and even Vera sells.')}` : '';
-    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${esc(difficultyLabel(e.difficulty, e.custom))}${e.result === 'won' ? ' · 🏆' : ''}</td></tr>`).join('')}</table>` : '';
+    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${esc(difficultyLabel(e.difficulty, e.custom))}${e.result === 'won' ? ` ${A.glyph('trophy')}` : ''}</td></tr>`).join('')}</table>` : '';
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="setup">
       <h1 class="cl-title">Lemonade Stand Wars</h1>
       <div class="cl-modes">${modes}</div>

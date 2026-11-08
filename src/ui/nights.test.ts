@@ -104,9 +104,9 @@ describe('the raid warning card', () => {
   it("a Syndicate strike reads as the Syndicate's, and says who sent it", () => {
     const { s } = warned({ attacker: 'fizzco', syndicate: true });
     const card = alertCards(s)[0];
-    expect(card).toContain('<b>Syndicate → ');
+    expect(card).toContain('<b>Syndicate <svg class="cl-ico"'); // then a clay arrow
     expect(card).toContain('A Syndicate strike, sent by FizzCo.');
-    expect(alertCards(warned({ attacker: 'fizzco' }).s)[0]).toContain('<b>FizzCo → ');
+    expect(alertCards(warned({ attacker: 'fizzco' }).s)[0]).toContain('<b>FizzCo <svg class="cl-ico"');
   });
 
   it("counts only the guards who'll be there: a squad out on your raid by then leaves its posts empty", () => {
@@ -572,7 +572,7 @@ describe("the Big Squeeze on Sourwood Manor's card", () => {
     const { s: w } = warned({ attacker: 'sourwood', syndicate: true, siege: true });
     w.squeeze = { called: 6, nights: 2 };
     const card = alertCards(w)[0];
-    expect(card).toContain('<b>Siege → ');
+    expect(card).toContain('<b>Siege <svg class="cl-ico"'); // then a clay arrow
     expect(card).toContain('Siege night 3: a Syndicate strike, sent by Sourwoods.');
   });
 });

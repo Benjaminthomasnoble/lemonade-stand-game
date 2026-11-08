@@ -87,9 +87,8 @@ const SIP_CHANCE = 0.35;
  * the camera aims (the sidewalk is at 5.1, the plot's centre at 10). A portrait phone stands further back for width. */
 const STREET_DIST = { landscape: [13, 13, 14, 14.5, 15.5], portrait: [15.5, 16, 17, 19, 20] };
 const STREET_AIM = { landscape: 7, portrait: 8 };
-/** A VIP arrival's framing (watchVip): a laptop at mid zoom; a phone inside DETAIL_AT.mid and from higher up, so the
- * pad and pier keep their real models (a phone at mid-zoom distance draws Bay View blocks) and the shot sees less of
- * the town behind, which keeps a late-game phone within its budget. */
+/** A VIP arrival's framing (watchVip): a laptop at mid zoom; a phone closer in and from higher up, so the shot sees
+ * less of the town behind, which keeps a late-game phone within its budget. */
 const SHOW_SHOT = { heli: { laptop: 45, phone: 40 }, ship: { laptop: 60, phone: 44 }, phonePitch: 0.85 };
 /** Draw walkers only for plots this close to what the camera looks at, and only when zoomed in. */
 const STREET_VIEW_RADIUS = 45;

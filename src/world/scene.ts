@@ -20,9 +20,9 @@ import { setCrowdDetail } from './clay/figure.ts';
 export interface RenderStats { calls: number; triangles: number; geometries: number; textures: number }
 export type Quality = 'laptop' | 'phone';
 export type Detail = 0 | 1 | 2;
-/** Camera distances where mid zoom and Bay View detail begin (phones run one level simpler, so a phone shot that
- * should keep real models, like a VIP arrival, frames inside `mid`). */
-export const DETAIL_AT = { mid: 45, bay: 200 };
+/** Camera distances where mid zoom and Bay View detail begin. A phone draws mid-zoom detail from Street View out to
+ * `phoneBay`, then Bay View blocks (wider phone views cost a late game over 400k triangles at mid detail). */
+export const DETAIL_AT = { mid: 45, bay: 200, phoneBay: 70 };
 /** Street View's look: a heading (radians about y, 0 looking toward +z from the -z side) that faces a south-side
  * stand's front from the street, and the pitch above the ground. A north-side stand is seen from heading + π. */
 export const STREET_LOOK = { heading: Math.atan2(5, 11), pitch: Math.asin(7.7 / Math.hypot(5, 7.7, 11)) };
@@ -69,7 +69,6 @@ export interface World {
    * Something else steers the camera (Gull Flight): update() leaves the camera's pose alone (no glide, turn or
    * OrbitControls), drops the tilt-shift for a wide, windy chase, and takes the detail, fog and shadow box from where
    * the camera is (its height above the bay, the ground it looks at). The clock, the twos and the light run on.
-   * The chase looks out to the horizon, so a phone flies over Bay View blocks.
    */
   pilot(on: boolean): void;
   update(dt: number): void;
@@ -439,11 +438,11 @@ export async function createWorld(container: HTMLElement): Promise<World> {
         dist = camera.position.distanceTo(t);
       }
       const byDist = dist < DETAIL_AT.mid ? 0 : dist < DETAIL_AT.bay ? 1 : 2;
-      detail = Math.min(2, byDist + (phone ? 1 : 0)) as Detail;
-      // Gull Flight looks out to the horizon, so a phone flies over Bay View blocks: mid-zoom models out to the horizon
-      // cost a late-game phone up to 220 draws and 530k triangles flying low, and pulling the fog in doesn't save
-      // enough. A laptop keeps its usual levels (mid zoom there draws as much as Street View, at a wider shadow box).
-      if (piloted && phone) detail = 2;
+      // A phone runs one level simpler up close: mid-zoom detail at Street View and on out to phoneBay, where bay.ts
+      // and town.ts already draw what's far from the focus as cached far clay and Bay View blocks, so pinching out
+      // doesn't turn the stands into bare cubes. Gull Flight, whose focus is the ground ahead of the gull, follows
+      // the same rule by its height.
+      detail = (phone ? (dist < DETAIL_AT.phoneBay ? 1 : 2) : byDist) as Detail;
       scene.userData.detail = detail;
       scene.userData.distance = dist;
       const near = THREE.MathUtils.clamp(dist * 0.01, 0.5, 8);

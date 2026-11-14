@@ -9,6 +9,7 @@ import {
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, eliteStewards,
   BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
   buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT, PICKUP_MINUTE, deliver, threatLevel,
+  eventsOf, nearbyPlots, OPEN, PLOT_BY_ID, TARGET_TAKINGS_DAYS,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -1006,6 +1007,36 @@ describe('likeliest targets near their turf', () => {
     expect(s.plots[pin.id].owner).toBe('hollis');
     expect(pin.type).not.toBe('hq');
     expect(likeliestTarget(s, 'blenders', 'hollis')).toEqual(pin); // the same pin every time
+  });
+
+  it('a stand\'s takings count in its worth: a Viral Video\'s day leaves it suddenly valuable, and every pin moves to it', () => {
+    /** Two of Lottie's Wooden Stands in Old Town, far enough apart to keep their own walkers, the same land and build. */
+    const day = (video?: string) => {
+      const s = newGame(93);
+      s.plots[LOTTIES_CORNER].stand = null; // just these two
+      const a = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner)!;
+      const b = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner && !nearbyPlots(a).includes(p))!;
+      for (const id of [a.id, b.id]) {
+        const st = newStand(2, 2);
+        st.inventory = { lemons: [{ qty: 20_000, day: 1, unitCost: 0.2 }], sugar: 5_000, ice: 50_000, sugarCost: 0.05, iceCost: 0.01 };
+        s.plots[id] = { ...s.plots[id], owner: 'player', stand: st, invested: 550, landValue: 1000 };
+      }
+      if (video) eventsOf(s).on.push({ id: 'viralVideo', from: s.day, to: s.day + 1, at: OPEN, plots: [video] });
+      openStand(s);
+      simulateRestOfDay(s);
+      return { s, pair: [a.id, b.id] };
+    };
+    const calm = day();
+    const top = likeliestTarget(calm.s, 'blenders')!.id; // the stand that took more on an ordinary day
+    const other = calm.pair.find((id) => id !== top)!;
+    const took = (s: GameState, id: string) => s.plots[id].stand!.lastProfit!;
+    expect(took(calm.s, top)).toBeGreaterThan(took(calm.s, other));
+    expect(targetScore(calm.s, 'blenders', top) - targetScore(calm.s, 'blenders', other)).toBeCloseTo((took(calm.s, top) - took(calm.s, other)) * TARGET_TAKINGS_DAYS, 6);
+    const viral = day(other).s;
+    expect(took(viral, other)).toBeGreaterThan(took(viral, top));
+    for (const id of RIVALS) expect(likeliestTarget(viral, id)!.id).toBe(other); // every boss: Old Town is everyone's
+    expect(corkboardBody(viral)).toContain(`Eyeing ${PLOT_BY_ID[other].name}`);
+    expect(corkboardBody(viral)).not.toContain(`Eyeing ${PLOT_BY_ID[top].name}`);
   });
 
   it('a night raid on you goes for the raider\'s pin, setting out on the night clock from its own turf', () => {

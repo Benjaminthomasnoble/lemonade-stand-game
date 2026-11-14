@@ -14,7 +14,7 @@ import type { GameState, PlotState, RivalState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
   ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, hqPlot, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
-  RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS, TARGET_TAKINGS_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import {
@@ -344,11 +344,16 @@ export function targetScore(s: GameState, attacker: RivalId, plotId: string): nu
   return worthOverDefense(s, plotId);
 }
 
-/** A plot's land and buildings over its defense: fence, gadgets, and your posted guards or a rival's garrison. */
+/**
+ * A plot's worth over its defense. Worth: its land, its buildings and its stand's takings (its last full day's profit,
+ * so a Viral Video's day leaves a stand suddenly worth more). Defense: fence, gadgets, and your posted guards or a
+ * rival's garrison.
+ */
 function worthOverDefense(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
   const guards = ps.owner === 'player' ? s.guards.filter((g) => g.post === plotId).length : ps.garrison ?? 0;
-  return (ps.invested + ps.landValue) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
+  const takings = Math.max(0, ps.stand?.lastProfit ?? 0) * TARGET_TAKINGS_DAYS;
+  return (ps.invested + ps.landValue + takings) / (1 + ps.defense.tier * 2 + guards * 3 + ps.defense.gadgets.length);
 }
 
 /**

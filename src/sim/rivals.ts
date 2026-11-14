@@ -103,6 +103,12 @@ export const RIVAL_LAND_CHANCE = 0.25;
 export const RIVAL_TRADE = { share: 0.01, days: 7, floor: 0.02, ceiling: 25 };
 /** Every this many days each rival stand is owed one level, up to the faction's cap (balance tables: every 30 days). */
 export const RIVAL_UPGRADE_DAYS = 30;
+/**
+ * A stand's takings in its worth as a raid target (spec: "the highest value divided by defense"; the walkthrough's
+ * Viral Video leaves Park Lane "suddenly valuable"): this many days of its last full business day's profit, what a
+ * Shakedown takes (loot.ts), on top of its land and buildings (placeholder: spec gap).
+ */
+export const TARGET_TAKINGS_DAYS = 1;
 /** A raid costs the rival this many nights of wages for each henchman it sends (placeholder: spec gap). */
 export const RAID_WAGE_NIGHTS = 1;
 /**

@@ -71,10 +71,11 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
  * the speed you chose; an undetected one warns at the notice, so its whole countdown is at fight speed. With
  * auto-pause on, the warning waits for you first. */
 export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r) && minutesLeft(s, r) <= raidNotice(s));
-/** Nothing has come in tonight: no warning is out and no card from the night is still on the feed (a note melts off
- * it after ALERT_LIFE: alerts.ts onFeed), so a quiet night runs at 3×. Once the raid is fought (its card goes) the
- * night is quiet again. */
-export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => r.warned && onYou(s, r))
+/** Nothing has come in tonight: no warning is out, no card from the night is still on the feed (a note melts off it
+ * after ALERT_LIFE: alerts.ts onFeed) and no squad of yours is on the road, so a quiet night runs at 3×. Your own
+ * raid's trip, fight and walk home play at the speed you chose (the walkthrough's 90-minute trip, about 12 real
+ * seconds at 1×). Once the raid is fought (its card goes) or the squad is home, the night is quiet again. */
+export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => (r.warned && onYou(s, r)) || setOut(s, r))
   && !(s.alerts ?? []).some((a) => a.day === s.day && a.minute > CLOSE && onFeed(s, a));
 /** Game minutes until a raid hits. */
 export const minutesLeft = (s: GameState, r: Raid) => Math.max(0, (r.at ?? s.minute) - s.minute);

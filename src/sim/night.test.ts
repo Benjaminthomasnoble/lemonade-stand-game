@@ -243,6 +243,26 @@ describe('the night on the clock', () => {
     expect(quietNight(s)).toBe(true);
   });
 
+  it("your own raid plays at the speed you chose: quiet till the squad sets out, not while it's on the road, quiet once it's home", () => {
+    const s = evening(8);
+    s.rank = 6;
+    s.guards = crew(3, null);
+    const target = raidTargets(s)[0];
+    footholdFor(s, target.id); // crew: raids need a Foothold in the target's district
+    expect(planRaid(s, target.id, ['g0', 'g1'], 'smash', 'tonight')).toBe(true);
+    const r = s.raids[0];
+    startNight(s);
+    expect(quietNight(s)).toBe(true); // planned for 01:00, not out yet
+    while (s.minute < r.leave!) nightStep(s);
+    let trip = 0;
+    while (s.minute < r.at!) { expect(quietNight(s)).toBe(false); trip += secondsPerMinute(s, 1, { quiet: true }); nightStep(s); }
+    expect(trip).toBeCloseTo((r.at! - r.leave!) * NIGHT_REAL_SECONDS_PER_MINUTE); // at 1× (the walkthrough's 90-minute trip: 12 real seconds)
+    expect(r.back).toBeGreaterThan(s.minute); // fought: walking home
+    while (s.raids.includes(r)) { expect(quietNight(s)).toBe(false); nightStep(s); }
+    s.alerts = []; // (an aftermath note would hold the night while it's on the feed)
+    expect(quietNight(s)).toBe(true); // home: the quiet speed comes back
+  });
+
   it('a note from the night holds the quiet only while it is on the feed: it melts after ALERT_LIFE game minutes', () => {
     const s = evening(16);
     startNight(s);

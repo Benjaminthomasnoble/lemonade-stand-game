@@ -255,6 +255,18 @@ describe('scenes take turns: the day’s beat, then the story, then visits', () 
     expect(beginScene(s)?.id).toBe('budd'); // a visit waits its turn, however long
     expect(waiting(s)).toEqual([]);
   });
+
+  it("the Mayor's land-freeze visit waits behind a story beat queued after it", () => {
+    const s = newGame(50);
+    s.scenes!.queue = [];
+    s.scenes!.seen.push('opening');
+    playScene(s, 'freeze', { plot: LOTTIES_SIDE_LOT }); // Vera's paid freeze (schemes.ts freezeLand): Mayor Fontaine
+    playScene(s, 'benny'); // a story beat
+    expect(beginScene(s)?.id).toBe('benny');
+    endScene(s, true);
+    nextDawn(s);
+    expect(beginScene(s)).toMatchObject({ id: 'freeze', speaker: 'fontaine' });
+  });
 });
 
 describe('Day 5: Lottie nudges the Wooden Stand', () => {

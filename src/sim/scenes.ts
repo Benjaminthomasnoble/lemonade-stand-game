@@ -148,7 +148,7 @@ export const SCENES: Record<string, SceneDef> = {
   // ...and a land sale Town Hall freezes on Vera's word (schemes.ts freezeLand; the Act 5 hedges beat has its own scene),
   // played at the frozen plot. His second line is OLD_MONEY.mayor (src/sim/rivals.ts), spelled out here.
   freeze: {
-    speaker: 'fontaine', seconds: 15,
+    speaker: 'fontaine', seconds: 15, priority: SCENE_PRIORITY.visit,
     lines: [
       { who: SPEAKERS.fontaine, text: 'This sale is frozen. Town Hall business.', at: 3.6 },
       { who: SPEAKERS.fontaine, text: 'I represent all of Citrine Bay. Some of it more than others.', at: 6.8 },

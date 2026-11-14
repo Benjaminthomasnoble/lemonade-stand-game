@@ -117,13 +117,14 @@ export const STEPS: Step[] = [
   { id: 'd1-report', when: (s) => s.phase === 'report', at: '[data-testid="report"] .cl-end-row', say: 'Cups sold, folks missed, your stars.', tap: 'Got it' },
   { id: 'd1-sleep', when: (s) => s.phase === 'report', at: '[data-testid="report"] [data-testid="night"]', say: 'Sleep. Quiet nights fly by.', done: (s) => s.phase !== 'report', doneOnClick: '[data-action="night"],[data-action="sleep"]' },
 
-  // Day 2: weather and recipes.
+  // Day 2: weather, recipes, and Auto-Restock (the Market's lesson, LESSON_DAY.market). That morning turns it on by
+  // itself, so Lottie points at its switch and stock target while it's on (a tap on the target, or Got it, ends it).
   { id: 'd2-sky', when: (s) => s.day >= LESSON_DAY.forecast && s.phase === 'prep', at: '.cl-wx', say: 'Check the sky every morning.', tap: 'Got it' },
   { id: 'd2-recipe', when: (s) => s.day >= LESSON_DAY.recipes && s.phase === 'prep', at: '.cl-recipe', say: 'Try each pitcher. Watch the faces.', doneOnClick: '[data-action="recipe"],[data-action="sweet"]', tap: 'Got it' },
+  { id: 'd2-auto', when: (s) => s.phase === 'prep' && supplied(s), at: '.cl-stock .cl-auto', say: 'I buy supplies each dawn. Set the target.', doneOnClick: '[data-action="stockTarget"]', tap: 'Got it' },
   { id: 'd2-rivals', when: (s) => s.day >= 2 && s.phase === 'open' && !!rivalNear(s), plot: (s) => rivalNear(s)?.plot ?? null, camera: 'plot', say: (s) => `${rivalName(s)} want your customers.`, tap: 'Not today!', mood: 'grumpy' },
 
-  // Days 2-3: Auto-Restock (the Market's lesson, Day 2) and the side lot (Day 3).
-  { id: 'd3-auto', when: (s) => s.phase === 'prep', at: '.cl-auto', say: 'Tap Auto. I buy supplies for you.', done: (s) => supplied(s), doneOnClick: '[data-action="restock"]', tap: 'Later' },
+  // Day 3: the side lot.
   { id: 'd3-lot', when: (s) => s.phase === 'prep' && !!sideLot(s), plot: sideLot, camera: 'plot', say: 'My side lot. Tap it, kid!', done: (s) => !sideLot(s), doneOnClick: '[data-testid="plotcard"]', tap: 'Later' },
   { id: 'd3-buy', when: (s) => s.phase === 'prep', at: '[data-testid="plotcard"] [data-testid="buy-plot"]', say: 'Buy it. Two stands, double sales.', doneOnClick: '[data-testid="buy-plot"]', tap: 'Later' },
   { id: 'd3-picker', when: (s) => s.phase === 'prep', at: '.cl-picker', say: 'Two stands! Tap to switch between.', doneOnClick: '.cl-picker [data-action="select"]', tap: 'Got it' },

@@ -64,6 +64,24 @@ describe("Lottie's tour", () => {
     expect(ids(s, fresh()).some((id) => id.startsWith('intro'))).toBe(false);
   });
 
+  it("points at Auto-Restock and its target on the Market's first morning, rather than ticking it off unseen for being on", () => {
+    const s = newGame(1);
+    s.day = 2; // Day 2's Morning Prep: Auto-Restock is on by itself
+    expect(s.plots[s.selected].stand!.autoRestock).toBe(true);
+    const mem = fresh();
+    for (const id of ['d2-sky', 'd2-recipe']) mem.seen.add(id);
+    const { step, done } = pickStep(s, all, mem);
+    expect(done).not.toContain('d2-auto');
+    expect(step?.id).toBe('d2-auto');
+    expect(step?.at).toBe('.cl-stock .cl-auto'); // the restock switch (Auto-Price's is a .cl-auto too, from Rank 3)
+    expect(step?.say).toBe('I buy supplies each dawn. Set the target.');
+    expect(step?.tap).toBe('Got it');
+    expect(step?.doneOnClick).toBe('[data-action="stockTarget"]'); // the − / + / Suggested buttons
+    expect(pickStep(s, { has: (sel) => sel !== '.cl-stock .cl-auto', speed: 1 }, mem).step?.id).not.toBe('d2-auto'); // waits for the tray
+    s.plots[s.selected].stand!.autoRestock = false; // switched off: "I buy supplies" isn't true, so it waits
+    expect(pickStep(s, all, mem).step?.id).not.toBe('d2-auto');
+  });
+
   it('introduces a real rival near the Corner', () => {
     const r = rivalNear(newGame(1));
     expect(r).not.toBeNull();

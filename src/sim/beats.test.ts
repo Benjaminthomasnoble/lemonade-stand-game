@@ -2,7 +2,7 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
+  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   LAVENDER, pageHolder, type GameState, type Guard, type RivalId,
@@ -36,6 +36,7 @@ describe("Lottie's stock on Day 1", () => {
     expect(lottieStocks(s)).toBe(true);
     expect(taught(s, 'market')).toBe(false);
     const want = expectedCups(s, LOTTIES_CORNER, s.forecast);
+    expect(restockGoal(s, LOTTIES_CORNER)).toBe(want); // she fills to what Auto-Restock would buy to (automation.ts)
     expect(servingsAvailable(corner(s))).toBeGreaterThanOrEqual(want); // whole pitchers, up to the day's expected sales
     expect(servingsAvailable(corner(s))).toBeLessThan(want + CUPS_PER_PITCHER);
     expect(stock(corner(s), 'ice')).toBeGreaterThan(0);
@@ -66,7 +67,7 @@ describe("Lottie's stock on Day 1", () => {
     expect(servingsAvailable(corner(s))).toBe(left);
   });
 
-  it('a stand of yours that runs dry mid-day stays dry: no free refill on Days 1-2', () => {
+  it('a stand of yours that runs dry mid-day stays dry: no free refill on Day 1', () => {
     const s = newGame(44);
     openStand(s);
     corner(s).inventory = { lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 };

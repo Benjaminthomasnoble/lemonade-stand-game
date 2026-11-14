@@ -16,7 +16,7 @@ import { alert } from './alerts.ts';
 import type { GameState, SimEvent, Stand } from './economy.ts';
 import { dayProfit } from './ledger.ts'; // the Ledger's profit for a day (demand)
 import type { BattleReport } from './crew.ts';
-import { expectedCups, pitcherNeeds, playerStands, plotPrice, postAtFirstFree, seasonOf, standLevel, stock } from './economy.ts';
+import { pitcherNeeds, playerStands, plotPrice, postAtFirstFree, restockGoal, seasonOf, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
@@ -77,7 +77,7 @@ export const lessonsOn = (s: GameState) => s.settings.lessons !== false;
 export const taught = (s: GameState, lesson: keyof typeof LESSON_DAY) => !lessonsOn(s) || s.day >= LESSON_DAY[lesson];
 /** Today is the guards lesson: Dex turns up unposted, and stationing him is the goal. */
 export const dexLesson = (s: GameState) => lessonsOn(s) && s.day === LESSON_DAY.crew;
-/** Days 1–2: Lottie stocks your stands, and the Market waits for Day 3's lesson (from then on you buy your own). */
+/** Day 1: Lottie stocks your stands, and the Market waits for Day 2's lesson (from then on you buy your own). */
 export const lottieStocks = (s: GameState) => !taught(s, 'market');
 
 /** Lottie's own stock goes on the shelf at no cost to you: your cash stays put, and so does Net Worth. */
@@ -90,16 +90,17 @@ function gift(st: Stand, id: SupplyId, qty: number, day: number): void {
 }
 
 /**
- * Days 1–2 (spec "Supplies": Lottie stocks your table): each Morning Prep she fills every stand you own up to the
- * forecast day's expected sales, Auto-Restock's suggested target, in whole pitchers and as storage allows. A stand
- * built during Morning Prep gets its share at once (storyAfterAct).
+ * Day 1 (spec "Supplies": Lottie stocks your table; the Market and Auto-Restock are yours from Day 2): each Morning
+ * Prep she fills every stand you own to the goal Auto-Restock would buy to (automation.ts restockGoal: the suggested
+ * target, the forecast day's expected sales), in whole pitchers and as storage allows, for free. A stand built during
+ * Morning Prep gets its share at once (storyAfterAct).
  */
 export function lottieStocksStands(s: GameState): void {
   if (!lottieStocks(s) || s.phase !== 'prep') return;
   for (const p of playerStands(s)) {
     const st = s.plots[p.id].stand!;
     if (st.wrecked) continue;
-    const cups = Math.max(CUPS_PER_PITCHER, Math.ceil(expectedCups(s, p.id, s.forecast) / CUPS_PER_PITCHER) * CUPS_PER_PITCHER);
+    const cups = Math.max(CUPS_PER_PITCHER, Math.ceil(restockGoal(s, p.id) / CUPS_PER_PITCHER) * CUPS_PER_PITCHER);
     const n = pitcherNeeds(st), room = standLevel(st).storage;
     const want: Record<SupplyId, number> = { lemons: (cups / CUPS_PER_PITCHER) * n.lemons, sugar: (cups / CUPS_PER_PITCHER) * n.sugar, ice: cups * n.icePerCup };
     for (const id of Object.keys(want) as SupplyId[]) {

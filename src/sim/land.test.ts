@@ -3,11 +3,11 @@ import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
-  canBorrow, canFactionBuyout, canPlotBuyout, canTruce, plotBuyout, repayLoan,
+  canBorrow, canFactionBuyout, canPlotBuyout, canTruce, plotBuyout, repayLoan, LOAN, netWorth,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
-import { stockValue } from './ledger.ts';
+import { rowAmount, stockValue } from './ledger.ts';
 import { CLOSE, LAVENDER, LESSON_DAY } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
@@ -440,6 +440,8 @@ describe('loan repossession', () => {
   /** The payment dawn, with cash for the wages but not the loan. */
   const miss = (s: GameState) => { upToDue(s); s.cash = 20; dawn(s); };
   const pay = (s: GameState) => { upToDue(s); s.cash = 1e4; dawn(s); };
+  /** The news's whole dollars. */
+  const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
   const loanGame = (seed: number) => {
     const s = newGame(seed);
     s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the dawns' only bills are the loan's and the wages
@@ -473,14 +475,43 @@ describe('loan repossession', () => {
     miss(s);
     // Land values move with development each dawn: the bank pays what the lot is worth that morning.
     const worth = plotWorth(s, lot.id);
-    const owed = s.loan!.principal;
-    miss(s);
+    upToDue(s);
+    s.cash = 20;
+    const owed = Math.round(s.loan!.principal * (1 + LOAN.weeklyRate) * 100) / 100; // the missed week's interest goes on first
+    dawn(s);
     expect(s.plots[lot.id].owner).toBeNull();
     expect(s.plots[LOTTIES_CORNER].owner).toBe('player');
     expect(s.plots[hqPlot('hollis').id].owner).toBe('player');
-    expect(s.news).toContain(`REPOSSESSED! The First Bank of Citrine Bay takes ${lot.name} to cover $${Math.round(worth).toLocaleString('en-US')} of the loan.`);
-    expect(s.loan).toBeUndefined(); // $1,000 of land more than covers what was owed
-    expect(worth).toBeGreaterThan(owed);
+    // $1,000 of land more than covers what was owed: the loan is cleared and the bank pays back the rest.
+    const back = Math.round((worth - owed) * 100) / 100;
+    expect(s.news).toContain(`REPOSSESSED! The First Bank of Citrine Bay takes ${lot.name} for the ${dollars(owed)} loan and pays back ${dollars(back)}.`);
+    expect(s.loan).toBeUndefined();
+    expect(rowAmount(s.today, 'invested')).toBeCloseTo(back, 2); // as for a plot sold
+  });
+
+  it("goes past Lottie's Corner while another plot is left, and counts a stand's stock at cost as Net Worth does", () => {
+    const s = loanGame(93);
+    s.plots[LOTTIES_CORNER].stand!.inventory = { lemons: [], sugar: 0, sugarCost: 0, ice: 0, iceCost: 0 }; // the $100 table on $300 of land
+    const lot = purchasablePlots('maple').find((p) => p.id !== LOTTIES_CORNER && !s.plots[p.id].owner)!;
+    give(s, lot.id);
+    const st = newStand(1);
+    st.autoRestock = false;
+    st.inventory.sugar = 40;
+    st.inventory.sugarCost = 0.5; // $20 of sugar on hand
+    s.plots[lot.id] = { ...s.plots[lot.id], stand: st, landValue: 500 };
+    expect(plotWorth(s, lot.id)).toBe(500 + 20);
+    expect(netWorth(s)).toBeCloseTo(s.cash - s.loan!.principal + plotWorth(s, LOTTIES_CORNER) + plotWorth(s, lot.id), 2);
+    miss(s);
+    upToDue(s);
+    s.cash = 20;
+    const owed = Math.round(s.loan!.principal * (1 + LOAN.weeklyRate) * 100) / 100;
+    const worth = plotWorth(s, lot.id);
+    expect(plotWorth(s, LOTTIES_CORNER)).toBeLessThan(worth); // the Corner is the cheapest plot
+    dawn(s);
+    expect(s.plots[LOTTIES_CORNER].owner).toBe('player');
+    expect(s.plots[lot.id]).toMatchObject({ owner: null, stand: null });
+    expect(s.news).toContain(`REPOSSESSED! The First Bank of Citrine Bay takes ${lot.name} for the ${dollars(owed)} loan and pays back ${dollars(worth - owed)}.`);
+    expect(rowAmount(s.today, 'invested')).toBeCloseTo(worth - owed, 2); // the sugar went with the stand, at cost
   });
 });
 

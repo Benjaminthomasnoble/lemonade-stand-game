@@ -5,10 +5,10 @@ import {
   ACTS, BELOVED_STARS, BUILDING_VALUE_SHARE, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
   SEASON_DAYS, STAND_LEVELS, type Difficulty, type MapSize, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
-import { mapDistricts, PLOTS, type DistrictId, type PlotType } from './map.ts';
+import { LOTTIES_CORNER, mapDistricts, PLOTS, type DistrictId, type PlotType } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
-import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { book, stockValue } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
 import { announceControl, awardEveryLastPlot, rivalsInPlay } from './land.ts';
@@ -216,14 +216,22 @@ export function repayLoan(s: GameState): boolean {
   return true;
 }
 
-/** A plot as Net Worth counts it: its land plus 75% of what's built on it (the bank's price when it repossesses). */
-export const plotWorth = (s: GameState, plotId: string) => round2(s.plots[plotId].landValue + BUILDING_VALUE_SHARE * s.plots[plotId].invested);
+/** A plot as Net Worth counts it (the bank's price when it repossesses): its land, 75% of what's built on it, and the
+ * stock on hand there at cost: your stand's supplies, a standing Warehouse's sugar. */
+export function plotWorth(s: GameState, plotId: string): number {
+  const ps = s.plots[plotId];
+  const mine = ps.owner === 'player';
+  const store = mine && ps.facility?.kind === 'warehouse' && !ps.facility.wrecked ? s.warehouses?.[plotId] : undefined;
+  return round2(ps.landValue + BUILDING_VALUE_SHARE * ps.invested + (mine && ps.stand ? stockValue(ps.stand) : 0) + (store ? store.sugar * store.cost : 0));
+}
 
 /**
  * The weekly payment at dawn: principal ÷ weeks left, plus 3% interest. A miss adds the interest to what you owe and
  * still counts the week down, so the loan keeps its 4-week term and the missed share rolls into the payments left.
  * The second missed payment (in a row or not: the spec counts misses) repossesses your lowest-value plot as Net Worth
- * counts it, land plus buildings, never a Trophy, and that value comes off the loan; the count then starts over.
+ * counts it (land, buildings and stock at cost), never a Trophy, and Lottie's Corner only once no other plot is left
+ * (it stays in the family, as it can't be sold). That value comes off the loan, and what it's worth over the debt comes
+ * back to you; the count then starts over.
  */
 function loanAtDawn(s: GameState): void {
   const l = s.loan;
@@ -247,15 +255,20 @@ function loanAtDawn(s: GameState): void {
     return;
   }
   const mine = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && p.type !== 'hq'); // a Trophy is never lost
-  const plot = mine.sort((a, b) => plotWorth(s, a.id) - plotWorth(s, b.id) || a.id.localeCompare(b.id))[0];
+  const others = mine.filter((p) => p.id !== LOTTIES_CORNER); // the Corner goes last
+  const plot = (others.length ? others : mine).sort((a, b) => plotWorth(s, a.id) - plotWorth(s, b.id) || a.id.localeCompare(b.id))[0];
   l.missed = 0;
   if (!plot) return;
-  const value = plotWorth(s, plot.id);
+  const value = plotWorth(s, plot.id), owed = l.principal;
+  const back = round2(Math.max(0, value - owed));
   for (const g of s.guards) if (g.post === plot.id) g.post = null; // posted guards go back to the Clubhouse
   s.offers = s.offers.filter((o) => o.plot !== plot.id); // a VIP offer for its pad or pier lapses with it
   s.plots[plot.id] = { owner: null, stand: null, invested: 0, landValue: s.plots[plot.id].landValue, defense: NO_DEFENSE() };
   l.principal = round2(Math.max(0, l.principal - value));
-  s.news.push(`REPOSSESSED! The First Bank of Citrine Bay takes ${plot.name} to cover ${money(value)} of the loan.`);
+  if (back > 0) book(s, 'invested', back); // the rest of what it's worth, as for a plot sold
+  s.news.push(back > 0
+    ? `REPOSSESSED! The First Bank of Citrine Bay takes ${plot.name} for the ${money(owed)} loan and pays back ${money(back)}.`
+    : `REPOSSESSED! The First Bank of Citrine Bay takes ${plot.name} to cover ${money(value)} of the loan.`);
   announceControl(s);
   if (l.principal < 0.01) delete s.loan;
 }

@@ -3,7 +3,7 @@ import {
   AUTO_RESTOCK_DAY, buildFacility, canBuildFacility, cupsInStock, FACILITIES, helperLines, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, NO_DEFENSE, OPEN, PLOTS, postsFor,
   restockPlan, standCost, SUPPLIES, sugarRoom, suppliedStands, tierOpen, WAREHOUSE, WAREHOUSE_ID, warehouseAtDawn, warehouseRuns, warehouseValue, type GameState,
   bottlesOf, CLOSE, DELIVERY_RAID_CHANCE, deliveryRaidRisk, FAILED_ORDER_STARS, pickupsAtClose, PLOT_BY_ID, raidFought, runNight, threatLevel, truckWarehouse,
-  vipAtDawn, type BattleReport, type Order,
+  plotWorth, vipAtDawn, type BattleReport, type Order,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
 import { warehouseNote } from '../ui/warehouse.ts';
@@ -93,6 +93,7 @@ describe('the Warehouse (Rank 4)', () => {
     expect(s.cash).toBeCloseTo(cash - room * base, 2);
     expect(warehouseValue(s)).toBeCloseTo(room * base, 2);
     expect(netWorth(s)).toBeCloseTo(worth, 2); // stock at cost: the score keeps it
+    expect(plotWorth(s, shed)).toBeCloseTo(s.plots[shed].landValue + 0.75 * WAREHOUSE.cost + room * base, 2); // and so does the bank
     expect(warehouseNote(s, shed)).toContain(`2 stands supplied · ${room.toLocaleString('en-US')} sugar`);
     // A Sugar Shortage: the Market's sugar costs double, and the stands take the Warehouse's first.
     s.market.sugar = base * 2;

@@ -18,7 +18,7 @@ import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
-  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, morning, newBot, pacingPlan, pacingReport,
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, milestones, morning, newBot, pacingPlan, pacingReport,
   pickAnswer, playRun, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
@@ -908,6 +908,11 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect([CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS[2]]).toEqual([{ target: 5, lo: 5, hi: 6 }, { target: 5, lo: 5, hi: 6 }]);
     // the Day 5 lessons: Lottie's Wooden Stand nudge and the rank chip
     expect([CLASSIC_FIRST_L2.target, CLASSIC_RANK_DAYS[2].target, RANK_DAYS.laidback[0], RANK_DAYS.cutthroat[0]]).toEqual([LESSON_DAY.upgrade, LESSON_DAY.rank, LESSON_DAY.rank, LESSON_DAY.rank]);
+    for (const d of ['laidback', 'cutthroat'] as const) { // Rank 2 on Day 5-6 there too: a Day 4 Rank 2 comes before its lesson
+      const rank2 = milestones(d).find((m) => m.name === 'Rank 2')!.t;
+      expect(rank2, d).toEqual(CLASSIC_RANK_DAYS[2]);
+      expect(hits(4, rank2, false), d).toBe(false);
+    }
     expect(hits(5, CLASSIC_RANK_DAYS[2], true)).toBe(true);
     expect(hits(4, CLASSIC_FIRST_L2, true)).toBe(false); // a day early is 20% off
     expect(hits(6, CLASSIC_RANK_DAYS[2], true)).toBe(false); // a day late is 20% off

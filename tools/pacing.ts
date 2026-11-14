@@ -44,7 +44,7 @@ export interface Target { target: number; lo: number; hi: number; window?: [numb
 
 /** The first Wooden Stand and Rank 2 follow their Day 5 lessons (balance.ts LESSON_DAY.upgrade and .rank: Lottie's nudge,
  * the Grow tab, the rank chip), so both are held to Day 5, 5-6 across maps (a design call: the spec's tables still say
- * Day 4). Laid Back's and Cutthroat's Rank 2 (RANK_DAYS) is Day 5 too. */
+ * Day 4). Laid Back's and Cutthroat's Rank 2 (RANK_DAYS) is Day 5 too, with Classic's 5-6 (milestones). */
 export const CLASSIC_FIRST_L2: Target = { target: 5, lo: 5, hi: 6 };
 export const CLASSIC_RANK_DAYS: Record<number, Target> = {
   2: { target: 5, lo: 5, hi: 6 },
@@ -933,7 +933,8 @@ export function milestones(d: Difficulty): { name: string; t: Target; got: (r: R
   const out: { name: string; t: Target; got: (r: RunResult) => number | undefined }[] = [];
   if (diff === 'classic') out.push({ name: 'first L2 stand', t: CLASSIC_FIRST_L2, got: (r) => r.firstL2 });
   for (let k = 2; k <= 10; k++) {
-    const day = diff === 'classic' ? undefined : RANK_DAYS[diff][k - 2];
+    // Rank 2 is the Day 5 lesson's on every difficulty: Classic's 5-6, not a 15% band that would let Day 4 in.
+    const day = diff === 'classic' || k === 2 ? undefined : RANK_DAYS[diff][k - 2];
     const t = day === undefined ? CLASSIC_RANK_DAYS[k] : { target: day, lo: Math.round(day * 0.85), hi: Math.round(day * 1.15) };
     out.push({ name: `Rank ${k}`, t, got: (r) => r.rankDay[k] });
   }

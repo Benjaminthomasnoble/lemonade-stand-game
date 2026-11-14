@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, drainQueue, eliminate,
+  appealFor, campaignCost, canRunCampaign, ceilingFor, crowdAt, curbAppeal, dailyService, dayMix, dayMixOn, demandChain, DISTRICTS, drainQueue, eliminate,
   expectedCups, expectedDemand, groveTraffic,
   FACTIONS, hourMix, HOURLY_TRAFFIC, joinsLine, LOTTIES_CORNER, lunchRush, lunchRushDay, marketingMultiplier, migrateDemand, migrateSave,
   nearbyPlots, newGame, newStand, openStands, peopleAhead, perkTraffic, PLOT_BY_ID, PLOTS, pourRate, priceCeiling, priceFit, priceWarCut, rivalPrice, rivalShare,
@@ -139,8 +139,34 @@ describe('price fit', () => {
     expect(at('families', 0.2)).toBeLessThan(at('tourists', 0.2));
     expect(at('kids', 0.32)).toBeCloseTo(0, 6);
     expect(at('families', 0.4)).toBeCloseTo(0, 6);
-    expect(at('highRollers', 0.4)).toBeCloseTo(0.5, 6); // high rollers keep buying
+    expect(at('highRollers', 0.3)).toBeCloseTo(0.625, 6); // high rollers keep buying...
+    expect(at('highRollers', 0.4)).toBe(0); // ...until 40% over, where nobody does
     for (const seg of Object.keys(SEGMENTS) as SegmentId[]) expect(at(seg, -0.1)).toBeCloseTo(1.1, 6); // under: the same for all
+  });
+
+  it.each(DISTRICTS.map((d) => d.id))('nobody buys at 40%% over the ceiling in %s, though its keenest still buy just under', (d) => {
+    const plot = PLOTS.find((p) => p.district === d && p.type === 'street')!.id;
+    const crowd = (over: number) => dayMix(d).reduce((a, [seg, x]) => a + x * segmentPriceFit(plot, seg, 2 * (1 + over), 2), 0);
+    for (const seg of Object.keys(SEGMENTS) as SegmentId[]) {
+      expect(segmentPriceFit(plot, seg, 2 * 1.4, 2), seg).toBe(0);
+      expect(segmentPriceFit(plot, seg, 2 * 1.8, 2), seg).toBe(0);
+    }
+    expect(crowd(0.4)).toBe(0);
+    expect(crowd(0.39)).toBeGreaterThan(0); // those at least as tolerant as the district hang on to the last
+    const top = dayMix(d).reduce((a, b) => (SEGMENTS[b[0]].priceTolerance > SEGMENTS[a[0]].priceTolerance ? b : a))[0];
+    expect(segmentPriceFit(plot, top, 2 * 1.39, 2)).toBeGreaterThan(0);
+  });
+
+  it('a stand priced 40% over its ceiling sells nothing all day, even in Old Town (tourists and high rollers walk by)', () => {
+    const s = newGame(5);
+    const plot = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].stand)!.id;
+    playerStand(s, plot);
+    const st = s.plots[plot].stand!;
+    st.price = Math.ceil(priceCeiling(s, plot) * 1.4 * 100) / 100;
+    playDay(s, 'hot', 90);
+    expect(st.day.passersby).toBeGreaterThan(0);
+    expect(st.day.customers).toBe(0);
+    expect(st.day.walkedPast.pricey).toBeGreaterThan(0);
   });
 
   it("each district's tolerance is the blend of its crowd, so 10% over turns away about a quarter there", () => {

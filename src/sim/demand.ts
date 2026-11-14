@@ -57,13 +57,15 @@ export function priceCeiling(s: GameState, plotId: string, st: Stand = s.plots[p
 
 /**
  * Price fit (spec: Pricing): ×1.0 at the ceiling; each 1% under adds 1% appeal, up to +25%; each 10% over turns
- * away a quarter of buyers. Over the ceiling the thriftiest leave first: a segment's loss scales by the district's
- * tolerance ÷ its own, so in Maple Row kids (×0.8) are gone at +32% and high rollers (×2.0) hang on to +80%.
+ * away a quarter of buyers, and nobody buys at 40% over. Over the ceiling the thriftiest leave first: a segment's loss
+ * scales by the district's tolerance ÷ its own, so in Maple Row kids (×0.8) are gone at +32% while high rollers (×2.0)
+ * still buy at +39%.
  */
 export function priceFit(price: number, ceiling: number, segTolerance = 1, districtTolerance = 1): number {
   if (ceiling <= 0) return 0;
   const r = price / ceiling;
   if (r <= 1) return 1 + Math.min(PRICE_FIT.underMax, 1 - r);
+  if (r - 1 >= PRICE_FIT.noneOver - 1e-9) return 0; // the hard stop: tourists and high rollers too
   return Math.max(0, 1 - PRICE_FIT.overSlope * (districtTolerance / segTolerance) * (r - 1));
 }
 

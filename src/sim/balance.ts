@@ -143,9 +143,9 @@ export const BASE_STOP_CHANCE = 0.25;
 export const SELLING_HOURS = 10;
 /**
  * Price fit around a stand's ceiling (spec: Pricing): +1% appeal per 1% under, up to +25%; a quarter of
- * buyers lost per 10% over (×2.5 per 100% over), so nobody buys at 40% over.
+ * buyers lost per 10% over (×2.5 per 100% over), and nobody buys at 40% over (noneOver), whatever their tolerance.
  */
-export const PRICE_FIT = { underMax: 0.25, overSlope: 2.5 };
+export const PRICE_FIT = { underMax: 0.25, overSlope: 2.5, noneOver: 0.4 };
 /** Price tolerance by district (Appendix A, land table): the blend of each district's usual crowd. */
 export const PRICE_TOLERANCE: Record<string, number> = { maple: 1.0, oldtown: 1.0, campus: 0.9, downtown: 1.15, boardwalk: 1.2, harbor: 0.9, groves: 0.9, hilltop: 2.0 };
 /** Rival stands within 2 plots cost a stand at most this share of its own passersby (demand constants). */

@@ -7,7 +7,7 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
 import { CLOSE, GADGETS, GUARD_BASE, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
@@ -19,7 +19,8 @@ import { footholdFor, guardOf } from './fighters.ts';
 import { BORDERS, DISTRICT_BY_ID, PLOT_BY_ID, withinTwo } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
-import { canAssault, hqPlot, makeTruce } from './rivals.ts';
+import { canAssault, hqPlot, makeTruce, stormHQ, type AssaultResult } from './rivals.ts';
+import { nightStep, squadHome, startNight, travelMinutes } from './night.ts';
 import { festivalDays } from './calendar.ts';
 import { canSaveTemplate, dropTemplate, saveTemplate, switchTemplates, templateAt, templates, templatesOn, TEMPLATES_ID } from './templates.ts';
 import { helperLines } from './automation.ts';
@@ -1295,6 +1296,29 @@ describe('HQ Assault from the Raid Planner', () => {
     expect(s.reputation).toBeCloseTo(3.8, 5);
     expect(raid.back).toBeGreaterThan(s.minute); // walking home: still away
     expect(availableRaiders(s)).toEqual([]);
+  });
+
+  it('fought at once, the squad walks home after the last stage: every stage counts, as when it is watched', () => {
+    const { s, hq, ids } = weakened(157);
+    expect(planRaid(s, hq, ids, 'hq', 'tonight')).toBe(true);
+    const raid = s.raids.find((r) => r.assault)!;
+    openStand(s);
+    simulateRestOfDay(s);
+    startNight(s);
+    while (s.minute < raid.at! - 1) nightStep(s);
+    // The same assault fought on a twin, stage by stage, as the raid clock fights it at once (night.ts arrive, fight.ts reachHQ).
+    const twin: GameState = JSON.parse(JSON.stringify(s));
+    twin.minute++;
+    const sent = twin.raids.find((r) => r.assault)!;
+    spotAssault(twin, sent, true);
+    const { reports } = stormHQ(twin, 'blenders', sent.guards!, sent) as AssaultResult;
+    expect(reports.map((b) => b.hq)).toEqual(['gate', 'yard', 'boss']);
+    nightStep(s);
+    expect(s.rivals.blenders.alive).toBe(false);
+    const walk = travelMinutes(s, squadHome(s, hq, ids), hq);
+    const fought = reports.reduce((m, b) => m + Math.ceil(b.duration), 0);
+    expect(fought).toBeGreaterThan(Math.ceil(reports[2].duration)); // the Gate and the Yard took time too
+    expect(s.raids.find((r) => r.assault)?.back).toBe(raid.at! + fought + walk);
   });
 
   it('a rival gone before it gets there: the squad turns back', () => {

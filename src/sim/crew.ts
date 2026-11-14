@@ -87,6 +87,7 @@ export interface Raid {
   siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
   help?: { from: string; ids: string[] }[]; // your raid was spotted (reinforce.ts): the henchmen each rival plot sent, home after the fight
   assault?: true; // an HQ Assault from the Raid Planner: the Gate, the Yard and the Boss Room once it gets there (fight.ts)
+  earlierStages?: number; // an HQ Assault fought at once: game minutes its stages before the last took (night.ts walks the squad home after the last)
 }
 
 /** What a raid sets out to do: the fight's two objectives, Sabotage (fought like a Shakedown) and, on a rival's HQ,

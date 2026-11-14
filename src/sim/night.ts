@@ -236,7 +236,7 @@ function arrive(s: GameState, r: Raid): BattleReport | null {
   const report = startFight(s, r, !daytime);
   s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && !setOut(s, x)));
   if (report === true) return null;
-  raidFought(s, r, report, daytime);
+  raidFought(s, r, report, daytime, s.minute + (r.earlierStages ?? 0)); // crew: an HQ Assault fought at once heads home after its last stage
   return report;
 }
 

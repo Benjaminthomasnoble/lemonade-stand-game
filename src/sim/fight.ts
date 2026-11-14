@@ -104,6 +104,8 @@ function reachHQ(s: GameState, raid: Raid, night: boolean): BattleReport | true 
   spotAssault(s, raid, night);
   if (watching && !s.fight && startAssault(s, id, raid.guards ?? [], raid, night)) return true;
   const { reports } = stormHQ(s, id, raid.guards ?? [], raid) as AssaultResult; // sent: it always fights its way to an end
+  // The report is the last stage's (the replay plays it); the squad walks home once that stage is over, after the rest.
+  raid.earlierStages = reports.slice(0, -1).reduce((m, b) => m + Math.ceil(b.duration / FIGHT_SECONDS_PER_GAME_MINUTE), 0);
   return reports[reports.length - 1];
 }
 

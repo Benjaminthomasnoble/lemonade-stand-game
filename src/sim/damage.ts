@@ -99,10 +99,13 @@ function standingHp(ps: PlotState): number {
   return buildingHp({ ...ps, stand: ps.stand && { ...ps.stand, wrecked: false }, facility: ps.facility && { ...ps.facility, wrecked: false } });
 }
 
-/** What a stand pours an hour at its HP share of `perHour`, in whole cups: at 60% HP, 60% of its cups an hour. */
+/** What a stand pours an hour at its HP share of `perHour`, in whole cups: at 60% HP, 60% of its cups an hour, and at
+ * least a cup an hour while it stands (Open, selling at its HP share, even at 1 HP). */
 export function hpCapacity(ps: PlotState, perHour: number): number {
   const share = hpShare(ps);
-  return share >= 1 ? perHour : Math.floor(perHour * share + 1e-9);
+  if (share >= 1) return perHour;
+  const cups = Math.floor(perHour * share + 1e-9);
+  return share > 0 && !isWrecked(ps) ? Math.max(Math.min(1, perHour), cups) : cups;
 }
 
 /** Full HP again (a repair, a rebuild, a new build or an upgrade). A repair still queued for it is called off and paid back. */

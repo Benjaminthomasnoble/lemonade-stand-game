@@ -6,7 +6,7 @@ import {
   migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, prepPreview, applyRaidDamage,
   raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute,
   toggleAutoRepair, upgradeStand, type GameState, type Raid, type RivalId, type SupplyId, autoRepairReserve, loanPayment,
-  FAILED_ORDER_STARS, PICKUP_MINUTE, pickupsAt, pickupsAtClose, stock, type Order,
+  FAILED_ORDER_STARS, PICKUP_MINUTE, pickupsAt, pickupsAtClose, stock, type Order, pourRate, serviceLeft,
 } from './economy.ts';
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
@@ -263,7 +263,23 @@ describe('a Damaged stand pours its HP share', () => {
     ps.stand!.hp = 560; // 70%
     expect(hpCapacity(ps, 20)).toBe(14);
     ps.stand!.hp = 5;
+    expect(hpCapacity(ps, 120)).toBe(1); // under a cup's share: still a cup an hour while it stands
+    ps.stand!.wrecked = true;
     expect(hpCapacity(ps, 120)).toBe(0);
+  });
+
+  it('pours a cup an hour at 1 HP: still Open, selling at its HP share', () => {
+    const s = newGame(8);
+    const ps = s.plots[LOTTIES_CORNER];
+    ps.stand!.hp = 1; // 1% of a Folding Table's 20 cups an hour
+    expect([pourRate(s, LOTTIES_CORNER), serviceLeft(s, LOTTIES_CORNER)]).toEqual([1, 10]);
+    s.cash = 1000;
+    stockUp(s);
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.today.customers).toBeGreaterThan(0);
+    expect(s.today.customers).toBeLessThanOrEqual(10);
+    expect(s.today.walkedPast.line).toBeGreaterThan(0); // the rest find the line too long
   });
 
   it('sells fewer cups, and the expected cups (the prep odds and Auto-Restock) plan for it', () => {

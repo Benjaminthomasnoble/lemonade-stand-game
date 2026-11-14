@@ -1195,10 +1195,12 @@ export function startCampaign(s: GameState, id: CampaignId, plotId: string): voi
     const pitchers = Math.ceil(cost.samples / CUPS_PER_PITCHER);
     useLemons(st, n.lemons * pitchers);
     st.inventory.sugar = Math.max(0, st.inventory.sugar - n.sugar * pitchers);
+    const made = machineIce(s, plotId, st, n.icePerCup * cost.samples); // world: an L4+ stand's machine makes what the cooler lacks
     st.inventory.ice = Math.max(0, st.inventory.ice - n.icePerCup * cost.samples);
-    const cash = CUP_COST + RECIPES[st.recipe].extraPerCup; // what a sold cup pays as it pours: the cup and the card's extras
-    book(s, 'marketing', -cash * cost.samples, cost.samples); // the samples' cups and extras; their lemonade comes out of stock
-    useStock(s, (costPerCup(s, st) - cash) * cost.samples, false, 'marketing'); // a cost of the campaign, not of Supplies
+    // What a sold cup pays as it pours: the cup, the card's extras and the machine's ice. The rest comes out of stock.
+    const paid = (CUP_COST + RECIPES[st.recipe].extraPerCup) * cost.samples + made;
+    book(s, 'marketing', -paid, cost.samples);
+    useStock(s, costPerCup(s, st) * cost.samples - paid, false, 'marketing'); // a cost of the campaign, not of Supplies
   }
   if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 1e4) / 1e4, 1, 5); // Reputation keeps four decimals
   st.campaigns[id] = campaignDays(s, c.days); // Long Run: 50% more days (perks.ts)

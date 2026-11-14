@@ -3,9 +3,10 @@ import * as balance from './balance.ts';
 import {
   book, bookOther, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayIncomeCosts, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
   LOTTIES_CORNER, makeTruce, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, RECIPES, rowAmount, runCampaign,
-  setStockTarget, simulateRestOfDay, SITDOWN_RANK, sleepUntilDawn, successScore, tickMinute, truceCost, upgradeStand, welcomeDex,
+  setStockTarget, simulateRestOfDay, SITDOWN_RANK, sleepUntilDawn, stockValue, successScore, tickMinute, truceCost, upgradeStand, welcomeDex,
   type GameState, type RivalId,
 } from './economy.ts';
+import { iceMachineOn } from './happenings.ts';
 import { answerCall, CALLS } from './calls.ts';
 
 /** Business days and nights until dawn of `day`, cash topped up so the run never goes broke. */
@@ -127,6 +128,26 @@ describe('the Ledger', () => {
     expect(straw.marketing - classic.marketing).toBeCloseTo(-100 * RECIPES.strawberry.extraPerCup, 2); // $11 more
     expect(straw.cash - straw.s.cash).toBeCloseTo(100 * (balance.CUP_COST + RECIPES.strawberry.extraPerCup), 2); // cups and berries leave as cash
     expect(dayCash(straw.s.today) - straw.booked).toBeCloseTo(straw.s.cash - straw.cash, 6); // the rows still add up to the cash change
+  });
+
+  it("a Free Sample Day at an empty cooler's ice machine pays its ice as a sold cup does: in cash, at the Market price", () => {
+    const s = newGame(25);
+    s.rank = 5;
+    s.cash = 5000;
+    const st = (s.plots[LOTTIES_CORNER].stand = newStand(4)); // a Lemon Shack: its ice machine makes what the cooler lacks
+    st.autoRestock = false; // Auto-Restock buys a machine stand no ice anyway
+    st.inventory = { lemons: [{ qty: 200, day: s.day, unitCost: s.market.lemons }], sugar: 400, ice: 0, sugarCost: s.market.sugar, iceCost: s.market.ice };
+    st.pitcherCups = 0;
+    expect(iceMachineOn(s, LOTTIES_CORNER)).toBe(true);
+    const cash = s.cash, value = stockValue(st), booked = dayCash(s.today), cpc = costPerCup(s, st);
+    expect(runCampaign(s, 'freeSamples', LOTTIES_CORNER)).toBe(true);
+    const made = 100 * RECIPES[st.recipe].icePerCup * s.market.ice; // the machine's ice for 100 cups
+    expect(made).toBeGreaterThan(0);
+    expect(st.inventory.ice).toBe(0); // made and poured
+    expect(cash - s.cash).toBeCloseTo(100 * (balance.CUP_COST + RECIPES[st.recipe].extraPerCup) + made, 2); // cups, extras and ice
+    expect(rowAmount(s.today, 'marketing')).toBeCloseTo(-100 * cpc, 2); // still each free cup at the cost per cup
+    expect(rowAmount(s.today, 'stock')).toBeCloseTo(value - stockValue(st), 2); // Into stock: only the stock that really went
+    expect(dayCash(s.today) - booked).toBeCloseTo(s.cash - cash, 6); // the rows still add up to the cash change
   });
 
   it('income less costs is profit: rewards and loot count as income, never as negative costs', () => {

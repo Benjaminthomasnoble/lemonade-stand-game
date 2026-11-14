@@ -9,10 +9,10 @@ import {
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance, ALERT_LIFE, onFeed,
   nothingTonight, openStands, sleepPlan, minutesLeft, raidTicks, RAID_TICKS_FAST_MINUTES,
-  type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
+  playerWon, type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
-import { stepFight, watchFights } from './fight.ts';
+import { fightCommand, stepFight, watchFights } from './fight.ts';
 import { footholdFor } from './fighters.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
@@ -518,6 +518,30 @@ describe('the tutorial raid', () => {
         expect(s.tutorialRaidDone).toBe(true);
         expect(s.plots[LOTTIES_CORNER].stand!.wrecked).toBeFalsy();
       }
+    } finally {
+      watchFights(false);
+    }
+  });
+
+  it('Fall Back in it and it is a real fall back: no bounce, and the Bros go on to the till', () => {
+    watchFights(true);
+    try {
+      let robbed = 0;
+      for (let seed = 1; seed <= 10; seed++) {
+        const { s } = fairNight(seed);
+        const r = tutorialRaid(s);
+        startNight(s);
+        while (!s.fight && s.minute < NIGHT_END) nightStep(s);
+        expect(s.fight?.raid.id).toBe(r.id);
+        expect(fightCommand(s, 'fallBack')).toBe(true); // Dex leaves the Corner to them
+        let ended: BattleReport | undefined;
+        for (let i = 0; !ended && i < 1e5; i++) ended = stepFight(s, 0.5).ended;
+        expect(ended).toMatchObject({ fellBack: 'def' });
+        expect(playerWon(ended!)).toBe(false); // the report and the tally agree: lost
+        expect(s.tutorialRaidDone).toBe(true);
+        if (ended!.outcome === 'robbed') robbed++;
+      }
+      expect(robbed).toBe(10); // no fence on the Corner: nothing stands between them and the till
     } finally {
       watchFights(false);
     }

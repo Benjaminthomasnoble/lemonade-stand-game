@@ -318,10 +318,11 @@ export function withDex(s: GameState, raid: Raid, defenders: Fighter[], night: b
 
 /** fightRaid's tutorial branch: the first raid on you bounces whatever the dice did if you defended the plot at all
  * (a fence, or anyone standing guard), the stand untouched. Undefended, Brock's Bros take the till: the first lesson
- * in what a night costs. Either way the run's tutorial is done. */
+ * in what a night costs. Guards who Fall Back get no bounce: they gave the fight up, and it plays out as it fell.
+ * Either way the run's tutorial is done. */
 export function tutorialBounce(s: GameState, input: BattleInput, res: BattleResult): void {
   s.tutorialRaidDone = true;
-  if (res.outcome === 'repelled') return;
+  if (res.outcome === 'repelled' || res.fellBack) return;
   if (!input.perimeter && !input.defenders.length) return;
   res.winner = 'def';
   res.outcome = 'repelled';

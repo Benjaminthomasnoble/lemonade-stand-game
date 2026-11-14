@@ -13,6 +13,7 @@ import { nextRandom } from './rng.ts';
 import {
   clockText, EVENT_DEFS, eventsOf, expectedPassersby, fitSpec, harmfulOn, HEAT_WAVE, HURRICANE, HURRICANE_ID, hurricaneLoss, hurricaneOn, hurricaneToday,
   INSPECTION, INSPECTION_ID, inspectionFault, inspectionOn, inspectorClosed, KIDS_DAY, SEASONS, STAND_HP, type EventDef, type Season,
+  BRAND_TIERS, lookAhead, morningShow,
 } from './economy.ts';
 
 /** The spec's Kiosk on Lottie's Corner: a Folding Table built new ($150, not Lottie's own $100 one), a Lemonade Cart
@@ -841,6 +842,22 @@ describe('the Hurricane', () => {
     dawn(s); // Day 20: over, and in the record
     expect(hurricaneOn(s)).toBeUndefined();
     expect(eventsOf(s).past[0]).toMatchObject({ id: HURRICANE_ID, from: 19, to: 19 });
+  });
+
+  it("the Radio Jingle's look-ahead and Cal's two-day call it a Hurricane, not a plain Storm", () => {
+    const s = lateGame(60);
+    s.brandTier = BRAND_TIERS[2].tier; // the Jingle (M3): the look-ahead and Cal's two-day
+    dawn(s); // Day 17: on the calendar for Day 19
+    const cal = () => morningShow(s).find((l) => l.kind === 'forecast')!.text;
+    const [tomorrow, after] = lookAhead(s);
+    expect(after).toMatchObject({ day: 19, text: expect.stringMatching(/^Hurricane! Storm, \d+°$/) });
+    expect(tomorrow.text).not.toMatch(/Hurricane/);
+    expect(cal()).toMatch(/; the day after, Hurricane! Storm, \d+°\.$/);
+    dawn(s); // Day 18: it's tomorrow
+    expect(lookAhead(s)[0].text).toMatch(/^Hurricane! Storm, \d+°$/);
+    expect(cal()).toMatch(/^Cal's two-day: tomorrow, Hurricane! Storm, \d+°; the day after, [a-z]/);
+    dawn(s); // Day 19: here, and gone from the look-ahead
+    expect(lookAhead(s).some((a) => /Hurricane/.test(a.text))).toBe(false);
   });
 
   it('is late game, in Fall and Winter only', () => {

@@ -2,8 +2,8 @@
 // odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
 // panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canRaid, canSabotage, dexSquad, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance, SABOTAGE_RANK, squadTrip,
-  WEAPONS, type GameState, type RaidObjective, type RivalId,
+  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, hqPlot, HQS, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
+  SABOTAGE_NEEDS, squadTrip, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
@@ -17,8 +17,8 @@ import { glyph } from './clay.ts';
 export interface Planner {
   /** Guards picked for the next raid or HQ assault. */
   squad: Set<string>;
-  /** The planner on a rival plot's card. */
-  panel(s: GameState, plotId: string): string;
+  /** The planner on a rival plot's card (`inMenu`: drawn in the Raid Planner menu, whose links close it). */
+  panel(s: GameState, plotId: string, inMenu?: boolean): string;
   /** Faces to tap in and out of the squad. */
   picker(s: GameState): string;
   /** Handles the planner's own buttons; false if the click isn't one of them. */
@@ -74,16 +74,34 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     for (const g of dexSquad(s)) squad.add(g);
   }
 
-  function panel(s: GameState, id: string) {
+  /**
+   * The objective step (spec: "Smash, Shakedown, Sabotage or HQ Assault. A locked one says why"): Smash and Shakedown
+   * from Rank 3, Sabotage from 4 and HQ Assault from the owner's HQ rank (a rank lock stays hidden, rule 6). Any
+   * other lock disables the button with its reason as the tip, except Sabotage's squad lock, which the squad fixes:
+   * it stays pickable and the Planner says it in red. HQ Assault leads to the owner's HQ, where the assault is planned.
+   */
+  function objectives(s: GameState, id: string, ids: string[], stand: string, inMenu: boolean) {
+    const sb = canSabotage(s, id, ids);
+    const sabotage: Blocker = sb.ok || sb.why === SABOTAGE_NEEDS ? { ok: true } : sb;
+    if (objective === 'sabotage' && !sabotage.ok) objective = 'smash';
+    const pick = (v: RaidObjective, art: string, label: string, tip: string, b: Blocker = { ok: true }) =>
+      k.btn('objective', `${art}${label}`, b, `data-value="${v}"${b.ok ? ` title="${k.esc(tip)}"` : ''}`, objective === v ? 'go' : 'ghost');
+    const owner = s.plots[id].owner as RivalId, hq = hqPlot(owner);
+    const hb = canAssault(s, owner, [availableRaiders(s)[0]?.id ?? '']); // the HQ's own locks: one free guard stands in for the squad
+    // A link in the menu closes it on the HQ's card (inspect); on a card, the camera flies there too (goto).
+    const storm = s.rank < HQS[owner].rank || k.locked(hb) ? '' : k.btn(inMenu ? 'inspect' : 'goto', `${k.ART.house()}HQ Assault`, hb, `data-plot="${hq.id}" data-testid="objective-hq"${hb.ok ? ` title="${k.esc(`Storm ${hq.name}: the Gate, the Yard, the Boss Room`)}"` : ''}`, 'ghost');
+    return `<div class="cl-acts">${pick('smash', k.ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${pick('shakedown', k.ART.moneyBag(), `Shakedown ${stand}`, 'Grab the till: about a day of its profit')}${k.locked(sb) ? '' : pick('sabotage', k.ART.sour(), 'Sabotage', `Spoil their stock: they sell nothing their next day. The stand stays up.${sb.ok ? '' : ` (${sb.why})`}`, sabotage)}${storm}</div>
+      ${objective === 'sabotage' && !sb.ok ? `<span class="cl-note bad" data-testid="raid-objective-lock">${k.esc(sb.why)}</span>` : ''}`;
+  }
+
+  function panel(s: GameState, id: string, inMenu = false) {
     if (s.rank < RAID_RANK) return '';
     open(s, id);
     const crew = availableRaiders(s);
     for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
     if (!crew.length) return '<span class="cl-note">No guards free</span>';
     const ids = [...squad];
-    const st = s.plots[id].stand;
-    const sabotage = s.rank >= SABOTAGE_RANK && !!st && !st.wrecked; // only a standing stand has stock to spoil
-    if (objective === 'sabotage' && !sabotage) objective = 'smash';
+    const goals = objectives(s, id, ids, k.whole(shakedownLoot(s, id)), inMenu);
     const scouted = isScouted(s, id);
     const odds = (night: boolean): Odds => {
       const ps = s.plots[id];
@@ -103,13 +121,10 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     const risk = nowOffered ? citationRisk(s, !nightNow) : null; // Sheriff Budd, below the line by day
     const ban = raidBan(s);
     const can = canRaid(s, id, ids, objective);
-    const sb = canSabotage(s, id, ids);
-    const obj = (v: RaidObjective, art: string, label: string, tip: string) => `<button class="cl-b ${objective === v ? 'go' : 'ghost'}" data-action="objective" data-value="${v}" title="${tip}">${art}${label}</button>`;
     // A disabled button carries its reason as the title, so the odds tip only goes on a live one.
     const tip = (t: string) => (can.ok ? ` title="${t}"` : '');
     return `<div class="cl-planner" data-testid="raid-planner">
-      <div class="cl-acts">${obj('smash', k.ART.boom(), 'Smash', `Wreck it. They rebuild ${Math.round(rebuildChance(s, id) * 100)}% of the time; if not, you get First Dibs.`)}${obj('shakedown', k.ART.moneyBag(), `Shakedown ${k.whole(shakedownLoot(s, id))}`, 'Grab the till: about a day of its profit')}${sabotage ? obj('sabotage', k.ART.sour(), 'Sabotage', `Spoil their stock: they sell nothing their next day. The stand stays up.${sb.ok ? '' : ` (${k.esc(sb.why)})`}`) : ''}</div>
-      ${objective === 'sabotage' && !sb.ok ? `<span class="cl-note bad">${k.esc(sb.why)}</span>` : ''}
+      ${goals}
       ${intel(s, id)}
       ${picker(s)}
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}

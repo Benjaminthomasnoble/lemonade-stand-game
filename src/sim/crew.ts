@@ -750,9 +750,11 @@ export function canSabotage(s: GameState, plotId: string, guardIds: string[]): B
   if (s.rank < SABOTAGE_RANK) return { ok: false, why: `Sabotage unlocks at Rank ${SABOTAGE_RANK}, ${RANKS[SABOTAGE_RANK - 1].title}` };
   if (!st || st.wrecked) return { ok: false, why: 'Sabotage needs a stand to spoil' };
   if ((st.spoiledDay ?? 0) >= spoilDay(s)) return { ok: false, why: 'Their stock is already spoiled' };
-  if (!raidSquad(s, guardIds).some((g) => g.specialty === 'lookout' || g.trait === 'Sneaky')) return { ok: false, why: 'Sabotage needs a Lookout or a Sneaky guard' };
+  if (!raidSquad(s, guardIds).some((g) => g.specialty === 'lookout' || g.trait === 'Sneaky')) return { ok: false, why: SABOTAGE_NEEDS };
   return { ok: true };
 }
+/** The one Sabotage lock the squad itself fixes (the Planner keeps the objective pickable and says so in red). */
+export const SABOTAGE_NEEDS = 'Sabotage needs a Lookout or a Sneaky guard';
 
 /** A Sabotage that got its 10 minutes with the stock: every lemon, scoop of sugar and cube of ice is ruined, and the stand can't sell its next day. */
 export function spoilStock(s: GameState, plotId: string): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newGame, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { hqPlot, newGame, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
 import { guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
@@ -57,5 +57,35 @@ describe('the Raid Planner', () => {
     expect([...p.squad]).toEqual(['r0', 'r2']);
     p.panel(s, other);
     expect([...p.squad]).toEqual(['r0', 'r1', 'r2']);
+  });
+
+  it('lists Smash, Shakedown, Sabotage and HQ Assault: a rank lock hides one, any other lock says why', () => {
+    const { s } = setup(83); // three Hotheads: no Lookout, nobody Sneaky
+    const target = raidTargets(s).find((t) => s.plots[t.id].owner === 'blenders' && s.plots[t.id].stand)!.id;
+    const { p } = planner();
+    s.rank = 3;
+    let html = p.panel(s, target);
+    expect(html).toMatch(/data-value="smash"/);
+    expect(html).toMatch(/data-value="shakedown"/);
+    expect(html).not.toContain('data-value="sabotage"'); // Rank 4: hidden till then
+    expect(html).not.toContain('objective-hq'); // the Blend Shack opens at Rank 5
+    s.rank = 4;
+    html = p.panel(s, target);
+    expect(html).toMatch(/data-value="sabotage" title="[^"]*\(Sabotage needs a Lookout or a Sneaky guard\)"/); // the squad fixes it: still pickable
+    p.click({ action: 'objective', value: 'sabotage' });
+    html = p.panel(s, target);
+    expect(html).toContain('data-testid="raid-objective-lock">Sabotage needs a Lookout or a Sneaky guard<');
+    expect(html).toMatch(/data-testid="raid-tonight"\s+disabled title="Sabotage needs a Lookout or a Sneaky guard"/);
+    s.plots[target].stand!.spoiledDay = s.day; // already spoiled: Sabotage says so, and the Planner goes back to Smash
+    html = p.panel(s, target);
+    expect(html).toMatch(/data-value="sabotage"\s+disabled title="Their stock is already spoiled"/);
+    expect(html).toMatch(/class="cl-b go" data-action="objective" data-value="smash"/);
+    s.rank = 5;
+    html = p.panel(s, target);
+    expect(html).toMatch(/data-action="goto" data-plot="[^"]+" data-testid="objective-hq"\s+disabled title="Only once they are Weakened"/);
+    s.rivals.blenders.peakPlots = 99; // Weakened: HQ Assault leads to the Blend Shack's card
+    html = p.panel(s, target);
+    expect(html).toContain(`data-action="goto" data-plot="${hqPlot('blenders').id}" data-testid="objective-hq" title="Storm The Blend Shack: the Gate, the Yard, the Boss Room"`);
+    expect(p.panel(s, target, true)).toContain(`data-action="inspect" data-plot="${hqPlot('blenders').id}"`); // from the menu: it closes on the HQ's card
   });
 });

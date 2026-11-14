@@ -18,7 +18,7 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
-import { detectionChance, guardReady, hasBuilding, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
@@ -249,13 +249,14 @@ export function raidFought(s: GameState, r: Raid, report: BattleReport, daytime:
   if (r.siege) siegeFought(s, r, report); // the Big Squeeze: a target held, or lost
 }
 
-/** Your squad gets there and the stand is gone (smashed by someone else, sold, or its owner went under): they walk
- * home again, no fight and no Grudge. */
+/** Your squad gets there and the stand is gone (smashed by someone else, sold, or its owner went under), or an HQ is
+ * shut to it now (its rival isn't Weakened any more): they walk home again, no fight and no Grudge. */
 function nothingThere(s: GameState, r: Raid): boolean {
   const ps = s.plots[r.target];
-  if (ps.owner && ps.owner !== 'player' && (r.assault ? s.rivals[ps.owner as RivalId].alive : hasBuilding(ps))) return false; // crew: an HQ while its rival stands
+  const shut = assaultTurnsBack(s, r); // crew: an HQ whose rival isn't Weakened any more turns the squad back too
+  if (!shut && ps.owner && ps.owner !== 'player' && (r.assault ? s.rivals[ps.owner as RivalId].alive : hasBuilding(ps))) return false; // crew: an HQ while its rival stands
   r.back = s.minute + Math.max(0, s.minute - r.leave!);
-  s.news.push(`Your squad found nothing to raid at ${PLOT_BY_ID[r.target].name} and turned back.`);
+  s.news.push(shut ?? `Your squad found nothing to raid at ${PLOT_BY_ID[r.target].name} and turned back.`);
   return true;
 }
 

@@ -557,14 +557,26 @@ export function rivalsBankrupt(s: GameState): void {
 
 // ---------- HQ assault ----------
 
-export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Blocker {
+/** The HQ's lock while its rival isn't Weakened. */
+export const NOT_WEAKENED = 'Only once they are Weakened';
+
+/** The HQ's own gates, the rival's side of canAssault: still in the game, not Peaceful, your Rank, Tilly's wait, and
+ * Weakened (the campaign's Sourwood Manor: the Big Squeeze). An HQ Assault on its way reads them again as it gets
+ * there (crew's assaultTurnsBack), since the rival may have stopped being Weakened. */
+export function hqOpen(s: GameState, id: RivalId): Blocker {
   const hq = HQS[id];
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no HQ assaults in this Sandbox' };
   if (s.rank < hq.rank) return rankNeed(hq.rank);
   const tilly = tillyWaits(s, id, 'assault'); if (tilly) return tilly;
   const squeeze = squeezeAssault(s, id); // campaign: Sourwood Manor opens with the Big Squeeze, not once she's Weakened
-  if (squeeze ? !squeeze.ok : !isWeakened(s, id)) return squeeze ?? { ok: false, why: 'Only once they are Weakened' };
+  if (squeeze ? !squeeze.ok : !isWeakened(s, id)) return squeeze ?? { ok: false, why: NOT_WEAKENED };
+  return { ok: true };
+}
+
+/** The HQ's gates, then your side: Sheriff Budd's ban, and a squad within the cap. */
+export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Blocker {
+  const open = hqOpen(s, id); if (!open.ok) return open;
   const ban = raidBan(s); if (ban) return ban; // crew: Sheriff Budd's Citation
   if (!guardIds.length) return { ok: false, why: 'Pick your squad' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
@@ -672,7 +684,8 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
 }
 
 /** Three fights in a row, all at once: the Gate, the Yard, the Boss Room. Survivors carry on with the HP they have left.
- * `sent`: an HQ Assault from the Raid Planner that has got there (crew), checked as it was planned, spotted or not. */
+ * `sent`: an HQ Assault from the Raid Planner that has got there (crew), checked as it was planned and its HQ's gates
+ * read again at the gate (crew's assaultTurnsBack), spotted or not. */
 export function stormHQ(s: GameState, id: RivalId, guardIds: string[], sent?: Raid): AssaultResult | false {
   if (!sent && !canAssault(s, id, guardIds).ok) return false;
   let squad = hqSquad(s, id, guardIds);

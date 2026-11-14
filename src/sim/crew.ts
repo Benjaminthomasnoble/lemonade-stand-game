@@ -24,7 +24,7 @@ import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './rei
 import { fitGarrison, knockOut } from './garrison.ts';
 import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './captives.ts';
 import { shakedownLoot } from './loot.ts';
-import { breakTruce, canAssault, HQ_STAGES, hqPlot, hqStageInput, hqSurvivors } from './rivals.ts';
+import { breakTruce, canAssault, HQ_STAGES, hqOpen, hqPlot, hqStageInput, hqSurvivors, NOT_WEAKENED } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
@@ -891,6 +891,23 @@ export function hqOdds(s: GameState, rival: RivalId, guardIds: string[], night: 
     s.nextId = nextId;
   }
   return won / trials;
+}
+
+/**
+ * An HQ Assault gets to the gate (night.ts nothingThere): its HQ's own gates are read again (rivals.ts hqOpen), since
+ * the rival may have stopped being Weakened while the squad was on its way. Shut, the squad turns back: the line to
+ * post, else null. Not Sheriff Budd's ban: the assault that earned a Citation still goes, and the ban calls off the
+ * rest before they set out (citations.ts cite). A rival gone since is night.ts's own "nothing to raid".
+ */
+export function assaultTurnsBack(s: GameState, r: Raid): string | null {
+  const id = s.plots[r.target]?.owner;
+  if (!r.assault || !id || id === 'player' || !s.rivals[id as RivalId].alive) return null;
+  const open = hqOpen(s, id as RivalId);
+  if (open.ok) return null;
+  const where = PLOT_BY_ID[r.target].name;
+  return open.why === NOT_WEAKENED
+    ? `${FACTIONS[id as RivalId].name} aren't Weakened any more: your squad turned back from ${where}.`
+    : `${open.why}: your squad turned back from ${where}.`;
 }
 
 /** An HQ Assault gets to the gate (fight.ts): is it spotted? The HQ's gadgets against the squad, less at night and

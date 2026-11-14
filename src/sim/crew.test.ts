@@ -1321,6 +1321,26 @@ describe('HQ Assault from the Raid Planner', () => {
     expect(s.raids.find((r) => r.assault)?.back).toBe(raid.at! + fought + walk);
   });
 
+  it("a rival no longer Weakened when the squad gets there: it turns back, and the HQ stands", () => {
+    const s = newGame(158);
+    s.rank = 7;
+    s.guards = Array.from({ length: 12 }, (_, i) => guardOf('hatchets', 'pro', 5, 'Loyal', { id: `h${i}`, name: `Raider ${i}` }));
+    const hq = hqPlot('blenders').id, ids = s.guards.map((g) => g.id);
+    s.rivals.blenders.outsoldDays = 7; // outsold 2x for a week: Weakened
+    expect(planRaid(s, hq, ids, 'hq', 'tonight')).toBe(true);
+    const raid = s.raids.find((r) => r.assault)!;
+    openStand(s);
+    simulateRestOfDay(s);
+    s.rivals.blenders.outsoldDays = 0; // a day they kept up: not Weakened any more
+    expect(canAssault(s, 'blenders', ids)).toEqual({ ok: false, why: 'Only once they are Weakened' });
+    sleepUntilDawn(s);
+    expect(s.rivals.blenders.alive).toBe(true);
+    expect(s.plots[hq].owner).toBe('blenders');
+    expect(s.news).toContain(`The Boardwalk Blenders aren't Weakened any more: your squad turned back from ${PLOT_BY_ID[hq].name}.`);
+    expect(s.battles.some((b) => b.hq)).toBe(false);
+    expect(raid.back).toBe(raid.at! + (raid.at! - raid.leave!)); // the walk there, back again
+  });
+
   it('a rival gone before it gets there: the squad turns back', () => {
     const { s, hq, ids } = weakened(155);
     planRaid(s, hq, ids, 'hq', 'now');

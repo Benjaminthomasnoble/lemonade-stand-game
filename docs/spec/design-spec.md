@@ -778,7 +778,7 @@ Hatchets exist to chop. Five of them breach Barbed Wire (2,500 HP) in 19 seconds
 
 ### Specialists, squads and the Clubhouse
 
-From Level 3, a guard can take one specialty. A **Lookout** (Rank 4) adds 25% detection when stationed and scouts raid targets. A **Wrecker** (Rank 4) gets +50% Chop, stacking with the Lumberjack trait. A **Captain** (Rank 6) leads a squad, giving it +20 Nerve and +10% Hit.
+From Level 3, a guard can take one specialty. A **Lookout** (Rank 4) adds 25% detection when stationed and scouts raid targets. A **Wrecker** (Rank 4) gets +50% Chop, stacking with the Lumberjack trait. A **Captain** (Rank 6) leads a squad, giving it +20 Nerve and +10% Hit. A Captain who comes with the reserves when you Ring the Bell leads the guards on post too, from contact. Rung mid-fight, the bell's Captain leads only the guards who join.
 
 Raids unlock at Rank 3. Each raid's squad holds up to 5 guards at Rank 3, 8 at Rank 5 and 12 at Rank 7. Guards on a raid leave their posts empty until they return, and the Raid Planner says which.
 

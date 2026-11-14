@@ -294,6 +294,25 @@ describe('knock it down, buy it up: First Dibs, then the auction', () => {
     }
   });
 
+  it("a Faction Buyout plot at auction: the rivals bid for the building that comes with it, not bare land", () => {
+    const s = newGame(53);
+    const lot = ownedPlots(s, 'blenders').find((p) => p.type !== 'hq')!.id;
+    s.plots[lot].stand = newStand(3);
+    s.plots[lot].invested = 100_000; // a big building on modest land
+    eliminate(s, 'blenders', 'buyout');
+    const ps = s.plots[lot];
+    expect(ps).toMatchObject({ invested: 0, kept: { invested: 100_000 } }); // bare on the map, the building kept for its buyer
+    openAuction(s, lot, 'fire'); // First Dibs ran out
+    purse(s, { fizzco: 1e7 });
+    budgetOf(s, 'fizzco').grow = 1e7;
+    const kept = ps.kept!;
+    delete ps.kept;
+    const bare = bidGuess(s, lot); // what the land alone would fetch
+    ps.kept = kept;
+    expect(bare).toBeLessThan(75_000);
+    expect(bidGuess(s, lot)).toBeGreaterThanOrEqual(ps.landValue + 0.75 * 100_000); // and 75% of the building on top
+  });
+
   it('a feud: a rival plot another rival smashed reaches auction like yours, and the Bugle says so', () => {
     const s = newGame(55);
     const plot = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;

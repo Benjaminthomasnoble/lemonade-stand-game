@@ -182,8 +182,12 @@ export function rivalInterest(s: GameState, id: RivalId, plotId: string): number
 
 /** What a rival can bid on land: its Grow bucket (rivalAi.ts), as far as its cash covers it. */
 const growBudget = (s: GameState, id: RivalId) => Math.floor(Math.max(0, Math.min(budgetOf(s, id).grow, s.rivals[id].cash)));
-/** What's on the block: the land at its opening bid plus 75% of what's built on it. */
-const worth = (s: GameState, plotId: string, a: Auction) => a.min + BUILDING_VALUE_SHARE * s.plots[plotId].invested;
+/** What's on the block: the land at its opening bid plus 75% of what's built on it, or of the building a bought-out
+ * rival left waiting on its Fire Sale plot for the winner (rivals.ts handOverKept). */
+const worth = (s: GameState, plotId: string, a: Auction) => {
+  const ps = s.plots[plotId];
+  return a.min + BUILDING_VALUE_SHARE * (ps.invested || ps.kept?.invested || 0);
+};
 
 function rivalBid(s: GameState, id: RivalId, plotId: string, a: Auction, rng: Rng): number {
   const interest = rivalInterest(s, id, plotId);

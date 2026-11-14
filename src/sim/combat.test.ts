@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMBAT_RULES, createFight, runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
+import { COMBAT_RULES, createFight, runBattle, winChance, withoutCopies, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
 import {
   BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, FACTIONS, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad,
   hqStageInput, hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets,
@@ -794,6 +794,44 @@ describe('HQ assaults', () => {
       }
     }
     expect(rooms).toBeGreaterThan(20); // most of these squads get to the Boss Room
+  });
+
+  it('what reads a fight after it names each fighter once, as the fight lined them up: the report, the XP, the next room', () => {
+    // withoutCopies leaves out whoever the fight leaves out, so fought it is the same fight; with nobody in it twice
+    // it is the input itself.
+    const s = hqGame('fizzco', 12, 'hatchets', 'pro', 5, 42);
+    const room = hqStageInput(s, 'fizzco', 'boss', hqSquad(s, 'fizzco', s.guards.map((g) => g.id)), { seed: 42 });
+    expect(withoutCopies(room)).toBe(room);
+    const preston = room.defenders[0], lead = room.attackers[0];
+    const twice: BattleInput = { ...room, defenders: [preston, ...room.defenders], attackers: [...room.attackers, lead, { ...preston, side: 'att' }] };
+    expect(withoutCopies(twice)).toEqual(room);
+    const res = runBattle(twice, { seed: 42 });
+    expect(res).toEqual(runBattle(room, { seed: 42 }));
+    const reports: BattleReport[] = [];
+    hqStageOver(s, 'fizzco', 'boss', twice, res, reports);
+    expect(reports[0].attackers).toEqual(room.attackers);
+    expect(reports[0].defenders).toEqual(room.defenders);
+    expect(s.guards.map((g) => g.xp)).toEqual(s.guards.map(() => (res.winner === 'att' ? 2 : 1))); // a stage's XP, once each
+    expect(hqSurvivors(twice, res)).toEqual(hqSurvivors(room, res));
+
+    // A raid on your plot: Dex on post, passed in again as a late arrival and as one of the raiders. The report and
+    // the replay name him once, on the side he fought for, and he earns one fight's XP.
+    const u = newGame(5);
+    const dex = guard({ weapon: 'clubs', gear: 'vest', post: LOTTIES_CORNER });
+    u.guards = [dex];
+    const me = guardFighter(dex, 'def', true);
+    const party = many(2, 'att', 'fists', { nerve: 1000 });
+    const raid: Raid = { id: 'rq', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party, detected: true, eta: '' };
+    const input = fight({ attackers: [...party, { ...me, side: 'att' }], defenders: [me], joins: [{ t: 3, fighters: [me] }], standHp: 300 });
+    expect(withoutCopies(input)).toEqual({ ...input, attackers: party, joins: [] });
+    const fought = runBattle(input, { seed: 9 });
+    expect(runBattle(withoutCopies(input), { seed: 9 })).toEqual(fought);
+    const r = fightRaid(u, raid, true, { input, res: fought });
+    expect(r.attackers).toEqual(party);
+    expect(r.defenders).toEqual([me]);
+    expect(r.joins).toBeUndefined();
+    expect(of(r.events, 'at').filter((e) => e.a === dex.id)).toHaveLength(1);
+    expect(dex.xp).toBe(fought.winner === 'def' ? 2 : 1);
   });
 
   it('at FizzCo Tower Preston turns 2 guards who aren\'t Loyal, and an all-Loyal squad stays together', () => {

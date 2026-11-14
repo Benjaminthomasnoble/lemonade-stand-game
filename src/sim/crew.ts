@@ -11,7 +11,7 @@ import {
   STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAIT_EFFECTS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
-import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective, type Side } from './combat.ts';
+import { runBattle, winChance, withoutCopies, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective, type Side } from './combat.ts';
 import { DISTRICT_BY_ID, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
@@ -1036,7 +1036,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   const rng = { seed: s.seed };
   const ps = s.plots[raid.target];
   const defender = ps.owner as FactionId;
-  const input = fought?.input ?? raidInput(s, raid, night, rng);
+  const input = withoutCopies(fought?.input ?? raidInput(s, raid, night, rng)); // combat: each fighter once, as the fight lined them up
   const res = fought?.res ?? runBattle(input, rng);
   s.seed = rng.seed;
   let loot = 0;
@@ -1102,9 +1102,10 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
 
 /** Guards: KOs are out a day (two if a hatchet landed the knockout blow; an L3's Infirmary takes one off); everyone who fought earns XP. */
 export function creditGuards(s: GameState, input: BattleInput, res: { koed: string[]; hatchetKos?: string[]; winner: 'att' | 'def'; events?: BattleEvent[] }): void {
+  const { attackers, defenders, joins } = withoutCopies(input); // combat: each guard once, on the side they fought for
   // Late arrivals count once they've reached the fight (their 'at' on the timeline).
-  const late = (input.joins ?? []).flatMap((j) => j.fighters).filter((f) => res.events?.some((e) => e.type === 'at' && e.a === f.id));
-  for (const f of [...input.attackers, ...input.defenders, ...late]) {
+  const late = (joins ?? []).flatMap((j) => j.fighters).filter((f) => res.events?.some((e) => e.type === 'at' && e.a === f.id));
+  for (const f of [...attackers, ...defenders, ...late]) {
     const g = s.guards.find((x) => x.id === f.id);
     if (!g) continue;
     if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + koDays(s, !!res.hatchetKos?.includes(g.id));

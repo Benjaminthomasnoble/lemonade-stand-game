@@ -17,7 +17,7 @@
 // keeps it on the raid clock) and goes in as that fight ends, at the minute it
 // ends. Your own raids that land meanwhile are fought at once and replayed after.
 import { FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, type RivalId } from './balance.ts';
-import { createFight, type BattleInput, type BattleResult, type Fight, type FightCommand, type FightStatus, type Side } from './combat.ts';
+import { createFight, withoutCopies, type BattleInput, type BattleResult, type Fight, type FightCommand, type FightStatus, type Side } from './combat.ts';
 import { fightRaid, raidInput, spotAssault, type BattleReport, type Raid } from './crew.ts';
 import { nextInLine, raidFought, waitingRaids } from './night.ts';
 import type { FactionId } from './map.ts';
@@ -307,25 +307,29 @@ export function liveReport(s: GameState): BattleReport | null {
   let r = views.get(f);
   if (!r) {
     const ps = s.plots[f.raid.target];
+    const { attackers, defenders } = withoutCopies(f.input); // combat: each fighter once, as the fight lines them up
     r = {
       delivery: f.raid.delivery, day: s.day, attacker: f.raid.attacker, defender: ps.owner as FactionId, target: f.raid.target,
-      objective: f.input.objective, outcome: 'repelled', loot: 0, attackers: f.input.attackers, defenders: f.input.defenders,
+      objective: f.input.objective, outcome: 'repelled', loot: 0, attackers, defenders,
       perimeter: f.input.perimeter, standLevel: f.hq ? 3 : ps.stand?.level ?? 0, events: fightOf(f).events,
       duration: Infinity, koed: [], fled: [], ...(f.hq ? { hq: f.hq.stage } : {}),
       gadgets: f.input.gadgets.length ? f.input.gadgets : undefined, night: f.night || undefined, // the replay's gadgets and dark
     };
     // Who joins later (Ring the Bell's reserves, a boss's called Stewards), read fresh: the world draws them as they arrive.
+    // Someone already in the fight who arrives again stays out of it, and out of these.
     const view = r;
     Object.defineProperty(r, 'joins', {
       enumerable: true,
       configurable: true,
       // the final report (settle) writes its own joins over the live ones
       set: (value) => Object.defineProperty(view, 'joins', { value, writable: true, enumerable: true, configurable: true }),
-      get: () => [
-        ...(f.input.joins ?? []),
-        ...f.commands.flatMap((c) => (c.type === 'join' ? [{ t: c.t, fighters: c.fighters }] : [])),
-        ...(f.input.bossMoves ?? []).flatMap((m) => (m.type === 'call' ? [{ t: m.t, fighters: m.fighters.map((x) => ({ ...x, side: 'def' as const })) }] : [])),
-      ],
+      get: () => withoutCopies({
+        ...f.input, bossMoves: undefined, joins: [
+          ...(f.input.joins ?? []),
+          ...f.commands.flatMap((c) => (c.type === 'join' ? [{ t: c.t, fighters: c.fighters }] : [])),
+          ...(f.input.bossMoves ?? []).flatMap((m) => (m.type === 'call' ? [{ t: m.t, fighters: m.fighters.map((x) => ({ ...x, side: 'def' as const })) }] : [])),
+        ],
+      }).joins,
     });
     views.set(f, r);
   }

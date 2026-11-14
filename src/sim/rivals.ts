@@ -1,7 +1,7 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { BOSS_SCALE, FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, PERIMETERS, RAID_BOSS, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
-import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
+import { runBattle, withoutCopies, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
 import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard, type Raid } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
@@ -712,18 +712,20 @@ const roomDefenders = (input: BattleInput, res: BattleResult): Fighter[] => [
 
 /**
  * Survivors carry on to the next stage with the HP they had left (spec: "Your squad carries its HP from stage to
- * stage"); the knocked-out and the runners are done for this assault. Weapons come back to hand between stages.
+ * stage"); the knocked-out and the runners are done for this assault. Weapons come back to hand between stages. Each
+ * raider goes on once, as the fight lined them up (combat.ts withoutCopies).
  */
 export const hqSurvivors = (input: BattleInput, res: BattleResult): Fighter[] =>
-  input.attackers.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: res.hpLeft[f.id] ?? f.hp }));
+  withoutCopies(input).attackers.filter((f) => !res.koed.includes(f.id) && !res.fled.includes(f.id)).map((f) => ({ ...f, hp: res.hpLeft[f.id] ?? f.hp }));
 
 /**
  * A stage is fought: credit the guards and write it up. 'next' when the squad
  * pushes on; a stall or the Boss Room falling ends the assault here.
  */
-export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: BattleInput, res: BattleResult, reports: BattleReport[]): 'next' | 'won' | 'lost' {
+export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, fought: BattleInput, res: BattleResult, reports: BattleReport[]): 'next' | 'won' | 'lost' {
   const hq = HQS[id];
   const plot = hqPlot(id);
+  const input = withoutCopies(fought); // combat: each fighter once, as the fight lined them up
   creditGuards(s, input, res);
   const won = res.winner === 'att' && (stage !== 'gate' || res.outcome === 'smashed');
   reports.push({

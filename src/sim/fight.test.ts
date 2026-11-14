@@ -224,6 +224,23 @@ describe('a live fight', () => {
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
   });
 
+  it('a save with a guard rung into the fight he was already in (the old bell) loads with him in it once: one fight, named and paid once', () => {
+    const s = newGame(7);
+    const home = ownedPlots(s, 'player')[0].id;
+    s.guards = [guardOf('clubs', 'vest', 2, 'Smooth Talker', { post: home, name: 'Dex' })];
+    startFight(s, { id: 'rl', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '' }, true);
+    stepFight(s, FIGHT_LEAD_IN + 1);
+    const plain = JSON.parse(JSON.stringify(s)) as GameState;
+    s.fight!.commands.push({ t: 2, type: 'join', fighters: s.fight!.input.defenders }); // the bell before it checked who's in the fight
+    const old = JSON.parse(JSON.stringify(s)) as GameState; // saved then, loaded now
+    expect(liveReport(old)!.joins).toEqual([]); // the 3D view brings nobody in again
+    const a = play(plain).ended, b = play(old).ended;
+    expect(b).toEqual(a); // the fight without the copy, to the last swing
+    expect(b.defenders.map((f) => f.id)).toEqual([s.guards[0].id]);
+    expect(b.joins).toBeUndefined();
+    expect(JSON.stringify(old)).toBe(JSON.stringify(plain)); // his XP and his KO, once
+  });
+
   it('a raid of yours that lands while a fight is on screen is fought at once (raids on you wait their turn)', () => {
     const s = crew(24);
     const [t1, t2] = raidTargets(s);

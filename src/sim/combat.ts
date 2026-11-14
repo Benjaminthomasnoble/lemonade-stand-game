@@ -190,6 +190,37 @@ export function runBattle(input: BattleInput, rng: Rng, commands: FightCommand[]
 }
 
 /**
+ * A fight's input with each fighter in it once, as createFight lines them up: the defenders, the raiders who aren't
+ * among them, then each late arrival who isn't in it already, in the order they come (the joins by time, then a
+ * boss's called Stewards by time; no fight the game builds has both). Fought, it is the same fight. Whatever reads a
+ * fight's input after it (the XP, the report and its replay, who's left behind, the next HQ room) reads this, so
+ * someone passed in twice is named once, on the side they fought for. An input with nobody in it twice comes back as
+ * it is.
+ */
+export function withoutCopies(input: BattleInput): BattleInput {
+  const seen = new Set<string>();
+  let copies = false;
+  const once = (fighters: Fighter[]) => fighters.filter((f) => {
+    if (seen.has(f.id)) { copies = true; return false; }
+    seen.add(f.id);
+    return true;
+  });
+  const defenders = once(input.defenders);
+  const attackers = once(input.attackers);
+  // A list of late arrivals taken as the fight takes it, by time (ties as listed); the list keeps its own order.
+  const inTurn = <T extends { t: number }>(xs: T[] | undefined, at: (x: T) => number, keep: (x: T) => T): T[] | undefined => {
+    if (!xs) return xs;
+    const out = [...xs];
+    for (const k of xs.map((_, k) => k).sort((a, b) => at(xs[a]) - at(xs[b]) || a - b)) out[k] = keep(xs[k]);
+    return out;
+  };
+  const joins = inTurn(input.joins, (j) => Math.max(0, j.t), (j) => ({ ...j, fighters: once(j.fighters) })); // queued from 0 s
+  const bossMoves = inTurn(input.bossMoves, (m) => m.t, (m) => (m.type === 'call' ? { ...m, fighters: once(m.fighters) } : m));
+  if (!copies) return input;
+  return { ...input, defenders, attackers, ...(joins ? { joins: joins.filter((j) => j.fighters.length) } : {}), ...(bossMoves ? { bossMoves } : {}) };
+}
+
+/**
  * A fight that runs one tick at a time. Its dice come from `rng` as it goes, so
  * the same input, seed and commands always give the same fight.
  */
@@ -215,7 +246,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   // One fighter, one id: the timeline, the KO list and the replay name everyone by it, so each id is in the fight
   // once. A copy of someone already in it stays out and the first copy fights. The defenders line up first, so a
   // raider's copy of one of theirs stays out (an HQ's boss belongs to the room); so does anyone joining later who is
-  // in the fight already, standing, knocked out or gone (joinIn).
+  // in the fight already, standing, knocked out or gone (joinIn). withoutCopies gives the readers this line-up.
   const fencedAtStart = !breached;
   const lineA = fencedAtStart ? C.fenceAt + gap : input.defenders.length ? C.holdAt + 2 * gap : gap;
   const lineD = fencedAtStart ? C.fenceAt - gap : C.holdAt;

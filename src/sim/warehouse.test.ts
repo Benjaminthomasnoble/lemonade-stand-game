@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildFacility, canBuildFacility, cupsInStock, FACILITIES, helperLines, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, NO_DEFENSE, OPEN, PLOTS, postsFor,
+  AUTO_RESTOCK_DAY, buildFacility, canBuildFacility, cupsInStock, FACILITIES, helperLines, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, NO_DEFENSE, OPEN, PLOTS, postsFor,
   restockPlan, standCost, SUPPLIES, sugarRoom, suppliedStands, tierOpen, WAREHOUSE, WAREHOUSE_ID, warehouseAtDawn, warehouseRuns, warehouseValue, type GameState,
 } from './economy.ts';
 import { warehouseNote } from '../ui/warehouse.ts';
@@ -9,6 +9,7 @@ import { warehouseNote } from '../ui/warehouse.ts';
 function depot(seed: number) {
   const s = newGame(seed, { lessons: false });
   s.rank = 4;
+  s.day = AUTO_RESTOCK_DAY; // Auto-Restock has come (automation.ts restockOpen), as it has in any Rank 4 game
   s.cash = 100000;
   s.phase = 'prep';
   const [shed, a, b] = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner);

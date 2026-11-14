@@ -119,7 +119,7 @@ export function callFight(f: FightNote): string {
   }
 }
 
-/** Cal's 2-day forecast after the Jingle (seam: demand's forecastDays(s, 2) once it merges; the Bugle's lookAhead for now). */
+/** Cal's 2-day forecast after the Jingle: the Bugle's lookAhead, which reads demand's weather queue (weather.ts forecastAhead). */
 function twoDay(s: GameState, celsius = false): string {
   const [a, b] = lookAhead(s, 2);
   const low = (t: string) => inCelsius(/^Heat Wave/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1), celsius);

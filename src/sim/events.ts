@@ -290,8 +290,8 @@ export function eventWeather(s: GameState, w: Weather): Weather {
   return keep ? w : cooler(w);
 }
 
-/** The look-ahead's seam (demand's forecastDays and the Radio Jingle's 2-day forecast): what a coming day is known to bring.
- * A planned Heat Wave day is a Scorcher; anything else is still the season's guess (null). */
+/** What a coming day is known to bring, for demand's weather queue and look-ahead (weather.ts forecastAhead, which the
+ * Bugle and the Radio Jingle's 2-day forecast read). A planned Heat Wave day is a Scorcher; anything else is null. */
 export function plannedWeather(s: GameState, day: number): Weather | null {
   return heatWaveDay(s, day) ? { kind: 'scorcher', temp: Math.round((WEATHER.scorcher.temp[0] + WEATHER.scorcher.temp[1]) / 2) } : null;
 }

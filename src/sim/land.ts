@@ -12,6 +12,7 @@ import { districtControl } from './modes.ts';
 import { closeAuctions, openLavender } from './auction.ts';
 import { book, stockValue } from './ledger.ts';
 import { migratePolicies, policiesAtDawn } from './policies.ts';
+import { migrateWarehouses } from './warehouse.ts';
 
 // ---------- the map (spec: Sandbox: Turf War) ----------
 
@@ -220,6 +221,7 @@ export function migrateLand(s: GameState): void {
   s.control ??= controlSnapshot(s);
   clearTrophyStands(s);
   migratePolicies(s);
+  migrateWarehouses(s);
 }
 
 /**

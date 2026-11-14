@@ -552,6 +552,12 @@ export const BULK_RANK = 3;
  * Fortify lifts each plot's Auto-Defend priority to at least `priority` (policies.ts).
  * placeholder: spec gap (what each preset does, the starting budget and the priority) */
 export const POLICY = { rank: 7, budget: 50000, priority: 2 };
+/** The Warehouse (balance-tables: "Warehouse | 4 | 15,000 | Street or Industrial | Stores bottles and supplies;
+ * auto-supplies stands in its district"; FACILITIES in vip.ts builds it, warehouse.ts runs it). Its market runs top up a
+ * stand of yours in its district once it holds less than an hour's pour, every `runEvery` minutes while open; its sugar
+ * store holds `sugarDays` days of those stands' sugar, bought on a day the Market's sugar is at or under normal and
+ * handed out on a dearer one (a Sugar Shortage). placeholder: spec gap (hp, runEvery, sugarDays; the spec gives none) */
+export const WAREHOUSE = { rank: 4, cost: 15000, hp: 1000, runEvery: 15, sugarDays: 5 };
 /** A Storm day (the real weather, not the forecast) takes this share of max HP off every faction's stand up to
  * `maxLevel`, never below 1 HP, so it stays open at its HP share until repaired (spec: Damage, repairs and rebuilds). */
 export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };

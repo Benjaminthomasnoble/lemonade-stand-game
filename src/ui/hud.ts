@@ -74,6 +74,7 @@ import { bankTicket } from './bank.ts'; // land: Marisol's bank after the mornin
 import { bulkAction, bulkCards, pickBulk } from './bulk.ts'; // land: bulk orders on the Grow tab (Rank 3)
 import { policyAction, policyCards, policyToggle } from './policies.ts'; // land: district policies (Rank 7)
 import type { DistrictId, PolicyKind } from '../sim/economy.ts';
+import { warehouseNote } from './warehouse.ts'; // land: the Warehouse (Rank 4)
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -871,6 +872,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
     actions += defendPriorityHere(s, id, tape); // Dex's Auto-Defend: this plot's priority (src/ui/autodefend.ts)
     actions += policyToggle(s, id); // land: this plot in or out of its district's policy (src/ui/policies.ts)
+    actions += warehouseNote(s, id); // land: what a Warehouse of yours does for its district (src/ui/warehouse.ts)
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     if (ps.owner === 'player') actions += listingControls(s, id);
     if (id === TOWN_HALL) actions += registryButton(s);

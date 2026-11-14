@@ -468,7 +468,7 @@ export function forSaleLabel(): THREE.Group {
 
 // ---------------------------------------------------------------- the player's VIP facilities
 /** VIP facilities, in their owner's colours (lemon yellow and Lottie's name only for the player). `reach` sizes a pier to the water. */
-export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 'billboard' | 'clubhouse', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
+export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 'billboard' | 'clubhouse' | 'warehouse', level: number, owner: string | null = 'player', reach = 0): THREE.Group {
   const M = new Model();
   const own = TILE_PATTERN[(owner ?? 'player') as keyof typeof TILE_PATTERN] ?? TILE_PATTERN.player;
   const Y = own.main, ACC = owner === 'player' ? '#FFFFFF' : own.accent;
@@ -477,6 +477,20 @@ export function facilityModel(kind: 'bottling' | 'helipad' | 'pier' | 'grove' | 
   M.farColor = kind === 'grove' ? '#5FA35A' : kind === 'pier' ? P.stick : kind === 'helipad' ? own.main : '#F3E9D6';
   M.farFlat = kind === 'grove' || kind === 'pier';
   if (kind === 'bottling') M.farTop = own.main;
+  if (kind === 'warehouse') {
+    // land: a long clay shed with a striped roof, a roll-up door and crates of lemons stacked by it
+    block(M, 8, 3.2, 5, '#F3E9D6', 0, 0, -4, 41);
+    for (let i = 0; i < 8; i++) M.add(rbox(1.0, 0.25, 5.4, 0.06), i % 2 ? Y : ACC, { p: [-3.5 + i, 3.3, -4] });
+    door(M, -1.2, -1.45, '#8C8377', 2.6, 2.4);
+    window_(M, 2.4, 2.1, -1.45, 1, 0.8);
+    for (let i = 0; i < 3; i++) {
+      M.add(rbox(0.9, 0.8, 0.9, 0.06), P.stick, { p: [3.2, 0.4 + i * 0.82, -0.6], fx: PAPER });
+      M.add(sph(0.18, 7, 5), Y, { p: [3.2, 0.88 + i * 0.82, -0.6] });
+    }
+    const g = M.done('facility');
+    if (owner === 'player') label(g, "LOTTIE'S WAREHOUSE", 4, -0.4, 2.9, -1.44, -0.02);
+    return g;
+  }
   if (kind === 'grove') {
     // flowering lemon trees on clay mounds, three rows
     for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {

@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, type RecipeId, type RivalId } from './balance.ts';
+import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, WAREHOUSE, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, plotType, PLOTS, type PlotType } from './map.ts';
@@ -17,8 +17,9 @@ import { rivalStars } from './demand.ts';
 import { perkActive } from './land.ts'; // land: the Full Control perks
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 import { steadyPour } from './perks.ts';
+import { warehouseAtDawn } from './warehouse.ts'; // land: the Warehouse's sugar store
 
-export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
+export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard' | 'warehouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal' | 'mega';
 /** Tiers delivered by sea (a ship scene at the pier): a Mega Contract's freighters load at the Cargo Terminal too. */
 export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal' || t === 'mega';
@@ -63,6 +64,8 @@ export const FACILITIES: Record<FacilityKind, { hp: number[]; names: string[]; c
   clubhouse: { hp: CLUBHOUSE_HP, names: ['Clubhouse', 'Clubhouse L2', 'Clubhouse L3'], costs: CLUBHOUSE.map((c) => c.cost), ranks: CLUBHOUSE.map((c) => c.rank), on: ['street'], blurb: CLUBHOUSE.map((c) => `${c.beds} beds for guards`) },
   // demand: your stands within 2 plots +20% traffic, rival stands there −10% appeal (marketing.ts). Needs M4 too.
   billboard: { hp: [BILLBOARD.hp], names: ['Billboard'], costs: [BILLBOARD.cost], ranks: [BILLBOARD.rank], on: ['street', 'prime', 'landmark'], blurb: ['+20% foot traffic at your stands within 2 plots; rival stands there −10% appeal'] },
+  // land: keeps your stands in its district stocked and stores their sugar (warehouse.ts); Caterer Trucks need one.
+  warehouse: { hp: [WAREHOUSE.hp], names: ['Warehouse'], costs: [WAREHOUSE.cost], ranks: [WAREHOUSE.rank], on: ['street', 'industrial'], blurb: ['Keeps your stands in its district stocked; stores sugar'] },
 };
 export const BOTTLES_PER_DAY = [1500, 4000, 12000];
 /** The bottle and cap that take the cup's place (balance-tables: Supplies). */
@@ -345,6 +348,7 @@ function rivalTakesJob(s: GameState, o: Order): void {
 
 /** At dawn: production, expiring offers, new offers. */
 export function vipAtDawn(s: GameState): void {
+  warehouseAtDawn(s); // land: after the day's Market shocks, before Auto-Restock buys (warehouse.ts)
   const rng = { seed: s.seed };
   // Bottling runs only while an accepted order still needs bottles: each recipe the orders want, the soonest due first,
   // at its own cost (a page that has left the book can't be bottled).

@@ -53,6 +53,7 @@ import {
 } from './land.ts';
 import type { Auction, Lavender } from './auction.ts';
 import type { DistrictPolicy } from './policies.ts';
+import { warehouseRuns, warehouseValue, type WarehouseStock } from './warehouse.ts';
 import type { SyndicateState } from './syndicate.ts';
 import type { SqueezeState } from './squeeze.ts';
 
@@ -85,6 +86,7 @@ export * from './marketing.ts';
 export * from './specializations.ts';
 export * from './weather.ts';
 export * from './policies.ts';
+export * from './warehouse.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -295,6 +297,7 @@ export interface GameState {
   everyLastPlotEarned?: { day: number; bugled?: true }; // land: the day Every Last Plot was earned (bugled: the Bugle has led with it)
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
   policies?: Partial<Record<DistrictId, DistrictPolicy>>; // land: each district's policy, from Rank 7 (policies.ts)
+  warehouses?: Record<string, WarehouseStock>; // land: each Warehouse's sugar store, by plot (warehouse.ts)
   calls?: CallsState; // today's day calls (calls.ts)
   lastRaidOnYou?: number; // the last night a raid on you was planned (threat.ts caps the quiet nights in a row)
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
@@ -790,6 +793,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   for (const p of PLOTS) if (s.plots[p.id].stand?.queue) drainQueue(s, p.id); // the minute's pours: what's left waits into the next
   s.seed = rng.seed;
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
+  warehouseRuns(s); // land: a Warehouse's market runs keep its district's stands stocked (warehouse.ts)
   s.minute++;
   events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
   events.push(...storyMinute(s)); // a hand of Lottie's Tips is a major alert (score.ts, perks.ts)
@@ -1070,7 +1074,7 @@ export function assetValue(s: GameState, owner: FactionId = 'player'): number {
     if (ps.owner !== owner) continue;
     total += ps.landValue + BUILDING_VALUE_SHARE * ps.invested + (owner === 'player' && ps.stand ? inventoryValue(ps.stand) : 0);
   }
-  return round2(total + (owner === 'player' ? bottleValue(s) : 0)); // world: bottles on hand are stock at cost (vip.ts)
+  return round2(total + (owner === 'player' ? bottleValue(s) + warehouseValue(s) : 0)); // world: bottles on hand are stock at cost (vip.ts); land: a Warehouse's sugar too
 }
 
 /** Net Worth = cash + land + 75% of building investment + inventory at cost − loans. */

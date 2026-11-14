@@ -6,7 +6,7 @@
 // confetti flies. One set of props follows the player's stand through its
 // levels: place() moves them onto the new level's anchors.
 import * as THREE from 'three';
-import { Baker, GLOSS, PAPER, box, canvasTex, cyl, hash, lathe, lumpy, sph, tor } from './core.ts';
+import { Baker, GLOSS, PAPER, box, canvasTex, cone, cyl, hash, lathe, lumpy, sph, tor } from './core.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { kit } from './kit.ts';
 import { P } from './palette.ts';
@@ -152,8 +152,26 @@ export function createStandProps(): StandProps {
     classic: clayMesh(new Baker().add(cyl(0.11, 0.11, 0.025, 14), P.lemon).add(cyl(0.085, 0.085, 0.03, 14), '#fff3b0').build(), K.world, false, false),
     pink: clayMesh(new Baker().add(lumpy(sph(0.07, 10, 8), 0.008, 14, 4), '#d6455e', { s: [1, 1.2, 1] }).add(sph(0.04, 6, 5), P.green, { p: [0, 0.08, 0], s: [1.4, 0.4, 1.4] }).build(), K.world, false, false),
     mint: clayMesh(new Baker().add(sph(0.08, 8, 6), '#5fb06a', { s: [1.4, 0.25, 0.8], r: [0, 0, 0.4] }).add(sph(0.07, 8, 6), '#7cc47f', { p: [0.08, 0.02, 0.05], s: [1.3, 0.25, 0.7], r: [0, 0.8, -0.3] }).build(), K.world, false, false),
+    // A strawberry slice on the rim: red edge, pale heart, a ring of seeds.
+    strawberry: clayMesh((() => { const B = new Baker().add(cyl(0.1, 0.1, 0.025, 14), '#d6455e', { s: [1, 1, 1.15] }).add(cyl(0.065, 0.065, 0.03, 12), '#f7b3bf', { s: [1, 1, 1.15] }); for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; B.add(sph(0.012, 4, 3), '#fff3b0', { p: [Math.cos(a) * 0.08, 0.016, Math.sin(a) * 0.09] }); } return B.build(); })(), K.world, false, false),
+    // Frozen: shards of ice standing up out of the slush.
+    frozen: clayMesh((() => { const B = new Baker(); for (let k = 0; k < 4; k++) B.add(cone(0.045, 0.16 + (k % 2) * 0.06, 4), '#e8f8ff', { p: [(k - 1.5) * 0.06, 0.06, (k % 2) * 0.04], r: [0.2 * (k - 1.5), k, 0.25 * (1.5 - k)], fx: GLOSS }); return B.build(); })(), K.world, false, false),
+    // Honey Ginger: a ginger coin with a honey drip.
+    honeyGinger: clayMesh(new Baker().add(lumpy(cyl(0.09, 0.09, 0.03, 12), 0.006, 12, 2), '#e9c98d').add(cyl(0.07, 0.07, 0.034, 12), '#f3dcaa').add(sph(0.03, 6, 5), '#e0a84c', { p: [0.08, -0.02, 0], s: [1, 1.6, 1], fx: GLOSS }).build(), K.world, false, false),
+    // Sparkling: bubbles floating up out of the pitcher.
+    sparkling: clayMesh((() => { const B = new Baker(); for (let k = 0; k < 6; k++) B.add(sph(0.022 + (k % 3) * 0.01, 6, 5), '#fdfbe6', { p: [(hash(k, 3) - 0.5) * 0.2, 0.02 + k * 0.045, (hash(k, 4) - 0.5) * 0.15], fx: GLOSS }); return B.build(); })(), K.world, false, false),
+    // Lavender: a sprig, a green stem with purple buds up its top.
+    lavender: clayMesh((() => { const B = new Baker().add(cyl(0.008, 0.008, 0.28, 4), P.green, { p: [0, 0.1, 0], r: [0, 0, -0.3] }); for (let k = 0; k < 6; k++) B.add(sph(0.022, 5, 4), k % 2 ? '#9a78d0' : '#b79ce0', { p: [0.025 + k * 0.012 + (k % 2 ? 0.012 : -0.012), 0.12 + k * 0.03, 0], s: [1, 1.3, 1] }); return B.build(); })(), K.world, false, false),
+    // Half and Half: a tea leaf hooked on the rim.
+    halfAndHalf: clayMesh(new Baker().add(sph(0.08, 8, 6), '#4f8a4a', { s: [1.5, 0.22, 0.75], r: [0, 0.4, 0.3] }).add(box(0.12, 0.01, 0.008), '#3b6b37', { p: [0, 0.02, 0], r: [0, 0.4, 0.3] }).build(), K.world, false, false),
+    // Secret Reserve: a gold ribbon tied round the pitcher's neck, bow in front.
+    secretReserve: clayMesh(new Baker().add(tor(0.2, 0.02, 5, 20), P.gold, { r: [Math.PI / 2, 0, 0], p: [0.05, -0.06, -0.04], fx: GLOSS }).add(sph(0.05, 6, 5), P.gold, { p: [0.05, -0.06, 0.17], s: [1.6, 0.8, 0.5], r: [0, 0, 0.5], fx: GLOSS }).add(sph(0.05, 6, 5), P.gold, { p: [0.05, -0.06, 0.17], s: [1.6, 0.8, 0.5], r: [0, 0, -0.5], fx: GLOSS }).build(), K.world, false, false),
   };
   for (const g of Object.values(garnishes)) { g.position.set(-0.05, 0.6, 0.04); g.rotation.set(0.3, 0, 0.2); pitcher.add(g); }
+  // The ones that sit in the drink or round the neck rather than on the rim.
+  garnishes.frozen.position.set(0, 0.36, 0); garnishes.frozen.rotation.set(0, 0, 0);
+  garnishes.sparkling.position.set(0, 0.44, 0); garnishes.sparkling.rotation.set(0, 0, 0);
+  garnishes.secretReserve.position.set(-0.05, 0.56, 0.04); garnishes.secretReserve.rotation.set(0, 0, 0);
   pitcher.add(liquid);
   group.add(pitcher);
 

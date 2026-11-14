@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { idlePose, MOTION } from './people.ts';
 import { Figure, SPECS, heroDetail, type FigureSpec } from './clay/figure.ts';
 import { holdProp } from './clay/cast.ts';
-import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
+import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, sph, tor } from './clay/core.ts';
 import { fxOf } from './clay/bake.ts';
 import { kit } from './clay/kit.ts';
 import { P } from './clay/palette.ts';
@@ -15,6 +15,7 @@ import { buildLevel, fallSign, farLevel, type LevelModel } from './clay/stands.t
 import { createStandProps, type PropState, type StandProps } from './clay/standProps.ts';
 import { createRevealCrate } from './clay/crate.ts';
 import { specGeometry } from './clay/specs.ts';
+import { fruitBasket, smearPosters } from './clay/schemeProps.ts';
 import type { SpecId } from '../sim/balance.ts';
 import { wreckPile } from './clay/defenses.ts';
 import { cardFlap, cardPlane, clayMesh, crayonSign, stick } from './clay/standKit.ts';
@@ -26,6 +27,10 @@ export interface StandUpdate {
   ceiling?: number;
   /** 0 Street View, 1 mid zoom (drops the small props), 2 Bay View. */
   detail?: number;
+  /** 101.5 is playing (radioOn): an L3+ stand shows its radio on the counter, antenna bobbing. */
+  radio?: boolean;
+  /** The recipes you own, chalked on the L3 menu board in their pitcher colours. */
+  menu?: readonly string[];
   /** Storm: an L1-L2's card skirt or awning flaps. Scorcher: the ice pops sag in the cooler. */
   storm?: boolean;
   scorcher?: boolean;
@@ -62,6 +67,8 @@ export interface Stand {
   setBusted(busted: boolean): void;
   /** The specializations fitted (Express Window, Fancy Menu, Fortified Frame, Billboard Roof), shown on an L3+ stand. */
   setSpecs(ids: readonly SpecId[]): void;
+  /** Rival schemes aimed at this stand (src/world/plotSchemes.ts): Cold Brew's smear posters, the Cease-and-Desist fruit basket. */
+  setSchemes?(x: { posters: boolean; basket: boolean; markdown?: boolean }): void;
   /** Free the stand's GPU resources and its tap listener (the kid and Lottie figures are left alone). */
   dispose(): void;
 }
@@ -220,12 +227,51 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     far0.dispose(); fit.far.dispose();
   }
 
+  // ---------- rival schemes ----------
+  // Posters and the basket bake into one draw on the level's root, rebuilt when either flips or the level changes.
+  let schemeNow = { posters: false, basket: false }, schemeKey = '', schemeMesh: THREE.Mesh | null = null;
+  function fitSchemes() {
+    if (!model) return;
+    const key = `${model.level}|${schemeNow.posters ? 'p' : ''}${schemeNow.basket ? 'b' : ''}`;
+    if (key === schemeKey) return;
+    schemeKey = key;
+    if (schemeMesh) { schemeMesh.removeFromParent(); schemeMesh.geometry.dispose(); schemeMesh = null; }
+    if (!schemeNow.posters && !schemeNow.basket) return;
+    const B = new Baker();
+    if (schemeNow.posters) B.raw(smearPosters(model.anchors));
+    if (schemeNow.basket) B.raw(fruitBasket(model.anchors));
+    schemeMesh = clayMesh(B.build(), kit().world);
+    schemeMesh.name = 'schemes';
+    model.root.add(schemeMesh);
+  }
+
   // ---------- damage ----------
   // Busted: taped shut with a cream X across the counter.
   const tape = new THREE.Group();
   tape.add(clayMesh(new Baker().add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, 0.42], fx: PAPER }).add(box(2.2, 0.16, 0.025), P.cream, { r: [0, 0, -0.42], p: [0, 0, 0.01], fx: PAPER }).build(), kit().world));
   tape.visible = false;
   group.add(tape);
+
+  // ---------- the radio ----------
+  // A clay transistor radio on the counter of an L3+ stand while 101.5 plays: teal body, cream
+  // speaker grille, a lemon dial and a chrome antenna that bobs to the music.
+  const radio = new THREE.Group();
+  radio.visible = false;
+  {
+    const B = new Baker();
+    B.add(rbox(0.44, 0.28, 0.16, 0.05), P.teal, { p: [0, 0.14, 0] });
+    B.add(rbox(0.2, 0.2, 0.02, 0.03), P.cream, { p: [-0.08, 0.14, 0.08] });
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) B.add(sph(0.014, 5, 4), P.ink, { p: [-0.14 + i * 0.06, 0.08 + j * 0.06, 0.092] });
+    B.add(cyl(0.05, 0.05, 0.03, 12), P.lemon, { p: [0.12, 0.17, 0.085], r: [Math.PI / 2, 0, 0], fx: GLOSS });
+    B.add(box(0.012, 0.06, 0.01), P.ink, { p: [0.12, 0.18, 0.1] });
+    B.add(cyl(0.022, 0.022, 0.03, 8), P.cream, { p: [0.12, 0.06, 0.085], r: [Math.PI / 2, 0, 0] });
+    B.add(tor(0.11, 0.015, 5, 12, Math.PI), P.chrome, { p: [0, 0.28, 0], fx: GLOSS });
+    radio.add(clayMesh(B.build(), kit().world));
+  }
+  const antenna = clayMesh(new Baker().add(cyl(0.009, 0.013, 0.5, 5), P.chrome, { p: [0, 0.25, 0], fx: GLOSS }).add(sph(0.022, 6, 5), P.chrome, { p: [0, 0.5, 0], fx: GLOSS }).build(), kit().world, false, false);
+  antenna.position.set(0.17, 0.27, -0.04);
+  radio.add(antenna);
+  group.add(radio);
 
   // ---------- mid-zoom bake ----------
   // From mid zoom out, every still clay part of the stand (the level, the props' body, the
@@ -241,7 +287,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   }
   function bakeMid() {
     if (!model || midMesh) return;
-    const live = new Set<THREE.Object3D | undefined>([spin, phone, crate.group, brandSigns]);
+    const live = new Set<THREE.Object3D | undefined>([spin, phone, crate.group, brandSigns, antenna]);
     if (flapNow) { live.add(model.awning?.hinge); live.add(model.awning?.lights); }
     if (flapNow && model.tearable) { live.add(model.tearable.intact); live.add(model.tearable.torn); }
     bakedOpen = openNow; bakedFlap = !!flapNow;
@@ -262,7 +308,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       mesh.visible = false;
       midHidden.push(mesh);
     };
-    for (const r of [levelRoot, props.group, chair, tape, kid, lottie]) if (r.parent) visit(r);
+    for (const r of [levelRoot, props.group, chair, tape, kid, lottie, radio]) if (r.parent) visit(r);
     if (!midHidden.length) return;
     midMesh = clayMesh(B.build(), kit().world);
     midMesh.name = 'standMid';
@@ -495,8 +541,11 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       levelRoot.userData.far = farLevel(l, 'player', gilded);
       specKey = '';
       fitSpecs();
+      schemeKey = '';
+      fitSchemes();
       spin = model.spin;
       props.place(model.anchors);
+      { const [cx, cy, cz] = model.anchors.cups; radio.position.set(cx + 0.55, cy, cz - 0.05); radio.rotation.y = -0.35; }
       const [kx, ky, kz] = model.kid;
       kid.position.set(kx, ky, kz);
       kid.userData.baseY = ky;
@@ -511,6 +560,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       if (wreck) { wreck.removeFromParent(); disposeTree(wreck); wreck = wreckPile(level, 'player'); wreck.visible = wrecked; group.add(wreck); }
     },
     setSpecs(ids) { unbake(); specIds = [...ids]; fitSpecs(); },
+    setSchemes(x) { unbake(); schemeNow = { posters: !!x.posters, basket: !!x.basket }; fitSchemes(); },
     setBrand(tier) {
       brandSigns.visible = tier >= 1;
     },
@@ -542,8 +592,11 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
       unbake();
       disposeTree(group, new Set([kid, lottie]));
     },
-    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0, storm, scorcher }) {
+    update({ price, pitcherFill, open, time, hot, night, ringing, recipe, sweetness, stock, stars, ceiling, detail = 0, storm, scorcher, radio: radioPlays, menu }) {
       if (detail !== detailNow) { unbake(); detailNow = detail; showSmall(); }
+      const radioShown = !!radioPlays && !wrecked && !!model && model.level >= 3 && revealT < 0;
+      if (radioShown !== radio.visible) { unbake(); radio.visible = radioShown; }
+      if (menu && revealT < 0) model?.setMenu(menu);
       if (busted) open = false; // closed for repairs
       props.set({ price, pitcherFill, open, ...(recipe ? { recipe } : {}), ...(sweetness ? { sweetness } : {}), ...(stock ? { stock } : {}), ...(stars !== undefined ? { stars } : {}), ...(ceiling !== undefined ? { ceiling } : {}) });
       openNow = open;
@@ -568,6 +621,8 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
         const b = props.bounce();
         if (revealT < 0 && knockT < 0) levelRoot.scale.set(b.sx, b.sy, b.sx);
         if (spin) spin.rotation.y = tq * 0.8;
+        // The antenna bobs to the music, on twos (held still under reduced motion).
+        if (radio.visible) antenna.rotation.z = -0.25 + (MOTION < 1 ? 0 : Math.sin(tq * 7.5) * 0.12 + Math.sin(tq * 3.1) * 0.06);
       }
       // Baked into the mid-zoom mesh, the kid and Lottie hold their pose.
       if (!midMesh) animateKid(time, open);

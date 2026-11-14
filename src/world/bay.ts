@@ -25,6 +25,9 @@ import { createTown, townFootprints } from './town.ts';
 import { createLemonWave } from './lemonWave.ts';
 import { bayPainted } from '../sim/victory.ts';
 import { cornerSign } from '../sim/story.ts';
+import { radioOn } from '../sim/radio.ts';
+import { ownedRecipes } from '../sim/recipes.ts';
+import { soundtrack } from '../ui/radio.ts';
 import { kidLook } from '../sim/grandkid.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
@@ -760,6 +763,8 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
         }
       }
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm', awayTown);
+      // 101.5 on the counter radios, and the recipes chalked on the L3 menu (src/sim/radio.ts, recipes.ts).
+      const radioPlaying = radioOn(s, soundtrack()), owned = ownedRecipes(s);
       for (const v of viewList) {
         if (!v.stand) continue;
         const st = s.plots[v.plot.id].stand;
@@ -768,6 +773,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
         v.stand.update({
           price: st.price, pitcherFill: st.pitcherCups / 10, open: s.phase === 'open', time, hot: s.weather.kind === 'scorcher' || s.weather.kind === 'hot', night: s.phase === 'report' || s.phase === 'night', ringing,
           storm: s.weather.kind === 'storm', scorcher: s.weather.kind === 'scorcher',
+          radio: radioPlaying, menu: owned,
           recipe: st.recipe, sweetness: st.sweetness, stars: s.reputation, detail: level, ceiling: priceCeiling(s, v.plot.id),
           stock: { lemons: stock(st, 'lemons') / cap.lemons, sugar: stock(st, 'sugar') / cap.sugar, ice: stock(st, 'ice') / cap.ice, spoiling: stock(st, 'lemons') ? lemonsExpiringTomorrow(s, st) / stock(st, 'lemons') : 0 },
         });

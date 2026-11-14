@@ -48,7 +48,9 @@ export const DRESS: Record<Owner, Dress> = {
   snootwater: { owner: 'snootwater', main: hex(FACTIONS.snootwater.color), accent: hex(FACTIONS.snootwater.accent), pattern: 'bubbles', inkEdge: true, sign: 'SNOOTWATER' },
 };
 export const INK = '#2E2A4F';
-export const RECIPE_COLOR: Record<string, string> = { classic: '#F7C948', pink: '#F49AB8', mint: '#86D39A' };
+// The ten recipe colours, shared with the recipe cards (src/ui/recipes.ts) so a pitcher matches its card.
+import { RECIPE_COLOR as CARD_COLOR } from '../../ui/recipes.ts';
+export const RECIPE_COLOR: Record<string, string> = CARD_COLOR;
 
 type V3 = [number, number, number];
 
@@ -195,9 +197,13 @@ export function crayonSign(text: string) {
     c.globalAlpha = 0.15; c.strokeStyle = '#8B5E3C'; c.lineWidth = 2;
     for (let y = 10; y < h; y += 14) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y + 3); c.stroke(); }
     c.globalAlpha = 1;
-    c.save(); c.translate(w / 2, h * 0.55); c.rotate(-0.04);
-    c.font = `112px ${FONTS.hand}`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.lineWidth = 10; c.strokeStyle = '#E8704F'; c.strokeText(text, 0, 0);
+    // Longer words (the Epilogue's LOTTIE & VERA'S) shrink to fit the card, nudged right of the mascot's head.
+    c.font = `112px ${FONTS.hand}`;
+    const fit = Math.floor(112 * (w * 0.78) / Math.max(1, c.measureText(text).width));
+    const px = Math.min(112, fit);
+    c.save(); c.translate(w * (fit < 112 ? 0.56 : 0.5), h * 0.55); c.rotate(-0.04);
+    c.font = `${px}px ${FONTS.hand}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineWidth = Math.max(6, px / 11); c.strokeStyle = '#E8704F'; c.strokeText(text, 0, 0);
     c.fillStyle = '#F7C948'; c.fillText(text, 0, 0);
     c.restore();
   });
@@ -243,24 +249,27 @@ export function chalkPrice(price: number, ceiling?: number) {
   };
 }
 /**
- * The L3 chalkboard menu: three pitchers and a price each, drawn as chalk
- * pictures. `k` (0..1) is how much has been written, for the reveal.
+ * The L3 chalkboard menu: a chalk pitcher in each owned recipe's colour (the
+ * first six), with one to three stars, drawn as chalk pictures. `k` (0..1) is
+ * how much has been written, for the reveal.
  */
-export function chalkMenu(k = 1) {
+export function chalkMenu(k = 1, recipes: readonly string[] = ['classic', 'pink', 'mint']) {
   return (c: CanvasRenderingContext2D, w: number, h: number) => {
     c.fillStyle = '#2f3d38'; c.fillRect(0, 0, w, h);
     c.lineWidth = 10; c.strokeStyle = '#8B5E3C'; c.strokeRect(5, 5, w - 10, h - 10);
-    const rows = [RECIPE_COLOR.classic, RECIPE_COLOR.pink, RECIPE_COLOR.mint];
+    const rows = recipes.slice(0, 6).map((id) => RECIPE_COLOR[id] ?? RECIPE_COLOR.classic);
+    const n = Math.max(1, rows.length), step = 0.84 / n, sc = Math.min(1, 3 / n);
     rows.forEach((col, i) => {
-      const t = Math.max(0, Math.min(1, k * 3 - i));
+      const t = Math.max(0, Math.min(1, k * n - i));
       if (t <= 0) return;
-      const y = h * (0.22 + i * 0.28);
+      const y = h * (0.08 + step * (i + 0.5));
       c.save(); c.beginPath(); c.rect(0, 0, w * (0.1 + t * 0.9), h); c.clip();
-      c.strokeStyle = col; c.lineWidth = 7; c.lineCap = 'round'; c.lineJoin = 'round';
-      c.beginPath(); c.moveTo(w * 0.14, y - 30); c.lineTo(w * 0.18, y + 30); c.lineTo(w * 0.34, y + 30); c.lineTo(w * 0.38, y - 30); c.stroke();
-      c.beginPath(); c.arc(w * 0.41, y, 14, -1.2, 1.2); c.stroke();
-      c.fillStyle = '#fbf6e8'; c.font = `64px ${FONTS.hand}`; c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText(['★', '★★', '★★★'][i], w * 0.52, y);
+      c.strokeStyle = col; c.lineWidth = 7 * Math.max(0.7, sc); c.lineCap = 'round'; c.lineJoin = 'round';
+      const u = 30 * sc;
+      c.beginPath(); c.moveTo(w * 0.14, y - u); c.lineTo(w * 0.18, y + u); c.lineTo(w * 0.34, y + u); c.lineTo(w * 0.38, y - u); c.stroke();
+      c.beginPath(); c.arc(w * 0.41, y, 14 * sc, -1.2, 1.2); c.stroke();
+      c.fillStyle = '#fbf6e8'; c.font = `${Math.round(64 * sc)}px ${FONTS.hand}`; c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillText('★'.repeat(1 + (i % 3)), w * 0.52, y);
       c.restore();
     });
   };

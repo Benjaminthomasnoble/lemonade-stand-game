@@ -8,6 +8,7 @@ import { P } from './palette.ts';
 import { buildLevel, farLevel, type Anchors } from './stands.ts';
 import { DRESS, stick, rbox, rope } from './standKit.ts';
 import type { RivalId } from '../../sim/economy.ts';
+import { markdownSigns } from './schemeProps.ts';
 
 type V3 = [number, number, number];
 
@@ -116,8 +117,8 @@ function familyProps(B: Baker, id: RivalId, a: Anchors, level: number) {
 }
 const INK2 = '#2b2b38';
 
-/** A rival stand at a level, optionally showing a damage step (`hp` 0..1); in a storm an L1-L2's card flaps. */
-export function rivalStand(id: RivalId, level: number, hp = 1, storm = false): THREE.Group {
+/** A rival stand at a level, optionally showing a damage step (`hp` 0..1); in a storm an L1-L2's card flaps; in a price war it wears markdown signs. */
+export function rivalStand(id: RivalId, level: number, hp = 1, storm = false, schemes?: { markdown?: boolean }): THREE.Group {
   const L = Math.max(1, Math.min(5, level));
   const m = buildLevel(L, id, {
     static: true, hp, flap: storm,
@@ -127,6 +128,8 @@ export function rivalStand(id: RivalId, level: number, hp = 1, storm = false): T
       if (lv === 5 && a.pole) topper(B, id, a.pole, 1.7);
       else if (hp > 0.5) topper(B, id, a.stars, s);
       familyProps(B, id, a, lv);
+      // A price war: red markdown signs out front (src/world/plotSchemes.ts).
+      if (schemes?.markdown) B.raw(markdownSigns(a));
     },
   });
   m.root.name = 'rivalStand';

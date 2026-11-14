@@ -57,6 +57,8 @@ export interface LevelModel {
   done(): void;
   /** How long the reveal lasts: 3 s (L1-L3) or 6 s (L4-L5). */
   revealSeconds: number;
+  /** Chalk the L3 menu board with the recipes you own (their pitcher colours). */
+  setMenu(recipes: readonly string[]): void;
 }
 
 export interface BuildOpts {
@@ -264,7 +266,8 @@ function folding(c: Ctx): Parts {
   }
   // Crayon sign on two tall popsicle posts, and the kid's crate step.
   for (const s of [-1, 1]) stick(B, 2.5, [s * 1.0, 1.25, -0.3], [0, 0, 0], P.stick, 0.16, 0.06);
-  const tex = c.d.owner === 'player' ? crayonSign('LEMONADE') : cardSign(c.d.sign, c.d);
+  // The player's table says LEMONADE in crayon, until the Epilogue's LOTTIE & VERA'S takes its place.
+  const tex = c.d.owner === 'player' ? crayonSign(c.d.sign !== DRESS.player.sign ? c.d.sign : 'LEMONADE') : cardSign(c.d.sign, c.d);
   const sign = makeSign(c, [0, 2.3, -0.26], 1.9, 0.62, tex);
   B.add(rbox(0.7, 0.42, 0.5, 0.05), P.walnut, { p: [0, 0.21, -0.85], fx: PAPER });
   return {
@@ -675,6 +678,7 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   if (c.st && c.hp <= 0.25) root.scale.set(1.04, 0.9, 1.02);
   const menuDraw = m.menuTex?.userData.redraw as ((f: (c: CanvasRenderingContext2D, w: number, h: number) => void) => void) | undefined;
   const domeY = m.dome?.position.y ?? 0;
+  let menuRows: readonly string[] = ['classic', 'pink', 'mint'], menuKey = menuRows.join();
   return {
     level: L, root, anchors: m.anchors, kid: m.kid, chairX: m.chairX, chairZ: m.chairZ, serveZ: m.serveZ, spin: m.spin,
     awning: m.awning, sign: m.sign, tearable: m.tearable, flapPivot: m.flapPivot, sticks: m.sticks,
@@ -687,7 +691,7 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
         root.scale.set(1 + (1 - sy) * 0.08, sy, 1 + (1 - sy) * 0.08);
       }
       if (L === 2 && m.bell) m.bell.rotation.z = Math.sin(k * 26) * Math.exp(-k * 2) * 0.6;
-      if (L === 3 && menuDraw) menuDraw(chalkMenu(Math.min(1, k / 1.5)));
+      if (L === 3 && menuDraw) menuDraw(chalkMenu(Math.min(1, k / 1.5), menuRows));
       if (L >= 4 && m.neon && m.neonEnds) {
         // Buzz on letter by letter, flickering as each one catches (reduced motion: no flicker).
         const n = Math.min(m.neonEnds.length, Math.floor(k / 0.45));
@@ -701,10 +705,16 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
       }
       if (L === 5 && m.spin) m.spin.rotation.y = k * (6 - Math.min(5, k));
     },
+    setMenu(recipes) {
+      const key = recipes.join();
+      if (key === menuKey || !recipes.length) return;
+      menuRows = [...recipes]; menuKey = key;
+      if (menuDraw) menuDraw(chalkMenu(1, menuRows));
+    },
     done() {
       if (L === 1) root.scale.set(1, 1, 1);
       if (m.bell) m.bell.rotation.z = 0;
-      if (menuDraw) menuDraw(chalkMenu(1));
+      if (menuDraw) menuDraw(chalkMenu(1, menuRows));
       if (m.neon) m.neon.geometry.setDrawRange(0, Infinity);
       if (m.dome) { m.dome.position.y = domeY; m.dome.scale.setScalar(1); }
     },

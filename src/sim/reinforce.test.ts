@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  AUTO_DEFEND, BORDERS, buildClubhouse, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
+  AUTO_DEFEND, BORDERS, buildClubhouse, CAPTAIN, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, guardFighter, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
   detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, postsFor, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
   hqStageInput, raidInput, type Raid, type SimEvent,
 } from './economy.ts';
@@ -191,6 +191,50 @@ describe('Ring the Bell', () => {
     expect(ended.joins?.map((j) => j.t)).toEqual([31.5, 61.5]);
     expect(lou.xp).toBeGreaterThan(0);
     expect(arrived(ended, marnie) === undefined).toBe(marnie.xp === 0);
+  });
+
+  it('a Captain leads the reserve: one on post leads the guards who answer the bell, one in the reserve leads the guards on post', () => {
+    /** Nerve and Hit over a guard's own, unled (a night fight against the Blenders). */
+    const lift = (b: BattleReport, g: Guard) => {
+      const f = [...b.defenders, ...(b.joins ?? []).flatMap((j) => j.fighters)].find((x) => x.id === g.id)!;
+      const own = guardFighter(g, 'def', true, 'blenders');
+      return [f.nerve - own.nerve, Math.round((f.hit / own.hit - 1) * 100) / 100];
+    };
+    const led = [CAPTAIN.nerve, CAPTAIN.hit];
+    // Dex, a Captain on post: Big Lou and Pip, there at contact, and Marnie, 15 seconds in, fight under him.
+    const a = bay();
+    a.dex.specialty = 'captain';
+    const ra = warned(a.s, 45);
+    ringTheBell(a.s, ra.id);
+    const ba = hit(a.s, ra);
+    for (const g of [a.dex, a.lou, a.pip, a.marnie]) expect(lift(ba, g)).toEqual(led); // Dex once: Captains don't stack
+    // Big Lou, a Captain in the reserve: Dex on post is led from contact, and so is everyone the bell brings.
+    const b = bay();
+    b.lou.specialty = 'captain';
+    const rb = warned(b.s, 15);
+    ringTheBell(b.s, rb.id);
+    const bb = hit(b.s, rb);
+    for (const g of [b.dex, b.lou, b.pip]) expect(lift(bb, g)).toEqual(led);
+    // No Captain: nobody is led.
+    const c = bay();
+    const rc = warned(c.s, 45);
+    ringTheBell(c.s, rc.id);
+    const bc = hit(c.s, rc);
+    for (const g of [c.dex, c.lou, c.pip]) expect(lift(bc, g)).toEqual([0, 0]);
+    // Rung while the fight is on: a Captain on post leads the guards who join.
+    watchFights(true);
+    const d = bay(3);
+    d.dex.specialty = 'captain';
+    const rd = warned(d.s, 15);
+    while (!d.s.fight) nightStep(d.s);
+    expect(ringTheBell(d.s, rd.id)).toBe(true);
+    const joined = d.s.fight.commands.flatMap((x) => (x.type === 'join' ? x.fighters : []));
+    expect(joined.map((f) => f.id)).toEqual([d.lou.id, d.pip.id, d.marnie.id]);
+    for (const f of joined) {
+      const own = guardFighter(d.s.guards.find((g) => g.id === f.id)!, 'def', true, 'blenders');
+      expect(f.nerve).toBe(own.nerve + CAPTAIN.nerve);
+      expect(f.hit).toBeCloseTo(own.hit * (1 + CAPTAIN.hit), 9);
+    }
   });
 
   it('not on your own raid', () => {

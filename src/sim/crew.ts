@@ -516,9 +516,13 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean, foe?
 /** Your guards as one side of a fight: a Captain among them gives everyone on that side +20 Nerve and +10% Hit (Captains don't stack). */
 export function squadFighters(guards: Guard[], side: 'att' | 'def', night: boolean, foe?: FactionId | null): Fighter[] {
   const fighters = guards.map((g) => guardFighter(g, side, night, foe)); // combat: `foe` for a Former Rival's edge
-  if (guards.some((g) => g.specialty === 'captain')) for (const f of fighters) { f.nerve += CAPTAIN.nerve; f.hit *= 1 + CAPTAIN.hit; }
-  return fighters;
+  return hasCaptain(guards) ? captainLead(fighters) : fighters;
 }
+
+/** Does a Captain lead this side of a fight: one among its guards (squadFighters, and the reserve Ring the Bell brings). */
+export const hasCaptain = (guards: Guard[]) => guards.some((g) => g.specialty === 'captain');
+/** The Captain's lead on fighters of that side, once whoever leads: +20 Nerve and +10% Hit each. */
+export const captainLead = (fighters: Fighter[]): Fighter[] => fighters.map((f) => ({ ...f, nerve: f.nerve + CAPTAIN.nerve, hit: f.hit * (1 + CAPTAIN.hit) }));
 
 /** The guards picked for a raid who are fit to go. */
 export const raidSquad = (s: GameState, ids: string[]) => s.guards.filter((g) => ids.includes(g.id) && guardReady(s, g));

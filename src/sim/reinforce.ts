@@ -7,8 +7,8 @@
 // the rest join as they arrive (on the fight clock a game minute is a second),
 // and once it's over they arrive to the aftermath. Defense only, once per
 // raid; with no Clubhouse there's no reserve. Arrivals count in their side's
-// head count for the Nerve check, and when the raid is done they're back at
-// their Clubhouse.
+// head count for the Nerve check, a Captain leads them as he leads the guards
+// on post, and when the raid is done they're back at their Clubhouse.
 //
 // It runs both ways (spec: "The same five steps run when you raid a rival and
 // when a rival raids you"): a rival who spots your raid as it sets out sends
@@ -18,7 +18,7 @@ import { FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, RESERVE_MINUTES, RIVAL_HELP, t
 import { BORDERS, PLOT_BY_ID, PLOTS } from './map.ts';
 import type { BattleInput, BattleResult, Fighter } from './combat.ts';
 import { clubhouses, reserveAt } from './clubhouse.ts';
-import { garrisonHenchman, guardFighter, guardReady, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
+import { captainLead, garrisonHenchman, guardFighter, guardReady, hasCaptain, henchmanFor, strongholdTravelMult, threatLevel, type Guard, type Raid } from './crew.ts';
 import { HQS } from './rivals.ts';
 import { backOnGuard, fitGarrison, knockOut } from './garrison.ts';
 import { joinFight } from './fight.ts';
@@ -62,6 +62,8 @@ export function canRingBell(s: GameState, raidId: string): boolean {
 }
 
 const names = (gs: Guard[]) => (gs.length === 1 ? gs[0].name : `${gs.slice(0, -1).map((g) => g.name).join(', ')} and ${gs[gs.length - 1].name}`);
+/** Your guards among a fight's fighters. */
+const guardsIn = (s: GameState, fighters: Fighter[]) => s.guards.filter((g) => fighters.some((f) => f.id === g.id));
 
 /** Ring the Bell: the reserve in range sets out now. Under way, they join the fight as they arrive. `dex`: Auto-Defend rang it. */
 export function ringTheBell(s: GameState, raidId: string, dex = false): boolean {
@@ -70,7 +72,14 @@ export function ringTheBell(s: GameState, raidId: string, dex = false): boolean 
   const party = bellParty(s, r.target);
   r.bell = party.flatMap(({ minutes, guards }) => guards.map((g) => ({ id: g.id, at: s.minute + minutes })));
   const f = s.fight;
-  if (f?.raid === r) for (const { minutes, guards } of party) joinFight(s, porchLit(s, guards.map((g) => guardFighter(g, 'def', f.night, r.attacker)), f.night), minutes * FIGHT_SECONDS_PER_GAME_MINUTE);
+  if (f?.raid === r) {
+    // A Captain on the side, on post or in the reserve, leads the guards who join (crew.ts captainLead).
+    const led = hasCaptain([...guardsIn(s, f.input.defenders), ...party.flatMap((p) => p.guards)]);
+    for (const { minutes, guards } of party) {
+      const fighters = porchLit(s, guards.map((g) => guardFighter(g, 'def', f.night, r.attacker)), f.night);
+      joinFight(s, led ? captainLead(fighters) : fighters, minutes * FIGHT_SECONDS_PER_GAME_MINUTE);
+    }
+  }
   s.news.push(`Ding-ding!${dex ? ' Dex rings the bell.' : ''} ${party.map((p) => `${names(p.guards)} leave${p.guards.length === 1 ? 's' : ''} ${PLOT_BY_ID[p.club].name}, ${p.minutes} min out`).join('; ')}.`);
   return true;
 }
@@ -86,22 +95,32 @@ export function bellEta(s: GameState, raidId: string): number | null {
  * The bell's guards at the start of a fight on its raid (the minute is the
  * contact): those already there defend from the start, the rest join
  * (arrival - contact) fight-seconds in. Anyone posted since, KO'd, or away
- * on a raid of yours doesn't come.
+ * on a raid of yours doesn't come. A Captain leads the whole side once: one
+ * on post leads the reserve too, and one in the reserve leads the guards on
+ * post from contact.
  */
 export function withBell(s: GameState, raid: Raid, input: BattleInput, night: boolean): BattleInput {
   if (!raid.bell?.length) return input;
   const raiding = new Set([...s.raids, ...(s.fight ? [s.fight.raid] : [])].flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
-  const there: Fighter[] = [];
-  const later = new Map<number, Fighter[]>();
+  const coming: { g: Guard; at: number }[] = [];
   for (const b of raid.bell) {
     const g = s.guards.find((x) => x.id === b.id);
     if (!g || g.post || !guardReady(s, g) || raiding.has(g.id) || input.defenders.some((d) => d.id === g.id)) continue;
-    const [f] = porchLit(s, [guardFighter(g, 'def', night, raid.attacker)], night);
-    if (b.at <= s.minute) there.push(f);
-    else { const t = (b.at - s.minute) * FIGHT_SECONDS_PER_GAME_MINUTE; later.set(t, [...(later.get(t) ?? []), f]); }
+    coming.push({ g, at: b.at });
+  }
+  const posted = guardsIn(s, input.defenders);
+  const led = hasCaptain([...posted, ...coming.map((c) => c.g)]);
+  const defenders = led && !hasCaptain(posted) ? captainLead(input.defenders) : input.defenders; // on post, a Captain already leads them
+  const there: Fighter[] = [];
+  const later = new Map<number, Fighter[]>();
+  for (const { g, at } of coming) {
+    const lit = porchLit(s, [guardFighter(g, 'def', night, raid.attacker)], night);
+    const [f] = led ? captainLead(lit) : lit;
+    if (at <= s.minute) there.push(f);
+    else { const t = (at - s.minute) * FIGHT_SECONDS_PER_GAME_MINUTE; later.set(t, [...(later.get(t) ?? []), f]); }
   }
   const joins = [...later].sort(([a], [b]) => a - b).map(([t, fighters]) => ({ t, fighters }));
-  return { ...input, defenders: [...input.defenders, ...there], ...(joins.length ? { joins: [...(input.joins ?? []), ...joins] } : {}) };
+  return { ...input, defenders: [...defenders, ...there], ...(joins.length ? { joins: [...(input.joins ?? []), ...joins] } : {}) };
 }
 
 // ---------- rivals send help ----------

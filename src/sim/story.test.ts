@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actOf, averageStopChance, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
+  actOf, averageStopChance, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, dayProfit, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
   festivalDays, openStand, planNight, PLOTS, postGuard, SCHEMES, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
   type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
@@ -11,7 +11,7 @@ import { checkGoals, GOAL_PROVIDERS, goalReward, goalsNow, recipeMatch, salesTar
 import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
-import { actBegan, cornerName, cornerSign, dayProfit, rankTenLine, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
+import { actBegan, cornerName, cornerSign, rankTenLine, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
 import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -626,8 +626,10 @@ describe('lessons and Dex', () => {
     Object.assign(dex, { level: 3, xp: 9, weapon: 'clubs', gear: 'vest', post: LOTTIES_CORNER });
     const was = structuredClone(dex);
     s.cash = 0; // below his wage
-    nextDawn(s); // Day 7
-    expect(s.guards).toEqual([was]);
+    nextDawn(s); // Day 5
+    const kept = ({ id, name, level, weapon, gear, trait }: typeof was) => ({ id, name, level, weapon, gear, trait });
+    expect(s.guards.map(kept)).toEqual([kept(was)]); // the same Dex: his level and kit (a night's duty may add XP)
+    expect(s.news).toContain(`${was.name} stays on without pay. "Loyal to the last drop, Miss Lottie."`);
     expect(s.news.some((n) => n.includes('quits'))).toBe(false);
     expect(s.alerts!.some((a) => a.text.startsWith('Dex Moody joins') && a.day === s.day)).toBe(false); // no fresh Dex
     expect(s.story!.dexJoined).toBe(true);
@@ -758,7 +760,7 @@ describe("the tone guide's lines on triggers that exist", () => {
 
   it("a record day: Marisol says the real percentage; her first in the campaign is a visit with the Ledger", () => {
     const close = (s: GameState, revenue: number) => {
-      s.history.push({ ...structuredClone(s.today), day: s.day, revenue, supplies: 0, cupCosts: 0, upkeep: 0, tax: 0 });
+      s.history.push({ ...structuredClone(s.today), day: s.day, revenue, supplies: 0, cupCosts: 0, upkeep: 0, books: { sales: revenue }, stockUsed: 0, stockOn: {} });
       storyAtClose(s);
       s.day++;
     };

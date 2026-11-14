@@ -195,8 +195,8 @@ export const TEA_DAY = 5;
 
 /**
  * Tea at the Manor (spec Act 5): after the Lavender auction and before the Syndicate forms, Vera offers to buy Lottie's
- * Lemonade. Seam (land's Lavender auction, not on main yet): the morning after the page leaves the harp teacher, from
- * the act's second morning; until an auction comes, TEA_DAY days into the act.
+ * Lemonade: the morning the auction's gavel falls and the page leaves the harp teacher (land's auction.ts), from the
+ * act's second morning; with no auction yet, TEA_DAY days into the act.
  */
 function teaAtTheManor(s: GameState): void {
   const st = s.story!;

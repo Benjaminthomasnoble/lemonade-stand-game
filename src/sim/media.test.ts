@@ -168,7 +168,7 @@ describe('the Morning Bugle', () => {
   });
 
   it('the Market against normal, any shock with its days left, and each stand\'s cost per cup', () => {
-    const s = newGame(34);
+    const s = newGame(34, { lessons: false }); // the forecast and the Market print from their lesson (Day 2) on
     s.market = { lemons: 0.24, sugar: 0.027, ice: 0.0101 };
     expect(marketText(marketLines(s))).toBe('Lemons +20%, sugar −10%, ice flat');
     testEvent({ id: 'sourTimes', name: 'Sour Times', kind: 'harmful', days: 5, shock: 'lemons' });
@@ -207,7 +207,7 @@ describe('the Morning Bugle', () => {
   });
 
   it('the °C option prints the weather, the look-ahead and the briefs in °C', () => {
-    const s = newGame(35);
+    const s = newGame(35, { lessons: false });
     s.brandTier = BRAND_TIERS[2].tier;
     s.forecast = { kind: 'scorcher', temp: 97 };
     eventsOf(s).on.push({ id: 'heatWave', from: s.day + 1, to: s.day + 3 }); // a planned Heat Wave: the look-ahead knows its degrees

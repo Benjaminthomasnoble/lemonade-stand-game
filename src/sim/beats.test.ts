@@ -5,11 +5,10 @@ import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
-  type GameState, type Guard, type RivalId,
+  LAVENDER, pageHolder, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, FINALE, INVOICE } from './exits.ts';
-import { movePage } from './recipes.ts';
 import { ceaseAndDesist } from './schemes.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
@@ -768,6 +767,7 @@ describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {
 
   it('tea at the Manor: days into Act 5, or the morning after the Lavender auction, Vera offers to buy you out; every reply is a no', () => {
     const s = lateAct(111, 5);
+    s.rank = LAVENDER.rank - 1; // the harp teacher keeps her page till Rank 8: no auction yet
     const tea = (x: GameState) => x.scenes!.queue.some((q) => q.id === 'tea');
     while (s.day < s.story!.since + TEA_DAY - 1) { nextDawn(s); expect(tea(s)).toBe(false); }
     nextDawn(s);
@@ -783,13 +783,13 @@ describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {
     expect(JSON.stringify([s.cash, s.plots, s.rivals, s.outcome])).toBe(before); // the reply changes nothing
     nextDawn(s);
     expect(tea(s)).toBe(false); // once a run
-    // Land's Lavender auction (when it lands): the page leaves the harp teacher, and tea is the next morning.
+    // Land's Lavender auction (Rank 8): it opens on the act's first morning, the gavel falls the next, and tea is that morning.
     const t = lateAct(112, 5);
-    t.story!.since = t.day - 1;
     nextDawn(t);
+    expect(t.lavender?.auction).toBeDefined();
     expect(tea(t)).toBe(false);
-    movePage(t, 'lavender', 'sourwood');
     nextDawn(t);
+    expect(pageHolder(t, 'lavender')).not.toBe('harpTeacher');
     expect(tea(t)).toBe(true);
   });
 

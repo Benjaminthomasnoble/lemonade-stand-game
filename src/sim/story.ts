@@ -13,7 +13,8 @@ import {
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { alert } from './alerts.ts';
-import type { DayStats, GameState, Stand } from './economy.ts';
+import type { GameState, Stand } from './economy.ts';
+import { dayProfit } from './ledger.ts'; // the Ledger's profit for a day (demand)
 import type { BattleReport } from './crew.ts';
 import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
@@ -386,8 +387,6 @@ export function dexHoldsTheLine(s: GameState, b: BattleReport): void {
   alert(s, { kind: 'note', text: `Dex: "${dexGooseLine(s)}"`, plot: b.target });
 }
 
-/** A day's profit, as the Ledger counts it: sales less supplies, cups, upkeep and tax. */
-export const dayProfit = (t: DayStats) => t.revenue - (t.supplies + t.cupCosts + t.upkeep + t.tax);
 export const marisolLine = (pct: number) => `Profit's up ${pct} percent. Please don't celebrate by buying another goose.`;
 
 /**

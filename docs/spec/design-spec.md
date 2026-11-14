@@ -865,7 +865,7 @@ Rows run from the easiest HQ to the hardest. Henchmen fight with your crew's thr
 | The Cold Brew Collective (iced coffee) | Juniper "Juni" Grind | Campus & Arts; the Grindhouse | Saboteur | 25 / 25 / 50% | **Night Shift:** stealthy night raids, spoiled stock, graffiti posters that dent your Reputation | Baristas and skaters |
 | Hollis Sweet Tea Co. (sweet tea) | Tilly "Big Tilly" Hollis | The Groves; Hollis Homestead | Defensive landholder | 40 / 50 / 10% | **Dig In:** cheap, tough fences and hay-bale barricades; holds the Field land | Farmhands |
 | FizzCo Beverages (soda) | Preston Fizzwell III | Downtown; FizzCo Tower, plus the Harbor bottling plant | Rich and expansionist | 50 / 20 / 30% | **Hostile Takeover:** auction outbids, buyout offers, ad blitzes, and Cease-and-Desist letters that block your marketing in a district for 3 days | Security Associates |
-| The Sourwood Family (old-money lemonade) | Vera Sourwood, Lottie's ex-best-friend | Hilltop Estates; Sourwood Manor | Cunning and balanced | 35 / 35 / 30% | **Old Money:** Mayor Fontaine fines you or freezes a land sale; elite Stewards | Stewards |
+| The Sourwood Family (old-money lemonade) | Vera Sourwood, Lottie's ex-best-friend | Hilltop Estates; Sourwood Manor | Cunning and balanced | 35 / 35 / 30% | **Old Money:** Mayor Fontaine fines you or freezes a land sale; from Act 5, elite Stewards on her raids and at her plots | Stewards |
 
 ### How rivals think
 
@@ -897,7 +897,9 @@ From Rank 4, any boss will meet you at Dot's Diner; a Smooth Talker negotiator g
 | --- | --- | --- | --- |
 | Truce | 4+ | No raids between you and one rival for 7 days, for a cash tribute set by their Grudge | Breaking it costs 1 full star of Reputation, every rival's Grudge toward you jumps, and none will accept a Truce for 14 days |
 | Plot Buyout | 4+ | One rival plot at their price: 2.5× land value in their home district, 2× elsewhere; Grudge and personality can nudge it | Their price, take it or leave it |
-| Faction Buyout | 5–8 (the rival's HQ rank) | A Weakened rival's business, its cash and buildings but not its land, for 1.5× (Brock, Tilly) or 1.8× (Juni, Preston); its plots go to the Fire Sale | Brock and Tilly accept readily; Juni and Preston haggle; Vera never sells, except in a Peaceful Sandbox (3× once Weakened) |
+| Faction Buyout | 5–8 (the rival's HQ rank) | A Weakened rival's business, its cash and buildings but not its land, for 1.5× (Brock, Tilly) or 1.8×–2.1× (Juni, Preston); its plots go to the Fire Sale | Brock and Tilly accept readily; Juni and Preston haggle (below); Vera never sells, except in a Peaceful Sandbox (3× once Weakened) |
+
+Juni and Preston haggle over a Faction Buyout. You open at 1.5×, what Brock and Tilly take, and they counter at 2.1×. Shake on the counter, or hold firm: they come down to their own 1.8× with a 50% chance, less half a point for each point of Grudge they hold against you, or else they walk out until tomorrow, 5 Grudge sorer. They never sign below 1.8×.
 
 ### Weakened, elimination and the Fire Sale
 
@@ -919,7 +921,7 @@ Hiring beaten bosses as advisors is a stretch goal.
 
 ### HQ Assault
 
-From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its own rank: the Blend Shack at Rank 5, the Grindhouse at 6, Hollis Homestead at 7 and FizzCo Tower at 8, with Sourwood Manor saved for the Big Squeeze at 9. A rival's Faction Buyout opens at the same rank. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (elite henchmen) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return. Like any raid, an assault fought at Morning Prep, in the Evening or at night is a night fight: it costs no Reputation, and Night Owls hit 25% harder. By day it costs 0.2 star, as a Smash does.
+From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its own rank: the Blend Shack at Rank 5, the Grindhouse at 6, Hollis Homestead at 7 and FizzCo Tower at 8, with Sourwood Manor saved for the Big Squeeze at 9. A rival's Faction Buyout opens at the same rank. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (henchmen a level above the rest of the HQ's) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return. Like any raid, an assault fought at Morning Prep, in the Evening or at night is a night fight: it costs no Reputation, and Night Owls hit 25% harder. By day it costs 0.2 star, as a Smash does.
 
 | HQ, easiest first | Boss move in the Boss Room |
 | --- | --- |
@@ -928,6 +930,8 @@ From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its ow
 | Hollis Homestead | **Hay Bale Wall:** Tilly spawns barricades |
 | FizzCo Tower | **Hostile Takeover:** Preston pays 2 of your guards to switch sides mid-fight, unless they're Loyal |
 | Sourwood Manor | **Old Money:** Vera calls in Steward reinforcements, and her cane disarms one guard |
+
+Vera's elite Stewards, each a level up with a weapon one tier nearer hatchets, go on her raids and guard her plots from Act 5. The Manor's own defenders, Gate to Boss Room, are her regular Stewards, with the Yard a level up as at every HQ.
 
 ### The Syndicate
 
@@ -2343,7 +2347,7 @@ Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's sid
 | Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere |
 | HQ Assault (rival Weakened) | Each HQ from its own rank: Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 (the Big Squeeze). The same rank opens that rival's Faction Buyout |
 | Weakened (needed for HQ Assault and Faction Buyout) | Any one of: the rival holds 40% or less of its peak plots; its Net Worth is under 25% of yours; your daily sales (cups and bottles, in dollars) were at least 2× theirs for 7 days in a row |
-| Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
+| Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston), who counter a 1.5× offer at 2.1× and come down to 1.8× if you hold firm (a 50% chance, less 0.5 points per point of Grudge; else they walk out until tomorrow, Grudge +5); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
 | Rebuild a Wrecked building | 15% of what was invested in it (you and rivals alike). Yours: booked by the end of the day after the smash, or it goes For Sale at the second dawn. A rival's: decided the morning after |
 | Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild) |
 | Busted repair (Laid Back) | 10% of what was invested |
@@ -2521,7 +2525,7 @@ On all ten simulated maps the player builds all six helipad and pier tiers; the 
 | FizzCo Beverages | 1,000,000 | 70% | Rank 8 | 4,250 | 1.8×, from Rank 8 | Bottling Line: bottles fill 25% faster |
 | The Sourwood Family | 3,000,000 | 80% | Rank 9 (Big Squeeze) | 5,000 | Never in the campaign (3× once Weakened in a Peaceful Sandbox) | Family Silver: land, Plot Buyouts and auction bids −10% |
 
-A rival's rebuild chance drops 30 points for each Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rival cash grows about 1% a day from their trade. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, and rise one level every 30 days (Blenders, Cold Brew and Hollis cap at L4). The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
+A rival's rebuild chance drops 30 points for each earlier Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rival cash grows about 1% a day from their trade. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, and every 30 days each stand is owed a level, up to L4 for the Blenders, Cold Brew and Hollis and L5 for FizzCo and Sourwood. Grow pays your build price for each, cheapest first, and an upgrade it can't cover waits, so the small families rarely get past L3 (an L4 costs $60,000, an L5 $650,000). The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
 
 ### Reputation
 

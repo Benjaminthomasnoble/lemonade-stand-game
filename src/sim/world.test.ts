@@ -283,8 +283,12 @@ describe("Lottie's recipe book", () => {
     grantPage(s, 'lavender'); // won at the Hilltop auction (src/sim/auction.ts)
     expect(s.news.at(-1)).toContain('The Lavender page comes home');
     const page = s.scenes!.queue.find((q) => q.id === 'page-lavender')!.data!;
-    expect(page.lines!.map((l) => l.text)).toEqual(['Vera traded my Lavender page for harp lessons.', 'In 1980. She never could play.', 'High rollers love it. Try the Hilltop.']);
-    expect(page.seconds).toBeLessThanOrEqual(20);
+    expect(page.lines!.map((l) => l.text)).toEqual([
+      'Vera traded my Lavender page for harp lessons.', 'In 1980. She never could play.',
+      'A glug of lemon, a smidge of lavender.', 'Any more than a smidge tastes like soap.', 'High rollers love it. Try the Hilltop.',
+    ]);
+    expect(Math.abs(page.seconds! - 20)).toBeLessThanOrEqual(2); // "a 20-second scene" (design-spec.md, Recipe pages)
+    for (const l of page.lines!) expect(l.text.split(' ').length).toBeLessThanOrEqual(8); // story lines stay short
     expect(page.recap).toBe(s.news.at(-1)); // skipped, it leaves the page's line
     eliminate(s, 'blenders', 'buyout'); // Strawberry and Frozen come home in Brock's exit scene, not scenes of their own
     expect(s.scenes!.queue.map((q) => q.id).filter((id) => id.startsWith('page-'))).toEqual(['page-lavender']);
@@ -513,8 +517,10 @@ describe('Taste-Offs', () => {
     // Act 1's climax scene waits for the morning: Brock swears revenge on 101.5, and Lottie has her page back.
     const climax = s.scenes!.queue.find((q) => q.id === 'page-strawberry')!.data!;
     expect(climax.lines!.map((l) => [l.who, l.text])).toEqual([
-      ['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.'],
+      ['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'],
+      ['Lottie', 'A glug of lemon, a smidge of sugar.'], ['Lottie', 'Brock thought a smidge meant a bucket.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.'],
     ]);
+    expect(Math.abs(climax.seconds! - 20)).toBeLessThanOrEqual(2); // "a 20-second scene"
     expect(s.today.books!.prizes).toBeGreaterThanOrEqual(TASTE_OFF.prize); // the Ledger's prizes row (a goal's reward may share it)
     expect(s.cash - cash).toBeGreaterThan(TASTE_OFF.prize - 100); // the prize, less the day's upkeep
     expect(s.reputation).toBeGreaterThan(rep + 0.05);

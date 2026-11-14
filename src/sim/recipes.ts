@@ -102,13 +102,20 @@ const PAGE_HOME: Record<RecipeId, string> = {
 };
 
 /**
- * The scenes for the pages the campaign wins outright, at the next lull (story's playScene; campaign only). Strawberry
+ * The scenes for the pages the campaign wins outright, at the next lull (story's playScene; campaign only): about 20
+ * seconds each ("a 20-second scene"), with Lottie reading the page in her shorthand ("a glug, a smidge"). Strawberry
  * comes home that way only at the Summer Fair, so its scene is Act 1's climax: Brock swears revenge on 101.5. A page a
  * fallen rival hands back gets no scene of its own: Lottie names it in their exit scene (exits.ts).
  */
 const PAGE_SCENES: Partial<Record<RecipeId, [string, string][]>> = {
-  strawberry: [['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.']],
-  lavender: [['Lottie', 'Vera traded my Lavender page for harp lessons.'], ['Lottie', 'In 1980. She never could play.'], ['Lottie', 'High rollers love it. Try the Hilltop.']],
+  strawberry: [
+    ['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'],
+    ['Lottie', 'A glug of lemon, a smidge of sugar.'], ['Lottie', 'Brock thought a smidge meant a bucket.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.'],
+  ],
+  lavender: [
+    ['Lottie', 'Vera traded my Lavender page for harp lessons.'], ['Lottie', 'In 1980. She never could play.'],
+    ['Lottie', 'A glug of lemon, a smidge of lavender.'], ['Lottie', 'Any more than a smidge tastes like soap.'], ['Lottie', 'High rollers love it. Try the Hilltop.'],
+  ],
 };
 const SCENE_STEP = 4.2;
 

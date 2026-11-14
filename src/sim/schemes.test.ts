@@ -5,7 +5,7 @@ import {
   BRAND_TIERS, canRunCampaign, CEASE, ceaseAndDesist, ceaseAndDesistIn, LOTTIES_CORNER, marketingMultiplier,
   answerBuyout, canSellToFizzco, offerOn, TAKEOVER,
   canBuyPlot, canPlotBuyout, freezeLand, landFrozen, mayorsFine, OLD_MONEY, CAMPAIGNS, postersAt,
-  AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
+  AD_BLITZ, adBlitzCurb, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist, curbAppeal, expectedDemand,
   blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
   detectionChance, MYSTERY, MYSTERY_GOAL, mysteryGoal, mysteryOn, NIGHT_SHIFT, nightShiftUnmasked, welcomeDex,
   closeAuctions, openAuction, placeBid, PRESTON_OUTBID,
@@ -780,25 +780,26 @@ describe('FizzCo\'s ad blitz', () => {
     return { s, ...nextTo(s, 'fizzco') };
   }
 
-  it('its mascot works the district where it meets you for 3 days: +25% at its stands there, a day\'s walk paid each dawn from Strike', () => {
+  it('its mascot works the district where it meets you for 3 days: +25% appeal at its stands there, a day\'s walk paid each dawn from Strike', () => {
     const { s, theirs, mine } = blitzable(80);
     const d = PLOT_BY_ID[theirs].district;
     const st = s.plots[theirs].stand!;
-    const before = marketingMultiplier(s, 'fizzco', st);
-    const yours = marketingMultiplier(s, 'player', s.plots[mine].stand!);
+    const before = curbAppeal(s, theirs), yours = curbAppeal(s, mine);
+    const walk = marketingMultiplier(s, 'fizzco', st);
     const strike = budgetOf(s, 'fizzco').strike;
     const job = startScheme(s, 'fizzco', 'blitz')!;
     expect(job).toMatchObject({ kind: 'blitz', by: 'fizzco', day: 10, until: 12, district: d, cost: AD_BLITZ.perDay });
     expect(job.plots).toContain(theirs);
     expect(budgetOf(s, 'fizzco').strike).toBeCloseTo(strike - AD_BLITZ.perDay, 2);
     expect(adBlitzIn(s, d)).toBe(true);
-    expect(marketingMultiplier(s, 'fizzco', st)).toBeCloseTo(before + AD_BLITZ.traffic, 5);
-    expect(marketingMultiplier(s, 'player', s.plots[mine].stand!)).toBeCloseTo(yours, 5); // only FizzCo's stands
+    expect(curbAppeal(s, theirs)).toBeCloseTo(before * (1 + AD_BLITZ.pull), 6);
+    expect(curbAppeal(s, mine)).toBeCloseTo(yours, 6); // only FizzCo's stands
+    expect(marketingMultiplier(s, 'fizzco', st)).toBeCloseTo(walk, 6); // appeal, not foot traffic
     for (const p of PLOTS) {
       const ps = s.plots[p.id];
-      if (p.district !== d && ps.owner === 'fizzco' && ps.stand) expect(adBlitzBoost(s, 'fizzco', ps.stand)).toBe(0);
+      if (p.district !== d && ps.owner === 'fizzco' && ps.stand) expect(adBlitzCurb(s, p.id)).toBe(1);
     }
-    expect(s.news.at(-1)).toBe(`Bugle: FizzCo's mascot blitzes ${DISTRICT_BY_ID[d].name}: +25% at its stands`);
+    expect(s.news.at(-1)).toBe(`Bugle: FizzCo's mascot blitzes ${DISTRICT_BY_ID[d].name}: +25% appeal at its stands`);
     hush(s);
     for (const day of [11, 12]) {
       s.day = day;
@@ -812,7 +813,23 @@ describe('FizzCo\'s ad blitz', () => {
     schemesAtDawn(s);
     expect(job.done).toBe(true);
     expect(adBlitzIn(s, d)).toBe(false);
-    expect(adBlitzBoost(s, 'fizzco', st)).toBe(0);
+    expect(adBlitzCurb(s, theirs)).toBe(1);
+  });
+
+  it('pulls the customers it shares with you its way: your stand within 2 plots sells less, and FizzCo\'s more', () => {
+    // 82: your stand over the line in Maple Row, where FizzCo's share of your passers-by is under its 35%;
+    // 87: on the same Old Town block, where FizzCo already takes its 35% of yours, so it's the street's you lose.
+    for (const [seed, lose] of [[82, 'kept'], [87, 'inflow']] as const) {
+      const { s, theirs, mine } = blitzable(seed);
+      const yours = expectedDemand(s, mine), its = expectedDemand(s, theirs);
+      startScheme(s, 'fizzco', 'blitz');
+      const after = expectedDemand(s, mine);
+      expect(after.demand).toBeLessThan(yours.demand);
+      expect(after.kept).toBeLessThanOrEqual(yours.kept);
+      expect(after.inflow).toBeLessThanOrEqual(yours.inflow); // never a customer more for you
+      expect(after[lose]).toBeLessThan(yours[lose]);
+      expect(expectedDemand(s, theirs).demand).toBeGreaterThan(its.demand);
+    }
   });
 
   it('goes home early when Strike runs dry or FizzCo falls; none before Rank 3, away from your stands, short of Strike, or by anyone else', () => {
@@ -911,19 +928,20 @@ describe('Peaceful: rivals scheme instead', () => {
     expect(blitzes(newGame(44), 'blenders')).toBe(false); // with raids on, only FizzCo's mascot blitzes
     const d = PLOT_BY_ID[b.theirs].district;
     const st = s.plots[b.theirs].stand!;
-    const before = marketingMultiplier(s, 'blenders', st);
+    const before = curbAppeal(s, b.theirs);
     const strike = budgetOf(s, 'blenders').strike;
     const job = startScheme(s, 'blenders', 'blitz')!;
     expect(job).toMatchObject({ kind: 'blitz', by: 'blenders', district: d, until: s.day + AD_BLITZ.days - 1 });
     expect(budgetOf(s, 'blenders').strike).toBeCloseTo(strike - AD_BLITZ.perDay, 2);
-    expect(marketingMultiplier(s, 'blenders', st)).toBeCloseTo(before + AD_BLITZ.traffic, 5);
+    expect(curbAppeal(s, b.theirs)).toBeCloseTo(before * (1 + AD_BLITZ.pull), 6);
+    expect(st).toBe(s.plots[b.theirs].stand);
     expect(adBlitzIn(s, d, 'blenders')).toBe(true);
     expect(adBlitzIn(s, d)).toBe(false); // not FizzCo's mascot
     for (const p of PLOTS) {
       const ps = s.plots[p.id];
-      if (ps.stand && ps.owner && ps.owner !== 'blenders') expect(adBlitzBoost(s, ps.owner, ps.stand)).toBe(0);
+      if (ps.stand && ps.owner && ps.owner !== 'blenders') expect(adBlitzCurb(s, p.id)).toBe(1);
     }
-    expect(s.news.at(-1)).toBe(`Bugle: The Boardwalk Blenders ad blitz in ${DISTRICT_BY_ID[d].name}: +25% at its stands`);
+    expect(s.news.at(-1)).toBe(`Bugle: The Boardwalk Blenders ad blitz in ${DISTRICT_BY_ID[d].name}: +25% appeal at its stands`);
     const ticket = schemeTickets(s).find((x) => x.includes('data-testid="blitz"'))!;
     expect(ticket).toContain(`Blenders blitz: ${DISTRICT_BY_ID[d].name.replace(/&/g, '&amp;')}`);
     expect(schemeNote(s, b.theirs)).toBe('<span class="cl-note bad">Ad blitz +25%</span>');
@@ -933,7 +951,7 @@ describe('Peaceful: rivals scheme instead', () => {
     schemesAtDawn(s);
     expect(job.done).toBe(true);
     expect(s.news).toContain('Bugle: The Boardwalk Blenders ad blitz ends early');
-    expect(adBlitzBoost(s, 'blenders', st)).toBe(0);
+    expect(curbAppeal(s, b.theirs)).toBeCloseTo(before, 6);
   });
 
   it('a blitzing rival\'s jingle opens the morning show, so the radio tips you off', () => {

@@ -21,7 +21,7 @@ import { calendarTraffic, crowdAt, crowdShareAt, underCeaseAndDesist } from './c
 import { eventDef, eventTraffic, liveEvents } from './events.ts';
 import { kidsShare } from './happenings.ts';
 import { groveTraffic } from './vip.ts';
-import { adBlitzBoost } from './schemes.ts';
+import { adBlitzCurb } from './schemes.ts';
 import { stockCups } from './rivalAi.ts';
 import { isSpoiled } from './crew.ts';
 import { billboardCurb, billboardTerms, campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
@@ -102,6 +102,7 @@ export function curbAppeal(s: GameState, plotId: string): number {
   if (majorityHeld(s, PLOT_BY_ID[plotId].district)) curb *= s.plots[plotId].owner === 'player' ? MAJORITY_CURB.player : MAJORITY_CURB.rival;
   curb *= billboardCurb(s, plotId); // another owner's Billboard within 2 plots: ×0.9 (marketing.ts)
   curb *= freshPaint(s, s.plots[plotId].owner); // Fresh Paint: Lottie's tip, +5% at yours (perks.ts)
+  curb *= adBlitzCurb(s, plotId); // rivals: FizzCo's ad blitz is appeal, not traffic: its stands pull shared customers its way (schemes.ts)
   return curb;
 }
 
@@ -159,10 +160,6 @@ export const MARKETING_TERMS: MarketingSource[] = [
   (s, owner, add, st, plotId) => campaignTerms(s, owner, add, st, plotId), // Sunny's walk, and a campaign booked for today (marketing.ts)
   (s, owner, add, _st, plotId) => billboardTerms(s, owner, add, plotId), // +20% for each of its owner's Billboards within 2 plots (marketing.ts)
   (s, owner, add, _st, plotId) => roofTerms(s, owner, add, plotId), // +15% for each Billboard Roof of yours within 2 plots (specializations.ts)
-  (s, owner, add, st) => { // FizzCo's ad blitz: its mascot works one district (schemes.ts)
-    const b = adBlitzBoost(s, owner, st);
-    if (b) add('blitz', "FizzCo's mascot", b);
-  },
   (s, owner, add) => chattyRegulars(s, owner, add), // Chatty Regulars: Lottie's tip, +5% at all your stands (perks.ts)
 ];
 

@@ -227,10 +227,13 @@ export const RIVAL_BRAND = {
 };
 /**
  * FizzCo's ad blitz (Hostile Takeover): from Rank `rank`, when your own Sunny opens, FizzCo's mascot walks the
- * district where most of its stands share passers-by with yours: +`traffic` at its stands there for `days` days, at
- * `perDay` a day of Strike (Sunny's numbers; the length is a placeholder). In Peaceful every rival can run one.
+ * district where most of its stands share passers-by with yours for `days` days, at `perDay` a day of Strike (Sunny's
+ * fee; the length is a placeholder). Its stands there appeal ×(1 + `pull`), so the customers they share with yours go
+ * their way (spec: "pull shared customers its way"). It's appeal, like a Coupon Blitz: Sunny's foot traffic would only
+ * put more people on a street FizzCo shares with you, and hand you some of them. `pull` is a placeholder. In Peaceful
+ * every rival can run one.
  */
-export const AD_BLITZ = { rank: 3, traffic: 0.25, days: 3, perDay: 300 };
+export const AD_BLITZ = { rank: 3, pull: 0.25, days: 3, perDay: 300 };
 /**
  * Endless Summer's Out-of-Towner (spec: "An Out-of-Towner faction arrives 14 days after victory and then every 30
  * days, buying into your thinnest district"; Version 1 ships Snootwater Springs, who fights like Brock's Bros). On each

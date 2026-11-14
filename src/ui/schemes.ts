@@ -73,7 +73,7 @@ function blitz(s: GameState, job: Scheme): string {
   const left = job.until - s.day + 1;
   const name = DISTRICT_BY_ID[job.district!].name;
   const who = job.by === 'fizzco' ? "FizzCo's mascot works" : `${SHORT[job.by]}'s ads work`;
-  const tip = `${who} ${name}, ${left} day${left === 1 ? '' : 's'} left: +${Math.round(AD_BLITZ.traffic * 100)}% foot traffic at its stands there. `
+  const tip = `${who} ${name}, ${left} day${left === 1 ? '' : 's'} left: +${Math.round(AD_BLITZ.pull * 100)}% appeal at its stands there, so they win more of the customers you share. `
     + 'Answer with your own marketing in the same district.';
   const go = job.plots[0] ? btn('goto', 'Go there', `data-plot="${job.plots[0]}"`) : '';
   return `<div class="cl-ticket red" data-testid="blitz" title="${esc(tip)}">${ICON.board()}<b>${SHORT[job.by]} blitz: ${esc(name)}</b>
@@ -134,7 +134,7 @@ export function schemeNote(s: GameState, plotId: string): string {
   if (warAt(s, plotId)) return `<span class="cl-note bad">Price war ${CUT}</span>`;
   if (s.plots[plotId]?.owner === 'player' && ceaseAndDesistIn(s, PLOT_BY_ID[plotId].district)) return '<span class="cl-note bad">Ads blocked</span>';
   const owner = s.plots[plotId]?.owner;
-  if (owner && owner !== 'player' && adBlitzIn(s, PLOT_BY_ID[plotId].district, owner as RivalId)) return `<span class="cl-note bad">Ad blitz +${Math.round(AD_BLITZ.traffic * 100)}%</span>`;
+  if (owner && owner !== 'player' && adBlitzIn(s, PLOT_BY_ID[plotId].district, owner as RivalId)) return `<span class="cl-note bad">Ad blitz +${Math.round(AD_BLITZ.pull * 100)}%</span>`;
   const offer = offerOn(s, plotId);
   if (offer) return `<span class="cl-note">FizzCo bids ${whole(offer.price!)}</span>`;
   const frozen = freezeOn(s, plotId);

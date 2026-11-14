@@ -335,11 +335,15 @@ export function adBlitzIn(s: GameState, district: DistrictId, id: RivalId = 'fiz
   return !!s.schemes?.length && s.rivals[id].alive && runningSchemes(s).some((x) => x.kind === 'blitz' && x.by === id && x.district === district);
 }
 
-/** marketingMultiplier's ad blitz term: +AD_BLITZ.traffic at a rival's stands in the district its blitz works. */
-export function adBlitzBoost(s: GameState, owner: FactionId, st?: Stand): number {
-  if (owner === 'player' || !st || !s.schemes?.some((x) => x.kind === 'blitz' && x.by === owner && !x.done)) return 0;
-  const plot = plotOfStand(s, st);
-  return plot && adBlitzIn(s, PLOT_BY_ID[plot].district, owner as RivalId) ? AD_BLITZ.traffic : 0;
+/**
+ * curbAppeal's ad blitz term (demand.ts): a blitzing rival's stands in the district its mascot works appeal
+ * ×(1 + AD_BLITZ.pull). They stop more of their own passers-by, and take a bigger share of the ones they share with
+ * yours (up to the 35% cap); your stands keep their own appeal, so they only lose customers to it.
+ */
+export function adBlitzCurb(s: GameState, plotId: string): number {
+  const owner = s.plots[plotId]?.owner;
+  if (!owner || owner === 'player' || !s.schemes?.length) return 1;
+  return adBlitzIn(s, PLOT_BY_ID[plotId].district, owner as RivalId) ? 1 + AD_BLITZ.pull : 1;
 }
 
 /** Where a blitz pulls hardest: the district where most of the rival's stands share passers-by with yours (its home on a tie). */
@@ -362,7 +366,7 @@ function startBlitz(s: GameState, id: RivalId): Scheme | null {
   const plots = PLOTS.filter((p) => p.district === district && s.plots[p.id].owner === id && !!s.plots[p.id].stand && p.type !== 'hq').map((p) => p.id);
   const job: Scheme = { kind: 'blitz', by: id, day: s.day, until: s.day + AD_BLITZ.days - 1, plots, district, cost: AD_BLITZ.perDay };
   s.schemes!.push(job);
-  const where = DISTRICT_BY_ID[district].name, pull = `+${Math.round(AD_BLITZ.traffic * 100)}% at its stands`;
+  const where = DISTRICT_BY_ID[district].name, pull = `+${Math.round(AD_BLITZ.pull * 100)}% appeal at its stands`;
   s.news.push(id === 'fizzco' ? `Bugle: FizzCo's mascot blitzes ${where}: ${pull}` : `Bugle: ${short(id)} ad blitz in ${where}: ${pull}`);
   return job;
 }

@@ -7,7 +7,7 @@
 // goal is only paid if it was on the card when it was done, and a slot keeps its
 // goal until it's done unless a lesson or story goal steps in ahead of it.
 import {
-  BRAND_TIERS, CLUBHOUSE, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RAID_RANK, RANKS, SALES_GOAL_SHARE,
+  BRAND_TIERS, CLUBHOUSE, CUPS_PER_PITCHER, DISTRICT_RANK, FACTIONS, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RAID_RANK, RANKS, SALES_GOAL_SHARE,
   SEASON_DAYS, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, WEAPONS, type RivalId, type Sweetness,
 } from './balance.ts';
 import { DISTRICTS, LOTTIES_CORNER, onMap, plotOnMap, PLOTS, plotType, type DistrictId } from './map.ts';
@@ -15,7 +15,7 @@ import type { GameState, Goal } from './economy.ts';
 import { averageStopChance, canBuyPlot, expectedCups, netWorth, playerStands, plotPrice, restockOn, servingsAvailable, successScore } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { FACILITIES, type FacilityKind } from './vip.ts';
-import { HQS, isWeakened, OUTSELL } from './rivals.ts';
+import { HQS, isWeakened, OUT_OF_TOWNER, OUTSELL } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
 import { rivalsInPlay } from './land.ts';
 import { hasClubhouse, hasStory, lessonsOn, storyAct, taught } from './story.ts';
@@ -161,6 +161,8 @@ function mediumGoals(s: GameState): Candidate[] {
   const lessons = lessonsOn(s);
   const mine = minePlots(s);
   const oldtown = standIn(s, 'oldtown', mine);
+  const towner = isEndless(s) ? outOfTownerGoal(s) : null; // Endless: the Out-of-Towner's date in town steps in ahead of the rest
+  if (towner) out.push(towner);
   if (hasStory(s)) out.push(...act2Goals(s));
   // Act 1's lessons, newest first; the Wooden Stand is the first session's goal from Day 1. Week 2's Old Town
   // corner is a story beat in the campaign (page icon) and a lesson elsewhere.
@@ -245,6 +247,19 @@ function act2Goals(s: GameState): Candidate[] {
   const squad = SQUAD_CAP(RAID_RANK);
   if (built) beat('beat-squad', `Hire a squad of ${squad}`, s.guards.length / squad, s.guards.length >= squad, false);
   return out;
+}
+
+/**
+ * Endless Summer's Out-of-Towner (schemes.ts comeToTown): the morning it buys in, running it out of town takes the
+ * card, by any of its ways out (a Faction Buyout, bankruptcy or its last plot lost: rivals.ts). Each date in town is
+ * a goal of its own; it stays ticked off until the next.
+ */
+function outOfTownerGoal(s: GameState): Candidate | null {
+  const id = OUT_OF_TOWNER.id, r = s.rivals[id];
+  if (r?.arrived === undefined) return null;
+  const left = PLOTS.filter((p) => s.plots[p.id].owner === id).length;
+  const gone = !r.alive;
+  return { id: `towner-${r.arrived}`, text: `Run ${FACTIONS[id].name} out of town`, progress: gone ? 1 : Math.min(0.95, 1 - left / Math.max(1, r.peakPlots)), done: gone, urgent: true };
 }
 
 /** How far along a climax is: the HQ's assault rank, then the faction's plots falling away. */

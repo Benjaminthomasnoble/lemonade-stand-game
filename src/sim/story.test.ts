@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actOf, averageStopChance, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, dayProfit, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
-  festivalDays, openStand, planNight, PLOTS, postGuard, SCHEMES, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
+  actOf, averageStopChance, BAY_RIVALS, buyPerimeter, cookieJarPeriod, cookieJarReady, CUPS_PER_PITCHER, dayProfit, eliminate, keepSqueezing, LOTTIES_CORNER, migrateSave, newGame,
+  festivalDays, openStand, OUT_OF_TOWNER, outOfTownerAtDawn, planNight, PLOTS, postGuard, rivalsBankrupt, SCHEMES, simulateRestOfDay, sleepUntilDawn, tasteOffResult, threatLevel, TUTORIAL_RAID_DAY,
   type BattleReport, type GameState, type RivalId,
 } from './economy.ts';
 import { sharedBorders } from './rivalAi.ts';
@@ -433,6 +433,37 @@ describe("Lottie's goals", () => {
       expect(goalsNow(s)[1].text).not.toMatch(/stands$/);
       nextDawn(s);
     }
+  });
+
+  it("Endless: the Out-of-Towner's date in town takes the medium goal until it's run out of town; each date is a new goal", () => {
+    const s = newGame(39);
+    for (const id of BAY_RIVALS) s.rivals[id].alive = false; // a won campaign that keeps squeezing, the Bay's land back on the market
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (ps.owner && ps.owner !== 'player') s.plots[p.id] = { ...ps, owner: p.type === 'hq' ? 'player' : null, stand: null, invested: 0, garrison: 0 };
+    }
+    s.rank = 9;
+    s.outcome = { result: 'won', how: 'domination', day: s.day };
+    expect(keepSqueezing(s)).toBe(true);
+    const towner = OUT_OF_TOWNER.id, run = /^Run Snootwater Springs out of town$/;
+    const toTown = () => { while (!s.rivals[towner].alive) { s.day++; outOfTownerAtDawn(s); } checkGoals(s); };
+    checkGoals(s);
+    expect(goalsNow(s)[1].text).not.toMatch(run); // not before it comes
+    const before = s.goals!.slots.medium;
+    toTown();
+    expect(goalsNow(s)[1]).toMatchObject({ text: expect.stringMatching(run), done: false, progress: 0 });
+    expect(s.goals!.slots.medium).not.toBe(before); // it steps in ahead of the goal the card showed
+    const theirs = PLOTS.filter((p) => s.plots[p.id].owner === towner);
+    s.plots[theirs[0].id] = { ...s.plots[theirs[0].id], owner: 'player' };
+    expect(goalsNow(s)[1].progress).toBeCloseTo(1 - (theirs.length - 1) / theirs.length);
+    for (const p of theirs) s.plots[p.id] = { ...s.plots[p.id], owner: 'player' }; // its last plot lost: it goes home at dawn
+    rivalsBankrupt(s);
+    expect(s.rivals[towner].alive).toBe(false);
+    checkGoals(s);
+    expect(s.news.some((n) => /^✓ Run Snootwater Springs out of town \+\$/.test(n))).toBe(true); // Lottie pays for it
+    expect(goalsNow(s)[1].text).not.toMatch(run);
+    toTown(); // its next date
+    expect(goalsNow(s)[1]).toMatchObject({ text: expect.stringMatching(run), done: false });
   });
 
   it("the Summer Fair's Taste-Off is Act 1's long goal in its week: a win pays, a loss takes it off the card", () => {

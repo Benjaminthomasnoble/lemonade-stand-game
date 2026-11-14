@@ -8,6 +8,8 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
+import pacingCsv from '../../docs/spec/pacing.csv?raw';
+import { chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, hits, longestLull, playRun, REFERENCE_SEED, type RunResult } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
 /** Hand the player a plot outright (tests skip the buying). */
@@ -513,5 +515,34 @@ describe('land, Sit-downs and loans keep no hours', () => {
     expect(canPlotBuyout(s, PLOTS.find((p) => s.plots[p.id].owner === 'coldbrew' && p.type !== 'hq')!.id)).toEqual({ ok: false, why: 'Too late tonight: sit down tomorrow' });
     expect(canBuyPlot(s, street(s, 'maple').id)).toEqual({ ok: true }); // land still sells on the spot
     expect(canBorrow(s, 100)).toEqual({ ok: true });
+  });
+});
+
+describe('the pacing harness (tools/pacing.ts)', () => {
+  it('plays the reference map through the public actions and reads the run against the spec', () => {
+    const r = playRun({ seed: REFERENCE_SEED, days: 8 });
+    expect(r.stuck).toBeUndefined();
+    expect(r.days.map((d) => d.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(r.days.every((d) => d.income > 0 && d.stands >= 1)).toBe(true);
+    expect(r.days.at(-1)!.netWorth).toBeGreaterThan(r.days[0].netWorth); // it grows the business
+    expect(r.news.length).toBeGreaterThan(0); // and buys something new
+    const names = checkRun(r).map((c) => c.name);
+    expect(names).toEqual(expect.arrayContaining(['first L2 stand', 'Rank 2', 'Rank 10', 'Domination', 'takings Days 1-8', 'security Days 1-14', 'first chopper loaded', 'longest lull', 'Rank 9 bar over Rank 8']));
+    const chart = chartChecks(r, pacingCsv);
+    expect(chart.map((c) => [c.name, c.target])).toEqual([['Net Worth Day 1', '$662']]); // the chart's Day 1, read from docs/spec/pacing.csv
+  });
+
+  it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {
+    expect(hits(4, CLASSIC_RANK_DAYS[2], true)).toBe(true);
+    expect(hits(5, CLASSIC_RANK_DAYS[2], true)).toBe(false); // a day late is 25% off
+    expect(hits(59, CLASSIC_RANK_DAYS[6], true)).toBe(false); // within 15% of Day 55, but past the 52-58 window
+    expect(hits(59, CLASSIC_RANK_DAYS[6], false)).toBe(true); // inside the maps' 48-60
+    expect(hits(135, DOMINATION.classic, true)).toBe(false); // never before Day 136
+    expect(hits(undefined, CLASSIC_FIRST_L2, false)).toBe(false); // never reached
+  });
+
+  it('measures the longest lull between firsts, up to the win', () => {
+    const run = { days: [{ day: 30 }], news: [{ day: 4, what: 'Rank 2' }, { day: 12, what: 'Rank 3' }, { day: 15, what: 'first Kiosk' }], outcome: { result: 'won', how: 'domination', day: 25 } } as unknown as RunResult;
+    expect(longestLull(run)).toEqual({ days: 10, from: 15 }); // Day 15 to the win on Day 25
   });
 });

@@ -1,12 +1,17 @@
 // Headless balance check: plays N days with a simple restocking policy.
 // Usage: npm run sim -- [days] [seed]
+//        npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v]: the pacing harness (tools/pacing.ts),
+//        a headless player read against the spec's pacing targets and docs/spec/pacing.csv
+import { readFileSync } from 'node:fs';
 import {
   approveRepair, buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, PLOTS, rankFor, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
   dayProfit,
 } from '../src/sim/economy.ts';
 import { goalsNow } from '../src/sim/goals.ts';
+import { pacingReport } from './pacing.ts';
 
-const days = Number(process.argv[2] ?? 14);
+const pacing = process.argv[2] === 'pacing';
+const days = pacing ? 0 : Number(process.argv[2] ?? 14);
 const s = newGame(Number(process.argv[3] ?? 42));
 const targets: Record<SupplyId, number> = { lemons: 50, sugar: 100, ice: 360 };
 for (let d = 0; d < days; d++) {
@@ -36,3 +41,4 @@ for (let d = 0; d < days; d++) {
   if (goalsNow(s).some((g) => g.text === 'Build Dex a Clubhouse' && !g.done) && canBuildClubhouse(s).ok && buildClubhouse(s)) console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`);
   s.news.length = 0;
 }
+if (pacing) pacingReport(process.argv.slice(3), readFileSync(new URL('../docs/spec/pacing.csv', import.meta.url), 'utf8'), (line) => console.log(line));

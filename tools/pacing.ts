@@ -40,9 +40,12 @@ export const REFERENCE_SEED = 42;
  * window the reference map must land inside. */
 export interface Target { target: number; lo: number; hi: number; window?: [number, number]; notBefore?: number }
 
-export const CLASSIC_FIRST_L2: Target = { target: 4, lo: 4, hi: 5 };
+/** The first Wooden Stand and Rank 2 follow their Day 5 lessons (balance.ts LESSON_DAY.upgrade and .rank: Lottie's nudge,
+ * the Grow tab, the rank chip), so both are held to Day 5, 5-6 across maps (a design call: the spec's tables still say
+ * Day 4). Laid Back's and Cutthroat's Rank 2 (RANK_DAYS) is Day 5 too. */
+export const CLASSIC_FIRST_L2: Target = { target: 5, lo: 5, hi: 6 };
 export const CLASSIC_RANK_DAYS: Record<number, Target> = {
-  2: { target: 4, lo: 3, hi: 4 },
+  2: { target: 5, lo: 5, hi: 6 },
   3: { target: 10, lo: 8, hi: 12 },
   4: { target: 22, lo: 15, hi: 34 },
   5: { target: 37, lo: 26, hi: 48 },
@@ -52,10 +55,11 @@ export const CLASSIC_RANK_DAYS: Record<number, Target> = {
   9: { target: 130, lo: 123, hi: 138, window: [125, 135] },
   10: { target: 155, lo: 148, hi: 162, window: [150, 160] },
 };
-/** Laid Back and Cutthroat rank days, Ranks 2-10 (spec: Difficulty differences; Progression's unlock table). */
+/** Laid Back and Cutthroat rank days, Ranks 2-10 (spec: Difficulty differences; Progression's unlock table), Rank 2 on its
+ * Day 5 lesson as on Classic. */
 export const RANK_DAYS: Record<'laidback' | 'cutthroat', number[]> = {
-  laidback: [4, 9, 19, 31, 50, 67, 87, 118, 134],
-  cutthroat: [4, 9, 19, 38, 59, 81, 108, 143, 163],
+  laidback: [5, 9, 19, 31, 50, 67, 87, 118, 134],
+  cutthroat: [5, 9, 19, 38, 59, 81, 108, 143, 163],
 };
 export const DOMINATION: Record<'classic' | 'laidback' | 'cutthroat', Target> = {
   classic: { target: 145, lo: 131, hi: 146, window: [140, 150], notBefore: 136 },

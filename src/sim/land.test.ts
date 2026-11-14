@@ -8,7 +8,7 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
-import { CLOSE, LAVENDER } from './balance.ts';
+import { CLOSE, LAVENDER, LESSON_DAY } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
 import { clubhouseSite } from './clubhouse.ts';
@@ -19,7 +19,7 @@ import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
   bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, growthCandidates, hits, longestLull, morning, newBot, pickAnswer, playRun,
-  REFERENCE_SEED, spreadChecks, TIP_ORDER, type RunResult,
+  RANK_DAYS, REFERENCE_SEED, spreadChecks, TIP_ORDER, type RunResult,
 } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -806,8 +806,13 @@ describe('the pacing harness (tools/pacing.ts)', () => {
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {
-    expect(hits(4, CLASSIC_RANK_DAYS[2], true)).toBe(true);
-    expect(hits(5, CLASSIC_RANK_DAYS[2], true)).toBe(false); // a day late is 25% off
+    expect([CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS[2]]).toEqual([{ target: 5, lo: 5, hi: 6 }, { target: 5, lo: 5, hi: 6 }]);
+    // the Day 5 lessons: Lottie's Wooden Stand nudge and the rank chip
+    expect([CLASSIC_FIRST_L2.target, CLASSIC_RANK_DAYS[2].target, RANK_DAYS.laidback[0], RANK_DAYS.cutthroat[0]]).toEqual([LESSON_DAY.upgrade, LESSON_DAY.rank, LESSON_DAY.rank, LESSON_DAY.rank]);
+    expect(hits(5, CLASSIC_RANK_DAYS[2], true)).toBe(true);
+    expect(hits(4, CLASSIC_FIRST_L2, true)).toBe(false); // a day early is 20% off
+    expect(hits(6, CLASSIC_RANK_DAYS[2], true)).toBe(false); // a day late is 20% off
+    expect(hits(6, CLASSIC_RANK_DAYS[2], false)).toBe(true); // inside the maps' 5-6
     expect(hits(59, CLASSIC_RANK_DAYS[6], true)).toBe(false); // within 15% of Day 55, but past the 52-58 window
     expect(hits(59, CLASSIC_RANK_DAYS[6], false)).toBe(true); // inside the maps' 48-60
     expect(hits(135, DOMINATION.classic, true)).toBe(false); // never before Day 136

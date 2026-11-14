@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, damageAtClose, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen, toggleAutoRepair, upgradeStand,
-  type GameState,
+  approveRebuild, approveRepair, damageAtClose, eventsOf, HURRICANE_ID, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen,
+  toggleAutoRepair, upgradeStand, type GameState,
 } from '../sim/economy.ts';
 import { helperRows } from './automation.ts';
-import { damageCard, damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
+import { damageCard, damageHere, damageTickets, hurricaneTicket, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { repairCards } from './evening.ts';
 
 /** Lottie's Corner as the spec's Kiosk ($4,050 from a table built new, 800 HP, 120 cups an hour) at Morning Prep. */
@@ -209,6 +209,54 @@ describe('Storms', () => {
     expect(row).not.toContain('Fixing tonight');
     expect(row).toContain(`title="Adds to tonight's repair: good as new at dawn"`);
     expect(row).toContain('Repair $152');
+  });
+});
+
+describe('the Hurricane', () => {
+  /** The Hurricane on the calendar for `day` (live once it is today, as its dawn starts it). */
+  function hurricane(s: GameState, day: number): void {
+    eventsOf(s).on.push({ id: HURRICANE_ID, from: day, to: day, ...(day === s.day ? { live: true } : {}) });
+  }
+
+  it('warns from 2 days ahead with the counter-play, and shows the HP your hardest-hit building keeps', () => {
+    const s = newGame(25);
+    s.phase = 'prep';
+    expect(hurricaneTicket(s)).toEqual([]);
+    hurricane(s, s.day + 2);
+    let [ticket] = stormTicket(s);
+    expect(ticket).toContain('data-testid="hurricane"');
+    expect(ticket).toContain('<b>Hurricane in 2 days</b>');
+    expect(ticket).toContain('Fortified Frames; rebuilds cost only 15%');
+    expect(ticket).toContain('--v:0.400'); // Lottie's table keeps 40 of its 100 HP
+    expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
+    s.day++;
+    [ticket] = hurricaneTicket(s);
+    expect(ticket).toContain('<b>Hurricane tomorrow</b>');
+    s.phase = 'report';
+    expect(hurricaneTicket(s)).toEqual([]);
+  });
+
+  it('on its day: the warning at Morning Prep, then the repair once it hits, and no Storm ticket on top', () => {
+    const s = newGame(26);
+    s.cash = 500;
+    s.phase = 'prep';
+    s.day = LESSON_DAY.forecast;
+    s.forecast = { kind: 'storm', temp: 50 };
+    hurricane(s, s.day);
+    let tickets = stormTicket(s);
+    expect(tickets).toHaveLength(1);
+    expect(tickets[0]).toContain('<b>Hurricane at the open</b>');
+    s.phase = 'open';
+    s.weather = s.forecast;
+    stormAtOpen(s); // 60 of the table's 100 HP
+    tickets = stormTicket(s);
+    expect(tickets).toHaveLength(1);
+    expect(tickets[0]).toContain('<b>Hurricane</b>');
+    expect(tickets[0]).toContain('--v:0.400');
+    expect(tickets[0]).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    expect(tickets[0]).toContain('Repair $9'); // 60% of Lottie's $100 table at 15%
+    approveRepair(s, LOTTIES_CORNER);
+    expect(stormTicket(s)[0]).toContain('Fixing tonight');
   });
 });
 

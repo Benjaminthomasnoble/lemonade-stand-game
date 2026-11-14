@@ -547,6 +547,13 @@ export const AUTO_REPAIR_RANK = 3;
 /** A Storm day (the real weather, not the forecast) takes this share of max HP off every faction's stand up to
  * `maxLevel`, never below 1 HP, so it stays open at its HP share until repaired (spec: Damage, repairs and rebuilds). */
 export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };
+/** The late-game Hurricane (spec: Random events, "Damage to buildings bay-wide | 1 day, forecast 2 days ahead"): the
+ * scheduler puts it on the calendar `lead` days ahead, from `rank`, in Fall and Winter, at `weight` against the other
+ * events. Its day is a Storm, and at the open every faction's standing stand loses its level's share (L1 to L5) of its
+ * own HP, before a Fortified Frame (so the Frame's extra 50% is kept), and every facility `facility` of its HP, never
+ * below 1 HP: Damaged, never Wrecked. Fences are not buildings and take none.
+ * placeholder: spec gap (the rank, seasons and odds, the shares, the Storm sky, no wrecks, fences left alone) */
+export const HURRICANE = { rank: 7, lead: 2, weight: 1, seasons: ['fall', 'winter'] as Season[], stand: [0.6, 0.5, 0.4, 0.35, 0.3], facility: 0.3 };
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
 export const NO_RAID_DAYS = 2;

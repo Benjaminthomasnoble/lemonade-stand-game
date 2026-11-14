@@ -1,14 +1,14 @@
 // Buildings and their damage (spec: Stands, "Damage, repairs and rebuilds"; Defenses, "When a stand falls"; canon:
 // Knock it down, buy it up). Every faction's stands and facilities keep their HP from one raid to the next: a Smash
-// that runs out of time, any chopping short of 0, or a Storm on an L1–L2 stand leaves the building Damaged (weather
-// damage is the late-game Hurricane's seam too). A Damaged stand stays open and pours its HP share of its cups an hour
-// until a repair, approved by the end of the Evening and paid on approval, puts it back to full HP at dawn. Wrecked
-// rebuilds and Busted fixes join the same overnight queue: the building stays closed for the rest of the day and opens
-// at dawn as good as new, so a stand smashed at night misses a day of sales. An unrebuilt plot lapses: For Sale with
-// First Dibs for whoever smashed it, then a 24-hour sealed-bid auction, then back to the Registry. Rebuilds and repairs
-// cost a share of what went into the building itself: a stand's level steps and slot fittings or a facility's tiers,
-// never the plot's fences and gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's
-// rebuild) takes the dawn's rng.
+// that runs out of time, any chopping short of 0, a Storm on an L1–L2 stand, or the late-game Hurricane (every
+// faction's buildings, bay-wide, forecast 2 days ahead) leaves the building Damaged. A Damaged stand stays open and
+// pours its HP share of its cups an hour until a repair, approved by the end of the Evening and paid on approval, puts
+// it back to full HP at dawn. Wrecked rebuilds and Busted fixes join the same overnight queue: the building stays
+// closed for the rest of the day and opens at dawn as good as new, so a stand smashed at night misses a day of sales.
+// An unrebuilt plot lapses: For Sale with First Dibs for whoever smashed it, then a 24-hour sealed-bid auction, then
+// back to the Registry. Rebuilds and repairs cost a share of what went into the building itself: a stand's level steps
+// and slot fittings or a facility's tiers, never the plot's fences and gadgets. Pure functions over GameState, like the
+// rest of the sim; the one roll (a rival's rebuild) takes the dawn's rng.
 //
 // Reading HP: Stand.hp and Facility.hp hold the points left on a dented building that still stands. Missing means full
 // HP, and the field is cleared whenever the building falls or comes back full, so read HP through currentHp(ps) and
@@ -17,13 +17,16 @@
 // and daytime raids, Delivery Raids, your raids and rival-vs-rival ones; each fight starts from currentHp. HQ assaults
 // (rivals.ts) fight their own Gate and never touch a stand's HP.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, STAND_LEVELS, START, STORM_DAMAGE,
-  type RivalId,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, SEASON_TEMP_SHIFT, STAND_HP,
+  STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
 } from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { Blocker, GameState, PlotState } from './economy.ts';
+import type { Blocker, GameState, PlotState, Weather } from './economy.ts';
+import { seasonOf } from './economy.ts';
+import { registerEvent } from './eventTable.ts'; // world's events table: land's Hurricane registers there
+import { heatWaveDay, liveEvent, type WorldEvent } from './events.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bookHelper, registerHelper } from './automation.ts'; // Auto-Repair's line in the automation frame
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
@@ -126,23 +129,30 @@ export function applyRaidDamage(s: GameState, plotId: string, hpLeft: number): n
   return before - after;
 }
 
-/** Weather damage: `share` of the building's max HP comes off, never below 1 HP, so it never falls. The Storm's seam, and
- * the late-game Hurricane's. Returns the HP it took. */
-export function weatherDamage(s: GameState, plotId: string, share: number): number {
+/** Weather's dent: `points` come off a standing building, never below 1 HP, so it never falls. Returns the HP it took. */
+function dent(s: GameState, plotId: string, points: number): number {
   const ps = s.plots[plotId];
   const b = building(ps);
   if (!b || isWrecked(ps)) return 0;
   const before = currentHp(ps);
-  const after = Math.max(1, before - Math.round(buildingHp(ps) * share));
+  const after = Math.max(1, before - Math.round(points));
   if (after >= before) return 0;
   b.hp = after;
   return before - after;
 }
 
+/** Weather damage: `share` of the building's max HP comes off, never below 1 HP, so it never falls. The Storm's seam.
+ * Returns the HP it took. */
+export function weatherDamage(s: GameState, plotId: string, share: number): number {
+  return dent(s, plotId, buildingHp(s.plots[plotId]) * share);
+}
+
 /** The stands open on a Storm: every faction's L1–L2 stand loses a quarter of its max HP (never below 1) and sells at its
  * HP share until repaired. It is announced as it starts, with the counter-play, like a random event: a headline here, and
- * the feed's Storm ticket (src/ui/damage.ts) keeps the counter-play and the repair up all day. */
+ * the feed's Storm ticket (src/ui/damage.ts) keeps the counter-play and the repair up all day. A Hurricane's Storm does
+ * the Hurricane's damage instead. */
 export function stormAtOpen(s: GameState): void {
+  if (hurricaneToday(s)) { hurricaneAtOpen(s); return; }
   if (s.weather.kind !== 'storm') return;
   const hit: string[] = [];
   for (const p of PLOTS) {
@@ -153,6 +163,104 @@ export function stormAtOpen(s: GameState): void {
   const what = hit.length === 1 ? `${PLOT_BY_ID[hit[0]].name} takes a beating` : `${hit.length} of your stands take a beating`;
   s.news.push(`Storm!${hit.length ? ` ${what}.` : ''} Stock light; repair L1–L2 stands.`);
 }
+
+// ---------- the Hurricane (spec: Random events, "Hurricane (late game)") ----------
+
+/** The Hurricane in the events table: world's scheduler (events.ts) rolls it, and land registers it below. */
+export const HURRICANE_ID = 'hurricane';
+const HURRICANE_COUNTER = 'Fortified Frames; rebuilds cost only 15%';
+const HURRICANE_HITS = `every building in the bay takes damage. ${HURRICANE_COUNTER}.`;
+
+/** The Hurricane on the calendar: coming, or today (the dawn after its day retires it). */
+export function hurricaneOn(s: GameState): WorldEvent | undefined {
+  return s.world?.events?.on.find((e) => e.id === HURRICANE_ID && e.to >= s.day);
+}
+/** Is today the Hurricane's day (it started at dawn)? */
+export const hurricaneToday = (s: GameState) => !!liveEvent(s, HURRICANE_ID);
+
+/** The share of its own HP a Hurricane takes off a building: more off the small stands (L1 60% down to L5 30%). */
+export const hurricaneShare = (ps: PlotState) =>
+  (ps.stand ? HURRICANE.stand[Math.min(ps.stand.level, HURRICANE.stand.length) - 1] : HURRICANE.facility);
+
+/** A building's own HP, before any Fortified Frame: what the Hurricane's share comes off, so a Frame keeps its extra 50%. */
+const framelessHp = (ps: PlotState) => (ps.stand ? STAND_HP[ps.stand.level - 1] : buildingHp(ps));
+
+/** The HP the Hurricane takes off this building when it hits (0 for none): its share of the building's own HP, leaving
+ * at least 1. What the feed's warning shows coming. */
+export function hurricaneLoss(ps: PlotState): number {
+  if (!building(ps) || isWrecked(ps)) return 0;
+  return Math.max(0, Math.min(currentHp(ps) - 1, Math.round(framelessHp(ps) * hurricaneShare(ps))));
+}
+
+/** The Hurricane's sky: a Storm, at the middle of the season's Storm temperatures. */
+function hurricaneSky(day: number): Weather {
+  const [lo, hi] = WEATHER.storm.temp;
+  return { kind: 'storm', temp: Math.round((lo + hi) / 2) + SEASON_TEMP_SHIFT[seasonOf(day)] };
+}
+
+/** The Hurricane's day is a Storm on demand's weather queue, called right, so the look-ahead, the dawn and the open read it. */
+function stormOn(s: GameState, day: number): void {
+  const q = s.weatherQueue?.find((d) => d.day === day);
+  if (!q || (q.weather.kind === 'storm' && q.forecast.kind === 'storm')) return;
+  q.weather = hurricaneSky(day);
+  q.forecast = { ...q.weather };
+}
+
+/** A warning on the news, and in this morning's Bugle: the paper went to press before the scheduler rolled. */
+function warn(s: GameState, line: string): void {
+  s.news.push(line);
+  const paper = s.world?.paper;
+  if (paper?.day === s.day && !paper.wire.includes(line)) paper.wire = [...paper.wire, line].slice(-4);
+}
+
+/** The scheduler puts the Hurricane on the calendar (its place hook): its day turns Storm and the warning goes out, 2 days
+ * ahead. begin() places it again as it starts; by then it is on the calendar and nothing happens twice. */
+function forecastHurricane(s: GameState): void {
+  if (hurricaneOn(s)) return;
+  stormOn(s, s.day + HURRICANE.lead);
+  warn(s, `HURRICANE WARNING! It hits in ${HURRICANE.lead} days: ${HURRICANE_HITS}`);
+}
+
+/** Dawn, the day before (damageAtDawn, ahead of the paper): the Bugle leads with tomorrow's Hurricane. */
+function hurricaneTomorrow(s: GameState): void {
+  if (hurricaneOn(s)?.from === s.day + 1) s.news.push(`HURRICANE TOMORROW! It hits at the open: ${HURRICANE_HITS}`);
+}
+
+/** Its morning: the day is a Storm whatever rolled (the queue turned Storm when it went on the calendar; this covers a
+ * day the queue had not rolled yet). */
+function hurricaneSkies(s: GameState): void {
+  stormOn(s, s.day);
+  if (s.forecast.kind === 'storm') return;
+  const w = s.weatherQueue?.find((d) => d.day === s.day)?.forecast ?? hurricaneSky(s.day);
+  s.forecast = { ...w };
+  s.weather = { ...w };
+  s.today.weather = { ...w };
+}
+
+/** The Hurricane hits as the stands open (stormAtOpen): every faction's standing stand and facility loses its share of
+ * its own HP, never below 1, and stays open at its HP share until repaired. A Fortified Frame keeps its extra 50%. HQ
+ * plots hold no building to hit, and fences are left alone. */
+function hurricaneAtOpen(s: GameState): void {
+  const hit: string[] = [];
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (dent(s, p.id, hurricaneLoss(ps)) && ps.owner === 'player') hit.push(p.id);
+  }
+  const what = !hit.length ? '' : hit.length === 1 ? ` ${PLOT_BY_ID[hit[0]].name} takes a pounding. Repair it by the Evening.`
+    : ` ${hit.length} of your buildings take a pounding. Repair them by the Evening.`;
+  s.news.push(`HURRICANE! The bay takes a pounding.${what}`);
+}
+
+registerEvent({
+  id: HURRICANE_ID, name: 'Hurricane', kind: 'harmful', scope: 'bay', when: 'dawn', days: 1,
+  weight: HURRICANE.weight, seasons: HURRICANE.seasons, lead: HURRICANE.lead, counter: HURRICANE_COUNTER,
+  // Late game, and a Fall or Winter day that no Heat Wave holds.
+  can: (s) => s.rank >= HURRICANE.rank && HURRICANE.seasons.includes(seasonOf(s.day + HURRICANE.lead)) && !heatWaveDay(s, s.day + HURRICANE.lead),
+  place: (s) => { forecastHurricane(s); return {}; },
+  dawn: hurricaneSkies,
+  bugle: () => ['HURRICANE!', 'It hits the bay at the open'],
+  headline: () => `HURRICANE! It hits at the open: ${HURRICANE_HITS}`,
+});
 
 /** The battle headline's last words: what a raid that didn't flatten the building took off it. */
 export function hpLostNote(b: BattleReport): string {
@@ -392,7 +500,8 @@ export function damageAtClose(s: GameState): void {
 
 /** Dawn, before anything lapses: the night's work is done. A rebuild puts the building back up at full HP (the work goes
  * with the plot, like the building). A repair puts back the HP it was paid for, so a building the night left alone is good
- * as new; one a raid dented again after the approval keeps the fresh damage. */
+ * as new; one a raid dented again after the approval keeps the fresh damage. Then tomorrow's Hurricane, if one is due,
+ * gets its warning. */
 export function damageAtDawn(s: GameState): void {
   const fixed: string[] = [], dented: string[] = [];
   for (const p of PLOTS) {
@@ -414,6 +523,7 @@ export function damageAtDawn(s: GameState): void {
   }
   if (fixed.length) s.news.push(`Fixed overnight: ${fixed.length <= 2 ? fixed.join(' and ') : `${fixed.length} buildings`} ${fixed.length === 1 ? 'is' : 'are'} good as new.`);
   for (const name of dented) s.news.push(`${name} is patched up, but it took fresh damage after the booking.`);
+  hurricaneTomorrow(s); // ahead of the paper, so the Bugle leads with it
 }
 
 /** Saves from before building HP (and any odd values) load clean. Safe to run on every load. */

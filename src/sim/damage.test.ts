@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   approveRebuild, approveRepair, AUTO_REPAIR, autoRepairOn, autoRepairs, battleHeadline, budgetOf, buildingHp, buildingInvested, buySupply,
   buyGadget, buyPerimeter, canRebuild, canRepair, canUpgradeStand, CLOSE, currentHp, damageAtClose, damageAtDawn, expectedCups, FACTIONS,
@@ -9,6 +9,10 @@ import {
 } from './economy.ts';
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
+import {
+  EVENT_DEFS, eventsOf, fitSpec, harmfulOn, HEAT_WAVE, HURRICANE, HURRICANE_ID, hurricaneLoss, hurricaneOn, hurricaneToday, KIDS_DAY, SEASONS, STAND_HP,
+  type EventDef, type Season,
+} from './economy.ts';
 
 /** The spec's Kiosk on Lottie's Corner: a Folding Table built new ($150, not Lottie's own $100 one), a Lemonade Cart
  * ($400) and a Kiosk ($3,500), $4,050 in all. */
@@ -772,6 +776,120 @@ describe('Storms', () => {
     expect(sleepUntilDawn(s)).toBe(true);
     expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
     expect(isDamaged(s.plots[l2.id])).toBe(false);
+  });
+});
+
+describe('the Hurricane', () => {
+  const kept: EventDef[] = [];
+  const heat = { ...HEAT_WAVE.chance }, kids = KIDS_DAY.chance;
+  /** Only the Hurricane can roll (the rest of the pool, Heat Waves and Kids' Day are set aside for the test). */
+  function onlyHurricane(): void {
+    for (const d of Object.values(EVENT_DEFS)) if (d.id !== HURRICANE_ID && !d.plan) { kept.push({ ...d }); d.weight = 0; }
+    for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
+    KIDS_DAY.chance = 0;
+  }
+  afterEach(() => {
+    for (const d of kept.splice(0)) EVENT_DEFS[d.id] = d;
+    Object.assign(HEAT_WAVE.chance, heat);
+    KIDS_DAY.chance = kids;
+  });
+  /** The next day's Morning Prep through the real dawn (these tests skip the business days). */
+  function dawn(s: GameState): void {
+    s.cash = Math.max(s.cash, 1000);
+    s.phase = 'report';
+    s.raids = [];
+    expect(sleepUntilDawn(s)).toBe(true);
+  }
+  /** A late-game run on the evening before a Fall dawn the scheduler rolls on. */
+  function lateGame(seed: number, rank = HURRICANE.rank, day = 16): GameState {
+    onlyHurricane();
+    const s = newGame(seed);
+    s.rank = rank;
+    s.day = day;
+    eventsOf(s).next = day + 1;
+    return s;
+  }
+  const standing = (s: GameState) => PLOTS.filter((p) => (s.plots[p.id].stand || s.plots[p.id].facility) && !isWrecked(s.plots[p.id])).map((p) => p.id);
+
+  it('goes on the calendar 2 days ahead: the day turns Storm, the Bugle and the news warn, and it holds other harm back', () => {
+    const s = lateGame(60);
+    dawn(s); // Day 17
+    const e = hurricaneOn(s)!;
+    expect(e).toMatchObject({ id: HURRICANE_ID, from: 19, to: 19 });
+    expect(harmfulOn(s)).toBe(true); // one harmful event at a time
+    const q = s.weatherQueue!.find((d) => d.day === 19)!;
+    expect(q.weather.kind).toBe('storm');
+    expect(q.forecast).toEqual(q.weather); // the look-ahead calls it right
+    const warning = 'HURRICANE WARNING! It hits in 2 days: every building in the bay takes damage. Fortified Frames; rebuilds cost only 15%.';
+    expect(s.news).toContain(warning);
+    expect(s.world!.paper!.wire).toContain(warning); // in this morning's paper, though it went to press before the roll
+    dawn(s); // Day 18
+    expect(s.news).toContain('HURRICANE TOMORROW! It hits at the open: every building in the bay takes damage. Fortified Frames; rebuilds cost only 15%.');
+    expect(s.world!.paper!.wire.some((l) => l.startsWith('HURRICANE TOMORROW!'))).toBe(true);
+    expect(hurricaneToday(s)).toBe(false);
+    dawn(s); // Day 19: it starts at dawn
+    expect(hurricaneToday(s)).toBe(true);
+    expect(s.forecast.kind).toBe('storm');
+    expect(s.news.filter((n) => n.startsWith('HURRICANE WARNING!'))).toHaveLength(1); // placed again as it starts: no second warning
+    dawn(s); // Day 20: over, and in the record
+    expect(hurricaneOn(s)).toBeUndefined();
+    expect(eventsOf(s).past[0]).toMatchObject({ id: HURRICANE_ID, from: 19, to: 19 });
+  });
+
+  it('is late game, in Fall and Winter only', () => {
+    const early = lateGame(61, HURRICANE.rank - 1);
+    dawn(early);
+    expect(hurricaneOn(early)).toBeUndefined();
+    const summer = lateGame(62, HURRICANE.rank, 3); // rolls on Day 4: Summer
+    dawn(summer);
+    expect(hurricaneOn(summer)).toBeUndefined();
+    const winter = lateGame(63, HURRICANE.rank, 30);
+    dawn(winter);
+    expect(hurricaneOn(winter)?.from).toBe(33);
+  });
+
+  it('hits every faction\'s buildings as the stands open: the small ones hardest, never below 1 HP, and a Fortified Frame keeps more', () => {
+    const s = lateGame(64);
+    dawn(s);
+    dawn(s);
+    dawn(s); // Day 19
+    s.cash = 100000;
+    const corner = s.plots[LOTTIES_CORNER];
+    delete corner.stand!.startTable;
+    expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
+    expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true); // a Kiosk: 800 HP
+    expect(fitSpec(s, LOTTIES_CORNER, 0, 'fortified')).toBe(true); // 1,200 HP
+    const rival = standing(s).filter((id) => s.plots[id].owner && s.plots[id].owner !== 'player');
+    const dented = rival.find((id) => s.plots[id].stand?.level === 1) ?? rival[0];
+    s.plots[dented].stand ? s.plots[dented].stand!.hp = 10 : s.plots[dented].facility!.hp = 10;
+    const before = Object.fromEntries(standing(s).map((id) => [id, currentHp(s.plots[id])]));
+    const loss = Object.fromEntries(standing(s).map((id) => [id, hurricaneLoss(s.plots[id])]));
+    expect(rival.some((id) => s.plots[id].facility)).toBe(true); // FizzCo's plant in The Harbor
+    expect(openStand(s)).toBe(true);
+    expect(s.weather.kind).toBe('storm');
+    for (const id of standing(s)) {
+      const ps = s.plots[id];
+      const own = ps.stand ? STAND_HP[ps.stand.level - 1] : buildingHp(ps);
+      const share = ps.stand ? HURRICANE.stand[ps.stand.level - 1] : HURRICANE.facility;
+      expect(currentHp(ps)).toBe(Math.max(1, before[id] - Math.round(own * share))); // the Storm's own 25% doesn't come on top
+      expect(before[id] - currentHp(ps)).toBe(loss[id]); // what the warning showed coming
+      expect(isWrecked(ps)).toBe(false);
+    }
+    expect(currentHp(s.plots[dented])).toBe(1);
+    expect(currentHp(corner)).toBe(1200 - 320); // 40% of the Kiosk's own 800 HP: it keeps 73%, not 60%
+    expect(isDamaged(corner)).toBe(true);
+    expect(s.news).toContain(`HURRICANE! The bay takes a pounding. ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a pounding. Repair it by the Evening.`);
+    // A repair is 15% of what went in, scaled by the HP lost: $6,050 × 15% × 320/1,200 = $242.
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(242);
+  });
+
+  it('only on its day: a Storm the next week is just a Storm again', () => {
+    const s = newGame(65);
+    s.weather = { kind: 'storm', temp: 60 };
+    eventsOf(s).on.push({ id: HURRICANE_ID, from: s.day + 1, to: s.day + 1 }); // coming, not today
+    stormAtOpen(s);
+    expect(currentHp(s.plots[LOTTIES_CORNER])).toBe(75);
+    expect(s.news).toContain(`Storm! ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a beating. Stock light; repair L1–L2 stands.`);
   });
 });
 

@@ -3,13 +3,16 @@
 // Damaged ones get a Repair button with the price, or a note once tonight's repair is booked. Your smashed plots get a
 // Rebuild button (Fix when Busted) the same way. Your Damaged and smashed buildings also get a ticket in the feed at
 // Morning Prep and with the Evening's repairs. A Storm in the forecast gets a stock-light ticket at Morning Prep, and a
-// Storm day keeps one up while the stands are open: the counter-play, Go There and the repair.
+// Storm day keeps one up while the stands are open: the counter-play, Go There and the repair. A Hurricane gets its own
+// ticket from 2 days ahead: when it hits, the counter-play, and the HP your hardest-hit building keeps; on its day, the
+// repair.
 // From Rank 3 each of your plots has an Auto-Repair switch (on unless you skip the plot). Plain controls on the HUD's
 // existing classes; clicks go through the HUD's one listener (data-action="repair" and "rebuild" approve,
 // "autoRepair" flips the switch, "goto" flies there).
 import {
-  autoRepairOn, buildingHp, canRebuild, canRepair, currentHp, FACILITIES, hpCapacity, hpShare, isDamaged, isWrecked, lastRebuildDay,
-  PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
+  autoRepairOn, buildingHp, canRebuild, canRepair, currentHp, eventDef, FACILITIES, hpCapacity, hpShare, hurricaneLoss, hurricaneOn,
+  hurricaneToday, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE,
+  type GameState,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
@@ -119,17 +122,60 @@ const stormProne = (s: GameState, plotId: string) => {
   return ps.owner === 'player' && !!ps.stand && !ps.stand.wrecked && ps.stand.level <= STORM_DAMAGE.maxLevel;
 };
 
+/** Your worst-damaged building still to book a repair for (or the worst, once all are booked), among `hit`. */
+function dueRepair(s: GameState, hit: string[]): string | undefined {
+  const worst = [...hit].sort((a, b) => hpShare(s.plots[a]) - hpShare(s.plots[b]));
+  return worst.find((id) => { const b = canRepair(s, id); return b.ok || b.why !== 'Fixing tonight'; }) ?? worst[0];
+}
+
+/**
+ * The feed's Hurricane ticket (spec: Random events, "forecast 2 days ahead"), at Morning Prep and through the day. Coming:
+ * when it hits, the counter-play, and your building it hurts most, the meter showing the HP it keeps (a Fortified Frame
+ * fitted at Morning Prep keeps more), with Go There. Once it has hit: how many of your buildings it dented, and Go There
+ * and the repair for the worst one still to book.
+ */
+export function hurricaneTicket(s: GameState): string[] {
+  const e = hurricaneOn(s);
+  if (!e || (s.phase !== 'prep' && s.phase !== 'open')) return [];
+  const pic = art('storm', () => A.skySVG('storm'));
+  const go = (id: string) => `<button class="cl-b tiny" data-action="goto" data-plot="${id}">Go there</button>`;
+  const counter = eventDef(e)?.counter ?? '';
+  if (s.phase === 'open' && hurricaneToday(s)) {
+    const hit = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && isDamaged(s.plots[p.id])).map((p) => p.id);
+    const due = dueRepair(s, hit);
+    const acts = due ? `<span class="cl-acts">${meter(hpShare(s.plots[due]))}${go(due)}${repairButton(s, due)}</span>` : '';
+    const tip = `Hurricane today.${hit.length ? ` ${hit.length} of your buildings are Damaged. Repair by the Evening: good as new at dawn` : ''}`;
+    return [`<div class="cl-ticket red" data-testid="hurricane" title="${esc(tip)}">${pic}<b>Hurricane</b><span class="cl-note">${esc(counter)}</span>${acts}</div>`];
+  }
+  const days = e.from - s.day;
+  const when = days <= 0 ? 'Hurricane at the open' : days === 1 ? 'Hurricane tomorrow' : `Hurricane in ${days} days`;
+  // Your standing building it hurts most: the lowest HP share left after the hit.
+  const after = (id: string) => { const ps = s.plots[id]; return (currentHp(ps) - hurricaneLoss(ps)) / buildingHp(ps); };
+  const worst = PLOTS.map((p) => p.id).filter((id) => s.plots[id].owner === 'player' && hurricaneLoss(s.plots[id]) > 0)
+    .sort((a, b) => after(a) - after(b))[0];
+  const keeps = worst ? ` ${place(worst)} keeps ${Math.round(after(worst) * 100)}% of its HP.` : '';
+  const tip = `${when}: every building in the bay takes damage.${keeps} Fortified Frames at Morning Prep add 50% HP; repairs cost 15% of what went in`;
+  const acts = worst ? `<span class="cl-acts">${meter(after(worst))}${go(worst)}</span>` : '';
+  return [`<div class="cl-ticket red" data-testid="hurricane" title="${esc(tip)}">${pic}<b>${when}</b><span class="cl-note">${esc(counter)}</span>${acts}</div>`];
+}
+
 /** The feed's Storm ticket. Morning Prep with a Storm in the forecast: stock light, and your L1–L2 stands will want a
  * repair by the Evening. All Storm day long (the real weather, whatever the forecast said), like a random event's ticket:
- * the counter-play, and Go There and the repair for your worst-hit stand still to book, so the fix stays in reach. */
+ * the counter-play, and Go There and the repair for your worst-hit stand still to book, so the fix stays in reach. A
+ * Hurricane on the way or today brings its own ticket first; its day's Storm has only that one. */
 export function stormTicket(s: GameState): string[] {
+  const coming = hurricaneTicket(s);
+  return hurricaneToday(s) ? coming : [...coming, ...plainStorm(s)];
+}
+
+function plainStorm(s: GameState): string[] {
   const pic = art('storm', () => A.skySVG('storm'));
   if (s.phase === 'open' && s.weather.kind === 'storm') {
-    const hit = PLOTS.filter((p) => stormProne(s, p.id) && isDamaged(s.plots[p.id])).sort((a, b) => hpShare(s.plots[a.id]) - hpShare(s.plots[b.id]));
-    const due = hit.find((p) => { const b = canRepair(s, p.id); return b.ok || b.why !== 'Fixing tonight'; }) ?? hit[0];
+    const hit = PLOTS.filter((p) => stormProne(s, p.id) && isDamaged(s.plots[p.id])).map((p) => p.id);
+    const due = dueRepair(s, hit);
     const who = hit.length === 1 ? 'Your L1–L2 stand took a beating' : `${hit.length} of your L1–L2 stands took a beating`;
     const tip = `Storm today: few customers.${hit.length ? ` ${who}. Repair by the Evening: good as new at dawn` : ''}`;
-    const go = due ? `<span class="cl-acts">${meter(hpShare(s.plots[due.id]))}<button class="cl-b tiny" data-action="goto" data-plot="${due.id}">Go there</button>${repairButton(s, due.id)}</span>` : '';
+    const go = due ? `<span class="cl-acts">${meter(hpShare(s.plots[due]))}<button class="cl-b tiny" data-action="goto" data-plot="${due}">Go there</button>${repairButton(s, due)}</span>` : '';
     return [`<div class="cl-ticket red" data-testid="storm" title="${esc(tip)}">${pic}<b>Storm</b><span class="cl-note">Stock light; repair L1–L2 stands</span>${go}</div>`];
   }
   if (s.phase !== 'prep' || s.forecast.kind !== 'storm' || !taught(s, 'forecast')) return []; // the forecast's lesson first

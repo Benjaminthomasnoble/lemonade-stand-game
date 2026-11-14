@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, LOTTIES_CORNER, newGame, openStands, setByHand, setRecipe, setStockTarget, simulateRestOfDay, sleepUntilDawn,
-  stockTarget, suggestedTarget, toggleAutoPrice, toggleAutoRestock, type GameState, type Weather,
+  stockTarget, suggestedTarget, toggleAutoPrice, toggleAutoRepair, toggleAutoRestock, type GameState, type Weather,
 } from '../sim/economy.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 
@@ -69,6 +69,24 @@ describe('Auto-Restock on screen', () => {
     const row = helperRows(s.history[s.history.length - 1]);
     expect(row).toContain(`Auto-Restock: 1 stand to ${atOpen} cups`);
     expect(row).toContain(`$${s.today.auto!.restock!.spent.toFixed(2)}`);
+  });
+});
+
+describe('Auto-Repair on screen', () => {
+  it("Morning Prep's ticket shows tonight's repair bill at closing, and follows the building's HP", () => {
+    const s = newGame(31);
+    s.rank = 3;
+    expect(autoTickets(s).some((t) => t.includes('data-testid="auto-repair"'))).toBe(false); // nothing to fix
+    s.plots[LOTTIES_CORNER].stand!.hp = 50; // Lottie's table at half HP: $8
+    const ticket = autoTickets(s).find((t) => t.includes('data-testid="auto-repair"'))!;
+    expect(ticket).toContain('<b>Auto-Repair: $0.00</b>');
+    expect(ticket).toContain('+$8.00 at closing');
+    expect(ticket).toContain('$8.00 more at closing');
+    expect(ticket).not.toContain('at Open');
+    s.plots[LOTTIES_CORNER].stand!.hp = 20; // a raid's worth more: the cached ticket redraws
+    expect(autoTickets(s).find((t) => t.includes('data-testid="auto-repair"'))).toContain('+$12.00 at closing');
+    toggleAutoRepair(s, LOTTIES_CORNER); // skipped: it books nothing here
+    expect(autoTickets(s).some((t) => t.includes('data-testid="auto-repair"'))).toBe(false);
   });
 });
 

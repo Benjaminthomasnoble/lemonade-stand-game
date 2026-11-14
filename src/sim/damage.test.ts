@@ -462,7 +462,7 @@ describe('Auto-Repair (Rank 3)', () => {
     const { s } = twoDamaged();
     s.cash = 1000;
     expect(helpers().map((h) => h.id)).toContain(AUTO_REPAIR);
-    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR); // nothing at dawn or at Open: it books at closing
+    expect(prepPreview(s).find((p) => p.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', count: 0, spent: 0, pending: 325, at: 'closing', line: '' }); // nothing at dawn: it books at closing
     closeShop(s);
     const day = s.history[s.history.length - 1];
     expect(day).toBe(s.today); // closing time: the day's record is still open
@@ -515,6 +515,22 @@ describe('Auto-Repair (Rank 3)', () => {
     damageAtClose(s);
     expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(532);
     expect(s.cash).toBe(68);
+  });
+
+  it("Morning Prep previews tonight's bill: what it would book now, at closing, within the cash", () => {
+    const s = newGame(31);
+    s.rank = 3;
+    s.plots[LOTTIES_CORNER].stand!.hp = 50; // Lottie's $100 table at half HP: an $8 repair
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(8);
+    expect(prepPreview(s).find((p) => p.id === AUTO_REPAIR)).toMatchObject({ pending: 8, at: 'closing', spent: 0 });
+    toggleAutoRepair(s, LOTTIES_CORNER); // skipped: nothing to preview
+    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR);
+    toggleAutoRepair(s, LOTTIES_CORNER);
+    expect(approveRepair(s, LOTTIES_CORNER)).toBe(true); // booked by hand: nothing left for it to do
+    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR);
+    const { s: two } = twoDamaged();
+    two.cash = 100; // only the cheap one fits: the preview is what closing would book
+    expect(prepPreview(two).find((p) => p.id === AUTO_REPAIR)?.pending).toBe(21);
   });
 
   it('books your rebuilds too, before any repair, and they are up again at dawn', () => {

@@ -130,7 +130,7 @@ describe('Auto-Restock', () => {
     playTo(s, AUTO_RESTOCK_DAY);
     const st = s.plots[LOTTIES_CORNER].stand!;
     const dawn = s.today.auto!.restock!.spent;
-    expect(prepPreview(s)).toEqual([{ id: 'restock', name: 'Auto-Restock', count: 1, spent: dawn, pending: 0, line: `1 stand to ${s.today.auto!.restock!.amount} cups` }]);
+    expect(prepPreview(s)).toEqual([{ id: 'restock', name: 'Auto-Restock', count: 1, spent: dawn, pending: 0, at: 'Open', line: `1 stand to ${s.today.auto!.restock!.amount} cups` }]);
     setRecipe(st, 'frozen'); // twice the ice a cup
     const pending = prepPreview(s)[0].pending;
     expect(pending).toBeGreaterThan(0);

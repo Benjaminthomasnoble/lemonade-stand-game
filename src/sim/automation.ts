@@ -29,6 +29,8 @@ export interface Helper {
   atDawn?(s: GameState): HelperDay | null;
   /** What it will still spend today (Morning Prep's preview); what it spent already is in the day's record. */
   pending?(s: GameState): number;
+  /** When that spending comes, for the Prep ticket: 'Open' unless the helper says otherwise (Auto-Repair: 'closing'). */
+  pendingAt?: string;
   /** The one-line Ledger report. */
   line(d: HelperDay): string;
 }
@@ -82,16 +84,17 @@ export function helperLines(t: DayStats): { id: string; name: string; line: stri
   return out;
 }
 
-export interface PrepLine { id: string; name: string; count: number; spent: number; pending: number; line: string }
+export interface PrepLine { id: string; name: string; count: number; spent: number; pending: number; at: string; line: string }
 
-/** Morning Prep's preview: per helper at work today, what it spent at dawn, what it will spend at Open and its line. */
+/** Morning Prep's preview: per helper at work today, what it spent at dawn, what it will spend later (at Open, or at
+ * closing for Auto-Repair) and its line. */
 export function prepPreview(s: GameState): PrepLine[] {
   const out: PrepLine[] = [];
   for (const h of helpers()) {
     if (!h.unlocked(s)) continue;
     const d = s.today.auto?.[h.id];
     const pending = h.pending ? round2(h.pending(s)) : 0;
-    if (d || pending > 0) out.push({ id: h.id, name: h.name, count: d?.count ?? 0, spent: d?.spent ?? 0, pending, line: d ? h.line(d) : '' });
+    if (d || pending > 0) out.push({ id: h.id, name: h.name, count: d?.count ?? 0, spent: d?.spent ?? 0, pending, at: h.pendingAt ?? 'Open', line: d ? h.line(d) : '' });
   }
   return out;
 }

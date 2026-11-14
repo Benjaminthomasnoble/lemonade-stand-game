@@ -542,31 +542,53 @@ export function toggleAutoRepair(s: GameState, plotId: string): boolean {
 /** Which fix Auto-Repair books first: Wrecked plots (they lapse), then Busted ones, then the worst Damaged. */
 const urgency = (ps: PlotState) => (isWrecked(ps) ? (ps.busted ? 1 : 0) : 2 + hpShare(ps));
 
+/** A plot Auto-Repair looks after with a fix still to book: Wrecked with no rebuild booked, or HP lost that no repair
+ * booked for tonight puts back. */
+const fixDue = (s: GameState, plotId: string) => autoRepairs(s, plotId) && (isWrecked(s.plots[plotId]) ? !s.plots[plotId].repair : unbookedLoss(s.plots[plotId]) > 0);
+const fixCost = (s: GameState, plotId: string) => (isWrecked(s.plots[plotId]) ? rebuildCost(s.plots[plotId]) : repairCost(s, plotId));
+
+/** One fix Auto-Repair would book: the plot, its price and whether it's a rebuild (a Busted fix counts as one). */
+export interface AutoFix { plotId: string; cost: number; rebuild: boolean }
+
+/** The fixes Auto-Repair would book now, the most urgent first, each as far as the cash goes. A fix it can't fit waits
+ * for you (the Evening's repair cards), and a cheaper one after it can still go. */
+export function autoRepairPlan(s: GameState): AutoFix[] {
+  if (!autoRepairOn(s)) return [];
+  const due = PLOTS.filter((p) => fixDue(s, p.id)).sort((a, b) => urgency(s.plots[a.id]) - urgency(s.plots[b.id]));
+  let left = s.cash;
+  const out: AutoFix[] = [];
+  for (const p of due) {
+    const cost = fixCost(s, p.id);
+    if (cost <= 0 || cost > left) continue;
+    left -= cost;
+    out.push({ plotId: p.id, cost, rebuild: isWrecked(s.plots[p.id]) });
+  }
+  return out;
+}
+
 /** Closing time: Auto-Repair books the rebuilds and repairs your plots need, the most urgent first, as far as the cash
- * goes. Plots you skip wait for you. */
+ * goes. Plots you skip, and fixes the cash can't cover, wait for you. */
 function autoRepair(s: GameState): void {
   if (!autoRepairOn(s)) return;
-  const due = PLOTS.filter((p) => autoRepairs(s, p.id) && (isWrecked(s.plots[p.id]) || isDamaged(s.plots[p.id])))
-    .sort((a, b) => urgency(s.plots[a.id]) - urgency(s.plots[b.id]));
   let n = 0, paid = 0;
-  for (const p of due) {
-    const ps = s.plots[p.id];
-    const fall = isWrecked(ps);
-    const cost = fall ? rebuildCost(ps) : repairCost(s, p.id);
-    if (!(fall ? approveRebuild(s, p.id) : approveRepair(s, p.id))) continue;
+  for (const fix of autoRepairPlan(s)) {
+    if (!(fix.rebuild ? approveRebuild(s, fix.plotId) : approveRepair(s, fix.plotId))) continue;
     n++;
-    paid += cost;
+    paid += fix.cost;
   }
   if (!n) return;
   s.news.push(`Auto-Repair: ${n} fix${n === 1 ? '' : 'es'} booked for tonight, ${money(paid)}. Good as new at dawn.`);
   bookHelper(s, AUTO_REPAIR, paid, { count: n }); // its Ledger line; the cash went on the Repairs row as each was booked
 }
 
-// A helper in the automation frame: no dawn run (it books at closing), and the day's fixes as its Ledger line.
+// A helper in the automation frame: no dawn run (it books at closing, which Morning Prep previews), and the day's
+// fixes as its Ledger line.
 registerHelper({
   id: AUTO_REPAIR,
   name: 'Auto-Repair',
   unlocked: autoRepairOn,
+  pending: (s) => autoRepairPlan(s).reduce((a, f) => a + f.cost, 0),
+  pendingAt: 'closing',
   line: (d) => `${d.count} fix${d.count === 1 ? '' : 'es'} overnight`,
 });
 

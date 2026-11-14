@@ -27,6 +27,12 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // A day call at one of your stands holds the clock till you pick (src/sim/calls.ts), and which minute it breaks in
+  // is the day's dice. Before a wait on game time the smoke lets any waiting call lapse, as a run without a player does.
+  const lapseCalls = async () => {
+    const lapsed = await page.evaluate(() => (window.__game.state.calls?.list ?? []).filter((c) => c.live && c.picked === undefined).map((c) => { c.picked = -1; return `${c.kind} at ${c.at}`; }));
+    if (lapsed.length) console.log('day call lapsed:', lapsed.join(', '));
+  };
   await page.goto(`${base}?seed=42`);
   await page.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
   await page.waitForSelector('[data-testid="prep"]');
@@ -114,9 +120,11 @@ try {
     const g = window.__game;
     if (g.state.phase === 'prep') g.act({ type: 'open' });
     const r = g.state.raids.find((x) => x.attacker === 'player');
-    g.act({ type: 'speed', value: 1 });
+    g.act({ type: 'speed', value: 0 });
     if (r) g.fastForward(r.at - g.state.minute - 1);
   });
+  await lapseCalls();
+  await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
   await page.waitForFunction(() => window.__game.battle(), null, { timeout: 15000 }).catch(() => {});
   if (!(await page.evaluate(() => window.__game.battle()))) fail('battle replay not playing');
   await page.screenshot({ path: 'test-results/9-raid.png' });
@@ -175,6 +183,7 @@ try {
       g.act({ type: 'speed', value: 0 });
     }, [tier, plot]);
     await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), minute);
+    await lapseCalls();
     await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
     // A client's first visit pauses the game and posts a card; its Watch flies there and plays the arrival.
     await page.waitForSelector('[data-testid="vip-watch"]', { timeout: 90000 });
@@ -212,6 +221,7 @@ try {
   const at = await page.evaluate(() => { const g = window.__game; g.act({ type: 'open' }); g.act({ type: 'speed', value: 0 }); return g.state.raids.find((r) => r.assault)?.at ?? 0; });
   if (!at) fail('HQ assault did not set out');
   await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), at);
+  await lapseCalls();
   await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
   await page.waitForFunction(() => window.__game.battle(), null, { timeout: 90000 });
   await page.waitForTimeout(2500);

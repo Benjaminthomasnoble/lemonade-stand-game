@@ -1,8 +1,8 @@
 // The Options screen: plain switches for the spec's toggles (auto-pause and one
 // switch per major alert, fast raid nights, auto-continue Morning Prep, text size,
-// less motion). Full-screen paper, so the game holds while it's open. Clicks
+// less motion, Calm Audio). Full-screen paper, so the game holds while it's open. Clicks
 // go through the HUD's one listener (data-action="option").
-import { QUIET_NIGHT_SPEED, raidPauses, type GameState } from '../sim/economy.ts';
+import { calmAudioOn, QUIET_NIGHT_SPEED, raidPauses, type GameState } from '../sim/economy.ts';
 import { TEXT_SIZES, type Options } from '../settings.ts';
 import { lessonsOn } from '../sim/story.ts';
 
@@ -32,6 +32,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD; no clay boil, shakes or lightning flashes')}
       ${toggle('captions', o.captions, 'Captions', 'Voices, the radio and phone calls, written out')}
+      ${toggle('calmAudio', calmAudioOn(s.settings), 'Calm Audio', 'No countdown ticks and a softer raid alert (this run)')}
       ${toggle('celsius', o.celsius, 'Temperatures in °C', 'Off: °F')}
       ${toggle('lessons', lessonsOn(s), 'Lessons', 'Lottie teaches one system a day (this run). Off: buttons follow rank alone.')}
       <div class="cl-row wrap"><button class="cl-b tiny ghost" data-action="option" data-key="tour" data-testid="opt-tour" title="Lottie shows you around again, pointing at each thing">Replay Lottie's tour</button></div>

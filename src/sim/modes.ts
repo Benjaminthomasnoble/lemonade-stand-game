@@ -27,6 +27,7 @@ export interface Settings {
   target: number; // Economic win: Success Score to reach
   ironman: boolean; // one save, no reloading the last dawn
   raidPause?: boolean; // raid warnings on you auto-pause (unset: the difficulty's default, on except Cutthroat)
+  calmAudio?: boolean; // Calm Audio: no countdown ticks, a softer raid alert (unset: the difficulty's default, on in Laid Back)
   custom?: CustomDifficulty; // Custom difficulty's sliders
   lessons?: boolean; // Lottie teaches one system a day (off: buttons follow rank alone); unset is on
   // land: a Sandbox map (land.ts settleMap fills these in at New Game; the campaign and Endless play the whole bay)
@@ -84,6 +85,9 @@ export function difficultyOf(st: Settings) {
 export const difficulty = (s: GameState) => difficultyOf(s.settings);
 /** Do raid warnings on you auto-pause this run? The player's switch, else the difficulty's default. */
 export const raidPauses = (st: Settings) => st.raidPause ?? DIFFICULTY[st.difficulty].raidPause;
+/** Is Calm Audio on this run (spec: Mix and accessibility: no ticks, a softer raid alert)? The player's switch, else
+ * the difficulty's default: on in Laid Back. */
+export const calmAudioOn = (st: Settings) => st.calmAudio ?? DIFFICULTY[st.difficulty].calmAudio;
 export const peaceful = (s: GameState) => s.settings.mode === 'sandbox' && s.settings.peaceful;
 export const winCondition = (s: GameState): WinCondition =>
   s.settings.mode === 'campaign' ? 'domination' : s.settings.mode === 'endless' ? 'none' : s.settings.win;

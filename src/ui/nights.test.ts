@@ -274,6 +274,15 @@ describe('the Options screen', () => {
     const off = optionsScreen({ ...DEFAULT_OPTIONS, autoPause: false, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     expect(off).not.toContain('data-key="pause.vip"'); // the master switch off: the rest have nothing to do
   });
+
+  it('Calm Audio is the run’s: on by default in Laid Back, off elsewhere, and it shows the run’s switch', () => {
+    const o = { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } };
+    const calm = (s: GameState) => optionsScreen(o, s).match(/data-key="calmAudio" data-testid="opt-calmAudio" aria-pressed="(\w+)"/)?.[1];
+    const lb = newGame(1, { difficulty: 'laidback' });
+    expect([calm(lb), calm(newGame(1)), calm(newGame(1, { difficulty: 'cutthroat' }))]).toEqual(['true', 'false', 'false']);
+    lb.settings.calmAudio = false; // switched off this run
+    expect(calm(lb)).toBe('false');
+  });
 });
 
 describe('the ten menus', () => {

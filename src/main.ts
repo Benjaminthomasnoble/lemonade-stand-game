@@ -8,7 +8,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, onMap, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, calmAudioOn, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
@@ -147,7 +147,7 @@ async function main() {
   /** The speed the clock actually runs at, for the knobs: a quiet night shows its 12×. */
   const shownSpeed = () => (knob.speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : knob.speed);
 
-  const audio = createAudio();
+  const audio = createAudio(() => calmAudioOn(state.settings)); // Calm Audio belongs to the run, like the raid pause
   // Every stinger has a visual twin (src/ui/twins.ts): a screen-edge pulse in its colour and pattern beside its card.
   let twins: Twins | null = null; // once the HUD is up
   const stinger = (id: Stinger) => { audio.stinger(id); twins?.pulse(id); };
@@ -752,9 +752,10 @@ async function main() {
     if (hud.optionsOpen) hud.slots = slotList();
     hud.render(state, shownSpeed());
   };
-  /** Flip an option (src/settings.ts). The raid-warning switch belongs to the run. */
+  /** Flip an option (src/settings.ts). The raid-warning and Calm Audio switches belong to the run. */
   const setOption = (key: string, value?: string) => {
     if (key === 'raidPause') { state.settings.raidPause = !raidPauses(state.settings); return; }
+    if (key === 'calmAudio') { state.settings.calmAudio = !calmAudioOn(state.settings); return; } // on in Laid Back till you switch it
     if (key === 'lessons') { state.settings.lessons = !lessonsOn(state); return; } // this run's lessons (src/sim/story.ts)
     if (key === 'tour') { hud.optionsOpen = false; coach.replay(); return; } // Lottie's tour from the top (src/ui/coach.ts)
     if (key === 'textSize') { const v = Number(value); if ((TEXT_SIZES as number[]).includes(v)) options.textSize = v as Options['textSize']; }

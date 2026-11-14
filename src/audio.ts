@@ -14,6 +14,8 @@ const REST_MS = 25000;
  * chokes dead at 3.0 s (music-notes.md, Stingers). */
 export const TICK_SECONDS = 60 / 160;
 export const STINGER_CHOKE_SECONDS = 3;
+/** Calm Audio's Raid Incoming stinger: about −8 dB. */
+export const CALM_RAID_VOLUME = 0.4;
 
 export interface Audio {
   start(): void; // call from a user gesture (autoplay rules)
@@ -38,7 +40,9 @@ export interface Audio {
   beat(): number | null;
 }
 
-export function createAudio(): Audio {
+/** Calm Audio (spec: Mix and accessibility): `calm` says whether it is on. While it is, the countdown plays no ticks
+ * and the Raid Incoming stinger plays at CALM_RAID_VOLUME. */
+export function createAudio(calm: () => boolean = () => false): Audio {
   let muted = false;
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* private mode */ }
   const bed = new window.Audio(BASE + THEME);
@@ -68,6 +72,7 @@ export function createAudio(): Audio {
       if (muted) return;
       const a = get(id);
       a.currentTime = 0;
+      a.volume = id === 'raid-incoming' && calm() ? CALM_RAID_VOLUME : 1; // Calm Audio softens the raid alert
       ducks++;
       bed.volume = BED_VOLUME * DUCK;
       const restore = () => { ducks = Math.max(0, ducks - 1); if (!ducks) bed.volume = BED_VOLUME; a.removeEventListener('ended', restore); };
@@ -166,7 +171,7 @@ export function createAudio(): Audio {
       } catch { /* no Web Audio */ }
     },
     tick() {
-      if (muted || !started) return;
+      if (muted || !started || calm()) return; // Calm Audio has no ticks
       try {
         ctx ??= new AudioContext();
         const t = ctx.currentTime;

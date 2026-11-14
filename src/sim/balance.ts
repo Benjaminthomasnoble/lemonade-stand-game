@@ -762,13 +762,14 @@ export const DIFFICULTY: Record<Difficulty, {
   canLose: boolean;
   notice: number; // an undetected raid still warns this many game minutes before it hits
   raidPause: boolean; // raid warnings auto-pause by default
+  calmAudio: boolean; // Calm Audio is on by default (spec: Mix and accessibility)
 }> = {
-  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get dented, never wrecked. You can\'t lose.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true },
-  classic: { label: 'Classic', blurb: 'Fair fights. Go broke and Grandma bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
-  cutthroat: { label: 'Cutthroat', blurb: 'More raids, less warning, no bailouts. Go broke and it\'s over.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false },
+  laidback: { label: 'Laid Back', blurb: 'Half the raids. Stands get dented, never wrecked. You can\'t lose.', raids: 0.5, threat: -1, respectDays: 5, bustOnly: true, cookieJar: 'always', canLose: false, notice: 30, raidPause: true, calmAudio: true },
+  classic: { label: 'Classic', blurb: 'Fair fights. Go broke and Grandma bails you out once per act.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true, calmAudio: false },
+  cutthroat: { label: 'Cutthroat', blurb: 'More raids, less warning, no bailouts. Go broke and it\'s over.', raids: 1.5, threat: 0, respectDays: 1, bustOnly: false, cookieJar: 'never', canLose: true, notice: 5, raidPause: false, calmAudio: false },
   // Custom starts from Classic; Settings.custom holds the sliders (modes.ts difficultyOf). No Threat nudge, and a run
   // can be lost unless the Cookie Jar is always there (placeholders: the spec leaves both open).
-  custom: { label: 'Custom', blurb: 'Set your own raid rate, warning time and cooldown.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true },
+  custom: { label: 'Custom', blurb: 'Set your own raid rate, warning time and cooldown.', raids: 1, threat: 0, respectDays: 3, bustOnly: false, cookieJar: 'perAct', canLose: true, notice: 15, raidPause: true, calmAudio: false },
 };
 /** Custom's sliders (spec: Custom: raids ×0.5 to ×1.5; notice and Respect cooldown anywhere from Laid Back's to
  * Cutthroat's): [lowest, highest, step]. */

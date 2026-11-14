@@ -3,6 +3,7 @@ import {
   assetValue, borrow, canBuyPlot, canRaid, checkVictory, eliminate, factionBuyoutPrice, fightRaid, FACTIONS, keepSqueezing,
   loanLimit, LOAN, LOTTIES_CORNER, migrateSave, netWorth, newGame, openStand, PLOTS, raidPartyFor, rebuildCost, rebuildStand,
   SAVE_VERSION, simulateRestOfDay, sleepUntilDawn, successScore, threatLevel, type GameState, type RivalId,
+  calmAudioOn, type Difficulty,
 } from './economy.ts';
 import { planNight } from './crew.ts';
 
@@ -54,6 +55,19 @@ describe('difficulty', () => {
     expect(rebuildCost(s.plots[LOTTIES_CORNER])).toBe(15); // 15% of Lottie's $100 table
     for (let i = 0; i < 3; i++) { s.cash = Math.max(s.cash, 50); s.phase = 'report'; sleepUntilDawn(s); }
     expect(s.plots[LOTTIES_CORNER].owner).not.toBe('player');
+  });
+
+  it('Calm Audio is on by default in Laid Back only, until the run switches it', () => {
+    const on = (difficulty: Difficulty) => calmAudioOn(newGame(1, { difficulty }).settings);
+    expect([on('laidback'), on('classic'), on('cutthroat'), on('custom')]).toEqual([true, false, false, false]);
+    const lb = newGame(1, { difficulty: 'laidback' });
+    lb.settings.calmAudio = !calmAudioOn(lb.settings); // the Options switch (main.ts setOption)
+    expect(calmAudioOn(lb.settings)).toBe(false);
+    const back = migrateSave(JSON.parse(JSON.stringify(lb)));
+    expect(calmAudioOn(back!.settings)).toBe(false); // the run keeps it
+    const cl = newGame(1);
+    cl.settings.calmAudio = !calmAudioOn(cl.settings);
+    expect(calmAudioOn(cl.settings)).toBe(true);
   });
 });
 

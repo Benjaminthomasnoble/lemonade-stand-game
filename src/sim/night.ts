@@ -18,7 +18,7 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
-import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidIsNightAt, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
@@ -233,7 +233,7 @@ function arrive(s: GameState, r: Raid): BattleReport | null {
   const rest = s.raids.filter((x) => x !== r);
   // Guards on one of your raids are away once it has set out, until they're home (they defend their posts till then).
   s.raids = rest.filter((x) => x.attacker !== 'player' || setOut(s, x));
-  const daytime = s.phase === 'open';
+  const daytime = !raidIsNightAt(s.minute); // crew: the fight's minute decides, as the Raid Planner reads it (20:00 sharp is night)
   const report = startFight(s, r, !daytime);
   s.raids = rest.filter((x) => s.raids.includes(x) || (x.attacker === 'player' && !setOut(s, x)));
   if (report === true) return null;

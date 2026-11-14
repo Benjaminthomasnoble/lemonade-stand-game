@@ -20,7 +20,7 @@ import { BORDERS, DISTRICT_BY_ID, PLOT_BY_ID, withinTwo } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
 import { canAssault, hqPlot, makeTruce, stormHQ, type AssaultResult } from './rivals.ts';
-import { nightStep, squadHome, squadTrip, startNight, travelMinutes } from './night.ts';
+import { nightStep, onTheClock, squadHome, squadTrip, startNight, travelMinutes } from './night.ts';
 import { festivalDays } from './calendar.ts';
 import { canSaveTemplate, dropTemplate, saveTemplate, switchTemplates, templateAt, templates, templatesOn, TEMPLATES_ID } from './templates.ts';
 import { helperLines } from './automation.ts';
@@ -488,6 +488,25 @@ describe('day and night raids', () => {
     while (fights < 2 && s.minute < CLOSE) for (const e of tickMinute(s)) if (e.type === 'fight') fights++;
     expect(fights).toBe(2);
     expect(s.reputation).toBeCloseTo(3.8, 5); // the Giant's raid cost nothing, the other a Smash's 0.2
+  });
+
+  it('a raid that gets there at 20:00 sharp is a night raid, as the Planner said: no star, night odds', () => {
+    const s = crew(84);
+    openStand(s);
+    const target = raidTargets(s)[0].id;
+    footholdFor(s, target);
+    const ids = [s.guards[0].id];
+    s.minute = CLOSE - squadTrip(s, target, 'now', ids).travel; // sent now, it gets there as the stands close
+    expect(squadTrip(s, target, 'now', ids).at).toBe(CLOSE);
+    expect(raidRepCost(s, ids, 'smash', raidIsNightAt(CLOSE))).toBe(0);
+    expect(planRaid(s, target, ids, 'smash', 'now')).toBe(true);
+    while (s.minute < CLOSE - 1) tickMinute(s);
+    s.minute = CLOSE; // tickMinute's own order: the clock moves on, raids land, and only then do the stands close
+    const stars = s.reputation;
+    const report = onTheClock(s).flatMap((e) => (e.type === 'fight' ? [e.report] : []))[0];
+    expect(report?.target).toBe(target);
+    expect(report.night).toBe(true);
+    expect(s.reputation).toBe(stars);
   });
 
   it('a Sneaky raider takes 25 more points off, once, down to 0%, and the planner knows', () => {

@@ -341,7 +341,7 @@ Each stand pours one card. A card gets ×1.2 appeal where it shines: its distric
 | Frozen Lemonade | $0.30 | +15% | Tourists, students | The Boardwalk; Summer and Heat Waves | Blenders eliminated |
 | Honey-Ginger Hot Lemonade | $0.30 | +10% | Seniors | Maple Row, Old Town; Winter (ignores the Winter penalty) | Cold Brew Collective eliminated |
 | Sparkling Lemonade | $0.32 | +15% | Office workers | Downtown | FizzCo eliminated |
-| Lavender Lemonade | $0.40 | +25% | High rollers | Hilltop Estates | The Hilltop estate auction (Rank 8, as Act 5 opens) |
+| Lavender Lemonade | $0.40 | +25% | High rollers | Hilltop Estates | The Hilltop estate auction (Rank 8; in the campaign, once Act 5 opens) |
 | Hollis Half-and-Half | $0.25 | +10% | Workers | The Groves, The Harbor; Summer | Hollis beaten or bought out |
 | Lottie's Secret Reserve | $0.45 | +30% | Everyone | Everywhere, at ×1.3 appeal | Sourwood Manor's Boss Room (the finale) |
 
@@ -1021,7 +1021,7 @@ Local Orders and Caterer Trucks are the warm-up, filled from stands and the Ware
 
 Helicopter VIPs need a Pad, the first Helipad tier, on a Field plot. Clients include a movie star's pool party, a tech mogul's rooftop launch, a celebrity wedding and a music festival VIP tent. Each delivered order adds 0.2 star, and a Pad pays for itself with its first order.
 
-Example: a movie star wants 5,000 bottles of Pink for a pool party in 4 days. That order needs the Helipad tier, pays $150,000 and loads in one pickup.
+Example, at the Helipad tier: a movie star wants 5,000 bottles of Pink for a pool party in 4 days. That order pays $150,000 and loads in one pickup.
 
 ### Ship clients
 
@@ -1312,7 +1312,7 @@ Acts advance on their climax; days and ranks are targets. A boss who falls early
 Maple Row → Old Town · Days 1–15 · Ranks 1–3. **Goal:** learn the trade, one idea a day.
 
 1. **Day 1:** Lottie hands you the table, her pitcher and 3 pages, then pulls a spare from her cardigan. Once the stand opens, Brock phones: "Bro. Your stand is in my sun. Summer Fair, Day 14. You lose, you leave." *Teaches pricing.*
-2. Day 3: Lottie sells you the side lot by the Corner for $300, card table included: "Two tables, twice the trouble. You'll love it." Teaches a second stand and Auto-Restock.
+2. **Day 3:** Lottie sells you the side lot by the Corner for $300, card table included: "Two tables, twice the trouble. You'll love it." *Teaches a second stand.*
 3. **Day 3:** at dawn a Sourwood Steward kicks over your table "as a reminder." Lottie: "Well. Guess she remembers me." It's a scene, not a raid, and costs one spilled pitcher. Lottie: "And Brock's boys come for the till tonight." That night they do. *Teaches the Picket Fence.*
 4. **Day 4 and Day 6:** Dex volunteers and moves into the shed, and Benny Buzz paints your first sign. *Teaches guards and marketing.*
 5. **Day 7:** Skip finds you an Old Town corner. *Teaches land.*
@@ -1341,7 +1341,7 @@ Campus & Arts · Days 40–60 · Ranks 5–6. **Goal:** find out who keeps spoil
 1. **The mystery:** stock spoils overnight with no raid detected. Dex blames the geese; it is never the geese. *Teaches Lookouts and Floodlights.*
 2. **The posters:** every campus wall sneers "LOTTIE'S: LEMONADE FOR PEOPLE WHO LIKE THINGS." *Teaches Reputation repair.*
 3. **The handshake:** at Dot's, Preston offers a friendly 7-day Truce for a modest tribute. *Teaches Sit-downs.*
-4. **Night flight:** Squawk spots beanies at 03:00; Juni calls: "We don't smash. We curate decline." *Teaches Sabotage.*
+4. **Night flight:** the morning after Cold Brew's first Sabotage raid on you, Squawk reports beanies at your stand at 03:00, which unmasks the mystery's night crew. Lottie: "Two can play, kid." Juni calls: "We don't smash. We curate decline." With no Sabotage on you a week into the act, Juni calls anyway. *Teaches Sabotage.*
 
 **Climax:** take the Grindhouse or haggle a buyout. Juni slides over FizzCo's invoice: "Curated decline, Lottie's Lemonade, 12 nights." Any Truce tribute you paid Preston is on it too.
 
@@ -1352,7 +1352,7 @@ Campus & Arts · Days 40–60 · Ranks 5–6. **Goal:** find out who keeps spoil
 The Groves, Downtown, The Harbor · Days 60–105 · Ranks 6–8. **Goal:** win Fields for a helipad and Docks for a pier, then topple FizzCo.
 
 1. **County Fair:** out-brew Tilly, and she sells you a Field at a friendly 1.5× value instead of her usual 2.5×. *Teaches Plot Buyouts.*
-2. **First chopper:** a movie star orders 4,000 bottles of Pink; Juni warns that FizzCo will hit the pad. *Teaches Delivery Raids.*
+2. **First chopper:** a movie star orders 4,000 bottles of Pink; Juni warns that FizzCo will hit the pad, and FizzCo hits its first pickup. *Teaches Delivery Raids.* Below Threat 3 (Laid Back at Rank 6), or while FizzCo keeps a Truce or sits out its Respect cooldown, nobody hits the pad; Lottie says only: "Have every bottle ready when it lands."
 3. **The lawyers:** a Cease-and-Desist arrives with a fruit basket and blocks your Downtown ads for 3 days. *Teaches Cease-and-Desists.*
 4. **First ship:** the Regatta flagship's horn plays the first 3 notes of Lottie's Theme; Lottie blames the wind. *Teaches ship contracts.*
 
@@ -1364,7 +1364,7 @@ The Groves, Downtown, The Harbor · Days 60–105 · Ranks 6–8. **Goal:** win 
 
 Hilltop Estates · Days 105–150 · Ranks 8–9. **Goal:** outlast the Syndicate, then Call the Big Squeeze when ready.
 
-1. **The auction:** at Rank 8, Vera's old harp teacher swaps her Hilltop estate for a houseboat and auctions the Lavender page; the winning bid runs about a day's income. *Teaches sealed bids.*
+1. **The auction:** on the act's first morning at Rank 8, Vera's old harp teacher swaps her Hilltop estate for a houseboat and auctions the Lavender page. Rank 8 in Act 4 waits for FizzCo Tower to fall. Sealed bids close at the next dawn, and with no bids the auction runs again; the winning bid runs about a day's income. *Teaches sealed bids.*
 2. **Tea at the Manor:** Vera offers to buy you out. Your three replies: "No," "No, thank you" and "Absolutely not, ma'am."
 3. **The Syndicate:** two weeks into the act, Vera unites whoever is left, plus the Mayor, into a Pitcher Pact against you, and its first boss-led strike hits 2–3 of your plots under the Founders' Day fireworks. *Teaches multi-front defense.*
 4. **Historic hedges:** the Mayor freezes your Hilltop land deal to protect "historic hedges." *Teaches Old Money.*
@@ -1391,7 +1391,7 @@ Each recovered page becomes a recipe card and a 20-second scene, and empty slots
 | Frozen | Brock, framed over the blenders | Blenders eliminated |
 | Honey-Ginger Hot Lemonade | Juni, taped inside the register | Cold Brew Collective eliminated |
 | Hollis Half-and-Half | Tilly, who added the tea and her own name | Hollis beaten or bought out |
-| Lavender | Vera's harp teacher; Vera paid for lessons with it in 1980 | The Hilltop estate auction at Rank 8; if outbid, it moves to the winner's HQ |
+| Lavender | Vera's harp teacher; Vera paid for lessons with it in 1980 | The Hilltop estate auction at Rank 8, once Act 5 opens; if outbid, it moves to the winner's HQ |
 | Sparkling | Preston, laminated in the boardroom | FizzCo Tower falls or sells |
 | Lottie's Secret Reserve | Vera, sealed: "Open together" | Sourwood Manor's Boss Room |
 
@@ -2522,7 +2522,7 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Reputation | 3.0 stars |
 | Crew and defenses | None (Dex joins on Day 4) |
 | Starting Net Worth | About $525 |
-| Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
+| Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand. The offer holds a week, and her table counts as $100 invested, like the Corner's |
 
 ### Other rule numbers
 

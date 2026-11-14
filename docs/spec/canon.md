@@ -22,7 +22,7 @@ Ben's later guidance (equally binding):
 - Tagline: "When life gives you lemons, take the whole town."
 - Logline: Turn Grandma Lottie's rickety folding table into a citrus empire, one street corner at a time, while rival drink gangs try to smash it to pulp.
 - Genre: real-time-with-pause tycoon and territory builder with light auto-battle raids and base defense. Single player against AI rivals.
-- Player fantasy: underdog to kingpin. From a card table on Maple Row to a helicopter landing on your own helipad to collect 5,000 bottles of pink lemonade for a movie star's pool party.
+- Player fantasy: underdog to kingpin. From a card table on Maple Row to a helicopter landing on your own helipad to collect 4,000 bottles of pink lemonade for a movie star's pool party.
 - Brand inside the game: **Lottie's Lemonade** (logo: a lemon in a sun hat). Default crew name: **The Peel Patrol** (renamable).
 - Tone: cartoon turf-war comedy. A mob-movie parody played with lemonade, grandmas and goofy henchmen. Slapstick, never cruel.
 - Content guardrails: no guns, no explosives, no fire or arson, no blood, nobody dies. Knocked-out characters see stars and wobble home. Hatchets mostly chop wood (fences, stands); hits on people happen inside a cartoon dust cloud. Target rating: ESRB E10+ / PEGI 7–12 (cartoon violence, comic mischief). No ethnic or regional stereotypes for villains. No real brands, no real people.
@@ -117,7 +117,7 @@ Recipes (cards, not sliders). Each card has a cost per cup, the segments that lo
 | Frozen Lemonade | Recovered from the Blenders' HQ | Boardwalk, heat waves |
 | Honey-Ginger Hot Lemonade | Recovered from the Cold Brew Collective's HQ | Winter, seniors |
 | Sparkling Lemonade | Recovered from FizzCo Tower | Office workers |
-| Lavender Lemonade | Won at the Hilltop estate auction (opens at Rank 8, as Act 5 begins) | High rollers |
+| Lavender Lemonade | Won at the Hilltop estate auction (opens at Rank 8; in the campaign, once Act 5 begins) | High rollers |
 | Hollis Half-and-Half (lemonade and sweet tea) | From Tilly Hollis (beat or buy out Hollis) | Farmhands, everyone in summer |
 | Lottie's Secret Reserve | Recovered from Sourwood Manor (finale) | Everyone; best recipe in the game |
 
@@ -319,7 +319,7 @@ The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordi
 | 9 | Bay Kingpin | $125,000,000 | Mega contracts; in the campaign, Call the Big Squeeze |
 | 10 | The Big Squeeze | $200,000,000 | Title rank, golden Citrus Palace skin, endless leaderboards |
 
-Every rank-up: a Bugle headline, confetti, and a choice of 1 of 3 **Lottie's Tips** perks (a pool of about 24 small boosts, e.g. +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun twice, campaigns last 50% longer, open at 07:00, +20% defense at night, buyouts 15% cheaper).
+Every rank-up: a Bugle headline, confetti, and a choice of 1 of 3 **Lottie's Tips** perks (a pool of about 24 small boosts, e.g. +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun twice, campaigns last 50% longer, lemons keep 2 days longer, +20% defense at night, buyouts 15% cheaper).
 
 Ranks are never lost: Success Score can fall, but your Rank and its unlocks stay.
 

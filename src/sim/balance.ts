@@ -339,10 +339,10 @@ export const RANKS = [
  * Lottie's Tips (spec "Success Score and ranks": "You pick 1 of 3 Lottie's Tips perks from a pool of about 24"; canon
  * 322): each rank-up deals TIP_CARDS of these and you keep one for good (src/sim/perks.ts says where each one works).
  * Seven are the spec's own at its numbers: +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun
- * twice, campaigns last 50% longer, +20% defense at night, buyouts 15% cheaper. Its eighth, open at 07:00, waits for
- * a business day that can start an hour early (spec gap). The other seventeen and their numbers are placeholders:
- * spec gap. `value` is the tip's one number; `rank`, the rank a hand must be for before it's dealt (it does nothing
- * sooner); `fight`, a tip about raids and guards, never dealt in Peaceful.
+ * twice, campaigns last 50% longer, +20% defense at night, buyouts 15% cheaper. Canon's old eighth example, open at
+ * 07:00, was dropped (07:00 is Morning Prep). The other seventeen and their numbers are placeholders: spec gap.
+ * `value` is the tip's one number; `rank`, the rank a hand must be for before it's dealt (it does nothing sooner);
+ * `fight`, a tip about raids and guards, never dealt in Peaceful.
  */
 export type TipId =
   | 'sweetTalk' | 'longRun' | 'freshPaint' | 'chattyRegulars' | 'coolCellar' | 'goldStars'
@@ -600,8 +600,8 @@ export const RESPECT_DAYS = 3;
 export const RAIDS_PER_WEEK = [1, 2, 3, 4, 6];
 /** Typical raiding party by Threat: size range, weapon odds (fists, clubs, hatchets) and padding; its henchmen fight at
  * the Threat's level (HENCHMEN). Threat 4's Pro Gear and three hatchets in five are placeholders (combat: a fully kitted
- * L5 plot behind a P4 then holds about 75% of Threat 4 raids, canon's anchor; in vests with 30% hatchets it held them
- * all), and Threat 5 ("Full kit") brings no fewer: as many hatchets, a level up. */
+ * L5 plot then holds about 80% of Threat 4 raids behind a P4 and nearly all of them behind a P5, canon's anchor; in
+ * vests with 30% hatchets it held them all), and Threat 5 ("Full kit") brings no fewer: as many hatchets, a level up. */
 export const RAID_PARTY: { size: [number, number]; weapons: [number, number, number]; gear: GearId }[] = [
   { size: [2, 3], weapons: [1, 0, 0], gear: 'none' },
   { size: [3, 5], weapons: [0.7, 0.3, 0], gear: 'none' },

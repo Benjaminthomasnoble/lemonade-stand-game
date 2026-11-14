@@ -48,7 +48,8 @@ export function raidCount(mean: number, u: number): number {
 /** The tutorial raid has been fought: a saved flag, so it never comes back once the six-fight log rolls over (a raid
  * on you still on record counts too, for hand-built and old states). */
 export const tutorialDone = (s: GameState) => !!s.tutorialRaidDone || s.battles.some((b) => b.defender === 'player');
-/** The first raid's night: Night 3 (the Day 3 rumor's), or the night your first Kiosk (Level 3) opens if that's sooner. */
+/** The first raid's night: Night 3 (the Day 3 rumor's). The Kiosk clause is left over from the old first-raid rule and
+ * never decides anything: raidsOnYou sends nothing on Nights 1–2 (NO_RAID_DAYS), and from Night 3 the day test holds. */
 export const tutorialNight = (s: GameState) => s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3);
 
 // ---------- raids on you ----------

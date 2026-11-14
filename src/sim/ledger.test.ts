@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as balance from './balance.ts';
 import {
   book, bookOther, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayIncomeCosts, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
-  LOTTIES_CORNER, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, RECIPES, rowAmount, runCampaign,
-  setStockTarget, simulateRestOfDay, sleepUntilDawn, successScore, upgradeStand, welcomeDex,
+  LOTTIES_CORNER, makeTruce, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, RECIPES, rowAmount, runCampaign,
+  setStockTarget, simulateRestOfDay, SITDOWN_RANK, sleepUntilDawn, successScore, tickMinute, truceCost, upgradeStand, welcomeDex,
   type GameState, type RivalId,
 } from './economy.ts';
 import { answerCall, CALLS } from './calls.ts';
@@ -179,6 +179,31 @@ describe('the Ledger', () => {
     }
     const all = new Set(s.history.flatMap((h) => Object.keys(h.books ?? {})));
     for (const row of ['sales', 'supplies', 'stock', 'upkeep', 'wages', 'invested', 'marketing', 'loan']) expect(all.has(row)).toBe(true);
+  });
+
+  it("a Truce's tribute leaves cash once, mid-day, on the Tribute row: the day's rows still add up, dawn to dawn", () => {
+    const s = newGame(21);
+    playTo(s, 3);
+    s.rank = SITDOWN_RANK; // Rank 4: the sit-downs open
+    s.cash = 50_000;
+    openStands(s);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s); // Day 4 starts with the cash, so its dawn-to-dawn change is all booked
+    openStands(s);
+    for (let i = 0; i < 180; i++) tickMinute(s); // mid-day
+    const cost = truceCost(s, 'blenders');
+    const before = s.cash;
+    expect(makeTruce(s, 'blenders')).toBe(true);
+    expect(s.cash).toBe(before - cost); // paid on the spot
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    const day4 = s.history.find((h) => h.day === 4)!;
+    expect(rowAmount(day4, 'tribute')).toBe(-cost); // once: the close and the night take nothing more
+    expect(dayCash(day4)).toBeCloseTo(s.today.cashAtDawn! - day4.cashAtDawn!, 2);
+    expect(ledgerLines(day4).pnl.find((l) => l.row === 'tribute')!.amount).toBe(-cost);
+    openStands(s);
+    simulateRestOfDay(s);
+    expect(rowAmount(s.today, 'tribute')).toBe(0); // and nothing the next day: the Truce runs on what was paid
   });
 
   it("a save reloaded after the close keeps booking the evening and the night onto that day's row in the history", () => {

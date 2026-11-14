@@ -384,7 +384,7 @@ Pacing targets (Classic, a competent player, about 8 real minutes per day includ
 
 Laid Back runs about 14% faster (×0.86 of Classic's days); Cutthroat about 1% slower (×1.01), with 1.3–1.7× Classic's raids.
 
-These targets are under review: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+These targets are under review: the pacing sweep's report is /mnt/project-files/gameplay-build/integration/pacing-sweep.txt (it played main 9e57e5e, so re-sweep current main before quoting its days).
 
 ## 17. Progression and automation
 

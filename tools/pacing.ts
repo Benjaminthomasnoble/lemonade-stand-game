@@ -1,25 +1,35 @@
 // The pacing harness (spec: Economy and balance, "How the numbers were checked" and the pacing chart, docs/spec/pacing.csv).
-// A headless player plays a run through the game's public actions, the ones the HUD calls (buy a plot, build, upgrade,
-// hire, fence, raid, buy out, storm an HQ, take an order, bid), so it keeps working as the sim grows. It buys whatever
-// pays back fastest, keeps a share of its takings for security (a quarter at first, tapering as the spec's does) and raids
-// rival stands at night. The run is then read against the spec's targets: rank days and Domination, income by stage,
-// security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the pacing chart.
-//   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v]
+// A headless player plays a run through the game's public actions, the ones the HUD calls, so it keeps working as the sim
+// grows and its misses measure the economy, not the player. It plays every system a player has, each from the day its
+// lesson shows it: it takes Lottie's Tip at each rank, answers the day calls, pours the best card, buys whatever pays back
+// fastest (land, stands, upgrades, fit-outs, Billboards, the VIP engine, buyouts, marketing, campaigns), borrows for a
+// buy that pays back inside the loan's term, keeps a share of its takings for security (a quarter at first, tapering as
+// the spec's does: guards, Clubhouses, fences by bulk order and by hand), sets district policies, haggles, and raids rival
+// stands at night after Squawk has circled them. The run is then read against the spec's targets: rank days and
+// Domination, income by stage, security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the
+// pacing chart.
+//   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N]
 // prints the report (tools/sim-report.ts). Pure: no DOM, no clock, no files.
 import {
-  acceptOrder, approveRepair, auctionOf, auctionPlots, bidGuess, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, buildClubhouse, buildFacility, buildStand, buyBrand,
-  buyPerimeter, buyPlot, callBigSqueeze, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
-  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canFactionBuyout, canHire, canPlotBuyout, canRaid, canRebuild, canUpgradeStand,
-  costPerCup, dealShortfallPerDay, districtControl, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts,
-  gameOver, guardReady, haggle, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, MAJORITY, mapDistricts, nearbyPlots,
-  netWorth, newGame, newStand, openStand, ORDER_TIERS, PERIMETERS, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout,
-  plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, priceCeiling, pricingOn, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
-  repairCost, rivalsInPlay, rosterCap, setPrice, SHIP_SIZES, simulateRestOfDay, sleepUntilDawn, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost,
-  standLevel, successScore, upgradeStand, yourDays,
-  type BattleReport, type Difficulty, type FacilityKind, type GameState, type Order, type OrderTier, type Weather,
+  acceptOrder, approveRepair, auctionOf, auctionPlots, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
+  buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
+  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
+  costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
+  gameOver, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
+  netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout,
+  plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
+  repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
+  SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, yourDays,
+  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type Order, type OrderTier,
+  type RivalId, type SpecId, type Stand, type TipId, type Weather,
 } from '../src/sim/economy.ts';
+import { answerCall, callChoices, CALLS, liveCall, type DayCall } from '../src/sim/calls.ts';
 import { clubhouseSite } from '../src/sim/clubhouse.ts';
 import { finishFight } from '../src/sim/fight.ts';
+import { campaignDays, pickTip, tipHand } from '../src/sim/perks.ts';
+import { gullScout, isScouted, pierTarget } from '../src/sim/scouting.ts';
+import { taught } from '../src/sim/story.ts';
+import { canSaveTemplate, saveTemplate, templateFor, templates } from '../src/sim/templates.ts';
 
 // ---------- the targets (design-spec: Economy and balance, Progression and unlocks; docs/spec/pacing.csv) ----------
 
@@ -123,6 +133,33 @@ const ODDS_RUNS = 16; // the Planner's dice, cut down so a run stays quick
 const DOMINATION_RANK = 8; // from here the player buys toward a Majority in every district
 const STAND_TYPES = ['street', 'prime', 'landmark', 'industrial'];
 const WAREHOUSE_RUNS = 0.02; // a Warehouse's market runs, as a share of its district's stand profit: the sell-outs it saves (a guess)
+/** The bank's term in days (4 weekly payments): a buy that pays back inside it is worth borrowing for. */
+export const LOAN_TERM = LOAN.weeks * 7;
+/** Billboard sites weighed each morning: the open or empty plots with the most of your stands within reach. */
+const BILLBOARD_SITES = 8;
+/** The fit-outs that sell more lemonade (the Fortified Frame only adds HP). */
+const GROWTH_SPECS: SpecId[] = ['express', 'fancy', 'roof'];
+/** Plots a Billboard stands on (FACILITIES.billboard.on). */
+const BILLBOARD_LAND = ['street', 'prime', 'landmark'];
+
+/** Lottie's Tips, best for growth first: the price and the crowd, cheaper land and buyouts, the bottles, the goals and
+ * campaigns, savings, and the guards' tips last. A hand's pick is its first card in this order. */
+export const TIP_ORDER: TipId[] = [
+  'sweetTalk', 'freshPaint', 'chattyRegulars', 'goodDirt', 'firmHandshake', 'steadyPour', 'goldStars', 'longRun',
+  'sharpPencil', 'handyHands', 'familyRates', 'coolCellar', 'lowProfile', 'letItGo', 'porchLight', 'pepTalk',
+  'nosyNeighbors', 'lockbox', 'lightSleeper', 'elbowGrease', 'quickStudy', 'chickenSoup', 'gooseWhistle', 'helpWanted',
+];
+/** The card a hand's pick goes to: the first in TIP_ORDER (a tip it doesn't know comes last). */
+export function bestTip(cards: readonly TipId[]): TipId {
+  const at = (id: TipId) => { const i = TIP_ORDER.indexOf(id); return i < 0 ? TIP_ORDER.length : i; };
+  return [...cards].sort((a, b) => at(a) - at(b))[0];
+}
+
+/** What the player did with each system, all run: the report prints it. `lapsed`: day calls nobody answered (a call on a
+ * stand knocked down mid-day lapses on its own). */
+export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk'] as const;
+export type Played = Record<(typeof PLAYED)[number], number>;
+const nonePlayed = (): Played => Object.fromEntries(PLAYED.map((k) => [k, 0])) as Played;
 
 export interface DayRow {
   day: number; rank: number; netWorth: number; score: number; cash: number;
@@ -135,40 +172,50 @@ export interface RunResult {
   firstLoad: Partial<Record<OrderTier, number>>; raids: RaidLoss[]; news: { day: number; what: string }[];
   paybacks: Record<number, number[]>; // the payback each upgrade promised when the player bought it, in days, by the level it made
   traffic: Record<number, number[]>; // the passersby a day on each plot the player built or upgraded an L4 or L5 on, by level
+  played?: Played; // what it did with each system
   stuck?: string; // why the run stopped early, if it did
 }
 export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: number; log?: (line: string) => void }
 
-interface Buy { what: string; cost: number; gain: number; plot: string; level?: number; upgrade?: boolean; run: () => boolean }
-interface Bot {
+/** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs. */
+export interface Buy { what: string; cost: number; gain: number; plot: string; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
+export interface Bot {
   sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
   takings: number[]; // the last week's takings
   paybacks: Record<number, number[]>;
   traffic: Record<number, number[]>;
   orders: Map<Order, number>; // orders taken, and the bottles loaded at the last look
+  firm: Set<RivalId>; // the hagglers it has held firm with once
+  played: Played;
   log?: (line: string) => void;
 }
+/** A fresh player, before Day 1. */
+export const newBot = (log?: (line: string) => void): Bot =>
+  ({ sec: 0, secSpent: 0, takings: [], paybacks: {}, traffic: {}, orders: new Map(), firm: new Set(), played: nonePlayed(), log });
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
 const typical = (): Weather => ({ kind: 'warm', temp: 80 }); // a build is weighed on an ordinary day, not tomorrow's rain
 const ownStands = (s: GameState) => playerStands(s).filter((p) => !s.plots[p.id].stand!.wrecked);
 const weekTakings = (bot: Bot) => (bot.takings.length ? bot.takings.reduce((a, b) => a + b, 0) / bot.takings.length : 0);
 
-/** A stand's expected day: cups at its ceiling, less the cost per cup and its upkeep. */
+/** A stand's expected day: cups at what they sell for (its price, less a Coupon Blitz's cut), less the cost per cup and
+ * its upkeep. The player posts every price at the ceiling, so that is what it reads. */
 function standProfit(s: GameState, plotId: string, w: Weather): number {
   const st = s.plots[plotId].stand;
   if (!st || st.wrecked) return 0;
-  return expectedCups(s, plotId, w) * (priceCeiling(s, plotId) - costPerCup(s, st)) - standLevel(st).upkeep;
+  return expectedCups(s, plotId, w) * (salePrice(s, plotId, st) - costPerCup(s, st)) - standLevel(st).upkeep;
 }
 /** Your stands' day around a plot: its own and the ones within 2 plots that share its walkers. */
 const blockProfit = (s: GameState, plotId: string, w: Weather) =>
   nearbyPlots(PLOT_BY_ID[plotId]).filter((q) => s.plots[q.id].owner === 'player').reduce((a, q) => a + standProfit(s, q.id, w), 0);
 
-/** What a change adds to your day around a plot: try it, read the block, then put the plot back exactly as it was. */
+/** What a change adds to your day around a plot: try it, read the block, then put the plot back exactly as it was (its
+ * owner, stand and facility, and the stand's level, price, fit-outs and campaigns). */
 function gain(s: GameState, plotId: string, w: Weather, apply: () => void): number {
   const ps = s.plots[plotId];
-  const owner = ps.owner, stand = ps.stand, level = stand?.level, price = stand?.price;
+  const owner = ps.owner, stand = ps.stand, facility = ps.facility;
+  const was = stand && { level: stand.level, price: stand.price, specs: stand.specs && [...stand.specs], campaigns: { ...stand.campaigns } };
   const before = blockProfit(s, plotId, w);
   try {
     apply();
@@ -176,8 +223,22 @@ function gain(s: GameState, plotId: string, w: Weather, apply: () => void): numb
   } finally {
     ps.owner = owner;
     ps.stand = stand;
-    if (stand) { stand.level = level!; stand.price = price!; }
+    if (facility) ps.facility = facility; else delete ps.facility;
+    if (stand && was) {
+      stand.level = was.level;
+      stand.price = was.price;
+      if (was.specs) stand.specs = was.specs; else delete stand.specs;
+      for (const id of Object.keys(stand.campaigns) as CampaignId[]) if (!(id in was.campaigns)) delete stand.campaigns[id];
+      Object.assign(stand.campaigns, was.campaigns);
+    }
   }
+}
+/** A fit-out tried in a slot. */
+function fitTry(st: Stand, slot: number, id: SpecId): void {
+  const specs = [...(st.specs ?? [])];
+  while (specs.length <= slot) specs.push(null);
+  specs[slot] = id;
+  st.specs = specs;
 }
 function tryStand(s: GameState, plotId: string, level: number): void {
   const ps = s.plots[plotId];
@@ -186,29 +247,49 @@ function tryStand(s: GameState, plotId: string, level: number): void {
   ps.stand.price = priceCeiling(s, plotId);
 }
 
-/** Everything that sells more lemonade and fits the budget: upgrades, stands on land you hold, a plot and a stand, a
- * rival's stand bought out, the next marketing tier. */
-function growthCandidates(s: GameState, budget: number): Buy[] {
+/** A buy's own check with your cash set aside, as a plan reads it (policies.ts bulkPlan does the same): the rank, the
+ * hours, the plot and the rest. A buy the player saves or borrows for shows up before the cash is there; the buy
+ * itself still checks the cash. */
+function able(s: GameState, check: () => { ok: boolean }): boolean {
+  const cash = s.cash;
+  s.cash = Number.MAX_SAFE_INTEGER;
+  try { return check().ok; } finally { s.cash = cash; }
+}
+
+/** Everything that sells more lemonade and fits the budget: upgrades, fit-outs in a Kiosk's or a Palace's empty slot,
+ * stands on land you hold, a plot and a stand, a rival's stand bought out, the next marketing tier, Billboards. Land
+ * outside Maple Street waits for the land lesson (Day 7) and marketing for Benny's (Day 6), as the HUD shows them. */
+export function growthCandidates(s: GameState, budget: number): Buy[] {
   const w = typical();
   const out: Buy[] = [];
   const top = STAND_LEVELS.filter((l) => s.rank >= STAND_RANK_GATE[l.level - 1]).length;
   for (const p of ownStands(s)) {
     const st = s.plots[p.id].stand!;
     const next = STAND_LEVELS[st.level];
-    if (!next || next.cost > budget || !canUpgradeStand(s, p.id).ok) continue;
-    const g = gain(s, p.id, w, () => { st.level = next.level; st.price = priceCeiling(s, p.id); });
-    out.push({ what: `upgrade ${p.name} to ${next.name}`, cost: next.cost, gain: g, plot: p.id, level: next.level, upgrade: true, run: () => upgradeStand(s, p.id) });
+    if (next && next.cost <= budget && able(s, () => canUpgradeStand(s, p.id))) {
+      const g = gain(s, p.id, w, () => { st.level = next.level; st.price = priceCeiling(s, p.id); });
+      out.push({ what: `upgrade ${p.name} to ${next.name}`, cost: next.cost, gain: g, plot: p.id, level: next.level, upgrade: true, run: () => upgradeStand(s, p.id) });
+    }
+    for (let slot = 0; slot < specSlots(st.level); slot++) { // an empty slot: each fit-out that sells more, at the price it brings
+      const cost = SPEC_SLOTS[slot].cost;
+      if (specIn(st, slot) || cost > budget) continue;
+      for (const id of GROWTH_SPECS) {
+        if (!able(s, () => canFitSpec(s, p.id, slot, id))) continue;
+        const g = gain(s, p.id, w, () => { fitTry(st, slot, id); st.price = priceCeiling(s, p.id); });
+        out.push({ what: `${SPECIALIZATIONS[id].name} at ${p.name}`, cost, gain: g, plot: p.id, kind: 'specs', run: () => fitSpec(s, p.id, slot, id) });
+      }
+    }
   }
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.owner !== 'player' || ps.stand || ps.facility || !STAND_TYPES.includes(plotType(s, p))) continue;
     for (let l = 1; l <= top; l++) {
-      if (standCost(l) > budget || !canBuildStand(s, p.id, l).ok) continue;
+      if (standCost(l) > budget || !able(s, () => canBuildStand(s, p.id, l))) continue;
       const g = gain(s, p.id, w, () => tryStand(s, p.id, l));
       out.push({ what: `build ${STAND_LEVELS[l - 1].name} on ${p.name}`, cost: standCost(l), gain: g, plot: p.id, level: l, run: () => buildStand(s, p.id, l) });
     }
   }
-  const open = PLOTS.filter((p) => STAND_TYPES.includes(plotType(s, p)) && !s.plots[p.id].owner && plotOnMap(s, p) && canBuyPlot(s, p.id).ok)
+  const open = PLOTS.filter((p) => STAND_TYPES.includes(plotType(s, p)) && !s.plots[p.id].owner && plotOnMap(s, p) && landOpen(s, p.id) && able(s, () => canBuyPlot(s, p.id)))
     .sort((a, b) => b.baseTraffic - a.baseTraffic).slice(0, PLOT_CANDIDATES);
   for (const p of open) {
     const price = plotPrice(s, p.id);
@@ -220,18 +301,111 @@ function growthCandidates(s: GameState, budget: number): Buy[] {
   }
   const theirs = PLOTS.filter((p) => {
     const ps = s.plots[p.id];
-    return ps.stand && !ps.stand.wrecked && ps.owner && ps.owner !== 'player' && canPlotBuyout(s, p.id).ok && plotBuyoutPrice(s, p.id) <= budget;
+    return ps.stand && !ps.stand.wrecked && ps.owner && ps.owner !== 'player' && able(s, () => canPlotBuyout(s, p.id)) && plotBuyoutPrice(s, p.id) <= budget;
   }).sort((a, b) => b.baseTraffic - a.baseTraffic).slice(0, PLOT_CANDIDATES / 2);
   for (const p of theirs) {
     const g = gain(s, p.id, w, () => { s.plots[p.id].owner = 'player'; });
     out.push({ what: `Plot Buyout of ${p.name}`, cost: plotBuyoutPrice(s, p.id), gain: g, plot: p.id, run: () => plotBuyout(s, p.id) });
   }
   const tier = BRAND_TIERS[s.brandTier];
-  if (tier && tier.cost <= budget && canBuyBrand(s).ok) {
+  if (tier && tier.cost <= budget && taught(s, 'marketing') && able(s, () => canBuyBrand(s))) {
     const all = ownStands(s).reduce((a, p) => a + standProfit(s, p.id, w), 0);
     out.push({ what: tier.name, cost: tier.cost, gain: all * tier.traffic, plot: '', run: () => buyBrand(s) });
   }
+  out.push(...billboardCandidates(s, budget));
   return out.filter((b) => b.gain > 0);
+}
+/** Land for sale the HUD lets you buy: Maple Street's from Day 1, the rest from the land lesson (Day 7). */
+const landOpen = (s: GameState, plotId: string) => PLOT_BY_ID[plotId]?.district === 'maple' || taught(s, 'land');
+
+/** Billboards (Rank 7, once Billboards & TV Spot is up): an empty Street, Prime or Landmark plot of yours or for sale,
+ * among the BILLBOARD_SITES with the most of your stands within 2 plots, weighed by what it adds to them (+20% traffic)
+ * and takes from rival stands there (−10% curb appeal). */
+function billboardCandidates(s: GameState, budget: number): Buy[] {
+  if (s.rank < BILLBOARD.rank || s.brandTier < BILLBOARD.brandTier) return [];
+  const w = typical();
+  const mine = (id: string) => nearbyPlots(PLOT_BY_ID[id]).filter((q) => q.id !== id && s.plots[q.id].owner === 'player' && s.plots[q.id].stand && !s.plots[q.id].stand!.wrecked).length;
+  const sites = PLOTS.filter((p) => {
+    const ps = s.plots[p.id];
+    if (!BILLBOARD_LAND.includes(plotType(s, p)) || ps.stand || ps.facility || !plotOnMap(s, p)) return false;
+    return ps.owner === 'player' || (!ps.owner && able(s, () => canBuyPlot(s, p.id)));
+  }).map((p) => ({ p, n: mine(p.id) })).filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || b.p.baseTraffic - a.p.baseTraffic || a.p.id.localeCompare(b.p.id)).slice(0, BILLBOARD_SITES);
+  const out: Buy[] = [];
+  for (const { p } of sites) {
+    const ps = s.plots[p.id];
+    const cost = (ps.owner === 'player' ? 0 : plotPrice(s, p.id)) + BILLBOARD.cost;
+    if (cost > budget) continue;
+    const g = gain(s, p.id, w, () => { ps.owner = 'player'; ps.facility = { kind: 'billboard', level: 1 }; });
+    out.push({ what: `Billboard on ${p.name}`, cost, gain: g, plot: p.id, kind: 'billboards', run: () => (ps.owner === 'player' || buyPlot(s, p.id)) && buildFacility(s, p.id, 'billboard') });
+  }
+  return out;
+}
+
+/** Today's local campaigns (Benny's lesson, Day 6), weighed on today's forecast: a Sandwich-Board Kid at each stand
+ * that takes one, a Free Sample Day at the stand it does most for (one runs at a time; its star counted at every
+ * stand), Sunny the Lemon in a district (there is one Sunny) and a Coupon Blitz in each. `days`: how long it works. */
+export function campaignCandidates(s: GameState, budget: number): Buy[] {
+  if (!taught(s, 'marketing')) return [];
+  const w = s.forecast;
+  const out: Buy[] = [];
+  const stands = ownStands(s);
+  let stars: number | undefined;
+  for (const id of ['sandwichBoard', 'freeSamples'] as CampaignId[]) {
+    const c = CAMPAIGNS[id];
+    const days = campaignDays(s, c.days); // Long Run: half again
+    let best: Buy | undefined;
+    for (const p of stands) {
+      const st = s.plots[p.id].stand!;
+      const k = campaignCost(s, id);
+      const cost = k.cash + k.samples * costPerCup(s, st);
+      if (cost > budget || !canRunCampaign(s, id, p.id).ok) continue;
+      if (c.reputation) stars ??= starsGain(s, c.reputation, w);
+      const g = gain(s, p.id, w, () => { st.campaigns[id] = days; }) + (c.reputation ? stars! : 0);
+      const b: Buy = { what: `${c.name} at ${p.name}`, cost, gain: g, plot: '', days, kind: 'campaigns', run: () => runCampaign(s, id, p.id) };
+      if (id === 'sandwichBoard') out.push(b);
+      else if (!best || g > best.gain) best = b;
+    }
+    if (best) out.push(best);
+  }
+  for (const id of ['sunny', 'couponBlitz'] as DistrictCampaignId[]) {
+    const c = DISTRICT_CAMPAIGNS[id];
+    const k = campaignCost(s, id);
+    if (k.cash > budget) continue;
+    for (const d of mapDistricts(s)) {
+      const here = stands.filter((p) => p.district === d.id);
+      const at = here.find((p) => canRunCampaign(s, id, p.id).ok);
+      if (!at) continue;
+      const g = districtGain(s, id, d.id, k.cut, here.map((p) => p.id), w);
+      out.push({ what: `${c.name} in ${d.name}`, cost: k.cash, gain: g, plot: '', days: 1, kind: 'campaigns', run: () => runCampaign(s, id, at.id) });
+    }
+  }
+  return out.filter((b) => b.gain > 0);
+}
+
+/** What Sunny's walk or a Coupon Blitz adds to your stands in a district today (the Blitz's cut comes off what they sell for). */
+function districtGain(s: GameState, id: DistrictCampaignId, district: DistrictId, cut: number, plots: string[], w: Weather): number {
+  const day = () => plots.reduce((a, p) => a + standProfit(s, p, w), 0);
+  const before = day();
+  const made = !s.marketing;
+  const m = (s.marketing ??= { districts: [], booked: [] });
+  const entry = { id, district, day: s.day, ...(cut ? { cut } : {}) };
+  m.districts.push(entry);
+  try {
+    return day() - before;
+  } finally {
+    m.districts.splice(m.districts.indexOf(entry), 1);
+    if (made) delete s.marketing;
+  }
+}
+
+/** What a Free Sample Day's star adds to a day at all your stands. */
+function starsGain(s: GameState, stars: number, w: Weather): number {
+  const all = () => ownStands(s).reduce((a, p) => a + standProfit(s, p.id, w), 0);
+  const rep = s.reputation;
+  const before = all();
+  s.reputation = Math.min(5, rep + stars);
+  try { return all() - before; } finally { s.reputation = rep; }
 }
 
 /** The VIP engine's average day: the bottles you make, sold best-paying first (ships and Supply Deals, then choppers, then
@@ -265,7 +439,7 @@ const lineLevel = (s: GameState, kind: FacilityKind) =>
  * yours makes way for a Pad (buildFacility), so a Field bought out from Hollis is a Pad site too. */
 function facilityCandidates(s: GameState, budget: number): Buy[] {
   const out: Buy[] = [];
-  const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && canPlotBuyout(s, id).ok;
+  const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && able(s, () => canPlotBuyout(s, id));
   const now = { bottles: bottlingCapacity(s), heli: lineLevel(s, 'helipad'), ship: lineLevel(s, 'pier') };
   const base = vipDay(s, now.bottles, now.heli, now.ship);
   const runs = (id: string) => WAREHOUSE_RUNS * ownStands(s).filter((p) => p.district === PLOT_BY_ID[id].district).reduce((a, p) => a + standProfit(s, p.id, typical()), 0);
@@ -281,7 +455,7 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
     const have = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked);
     for (const p of have) {
       const lvl = s.plots[p.id].facility!.level;
-      if (lvl < f.names.length && f.costs[lvl] <= budget && canBuildFacility(s, p.id, kind).ok) {
+      if (lvl < f.names.length && f.costs[lvl] <= budget && able(s, () => canBuildFacility(s, p.id, kind))) {
         out.push({ what: `grow ${p.name} to ${f.names[lvl]}`, cost: f.costs[lvl], gain: adds(kind, lvl, lvl + 1), plot: p.id, run: () => buildFacility(s, p.id, kind) });
       }
     }
@@ -296,7 +470,7 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
     const sites = PLOTS.filter((p) => f.on.includes(plotType(s, p)) && plotOnMap(s, p) && (!s.plots[p.id].facility || grove(p.id)) && !s.plots[p.id].stand)
       .map((p) => {
         const ps = s.plots[p.id];
-        const price = ps.owner === 'player' ? 0 : !ps.owner ? (canBuyPlot(s, p.id).ok ? plotPrice(s, p.id) : Infinity) : theirs(p.id) ? plotBuyoutPrice(s, p.id) : Infinity;
+        const price = ps.owner === 'player' ? 0 : !ps.owner ? (landOpen(s, p.id) && able(s, () => canBuyPlot(s, p.id)) ? plotPrice(s, p.id) : Infinity) : theirs(p.id) ? plotBuyoutPrice(s, p.id) : Infinity;
         const where = kind === 'warehouse' ? runs(p.id) : 0; // its market runs: the district's stands
         return { p, price, gain: adds(kind, 0, 1) + where - (ps.owner === 'player' && ps.facility ? adds('grove', 0, 1) : 0) }; // your Grove's 5% goes
       }).filter((x) => x.price < Infinity && x.gain > 0 && x.price + f.costs[0] <= budget)
@@ -310,13 +484,15 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
   return out.filter((b) => b.gain > 0);
 }
 
-/** Cash kept back for the day's stock and bills. */
+/** Cash kept back for the day's stock and bills, and the bank's next weekly payment while a loan is out. */
 function reserve(s: GameState): number {
   const w = typical();
-  return 100 + ownStands(s).reduce((a, p) => a + expectedCups(s, p.id, w) * costPerCup(s, s.plots[p.id].stand!) * 1.3, 0);
+  return 100 + loanPayment(s) + ownStands(s).reduce((a, p) => a + expectedCups(s, p.id, w) * costPerCup(s, s.plots[p.id].stand!) * 1.3, 0);
 }
 
-/** Spend the security money: guards up to the beds, a Clubhouse when they're full, fences on the best stands, posts filled. */
+/** Spend the security money: guards up to the beds and a Clubhouse when they're full (from Dex's lesson, Day 4), fences
+ * (from the defense lesson, Day 3: a bulk order round every bare plot from Rank 3, then each stand's next by hand), and
+ * the posts filled. */
 function security(s: GameState, bot: Bot): void {
   const w = typical();
   const spend = (what: string, f: () => boolean) => {
@@ -327,23 +503,28 @@ function security(s: GameState, bot: Bot): void {
     bot.log?.(`        security: ${what} ${money(before - s.cash)}`);
     return true;
   };
-  // As many guards as there are stands to post them at, and a full raiding squad on top.
-  const want = ownStands(s).length + SQUAD_CAP(s.rank);
-  for (const r of [...s.recruits].sort((a, b) => a.fee - b.fee)) if (s.guards.length < want && r.fee <= bot.sec && canHire(s, r.id).ok) spend(`hire ${r.name}`, () => hireGuard(s, r.id));
-  // Beds when the roster is full: a Clubhouse on an empty street plot of yours (bought for it if need be), or the next
-  // level of one. It may run the security money into the red once half its price is saved; the next days' fifths pay it back.
-  const beds = CLUBHOUSE[0];
-  if (s.guards.length >= rosterCap(s) && s.guards.length < want && s.rank >= beds.rank && bot.sec >= beds.cost / 2) {
-    let site = clubhouseSite(s);
-    const lot = site ? undefined : PLOTS.filter((p) => plotType(s, p) === 'street' && !s.plots[p.id].owner && plotOnMap(s, p) && canBuyPlot(s, p.id).ok)
-      .sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id))[0];
-    if (lot && plotPrice(s, lot.id) + beds.cost <= s.cash - reserve(s) && buyPlot(s, lot.id)) { site = lot.id; bot.log?.(`        land: ${lot.name} for a Clubhouse`); }
-    if (site && canBuildClubhouse(s, site).ok) spend('Clubhouse', () => buildClubhouse(s, site));
+  if (taught(s, 'crew')) {
+    // As many guards as there are stands to post them at, and a full raiding squad on top.
+    const want = ownStands(s).length + SQUAD_CAP(s.rank);
+    for (const r of [...s.recruits].sort((a, b) => a.fee - b.fee)) if (s.guards.length < want && r.fee <= bot.sec && canHire(s, r.id).ok) spend(`hire ${r.name}`, () => hireGuard(s, r.id));
+    // Beds when the roster is full: a Clubhouse on an empty street plot of yours (bought for it if need be), or the next
+    // level of one. It may run the security money into the red once half its price is saved; the next days' fifths pay it back.
+    const beds = CLUBHOUSE[0];
+    if (s.guards.length >= rosterCap(s) && s.guards.length < want && s.rank >= beds.rank && bot.sec >= beds.cost / 2) {
+      let site = clubhouseSite(s);
+      const lot = site ? undefined : PLOTS.filter((p) => plotType(s, p) === 'street' && !s.plots[p.id].owner && plotOnMap(s, p) && landOpen(s, p.id) && canBuyPlot(s, p.id).ok)
+        .sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id))[0];
+      if (lot && plotPrice(s, lot.id) + beds.cost <= s.cash - reserve(s) && buyPlot(s, lot.id)) { site = lot.id; bot.log?.(`        land: ${lot.name} for a Clubhouse`); }
+      if (site && canBuildClubhouse(s, site).ok) spend('Clubhouse', () => buildClubhouse(s, site));
+    }
   }
   const best = ownStands(s).sort((a, b) => standProfit(s, b.id, w) - standProfit(s, a.id, w));
-  for (const p of best) { // a fence to match the stand: a Picket Fence round a Table, a Fortress Wall round a Palace
-    const next = PERIMETERS[s.plots[p.id].defense.tier];
-    if (next && next.tier <= s.plots[p.id].stand!.level && next.cost <= bot.sec && canBuyPerimeter(s, p.id).ok) spend(`${next.name} at ${p.name}`, () => buyPerimeter(s, p.id));
+  if (taught(s, 'defense') || s.battles.length) {
+    if (bulkOn(s) && bot.sec > 0 && spend('a bulk order of fences', () => runBulk(s, { act: 'fence', group: 'unfenced', budget: bot.sec }) > 0)) bot.played.bulk++;
+    for (const p of best) { // a fence to match the stand: a Picket Fence round a Table, a Fortress Wall round a Palace
+      const next = PERIMETERS[s.plots[p.id].defense.tier];
+      if (next && next.tier <= s.plots[p.id].stand!.level && next.cost <= bot.sec && canBuyPerimeter(s, p.id).ok) spend(`${next.name} at ${p.name}`, () => buyPerimeter(s, p.id));
+    }
   }
   for (const p of best) fillPosts(s, p.id);
 }
@@ -385,60 +566,209 @@ function dominationPush(s: GameState, bot: Bot, budget: number): number {
   return budget;
 }
 
-/** Morning Prep: prices, rivals (the Big Squeeze, Faction Buyouts), contracts, security, the VIP engine and growth. */
-function morning(s: GameState, bot: Bot): void {
-  fixUp(s);
-  for (const p of ownStands(s)) { // before Marisol's Auto-Price (Rank 3) the player posts each price at the top by hand
+/** Before Marisol's Auto-Price (Rank 3) the player sets each stand by hand: from the recipe lesson (Day 2) the card
+ * and Sweetness that pay best there on the forecast (Auto-Price's own pick, bestSetting), and the price at the top. */
+function setStands(s: GameState, bot: Bot): void {
+  for (const p of ownStands(s)) {
     const st = s.plots[p.id].stand!;
-    if (!pricingOn(s, st)) setPrice(st, priceCeiling(s, p.id));
+    if (pricingOn(s, st)) continue;
+    if (taught(s, 'recipes')) {
+      const pick = bestSetting(s, p.id);
+      if (pick.recipe !== st.recipe && pickRecipe(s, st, pick.recipe)) bot.played.cards++;
+      setSweetness(st, pick.sweetness);
+    }
+    setPrice(st, priceCeiling(s, p.id));
   }
-  if (canCallBigSqueeze(s).ok && callBigSqueeze(s)) bot.log?.('        the Big Squeeze is called');
+}
+
+/** Faction Buyouts of Weakened rivals the cash covers. Brock and Tilly sign at their price; Juni and Preston haggle:
+ * open at the offer and hold firm once (they come down to their price, or walk out till tomorrow, sorer for it), and
+ * after a walk-out shake on their counter. */
+export function buyouts(s: GameState, bot: Bot): void {
   for (const id of rivalsInPlay(s)) {
     if (!s.rivals[id].alive) continue;
     const price = factionBuyoutPrice(s, id);
-    // Juni and Preston haggle: open at the offer, hear the counter, and sign at their price (holding firm risks a walk-out).
-    const signs = () => (!haggles(id) || haggling(s, id) || haggle(s, id, 'offer')) && factionBuyout(s, id);
-    if (price !== null && canFactionBuyout(s, id).ok && price <= s.cash - reserve(s) && signs()) bot.log?.(`        Faction Buyout: ${id} for ${money(price)}`);
+    if (price === null || !canFactionBuyout(s, id).ok || price > s.cash - reserve(s)) continue;
+    if (!haggles(id)) { if (factionBuyout(s, id)) bot.log?.(`        Faction Buyout: ${id} for ${money(price)}`); continue; }
+    if (!haggling(s, id) && !haggle(s, id, 'offer')) continue;
+    if (!bot.firm.has(id)) {
+      bot.firm.add(id);
+      bot.played.firm++;
+      if (canHoldFirm(s, id).ok && haggle(s, id, 'firm')) bot.log?.(`        Faction Buyout: ${id} for ${money(price)}, held firm`);
+      else bot.log?.(`        Faction Buyout: ${id} walks out`);
+      continue;
+    }
+    const ask = haggleAsk(s, id);
+    if (ask <= s.cash - reserve(s) && factionBuyout(s, id)) bot.log?.(`        Faction Buyout: ${id} for ${money(ask)}, their counter`);
   }
+}
+
+/** Morning Prep: Lottie's Tip, the stands set, prices, rivals (the Big Squeeze, Faction Buyouts), contracts, security,
+ * district policies, the bids, the VIP engine and growth (borrowing for a buy that pays back inside the loan's term),
+ * and the day's campaigns. */
+export function morning(s: GameState, bot: Bot): void {
+  for (let h = tipHand(s); h; h = tipHand(s)) { // a hand per rank-up: the card best for growth
+    const id = bestTip(h.cards);
+    if (!pickTip(s, id)) break;
+    bot.played.tips++;
+    bot.log?.(`        Lottie's tip: ${TIPS[id].name}`);
+  }
+  const pier = pierTarget(s); // Act 2: Lottie sends Squawk over the Pier
+  if (pier) { gullScout(s, pier); bot.played.gull++; }
+  fixUp(s);
+  setStands(s, bot);
+  if (canCallBigSqueeze(s).ok && callBigSqueeze(s)) bot.log?.('        the Big Squeeze is called');
+  buyouts(s, bot);
   takeOrders(s, bot);
   bot.sec = Math.min(bot.sec, SECURITY_POT_DAYS * weekTakings(bot) + 200);
   security(s, bot);
+  if (policyOn(s)) { // Rank 7: Profit in every district you sell in (Auto-Price and Auto-Restock, as the player runs them)
+    for (const d of mapDistricts(s)) {
+      if (districtPolicy(s, d.id) || !ownStands(s).some((p) => p.district === d.id) || !setPolicy(s, d.id, 'profit')) continue;
+      bot.played.policies++;
+      bot.log?.(`        policy: Profit in ${d.name}`);
+    }
+  }
   let budget = s.cash - reserve(s) - Math.max(0, bot.sec);
   // A sealed bid on every lot up (Fire Sales at 75%, a Smash's For Sale, the Lavender page) at the going rate, with up to
   // half the budget: it's paid at dawn only if it wins, so the cash stays aside until then.
   for (const lot of [...auctionPlots(s).map((p) => p.id), LAVENDER_LOT]) {
     const a = auctionOf(s, lot);
-    if (!a || a.kind === 'listing' || a.bid) continue;
+    if (!a || a.kind === 'listing' || a.bid || (PLOT_BY_ID[lot] && !landOpen(s, lot))) continue;
     const bid = Math.max(a.min, bidGuess(s, lot));
     if (bid <= budget / 2 && canBid(s, lot, bid).ok && placeBid(s, lot, bid)) { budget -= bid; bot.log?.(`        bid: ${money(bid)} on ${lot}`); }
   }
   const used = new Set<string>();
   // Saving up: the best buy within a couple of days' takings, if it doesn't fit today, bars anything slower to pay back
-  // (a $400 Wooden Stand that pays back in 2 days beats $100 of signs that take 13).
+  // (a $400 Wooden Stand that pays back in 2 days beats $100 of signs that take 13). Borrowing: one that pays back inside
+  // the bank's term borrows what it's short (one loan at a time, as Marisol's card offers it).
   const daily = weekTakings(bot) || ownStands(s).reduce((a, p) => a + standProfit(s, p.id, typical()), 0); // Day 1: what the stands should make
-  const reach = budget + SAVE_DAYS * daily;
-  const buys = [...facilityCandidates(s, reach), ...growthCandidates(s, reach)].sort((a, b) => a.cost / a.gain - b.cost / b.gain);
-  const goal = buys.find((b) => b.cost / b.gain <= MAX_PAYBACK);
-  const bar = goal && goal.cost > budget ? goal.cost / goal.gain : MAX_PAYBACK;
+  const save = budget + SAVE_DAYS * daily;
+  const lend = s.loan ? 0 : loanLimit(s);
+  const buys = [...facilityCandidates(s, Math.max(save, budget + lend)), ...growthCandidates(s, Math.max(save, budget + lend))].sort((a, b) => a.cost / a.gain - b.cost / b.gain);
+  const pays = (b: Buy) => b.cost / b.gain;
+  const goal = buys.find((b) => pays(b) <= MAX_PAYBACK && (b.cost <= save || (pays(b) <= LOAN_TERM && b.cost <= budget + lend)));
+  if (goal && goal.cost > budget && pays(goal) <= LOAN_TERM && goal.cost - budget <= lend) {
+    const before = s.cash;
+    if (borrow(s, Math.min(lend, Math.ceil((goal.cost - budget) / 50) * 50))) {
+      budget += s.cash - before;
+      bot.played.loans++;
+      bot.log?.(`        loan: ${money(s.cash - before)} for ${goal.what}, pays back in ${pays(goal).toFixed(1)} days`);
+    }
+  }
+  const bar = goal && goal.cost > budget ? pays(goal) : MAX_PAYBACK;
   if (goal && bar < MAX_PAYBACK) bot.log?.(`        saving for: ${goal.what} ${money(goal.cost)}, pays back in ${bar.toFixed(1)} days`);
   let n = 0;
   for (const b of buys) {
-    if (n >= MAX_BUYS || b.cost / b.gain > bar) break;
+    if (n >= MAX_BUYS || pays(b) > bar) break;
     if (b.cost > budget || (b.plot && used.has(b.plot))) continue;
     const before = s.cash;
     if (!b.run()) continue;
     n++;
     budget -= before - s.cash;
     if (b.plot) used.add(b.plot);
-    if (b.upgrade && b.level) (bot.paybacks[b.level] ??= []).push(b.cost / b.gain); // an upgrade's own payback, as Appendix A counts it
+    if (b.kind) bot.played[b.kind]++;
+    if (b.upgrade && b.level) (bot.paybacks[b.level] ??= []).push(pays(b)); // an upgrade's own payback, as Appendix A counts it
     if (b.level && b.level in PLOT_TRAFFIC && b.plot) (bot.traffic[b.level] ??= []).push(PLOT_BY_ID[b.plot].baseTraffic); // the plot it went on
-    bot.log?.(`        buy: ${b.what} ${money(before - s.cash)}, pays back in ${(b.cost / b.gain).toFixed(1)} days`);
+    bot.log?.(`        buy: ${b.what} ${money(before - s.cash)}, pays back in ${pays(b).toFixed(1)} days`);
+  }
+  // A campaign pays for itself over the days it works (inside MAX_PAYBACK), out of what the budget has left.
+  for (const b of campaignCandidates(s, budget).sort((a, b) => pays(a) - pays(b))) {
+    if (pays(b) > Math.min(b.days ?? 1, MAX_PAYBACK) || b.cost > budget) continue;
+    const before = s.cash;
+    if (!b.run()) continue;
+    budget -= before - s.cash;
+    bot.played.campaigns++;
+    bot.log?.(`        campaign: ${b.what} ${money(b.cost)}, pays back in ${pays(b).toFixed(1)} days`);
   }
   if (s.rank >= DOMINATION_RANK) budget = dominationPush(s, bot, budget);
+  setStands(s, bot); // what was built or fitted today, priced at its top
+}
+
+/** The share of today's walkers still to come (HOURLY_TRAFFIC by the hour from the open). */
+function dayLeft(s: GameState): number {
+  const h = (s.minute - OPEN) / 60;
+  const all = HOURLY_TRAFFIC.reduce((a, b) => a + b, 0);
+  return HOURLY_TRAFFIC.reduce((a, w, i) => a + w * Math.max(0, Math.min(1, i + 1 - h)), 0) / all;
+}
+
+/**
+ * A day call, answered as it breaks in. Each choice is weighed by what the rest of today makes at the block around
+ * the stand (its walkers and price as the choice leaves them), less what it costs up front; the priced choice is taken
+ * only when it pays back today, and a tie goes to the free one. Chasing a heckler off is never taken (the gang's
+ * grudge brings raids). A rumor's raid comes whatever you answer: a rushed fence is bought from the security money
+ * when its rush premium is less than a smash there would cost (the rebuild and a day's takings) and it's a fence the
+ * player buys anyway (no more fence than stand); otherwise a free guard is posted, or Lottie brings it on. Returns
+ * the choice's index on the card (callChoices); it changes nothing.
+ */
+export function pickAnswer(s: GameState, bot: Bot, call: DayCall): number {
+  const choices = callChoices(s, call);
+  const ps = s.plots[call.plot];
+  const st = ps.stand!;
+  let pick = -1;
+  if (call.kind === 'rumor') {
+    const rush = choices.findIndex((c) => c.label.endsWith('fence'));
+    const next = PERIMETERS[ps.defense.tier];
+    const risk = standProfit(s, call.plot, s.weather) + rebuildCost(ps);
+    const pays = rush >= 0 && choices[rush].ok && next && next.tier <= st.level && choices[rush].cost! <= bot.sec && choices[rush].cost! - next.cost <= risk;
+    pick = pays ? rush : choices.findIndex((c) => c.label === 'Post a guard');
+    return pick < 0 ? choices.length - 1 : pick;
+  } else {
+    const left = dayLeft(s);
+    const calls = s.calls!;
+    const rest = (traffic: number, price = st.price) => { // the rest of today at the block, with the walkers ×traffic and this price
+      const mod = calls.mods[call.plot], was = st.price;
+      calls.mods[call.plot] = (mod ?? 1) * traffic;
+      st.price = price;
+      try { return blockProfit(s, call.plot, s.weather) * left; } finally {
+        if (mod === undefined) delete calls.mods[call.plot]; else calls.mods[call.plot] = mod;
+        st.price = was;
+      }
+    };
+    const k = CALLS;
+    const value = (i: number): number | null => {
+      switch (call.kind) {
+        case 'undercut': return i === 0 ? rest(1, Math.max(0.25, Math.round((st.price - k.undercut.cut) * 100) / 100)) : i === 1 ? rest(k.undercut.samplesTraffic) - k.undercut.samples : rest(k.undercut.holdTraffic);
+        case 'heckler': return i === 0 ? rest(1) - k.heckler.payoff : i === 1 ? null : rest(k.heckler.ignoreTraffic);
+        case 'rush': return rest(k.rush.traffic, i === 0 ? Math.round((st.price + k.rush.raise) * 100) / 100 : st.price);
+        case 'permit': return i === 0 ? -k.permit.fee : -(1 - k.permit.luck) * k.permit.fine;
+        default: return null;
+      }
+    };
+    let best = -Infinity;
+    choices.forEach((c, i) => {
+      const v = c.ok ? value(i) : null;
+      if (v === null) return;
+      if (v > best + 1e-9 || (Math.abs(v - best) <= 1e-9 && !c.cost)) { best = v; pick = i; }
+    });
+    return pick < 0 ? choices.length - 1 : pick;
+  }
+}
+
+/** Answer the live call as pickAnswer says, through the card's own action; a rushed fence comes out of the security money. */
+function answer(s: GameState, bot: Bot, call: DayCall): void {
+  const choices = callChoices(s, call);
+  const pick = pickAnswer(s, bot, call);
+  const before = s.cash;
+  if (!answerCall(s, pick, { postGuards: (p) => fillPosts(s, p) })) return;
+  bot.played.calls++;
+  if (call.kind === 'rumor' && choices[pick].label.endsWith('fence')) { bot.sec -= before - s.cash; bot.secSpent += before - s.cash; }
+  bot.log?.(`        call: ${call.kind} at ${PLOT_BY_ID[call.plot].name}, ${choices[pick].label}`);
+}
+
+/** The business day, minute by minute, each day call answered as it breaks in (the HUD holds the clock for it). */
+function playDay(s: GameState, bot: Bot): void {
+  while (s.phase === 'open') {
+    tickMinute(s);
+    const call = liveCall(s);
+    if (call) answer(s, bot, call);
+  }
+  if (s.calls?.day === s.day) bot.played.lapsed += s.calls.list.filter((c) => c.picked === -1).length;
 }
 
 /** The Evening: fix up, set the security money aside, and send a squad out tonight: at a Weakened rival's HQ, or at the
- * rival stand it's likeliest to beat. */
+ * rival stand it's likeliest to beat once Squawk has circled it (Gull Flight). From Rank 6 the squad is saved as a raid
+ * template, and a template whose guards are all ready goes out again. */
 function evening(s: GameState, bot: Bot): void {
   fixUp(s);
   const b = s.today.books ?? {};
@@ -453,15 +783,22 @@ function evening(s: GameState, bot: Bot): void {
     const odds = hqOdds(s, id, full, true, ODDS_RUNS);
     if (odds >= RAID_ODDS && planRaid(s, hq, full, 'hq', 'tonight')) { bot.log?.(`        HQ Assault on ${id} tonight (${Math.round(odds * 100)}%)`); return; }
   }
-  const squad = ready.slice(0, Math.min(SQUAD_CAP(s.rank), Math.ceil(ready.length / 2))).map((g) => g.id);
+  const saved = templates(s).find((t) => t.objective === 'smash' && t.guards.length >= 2 && t.guards.every((id) => ready.some((g) => g.id === id)));
+  const squad = saved ? [...saved.guards] : ready.slice(0, Math.min(SQUAD_CAP(s.rank), Math.ceil(ready.length / 2))).map((g) => g.id);
   if (squad.length < 2) return;
   const turf = new Set(playerStands(s).map((p) => p.district));
   const targets = PLOTS.filter((p) => {
     const ps = s.plots[p.id];
     return ps.owner && ps.owner !== 'player' && hasBuilding(ps) && turf.has(p.district) && canRaid(s, p.id, squad, 'smash').ok;
   }).sort((x, y) => (s.plots[y.id].stand?.level ?? 0) - (s.plots[x.id].stand?.level ?? 0)).slice(0, 4);
+  for (const p of targets) if (!isScouted(s, p.id) && gullScout(s, p.id)) bot.played.gull++; // the Planner shows its odds once it's scouted
   const pick = targets.map((p) => ({ p, odds: raidOdds(s, p.id, squad, 'smash', true, ODDS_RUNS) })).sort((x, y) => y.odds - x.odds)[0];
-  if (pick && pick.odds >= RAID_ODDS && planRaid(s, pick.p.id, squad, 'smash', 'tonight')) bot.log?.(`        raid: ${squad.length} on ${pick.p.name} (${Math.round(pick.odds * 100)}%)`);
+  if (!pick || pick.odds < RAID_ODDS) return;
+  if (canSaveTemplate(s, squad, 'smash').ok && saveTemplate(s, squad, 'smash', pick.p.id)) bot.log?.('        raid template saved');
+  const repeat = !!templateFor(s, squad, 'smash');
+  if (!planRaid(s, pick.p.id, squad, 'smash', 'tonight')) return;
+  if (repeat) bot.played.templates++;
+  bot.log?.(`        raid: ${squad.length} on ${pick.p.name} (${Math.round(pick.odds * 100)}%)${saved ? `, ${saved.name}` : ''}`);
 }
 
 /** A raid on you costs what it took, plus the rebuild of what it knocked down and the repair of a dent. */
@@ -475,8 +812,8 @@ export function playRun(opts: PacingOpts): RunResult {
   const days = opts.days ?? 170;
   const difficulty = opts.difficulty ?? 'classic';
   const s = newGame(opts.seed, { difficulty });
-  const bot: Bot = { sec: 0, secSpent: 0, takings: [], paybacks: {}, traffic: {}, orders: new Map(), log: opts.log };
-  const r: RunResult = { seed: opts.seed, difficulty, days: [], rankDay: { 1: 1 }, firstLoad: {}, raids: [], news: [], paybacks: bot.paybacks, traffic: bot.traffic };
+  const bot = newBot(opts.log);
+  const r: RunResult = { seed: opts.seed, difficulty, days: [], rankDay: { 1: 1 }, firstLoad: {}, raids: [], news: [], paybacks: bot.paybacks, traffic: bot.traffic, played: bot.played };
   const seen = new WeakSet<BattleReport>(s.battles);
   const firsts = new Set<string>();
   const first = (key: string, what: string, day = s.day) => { if (!firsts.has(key)) { firsts.add(key); r.news.push({ day, what }); } };
@@ -485,7 +822,7 @@ export function playRun(opts: PacingOpts): RunResult {
     const sec0 = bot.secSpent;
     morning(s, bot);
     if (!openStand(s)) { r.stuck = `Day ${s.day}: the stands would not open`; break; }
-    simulateRestOfDay(s);
+    playDay(s, bot);
     evening(s, bot);
     const b = s.today.books ?? {};
     const income = (b.sales ?? 0) + (b.orders ?? 0);
@@ -724,6 +1061,9 @@ export function formatChecks(title: string, checks: Check[]): string {
   return `${title}: ${ok} pass, ${missed} miss\n${rows.join('\n')}`;
 }
 
+/** What the player did with each system over a run: "tips 6, cards 3, calls 79, lapsed 0, ...". */
+export const playedLine = (p: Played) => PLAYED.map((k) => `${k} ${p[k]}`).join(', ');
+
 /** The whole report: `args` are [days] [maps] [classic|laidback|cutthroat|all] and -v for every day and every purchase.
  * Each difficulty plays the reference map first, then the maps after it; `csv` is docs/spec/pacing.csv. */
 export function pacingReport(args: string[], csv: string, print: (line: string) => void): void {
@@ -742,6 +1082,7 @@ export function pacingReport(args: string[], csv: string, print: (line: string) 
       print(formatChecks(`\n${label(difficulty)}, map ${seed}${i === 0 ? ' (the reference map)' : ''}, ${r.days.length} days`, checkRun(r, i === 0)));
       if (i === 0) print(formatChecks(`\n${label(difficulty)} Net Worth against docs/spec/pacing.csv`, chartChecks(r, csv)));
       print(`  firsts: ${r.news.map((n) => `${n.day} ${n.what}`).join('; ')}`);
+      if (r.played) print(`  played: ${playedLine(r.played)}`);
     }
     if (maps > 1) print(formatChecks(`\n${label(difficulty)} across ${maps} maps`, spreadChecks(runs)));
   }

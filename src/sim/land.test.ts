@@ -8,14 +8,19 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
-import { LAVENDER } from './balance.ts';
+import { CLOSE, LAVENDER } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
 import { clubhouseSite } from './clubhouse.ts';
-import { buildClubhouse, canBuildClubhouse } from './crew.ts';
+import { buildClubhouse, canBuildClubhouse, postGuard, welcomeDex } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
+import { TIP_IDS } from './perks.ts';
+import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
-import { chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, hits, longestLull, playRun, REFERENCE_SEED, spreadChecks, type RunResult } from '../../tools/pacing.ts';
+import {
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, growthCandidates, hits, longestLull, morning, newBot, pickAnswer, playRun,
+  REFERENCE_SEED, spreadChecks, TIP_ORDER, type RunResult,
+} from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
 /** Hand the player a plot outright (tests skip the buying). */
@@ -641,8 +646,12 @@ describe('land, Sit-downs and loans keep no hours', () => {
 });
 
 describe('the pacing harness (tools/pacing.ts)', () => {
+  let ref: RunResult | undefined;
+  /** The reference map's first 8 days, played once for every test that reads them. */
+  const ref8 = () => (ref ??= playRun({ seed: REFERENCE_SEED, days: 8 }));
+
   it('plays the reference map through the public actions and reads the run against the spec', () => {
-    const r = playRun({ seed: REFERENCE_SEED, days: 8 });
+    const r = ref8();
     expect(r.stuck).toBeUndefined();
     expect(r.days.map((d) => d.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(r.days.every((d) => d.income > 0 && d.stands >= 1)).toBe(true);
@@ -687,8 +696,113 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(check(r, 'L4 plots')).toMatchObject({ target: '~1,800+ passersby a day', got: 'median 2,460 of 3 built', ok: true });
     expect(check(r, 'L5 plots')).toMatchObject({ got: 'median 2,550 of 1 built', ok: false }); // a Palace on a quiet plot
     expect(check(record('classic', 30, {}), 'L4 plots')).toBeUndefined(); // none built yet
-    const run = playRun({ seed: REFERENCE_SEED, days: 8 });
-    expect(run.traffic).toEqual({}); // no Lemon Shack by Day 8
+    expect(ref8().traffic).toEqual({}); // no Lemon Shack by Day 8
+  });
+
+  it('plays every system a player has, and plays it the same way every time', () => {
+    const r = ref8();
+    expect(r.played?.lapsed).toBe(0); // every day call answered as it broke in
+    for (const k of ['tips', 'cards', 'calls', 'campaigns'] as const) expect(r.played?.[k], k).toBeGreaterThan(0); // Lottie's Rank 2 hand, recipe cards from Day 2, the calls, campaigns from Day 6
+    expect(playRun({ seed: REFERENCE_SEED, days: 8 })).toEqual(r); // seeded: a second run makes every choice again
+  });
+
+  it("keeps the tip best for growth from Lottie's hand", () => {
+    expect([...TIP_ORDER].sort()).toEqual([...TIP_IDS].sort()); // every tip, ranked once
+    expect(bestTip(['helpWanted', 'lockbox', 'sweetTalk'])).toBe('sweetTalk');
+  });
+
+  it("takes a day call's priced choice when it pays back today and the free one otherwise, and never chases a gang off", () => {
+    const s = newGame(REFERENCE_SEED);
+    openStand(s);
+    const bot = newBot();
+    const ring = (kind: DayCall['kind']): DayCall => {
+      const call: DayCall = { id: 99, kind, at: s.minute, plot: LOTTIES_CORNER, rival: kind === 'permit' || kind === 'rush' ? null : 'blenders', live: true };
+      s.calls = { day: s.day, list: [call], mods: {} };
+      return call;
+    };
+    expect(pickAnswer(s, bot, ring('heckler'))).toBe(0); // $8 keeps a whole day of walkers
+    expect(pickAnswer(s, bot, ring('undercut'))).toBe(1); // $10 of free samples beats a quarter off every cup
+    expect(pickAnswer(s, bot, ring('permit'))).toBe(1); // a $15 fee against half a chance of a $30 fine: a tie goes to the free one
+    const open = s.minute;
+    s.minute = CLOSE - 60; // an hour from closing, $8 or $10 doesn't come back
+    expect(pickAnswer(s, bot, ring('heckler'))).toBe(2); // Ignore him
+    expect(pickAnswer(s, bot, ring('undercut'))).not.toBe(1);
+    s.minute = open;
+    s.cash = 5;
+    expect(pickAnswer(s, bot, ring('heckler'))).toBe(2); // can't pay him: ignore him, never Chase him off (1)
+    // A rumor: a rushed fence from the security money when it costs less than a smash would, else a free guard posted.
+    s.cash = 1000;
+    expect(pickAnswer(s, bot, ring('rumor'))).toBe(1); // no money set aside, no guard: Bring it on
+    bot.sec = 1000;
+    expect(pickAnswer(s, bot, ring('rumor'))).toBe(0); // Rush a Picket fence
+    s.rank = 2;
+    welcomeDex(s);
+    postGuard(s, s.guards[0].id, null);
+    bot.sec = 0;
+    expect(pickAnswer(s, bot, ring('rumor'))).toBe(1); // Post a guard (Bring it on moves to 2)
+  });
+
+  it('holds firm once at the diner, then shakes on the counter after a walk-out', () => {
+    const s = newGame(1);
+    s.rank = 7;
+    s.cash = 5e7;
+    s.rivals.coldbrew.grudge = 100; // too sore to come down
+    const bot = newBot();
+    buyouts(s, bot);
+    expect(bot.firm.has('coldbrew')).toBe(true);
+    expect(s.rivals.coldbrew).toMatchObject({ alive: true, haggle: { out: true } }); // Juni walked out
+    s.day += 1;
+    buyouts(s, bot);
+    expect(s.rivals.coldbrew.alive).toBe(false); // signed at her counter
+    expect(bot.played.firm).toBe(1); // held firm once
+  });
+
+  it('weighs campaigns, fit-outs and Billboards on the day they would run, without spending a cent', () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 6; // the marketing lesson
+    s.rank = 3;
+    s.plots[LOTTIES_CORNER].stand!.level = 3;
+    const before = JSON.stringify(s);
+    const ads = campaignCandidates(s, 1e6);
+    expect(ads.map((b) => b.what)).toEqual(expect.arrayContaining([expect.stringContaining('Sandwich-Board Kid'), expect.stringContaining('Free Sample Day')]));
+    expect(ads.every((b) => b.gain > 0 && b.kind === 'campaigns')).toBe(true);
+    const specs = growthCandidates(s, 1e6).filter((b) => b.kind === 'specs');
+    expect(specs.map((b) => b.what)).toEqual(expect.arrayContaining([expect.stringContaining('Express Window'), expect.stringContaining('Fancy Menu'), expect.stringContaining('Billboard Roof')]));
+    expect(specs.every((b) => b.gain > 0)).toBe(true);
+    expect(JSON.stringify(s)).toBe(before); // every trial put back
+    s.rank = 7;
+    s.brandTier = 4; // a Billboard's gates
+    for (const p of PLOTS.filter((x) => x.district === 'maple' && (x.type === 'street' || x.type === 'prime') && !s.plots[x.id].owner).slice(0, 4)) {
+      give(s, p.id);
+      s.plots[p.id].stand = newStand(3);
+    }
+    const mid = JSON.stringify(s);
+    const boards = growthCandidates(s, 1e7).filter((b) => b.kind === 'billboards');
+    expect(boards.length).toBeGreaterThan(0);
+    expect(boards.every((b) => b.gain > 0)).toBe(true);
+    expect(JSON.stringify(s)).toBe(mid); // every trial put back
+  });
+
+  it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
+    const s = newGame(REFERENCE_SEED);
+    const lot = street(s, 'maple').id;
+    give(s, lot); // a bare lot to build on, and land for the bank to lend against
+    s.cash = 200;
+    const bot = newBot();
+    morning(s, bot);
+    expect(s.loan).toBeDefined();
+    expect(bot.played.loans).toBe(1);
+    expect(s.plots[lot].stand).not.toBeNull(); // built with it
+    const owed = { ...s.loan };
+    s.cash = 60;
+    morning(s, bot);
+    expect(s.loan).toEqual(owed); // no second loan while one is out
+    expect(bot.played.loans).toBe(1);
+    s.rank = 7;
+    s.cash = 1e5;
+    morning(s, bot);
+    expect(s.policies?.maple?.kind).toBe('profit');
+    expect(bot.played.policies).toBe(1);
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {

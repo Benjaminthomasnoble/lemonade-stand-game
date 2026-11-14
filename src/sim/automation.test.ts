@@ -232,7 +232,7 @@ function profitOf(s: GameState, plotId: string, recipe: RecipeId, sweetness: Swe
 describe("Marisol's Auto-Price", () => {
   it('waits for Rank 3, then each dawn gives every stand the card and Sweetness that should make the most, priced at the top', () => {
     const s = newGame(31);
-    const side = sideLot(s, 'maple-5n'); // out of the Corner's reach: next-door stands split walkers, and she picks stand by stand
+    const side = sideLot(s, 'maple-5n'); // out of the Corner's reach, so each pick is the best on the street she leaves
     playTo(s, AUTO_RESTOCK_DAY);
     expect(s.today.auto!.price).toBeUndefined(); // below Rank 3 you price your own stands
     expect(prepPreview(s).map((p) => p.id)).toEqual(['restock']);
@@ -295,6 +295,30 @@ describe("Marisol's Auto-Price", () => {
     expect(st.ownCard).toBe(false); // the card is hers to pick again
     const best = bestSetting(s, LOTTIES_CORNER);
     expect([st.recipe, st.sweetness, st.price]).toEqual([best.recipe, best.sweetness, priceCeiling(s, LOTTIES_CORNER)]);
+  });
+
+  it("weighs next-door stands against last night's street, then sets them all: their order never changes a pick", () => {
+    for (const [seed, dear] of [[31, 0], [35, 1]] as const) {
+      const s = newGame(seed);
+      const side = sideLot(s); // next door to the Corner: the two split their walkers by appeal
+      playTo(s, AUTO_RESTOCK_DAY);
+      s.rank = AUTO_PRICE_RANK;
+      nextDawn(s);
+      // Last night's street: one stand's Pink far over its top at $3, so the other (Classic at 50¢) drew the walkers.
+      // Whichever she set first, its new price would swing the other's best Sweetness.
+      [LOTTIES_CORNER, side].forEach((id, i) => {
+        const st = s.plots[id].stand!;
+        Object.assign(st, { recipe: i === dear ? 'pink' : 'classic', sweetness: 'classic', ownCard: false, autoPrice: true });
+        setPrice(st, i === dear ? 3 : 0.5);
+      });
+      const night = structuredClone(s);
+      const picks = [LOTTIES_CORNER, side].map((id) => bestSetting(night, id));
+      helpers().find((h) => h.id === AUTO_PRICE)!.atDawn!(s);
+      [LOTTIES_CORNER, side].forEach((id, i) => {
+        const st = s.plots[id].stand!;
+        expect([st.recipe, st.sweetness, st.price]).toEqual([picks[i].recipe, picks[i].sweetness, priceCeiling(s, id)]);
+      });
+    }
   });
 
   it('follows the ceiling: an upgrade re-posts the price, and the stands open at the top', () => {

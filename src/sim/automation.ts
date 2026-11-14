@@ -146,10 +146,10 @@ export function holdPrices(s: GameState): void {
   for (const p of playerStands(s)) repostPrice(s, p.id);
 }
 
-/** Marisol's morning at one stand: its card and Sweetness for the forecast, priced at the top. True if the card changed. */
-export function autoPrice(s: GameState, plotId: string): boolean {
+/** Marisol's morning at one stand: its card and Sweetness for the forecast, priced at the top. True if the card changed.
+ * `pick`: the setting she already worked out for it (her dawn round weighs every stand before she sets any). */
+export function autoPrice(s: GameState, plotId: string, pick = bestSetting(s, plotId)): boolean {
   const st = s.plots[plotId].stand!;
-  const pick = bestSetting(s, plotId);
   const swapped = pick.recipe !== st.recipe;
   if (swapped) pickRecipe(s, st, pick.recipe);
   setSweetness(st, pick.sweetness); // the Sweetness dial's own setter, as the player's turn of it
@@ -189,14 +189,14 @@ registerHelper({
       met.push(AUTO_PRICE);
       s.news.push('Marisol: "Each morning I price every stand at the top and pick its card. Set one by hand and I leave it be."');
     }
-    let count = 0, cards = 0;
-    for (const p of playerStands(s)) {
-      const st = s.plots[p.id].stand!;
-      if (!pricingOn(s, st) || st.wrecked) continue;
-      count++;
-      if (autoPrice(s, p.id)) cards++;
-    }
-    return count ? { spent: 0, count, amount: cards } : null;
+    // She weighs every stand against the street as it closed last night (the cards and prices next door then), and
+    // only then sets them all: a neighbour's new price never moves the next stand's pick, whatever order they come in.
+    const picks = playerStands(s)
+      .filter((p) => { const st = s.plots[p.id].stand!; return pricingOn(s, st) && !st.wrecked; })
+      .map((p) => ({ id: p.id, pick: bestSetting(s, p.id) }));
+    let cards = 0;
+    for (const { id, pick } of picks) if (autoPrice(s, id, pick)) cards++;
+    return picks.length ? { spent: 0, count: picks.length, amount: cards } : null;
   },
   line: (d) => `${d.count} stand${d.count === 1 ? '' : 's'} at the top${d.amount ? `, ${d.amount} new card${d.amount === 1 ? '' : 's'}` : ''}`,
 });

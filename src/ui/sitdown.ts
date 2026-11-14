@@ -7,7 +7,7 @@
 // counter, and you shake on it or hold firm. Mounted from hud.ts, drawn with
 // its clay kit.
 import {
-  BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, FACILITIES, factionBuyoutPrice, guardReady, haggleOffer, haggles,
+  BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, FACILITIES, factionBuyoutPrice, guardReady, haggleAsk, haggleOffer, haggles,
   haggling, peaceful, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, STAND_LEVELS, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard,
   type PlotState, type RivalId,
 } from '../sim/economy.ts';
@@ -44,11 +44,10 @@ function buyout(k: SitKit, s: GameState, id: RivalId): string {
   const price = factionBuyoutPrice(s, id);
   const who = `data-rival="${id}"`;
   if (price === null || !haggles(id)) return k.btn('factionBuyout', price === null ? 'Buy them out' : `Buy out ${k.whole(price)}`, fb, `${who} data-testid="faction-buyout"`);
-  const offer = haggleOffer(s, id);
-  if (!haggling(s, id)) return k.btn('haggle', `Offer ${k.whole(offer)}`, fb, `${who} data-move="offer" data-testid="faction-buyout" title="${BOSS_NAME[id]} will counter"`);
-  const odds = `${Math.round(caveChance(s, id) * 100)}% ${BOSS_NAME[id]} takes it, or walks out till tomorrow`;
-  return k.btn('factionBuyout', `Shake on ${k.whole(price)}`, fb, `${who} data-testid="faction-buyout"`, 'go')
-    + k.btn('haggle', `Hold ${k.whole(offer)}`, canHoldFirm(s, id), `${who} data-move="firm" data-testid="haggle-firm" title="${k.esc(odds)}"`);
+  if (!haggling(s, id)) return k.btn('haggle', `Offer ${k.whole(haggleOffer(s, id))}`, fb, `${who} data-move="offer" data-testid="faction-buyout" title="${BOSS_NAME[id]} will counter"`);
+  const odds = `${Math.round(caveChance(s, id) * 100)}% ${BOSS_NAME[id]} comes down to it, or walks out till tomorrow`;
+  return k.btn('factionBuyout', `Shake on ${k.whole(haggleAsk(s, id))}`, fb, `${who} data-testid="faction-buyout"`, 'go')
+    + k.btn('haggle', `Hold out for ${k.whole(price)}`, canHoldFirm(s, id), `${who} data-move="firm" data-testid="haggle-firm" title="${k.esc(odds)}"`);
 }
 
 /** The Truce (none in Peaceful, where nobody raids) and the Faction Buyout once it opens, as buttons. */

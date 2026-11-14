@@ -47,12 +47,13 @@ export const SMOOTH_TALKER = { trait: 'Smooth Talker' as Trait, cut: 0.15 };
 export const PLOT_BUYOUT = { home: 2.5, away: 2 };
 /**
  * Juni and Preston haggle over a Faction Buyout (Brock and Tilly accept readily). You open at `offer` times their cash
- * and buildings, what Brock and Tilly take; they counter at their own multiple (HQS: 1.8x). Shake on the counter, or
- * hold firm: they take your offer with chance `cave` less `perGrudge` a point of Grudge toward you, else they walk out
- * until tomorrow and their Grudge rises by `snub`. Placeholders: the spec names the haggle but not its mechanics.
+ * and buildings, what Brock and Tilly take; they counter at `ask`, above their own multiple (HQS: 1.8x). Shake on the
+ * counter, or hold firm: with chance `cave` less `perGrudge` a point of Grudge toward you they come down to their own
+ * multiple, the least they ever sign at, else they walk out until tomorrow and their Grudge rises by `snub`.
+ * Placeholders: the spec names the haggle and the 1.8x, not the mechanics.
  */
 export const HAGGLE = {
-  offer: 1.5, cave: 0.5, perGrudge: 0.005, snub: 5,
+  offer: 1.5, ask: 2.1, cave: 0.5, perGrudge: 0.005, snub: 5,
   lines: { coldbrew: 'in small bills, for authenticity', fizzco: 'after hard haggling' } as Partial<Record<RivalId, string>>,
 };
 export const FIRE_SALE = { share: 0.75, days: 2 };
@@ -435,9 +436,11 @@ export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
 export const haggles = (id: RivalId) => HAGGLE.lines[id] !== undefined;
 /** The counter-offer is on the table today: shake on it, or hold firm. */
 export const haggling = (s: GameState, id: RivalId) => s.rivals[id].haggle?.day === s.day && !s.rivals[id].haggle?.out;
-/** Your opening offer to a haggler, and what holding firm pays: what Brock and Tilly take. */
+/** Your opening offer to a haggler: what Brock and Tilly take (a haggler never signs at it). */
 export const haggleOffer = (s: GameState, id: RivalId) => Math.round(businessOf(s, id) * HAGGLE.offer * sitDownTerms(s) * firmHandshake(s));
-/** The chance a haggler takes your offer when you hold firm: less the more they hold against you. */
+/** A haggler's counter to your offer, above their own price: what shaking on it pays. */
+export const haggleAsk = (s: GameState, id: RivalId) => Math.round(businessOf(s, id) * HAGGLE.ask * sitDownTerms(s) * firmHandshake(s));
+/** The chance a haggler comes down to their own price when you hold firm: less the more they hold against you. */
 export const caveChance = (s: GameState, id: RivalId) => Math.max(0, Math.min(1, HAGGLE.cave - Math.max(0, s.rivals[id].grudge) * HAGGLE.perGrudge));
 /** The bosses by first name, across the table. */
 export const BOSS_NAME: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera', snootwater: 'Sterling' };
@@ -455,11 +458,11 @@ function buyoutTable(s: GameState, id: RivalId): Blocker {
   return { ok: true };
 }
 
-/** Can you buy them out now: at their price, or (a haggler, before the counter) at your opening offer. */
+/** Can you buy them out now: at their price, or (a haggler) open the haggle with their price in hand, then shake on their counter. */
 export function canFactionBuyout(s: GameState, id: RivalId): Blocker {
   const table = buyoutTable(s, id);
   if (!table.ok) return table;
-  const need = haggles(id) && !haggling(s, id) ? haggleOffer(s, id) : factionBuyoutPrice(s, id)!; // a haggler hears your offer first
+  const need = haggles(id) && haggling(s, id) ? haggleAsk(s, id) : factionBuyoutPrice(s, id)!; // a haggler never signs below their price
   if (s.cash < need) return { ok: false, why: `They want ${money(need)}` };
   return { ok: true };
 }
@@ -469,19 +472,20 @@ export function canHoldFirm(s: GameState, id: RivalId): Blocker {
   const table = buyoutTable(s, id);
   if (!table.ok) return table;
   if (!haggling(s, id)) return { ok: false, why: 'Make an offer first' };
-  if (s.cash < haggleOffer(s, id)) return { ok: false, why: `Your offer is ${money(haggleOffer(s, id))}` };
+  const floor = factionBuyoutPrice(s, id)!; // what they come down to
+  if (s.cash < floor) return { ok: false, why: `They want ${money(floor)}` };
   return { ok: true };
 }
 
 /** Sign at their price. A haggler signs only once their counter-offer is on the table (haggle first). */
 export function factionBuyout(s: GameState, id: RivalId): boolean {
   if (!canFactionBuyout(s, id).ok || (haggles(id) && !haggling(s, id))) return false;
-  return signBuyout(s, id, factionBuyoutPrice(s, id)!);
+  return signBuyout(s, id, haggles(id) ? haggleAsk(s, id) : factionBuyoutPrice(s, id)!); // a haggler: shake on the counter
 }
 
 /**
- * Juni's and Preston's haggle. 'offer': you open at what Brock and Tilly take, and they counter at their price.
- * 'firm': you hold at your offer, and they take it or walk out until tomorrow (sorer for it).
+ * Juni's and Preston's haggle. 'offer': you open at what Brock and Tilly take, and they counter above their price.
+ * 'firm': you hold out, and they come down to their price or walk out until tomorrow (sorer for it).
  */
 export function haggle(s: GameState, id: RivalId, move: 'offer' | 'firm'): boolean {
   if (!haggles(id)) return false;
@@ -489,14 +493,14 @@ export function haggle(s: GameState, id: RivalId, move: 'offer' | 'firm'): boole
   if (move === 'offer') {
     if (haggling(s, id) || !canFactionBuyout(s, id).ok) return false;
     r.haggle = { day: s.day };
-    s.news.push(`${bossName(id)} counters your ${money(haggleOffer(s, id))} at Dot's Diner: ${money(factionBuyoutPrice(s, id)!)}, ${HAGGLE.lines[id]}.`);
+    s.news.push(`${bossName(id)} counters your ${money(haggleOffer(s, id))} at Dot's Diner: ${money(haggleAsk(s, id))}, ${HAGGLE.lines[id]}.`);
     return true;
   }
   if (!canHoldFirm(s, id).ok) return false;
   const rng = { seed: s.seed };
   const took = nextRandom(rng) < caveChance(s, id);
   s.seed = rng.seed;
-  if (took) return signBuyout(s, id, haggleOffer(s, id));
+  if (took) return signBuyout(s, id, factionBuyoutPrice(s, id)!); // down to their price, never to your offer
   r.haggle = { day: s.day, out: true };
   r.grudge = Math.min(100, r.grudge + HAGGLE.snub);
   s.news.push(`${bossName(id)} walks out of Dot's Diner. Try again tomorrow.`);

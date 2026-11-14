@@ -19,6 +19,7 @@ import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
 import { freezeOn, runningSchemes, snipeBid } from './schemes.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { sharpPencil } from './perks.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -59,7 +60,7 @@ export function outbid(s: GameState, loser: RivalId, winner: FactionId): void {
 export const pickupBooked = (s: GameState, plotId: string) => s.orders.some((o) => o.plot === plotId);
 
 /** What Lottie pays for a winning bid: Family Silver takes 10% off. */
-export const bidCost = (s: GameState, amount: number) => Math.round(amount * familySilver(s));
+export const bidCost = (s: GameState, amount: number) => Math.round(amount * familySilver(s) * sharpPencil(s)); // Sharp Pencil: 10% off (perks.ts)
 
 /** Plots on the block. A listing of yours that changed hands some other way (sold to a Hostile Takeover offer) just waits for dawn to clear. */
 export const auctionPlots = (s: GameState) => PLOTS.filter((p) => {

@@ -11,8 +11,10 @@
 // events have moved it (actAtDawn, ahead of the Economic win check), and at closing; the peak also whenever land or
 // rivals change hands (checkVictory), so TARGET HIT never sits beside a lower peak. Pure.
 import { BUILDING_VALUE_SHARE, HIRE_RANK, RANKS } from './balance.ts';
-import { rankFor, successScore, type GameState } from './economy.ts';
+import { rankFor, successScore, type GameState, type SimEvent } from './economy.ts';
 import { refreshRecruits } from './crew.ts';
+import { dealTips, tipAlert } from './perks.ts';
+import type { Alert } from './alerts.ts';
 import { grandkid } from './grandkid.ts';
 import { PLOTS } from './map.ts';
 
@@ -52,13 +54,15 @@ export function builtFree(s: GameState, plotId: string): void {
   if (b && s.plots[plotId]?.owner === 'player') b.built[plotId] = s.plots[plotId].invested;
 }
 
-/** Rank up on the spot (ranks are never lost): the headline, and the Hiring Hall at its rank. */
+/** Rank up on the spot (ranks are never lost): the headline, a hand of Lottie's Tips for each rank crossed, and the
+ * Hiring Hall at its rank. */
 function rankUp(s: GameState, score: number): void {
   const r = rankFor(score).rank;
   if (r <= s.rank) return;
   const was = s.rank;
   s.rank = r;
   s.news.push(`RANK UP! ${grandkid(s).first} is now a ${RANKS[r - 1].title}`);
+  for (let k = was + 1; k <= r; k++) dealTips(s, k); // perks.ts: pick 1 of 3 at each rank-up
   if (was < HIRE_RANK && r >= HIRE_RANK) refreshRecruits(s, true); // the Hiring Hall opens (Dex comes on his own day, not with a rank)
 }
 
@@ -67,12 +71,20 @@ export function samplePeak(s: GameState, score = successScore(s)): void {
   if (score > s.peakScore) { s.peakScore = score; s.peakDay = s.day; }
 }
 
-/** Wherever the score can change: the invested dip, the peak (and its day), and a rank-up on the spot. */
-export function scoreCheck(s: GameState): void {
+/** Wherever the score can change: the invested dip, the peak (and its day), and a rank-up on the spot. Returns the
+ * alert of a hand of Lottie's Tips that just came up to pick from (perks.ts), if one did. */
+export function scoreCheck(s: GameState): Alert | null {
   const score = successScore(s);
   trackDip(s, score);
   samplePeak(s, score);
   rankUp(s, score);
+  return tipAlert(s);
+}
+
+/** The clock's look (each business minute, each night step): a hand's alert is a SimEvent, so it stops the skips. */
+export function scoreMinute(s: GameState): SimEvent[] {
+  const a = scoreCheck(s);
+  return a ? [{ type: 'alert', alert: a }] : [];
 }
 
 /** The Rank badge's striped sliver, in dollars: the building dip still owed, never more than the drop from the peak. */

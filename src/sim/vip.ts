@@ -16,6 +16,7 @@ import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf 
 import { rivalStars } from './demand.ts';
 import { perkActive } from './land.ts'; // land: the Full Control perks
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
+import { steadyPour } from './perks.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal' | 'mega';
@@ -237,7 +238,7 @@ function firstDeal(s: GameState): void {
   s.seed = rng.seed;
 }
 
-export const bottlingCapacity = (s: GameState) => Math.round(facilityPlots(s, 'bottling').reduce((a, p) => a + BOTTLES_PER_DAY[s.plots[p.id].facility!.level - 1], 0) * (hasTrophy(s, 'fizzco') ? 1.25 : 1));
+export const bottlingCapacity = (s: GameState) => Math.round(facilityPlots(s, 'bottling').reduce((a, p) => a + BOTTLES_PER_DAY[s.plots[p.id].facility!.level - 1], 0) * (hasTrophy(s, 'fizzco') ? 1.25 : 1) * steadyPour(s)); // Steady Pour: perks.ts
 
 // ---------- offers ----------
 

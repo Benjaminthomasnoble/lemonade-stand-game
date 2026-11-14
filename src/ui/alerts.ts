@@ -90,6 +90,7 @@ export function alertCards(s: GameState): string[] {
       if (r) out.push(warning(s, a, r));
       continue;
     }
+    if (a.kind === 'perk') continue; // a hand of Lottie's Tips is its own ticket at the top of the feed (src/ui/perks.ts)
     const small = a.kind === 'soldout' || a.kind === 'note' || (a.kind === 'pickup' && !a.scene);
     if (small && (a.day !== s.day || s.minute - a.minute > ALERT_LIFE)) continue;
     out.push(card(s, a));

@@ -41,7 +41,8 @@ import { actAtDawn, migrateStory, storyAtClose, storyAtDawn, storyAtStart, story
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
 import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
-import { scoreCheck } from './score.ts';
+import { scoreCheck, scoreMinute } from './score.ts';
+import { campaignDays, goodDirt, lemonDays } from './perks.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -756,7 +757,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
 export function tickMinute(s: GameState): SimEvent[] {
   if (s.phase === 'night') { // the night runs on the same clock; at 07:00 dawn opens Morning Prep
     const night = nightStep(s);
-    scoreCheck(s); // night loot and a VIP pickup's pay move the score too: a rank-up on the spot (score.ts)
+    night.push(...scoreMinute(s)); // night loot and a VIP pickup's pay move the score too: a rank-up on the spot (score.ts)
     if (s.minute >= NIGHT_END && !s.fight && sleepUntilDawn(s)) night.push({ type: 'dawn' }); // combat: a live fight holds dawn at 07:00 till it's over
     return night;
   }
@@ -781,7 +782,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   for (const pk of pickupsAt(s)) events.push({ type: 'pickup', ...pk });
   s.minute++;
   events.push(...onTheClock(s, events)); // daytime raids are warned and fought on the clock; calls land in the feed
-  storyMinute(s);
+  events.push(...storyMinute(s)); // a hand of Lottie's Tips is a major alert (score.ts, perks.ts)
   callsOnTheClock(s); // a day call breaks in at its minute (calls.ts)
   eventsOnTheClock(s); // world: mid-day events break in on 101.5
   if (s.minute >= CLOSE) {
@@ -878,7 +879,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   for (const p of playerStands(s)) {
     const st = s.plots[p.id].stand!;
     st.inventory.lemons = st.inventory.lemons.filter((b) => {
-      const bad = s.day - b.day >= (SUPPLIES.lemons.spoilDays ?? 99);
+      const bad = s.day - b.day >= lemonDays(s); // Cool Cellar keeps them longer (perks.ts)
       if (bad) { spoiled += b.qty; spoiledValue += b.qty * b.unitCost; }
       return !bad;
     });
@@ -924,7 +925,7 @@ export function simulateRestOfDay(s: GameState, stopAtAlerts = false): SimEvent[
 }
 
 export function lemonsExpiringTomorrow(s: GameState, st: Stand): number {
-  return st.inventory.lemons.filter((b) => s.day + 1 - b.day >= (SUPPLIES.lemons.spoilDays ?? 99)).reduce((a, b) => a + b.qty, 0);
+  return st.inventory.lemons.filter((b) => s.day + 1 - b.day >= lemonDays(s)).reduce((a, b) => a + b.qty, 0);
 }
 
 // ---------- land ----------
@@ -968,7 +969,7 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
 export function plotPrice(s: GameState, plotId: string): number {
   const ps = s.plots[plotId];
   const base = ps.dibs?.who === 'player' && ps.dibs.until >= s.day && ps.dibs.price !== undefined ? ps.dibs.price : ps.landValue;
-  return Math.round(base * majorityDiscount(s, PLOT_BY_ID[plotId].district) * familySilver(s));
+  return Math.round(base * majorityDiscount(s, PLOT_BY_ID[plotId].district) * familySilver(s) * goodDirt(s)); // Good Dirt: 10% off (perks.ts)
 }
 
 export function buyPlot(s: GameState, plotId: string): boolean {
@@ -1159,7 +1160,7 @@ export function startCampaign(s: GameState, id: CampaignId, plotId: string): voi
     useStock(s, (costPerCup(s, st) - CUP_COST - RECIPES[st.recipe].extraPerCup) * cost.samples, false, 'marketing'); // a cost of the campaign, not of Supplies
   }
   if (c.reputation) s.reputation = clamp(Math.round((s.reputation + c.reputation) * 1e4) / 1e4, 1, 5); // Reputation keeps four decimals
-  st.campaigns[id] = c.days;
+  st.campaigns[id] = campaignDays(s, c.days); // Long Run: 50% more days (perks.ts)
 }
 
 // ---------- Lottie's Goals ----------

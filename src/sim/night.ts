@@ -31,6 +31,7 @@ import { difficulty, peaceful } from './modes.ts';
 import { deliveryRaider, nightShiftStealth } from './rivalAi.ts';
 import { scriptedRaider } from './beats.ts';
 import { autoDefendOnWarning } from './autodefend.ts';
+import { lightSleeper } from './perks.ts';
 
 // ---------- clock ----------
 
@@ -171,7 +172,7 @@ function fillTimes(s: GameState, r: Raid): void {
 }
 
 /** Juni's Grapevine (the Cold Brew trophy): word of a raid on you, Delivery Raids included, comes an hour sooner. */
-const early = (s: GameState, r: Raid) => (onYou(s, r) && hasTrophy(s, 'coldbrew') ? GRAPEVINE_EARLY : 0);
+const early = (s: GameState, r: Raid) => (onYou(s, r) ? (hasTrophy(s, 'coldbrew') ? GRAPEVINE_EARLY : 0) + lightSleeper(s) : 0); // and Light Sleeper's half hour (perks.ts)
 
 /** When a raid on you is warned: a detected one as it sets out, with its full ETA; an undetected one at the minimum
  * notice before it hits. The Grapevine moves either an hour earlier. */

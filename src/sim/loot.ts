@@ -8,6 +8,7 @@
 // the cargo, not the till. Pure, like the rest of the sim.
 import type { RivalId } from './balance.ts';
 import { costPerCup, standLevel, type GameState } from './economy.ts';
+import { lockbox } from './perks.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -36,5 +37,5 @@ export function shakedownLoot(s: GameState, plotId: string): number {
   const ps = s.plots[plotId], st = ps?.stand;
   if (!st || !ps.owner) return 0;
   const cash = ps.owner === 'player' ? s.cash : s.rivals[ps.owner as RivalId]?.cash ?? 0;
-  return round2(Math.max(0, Math.min(st.lastProfit ?? dayProfit(s, plotId), cash)));
+  return round2(Math.max(0, Math.min((st.lastProfit ?? dayProfit(s, plotId)) * lockbox(s, ps.owner), cash))); // Lockbox: 25% less from yours (perks.ts)
 }

@@ -13,7 +13,7 @@ import {
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { alert } from './alerts.ts';
-import type { GameState, Stand } from './economy.ts';
+import type { GameState, SimEvent, Stand } from './economy.ts';
 import { dayProfit } from './ledger.ts'; // the Ledger's profit for a day (demand)
 import type { BattleReport } from './crew.ts';
 import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLevel, stock } from './economy.ts';
@@ -24,7 +24,8 @@ import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 import { endingFor } from './modes.ts';
 import { crewName } from './grandkid.ts';
 import { cameosAtClose, cameosAtDawn } from './cameos.ts';
-import { migrateScore, scoreCheck, type ScoreBooks } from './score.ts';
+import { migrateScore, scoreCheck, scoreMinute, type ScoreBooks } from './score.ts';
+import { migrateTips, type TipsState } from './perks.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -53,6 +54,8 @@ export interface StoryState {
   cameoNews?: { day: number; who: RivalId; n: number };
   /** The score's books between looks: the Rank badge's invested sliver (src/sim/score.ts). */
   score?: ScoreBooks;
+  /** Lottie's Tips: the ones you keep and the rank-ups' hands still to pick from (src/sim/perks.ts). */
+  tips?: TipsState;
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -177,6 +180,7 @@ export function migrateStory(s: GameState): void {
   migratePhone(s);
   migrateGoals(s);
   migrateScore(s);
+  migrateTips(s);
 }
 
 /** One act a dawn, so each climax gets its own morning (actAtDawn). */
@@ -362,13 +366,13 @@ export function storyAtDawn(s: GameState): void {
 }
 
 /** Every game minute while open (one line in tickMinute): goals tick off as they're met, and the score updates. */
-export function storyMinute(s: GameState): void {
+export function storyMinute(s: GameState): SimEvent[] {
   if (s.minute % 10 === 0) {
     checkGoals(s);
     beatsOnTheClock(s); // the first ship docks; Juni's tip before the first chopper loads
     phoneCheck(s);
   }
-  scoreCheck(s); // a rank-up on the spot, and the peak (score.ts)
+  return scoreMinute(s); // a rank-up on the spot, and the peak; a hand of Lottie's Tips stops the skips (score.ts)
 }
 
 /** Closing time (one line in closeDay, after tonight's raids are planned): the day's goals, Dex's post, tonight's warning calls. */

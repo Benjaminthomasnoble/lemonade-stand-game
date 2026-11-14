@@ -14,6 +14,7 @@ import type { Kit } from './hud.ts';
 import { nextClubhouse, type ClubKit } from './clubhouse.ts';
 import { heldNote } from './captives.ts';
 import { glyph } from './clay.ts';
+import { hireFee } from '../sim/perks.ts';
 
 /** Each specialty's badge: a watchtower for the Lookout, a boom for the Wrecker, a star for the Captain. */
 const SPECIALTY_ART: Record<Specialty, (k: Kit) => string> = { lookout: (k) => k.ART.tower(), wrecker: (k) => k.ART.boom(), captain: (k) => k.ART.star(true) };
@@ -91,7 +92,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
 /** The roster, the Hiring Hall and (when beds run short) the next Clubhouse. */
 export function crewPanel(k: Kit, s: GameState): string {
   if (!s.guards.length && (s.rank < HIRE_RANK || !taught(s, 'crew'))) return '';
-  const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${k.esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${k.whole(guardWage(g))}/day">${guardFace(k, s, g)}<span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}${k.btn('hire', k.whole(g.fee), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
+  const recruits = s.recruits.map((g) => { const b = canHire(s, g.id); return `<div class="cl-guard recruit" title="${k.esc(g.name)}: L${g.level} ${guardTitle(g)}, ${g.trait}, ${k.whole(guardWage(g))}/day">${guardFace(k, s, g)}<span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}${k.btn('hire', k.whole(hireFee(s, g)), b, `data-id="${g.id}" data-testid="hire"`, 'go')}</div>`; }).join('');
   return `<div class="cl-crew"><span class="cl-label">${crewField(s)} ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(k, s, g)).join('')}</div>
       ${recruits ? `<span class="cl-label">Hiring Hall</span><div class="cl-faces">${recruits}</div>` : ''}
       ${nextClubhouse(clubKit(k), s)}</div>`;

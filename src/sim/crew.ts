@@ -38,6 +38,7 @@ import { fortifiedFrame } from './specializations.ts'; // demand: the Fortified 
 import { cite, citationRisk, citationsAtDawn, migrateCitations, raidBan } from './citations.ts';
 import { migrateTemplates, noteTemplateRaid } from './templates.ts';
 import { builtFree } from './score.ts';
+import { helpWanted, hireFee, nosyNeighbors, quickStudy, tipsInFight } from './perks.ts'; // Lottie's Tips
 
 export interface Guard {
   id: string;
@@ -295,7 +296,7 @@ export function refreshRecruits(s: GameState, force = false): void {
   if (s.rank < HIRE_RANK) return;
   if (!force && s.recruitDay !== undefined && s.day - s.recruitDay < RECRUIT_DAYS) return;
   const rng = { seed: s.seed };
-  s.recruits = Array.from({ length: RECRUIT_POOL }, () => makeGuard(s, rng, recruitLevel(s.rank, nextRandom(rng))));
+  s.recruits = Array.from({ length: RECRUIT_POOL + helpWanted(s) }, () => makeGuard(s, rng, recruitLevel(s.rank, nextRandom(rng)))); // Help Wanted: one more (perks.ts)
   s.recruitDay = s.day;
   s.seed = rng.seed;
 }
@@ -348,7 +349,7 @@ export function canHire(s: GameState, id: string): Blocker {
   if (!g) return { ok: false, why: 'Gone' };
   if (s.rank < HIRE_RANK) return { ok: false, why: `Needs Rank ${HIRE_RANK}, ${RANKS[HIRE_RANK - 1].title}` };
   if (s.guards.length >= rosterCap(s)) return { ok: false, why: clubhouses(s).length ? 'Clubhouse is full' : 'Build a Clubhouse to house more guards' };
-  if (s.cash < g.fee) return { ok: false, why: `Needs ${money(g.fee)}` };
+  if (s.cash < hireFee(s, g)) return { ok: false, why: `Needs ${money(hireFee(s, g))}` }; // Family Rates: 25% off (perks.ts)
   return { ok: true };
 }
 
@@ -356,7 +357,7 @@ export function hireGuard(s: GameState, id: string): boolean {
   if (!canHire(s, id).ok) return false;
   const i = s.recruits.findIndex((r) => r.id === id);
   const g = s.recruits.splice(i, 1)[0];
-  book(s, 'hire', -g.fee);
+  book(s, 'hire', -hireFee(s, g));
   g.post = null;
   s.guards.push(g);
   const posted = postGuard(s, g.id, s.selected); // the plot you're looking at, if it has a free post; else the Clubhouse
@@ -645,11 +646,11 @@ function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<str
 
 function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng): BattleInput {
   const ps = s.plots[raid.target];
-  return {
+  return tipsInFight(s, raid, night, { // Lottie's fighting tips (perks.ts)
     attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng, raid.attacker), night),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: armedGadgets(ps),
     standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
-  };
+  });
 }
 
 /** Who is really on a plot of yours right now: posted there, not Out, not out scouting, and not away on a raid (night.ts
@@ -698,6 +699,7 @@ export function detectionChance(s: GameState, plotId: string, night: boolean, sn
   if (here.some((g) => g.specialty === 'lookout')) d += LOOKOUT_DETECTION;
   if (mine && neighborhoodWatch(s)) d += NEIGHBORHOOD_WATCH_DETECTION;
   if (mine && holdsStronghold(s, PLOT_BY_ID[plotId].district)) d += STRONGHOLD_DETECTION;
+  d += nosyNeighbors(s, mine); // Nosy Neighbors: Lottie's tip, +10 points (perks.ts)
   d = Math.min(DETECTION_CAP, d);
   if (night && !ps.defense.gadgets.includes('floodlights')) d -= NIGHT_STEALTH;
   if (sneaky) d -= SNEAKY_STEALTH;
@@ -1041,7 +1043,7 @@ export function creditGuards(s: GameState, input: BattleInput, res: { koed: stri
     const g = s.guards.find((x) => x.id === f.id);
     if (!g) continue;
     if (res.koed.includes(g.id)) g.outUntil = s.day + 1 + koDays(s, !!res.hatchetKos?.includes(g.id));
-    g.xp += (res.winner === f.side ? 2 : 1);
+    g.xp += (res.winner === f.side ? 2 : 1) * quickStudy(s); // Quick Study: ×1.5 (perks.ts)
     while (g.level < 5 && g.xp >= GUARD_XP_TO_LEVEL[g.level]) { g.level++; s.news.push(`${g.name} is now a ${guardTitle(g)}!`); }
   }
 }

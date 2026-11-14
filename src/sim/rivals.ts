@@ -20,6 +20,7 @@ import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squ
 import { leftBehind, nabLeftBehind } from './captives.ts';
 import { raidBan } from './citations.ts';
 import { crewName } from './grandkid.ts';
+import { elbowGrease, firmHandshake } from './perks.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -359,7 +360,7 @@ export function plotBuyoutPrice(s: GameState, plotId: string): number {
   const id = ps.owner as RivalId;
   const home = PLOT_BY_ID[plotId].district === FACTIONS[id].home;
   const nudge = 1 + s.rivals[id].grudge / 200 + (id === 'sourwood' ? 0.2 : 0);
-  return Math.round(ps.landValue * (tillyFieldRate(s, plotId) ?? (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away)) * nudge * familySilver(s) * sitDownTerms(s));
+  return Math.round(ps.landValue * (tillyFieldRate(s, plotId) ?? (home ? PLOT_BUYOUT.home : PLOT_BUYOUT.away)) * nudge * familySilver(s) * sitDownTerms(s) * firmHandshake(s)); // Firm Handshake: 15% off (perks.ts)
 }
 
 export function canPlotBuyout(s: GameState, plotId: string): Blocker {
@@ -402,7 +403,7 @@ export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {
   // Peaceful Sandbox: even Vera sells once Weakened (at 3x), so Domination can finish without a fight.
   const m = HQS[id].buyout ?? (peaceful(s) ? PEACEFUL_VERA_BUYOUT : null);
   if (m === null) return null;
-  return Math.round(businessOf(s, id) * m * sitDownTerms(s));
+  return Math.round(businessOf(s, id) * m * sitDownTerms(s) * firmHandshake(s)); // Firm Handshake: 15% off (perks.ts)
 }
 
 /** Juni and Preston haggle; the others sign at their price. */
@@ -410,7 +411,7 @@ export const haggles = (id: RivalId) => HAGGLE.lines[id] !== undefined;
 /** The counter-offer is on the table today: shake on it, or hold firm. */
 export const haggling = (s: GameState, id: RivalId) => s.rivals[id].haggle?.day === s.day && !s.rivals[id].haggle?.out;
 /** Your opening offer to a haggler, and what holding firm pays: what Brock and Tilly take. */
-export const haggleOffer = (s: GameState, id: RivalId) => Math.round(businessOf(s, id) * HAGGLE.offer * sitDownTerms(s));
+export const haggleOffer = (s: GameState, id: RivalId) => Math.round(businessOf(s, id) * HAGGLE.offer * sitDownTerms(s) * firmHandshake(s));
 /** The chance a haggler takes your offer when you hold firm: less the more they hold against you. */
 export const caveChance = (s: GameState, id: RivalId) => Math.max(0, Math.min(1, HAGGLE.cave - Math.max(0, s.rivals[id].grudge) * HAGGLE.perGrudge));
 /** The bosses by first name, across the table. */
@@ -584,7 +585,7 @@ function boss(id: RivalId, n: number): Fighter {
 /** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */
 export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[] {
   breakTruce(s, id);
-  return squadFighters(raidSquad(s, guardIds), 'att', raidIsNight(s), id); // crew: a Captain leads the squad; Morning Prep is night
+  return elbowGrease(s, squadFighters(raidSquad(s, guardIds), 'att', raidIsNight(s), id)); // crew: a Captain leads the squad; Morning Prep is night. Elbow Grease: perks.ts
 }
 
 /**

@@ -58,6 +58,7 @@ import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
 import { grandkid, renameCrew } from './sim/grandkid.ts';
+import { pickTip, tipsKey } from './sim/perks.ts';
 import { takeCall } from './sim/phone.ts';
 import { endVictoryShow, victoryStage, victoryTick } from './sim/victory.ts';
 import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
@@ -164,6 +165,15 @@ async function main() {
     if (a.kind === 'raid' || a.kind === 'delivery') raidWarned();
     if (isMajor(a) && autoPauses(options, state, a.kind)) { pause(); if (a.kind === 'vip') vipPaused = a.id; }
   };
+  /** A rank-up's hand of Lottie's Tips came up to pick from (src/sim/perks.ts): it pauses like its alert, wherever it
+   * came from (the clock, a tap, the dawn, a skip), once a hand. Picking brings up the next hand, if there is one. */
+  let tipsSeen = tipsKey(state);
+  const tipsCheck = () => {
+    const k = tipsKey(state);
+    if (k === tipsSeen) return;
+    tipsSeen = k;
+    if (k && autoPauses(options, state, 'perk')) pause();
+  };
   /** A VIP card's Watch: the camera flies to the pad or pier and the arrival plays. A first visit holds the clock
    * for its show (its own switch); a regular's replays while the clock runs on. */
   const watchVip = (a: Alert) => {
@@ -192,7 +202,7 @@ async function main() {
   const restore = (s: GameState, line: string) => {
     state = s;
     state.runId ??= `${state.seed.toString(36)}-${Date.now().toString(36)}`;
-    hud.inspected = null; vipResume = 0; vipPaused = ''; acc = 0; savedHour = -1;
+    hud.inspected = null; vipResume = 0; vipPaused = ''; acc = 0; savedHour = -1; tipsSeen = tipsKey(state);
     crowd.clear(); stopFights(); resetScene(); bubbles.clear(); bay.sync(state); focusPlot(state.selected);
     if (midDay(state)) pause(); else resume();
     hud.toast(line);
@@ -204,6 +214,7 @@ async function main() {
     crowd.clear();
     morningLine();
     prepWait = 0;
+    tipsCheck(); // the Rank lesson's morning brings up a hand dealt before it
     const shot = bugle.best(state.day - 1);
     if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state), options.celsius); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
   };
@@ -701,6 +712,7 @@ async function main() {
       case 'sponsor': sponsorFestival(state, a.festival); break;
       case 'skipScene': finishScene(true); break;
       case 'storyOffer': answerOffer(state, a.accept); break;
+      case 'tip': pickTip(state, a.id); break; // keep one of Lottie's Tips (src/sim/perks.ts)
       case 'crewName': renameCrew(state, a.name); break; // the Crew roster's name field (src/sim/grandkid.ts)
       case 'sceneReply': {
         replyScene(state, a.text);
@@ -718,6 +730,7 @@ async function main() {
     }
     announceControl(state); // any land that changed hands: Majority and Full Control headlines
     storyAfterAct(state); // a goal met by this tap ticks off now
+    tipsCheck(); // a rank-up from this tap (a buyout, a sale), or the next hand after a pick
     bay.sync(state);
     bay.select(hud.inspected);
     flushNews();
@@ -930,6 +943,7 @@ async function main() {
       const from = state.phase;
       if (from !== 'open' && from !== 'night') return;
       atOnce(() => { for (let i = 0; i < minutes && state.phase === from; i++) tickMinute(state); });
+      tipsCheck();
       if (state.phase !== from) { flushNews(); saveGame(state); if (state.phase === 'prep') atDawn(); }
       hud.render(state, shownSpeed());
     },
@@ -970,6 +984,7 @@ async function main() {
         drawEvents(tickMinute(state));
         if (state.phase !== from || knob.speed === 0 || vipResume) { acc = 0; break; }
       }
+      tipsCheck(); // its alert paused already (drawEvents); a hand dealt at closing has none
       if (state.phase !== from) { flushNews(); saveGame(state); bay.sync(state); }
       else flushNews();
       // Any day resumes mid-day: the clock saves once a game hour (and whenever the page is hidden, above).

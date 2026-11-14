@@ -33,6 +33,7 @@ import { announceControl } from './land.ts';
 import { canSpend, spend } from './rivalAi.ts';
 import { specsInvested } from './specializations.ts'; // demand: what its slots' fittings cost
 import { garrisonHome } from './garrison.ts';
+import { handyHands } from './perks.ts';
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
 export { buildingHp } from './crew.ts';
@@ -182,7 +183,7 @@ export function repairCost(s: GameState, plotId: string): number {
   const base = buildingInvested(ps);
   const fall = ps.owner === 'player' && difficulty(s).bustOnly ? BUSTED_REPAIR_SHARE : REBUILD_SHARE;
   const cap = Math.max(0, dollarsUp(base * fall) - (booked(ps)?.cost ?? 0));
-  return Math.min(dollarsUp(base * DAMAGE_REPAIR_SHARE * (lost / buildingHp(ps))), cap);
+  return Math.min(dollarsUp(base * DAMAGE_REPAIR_SHARE * (lost / buildingHp(ps)) * handyHands(s, ps.owner)), cap); // Handy Hands: 25% off yours (perks.ts)
 }
 
 /** Repairs are approved any time up to the end of the Evening (they run overnight), on your own Damaged buildings. A

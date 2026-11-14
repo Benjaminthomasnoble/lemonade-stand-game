@@ -25,6 +25,7 @@ import { restoreHp } from './damage.ts';
 import { raidCall } from './phone.ts';
 import { landFrozen, provideMysteryGoal } from './schemes.ts';
 import { actOf } from './modes.ts';
+import { letItGo, lowProfile } from './perks.ts';
 
 export type Bucket = 'grow' | 'guard' | 'strike';
 /** Money set aside from a rival's takings, by what it buys. Unspent buckets roll over. */
@@ -320,7 +321,7 @@ function coolGrudges(s: GameState, id: RivalId): void {
   const seen = (s.rivals[id].grudgeSeen ??= {});
   for (const at of ['player', ...RIVALS.filter((x) => x !== id)] as FactionId[]) {
     const g = grudgeToward(s, id, at);
-    if (g <= (seen[at] ?? 0)) setGrudge(s, id, at, g - GRUDGE.cool);
+    if (g <= (seen[at] ?? 0)) setGrudge(s, id, at, g - GRUDGE.cool * letItGo(s, at)); // Let It Go: yours cools twice as fast (perks.ts)
     seen[at] = grudgeToward(s, id, at);
   }
 }
@@ -614,7 +615,7 @@ export function attentionOf(s: GameState, id: RivalId): number {
   if (!s.rivals[id].alive) return 0;
   const a = ATTENTION.threat * threatLevel(s) + ATTENTION.border * sharedBorders(s, id)
     + ATTENTION.customers * customersTaken(s, id) + ATTENTION.grudge * s.rivals[id].grudge;
-  return Math.round(a * 10) / 10;
+  return Math.round(a * lowProfile(s) * 10) / 10; // Low Profile: Lottie's tip (perks.ts)
 }
 
 // ---------- Strike: who raids, and what it costs ----------

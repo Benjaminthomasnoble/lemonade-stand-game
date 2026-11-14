@@ -9,8 +9,8 @@
 // the rivals lane's board (corkboard.ts); the Land Registry is the land lane's
 // screen (registry.ts, which hud.ts draws). The Raid Planner lists the nearest
 // targets and mounts crew's planner (src/ui/raidPlanner.ts) for the one picked,
-// the same panel as on its plot card; Rank and Perks shows the rank ladder
-// (Lottie's tips join it later).
+// the same panel as on its plot card; Rank and Perks shows the rank ladder,
+// a rank-up's hand of Lottie's Tips to pick from and the tips you keep (src/ui/perks.ts).
 import { glyph } from './clay.ts';
 import {
   deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, RAID_RANK, RANKS, RECIPES,
@@ -25,6 +25,7 @@ import { matchButton, orderNote, orderWhen, recipeOf } from './orders.ts';
 import { registryOpen } from './registry.ts';
 import { taught } from '../sim/story.ts';
 import { scoreLine } from './ledger.ts';
+import { perksSheet } from './perks.ts';
 
 export type MenuView = MenuId | 'index';
 
@@ -130,7 +131,7 @@ function rank(s: GameState): string {
     const now = r.rank === s.rank, next = r.rank === s.rank + 1;
     return `<tr${now ? ' class="good"' : ''}><td>${now ? '<b>' : ''}R${r.rank} ${esc(r.title)}${now ? '</b>' : ''}</td><td>${whole(r.ss)}${next ? ` (${whole(r.ss - ss)} to go)` : ''}</td></tr>`;
   }).join('');
-  return sheet('rank', 'Rank and Perks', `${row(`<span class="cl-note" title="Your best: ${whole(s.peakScore)}">Success Score ${whole(ss)}</span>`)}<table class="cl-books">${rows}</table>`);
+  return sheet('rank', 'Rank and Perks', `${row(`<span class="cl-note" title="Your best: ${whole(s.peakScore)}">Success Score ${whole(ss)}</span>`)}<table class="cl-books">${rows}</table>${perksSheet(s)}`);
 }
 
 /** The Morning Bugle: world's front page (headline, briefs, events, forecast, Market, the week ahead; celsius: the °C

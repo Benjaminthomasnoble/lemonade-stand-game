@@ -27,6 +27,7 @@ import { isSpoiled } from './crew.ts';
 import { billboardCurb, billboardTerms, campaignTerms, couponCut, migrateMarketing, salePrice } from './marketing.ts';
 import { expressWindow, fancyMenu, migrateSpecs, roofTerms } from './specializations.ts';
 import { migrateWeather } from './weather.ts';
+import { chattyRegulars, freshPaint, sweetTalk } from './perks.ts';
 
 /** Prices are in cents, and a ceiling rounds down to the cent ($1.575 is a $1.57 ceiling). */
 const floorCents = (x: number) => Math.floor(x * 100 + 1e-6) / 100;
@@ -41,7 +42,7 @@ const FIRST_HOUR = OPEN / 60;
  */
 export function topPriceMods(s: GameState, plotId: string, st: Stand | null | undefined = s.plots[plotId]?.stand): number {
   if (s.plots[plotId]?.owner !== 'player' || !st) return 1;
-  return blenderBar(s, st.recipe) * fancyMenu(st);
+  return blenderBar(s, st.recipe) * fancyMenu(st) * sweetTalk(s); // Sweet Talk: Lottie's tip (perks.ts)
 }
 
 /** Ceiling = the level's top price × the district's price tolerance × (1 + the card's price bonus), down to the cent. */
@@ -100,6 +101,7 @@ export function curbAppeal(s: GameState, plotId: string): number {
   let curb = 1;
   if (majorityHeld(s, PLOT_BY_ID[plotId].district)) curb *= s.plots[plotId].owner === 'player' ? MAJORITY_CURB.player : MAJORITY_CURB.rival;
   curb *= billboardCurb(s, plotId); // another owner's Billboard within 2 plots: ×0.9 (marketing.ts)
+  curb *= freshPaint(s, s.plots[plotId].owner); // Fresh Paint: Lottie's tip, +5% at yours (perks.ts)
   return curb;
 }
 
@@ -161,6 +163,7 @@ export const MARKETING_TERMS: MarketingSource[] = [
     const b = adBlitzBoost(s, owner, st);
     if (b) add('blitz', "FizzCo's mascot", b);
   },
+  (s, owner, add) => chattyRegulars(s, owner, add), // Chatty Regulars: Lottie's tip, +5% at all your stands (perks.ts)
 ];
 
 const standPlots = new WeakMap<Stand, string>();

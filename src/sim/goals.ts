@@ -23,6 +23,7 @@ import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
 import { bigSqueezeGoal } from './squeeze.ts';
 import { pierFlightGoal } from './scouting.ts';
+import { goldStars } from './perks.ts';
 
 export type GoalSlot = 'short' | 'medium' | 'long';
 export const GOAL_SLOTS: GoalSlot[] = ['short', 'medium', 'long'];
@@ -125,7 +126,7 @@ export function salesTarget(s: GameState): number {
 export function goalReward(s: GameState, slot: GoalSlot): number {
   const days = s.history.slice(-3);
   const avg = days.length ? days.reduce((a, t) => a + t.revenue, 0) / days.length : 0;
-  return Math.max(GOAL_REWARD[slot].min, nice(avg * GOAL_REWARD[slot].share));
+  return nice(Math.max(GOAL_REWARD[slot].min, nice(avg * GOAL_REWARD[slot].share)) * goldStars(s)); // Gold Stars: 50% more (perks.ts)
 }
 
 // ---------- the candidates for each slot, most important first ----------

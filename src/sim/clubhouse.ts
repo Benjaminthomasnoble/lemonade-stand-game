@@ -13,6 +13,7 @@ import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import { levelUp, type Guard } from './crew.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { chickenSoup } from './perks.ts';
 
 
 const isClubhouse = (s: GameState, id: string) => s.plots[id]?.owner === 'player' && s.plots[id].facility?.kind === 'clubhouse';
@@ -73,7 +74,7 @@ export const infirmaryDays = (s: GameState): number =>
   (clubhouses(s).some((p) => clubExtras(s.plots[p.id].facility!.level).infirmary) ? CLUBHOUSE_EXTRAS.infirmary.days : 0);
 
 /** Days Out after a knockout (1, or 2 when a hatchet landed it), less the Infirmary's day, never below 0. */
-export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (hatchet ? 2 : 1) - infirmaryDays(s));
+export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (hatchet ? 2 : 1) - infirmaryDays(s) - chickenSoup(s)); // Chicken Soup: Lottie's tip (perks.ts)
 
 /**
  * The Training Yard, at dawn: each guard who waited all day at an L2 or L3 Clubhouse (off post, not Out, not away on a

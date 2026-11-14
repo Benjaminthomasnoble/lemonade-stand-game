@@ -333,6 +333,49 @@ export const RANKS = [
   { rank: 10, title: 'The Big Squeeze', ss: 200000000 },
 ];
 
+/**
+ * Lottie's Tips (spec "Success Score and ranks": "You pick 1 of 3 Lottie's Tips perks from a pool of about 24"; canon
+ * 322): each rank-up deals TIP_CARDS of these and you keep one for good (src/sim/tips.ts says where each one works).
+ * Seven are the spec's own at its numbers: +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun
+ * twice, campaigns last 50% longer, +20% defense at night, buyouts 15% cheaper. Its eighth, open at 07:00, waits for
+ * a business day that can start an hour early (spec gap). The other seventeen and their numbers are placeholders:
+ * spec gap. `value` is the tip's one number; `rank`, the rank a hand must be for before it's dealt (it does nothing
+ * sooner); `fight`, a tip about raids and guards, never dealt in Peaceful.
+ */
+export type TipId =
+  | 'sweetTalk' | 'longRun' | 'freshPaint' | 'chattyRegulars' | 'coolCellar' | 'goldStars'
+  | 'goodDirt' | 'firmHandshake' | 'sharpPencil' | 'handyHands' | 'steadyPour'
+  | 'chickenSoup' | 'gooseWhistle' | 'porchLight' | 'pepTalk' | 'lightSleeper' | 'nosyNeighbors' | 'lockbox' | 'elbowGrease'
+  | 'quickStudy' | 'helpWanted' | 'familyRates' | 'letItGo' | 'lowProfile';
+export const TIPS: Record<TipId, { name: string; text: string; value: number; rank?: number; fight?: true }> = {
+  sweetTalk: { name: 'Sweet Talk', text: '+10% price tolerance', value: 0.1 }, // spec: your crowds pay ×1.1 (the ceiling)
+  longRun: { name: 'Long Run', text: 'Campaigns last 50% longer', value: 0.5 }, // spec: a stand campaign's days, rounded up
+  freshPaint: { name: 'Fresh Paint', text: '+5% curb appeal', value: 0.05 },
+  chattyRegulars: { name: 'Chatty Regulars', text: '+5% foot traffic', value: 0.05 },
+  coolCellar: { name: 'Cool Cellar', text: 'Lemons keep 2 days longer', value: 2 },
+  goldStars: { name: 'Gold Stars', text: 'Lottie’s goals pay 50% more', value: 0.5 },
+  goodDirt: { name: 'Good Dirt', text: 'Land 10% cheaper', value: 0.1 }, // spec
+  firmHandshake: { name: 'Firm Handshake', text: 'Buyouts 15% cheaper', value: 0.15, rank: 4 }, // spec: Plot and Faction Buyouts (Sit-downs from Rank 4)
+  sharpPencil: { name: 'Sharp Pencil', text: 'Auction wins cost 10% less', value: 0.1, rank: 3 },
+  handyHands: { name: 'Handy Hands', text: 'Repairs 25% cheaper', value: 0.25 },
+  steadyPour: { name: 'Steady Pour', text: 'Bottles fill 10% faster', value: 0.1, rank: 5 }, // Bottling Works from Rank 5
+  chickenSoup: { name: 'Chicken Soup', text: 'Guards heal a day faster', value: 1, fight: true }, // spec
+  gooseWhistle: { name: 'Goose Whistle', text: 'Geese stun twice', value: 2, fight: true }, // spec
+  porchLight: { name: 'Porch Light', text: '+20% defense at night', value: 0.2, fight: true }, // spec: your guards' HP, defending at night
+  pepTalk: { name: 'Pep Talk', text: 'Guards on post +10 Nerve', value: 10, fight: true },
+  lightSleeper: { name: 'Light Sleeper', text: 'Raid warnings 30 minutes sooner', value: 30, fight: true },
+  nosyNeighbors: { name: 'Nosy Neighbors', text: '+10% raid detection', value: 0.1, fight: true },
+  lockbox: { name: 'Lockbox', text: 'Shakedowns take 25% less', value: 0.25, fight: true },
+  elbowGrease: { name: 'Elbow Grease', text: 'Your raiders chop 15% harder', value: 0.15, rank: 3, fight: true }, // raids from Rank 3
+  quickStudy: { name: 'Quick Study', text: 'Guards earn 50% more fight XP', value: 0.5, fight: true },
+  helpWanted: { name: 'Help Wanted', text: 'One more recruit to pick from', value: 1, fight: true },
+  familyRates: { name: 'Family Rates', text: 'Hiring 25% cheaper', value: 0.25, fight: true },
+  letItGo: { name: 'Let It Go', text: 'Grudges cool twice as fast', value: 1 },
+  lowProfile: { name: 'Low Profile', text: 'Rivals pay you 20% less mind', value: 0.2 }, // Attention
+};
+/** Cards in a rank-up's hand. */
+export const TIP_CARDS = 3;
+
 // ---------- land (section 10) ----------
 // Land carries no tax and no upkeep (spec: Land and territory): a Vacant Lot costs nothing to hold.
 export const LAND_DEVELOPMENT_MAX = 2; // land value can rise to ×2 base as a district develops

@@ -19,7 +19,7 @@ import {
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type LocalCampaignId, type SpecId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
-  tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales,
+  tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales, type TipId,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
@@ -48,6 +48,7 @@ import { bennyPitch, cornerName, storyDateline, taught } from '../sim/story.ts';
 import { investedSliver } from '../sim/score.ts';
 import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { kidPanel, pickKid, typeName } from './grandkid.ts';
+import { perksTicket } from './perks.ts';
 import { nameDraft } from '../sim/grandkid.ts';
 import { crewOf } from '../sim/crew.ts';
 import { victoryShow } from './ending.ts';
@@ -166,6 +167,7 @@ export type Action =
   | { type: 'unlistPlot'; plot: string }
   | { type: 'callSqueeze' } // Sourwood Manor's card: start the Big Squeeze (src/ui/squeeze.ts)
   | { type: 'crewName'; name: string } // the Crew roster's name field, as typed (src/sim/grandkid.ts)
+  | { type: 'tip'; id: TipId } // keep one of Lottie's Tips from the hand up now (src/sim/perks.ts)
   | { type: 'refresh' };
 
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -312,7 +314,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       set(topEl, modal && hud.setup ? '' : topbar(s));
       const head = !modal && s.phase === 'prep' ? bugleHeadline(s) : null; // world: the Bugle's headline (sim/media.ts)
       set(dawnEl, head ? `<div class="cl-toast cl-dawn" role="status" data-day="${s.day}">${tape(esc(head[0]), 'cl-big')}${tape(esc(head[1]), 'cl-sub')}</div>` : '');
-      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s) + gullTicket(kit, s)).replace(/<div class="cl-ticket/g, '<div tabindex="0" class="cl-ticket')); // a tap or Tab opens a tucked card; crew: Gull Flight's ticket (src/ui/gull.ts)
+      set(feedEl, modal ? '' : withScene(feed(s), sceneTicket(s, hud.sceneTime, ART.lottie()) + offerTicket(s) + gullTicket(kit, s) + perksTicket(s, ART.lottie())).replace(/<div class="cl-ticket/g, '<div tabindex="0" class="cl-ticket')); // a tap or Tab opens a tucked card; crew: Gull Flight's ticket (src/ui/gull.ts); Lottie's Tips (src/ui/perks.ts)
       tuneRadio(feedEl, performance.now()); // world: the morning show on 101.5 turns in place (src/ui/radio.ts)
       set(cornerEl, corner(s, speed));
       set(phaseEl, modal || (s.fight ? fightBar({ tape, ART }, s) : s.phase === 'prep' ? prepPanel(s) : s.phase === 'open' ? dayBar(s) : s.phase === 'report' ? (hud.ledger ? dayEnd(s) : eveningBar()) : ''));
@@ -486,6 +488,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'skipScene': onAction({ type: 'skipScene' }); break;
       case 'sceneReply': onAction({ type: 'sceneReply', text: d.text ?? '' }); break;
       case 'storyOffer': onAction({ type: 'storyOffer', accept: d.accept === '1' }); break;
+      case 'tip': onAction({ type: 'tip', id: d.id as TipId }); break; // Lottie's Tips (src/ui/perks.ts)
       case 'bid': onAction({ type: 'bid', plot: d.plot!, amount: Number(d.amount) }); break;
       case 'unbid': case 'listPlot': case 'unlistPlot': onAction({ type: d.action, plot: d.plot! }); break;
       case 'registry': // a tab, or the Registry from Town Hall's card, a morning ticket or In the Red (src/ui/registry.ts)

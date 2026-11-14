@@ -70,6 +70,8 @@ export interface BuildOpts {
   flap?: boolean;
   /** Extra clay baked into the body once the level is laid out (rival toppers and family props). */
   decor?: (B: Baker, a: Anchors, level: number) => void;
+  /** The words on the sign in place of the owner's (the Epilogue's LOTTIE & VERA'S, src/sim/story.ts cornerSign). */
+  sign?: string;
 }
 
 /** What each level builder hands back. */
@@ -393,6 +395,8 @@ const NEON: Record<string, V3[][]> = {
   B: [[[0.15, 0.1, 0], [0.15, 1.3, 0], [0.6, 1.3, 0], [0.78, 1.12, 0], [0.6, 0.72, 0], [0.15, 0.72, 0]], [[0.6, 0.72, 0], [0.85, 0.45, 0], [0.65, 0.1, 0], [0.15, 0.1, 0]]],
   N: [[[0.15, 0.1, 0], [0.15, 1.3, 0], [0.85, 0.1, 0], [0.85, 1.3, 0]]],
   A: [[[0.1, 0.1, 0], [0.5, 1.3, 0], [0.9, 0.1, 0]], [[0.28, 0.55, 0], [0.72, 0.55, 0]]],
+  V: [[[0.05, 1.3, 0], [0.5, 0.1, 0], [0.95, 1.3, 0]]],
+  '&': [[[0.9, 0.1, 0], [0.32, 0.88, 0], [0.28, 1.14, 0], [0.47, 1.32, 0], [0.66, 1.14, 0], [0.6, 0.92, 0], [0.2, 0.55, 0], [0.16, 0.26, 0], [0.38, 0.08, 0], [0.64, 0.16, 0], [0.88, 0.5, 0]]],
 };
 /** Each owner's neon: Lottie's lemon yellow, and the factions' signature glows. */
 const NEON_COLOR: Record<Owner, string> = { player: '#FFE14A', sourwood: '#C77DEB', hollis: '#FF6A4D', fizzco: '#FF3B4E', coldbrew: '#FF4FA3', blenders: '#2EE6D6' };
@@ -657,7 +661,7 @@ export function buildLevel(level: number, owner: Owner, opts: BuildOpts = {}): L
   const root = new THREE.Group();
   root.name = 'standLevel';
   const L = Math.max(1, Math.min(5, Math.round(level)));
-  const c: Ctx = { B: new Baker(), d: DRESS[owner], st: !!opts.static, root, hp: opts.hp ?? 1, flap: !!opts.flap && L <= 2 };
+  const c: Ctx = { B: new Baker(), d: opts.sign ? { ...DRESS[owner], sign: opts.sign } : DRESS[owner], st: !!opts.static, root, hp: opts.hp ?? 1, flap: !!opts.flap && L <= 2 };
   // Only the player's live stand gets the 2-segment rounded corners.
   lod.seg = c.st ? 1 : 2;
   let m: Parts;

@@ -35,8 +35,8 @@ export interface Stand {
   group: THREE.Group;
   /** Where a customer stands to buy. */
   servePoint: THREE.Vector3;
-  /** Change level; gilded is the Rank 10 Palace. */
-  setLevel(level: number, gilded?: boolean): void;
+  /** Change level; gilded is the Rank 10 Palace; sign is the Corner's words in the Epilogue. */
+  setLevel(level: number, gilded?: boolean, sign?: string): void;
   setBrand(tier: number): void;
   update(opts: StandUpdate): void;
   /** Who's at the stand, for bubbles to follow. Lottie only sits at Lottie's Corner. */
@@ -128,6 +128,7 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   group.add(levelRoot);
   let model: LevelModel | null = null;
   let level = 0, gilt = false, hpNow = 1, wrecked = false, busted = false;
+  let signText: string | undefined;
   let spin: THREE.Object3D | undefined;
   const props = createStandProps();
   props.group.userData.far = new Baker().build(); // the props are too small to show in a district block
@@ -479,13 +480,13 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
     skipReveal() { if (revealT >= 0) endReveal(); listen(false); },
     knock() { unbake(); knockT = 0; },
     servePoint: new THREE.Vector3(0, 0, 1.35),
-    setLevel(l, gilded = false) {
-      if (l === level && gilded === gilt) return;
-      level = l; gilt = gilded;
+    setLevel(l, gilded = false, sign) {
+      if (l === level && gilded === gilt && sign === signText) return;
+      level = l; gilt = gilded; signText = sign;
       unbake();
       disposeTree(levelRoot);
       levelRoot.clear();
-      model = buildLevel(l, 'player', { gilded });
+      model = buildLevel(l, 'player', { gilded, sign });
       levelRoot.add(model.root);
       // Bay View's district block draws the cheap far version instead.
       levelRoot.userData.far = farLevel(l, 'player', gilded);

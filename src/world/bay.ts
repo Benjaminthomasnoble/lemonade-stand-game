@@ -24,6 +24,7 @@ import { civicBuilding, facilityModel, fieldRows, animatePart, forSaleGeometry, 
 import { createTown, townFootprints } from './town.ts';
 import { createLemonWave } from './lemonWave.ts';
 import { bayPainted } from '../sim/victory.ts';
+import { cornerSign } from '../sim/story.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
@@ -512,7 +513,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     else if (p.type === 'dock') { const east = eastReach(v), pm = pierModel(east ?? reachOf(v)); if (east) turnEast(pm, v, east); v.root.add(bakeGroup(pm)); if (!ps.owner) forSale(v, s); }
     else if (ps.stand && ps.owner === 'player') {
       const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
-      m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
+      m.setLevel(ps.stand.level, gilded(s, ps.stand.level), lottie ? cornerSign(s)?.toUpperCase() : undefined); // the Epilogue's sign (src/sim/story.ts)
       // Laid Back's Busted stand stays up, battered and taped shut; only a real Wreck is a pile.
       m.setWrecked(!!ps.stand.wrecked && !ps.busted);
       m.setBusted(!!ps.busted);
@@ -635,7 +636,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}${v.plot.id === LOTTIES_CORNER ? cornerSign(s) ?? '' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;

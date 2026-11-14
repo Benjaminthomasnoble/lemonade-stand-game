@@ -127,6 +127,16 @@ export function withBell(s: GameState, raid: Raid, input: BattleInput, night: bo
 
 export interface RivalHelp { from: string; minutes: number; fighters: Fighter[] }
 
+/** The plots that can send help to a raid on `target`: its owner's others, and its HQ, in the same or a bordering
+ * district, nearest first (the Raid Planner keys its odds on their garrisons too). */
+export function helpPlots(s: GameState, target: string): { id: string; minutes: number }[] {
+  const rival = s.plots[target]?.owner, to = PLOT_BY_ID[target].district;
+  return PLOTS
+    .filter((p) => p.id !== target && s.plots[p.id].owner === rival && (p.district === to || BORDERS[to].includes(p.district)))
+    .map((p) => ({ id: p.id, minutes: travelMinutes(s, p.id, target) }))
+    .sort((a, b) => a.minutes - b.minutes || a.id.localeCompare(b.id));
+}
+
 /**
  * Who a rival sends when it spots your raid on one of its plots (RIVAL_HELP): half the garrison of each of its other
  * plots and its HQ in the same or a bordering district, nearest first, up to the cap by Threat (its fraction is the
@@ -137,11 +147,7 @@ export interface RivalHelp { from: string; minutes: number; fighters: Fighter[] 
 export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
   const rival = s.plots[raid.target]?.owner;
   if (raid.attacker !== 'player' || !raid.detected || !rival || rival === 'player') return [];
-  const to = PLOT_BY_ID[raid.target].district;
-  const near = PLOTS
-    .filter((p) => p.id !== raid.target && s.plots[p.id].owner === rival && (p.district === to || BORDERS[to].includes(p.district)))
-    .map((p) => ({ id: p.id, minutes: travelMinutes(s, p.id, raid.target) }))
-    .sort((a, b) => a.minutes - b.minutes || a.id.localeCompare(b.id));
+  const near = helpPlots(s, raid.target);
   if (!near.some(({ id }) => Math.floor(fitGarrison(s, id) * RIVAL_HELP.share) > 0)) return []; // nobody to send: no draw
   const cap = RIVAL_HELP.cap[threatLevel(s) - 1] ?? 0, more = cap - Math.floor(cap);
   let room = Math.floor(cap) + (more > 0 && nextRandom(rng) < more ? 1 : 0);

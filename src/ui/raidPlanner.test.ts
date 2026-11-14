@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { hqPlot, newGame, PERIMETERS, planRaid, postsFor, raidOdds, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { hqPlot, LOTTIES_CORNER, newGame, PERIMETERS, planRaid, postsFor, raidOdds, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { helpPlots } from '../sim/reinforce.ts';
 import { footholdFor, guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
@@ -82,6 +83,26 @@ describe('the Raid Planner', () => {
     expect([...p.squad]).toEqual(['r0', 'r2']);
     p.panel(s, other);
     expect([...p.squad]).toEqual(['r0', 'r1', 'r2']);
+  });
+
+  it('the odds it keeps for the day refresh when the squad or the help next door changes', () => {
+    const { s, target } = setup(84);
+    gullScout(s, target); // scouted: one number, in the dial's tip
+    const { p } = planner();
+    const shown = (q = p) => /title="(\d+)% to win"/.exec(q.panel(s, target))![1];
+    const fresh = () => shown(planner().p); // a Planner opened just now: nothing kept
+    const base = shown();
+    s.guards[0].specialty = 'captain'; // promoted: +20 Nerve and +10% Hit for the whole squad
+    expect(shown()).toBe(fresh());
+    expect(shown()).not.toBe(base);
+    s.guards[1].trait = 'Gentle Giant';
+    expect(shown()).toBe(fresh());
+    for (const g of s.guards) { g.post = LOTTIES_CORNER; g.club = LOTTIES_CORNER; } // they set out from somewhere else
+    expect(shown()).toBe(fresh());
+    const before = shown();
+    for (const { id } of helpPlots(s, target)) s.plots[id].garrison = 0; // nobody next door to send
+    expect(shown()).toBe(fresh());
+    expect(shown()).not.toBe(before);
   });
 
   it('"Take all" is Dex filling the squad to the cap, and he fills it again once a raid is sent', () => {

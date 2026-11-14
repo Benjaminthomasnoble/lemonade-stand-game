@@ -18,7 +18,7 @@ import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
 import { plotBuyoutRow, type SitKit } from '../ui/sitdown.ts';
 import { phoneCheck } from './phone.ts';
 import { checkGoals, GOAL_PROVIDERS, goalsNow } from './goals.ts';
-import { playScene, SPEAKERS } from './scenes.ts';
+import { playScene, sceneDef, SPEAKERS } from './scenes.ts';
 import { rowAmount } from './ledger.ts';
 
 const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
@@ -734,6 +734,25 @@ describe('Old Money', () => {
     schemesAtDawn(s);
     expect(landFrozen(s, p.id)).toBe(false);
     expect(canBuyPlot(s, p.id).ok).toBe(true); // First Dibs still holds today
+  });
+
+  it('a paid land freeze brings Mayor Fontaine to the plot, once a run; the hedges lesson plays its own scene', () => {
+    const s = act5(61);
+    const job = startScheme(s, 'sourwood', 'freeze')!;
+    expect(s.scenes!.queue.at(-1)).toEqual({ id: 'freeze', data: { plot: job.plots[0] } });
+    const scene = sceneDef('freeze', { plot: job.plots[0] })!;
+    expect(scene).toMatchObject({ speaker: 'fontaine', plot: job.plots[0] }); // he walks on to the frozen plot
+    expect(scene.lines.map((l) => l.text)).toContain(OLD_MONEY.mayor);
+    s.scenes!.queue = [];
+    s.scenes!.seen.push('freeze'); // watched
+    Object.assign(budgetOf(s, 'sourwood'), { strike: 10_000 });
+    s.rivals.sourwood.cash = 10_000;
+    expect(freezeLand(s)).not.toBeNull(); // Vera pays for another
+    expect(s.scenes!.queue.some((q) => q.id === 'freeze')).toBe(false); // the scene plays once a run
+    const t = act5(62);
+    const plot = PLOTS.find((p) => !t.plots[p.id].owner && canBuyPlot(t, p.id).ok)!.id;
+    expect(freezeLand(t, plot, true)).not.toBeNull(); // the act's lesson (Historic hedges queues its own)
+    expect(t.scenes?.queue.some((q) => q.id === 'freeze') ?? false).toBe(false);
   });
 
   it('a land freeze thaws the moment the Sourwoods fall, the same day, ticket and all', () => {

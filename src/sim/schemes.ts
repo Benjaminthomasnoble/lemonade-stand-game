@@ -596,8 +596,9 @@ function freezeTarget(s: GameState): string | null {
 
 /**
  * Town Hall freezes a land sale for 3 days (Sourwood's Old Money; `plotId` names the plot, as Act 5's Historic hedges
- * does). Nobody can buy the plot while it's frozen; First Dibs you hold on it waits out the freeze. A `lesson` (the
- * act's scripted beat) asks nothing of Vera's Strike.
+ * does). Nobody can buy the plot while it's frozen; First Dibs you hold on it waits out the freeze. Vera's paid freeze
+ * brings Mayor Fontaine to the plot (the 'freeze' scene, once a run); a `lesson` (the act's scripted beat, with its
+ * own scene) asks nothing of her Strike.
  */
 export function freezeLand(s: GameState, plotId?: string, lesson = false): Scheme | null {
   const id: RivalId = 'sourwood';
@@ -612,6 +613,7 @@ export function freezeLand(s: GameState, plotId?: string, lesson = false): Schem
   const dibs = s.plots[plot].dibs;
   if (dibs?.who === 'player' && dibs.until >= s.day) dibs.until += OLD_MONEY.freezeDays;
   alert(s, { kind: 'note', text: `LAND FREEZE! Town Hall freezes the sale of ${PLOT_BY_ID[plot].name} for ${OLD_MONEY.freezeDays} days, to protect "historic hedges."`, plot });
+  if (!lesson) playScene(s, 'freeze', { plot }); // Mayor Fontaine, at the plot
   return job;
 }
 

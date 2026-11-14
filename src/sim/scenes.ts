@@ -131,6 +131,17 @@ export const SCENES: Record<string, SceneDef> = {
     ],
     recap: "Mayor Fontaine delivered one of Vera's fines.",
   },
+  // ...and a land sale Town Hall freezes on Vera's word (schemes.ts freezeLand; the Act 5 hedges beat has its own scene),
+  // played at the frozen plot. His second line is OLD_MONEY.mayor (src/sim/rivals.ts), spelled out here.
+  freeze: {
+    speaker: 'fontaine', seconds: 15,
+    lines: [
+      { who: SPEAKERS.fontaine, text: 'This sale is frozen. Town Hall business.', at: 3.6 },
+      { who: SPEAKERS.fontaine, text: 'I represent all of Citrine Bay. Some of it more than others.', at: 6.8 },
+      { who: 'Lottie', text: 'Vera called in a favor. It thaws, kid.', at: 10.4 },
+    ],
+    recap: "Mayor Fontaine froze a land sale on Vera's word.",
+  },
   // Act 3's night flight (src/sim/beats.ts): the morning after Juni's first Night Shift on you (a Cold Brew Sabotage),
   // Captain Squawk tells what he saw at 3 a.m. (captions: the world's Gull Flight isn't staged for it), Lottie teaches
   // your own Sabotage (crew.ts canSabotage), then Juni calls.

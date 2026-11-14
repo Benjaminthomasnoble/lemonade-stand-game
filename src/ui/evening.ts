@@ -3,7 +3,9 @@
 // repairs and send tonight's raids for a moment before the night runs on the
 // clock. Plain controls on the HUD's existing classes; clicks go through the
 // HUD's one listener (data-action).
-import { canBuyPerimeter, canPost, fenceRepairCost, fillable, guardReady, isWrecked, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type Guard } from '../sim/economy.ts';
+import {
+  canBuyPerimeter, canPost, fenceRepairCost, fillable, guardReady, isWrecked, mendsOvernight, PERIMETERS, PLOT_BY_ID, PLOTS, slickResetCost, type GameState, type Guard,
+} from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { damageTickets, rebuildTickets } from './damage.ts';
 
@@ -34,6 +36,12 @@ export function repairCards(s: GameState): string[] {
       const cost = fenceRepairCost(ps);
       const fix = btn('repairFence', `Patch ${whole(cost)}`, `data-plot="${p.id}" data-testid="repair" ${s.cash >= cost ? '' : 'disabled title="Not enough cash"'}`);
       out.push(`<div class="cl-ticket" title="${esc(`${p.name}: the fence is dented`)}">${art(`fence${ps.defense.tier}`, () => A.fenceSVG(ps.defense.tier))}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${fix}</span></div>`);
+    }
+    // A sprung Slick is re-laid overnight, except on a plot Auto-Repair skips: that one waits for you.
+    const relay = slickResetCost(ps);
+    if (relay && !mendsOvernight(s, p.id)) {
+      const fix = btn('resetSlick', `Re-lay ${whole(relay)}`, `data-plot="${p.id}" data-testid="reset-slick" ${s.cash >= relay ? '' : 'disabled title="Not enough cash"'}`);
+      out.push(`<div class="cl-ticket" title="${esc(`${p.name}: the Lemon-Peel Slick is sprung`)}">${art('peel', A.peelSVG)}<b>${esc(place(p.id))}</b><span class="cl-acts">${go}${fix}</span></div>`);
     }
   }
   out.push(...damageTickets(s)); // Damaged buildings: the HP left, and the repair or tonight's booking (src/ui/damage.ts)

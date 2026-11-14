@@ -5,7 +5,7 @@ import {
   canBuyGadget, canBuyPerimeter, canEquip, canHire, FACTIONS, fenceRepairCost, GADGET_SLOTS,
   GADGETS, GEAR, GUARD_LEVEL_TITLES, guardReady, guardTitle, guardWage, HIRE_RANK, PERIMETERS, PLOT_BY_ID, PLOTS, rosterCap, WEAPONS, xpToNext,
   canPost, canPromote, detectionChance, freeAlarm, holdsStronghold, mendsOvernight, neighborhoodWatch, postedAt, postsFor, PROMOTE_LEVEL, SPECIALTIES, towerFor,
-  type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
+  slickResetCost, type GadgetId, type GameState, type GearId, type Guard, type Specialty, type WeaponId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import { crewField } from './grandkid.ts'; // story: the crew's name, renamable here (src/sim/grandkid.ts)
@@ -50,8 +50,10 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
     (fenceRepairCost(ps) ? k.btn('repairFence', `Patch ${k.whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
     `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands. Each raid costs ${k.whole(cur.repair)} to repair${mendsOvernight(s, id) ? ' overnight' : ': Auto-Repair skips this plot'}.`));
   if (next && !k.locked(pb)) out.push(k.card(k.ART.fence(next.tier), next.name, `${next.hp} HP`, k.btn('perimeter', k.whole(next.cost), pb, `data-plot="${id}" data-testid="perimeter"`, 'go'), `${next.hp} HP${next.breachDps ? ', hurts attackers breaking through' : ''}${next.slow ? ', slows them down' : ''}`));
+  const relay = slickResetCost(ps); // a sprung Slick: re-lay it now, as a dented fence gets its Patch
   const installed = ps.defense.gadgets.map((g) => (g === 'slick' && ps.defense.slickSprung
     ? `<span class="cl-slot" title="${GADGETS[g].name}: sprung. ${mendsOvernight(s, id) ? `Re-laid overnight for ${k.whole(GADGETS[g].reset ?? 0)}` : 'Auto-Repair skips this plot'}">${k.GADGET_ART[g]()}</span>`
+      + (relay ? k.btn('resetSlick', `Re-lay ${k.whole(relay)}`, s.cash >= relay ? { ok: true } : { ok: false, why: `Needs ${k.whole(relay)}` }, `data-plot="${id}" data-testid="reset-slick"`, 'tiny') : '')
     : `<span class="cl-slot full" title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}">${k.GADGET_ART[g]()}</span>`)).join('');
   const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
   // The Neighborhood Watch's free Tin-Can (shown in its own slot below) takes the alarm off the shelf.

@@ -8,7 +8,7 @@ import {
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
   canRaid, foughtByDay, henchmanFor, playerWon, hqOdds, isSpoiled, raidParty, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
-  type BattleReport, type Guard, type Raid,
+  armedGadgets, resetSlick, slickResetCost, type BattleReport, type Guard, type Raid,
 } from './crew.ts';
 import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GEAR, GUARD_BASE, HENCHMEN, KO_OUT_DAYS, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RAID_PARTY, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, TRAIT_EFFECTS, type RivalId, type Trait } from './balance.ts';
 import { koDays } from './clubhouse.ts';
@@ -742,6 +742,35 @@ describe('overnight repairs', () => {
     expect(low.cash).toBe(before - PERIMETERS[0].repair);
     expect(fenceRepairCost(low.plots[LOTTIES_CORNER])).toBe(0);
     expect(low.plots[LOTTIES_CORNER].defense.fenceHp).toBe(PERIMETERS[0].hp);
+  });
+
+  it("a skipped plot's sprung Slick is re-laid by hand for its $25 reset, as its fence is patched", () => {
+    const s = newGame(98);
+    s.rank = 4;
+    s.cash = 2000;
+    buyPerimeter(s, LOTTIES_CORNER);
+    buyGadget(s, LOTTIES_CORNER, 'slick');
+    const ps = s.plots[LOTTIES_CORNER];
+    expect(resetSlick(s, LOTTIES_CORNER)).toBe(false); // armed: nothing to re-lay
+    fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true);
+    expect(ps.defense.slickSprung).toBe(true);
+    expect(toggleAutoRepair(s, LOTTIES_CORNER)).toBe(true); // Plots to skip
+    for (let night = 0; night < 3; night++) overnightRepairs(s);
+    expect(armedGadgets(ps)).not.toContain('slick'); // the nights leave it sprung
+    s.cash = slickResetCost(ps) - 1;
+    expect(resetSlick(s, LOTTIES_CORNER)).toBe(false); // short of the fee
+    s.cash = 100;
+    const repairs = rowAmount(s.today, 'repairs');
+    expect(resetSlick(s, LOTTIES_CORNER)).toBe(true);
+    expect(s.cash).toBe(100 - GADGETS.slick.reset!);
+    expect(GADGETS.slick.reset).toBe(25);
+    expect(rowAmount(s.today, 'repairs')).toBe(repairs - 25); // on the Ledger's Repairs row
+    expect(ps.defense.slickSprung).toBeUndefined();
+    expect(armedGadgets(ps)).toContain('slick');
+    expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(3); // and it goes off again
+    const rival = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
+    s.plots[rival].defense = { tier: 1, fenceHp: 100, gadgets: ['slick'], slickSprung: true };
+    expect(resetSlick(s, rival)).toBe(false); // a rival's is theirs to re-lay
   });
 
   it('a rival pays its repairs from its Guard money; overnight repairs leave its plots alone', () => {

@@ -9,7 +9,7 @@ import {
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, calmAudioOn, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
-  buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
+  buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence, resetSlick,
   battleHeadline, playerWon, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
@@ -675,6 +675,7 @@ async function main() {
       case 'perimeter': buyPerimeter(state, a.plot); break;
       case 'gadget': buyGadget(state, a.plot, a.id); break;
       case 'repairFence': repairFence(state, a.plot); break;
+      case 'resetSlick': resetSlick(state, a.plot); break;
       case 'rebuild': rebuildStand(state, a.plot); break;
       case 'repair': approveRepair(state, a.plot); break;
       case 'autoRepair': toggleAutoRepair(state, a.plot); break;

@@ -102,6 +102,7 @@ export type Action =
   | { type: 'perimeter'; plot: string }
   | { type: 'gadget'; plot: string; id: GadgetId }
   | { type: 'repairFence'; plot: string }
+  | { type: 'resetSlick'; plot: string } // re-lay a sprung Lemon-Peel Slick by hand
   | { type: 'rebuild'; plot: string }
   | { type: 'repair'; plot: string } // approve a Damaged building's repair
   | { type: 'autoRepair'; plot: string } // Auto-Repair (Rank 3): skip this plot, or take it back on
@@ -478,7 +479,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'standMath': standMath = !standMath; redraw(); break;
       case 'inspect': onAction({ type: 'inspect', plot: d.plot! }); break;
       case 'more': moreOpts = !moreOpts; redraw(); break;
-      case 'perimeter': case 'repairFence': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
+      case 'perimeter': case 'repairFence': case 'resetSlick': case 'rebuild': case 'defend': onAction({ type: d.action, plot: d.plot! }); break;
       case 'gadget': onAction({ type: 'gadget', plot: d.plot!, id: d.id as GadgetId }); break;
       case 'repair': case 'autoRepair': onAction({ type: d.action, plot: d.plot! }); break;
       case 'hire': case 'fire': onAction({ type: d.action, id: d.id! }); break;

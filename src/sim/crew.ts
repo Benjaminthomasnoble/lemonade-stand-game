@@ -210,6 +210,17 @@ export function repairFence(s: GameState, plotId: string): boolean {
   return true;
 }
 
+/** Re-lay a sprung Lemon-Peel Slick now rather than waiting for the night (the same reset fee): how a plot Auto-Repair
+ * skips gets its Slick back, as its fence gets a Patch. */
+export function resetSlick(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  const cost = slickResetCost(ps);
+  if (ps.owner !== 'player' || !cost || s.cash < cost) return false;
+  book(s, 'repairs', -cost);
+  delete ps.defense.slickSprung;
+  return true;
+}
+
 /** A repaired fence: back to full HP (`full`: its tier's, or more with a rival's hay bales), with no raids left on its bill. */
 export function mendFence(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1].hp): void {
   ps.defense.fenceHp = full;
@@ -217,7 +228,8 @@ export function mendFence(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1].
 }
 
 /** Is this plot of yours mended overnight? Always below Rank 3; from Rank 3, unless Auto-Repair skips it (damage.ts, where
- * a district's Fortify policy holds a skip off while it runs): then its chopped fence and sprung Slick wait to be patched by hand. */
+ * a district's Fortify policy holds a skip off while it runs): then its chopped fence and sprung Slick wait for you to
+ * patch and re-lay them by hand (repairFence, resetSlick). */
 export const mendsOvernight = (s: GameState, plotId: string): boolean => !(autoRepairOn(s) && s.plots[plotId].noAutoRepair && !fortifyKeeps(s, plotId));
 
 /** Overnight, each of your raided plots has its fence repaired and a sprung Slick re-laid, paid from your cash (rivals pay

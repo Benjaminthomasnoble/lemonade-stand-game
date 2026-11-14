@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buyGadget, buyPerimeter, HIRE_RANK, LESSON_DAY, LOTTIES_CORNER, newGame, PLOT_BY_ID, refreshRecruits, toggleAutoRepair, type Blocker,
+  buyGadget, buyPerimeter, HIRE_RANK, LESSON_DAY, LOTTIES_CORNER, newGame, PLOT_BY_ID, refreshRecruits, resetSlick, toggleAutoRepair, type Blocker,
 } from '../sim/economy.ts';
 import type { Kit } from './hud.ts';
 import { crewPanel, defenseSheet, HIRING_HALL, hiringHallButton } from './crew.ts';
+import { repairCards } from './evening.ts';
 import { menuUnlocked } from './menus.ts';
 
 /** The clay kit, drawn as bare tags: art as <i data-art>, buttons as the HUD's own (disabled with the reason). */
@@ -54,5 +55,28 @@ describe('the Defend sheet', () => {
     const skipped = defenseSheet(kit, s, LOTTIES_CORNER);
     expect(skipped).toContain('to repair: Auto-Repair skips this plot.');
     expect(skipped).toContain('sprung. Auto-Repair skips this plot');
+  });
+
+  it("a sprung Slick has a Re-lay button, and a skipped plot's gets an Evening ticket too", () => {
+    const s = newGame(42);
+    s.rank = 4;
+    s.cash = 5000;
+    buyPerimeter(s, LOTTIES_CORNER);
+    buyGadget(s, LOTTIES_CORNER, 'slick');
+    expect(defenseSheet(kit, s, LOTTIES_CORNER)).not.toContain('data-action="resetSlick"'); // armed
+    s.plots[LOTTIES_CORNER].defense.slickSprung = true;
+    s.phase = 'report';
+    const relay = `<button class="cl-b tiny" data-action="resetSlick" data-plot="${LOTTIES_CORNER}" data-testid="reset-slick"`;
+    expect(defenseSheet(kit, s, LOTTIES_CORNER)).toContain(`${relay} >Re-lay $25</button>`);
+    expect(repairCards(s).join('')).not.toContain('data-action="resetSlick"'); // re-laid overnight anyway
+    toggleAutoRepair(s, LOTTIES_CORNER); // skipped: it waits for you
+    expect(repairCards(s).join('')).toContain(`data-action="resetSlick" data-plot="${LOTTIES_CORNER}"`);
+    s.cash = 20;
+    expect(defenseSheet(kit, s, LOTTIES_CORNER)).toContain(`${relay} disabled title="Needs $25">`);
+    expect(repairCards(s).join('')).toMatch(/data-action="resetSlick"[^>]*disabled title="Not enough cash"/);
+    s.cash = 100;
+    resetSlick(s, LOTTIES_CORNER);
+    expect(defenseSheet(kit, s, LOTTIES_CORNER)).not.toContain('data-action="resetSlick"');
+    expect(repairCards(s).join('')).not.toContain('data-action="resetSlick"');
   });
 });

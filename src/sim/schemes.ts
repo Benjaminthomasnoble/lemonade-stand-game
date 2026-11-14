@@ -94,6 +94,10 @@ function drawOrder(s: GameState, id: RivalId, rng: Rng): SchemeKind[] {
 /** The schemes running today (started, not yet over). */
 export const runningSchemes = (s: GameState) => (s.schemes ?? []).filter((x) => !x.done && x.day <= s.day && x.until >= s.day);
 const runningFor = (s: GameState, id: RivalId) => runningSchemes(s).find((x) => x.by === id);
+/** A rival out of business stops scheming at once: whatever it had running ends today (rivals.ts eliminate calls this). */
+export function endSchemes(s: GameState, id: RivalId): void {
+  for (const x of runningSchemes(s)) if (x.by === id) x.done = true;
+}
 
 // ---------- price war ----------
 
@@ -548,12 +552,13 @@ export function answerBuyout(s: GameState, plotId: string, sell: boolean): boole
 
 // ---------- Old Money ----------
 
-/** Is a sale of this plot frozen at Town Hall today (Sourwood's Old Money)? Nobody can buy it while it is. */
+/** Is a sale of this plot frozen at Town Hall today (Sourwood's Old Money)? Nobody can buy it while it is, and it thaws the moment Vera falls. */
 export function landFrozen(s: GameState, plotId: string): boolean {
-  return !!s.schemes?.length && runningSchemes(s).some((x) => x.kind === 'freeze' && x.plots.includes(plotId));
+  return !!s.schemes?.length && !!freezeOn(s, plotId);
 }
-/** For the HUD and tests: the freeze on a plot today, if any. */
-export const freezeOn = (s: GameState, plotId: string) => runningSchemes(s).find((x) => x.kind === 'freeze' && x.plots.includes(plotId));
+/** For the HUD and tests: the freeze on a plot today, if any, while the Sourwoods who asked for it are still in business. */
+export const freezeOn = (s: GameState, plotId: string) =>
+  runningSchemes(s).find((x) => x.kind === 'freeze' && x.plots.includes(plotId) && s.rivals[x.by].alive);
 
 /** What the Mayor fines you: half your average day's sales over the last week (at least $25), never more than your cash. */
 export function mayorsFine(s: GameState): number {

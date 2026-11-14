@@ -14,7 +14,7 @@ import { retireJingle } from './radio.ts';
 import { bossExit } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import { historicHedges, landFrozen } from './schemes.ts';
+import { endSchemes, historicHedges, landFrozen } from './schemes.ts';
 import { startFireSale } from './auction.ts';
 import { manorStewards, onlyTheSqueeze, squeezeAssault, squeezedHq } from './squeeze.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
@@ -589,6 +589,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
     s.news.push(`${FACTIONS[id].name}'s till comes with the business: ${money(till)}.`);
   }
   s.raids = s.raids.filter((x) => x.attacker !== id);
+  endSchemes(s, id); // its schemes stop today: a land freeze thaws, a price war or letter ends (schemes.ts)
   const hq = hqPlot(id), prize = TROPHIES[id];
   const trophy = prize && s.plots[hq.id] ? ` Their HQ, ${hq.name}, becomes Lottie's ${prize.name}: ${prize.perk.toLowerCase()}.` : '';
   if (s.plots[hq.id]?.owner === id) { s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 }; settleFence(s.plots[hq.id]); }

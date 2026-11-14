@@ -118,7 +118,7 @@ export function schemeTickets(s: GameState): string[] {
     if (x.kind === 'priceWar') out.push(priceWar(s, x));
     else if (x.kind === 'cease' && x.district && ceaseAndDesistIn(s, x.district)) out.push(cease(s, x));
     else if (x.kind === 'buyout' && offerOn(s, x.plots[0]) === x) out.push(buyout(s, x));
-    else if (x.kind === 'freeze') out.push(freeze(s, x));
+    else if (x.kind === 'freeze' && freezeOn(s, x.plots[0]) === x) out.push(freeze(s, x));
     else if (x.kind === 'blitz' && s.rivals[x.by].alive) out.push(blitz(s, x));
   }
   for (const x of s.schemes ?? []) {

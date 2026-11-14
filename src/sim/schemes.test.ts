@@ -8,7 +8,7 @@ import {
   AD_BLITZ, adBlitzCurb, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist, curbAppeal, expectedDemand,
   blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
   detectionChance, MYSTERY, MYSTERY_GOAL, mysteryGoal, mysteryOn, NIGHT_SHIFT, nightShiftUnmasked, welcomeDex,
-  closeAuctions, openAuction, placeBid, PRESTON_OUTBID,
+  closeAuctions, eliminate, openAuction, placeBid, PRESTON_OUTBID,
   BAY_RIVALS, bugleNews, canAssault, comeToTown, DISTRICTS, keepSqueezing, netWorth, OUT_OF_TOWNER, outOfTownerAtDawn, ownedPlots, RAID_PARTY,
   raidCost, raidSize, rivalsBankrupt, swarms, syndicateMembers, thinnestDistrict, threatLevel,
   type DayStats, type DistrictId, type GameState, type Guard, type RivalId, type Scheme,
@@ -725,6 +725,25 @@ describe('Old Money', () => {
     schemesAtDawn(s);
     expect(landFrozen(s, p.id)).toBe(false);
     expect(canBuyPlot(s, p.id).ok).toBe(true); // First Dibs still holds today
+  });
+
+  it('a land freeze thaws the moment the Sourwoods fall, the same day, ticket and all', () => {
+    const s = act5(59);
+    const job = startScheme(s, 'sourwood', 'freeze')!;
+    const plot = job.plots[0];
+    expect(landFrozen(s, plot)).toBe(true);
+    eliminate(s, 'sourwood', 'buyout'); // Vera sells up at Morning Prep
+    expect(job.done).toBe(true);
+    expect(landFrozen(s, plot)).toBe(false);
+    expect(freezeOn(s, plot)).toBeUndefined();
+    expect(canBuyPlot(s, plot)).not.toEqual({ ok: false, why: 'Town Hall froze this sale' });
+    expect(schemeTickets(s).some((x) => x.includes('data-testid="freeze"'))).toBe(false);
+    expect(schemeNote(s, plot)).not.toContain('frozen');
+    const t = act5(60); // fallen some other way (a test, a sandbox): the freeze still thaws
+    const again = startScheme(t, 'sourwood', 'freeze')!;
+    t.rivals.sourwood.alive = false;
+    expect(landFrozen(t, again.plots[0])).toBe(false);
+    expect(schemeTickets(t).some((x) => x.includes('data-testid="freeze"'))).toBe(false);
   });
 
   it('with no dibs or bid, the freeze lands on the busiest plot you could buy; a Sit-down buyout waits too', () => {

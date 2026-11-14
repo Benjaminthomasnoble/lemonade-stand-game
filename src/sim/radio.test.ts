@@ -115,6 +115,11 @@ describe('101.5 The Squeeze', () => {
     expect(callFight(note('player', 'coldbrew', 'robbed'))).toBe(`The Peel Patrol hit the till at ${at2} and run off with $120! What a grab by Lottie's!`); // your crew, by name
     expect(callFight(note('coldbrew', 'player', 'repelled'))).toBe(`The Baristas charge ${at2}... and bounce right off! What a stand by Lottie's!`);
     expect(callFight(note('sourwood', 'hollis', 'damaged'))).toBe(`The Stewards rattle ${at2} and leave empty-handed! Close one for Hollis Sweet Tea!`);
+    // A Sabotage goes for the stock, never the till.
+    const sabotage = (attacker: FightNote['attacker'], defender: FightNote['defender'], outcome: FightNote['outcome']): FightNote => ({ ...note(attacker, defender, outcome), loot: 0, sabotage: true });
+    expect(callFight(sabotage('player', 'coldbrew', 'robbed'))).toBe(`The Peel Patrol slip into ${at2} and spoil the stock! What a night for Lottie's!`);
+    expect(callFight(sabotage('coldbrew', 'player', 'damaged'))).toBe(`The Baristas sneak into ${at2} but run out of time! Close one for Lottie's!`);
+    expect(callFight(sabotage('coldbrew', 'player', 'repelled'))).toBe(`The Baristas creep up on ${at2}... and get caught! Sabotage foiled by Lottie's!`);
   });
 
   it('calls the fights as they happen, rival-vs-rival included, recaps last night at 13:00, and breaks in with mid-day events', () => {

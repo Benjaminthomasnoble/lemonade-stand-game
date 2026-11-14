@@ -29,8 +29,9 @@ const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 // ---------- what the paper remembers from one dawn to the next ----------
 
-/** Last night's fights as the paper and the radio heard them, rival-vs-rival included (crew's fightRaid logs each one). */
-export interface FightNote { day: number; minute: number; attacker: FactionId; defender: FactionId; target: string; outcome: BattleReport['outcome']; loot: number }
+/** Last night's fights as the paper and the radio heard them, rival-vs-rival included (crew's fightRaid logs each one).
+ * sabotage: the stock was the target, so a won one spoiled it and took nothing. */
+export interface FightNote { day: number; minute: number; attacker: FactionId; defender: FactionId; target: string; outcome: BattleReport['outcome']; loot: number; sabotage?: true }
 
 /** The newsroom's notes, taken at dawn: the rank and rivals' plots it last printed, and what changed since. */
 export interface Newsroom {
@@ -48,7 +49,9 @@ export interface Newsroom {
 /** crew's fightRaid calls this for every fight, rival-vs-rival included. */
 export function bugleFight(s: GameState, b: BattleReport): void {
   const w = worldOf(s);
-  (w.fights ??= []).unshift({ day: b.day, minute: s.minute, attacker: b.attacker, defender: b.defender, target: b.target, outcome: b.outcome, loot: b.loot });
+  (w.fights ??= []).unshift({
+    day: b.day, minute: s.minute, attacker: b.attacker, defender: b.defender, target: b.target, outcome: b.outcome, loot: b.loot, ...(b.sabotage ? { sabotage: true as const } : {}),
+  });
   w.fights.length = Math.min(w.fights.length, 16);
 }
 
@@ -177,6 +180,7 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
 /** Last night's fights with you in them: held, smashed, robbed, or your own crew's raid (`us`, by its name). */
 function fightStory(f: FightNote, us: string): Story {
   const at = place(f.target);
+  if (f.sabotage) return sabotageStory(f, us, at);
   if (f.attacker === 'player') {
     switch (f.outcome) {
       case 'smashed': return { big: `${us.toUpperCase()} STRIKES!`, small: `${who(f.defender)} flattened at ${at}`, brief: `${us} flattens the ${who(f.defender)} stand at ${at}.`, rank: 3 };
@@ -193,7 +197,25 @@ function fightStory(f: FightNote, us: string): Story {
   }
 }
 
+/** A Sabotage: the stock was the target, so a won one spoils it and takes nothing (crew.ts sabotageHeadline). */
+function sabotageStory(f: FightNote, us: string, at: string): Story {
+  if (f.attacker === 'player') {
+    switch (f.outcome) {
+      case 'robbed': return { big: 'SABOTAGE!', small: `Stock spoiled at ${at}`, brief: `${us} spoils the stock at ${at}.`, rank: 3 };
+      case 'damaged': return { big: 'RAID RUNS LATE', small: `Stock safe at ${at}`, brief: `${us} runs out of time at ${at}.`, rank: 3 };
+      default: return { big: 'SABOTAGE FOILED', small: `${who(f.defender)} hold ${at}`, brief: `${who(f.defender)} catch ${us} at ${at}.`, rank: 3 };
+    }
+  }
+  switch (f.outcome) {
+    case 'robbed': return { big: 'STOCK SPOILED!', small: `${who(f.attacker)} hit ${at}`, brief: `${who(f.attacker)} ruin Lottie's stock at ${at}.`, rank: 3 };
+    case 'damaged': return { big: 'CLOSE CALL!', small: `${who(f.attacker)} sneak into ${at}`, brief: `${who(f.attacker)} sneak into ${at}; the stock is safe.`, rank: 3 };
+    default: return { big: 'SABOTAGE FOILED!', small: `${who(f.attacker)} caught at ${at}`, brief: `${who(f.attacker)} caught creeping round ${at}.`, rank: 3 };
+  }
+}
+
 const OUTCOME: Record<BattleReport['outcome'], string> = { smashed: 'smashed', robbed: 'robbed', damaged: 'roughed up', repelled: 'held off' };
+/** A rival-vs-rival Sabotage's outcome, as the brief prints it. */
+const SPOILED: Record<BattleReport['outcome'], string> = { smashed: 'stock spoiled', robbed: 'stock spoiled', damaged: 'stock safe', repelled: 'foiled' };
 
 /** A wire line written the paper's way ("FIRE SALE: ...", "REPOSSESSED! ...") can lead, with its first sentence as the small
  * tape (the rivals lane's Out-of-Towner, say); any other line prints as a brief. */
@@ -232,7 +254,7 @@ function stories(s: GameState): { lead: Story[]; briefs: string[] } {
   const night = (s.world?.fights ?? []).filter((f) => f.day === s.day - 1);
   for (const f of night) {
     if (f.attacker === 'player' || f.defender === 'player') lead.push(fightStory(f, crewName(s)));
-    else briefs.push(`${who(f.attacker)} raid ${who(f.defender)} at ${place(f.target)}: ${OUTCOME[f.outcome]}.`);
+    else briefs.push(`${who(f.attacker)} ${f.sabotage ? 'sabotage' : 'raid'} ${who(f.defender)} at ${place(f.target)}: ${(f.sabotage ? SPOILED : OUTCOME)[f.outcome]}.`);
   }
   const moves = [...(paper?.moves ?? [])].filter((m) => m.gained.length).sort((a, b) => b.gained.length - a.gained.length);
   for (const m of moves) {

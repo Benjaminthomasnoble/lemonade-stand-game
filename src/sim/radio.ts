@@ -110,9 +110,17 @@ export const inCelsius = (text: string, celsius: boolean) => (celsius ? text.rep
  * With the °C option he says the Celsius number. */
 export const weatherTalk = (w: Weather, celsius = false) => WEATHER_TALK[w.kind](sayNumber(celsius ? toCelsius(w.temp) : w.temp));
 
-/** A fight called like a ball game, whoever's in it: Cal never takes sides. `us`: your crew's name (src/sim/grandkid.ts). */
+/** A fight called like a ball game, whoever's in it: Cal never takes sides. `us`: your crew's name (src/sim/grandkid.ts).
+ * A Sabotage goes for the stock, not the till. */
 export function callFight(f: FightNote, us = CREW_NAME): string {
   const at = place(f.target);
+  if (f.sabotage) {
+    switch (f.outcome) {
+      case 'robbed': return `${cap(crew(f.attacker, us))} slip into ${at} and spoil the stock! What a night for ${team(f.attacker)}!`;
+      case 'damaged': return `${cap(crew(f.attacker, us))} sneak into ${at} but run out of time! Close one for ${team(f.defender)}!`;
+      default: return `${cap(crew(f.attacker, us))} creep up on ${at}... and get caught! Sabotage foiled by ${team(f.defender)}!`;
+    }
+  }
   switch (f.outcome) {
     case 'smashed': return `${cap(crew(f.attacker, us))} come over the fence at ${at}... and down goes the stand! What a night for ${team(f.attacker)}!`;
     case 'robbed': return `${cap(crew(f.attacker, us))} hit the till at ${at} and run off with ${money(f.loot)}! What a grab by ${team(f.attacker)}!`;

@@ -100,6 +100,35 @@ describe('the Morning Bugle', () => {
     expect(frontPage(s).briefs).toContain("Honey-Ginger Hot Lemonade is back in Lottie's book.");
   });
 
+  it('a Sabotage makes the paper as spoiled stock, never as a $0 till grab', () => {
+    const s = newGame(31);
+    dawn(s, 3);
+    quiet(s);
+    s.phase = 'report';
+    const baristas = [0, 1, 2].map((i) => ({ id: `c${i}`, name: `Barista ${i}`, side: 'att' as const, hp: 100, hit: 18, chop: 10, nerve: 50, armor: 0, weapon: 'clubs' as const }));
+    const won = fightRaid(s, { id: 'sab', attacker: 'coldbrew', target: LOTTIES_CORNER, objective: 'shakedown', sabotage: true, party: baristas, detected: false, eta: '02:00' }, true);
+    expect([won.outcome, won.sabotage]).toEqual(['robbed', true]);
+    expect(s.world!.fights![0]).toMatchObject({ outcome: 'robbed', loot: 0, sabotage: true }); // the newsroom hears it was the stock
+    dawn(s, 4);
+    calm(s);
+    const at = short(LOTTIES_CORNER);
+    expect(bugleHeadline(s)).toEqual(['STOCK SPOILED!', `Cold Brew hit ${at}`]);
+    expect(JSON.stringify(frontPage(s))).not.toContain('$0');
+
+    // Your crew's Sabotage, won and foiled; a rival-vs-rival one prints as a brief.
+    const target = rivalPlot(s, 'blenders');
+    const note = (attacker: RivalId | 'player', defender: RivalId | 'player', outcome: 'robbed' | 'damaged' | 'repelled') =>
+      ({ day: s.day - 1, minute: 2 * 60, attacker, defender, target, outcome, loot: 0, sabotage: true as const });
+    s.world!.fights = [note('player', 'blenders', 'robbed')];
+    expect(bugleHeadline(s)).toEqual(['SABOTAGE!', `Stock spoiled at ${short(target)}`]);
+    s.world!.fights = [note('player', 'blenders', 'repelled')];
+    expect(bugleHeadline(s)).toEqual(['SABOTAGE FOILED', `Blenders hold ${short(target)}`]);
+    s.world!.fights = [note('coldbrew', 'player', 'repelled')];
+    expect(bugleHeadline(s)).toEqual(['SABOTAGE FOILED!', `Cold Brew caught at ${short(target)}`]);
+    s.world!.fights = [note('coldbrew', 'blenders', 'robbed')];
+    expect(frontPage(s).briefs).toContain(`Cold Brew sabotage Blenders at ${short(target)}: stock spoiled.`);
+  });
+
   it('a rival\'s new stands make the paper', () => {
     const s = newGame(32);
     dawn(s, 3);

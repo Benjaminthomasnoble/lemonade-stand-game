@@ -578,6 +578,43 @@ describe('FizzCo buyout offers', () => {
     expect(s.news.at(-1)).toBe(`Bugle: Lottie sells ${PLOT_BY_ID[plot].name} to FizzCo Beverages for $${price.toLocaleString('en-US')}`);
   });
 
+  it('hands FizzCo a clean stand of its own: no campaign of yours running on, its card, and your stock bought at cost', () => {
+    const { s, plot } = wanted(41);
+    const st = s.plots[plot].stand!;
+    st.campaigns = { freeSamples: 3, sandwichBoard: 1 }; // days still to run when you sell
+    st.recipe = 'pink';
+    st.sweetness = 'extra';
+    st.hp = 40;
+    st.specs = ['express'];
+    st.inventory = { lemons: [{ qty: 100, unitCost: 0.2, day: 59 }], sugar: 10, ice: 50, sugarCost: 0.5, iceCost: 0.02 };
+    const stock = 100 * 0.2 + 10 * 0.5 + 50 * 0.02;
+    const offer = startScheme(s, 'fizzco', 'buyout')!;
+    const grow = budgetOf(s, 'fizzco').grow, cash = s.cash;
+    const walk = marketingMultiplier(s, 'fizzco', st, plot);
+    expect(answerBuyout(s, plot, true)).toBe(true);
+    const sold = s.plots[plot].stand!;
+    expect(sold).toMatchObject({ level: 2, campaigns: {}, recipe: 'classic', sweetness: 'classic', hp: 40, specs: ['express'] });
+    expect(sold.price).toBe(rivalPrice('fizzco', 2, PLOT_BY_ID[plot]));
+    expect(sold.inventory).toEqual({ lemons: [], sugar: 0, ice: 0, sugarCost: 0, iceCost: 0 });
+    expect(marketingMultiplier(s, 'fizzco', sold, plot)).toBeCloseTo(walk - CAMPAIGNS.freeSamples.traffic - CAMPAIGNS.sandwichBoard.traffic, 6);
+    expect(s.cash).toBeCloseTo(cash + offer.price! + stock, 2);
+    expect(grow - budgetOf(s, 'fizzco').grow).toBeCloseTo(offer.price! + stock, 2);
+    expect(rowAmount(s.today, 'stock')).toBeCloseTo(stock, 2); // the Ledger: stock sold at cost, no profit or loss
+    expect(rowAmount(s.today, 'invested')).toBeCloseTo(offer.price!, 2);
+    for (let d = 61; d <= 66; d++) { // a week on, nothing of yours runs at FizzCo's stand
+      s.day = d;
+      hush(s);
+      schemesAtDawn(s);
+      expect(marketingMultiplier(s, 'fizzco', s.plots[plot].stand!, plot)).toBeCloseTo(walk - CAMPAIGNS.freeSamples.traffic - CAMPAIGNS.sandwichBoard.traffic, 6);
+    }
+    const short = wanted(51); // FizzCo's Grow covers the offer but not your stock: no sale
+    short.s.plots[short.plot].stand!.inventory.sugar = 1000;
+    short.s.plots[short.plot].stand!.inventory.sugarCost = 1;
+    const o = startScheme(short.s, 'fizzco', 'buyout')!;
+    budgetOf(short.s, 'fizzco').grow = o.price! + 500;
+    expect(canSellToFizzco(short.s, short.plot)).toEqual({ ok: false, why: 'FizzCo can\'t pay any more' });
+  });
+
   it('No raises Preston\'s Grudge and ends it; an unanswered offer lapses after 2 days', () => {
     const { s, plot } = wanted(42);
     startScheme(s, 'fizzco', 'buyout');

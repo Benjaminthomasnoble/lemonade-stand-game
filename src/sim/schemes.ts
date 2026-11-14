@@ -24,7 +24,7 @@ import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, openBooks, outO
 import { AD_BLITZ, CEASE, HEDGES, inTruce, MYSTERY, NIGHT_SHIFT, OLD_MONEY, OUT_OF_TOWNER, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { CALL_PRIORITY, phoneCall } from './phone.ts';
-import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row, and stock gone bad
+import { book, stockValue, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row, and stock gone bad
 import { actOf, districtControl, isEndless, peaceful } from './modes.ts';
 import { playScene, queued } from './scenes.ts';
 import { hasStory } from './story.ts';
@@ -488,18 +488,36 @@ function startBuyout(s: GameState, id: RivalId): Scheme | null {
 /** The offer standing on a plot of yours today, if any. */
 export const offerOn = (s: GameState, plotId: string) => runningSchemes(s).find((x) => x.kind === 'buyout' && x.plots[0] === plotId && s.rivals[x.by].alive);
 
-/** Can you take FizzCo's offer now? At Morning Prep, while it stands and FizzCo's Grow can still pay. */
+/** Your stock on a plot you sell FizzCo, at cost: it isn't built, so FizzCo pays for it on top of its offer. */
+const stockThere = (s: GameState, plotId: string) => Math.round(stockValue(s.plots[plotId].stand ?? newStand()) * 100) / 100;
+
+/** Can you take FizzCo's offer now? At Morning Prep, while it stands and FizzCo's Grow can still pay (your stock there too). */
 export function canSellToFizzco(s: GameState, plotId: string): { ok: true } | { ok: false; why: string } {
   const offer = offerOn(s, plotId);
   if (!offer || s.plots[plotId].owner !== 'player') return { ok: false, why: 'No offer on this plot' };
   if (s.phase !== 'prep') return { ok: false, why: 'Sell at Morning Prep' };
-  if (!canSpend(s, offer.by, 'grow', offer.price!)) return { ok: false, why: 'FizzCo can\'t pay any more' };
+  if (!canSpend(s, offer.by, 'grow', offer.price! + stockThere(s, plotId))) return { ok: false, why: 'FizzCo can\'t pay any more' };
   return { ok: true };
 }
 
 /**
+ * The stand FizzCo gets with a plot you sell it: the building as it stands (its level, HP and specialization slots),
+ * set up as one of its own, like a stand it built: its price and the house card, with no campaign of yours running on
+ * and none of your stock (it's paid for).
+ */
+function soldStand(s: GameState, st: Stand, id: RivalId, plotId: string): Stand {
+  const fresh = newStand(st.level, rivalPrice(id, st.level, PLOT_BY_ID[plotId], s));
+  if (st.hp !== undefined) fresh.hp = st.hp;
+  if (st.wrecked) fresh.wrecked = true;
+  if (st.startTable) fresh.startTable = true;
+  if (st.specs) fresh.specs = [...st.specs];
+  return fresh;
+}
+
+/**
  * Your answer to a buyout offer. Sell: FizzCo's Grow pays you the price and the plot goes to FizzCo with what's built
- * on it (your guards there come home). No: the offer is off, and Preston's Grudge rises. Returns whether it went.
+ * on it (your guards there come home, and a VIP offer for it lapses); your stock there it buys at cost. No: the offer
+ * is off, and Preston's Grudge rises. Returns whether it went.
  */
 export function answerBuyout(s: GameState, plotId: string, sell: boolean): boolean {
   const offer = offerOn(s, plotId);
@@ -512,15 +530,17 @@ export function answerBuyout(s: GameState, plotId: string, sell: boolean): boole
     return true;
   }
   if (!canSellToFizzco(s, plotId).ok) return false;
-  const price = offer.price!;
-  spend(s, id, 'grow', price);
+  const price = offer.price!, stock = stockThere(s, plotId);
+  spend(s, id, 'grow', price + stock);
   book(s, 'invested', price); // the Ledger: a plot sold comes back off Invested
+  book(s, 'stock', stock); // and its stock, sold at cost, off Stock
   const ps = s.plots[plotId];
   ps.owner = id;
   ps.garrison = 0;
   delete ps.dibs;
-  if (ps.stand) ps.stand.price = rivalPrice(id, ps.stand.level, PLOT_BY_ID[plotId]);
+  if (ps.stand) ps.stand = soldStand(s, ps.stand, id, plotId);
   for (const g of s.guards) if (g.post === plotId) g.post = null;
+  s.offers = s.offers.filter((o) => o.plot !== plotId); // a VIP offer for this pad or pier lapses with it
   offer.done = true;
   s.news.push(`Bugle: Lottie sells ${PLOT_BY_ID[plotId].name} to ${short(id)} for ${money(price)}`);
   return true;

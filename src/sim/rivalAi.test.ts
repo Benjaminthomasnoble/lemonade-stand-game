@@ -657,6 +657,7 @@ describe('Night Shift', () => {
     expect(call({ sabotage: true })).toMatchObject([{ text: NIGHT_SHIFT.taunt, mood: 'gloat', day: 30 }]);
     expect(call({})).toMatchObject([{ text: '', mood: 'gloat' }]);
     expect(call({ sabotage: true, outcome: 'repelled' })).toMatchObject([{ text: '', mood: 'sore' }]); // held: nothing spoiled
+    expect(call({ outcome: 'repelled', fellBack: 'def' })).toMatchObject([{ text: '', mood: 'gloat' }]); // your guards Fell Back: not a hold (crew.ts playerWon)
   });
 });
 

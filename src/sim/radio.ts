@@ -114,6 +114,8 @@ export const weatherTalk = (w: Weather, celsius = false) => WEATHER_TALK[w.kind]
  * A Sabotage goes for the stock, not the till. */
 export function callFight(f: FightNote, us = CREW_NAME): string {
   const at = place(f.target);
+  // Guards who Fall Back lose the fight, even when the raiders go home with nothing (crew.ts playerWon).
+  if (f.fellBack === 'def' && (f.outcome === 'repelled' || f.outcome === 'damaged')) return `${cap(crew(f.defender, us))} fall back from ${at}! ${cap(crew(f.attacker, us))} win it, but go home empty-handed!`;
   if (f.sabotage) {
     switch (f.outcome) {
       case 'robbed': return `${cap(crew(f.attacker, us))} slip into ${at} and spoil the stock! What a night for ${team(f.attacker)}!`;

@@ -888,7 +888,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       if (!soaked && t >= 0) cueGadgets('contact');
       if (!won && t > report.duration) {
         won = true;
-        const side: Fighter['side'] = report.outcome === 'repelled' ? 'def' : 'att';
+        const side: Fighter['side'] = report.fellBack ? (report.fellBack === 'att' ? 'def' : 'att') : report.outcome === 'repelled' ? 'def' : 'att'; // a side that Fell Back lost
         const winners = units.filter((u) => u.f.side === side && standing(u));
         for (const u of units) if (standing(u) && u.f.side !== side) { setState(u, 'home'); u.frozen = u.spin = u.flop = 0; u.obj.rotation.x = 0; u.obj.position.y = 0; dropStars(u); u.target.copy(u.home); }
         if (winners[0]) hooks.onWin?.(winners.map((u) => u.obj), side, winners[0].owner);

@@ -13,7 +13,7 @@ import {
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
-  canAssault, hasBuilding, hqPlot, isWrecked,
+  canAssault, hasBuilding, hqPlot, isWrecked, playerWon,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
@@ -612,7 +612,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
       const bankAny = bankTicket(s); if (bankAny) t.push(bankAny); // land: Marisol lends at any hour
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
-        const good = foughtWell(b);
+        const good = playerWon(b); // a side that Fell Back lost the fight, whatever became of the stand
         t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
       }
       return t.length ? `<div class="cl-feed">${t.join('')}</div>` : '';
@@ -627,7 +627,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     t.push(...rebuildTickets(s), ...damageTickets(s)); // smashed and Damaged buildings (src/ui/damage.ts)
     for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day - 1 || b.day === s.day)) {
-      const good = foughtWell(b);
+      const good = playerWon(b); // a side that Fell Back lost the fight, whatever became of the stand
       t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);
     }
     if (isSpoiled(s, s.plots[s.selected])) t.push(`<div class="cl-ticket red" title="A Sabotage ruined the stock: this stand sells nothing today">${ART.sour()}<b>Stock spoiled: closed today</b></div>`);
@@ -818,11 +818,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     return out.length ? `<div class="cl-tonight">${out.join('')}</div>` : '';
   }
 
-  /** Your side came out on top: a raid of yours that got what it came for, or a raid on you that didn't; a side that
-   * Fell Back lost the fight, whatever became of the stand. */
-  function foughtWell(b: GameState['battles'][number]) {
-    return b.fellBack ? b.fellBack !== (b.attacker === 'player' ? 'att' : 'def') : (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
-  }
   function fightLine(b: GameState['battles'][number]) {
     const where = PLOT_BY_ID[b.target].name;
     const who = (f: string) => (f === 'player' ? crewOf(b) : FACTIONS[f as RivalId].name);

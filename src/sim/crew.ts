@@ -1104,6 +1104,12 @@ export const crewOf = (b: BattleReport): string => b.crew ?? CREW_NAME;
 /** Each side of a fight as its lines name it: your crew, or the gang. */
 const sideName = (b: BattleReport) => (f: FactionId): string => (f === 'player' ? crewOf(b) : FACTIONS[f as RivalId].name);
 
+/** Your side came out on top: a raid of yours that got what it came for, or a raid on you that didn't. A side that
+ * Fell Back lost the fight, whatever became of the stand. The one rule every reader of a fight of yours goes by. */
+export function playerWon(b: Pick<BattleReport, 'attacker' | 'outcome' | 'fellBack'>): boolean {
+  return b.fellBack ? b.fellBack !== (b.attacker === 'player' ? 'att' : 'def') : (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+}
+
 /** The Bugle's line for a fight, with the HP a building lost and kept (damage.ts). Guards who Fell Back lost the fight,
  * and the line opens with it. */
 export function battleHeadline(b: BattleReport): string {

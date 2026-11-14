@@ -129,6 +129,21 @@ describe('the Morning Bugle', () => {
     expect(frontPage(s).briefs).toContain(`Cold Brew sabotage Blenders at ${short(target)}: stock spoiled.`);
   });
 
+  it('guards who Fell Back lost the fight: the paper doesn\'t call it a hold, even when the raiders got nothing', () => {
+    const s = newGame(31);
+    dawn(s, 3);
+    quiet(s);
+    const note = { day: s.day - 1, minute: 23 * 60, attacker: 'blenders' as const, defender: 'player' as const, target: LOTTIES_CORNER, loot: 0 };
+    s.world!.fights = [{ ...note, outcome: 'repelled' }];
+    expect(bugleHeadline(s)).toEqual(['RAID HELD!', `Blenders bounce off ${short(LOTTIES_CORNER)}`]);
+    s.world!.fights = [{ ...note, outcome: 'repelled', fellBack: 'def' }]; // crew.ts playerWon: a side that Fell Back lost
+    expect(bugleHeadline(s)).toEqual(['GUARDS FALL BACK', 'Blenders leave empty-handed']);
+    s.world!.fights = [{ ...note, outcome: 'damaged', fellBack: 'def' }];
+    expect(bugleHeadline(s)).toEqual(['GUARDS FALL BACK', `Blenders rattle ${short(LOTTIES_CORNER)}`]);
+    s.world!.fights = [{ ...note, outcome: 'repelled', fellBack: 'def', sabotage: true }]; // a Sabotage they left to it, too
+    expect(bugleHeadline(s)).toEqual(['GUARDS FALL BACK', 'Blenders leave empty-handed']);
+  });
+
   it('a rival\'s new stands make the paper', () => {
     const s = newGame(32);
     dawn(s, 3);

@@ -10,7 +10,7 @@ import {
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, calmAudioOn, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
-  battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
+  battleHeadline, playerWon, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk, nudgeStockTarget, setStockTarget, toggleAutoRestock, setByHand, toggleAutoPrice,
@@ -155,7 +155,7 @@ async function main() {
   const wake = () => audio.start();
   window.addEventListener('pointerdown', wake, { once: true });
   window.addEventListener('keydown', wake, { once: true });
-  const won = (b: BattleReport) => (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
+  const won = playerWon; // crew.ts: a side that Fell Back lost the fight, whatever became of the stand
   /** A raid warning lands: the Raid Incoming stinger and Lottie's fist (the boss's call rings from the sim's phone queue). */
   let tickHold = 0; // performance.now() while the Raid Incoming stinger plays: the countdown's ticks take over after
   let tickIn = 0; // real seconds till the countdown's next tick

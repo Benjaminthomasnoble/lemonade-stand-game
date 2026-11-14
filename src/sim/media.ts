@@ -9,7 +9,7 @@ import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SEGME
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
 import { costPerCup, playerStands, seasonDay, seasonOf } from './economy.ts';
-import { battleHeadline, type BattleReport } from './crew.ts';
+import { battleHeadline, playerWon, type BattleReport } from './crew.ts';
 import { pagesInTheBugle, worldOf } from './recipes.ts';
 import { festivalDays, festivalsOn, storyFairs, tasteOffResult, tasteOffToday, upcomingFestivals } from './calendar.ts';
 import { daysLeft, eventDef, liveEvents, type WorldEvent } from './events.ts';
@@ -30,8 +30,12 @@ const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 // ---------- what the paper remembers from one dawn to the next ----------
 
 /** Last night's fights as the paper and the radio heard them, rival-vs-rival included (crew's fightRaid logs each one).
- * sabotage: the stock was the target, so a won one spoiled it and took nothing. */
-export interface FightNote { day: number; minute: number; attacker: FactionId; defender: FactionId; target: string; outcome: BattleReport['outcome']; loot: number; sabotage?: true }
+ * sabotage: the stock was the target, so a won one spoiled it and took nothing. fellBack: that side Fell Back and lost
+ * the fight (older notes have neither). */
+export interface FightNote {
+  day: number; minute: number; attacker: FactionId; defender: FactionId; target: string; outcome: BattleReport['outcome']; loot: number;
+  sabotage?: true; fellBack?: BattleReport['fellBack'];
+}
 
 /** The newsroom's notes, taken at dawn: the rank and rivals' plots it last printed, and what changed since. */
 export interface Newsroom {
@@ -51,6 +55,7 @@ export function bugleFight(s: GameState, b: BattleReport): void {
   const w = worldOf(s);
   (w.fights ??= []).unshift({
     day: b.day, minute: s.minute, attacker: b.attacker, defender: b.defender, target: b.target, outcome: b.outcome, loot: b.loot, ...(b.sabotage ? { sabotage: true as const } : {}),
+    ...(b.fellBack ? { fellBack: b.fellBack } : {}),
   });
   w.fights.length = Math.min(w.fights.length, 16);
 }
@@ -177,9 +182,14 @@ function storyBeats(s: GameState, paper: Newsroom | undefined): Story[] {
   return out;
 }
 
-/** Last night's fights with you in them: held, smashed, robbed, or your own crew's raid (`us`, by its name). */
+/** Last night's fights with you in them: held, smashed, robbed, or your own crew's raid (`us`, by its name). Guards who
+ * Fell Back lost the fight (crew.ts playerWon), even when the raiders came away with nothing. */
 function fightStory(f: FightNote, us: string): Story {
   const at = place(f.target);
+  if (f.attacker !== 'player' && !playerWon(f) && (f.outcome === 'repelled' || f.outcome === 'damaged')) {
+    const did = f.outcome === 'damaged' && !f.sabotage ? `rattle ${at}` : 'leave empty-handed';
+    return { big: 'GUARDS FALL BACK', small: `${who(f.attacker)} ${did}`, brief: `Lottie's guards fall back from ${at}; ${who(f.attacker)} leave empty-handed.`, rank: 3 };
+  }
   if (f.sabotage) return sabotageStory(f, us, at);
   if (f.attacker === 'player') {
     switch (f.outcome) {

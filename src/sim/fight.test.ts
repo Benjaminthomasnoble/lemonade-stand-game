@@ -12,7 +12,7 @@ import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
   buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS, hqPlot,
-  buildClubhouse, callBigSqueeze, newStand, planNight, RESERVE_MINUTES, startNight, waitingRaids, type BattleReport, type SimEvent,
+  buildClubhouse, callBigSqueeze, newStand, planNight, playerWon, RESERVE_MINUTES, startNight, waitingRaids, type BattleReport, type SimEvent,
 } from './economy.ts';
 import { ringTheBell } from './reinforce.ts';
 
@@ -475,6 +475,8 @@ describe('the fight buttons', () => {
     const line = s.news.find((n) => n.includes('fall back'))!;
     if (tier) expect(line).toBe(`Your guards fall back from ${PLOT_BY_ID[home].name}, and ${FACTIONS.blenders.name} leave empty-handed.`);
     else expect(line).toMatch(/^Your guards fall back\. /);
+    expect(s.world!.fights![0]).toMatchObject({ attacker: 'blenders', defender: 'player', outcome: ended.outcome, fellBack: 'def' }); // the Bugle's note
+    expect(playerWon(ended)).toBe(false);
     expect(s.captives ?? []).toEqual([]);
   });
 

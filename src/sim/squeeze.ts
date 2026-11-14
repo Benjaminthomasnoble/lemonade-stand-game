@@ -10,7 +10,7 @@ import { ACTS, BIG_SQUEEZE, RANKS, type RivalId } from './balance.ts';
 import type { Blocker, GameState, Goal } from './economy.ts';
 import { ownedPlots } from './economy.ts';
 import { alert } from './alerts.ts';
-import { hasBuilding, type BattleReport, type Raid } from './crew.ts';
+import { hasBuilding, playerWon, type BattleReport, type Raid } from './crew.ts';
 import { PLOT_BY_ID } from './map.ts';
 import { nextRandom } from './rng.ts';
 import { targetScore } from './rivalAi.ts';
@@ -108,13 +108,14 @@ function nameTargets(s: GameState): void {
 
 // ---------- the siege ----------
 
-/** A siege raid has been fought (night.ts arrive): a target held, or lost (smashed: a Steward joins the Boss Room). */
+/** A siege raid has been fought (night.ts arrive): a target held, or lost (smashed: a Steward joins the Boss Room).
+ * Guards who Fell Back didn't hold it, even when the raiders got nothing (crew.ts playerWon). */
 export function siegeFought(s: GameState, r: Raid, report: BattleReport): void {
   const q = s.squeeze;
   if (!r.siege || !q || siegeDone(s)) return;
   const t = (q.tonight ??= { fought: 0, repelled: 0, fell: 0 });
   t.fought++;
-  if (report.outcome === 'repelled') t.repelled++;
+  if (report.outcome === 'repelled' && playerWon(report)) t.repelled++;
   if (report.outcome === 'smashed') { t.fell++; q.lost = (q.lost ?? 0) + 1; }
 }
 

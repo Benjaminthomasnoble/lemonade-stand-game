@@ -120,6 +120,8 @@ describe('101.5 The Squeeze', () => {
     expect(callFight(sabotage('player', 'coldbrew', 'robbed'))).toBe(`The Peel Patrol slip into ${at2} and spoil the stock! What a night for Lottie's!`);
     expect(callFight(sabotage('coldbrew', 'player', 'damaged'))).toBe(`The Baristas sneak into ${at2} but run out of time! Close one for Lottie's!`);
     expect(callFight(sabotage('coldbrew', 'player', 'repelled'))).toBe(`The Baristas creep up on ${at2}... and get caught! Sabotage foiled by Lottie's!`);
+    // Your guards Fell Back: the raiders won it, even with nothing to show for it (crew.ts playerWon).
+    expect(callFight({ ...note('coldbrew', 'player', 'repelled'), fellBack: 'def' })).toBe(`The Peel Patrol fall back from ${at2}! The Baristas win it, but go home empty-handed!`);
   });
 
   it('calls the fights as they happen, rival-vs-rival included, recaps last night at 13:00, and breaks in with mid-day events', () => {

@@ -199,6 +199,10 @@ describe('the siege', () => {
     expect(manorStewards(s, 'sourwood')).toBe(4);
     night(s, 'damaged'); // hurt but standing: not held, not lost
     expect(s.squeeze).toMatchObject({ nights: 3, held: 1, lost: 1 });
+    // Guards who Fell Back didn't hold their target, even with the raiders still stuck at the fence (crew.ts playerWon).
+    siegeFought(s, siegeRaid, { attacker: 'sourwood', defender: 'player', outcome: 'repelled', fellBack: 'def' } as BattleReport);
+    expect(s.squeeze!.tonight).toMatchObject({ fought: 1, repelled: 0, fell: 0 });
+    delete s.squeeze!.tonight; // (scored on its own: the night goes on as before)
     night(s); // nobody came: nothing to hold
     expect(s.squeeze).toMatchObject({ nights: 4, held: 1 });
     expect(s.news).toContain('Bugle: A quiet night on the siege lines');

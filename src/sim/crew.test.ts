@@ -7,7 +7,7 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, foughtByDay, henchmanFor, hqOdds, isSpoiled, raidParty, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, foughtByDay, henchmanFor, playerWon, hqOdds, isSpoiled, raidParty, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
 import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GEAR, GUARD_BASE, HENCHMEN, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RAID_PARTY, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
@@ -138,6 +138,15 @@ describe('crew and raids', () => {
     for (let d = 0; d < 12; d++) { playDay(a); playDay(b); }
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   }, 90_000); // 12 whole days twice: about 15 s alone, much longer while other checks share the machine
+
+  it('playerWon: a raid of yours that got what it came for, or a raid on you that didn\'t; a side that Fell Back lost', () => {
+    const fight = (attacker: 'player' | 'blenders', outcome: BattleReport['outcome'], fellBack?: 'att' | 'def') =>
+      playerWon({ attacker, outcome, ...(fellBack ? { fellBack } : {}) });
+    expect([fight('player', 'smashed'), fight('player', 'robbed'), fight('player', 'damaged'), fight('player', 'repelled')]).toEqual([true, true, false, false]);
+    expect([fight('blenders', 'smashed'), fight('blenders', 'robbed'), fight('blenders', 'damaged'), fight('blenders', 'repelled')]).toEqual([false, false, true, true]);
+    expect(fight('player', 'repelled', 'att')).toBe(false); // your crew called it off
+    expect([fight('blenders', 'repelled', 'def'), fight('blenders', 'damaged', 'def'), fight('blenders', 'smashed', 'def')]).toEqual([false, false, false]); // your guards left
+  });
 });
 
 describe('the Hiring Hall', () => {

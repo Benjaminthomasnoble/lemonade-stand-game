@@ -11,7 +11,7 @@
 import { FACTIONS, PHONE_ATTENTION_JUMP, PHONE_GRUDGE_JUMP, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
-import { threatLevel, type Raid } from './crew.ts';
+import { playerWon, threatLevel, type Raid } from './crew.ts';
 import { onYou } from './night.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { hasStory } from './story.ts';
@@ -186,7 +186,7 @@ export function phoneCheck(s: GameState, dawn = false): void {
     if (jumped(g0, st.grudge, PHONE_GRUDGE_JUMP) || (g0 <= 30 && st.grudge > 30)) {
       // Most jumps follow a raid of yours on them: they call about it at the next dawn ("at dawn he calls").
       const fight = s.battles.find((b) => b.day >= s.day - 1 && b.attacker === 'player' && b.defender === r);
-      const won = !!fight && (fight.outcome === 'smashed' || fight.outcome === 'robbed');
+      const won = !!fight && playerWon(fight);
       const text = r === 'blenders' && fight?.outcome === 'robbed' ? LINES.brockRent : r === 'hollis' && fight ? LINES.tillyRaided : fight ? '' : warnLine(s, r);
       const from = fight && fight.day === s.day ? s.day + 1 : s.day; // a daytime raid: tomorrow's dawn; last night's: now
       phoneCall(s, r, text, { mood: !fight ? 'warn' : won ? 'smashed' : 'gloat', priority: fight ? CALL_PRIORITY.raid : CALL_PRIORITY.mood, from });
@@ -194,10 +194,10 @@ export function phoneCheck(s: GameState, dawn = false): void {
       phoneCall(s, r, warnLine(s, r), { mood: 'warn' });
     }
   }
-  // A boss who hit you last night calls at dawn: gloating, or sore that you held.
+  // A boss who hit you last night calls at dawn: gloating, or sore that you held (not if your guards Fell Back: crew.ts playerWon).
   const hit = dawn && s.battles.find((b) => b.day === s.day - 1 && b.defender === 'player' && b.attacker !== 'player');
   // Juni gloats in her Night Shift line after a Cold Brew Sabotage spoils your stock (rivals: the flag rides the crew's Sabotage).
-  if (hit) phoneCall(s, hit.attacker as RivalId, hit.attacker === 'coldbrew' && hit.outcome !== 'repelled' && hit.sabotage ? NIGHT_SHIFT.taunt : '', { mood: hit.outcome === 'repelled' ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
+  if (hit) phoneCall(s, hit.attacker as RivalId, hit.attacker === 'coldbrew' && hit.outcome !== 'repelled' && hit.sabotage ? NIGHT_SHIFT.taunt : '', { mood: hit.outcome === 'repelled' && playerWon(hit) ? 'sore' : 'gloat', priority: CALL_PRIORITY.raid });
 }
 
 /**

@@ -10,7 +10,7 @@ import {
   canRaid, foughtByDay, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GADGETS, GUARD_BASE, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { CLOSE, GADGETS, GUARD_BASE, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -752,6 +752,24 @@ describe('guard posts', () => {
     expect(hireGuard(s, hire)).toBe(true);
     expect(s.guards.find((g) => g.id === hire)!.post).toBeNull();
     expect(s.news.at(-1)).toContain('waits at the Clubhouse');
+  });
+
+  it("Dex's lesson day: nobody posts him and the Corner's one post is taken, so he stays in the reserve", () => {
+    const s = newGame(107);
+    s.day = LESSON_DAY.crew - 1;
+    s.phase = 'report';
+    sleepUntilDawn(s); // Dex joins unposted: stationing him is today's lesson
+    const dex = s.guards.find((g) => g.name === 'Dex Moody')!;
+    expect(dex.post).toBeNull();
+    s.guards.push({ id: 'gus', name: 'Gus Puddle', trait: 'Tough Cookie', level: 1, xp: 0, weapon: 'clubs', gear: 'none', post: null, outUntil: 0, fee: 0 });
+    expect(postGuard(s, 'gus', LOTTIES_CORNER)).toBe(true); // the Folding Table's one post
+    s.cash = Math.max(s.cash, 200);
+    openStand(s);
+    simulateRestOfDay(s); // nobody stations Dex
+    expect(dex.post).toBeNull();
+    expect(s.guards.filter((g) => g.post === LOTTIES_CORNER).map((g) => g.id)).toEqual(['gus']);
+    expect(s.alerts!.some((a) => a.text === `Dex: "Nobody posted me, and the posts are full. I'm in the reserve."`)).toBe(true);
+    expect(s.goals!.done).toContain('lesson-dex');
   });
 
   it('"fill the posts" takes the reserve first, never a guard from a plot a warned raid is heading for', () => {

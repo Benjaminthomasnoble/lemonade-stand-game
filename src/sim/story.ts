@@ -16,7 +16,7 @@ import { alert } from './alerts.ts';
 import type { GameState, SimEvent, Stand } from './economy.ts';
 import { dayProfit } from './ledger.ts'; // the Ledger's profit for a day (demand)
 import type { BattleReport } from './crew.ts';
-import { expectedCups, pitcherNeeds, playerStands, plotPrice, seasonOf, standLevel, stock } from './economy.ts';
+import { expectedCups, pitcherNeeds, playerStands, plotPrice, postAtFirstFree, seasonOf, standLevel, stock } from './economy.ts';
 import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './goals.ts';
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
@@ -222,10 +222,11 @@ export function leanLine(s: GameState): string {
 function dexOnDuty(s: GameState): void {
   const dex = s.guards.find((g) => g.name === 'Dex Moody');
   if (!dex || dex.post || !dexLesson(s)) return;
-  const home = [LOTTIES_CORNER, s.selected].find((id) => s.plots[id]?.owner === 'player' && s.plots[id].stand);
-  if (!home) return;
-  dex.post = home;
+  const stands = [LOTTIES_CORNER, s.selected].filter((id) => s.plots[id]?.owner === 'player' && s.plots[id].stand);
+  if (!stands.length) return;
+  const home = postAtFirstFree(s, dex.id, stands); // crew: within the stand's posts; with them full he stays in the reserve
   skipGoal(s, DEX_LESSON);
+  if (!home) { alert(s, { kind: 'note', text: `Dex: "Nobody posted me, and the posts are full. I'm in the reserve."`, plot: stands[0] }); return; }
   alert(s, { kind: 'note', text: `Dex: "Nobody posted me. I took ${home === LOTTIES_CORNER ? 'the Corner' : PLOT_BY_ID[home].name.replace(/ lot /, ' ')}."`, plot: home });
 }
 

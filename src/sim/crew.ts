@@ -399,6 +399,11 @@ export function postGuard(s: GameState, id: string, plotId: string | null): bool
   return true;
 }
 
+/** Post a guard at the first of these plots with a post free (canPost's cap holds); null leaves them where they are. */
+export function postAtFirstFree(s: GameState, id: string, plotIds: readonly string[]): string | null {
+  return plotIds.find((plotId) => postGuard(s, id, plotId)) ?? null;
+}
+
 /** Ready guards who could move to this plot: the reserve first, then guards from plots no warned raid is heading for. */
 function movers(s: GameState, plotId: string): Guard[] {
   const threatened = new Set(incomingRaids(s).map((r) => r.target));

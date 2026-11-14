@@ -46,7 +46,7 @@ for (const weapon of ['clubs', 'hatchets'] as WeaponId[]) {
   console.log(`  12 ${weapon} vs a Citrus Palace (5,000 HP): ${r.outcome} at ${r.duration} s, ${r.standHpLeft} HP left`);
 }
 
-console.log('HQ assaults, 40 seeds (HANDOFF: 83 / 75 / 85 / 95%, Sourwood 35% at L4 and 80% at L5)');
+console.log('HQ assaults, 40 seeds (HANDOFF: 83 / 80 / 83 / 98%, Sourwood 33% at L4 and 85% at L5)');
 function weaken(s: GameState, id: RivalId) {
   const plots = ownedPlots(s, id).filter((p) => p.type !== 'hq');
   for (const p of plots.slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };

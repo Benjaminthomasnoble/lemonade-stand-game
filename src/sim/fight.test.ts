@@ -454,22 +454,27 @@ describe('a guard is in one fight at a time', () => {
 
 describe('a guard in the fight playing live stays where he is till it ends', () => {
   const held: Blocker = { ok: false, why: IN_THE_FIGHT };
-
-  it("no post, no Clubhouse, no All here and no Auto-Defend moves him; the rest of the crew moves, and he does once it's over", () => {
-    // 23:00, and Brock's raid on the Corner plays live: Gus (Eagle Eye) holds its post, Pip a Kiosk down the street,
-    // and Lou waits at one of two Clubhouses on the same street.
+  /** Brock's raid on the Corner playing live (`raiders` with fists), at 23:00 or (`day`) on Day 6 at 14:00: Gus (Eagle
+   * Eye) holds its post, Pip a Kiosk down the street, and Lou waits at one of two Clubhouses on the same street. */
+  function brawl(day = false, raiders = 3) {
     const s = newGame(41);
     Object.assign(s, { rank: 7, cash: 1e6, phase: 'night', minute: 23 * 60 });
     const home = ownedPlots(s, 'player')[0].id;
     const [kiosk, club, club2] = PLOTS.filter((p) => p.type === 'street' && p.district === PLOT_BY_ID[home].district && !s.plots[p.id].owner).map((p) => p.id);
     s.plots[kiosk] = { ...s.plots[kiosk], owner: 'player', stand: newStand(3) };
     for (const c of [club, club2]) { s.plots[c].owner = 'player'; expect(buildClubhouse(s, c)).toBe(true); }
+    if (day) Object.assign(s, { day: 6, phase: 'open', minute: 14 * 60 });
     const gus = guardOf('clubs', 'vest', 1, 'Eagle Eye', { name: 'Gus', post: home });
     const pip = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Pip', post: kiosk });
     const lou = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Lou', club });
     s.guards = [gus, pip, lou];
-    const raid: Raid = { id: 'ra', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '23:00', leave: 22 * 60, at: 23 * 60, launched: true, warned: true };
-    expect(startFight(s, raid, true)).toBe(true);
+    const raid: Raid = { id: 'ra', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(raiders, 1, 'fists'), detected: true, eta: day ? '14:00' : '23:00', leave: s.minute - 60, at: s.minute, launched: true, warned: true };
+    expect(startFight(s, raid, !day)).toBe(true);
+    return { s, home, kiosk, club, club2, gus, pip, lou };
+  }
+
+  it("no post, no Clubhouse, no All here and no Auto-Defend moves him; the rest of the crew moves, and he does once it's over", () => {
+    const { s, home, kiosk, club, club2, gus, pip, lou } = brawl();
     const seen = detectionChance(s, kiosk, true);
     // Gus brawls at the Corner: not to the Kiosk, the reserve or a Clubhouse, and All here would bring Lou, not him.
     expect(canPost(s, gus.id, kiosk)).toEqual(held);
@@ -500,6 +505,19 @@ describe('a guard in the fight playing live stays where he is till it ends', () 
     expect(postGuard(s, gus.id, kiosk)).toBe(true);
     expect(waitAt(s, lou.id, club2)).toBe(true);
     expect([gus.post, lou.club]).toEqual([kiosk, club2]);
+  });
+
+  it("one a game saved before that loads posted away mid-fight watches the fight's plot, not his new post, till it ends", () => {
+    const { s, home, kiosk, gus, pip } = brawl(false, 1); // one raider: Gus comes out of it on his feet
+    const seen = detectionChance(s, kiosk, true);
+    gus.post = kiosk; // as a save from before canPost held him can load him (reinforce.test.ts has one sent off post)
+    expect(presentGuards(s, kiosk)).toEqual([pip]); // still brawling at the Corner: his Eagle Eye isn't on the Kiosk
+    expect(presentGuards(s, home)).toEqual([]);
+    expect(detectionChance(s, kiosk, true)).toBe(seen);
+    play(s);
+    expect(s.fight).toBeUndefined();
+    expect(presentGuards(s, kiosk)).toEqual([gus, pip]); // the fight over, he's at his post
+    expect(detectionChance(s, kiosk, true)).toBeGreaterThan(seen);
   });
 
   it('an HQ assault holds its squad at every door; a guard left at home moves, and they do once the last door is fought', () => {

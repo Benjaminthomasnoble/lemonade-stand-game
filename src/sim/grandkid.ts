@@ -26,8 +26,8 @@ const PRONOUN_IDS = Object.keys(PRONOUNS) as Pronouns[];
 
 /**
  * The Grandkid's looks: skin and hair for the clay figure, which keeps the lemon cap, the white apron, the freckles and
- * the gap tooth (src/world/clay/figure.ts SPECS.kid). Look 0 is the spec's. Seam (art thread): src/world/stand.ts
- * builds the grandkid from SPECS.kid, and can spread kidLook(s) over it.
+ * the gap tooth (src/world/clay/figure.ts SPECS.kid). Look 0 is the spec's. The Bay builds every stand's grandkid in
+ * kidLook(s) (src/world/stand.ts kidSpec spreads it over SPECS.kid).
  */
 export const KID_LOOKS: readonly { skin: string; hairColor: string }[] = [
   { skin: '#F2C29A', hairColor: '#7A4A2A' },

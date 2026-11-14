@@ -5,7 +5,7 @@
 // works the counter and Grandma Lottie sits in her lawn chair by the phone.
 import * as THREE from 'three';
 import { idlePose, MOTION } from './people.ts';
-import { Figure, SPECS, heroDetail } from './clay/figure.ts';
+import { Figure, SPECS, heroDetail, type FigureSpec } from './clay/figure.ts';
 import { holdProp } from './clay/cast.ts';
 import { Baker, GLOSS, PAPER, box, cap, cyl, rbox, tor } from './clay/core.ts';
 import { fxOf } from './clay/bake.ts';
@@ -122,7 +122,10 @@ function brandBoards(): THREE.Group {
   return g;
 }
 
-export function createStand(opts: { lottie?: boolean; level?: number; gilded?: boolean } = {}): Stand {
+/** The grandkid's clay spec with the look picked at New Game (sim/grandkid.ts kidLook): its skin and hair over SPECS.kid. */
+export const kidSpec = (look?: { skin: string; hairColor: string }): FigureSpec => ({ ...SPECS.kid, ...look });
+
+export function createStand(opts: { lottie?: boolean; level?: number; gilded?: boolean; kid?: { skin: string; hairColor: string } } = {}): Stand {
   const group = new THREE.Group();
   const levelRoot = new THREE.Group();
   group.add(levelRoot);
@@ -301,10 +304,10 @@ export function createStand(opts: { lottie?: boolean; level?: number; gilded?: b
   }
   let openNow = false, lastTq = -1;
 
-  // The grandkid: lemon cap, white apron, freckled and gap-toothed (clay/figure.ts SPECS.kid).
+  // The grandkid: lemon cap, white apron, freckled and gap-toothed (clay/figure.ts SPECS.kid), in the New Game look.
   // A touch taller than the clay kid body, so the grandkid's face clears every counter.
   const KID_SCALE = 1.12;
-  const kidFig = new Figure(SPECS.kid, kit().fig, { scale: KID_SCALE, detail: heroDetail() });
+  const kidFig = new Figure(kidSpec(opts.kid), kit().fig, { scale: KID_SCALE, detail: heroDetail() });
   const kid = kidFig.root;
   kid.position.set(0, 0, -0.45);
   kid.userData.noFar = true; // people stay out of the Bay View block

@@ -22,6 +22,8 @@ import { bugleHeadline, frontPage } from './media.ts';
 import { checkVictory, defaultSettings, endingFor, ENDINGS } from './modes.ts';
 import type { BattleInput, BattleResult } from './combat.ts';
 import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
+import { kidSpec } from '../world/stand.ts';
+import { SPECS } from '../world/clay/figure.ts';
 import { CAMEO_NEWS, cameosAtClose, cameosAtDawn, cameoStories, JUNI_NOBODY, juniGrudgeTip, juniQuietTip, juniRaidTip, PRESTON_CALLS, TILLY_JUDGES } from './cameos.ts';
 import type { Raid } from './crew.ts';
 import { bayPainted, endVictoryShow, victoryStage, victoryTick } from './victory.ts';
@@ -671,6 +673,13 @@ describe('the Grandkid and the crew', () => {
     expect(nameDraft('x'.repeat(40))).toHaveLength(NAME_MAX); // short enough for a phone's alert card
     setGrandkid(st, { name: '   ' });
     expect(grandkid(st).name).toBe(KID_NAME); // a blank name is Charlie again
+  });
+
+  it('the grandkid at your stands wears the New Game look: its skin and hair on the clay kid, cap, apron and freckles kept', () => {
+    const s = newGame(46, defaultSettings({ grandkid: { name: 'Sam Rivera', pronouns: 'she', look: 3 } }));
+    expect(kidSpec(kidLook(s))).toEqual({ ...SPECS.kid, skin: KID_LOOKS[3].skin, hairColor: KID_LOOKS[3].hairColor });
+    expect(kidSpec(kidLook(newGame(47)))).toEqual(SPECS.kid); // look 0 is the clay kid as drawn
+    expect(kidSpec()).toEqual(SPECS.kid);
   });
 
   it("the story uses them: Lottie's opening line, the Bugle's Day 1 and rank-up stories, and the rank-up toast", () => {

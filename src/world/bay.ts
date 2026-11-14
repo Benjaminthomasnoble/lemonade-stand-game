@@ -25,6 +25,7 @@ import { createTown, townFootprints } from './town.ts';
 import { createLemonWave } from './lemonWave.ts';
 import { bayPainted } from '../sim/victory.ts';
 import { cornerSign } from '../sim/story.ts';
+import { kidLook } from '../sim/grandkid.ts';
 import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
@@ -57,6 +58,8 @@ export interface PlotView {
   shownLevel?: number;
   /** Whether the kept stand was built with Lottie (her corner only). */
   standLottie?: boolean;
+  /** The grandkid look the kept stand was built with (lookKey: the New Game pick). */
+  standKid?: string;
 }
 
 export interface Bay {
@@ -85,6 +88,8 @@ const GROUND: Record<DistrictId, string> = {
 };
 /** Rank 10 gilds the Palace. */
 const gilded = (s: GameState, level: number) => level === 5 && s.rank >= 10;
+/** The grandkid look your stands are built with (sim/grandkid.ts kidLook): a new pick rebuilds them. */
+const lookKey = (s: GameState) => { const l = kidLook(s); return `${l.skin}${l.hairColor}`; };
 /** The fence's HP share, in quarters (pieces knock out as it drops). */
 function fenceShare(ps: GameState['plots'][string]): number {
   const per = PERIMETERS[ps.defense.tier - 1];
@@ -474,7 +479,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     const ps = s.plots[v.plot.id];
     // The player's stand lives on across rebuilds (guards, fences and gadgets change far more often than the stand).
     const lottie = v.plot.id === LOTTIES_CORNER;
-    const keepStand = v.stand && ps.stand && ps.owner === 'player' && v.standLottie === lottie ? v.stand : undefined;
+    const keepStand = v.stand && ps.stand && ps.owner === 'player' && v.standLottie === lottie && v.standKid === lookKey(s) ? v.stand : undefined;
     keepStand?.group.removeFromParent();
     if (v.stand && !keepStand) v.stand.dispose();
     // Merged geometry is made fresh for each build: free its GPU copy (shared model parts stay).
@@ -512,7 +517,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v, s); }
     else if (p.type === 'dock') { const east = eastReach(v), pm = pierModel(east ?? reachOf(v)); if (east) turnEast(pm, v, east); v.root.add(bakeGroup(pm)); if (!ps.owner) forSale(v, s); }
     else if (ps.stand && ps.owner === 'player') {
-      const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
+      const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level), kid: kidLook(s) });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level), lottie ? cornerSign(s)?.toUpperCase() : undefined); // the Epilogue's sign (src/sim/story.ts)
       // Laid Back's Busted stand stays up, battered and taped shut; only a real Wreck is a pile.
       m.setWrecked(!!ps.stand.wrecked && !ps.busted);
@@ -522,6 +527,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       v.root.add(m.group);
       v.stand = m;
       v.standLottie = lottie;
+      v.standKid = lookKey(s);
       // An upgrade plays the crate reveal, and so does a brand-new stand once the game is under way.
       const fresh = shown === undefined && synced;
       if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) { m.reveal(); v.refar = -1; }
@@ -633,10 +639,11 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     },
     release(id) { if (id) held.delete(id); else held.clear(); },
     sync(s) {
+      const kid = lookKey(s);
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}${v.plot.id === LOTTIES_CORNER ? cornerSign(s) ?? '' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}${v.plot.id === LOTTIES_CORNER ? cornerSign(s) ?? '' : ''}${ps.owner === 'player' && ps.stand ? `|${kid}` : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;

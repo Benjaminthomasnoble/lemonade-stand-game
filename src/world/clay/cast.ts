@@ -101,6 +101,12 @@ export const PROP: Record<string, Build> = {
     B.add(rbx(0.16, 0.22, 0.04, 1, 0.01), P.terra, { p: [0, -0.06, 0.04], fx: PAPER });
     B.add(box(0.14, 0.2, 0.01), '#ffffff', { p: [0, -0.06, 0.062], fx: PAPER });
   },
+  waterBottle(B) { // Sterling's sparkling Snootwater: a glossy glacier-blue bottle, silver cap, a drop on the label
+    B.add(lathe([[0, -0.2], [0.055, -0.2], [0.06, -0.17], [0.06, 0.02], [0.035, 0.08], [0.022, 0.12], [0, 0.12]], 14), '#9BE7FF', { fx: GLOSS, p: [0, -0.02, 0.05] });
+    B.add(cyl(0.026, 0.026, 0.04, 10), '#E6E8EE', { fx: GLOSS, p: [0, 0.12, 0.05] });
+    B.add(cyl(0.062, 0.062, 0.09, 14, true), '#ffffff', { fx: PAPER, p: [0, -0.1, 0.05] });
+    B.add(sph(0.022, 8, 6), '#7FC8F8', { fx: GLOSS, p: [0, -0.1, 0.112], s: [1, 1.3, 0.5] });
+  },
   glassLemon(B) {
     B.add(cyl(0.06, 0.05, 0.16, 12), P.lemon, { fx: GLOSS, p: [0, -0.05, 0.05] });
     B.add(sph(0.035, 6, 5), P.green, { p: [0.04, 0.04, 0.05] });
@@ -194,12 +200,14 @@ export const BOSSES = {
   juni: { kind: 'bean', skin: '#8A5638', shirt: P.esp, pants: P.oat, shoes: P.neon, hairColor: '#1e1612', hat: 'beanie', hatColor: P.neon, eyes: 'sleepy', brows: 'flat', mouth: 'smirk', nose: 'button', zigzag: P.neon, hood: true, apron: P.oat, apronMark: 'bean' },
   /** The widest V on the tiniest head; visor, zinc nose, a double-bicep flex. */
   brock: { kind: 'vee', R: 0.25, girth: 1.25, skin: '#E7A16E', shirt: P.mango, pants: P.lagoon, shoes: P.lagoon, hairColor: '#FBE29A', hat: 'visor', hatColor: P.lagoon, eyes: 'bead', brows: 'up', mouth: 'grin', nose: 'zinc', waves: P.lagoon, tank: true, trim: P.lagoon },
+  /** Snootwater Springs' Sterling Snoot: a trim V with his nose in the air; silver swoop, monocle, a glacier-blue sweater knotted over a white blazer, his own bottled water. */
+  sterling: { kind: 'vee', R: 0.3, girth: 0.92, skin: '#F6C9A0', shirt: '#FFFFFF', sleeve: '#FFFFFF', collar: '#7FC8F8', pants: '#7FC8F8', shoes: '#E6E8EE', hairColor: '#D9DEE3', browColor: '#AEB5BF', hat: 'swoop', eyes: 'lids', lidTilt: -0.1, brows: 'proud', mouth: 'smirk', nose: 'long', noseY: 0.02, monocle: P.gold, sweater: '#7FC8F8', lapelPin: '#9BE7FF' },
 } satisfies Record<string, FigureSpec>;
 export type BossId = keyof typeof BOSSES;
-export const BOSS_OF: Partial<Record<Exclude<Side, 'player'>, BossId>> = { sourwood: 'vera', hollis: 'tilly', fizzco: 'preston', coldbrew: 'juni', blenders: 'brock' }; // the Out-of-Towner's boss has no figure yet
+export const BOSS_OF: Record<Exclude<Side, 'player'>, BossId> = { sourwood: 'vera', hollis: 'tilly', fizzco: 'preston', coldbrew: 'juni', blenders: 'brock', snootwater: 'sterling' };
 /** Each boss's scale (Vera is the tallest stilt in town) and the thing they carry. */
 const BOSS_EXTRA: Record<BossId, { scale: number; prop?: string; left?: boolean }> = {
-  vera: { scale: 1.12, prop: 'cane' }, tilly: { scale: 1.05, prop: 'ladle' }, preston: { scale: 1.0, prop: 'carphone' }, juni: { scale: 1.0, prop: 'icedcoffee' }, brock: { scale: 1.05 },
+  vera: { scale: 1.12, prop: 'cane' }, tilly: { scale: 1.05, prop: 'ladle' }, preston: { scale: 1.0, prop: 'carphone' }, juni: { scale: 1.0, prop: 'icedcoffee' }, brock: { scale: 1.05 }, sterling: { scale: 1.08, prop: 'waterBottle' },
 };
 
 // ---------- the named townsfolk ----------
@@ -232,7 +240,7 @@ export function makeBoss(id: BossId, mat: THREE.Material, opts: FigureOptions = 
   if (x.prop) holdProp(fig, x.prop, x.left);
   if (id === 'tilly') { const l = fig.hand.children[0]; l.rotation.set(Math.PI * 0.95, 0, -0.3); l.position.set(0, 0.05, -0.1); }
   if (id === 'juni') fig.root.add(prop('skateboardRide', mat));
-  fig.root.userData.speckColor = SPECS[id === 'vera' ? 'sourwood' : id === 'tilly' ? 'hollis' : id === 'preston' ? 'fizzco' : id === 'juni' ? 'coldbrew' : 'blenders'].shirt;
+  fig.root.userData.speckColor = id === 'sterling' ? '#7FC8F8' : SPECS[id === 'vera' ? 'sourwood' : id === 'tilly' ? 'hollis' : id === 'preston' ? 'fizzco' : id === 'juni' ? 'coldbrew' : 'blenders'].shirt;
   return fig;
 }
 /** Build a named townsperson (Marisol, Skip Larkin, Benny Buzz, Sheriff Budd, Mayor Fontaine, Dex, a Steward). */
@@ -280,6 +288,8 @@ export interface CrewLook {
 const CLUB: Record<Side, string> = { player: 'bat', sourwood: 'cane', hollis: 'shovel', fizzco: 'baton', coldbrew: 'heldboard', blenders: 'paddle', snootwater: 'paddle' };
 const HATCHET: Record<Side, string> = { player: 'hatchetPlayer', sourwood: 'hatchetSourwood', hollis: 'hatchetHollis', fizzco: 'hatchetFizzco', coldbrew: 'hatchetColdbrew', blenders: 'hatchetBlenders', snootwater: 'hatchetBlenders' };
 const TAPE: Record<Side, string> = { player: P.lemon, sourwood: '#ffffff', hollis: P.ging, fizzco: '#ffffff', coldbrew: P.neon, blenders: P.lagoon, snootwater: '#ffffff' };
+/** Sleeve chevron colour per side, picked to stand out on that side's sleeve (or bare arm). */
+const CHEVRON: Record<Side, string> = { player: P.plum, sourwood: P.gold, hollis: '#ffffff', fizzco: P.gold, coldbrew: P.neon, blenders: '#ffffff', snootwater: P.gold };
 /** The six crew looks (spec's crew table): body, gait and hat per side. */
 export const CREW_LOOK: Record<Side, FigureSpec> = {
   // Lemon and White: a white tee under the striped lemon bib, so the lemon cap still reads as the lemon
@@ -289,8 +299,9 @@ export const CREW_LOOK: Record<Side, FigureSpec> = {
   fizzco: { ...CREWS.fizzco },
   coldbrew: { ...SPECS.henchman, apron: P.oat, apronMark: 'bean' },
   blenders: { ...CREWS.blenders },
-  // Endless Summer's Out-of-Towner, a stand-in until the art thread gives it its own: Brock's Bros in glacier blue and white.
-  snootwater: { ...CREWS.blenders, shirt: '#FFFFFF', pants: '#7FC8F8', shoes: '#7FC8F8', hatColor: '#7FC8F8', waves: '#7FC8F8', trim: '#7FC8F8' },
+  // Endless Summer's Out-of-Towner (canon: fights like Brock's Bros under its own look): the Bros' V and hop, but
+  // Water Sommeliers in white polos with a glacier-blue sweater knotted over the shoulders, and a glacier visor.
+  snootwater: { ...CREWS.blenders, tank: false, trim: undefined, waves: undefined, shirt: '#FFFFFF', sleeve: '#FFFFFF', shortSleeve: true, pants: '#7FC8F8', shoes: '#E6E8EE', hatColor: '#7FC8F8', sweater: '#7FC8F8', eyes: 'lids', brows: 'proud', mouth: 'smirk' },
 };
 /** A crew member's spec: their side's look plus gear, level chevrons and role kit. */
 export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
@@ -304,7 +315,7 @@ export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
   // Padded Vest: lemon with white quilting for your crew, a darker shade of the side's colour for rivals
   if (look.gear === 'vest' || look.gear === 'pro') {
     sp.padded = side === 'player' ? P.lemon : shade(sp.shirt ?? P.terra, -0.1);
-    if (side === 'player') sp.quilt = P.white;
+    sp.quilt = side === 'player' ? P.white : CHEVRON[side]; // rivals' quilting in their chevron colour, so an elite's vest reads as kit
   }
   // Pro Gear adds shoulder pads; only your crew swaps the cap for a helmet (it keeps the leaf).
   // Rivals keep their iconic hats, so a side still reads from body, hat and tool.
@@ -312,7 +323,8 @@ export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {
     sp.pads = side === 'player' ? P.white : P.plum;
     if (side === 'player') { sp.hat = 'helmet'; sp.hatColor = P.lemon; sp.hatColor2 = P.white; }
   }
-  if (side === 'player' && look.level) { sp.chevrons = look.level; sp.chevronColor = P.plum; }
+  // Levels show on every side's sleeves (a rival's elite reads as elite): plum on yours, the side's own trim colour on theirs.
+  if (look.level) { sp.chevrons = Math.min(4, look.level); sp.chevronColor = CHEVRON[side]; }
   if (look.role === 'lookout') sp.binoculars = true;
   if (look.role === 'wrecker') sp.toolbelt = true;
   if (look.role === 'captain') sp.whistle = true;
@@ -352,6 +364,22 @@ export function makeCrew(side: Side, look: CrewLook, mat: THREE.Material, opts: 
   fig.root.userData.speckColor = side === 'player' ? P.lemon : CREW_LOOK[side].shirt;
   return fig;
 }
+// ---------- Sunny the Lemon, the mascot ----------
+/** Sunny's costume (canon: a lemon in a sun hat, the mascot on your signs): a round lemon suit, white mittens, terra shoes. */
+export const SUNNY: FigureSpec = { kind: 'round', seed: 33_000, R: 0.4, skin: P.lemon, skin2: P.lemon, shirt: P.lemon, pants: P.lemon, shoes: P.terra, glove: '#ffffff', hairColor: P.lemon, noseColor: P.lemon, hat: 'sunhat', hatColor: P.straw, bandColor: P.terra, eyes: 'bead', eyeR: 0.11, brows: 'none', mouth: 'grin', nose: 'button', noseR: 0.06 };
+PROP.lemonTips = (B) => { // the lemon's two pointed ends, either side of Sunny's head (head radius 1)
+  for (const s of [-1, 1]) B.add(lumpy(sph(0.24, 12, 9), 0.01, 8, 3), P.lemon, { p: [s * 0.98, -0.05, 0], s: [1.3, 0.8, 0.8] });
+};
+/** Sunny the Lemon, who walks a district on a Sunny campaign day. */
+export function makeSunny(mat: THREE.Material, opts: FigureOptions = {}): Figure {
+  const fig = new Figure(SUNNY, mat, { scale: 1.1, ...opts });
+  const tips = prop('lemonTips', mat, crowdOf(fig));
+  tips.scale.setScalar(fig.sp.R);
+  fig.head.add(tips);
+  fig.root.userData.speckColor = P.lemon;
+  return fig;
+}
+
 /** Lanky Dex at his post: his own body and lemon guard vest, with his guard gear, level and weapon. */
 export function makeDex(look: CrewLook, mat: THREE.Material, opts: FigureOptions = {}): Figure {
   const g = crewSpec('player', { ...look, onGuard: true });

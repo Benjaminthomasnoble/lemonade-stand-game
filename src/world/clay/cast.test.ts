@@ -2,13 +2,13 @@
 // rig the world code expects, faces swap whole, and the crowd batch mirrors poses.
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { BOSSES, TOWNSFOLK, crewSpec, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, seasonWear, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
+import { BOSSES, BOSS_OF, TOWNSFOLK, crewSpec, makeSunny, makeBoss, makeCrew, makeCustomer, makeDex, makeTownsfolk, seasonWear, segmentSpec, type BossId, type SegmentLook, type Side, type TownsfolkId } from './cast.ts';
 import { CREWS, LOW_DETAIL, Figure, SPECS, type Face } from './figure.ts';
 import { P } from './palette.ts';
 import { createFigureBatch, freezeFigures, PROXY_LAYER } from './figureBatch.ts';
 
 const mat = new THREE.MeshStandardMaterial();
-const SIDES: Side[] = ['player', 'sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders'];
+const SIDES: Side[] = ['player', 'sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders', 'snootwater'];
 const SEGS: SegmentLook[] = ['kids', 'families', 'seniors', 'students', 'office', 'tourists', 'workers', 'highRollers'];
 const PHONE_POOL: SegmentLook[] = ['families', 'office', 'kids', 'tourists', 'seniors', 'students', 'workers', 'highRollers'];
 /** Triangles a figure draws: every visible mesh under it, held and worn props included. */
@@ -53,6 +53,35 @@ describe('clay cast', () => {
     expect(crewSpec('player', { weapon: 'fists' }).tape).toBeTruthy();
     expect(crewSpec('sourwood').kind).toBe('stilt');
     expect(crewSpec('player', { onGuard: true }).crossed).toBe(true);
+  });
+
+  it('gives every rival a boss figure, Sterling Snoot for Snootwater Springs', () => {
+    for (const side of SIDES) if (side !== 'player') expect(BOSSES[BOSS_OF[side]], side).toBeTruthy();
+    const sterling = makeBoss('sterling', mat);
+    expect(sterling.sp.monocle).toBeTruthy();
+    expect(sterling.sp.hat).toBe('swoop');
+    expect(sterling.hand.children.map((c) => c.name)).toContain('waterBottle');
+    // the Water Sommeliers fight like the Bros (a V that hops) under their own look
+    expect(crewSpec('snootwater').kind).toBe('vee');
+    expect(crewSpec('snootwater').sweater).toBeTruthy();
+    expect(crewSpec('snootwater').tank).toBeFalsy();
+  });
+
+  it("draws every side's level chevrons, so an elite garrison reads as elite", () => {
+    for (const side of SIDES) {
+      expect(crewSpec(side, { level: 3 }).chevrons, side).toBe(3);
+      expect(crewSpec(side).chevrons, side).toBeFalsy();
+    }
+    const tri = (f: Figure) => drawn(f.root);
+    // a Legend Steward in Pro Gear carries more clay than a Rookie
+    expect(tri(makeCrew('sourwood', { level: 4, gear: 'pro', weapon: 'hatchets' }, mat, { detail: LOW_DETAIL }))).toBeGreaterThan(tri(makeCrew('sourwood', { weapon: 'hatchets' }, mat, { detail: LOW_DETAIL })));
+  });
+
+  it('builds Sunny the Lemon on the walker rig, inside the crowd budget', () => {
+    const sunny = makeSunny(mat, { detail: LOW_DETAIL });
+    rigOk(sunny);
+    expect(sunny.sp.hat).toBe('sunhat');
+    expect(drawn(sunny.root)).toBeLessThan(1600);
   });
 
   it('builds every customer segment within the crowd budget (about 900 triangles a person, props counted)', () => {

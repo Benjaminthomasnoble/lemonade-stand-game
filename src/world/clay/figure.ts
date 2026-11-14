@@ -22,7 +22,7 @@ export type Eyes = 'bead' | 'happy' | 'lids' | 'sleepy' | 'glasses' | 'shades' |
 export type Brows = 'up' | 'angry' | 'worried' | 'flat' | 'proud' | 'none';
 export type Nose = 'button' | 'long' | 'potato' | 'square' | 'zinc';
 export type Mouth = 'smile' | 'grin' | 'gap' | 'o' | 'flat' | 'frown' | 'smirk' | 'pucker' | 'wavy';
-export type Hat = 'sunhat' | 'cap' | 'bowler' | 'straw' | 'flattop' | 'beanie' | 'visor' | 'beret' | 'bun' | 'curly' | 'pigtails' | 'bucket' | 'bald' | 'ponytail' | 'propeller' | 'picnic' | 'slick' | 'helmet' | 'leafcap' | 'none';
+export type Hat = 'sunhat' | 'cap' | 'bowler' | 'straw' | 'flattop' | 'beanie' | 'visor' | 'beret' | 'bun' | 'curly' | 'pigtails' | 'bucket' | 'bald' | 'ponytail' | 'propeller' | 'picnic' | 'slick' | 'helmet' | 'leafcap' | 'swoop' | 'none';
 type C = string;
 
 /** Everything that makes a person. Only `kind` matters; the rest have friendly defaults. */
@@ -55,6 +55,8 @@ export interface FigureSpec {
   /** Dex's lemon guard vest is `vest`; this adds a striped guard bib for the player's crew */ bib?: C;
   /** the mark on an apron: the grandkid's lemon, or Cold Brew's coffee bean (default none) */ apronMark?: 'lemon' | 'bean';
   /** tank-top trim at the arm holes and neck (Smoothie Bros) */ trim?: C;
+  /** Sterling Snoot's monocle: a gold ring over one eye on a little chain */ monocle?: C;
+  /** a sweater knotted over the shoulders (Snootwater Springs) */ sweater?: C;
 }
 
 /** Whole-face swaps (spec "Characters": never X eyes). */
@@ -161,6 +163,13 @@ function eyes(B: Baker, R: number, sp: Spec, closed: false | 'down') {
     if (sp.eyes === 'glasses' || sp.glassesToo) {
       B.add(tor(er * 1.75, er * 0.2, 6, 18), P.gold, { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 1.0] }) });
     }
+  }
+  if (sp.monocle && sp.eyes !== 'shades') {
+    // Sterling's monocle: a gold ring and a glossy lens over his right eye, its chain down to the collar
+    const f = onHead(R, -ex, ey, R * 0.02);
+    B.add(tor(er * 1.9, er * 0.24, 6, 20), sp.monocle, { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 0.9] }) });
+    if (!low()) B.add(cyl(er * 1.8, er * 1.8, er * 0.08, 16), '#E8F7FF', { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 0.85], r: [Math.PI / 2, 0, 0] }) });
+    B.add(snake([[0, 0, 0], [-R * 0.08, -R * 0.35, R * 0.02], [-R * 0.2, -R * 0.75, -R * 0.05]], er * 0.07, 10, 4), sp.monocle, { fx: GLOSS, m: inFrame(f, { p: [-er * 1.6, -er * 1.0, er * 0.8] }) });
   }
   if (sp.eyes === 'glasses' || sp.glassesToo) { const f = onHead(R, 0, ey + 0.02, R * 0.04); B.add(cap(er * 0.18, er * 1.3, 2, 6), P.gold, { fx: GLOSS, m: inFrame(f, { p: [0, 0, er * 0.7], r: [0, 0, Math.PI / 2] }) }); }
   if (sp.eyes === 'shades') {
@@ -337,6 +346,15 @@ function headwear(B: Baker, R: number, sp: Spec) {
       B.add(cap(R * 0.02, R * 0.6, 2, 4), shade(hc, 0.2), { p: [R * 0.25, R * 0.98, 0], r: [Math.PI / 2, 0, 0] });
       break;
     }
+    case 'swoop': {
+      // Sterling Snoot's silver swoop: slicked close at the back and sides, one glossy wave rolled up off the brow
+      B.add(new THREE.SphereGeometry(R * 1.05, n(20, 6), n(10, 4), 0, Math.PI * 2, 0, Math.PI * 0.45), hc, { p: [0, R * 0.08, -R * 0.05], fx: GLOSS, s: [1, 0.92, 1.04] });
+      for (const s2 of [-1, 1]) back(s2 * 1.45, -0.15, 0.24);
+      B.add(lumpy(sph(R * 0.46, 14, 10), R * 0.025, 8, 3), hc, { p: [R * 0.08, R * 0.86, R * 0.48], s: [1.45, 0.7, 1.0], r: [0.75, 0, -0.15], fx: GLOSS });
+      B.add(snake([[-R * 0.5, R * 0.95, R * 0.72], [-R * 0.05, R * 1.16, R * 0.86], [R * 0.45, R * 1.1, R * 0.86], [R * 0.66, R * 0.92, R * 0.88]], R * 0.12, 14, 6), hc, { fx: GLOSS });
+      B.add(snake([[-R * 0.25, R * 1.12, R * 0.78], [R * 0.25, R * 1.2, R * 0.8]], R * 0.03, 6, 4), shade(hc, 0.25), { fx: GLOSS });
+      break;
+    }
     case 'helmet': {
       // Pro Gear: a hard dome helmet in the team colour with a stripe down the middle
       B.add(new THREE.SphereGeometry(R * 1.1, n(20, 6), n(10, 4), 0, Math.PI * 2, 0, Math.PI * 0.52), H, { p: [0, R * 0.05, 0], fx: GLOSS });
@@ -500,6 +518,15 @@ function gear(B: Baker, sp: Spec, K: Kind) {
     B.add(snake([[-rc * 0.55, K.sh + 0.03, 0], [0, chest - 0.06, rc + 0.01], [rc * 0.55, K.sh + 0.03, 0]], 0.008, 8, 4), P.terra, {});
     B.add(sph(0.03, 8, 6), P.chrome, { fx: GLOSS, p: [0, chest - 0.08, rc + 0.03], s: [1.3, 1, 1] });
   }
+  if (sp.sweater) {
+    // a sweater knotted over the shoulders: a soft knit roll round the collar, the sleeves tied in a knot on the chest
+    const ys = K.sh + 0.03, r = radiusAt(sp, K, K.sh - 0.02) * 1.0 + 0.04, sx = K.shx * (sp.girth ?? 1) + 0.02;
+    const roll: V3[] = [];
+    for (let i = 0; i <= 10; i++) { const a = -Math.PI * 0.85 + (i / 10) * Math.PI * 1.7; roll.push([Math.sin(a) * Math.max(r, sx), ys - (1 - Math.cos(a)) * 0.015, Math.cos(a) * -r * 0.9]); }
+    B.add(lumpy(snake(roll, 0.065, 24, 7), 0.006, 12, 5), sp.sweater);
+    for (const s2 of [-1, 1]) B.add(snake([[s2 * Math.max(r, sx) * 0.98, ys - 0.02, r * 0.3], [s2 * 0.1, chest - 0.02, rc + 0.04], [s2 * 0.03, chest - 0.08, rc + 0.06], [s2 * 0.06, chest - 0.22, rc + 0.03]], 0.035, 12, 6), sp.sweater);
+    B.add(lumpy(sph(0.055, 10, 8), 0.006, 14, 2), shade(sp.sweater, -0.06), { p: [0, chest - 0.06, rc + 0.07] });
+  }
 }
 
 function buildBody(sp: Spec, K: Kind) {
@@ -596,7 +623,7 @@ function buildArm(sp: Spec, K: Kind, flex: boolean) {
     B.add(sph(ar * 1.25, 10, 8), hand, { p: [0, -al * 0.62, al * 0.62] });
   } else {
     B.add(cap(ar, al, 4, 8), sleeve, { p: [0, -al * 0.5 - ar * 0.2, 0] });
-    if (sp.kind === 'vee') B.add(lumpy(sph(ar * 1.35, 12, 9), ar * 0.1, 30, 2), sp.skin, { p: [0, -al * 0.35, ar * 0.2] });
+    if (sp.kind === 'vee' && (sp.tank || sleeve === sp.skin)) B.add(lumpy(sph(ar * 1.35, 12, 9), ar * 0.1, 30, 2), sp.skin, { p: [0, -al * 0.35, ar * 0.2] });
     if (sp.shortSleeve) B.add(cap(ar * 1.02, al * 0.55, 4, 8), sp.skin, { p: [0, -al * 0.75, 0] });
     B.add(sph(ar * 1.25, 10, 8), hand, { p: [0, -al - ar * 0.6, 0], s: [1, 1.05, 0.9] });
     if (sp.cuff) B.add(tor(ar * 1.0, ar * 0.25, 6, 12), sp.cuff, { p: [0, -al - ar * 0.05, 0], r: [Math.PI / 2, 0, 0] });

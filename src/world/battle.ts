@@ -819,13 +819,13 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       const add = (f: Fighter, i: number, n: number) => {
         const isAtt = f.side === 'att';
         const owner = (isAtt ? r.attacker : r.defender) as Owner;
-        // the crew's own look, tier weapon and kit: Padded Vest, Pro Gear, level chevrons on your crew, Lanky Dex
+        // the crew's own look, tier weapon and kit: Padded Vest, Pro Gear, level chevrons, Lanky Dex
         // The HQ Boss Room's boss fights as themselves: Vera taps her cane, Brock flexes.
         const boss = owner !== 'player' && f.id.includes('-boss-') ? BOSS_OF[owner as keyof typeof BOSS_OF] : undefined;
         const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? crowdDetail() : 1 }) : makeCrew(owner, {
           weapon: f.weapon,
           gear: f.gear ?? (f.armor > 0 ? 'pro' : 'none'),
-          level: owner === 'player' ? Math.max(0, (f.level ?? 1) - 1) : 0,
+          level: Math.max(0, (f.level ?? 1) - 1), // every side's chevrons: Vera's elite Stewards wear theirs
           dex: owner === 'player' && f.name === 'Dex Moody',
           seed: i + 1,
         }, kit().fig, { detail: lowDetail ? crowdDetail() : 1 });

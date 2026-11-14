@@ -7,12 +7,14 @@ import { beatOffset, bob } from './beat.ts';
 import * as THREE from 'three';
 import type { RivalId } from '../sim/balance.ts';
 import { PLOTS, PLOT_BY_ID, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
+import { PLOT_SPACING } from '../sim/map.ts';
 import { threatLevel } from '../sim/crew.ts';
 import type { PlotView } from './bay.ts';
 import { MOTION } from './people.ts';
 import { gull, dog } from './clay/creatures.ts';
 import { clayFrom, kit } from './clay/kit.ts';
-import { makeCrew } from './clay/cast.ts';
+import { makeCrew, makeSunny } from './clay/cast.ts';
+import { districtCampaign } from '../sim/marketing.ts';
 import { crowdDetail, GAIT_OF, gait, type Figure } from './clay/figure.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 
@@ -65,6 +67,14 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
   const bwX0 = Math.min(...boardwalk.map((p) => p.x)), bwX1 = Math.max(...boardwalk.map((p) => p.x));
   const bwZ = boardwalk.length ? boardwalk[0].streetZ - 5.6 : 0;
   let jog = 0;
+
+  // ---- Sunny the Lemon walks the campaign's district ----
+  const sunny = makeSunny(kit().fig, { detail: crowdDetail() });
+  sunny.root.visible = false;
+  sunny.root.name = 'sunny';
+  scene.add(sunny.root);
+  batch.track(sunny.root);
+  let sunnyKey = '', sunnyPath: THREE.Vector3[] = [], sunnyLeg = 0, sunnyDir = 1, sunnyPh = 0, sunnyWave = 0;
 
   // ---- Captain Squawk and the gulls ----
   const squawk = gull(true);
@@ -168,6 +178,34 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         // their own hop gait, on twos, in step more or less
         if (step) gait(broFigs[i], GAIT_OF.vee, (Math.floor(jog * 12) / 12) * 11 + i * 0.4, f, f / 12);
       });
+      // Sunny the Lemon: on a Sunny day, waddles the sidewalks past each of your stands in that district, waving.
+      const camp = night ? undefined : districtCampaign(s, 'sunny', s.day);
+      const stands = camp ? PLOTS.filter((p) => p.district === camp.district && s.plots[p.id].owner === 'player' && s.plots[p.id].stand && views[p.id]).sort((a, b) => a.x - b.x || a.z - b.z) : [];
+      const key = stands.map((p) => p.id).join();
+      if (key !== sunnyKey) {
+        sunnyKey = key;
+        // a sidewalk stretch either side of each stand, joined up in order along the street
+        sunnyPath = stands.flatMap((p) => [-1, 1].map((k) => new THREE.Vector3(p.x + k * PLOT_SPACING * 0.4, 0.12, views[p.id].sidewalkZ)));
+        sunnyLeg = 0; sunnyDir = 1;
+        if (sunnyPath.length) sunny.root.position.copy(sunnyPath[0]);
+      }
+      sunny.root.visible = sunnyPath.length > 0;
+      if (sunnyPath.length > 1) {
+        const to = sunnyPath[sunnyLeg], pos = sunny.root.position;
+        const dx = to.x - pos.x, dz = to.z - pos.z, d = Math.hypot(dx, dz), mv = dt * 1.1;
+        if (d <= mv) {
+          pos.copy(to);
+          if (sunnyLeg + sunnyDir < 0 || sunnyLeg + sunnyDir >= sunnyPath.length) { sunnyDir = -sunnyDir; sunnyWave = 2.4; }
+          sunnyLeg += sunnyDir;
+          if (sunnyLeg % 2 === 1 && sunnyDir > 0) sunnyWave = 1.6; // passing a stand: a wave to the street
+        } else { pos.x += (dx / d) * mv; pos.z += (dz / d) * mv; sunny.root.rotation.y = Math.atan2(dx, dz); }
+        if (sunnyWave > 0) sunnyWave -= dt; else sunnyPh += dt * 3.4;
+      }
+      if (step && sunny.root.visible && Math.hypot(sunny.root.position.x - target.x, sunny.root.position.z - target.z) < NEAR * 1.5) {
+        // the round roll on twos, and a big two-mitten wave over the hat now and then
+        gait(sunny, GAIT_OF.round, sunnyPh, f, f / 12);
+        if (sunnyWave > 0) { const w = Math.sin(time * 9) * 0.35 * MOTION; sunny.arms[0].rotation.set(0, 0, -2.5 + w); sunny.arms[1].rotation.set(0, 0, 2.5 - w); }
+      }
       if (step) batch.sync();
 
       // Captain Squawk circles the Corner; every so often he dives for a lemon. While his event is live

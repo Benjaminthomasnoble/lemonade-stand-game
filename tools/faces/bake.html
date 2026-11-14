@@ -1,0 +1,57 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+// Bakes the clay portraits in public/faces/ from the same builders the world uses (npm run bake:faces).
+import * as THREE from 'three';
+import { kit } from '/src/world/clay/kit.ts';
+import { makeBoss, makeTownsfolk, signaturePose } from '/src/world/clay/cast.ts';
+import { Figure, SPECS } from '/src/world/clay/figure.ts';
+import { gull } from '/src/world/clay/creatures.ts';
+import { PORTRAITS } from '/src/ui/portraits.ts';
+
+const SIZE = +(new URLSearchParams(location.search).get('size') || 192);
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(SIZE, SIZE); r.setClearColor(0x000000, 0);
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight('#fff6e0', '#c9a0c0', 1.7));
+const sun = new THREE.DirectionalLight('#fff1d6', 2.3); sun.position.set(2.5, 5, 6); scene.add(sun);
+const rim = new THREE.DirectionalLight('#ffe9c4', 0.8); rim.position.set(-4, 2, -3); scene.add(rim);
+const K = kit();
+const cam = new THREE.PerspectiveCamera(22, 1, 0.1, 100);
+
+function build(id) {
+  if (id === 'squawk') {
+    // wings up in a cheer, framed on his head and cap
+    const g = gull(true); g.userData.wl.rotation.z = 1.0; g.userData.wr.rotation.z = -1.0;
+    const head = new THREE.Object3D(); head.position.set(0, 0.3, 0.36); g.add(head);
+    return { root: g, frame: head, span: 1.0 };
+  }
+  if (id === 'lottie') { const f = new Figure(SPECS.lottie, K.fig); f.pose({}, 0); return { root: f.root, frame: f.head }; }
+  const boss = ['vera', 'tilly', 'preston', 'juni', 'brock', 'sterling'].includes(id);
+  const f = boss ? makeBoss(id, K.fig) : makeTownsfolk(id, K.fig);
+  f.pose({}, 0);
+  if (!boss) signaturePose(f, id);
+  return { root: f.root, frame: f.head };
+}
+
+const out = {};
+for (const id of Object.keys(PORTRAITS)) {
+  const { root, frame, span: fixed } = build(id);
+  root.rotation.y = id === 'squawk' ? 0.7 : 0.3;
+  scene.add(root);
+  root.updateMatrixWorld(true);
+  // frame the head and hat, with a little of the shoulders under it
+  const box = new THREE.Box3().setFromObject(frame);
+  const size = box.getSize(new THREE.Vector3()), c = fixed ? frame.getWorldPosition(new THREE.Vector3()) : box.getCenter(new THREE.Vector3());
+  // height leads, so a wide brim (Lottie's sun hat, Tilly's picnic table) can run off the edges
+  const span = fixed ?? Math.max(size.y * 1.35, Math.min(size.x * 1.1, size.y * 1.6));
+  if (!fixed) c.y -= span * 0.1;
+  const d = span / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+  cam.position.set(c.x, c.y + span * 0.12, c.z + d);
+  cam.lookAt(c);
+  r.render(scene, cam);
+  out[id] = r.domElement.toDataURL('image/png');
+  scene.remove(root);
+}
+window.__faces = out;
+document.body.dataset.done = '1';
+</script></body></html>

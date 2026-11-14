@@ -16,7 +16,8 @@ import { CROSS_STREETS_Z, plotOnMap, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, disposeTree, type Stand as StandModel } from './stand.ts';
 import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
-import { PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
+import { HENCHMEN, PERIMETERS, STAND_LEVELS } from '../sim/balance.ts';
+import { garrisonTier, stewardsOnGuard } from '../sim/rivalAi.ts';
 import { lemonsExpiringTomorrow, priceCeiling, seasonOf, stock } from '../sim/economy.ts';
 import { hpShare } from '../sim/damage.ts';
 import { fittedOn } from '../sim/specializations.ts';
@@ -29,7 +30,7 @@ import { radioOn } from '../sim/radio.ts';
 import { ownedRecipes } from '../sim/recipes.ts';
 import { soundtrack } from '../ui/radio.ts';
 import { kidLook } from '../sim/grandkid.ts';
-import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type Side } from './clay/cast.ts';
+import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type CrewLook, type Side } from './clay/cast.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
@@ -97,6 +98,17 @@ const lookKey = (s: GameState) => { const l = kidLook(s); return `${l.skin}${l.h
 function fenceShare(ps: GameState['plots'][string]): number {
   const per = PERIMETERS[ps.defense.tier - 1];
   return per ? Math.ceil((ps.defense.fenceHp / per.hp) * 4) / 4 : 1;
+}
+
+/**
+ * A rival plot's henchman on guard, dressed as the garrison's tier: its level's chevrons and gear, and from Act 5
+ * Vera's elite Stewards a level up with hatchets (rivalAi garrisonTier and eliteStewards).
+ */
+function rivalSentry(s: GameState, ps: GameState['plots'][string], i: number): CrewLook {
+  if (!ps.owner || ps.owner === 'player') return { weapon: 'clubs', seed: i + 1 };
+  const h = HENCHMEN[garrisonTier(ps, s) - 1];
+  const elite = stewardsOnGuard(s, ps);
+  return { weapon: elite || h.level >= 4 ? 'hatchets' : 'clubs', gear: h.gear, level: h.level - 1, seed: i + 1 };
 }
 
 function guardsAt(s: GameState, id: string): number {
@@ -560,7 +572,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
         // Your guards wear what they carry: gear, level chevrons, taped fists or a weapon by the leg, arms crossed.
         // Dex Moody is drawn as himself: lanky, in his lemon guard vest.
         const gd = posted[i];
-        const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, role: gd.specialty, onGuard: true, seed: i + 1 } : { weapon: 'clubs' as const, seed: i + 1 };
+        const look = gd ? { weapon: gd.weapon, gear: gd.gear, level: gd.level - 1, role: gd.specialty, onGuard: true, seed: i + 1 } : rivalSentry(s, ps, i);
         const dex = gd?.name === 'Dex Moody';
         const fig = dex ? makeDex(look, K.fig, { scale: 0.95, detail: crowdDetail() }) : makeCrew((ps.owner ?? 'player') as Side, look, K.fig, { scale: 0.95, detail: crowdDetail() });
         const g = fig.root;

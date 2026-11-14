@@ -35,7 +35,7 @@ export type Side = 'att' | 'def';
 export type Objective = 'smash' | 'shakedown';
 
 export interface Fighter {
-  id: string;
+  id: string; // who they are in the fight: each id is in it once (createFight leaves a second copy out)
   name: string;
   side: Side;
   hp: number;
@@ -212,6 +212,10 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
 
   // ---- the line-up ----
   // The raiders reach the line together, in their party's order: the first of them takes the middle.
+  // One fighter, one id: the timeline, the KO list and the replay name everyone by it, so each id is in the fight
+  // once. A copy of someone already in it stays out and the first copy fights. The defenders line up first, so a
+  // raider's copy of one of theirs stays out (an HQ's boss belongs to the room); so does anyone joining later who is
+  // in the fight already, standing, knocked out or gone (joinIn).
   const fencedAtStart = !breached;
   const lineA = fencedAtStart ? C.fenceAt + gap : input.defenders.length ? C.holdAt + 2 * gap : gap;
   const lineD = fencedAtStart ? C.fenceAt - gap : C.holdAt;
@@ -220,8 +224,21 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     f, side: f.side, rank, hp: f.hp, hit: f.hit, chop: f.chop, weapon: f.weapon, speed: speedOf(f),
     x: 0, z: 0, arrive: 0, here: f.side === 'def', pace: 0, cd: 0, stun: 0, out: false, ran: false, dropOn: 0, bale: 0, swings: 0, goal: '',
   });
-  const att = input.attackers.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineA; return u; });
-  const def = input.defenders.map((f, k) => { const u = mk(f, k); u.x = slotX(k); u.z = lineD; return u; });
+  const lives = new Map<string, Live>(); // everyone in the fight, by id
+  const lineUp = (fighters: Fighter[], z: number): Live[] => {
+    const line: Live[] = [];
+    for (const f of fighters) {
+      if (lives.has(f.id)) continue;
+      const u = mk(f, line.length);
+      u.x = slotX(line.length);
+      u.z = z;
+      lives.set(f.id, u);
+      line.push(u);
+    }
+    return line;
+  };
+  const def = lineUp(input.defenders, lineD);
+  const att = lineUp(input.attackers, lineA);
   for (const u of [...att, ...def]) events.push({ t: 0, type: 'at', a: u.f.id, x: round3(u.x), z: round3(u.z) });
 
   // Butterfingers: once a fight, a 10% chance the weapon slips on one of the first three swings.
@@ -232,7 +249,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   for (const u of [...att, ...def]) butterfingers(u);
 
   // The goose honks at the first raider to arrive (twice with a Goose Whisperer); the peels trip the first three.
-  const whisperer = input.defenders.some((d) => d.trait === 'Goose Whisperer');
+  const whisperer = def.some((u) => u.f.trait === 'Goose Whisperer');
   let honks = has('goose') ? Math.min(C.goose.whisperer, input.gooseStuns ?? (whisperer ? C.goose.whisperer : C.goose.honks)) : 0;
   let slips = has('slick') ? C.slick.count : 0;
 
@@ -319,11 +336,13 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
   const joinIn = (fighters: Fighter[], t: number) => {
     for (const f of fighters) {
       if (fellBack === f.side) continue; // that side has given the fight up: they turn back
+      if (lives.has(f.id)) continue; // in the fight already: one of them is all there is
       const team = f.side === 'att' ? att : def;
       const u = mk(f, team.length);
       u.x = slotX(team.length);
       u.z = f.side === 'att' ? lineA : lineD;
       if (f.side === 'att') u.arrive = t; // raiders still come in through the arrivals (and the gadgets)
+      lives.set(f.id, u);
       team.push(u);
       events.push({ t, type: 'at', a: f.id, x: round3(u.x), z: round3(u.z) });
       butterfingers(u);
@@ -357,7 +376,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     events.push({ t, type: 'turn', a: u.f.id, side: u.side });
   };
   const bossMove = (m: BossMove, t: number) => {
-    const b = [...att, ...def].find((u) => u.f.id === m.by);
+    const b = lives.get(m.by); // the one fighter with that id, on whichever side they are now
     if (!b || !up(b)) return; // knocked out (or gone) before they could
     // Who it picks on: the raiders on the field nearest the boss.
     const foes = (b.side === 'att' ? def : att).filter((u) => up(u) && (u.side === 'def' || u.here));

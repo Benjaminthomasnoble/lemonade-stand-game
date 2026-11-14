@@ -9,7 +9,7 @@ import {
 import { fitGarrison, hqOf, knockOut } from './garrison.ts';
 import { canSettle, captivesAtDawn, leftBehind, nabLeftBehind, settleCaptive } from './captives.ts';
 import { nextRandom } from './rng.ts';
-import { startFight, watchFights } from './fight.ts';
+import { startAssault, startFight, stepFight, watchFights } from './fight.ts';
 import { manorStewards } from './squeeze.ts';
 import { footholdFor } from './fighters.ts';
 
@@ -27,6 +27,26 @@ const asGuard = (side: Side, weapon: WeaponId, gear: GearId = 'none', trait: Tra
   guardFighter(guard({ weapon, gear, trait }), side, night);
 const of = <T extends BattleEvent['type']>(events: BattleEvent[], type: T) => events.filter((e): e is Extract<BattleEvent, { type: T }> => e.type === type);
 const tough = { hp: 100000 }; // soaks everything, so the fight runs long enough to watch
+/**
+ * One fighter, one life: what a fight's timeline must never show. Nobody arrives or is knocked out twice, and once
+ * they're down nobody swings, chops, moves, runs, makes a boss move or is reached by one (stunned, walled in, turned,
+ * disarmed, swung at). Blows in the same instant land together, so only what comes later counts.
+ */
+const oneLife = (events: BattleEvent[]): string[] => {
+  const out: string[] = [];
+  const at = new Set<string>(), down = new Map<string, number>();
+  const after = (id: string, e: BattleEvent) => {
+    const t = down.get(id);
+    if (t !== undefined && e.t > t + 1e-9) out.push(`${e.type} at ${e.t} names ${id}, knocked out at ${t}`);
+  };
+  for (const e of events) {
+    if (e.type === 'at') { if (at.has(e.a)) out.push(`${e.a} arrives again at ${e.t}`); at.add(e.a); }
+    if (e.type === 'ko') { if (down.has(e.a)) out.push(`${e.a} knocked out again at ${e.t}`); else down.set(e.a, e.t); continue; }
+    if ('a' in e) after(e.a, e);
+    if (e.type === 'swing') after(e.b, e);
+  }
+  return out;
+};
 
 describe('the fence line', () => {
   it('defenders hit 25% harder while any perimeter stands, and lose it at the breach', () => {
@@ -658,6 +678,122 @@ describe('HQ assaults', () => {
     expect(of(r.events, 'ko').find((e) => e.a === 'brock')!.t).toBeLessThan(3);
     expect(of(r.events, 'boss')).toEqual([]);
     expect(of(r.events, 'stun')).toEqual([]);
+  });
+
+  /** The FizzCo Boss Room on seed 42, as the bug report fought it, with this squad. */
+  const tower = (k: number, weapon: WeaponId, gear: GearId, level: number) => {
+    const s = hqGame('fizzco', k, weapon, gear, level, 42);
+    return hqStageInput(s, 'fizzco', 'boss', hqSquad(s, 'fizzco', s.guards.map((g) => g.id)), { seed: 42 });
+  };
+
+  it('a boss passed in twice is in the fight once: knocked out once, and no move after it', () => {
+    // The report: Preston in the room twice. One of him went down, the other made the Hostile Takeover after that and
+    // went down too. Each id is in a fight once: the copy stays out, and the fight is the room's own.
+    const room = tower(12, 'hatchets', 'pro', 5);
+    const preston = room.defenders[0];
+    const r = runBattle({ ...room, defenders: [preston, ...room.defenders] }, { seed: 42 });
+    const ko = of(r.events, 'ko').filter((e) => e.a === preston.id);
+    expect(ko).toHaveLength(1);
+    expect(of(r.events, 'boss').filter((e) => e.t > ko[0].t)).toEqual([]);
+    expect(r.koed.filter((id) => id === preston.id)).toEqual([preston.id]);
+    expect(of(r.events, 'at').filter((e) => e.a === preston.id)).toHaveLength(1);
+    expect(oneLife(r.events)).toEqual([]);
+    expect(r).toEqual(runBattle(room, { seed: 42 }));
+  });
+
+  it("a copy of the boss among the raiders stays out: the room's boss fights for the room, and so does their move", () => {
+    const room = tower(8, 'clubs', 'pro', 4);
+    const preston = room.defenders[0];
+    const r = runBattle({ ...room, attackers: [...room.attackers, { ...preston, side: 'att' }] }, { seed: 42 });
+    expect(of(r.events, 'at').filter((e) => e.a === preston.id)).toHaveLength(1);
+    expect(of(r.events, 'boss').map((e) => [e.a, e.move])).toEqual([[preston.id, 'takeover']]);
+    const turned = of(r.events, 'turn');
+    expect(turned.length).toBeGreaterThan(0);
+    expect(turned.every((e) => e.side === 'def' && room.attackers.some((f) => f.id === e.a))).toBe(true); // raiders, turned to the room's side
+    expect(oneLife(r.events)).toEqual([]);
+    expect(r).toEqual(runBattle(room, { seed: 42 }));
+  });
+
+  it('someone already in the fight who arrives again stays out: no second arrival, no second knockout', () => {
+    // Late arrivals (Ring the Bell's reserve, a rival's help) naming someone in the fight already: one knocked out at
+    // the start, one still standing, and a raider joining the other side.
+    const glass = fighter('def', 'fists', { hp: 10, nerve: 1000 });
+    const wall = fighter('def', 'fists', { ...tough, nerve: 1000 });
+    const squad = many(3, 'att', 'hatchets', { ...tough, nerve: 1000 });
+    const base = fight({ attackers: squad, defenders: [glass, wall], objective: 'shakedown' });
+    const plain = runBattle(base, { seed: 1 });
+    expect(of(plain.events, 'ko').find((e) => e.a === glass.id)!.t).toBeLessThan(3);
+    const again = runBattle({ ...base, joins: [{ t: 3, fighters: [glass, wall, { ...squad[0], side: 'def' }] }] }, { seed: 1 });
+    expect(of(again.events, 'ko').filter((e) => e.a === glass.id)).toHaveLength(1);
+    expect(of(again.events, 'at').filter((e) => e.t > 0)).toEqual([]);
+    expect(oneLife(again.events)).toEqual([]);
+    expect(again).toEqual(plain);
+    // The same pressed live (fight.ts joinFight), and a Fall Back runs home only those still standing.
+    const live = createFight(base, { seed: 1 });
+    live.command({ t: 3, type: 'join', fighters: [glass, wall] });
+    live.advance(Infinity);
+    expect(live.result()).toEqual(plain);
+    const back = runBattle({ ...base, defenders: [glass, wall, { ...glass, ...tough }] }, { seed: 1 }, [{ t: 3, type: 'fallBack', side: 'def' }]);
+    expect(back.koed).toEqual([glass.id]);
+    expect(back.fled).toEqual([wall.id]);
+    // Old Money's call bringing in Vera herself and a Steward already in the room: only the new one comes in.
+    const vera = fighter('def', 'clubs', { ...tough, id: 'vera', nerve: 1000 });
+    const steward = fighter('def', 'clubs', { ...tough, nerve: 1000 }), fresh = fighter('def', 'clubs', { ...tough, nerve: 1000 });
+    const called = runBattle(fight({
+      attackers: many(3, 'att', 'hatchets', tough), defenders: [vera, steward], objective: 'shakedown',
+      bossMoves: [{ t: 6, by: 'vera', type: 'call', fighters: [steward, vera, fresh] }],
+    }), { seed: 1 });
+    expect(of(called.events, 'at').filter((e) => e.t > 0).map((e) => [e.t, e.a])).toEqual([[6, fresh.id]]);
+    expect(oneLife(called.events)).toEqual([]);
+  });
+
+  it("a boss's move only ever reaches raiders still standing, never one knocked out", () => {
+    const moves = [{ type: 'rush', count: 3, stun: 4 }, { type: 'bales', count: 3, hp: 100 }, { type: 'takeover', count: 3 }, { type: 'cane' }] as const;
+    for (const move of moves) {
+      const boss = fighter('def', 'clubs', { ...tough, id: 'boss', nerve: 1000 });
+      const glass = fighter('att', 'clubs', { hp: 10, nerve: 1000 }); // in the middle of the line, nearest the boss
+      const r = runBattle(fight({
+        attackers: [glass, ...many(2, 'att', 'clubs', { ...tough, nerve: 1000 })], defenders: [boss, fighter('def', 'clubs', { ...tough, nerve: 1000 })],
+        objective: 'shakedown', bossMoves: [{ t: 3, by: 'boss', ...move }],
+      }), { seed: 1 });
+      expect(of(r.events, 'ko').find((e) => e.a === glass.id)!.t).toBeLessThan(3);
+      expect(of(r.events, 'boss').map((e) => e.move)).toEqual([move.type]);
+      const reached = r.events.flatMap((e) => ((e.type === 'stun' || e.type === 'bale' || e.type === 'turn' || e.type === 'drop') && e.t === 3 ? [e.a] : []));
+      expect(reached.length, move.type).toBeGreaterThan(0);
+      expect(reached, move.type).not.toContain(glass.id);
+    }
+  });
+
+  it("the game's own Boss Rooms, fought at once and live: nobody is knocked out twice, nobody acts after their knockout", () => {
+    const squads: [number, WeaponId, GearId, number][] = [[6, 'clubs', 'vest', 3], [12, 'hatchets', 'pro', 5]];
+    let rooms = 0;
+    const check = (b: BattleReport, where: string) => {
+      expect(oneLife(b.events), where).toEqual([]);
+      expect(new Set(b.koed).size, where).toBe(b.koed.length);
+      if (b.hq !== 'boss') return;
+      rooms++;
+      expect(of(b.events, 'boss').every((e) => e.a === b.defenders[0].id && !!b.defenders[0].boss), where).toBe(true);
+    };
+    for (const id of ['blenders', 'coldbrew', 'hollis', 'fizzco', 'sourwood'] as RivalId[]) for (const seed of [1, 42]) for (const [k, weapon, gear, level] of squads) {
+      const where = `${id}, seed ${seed}, ${k} ${weapon}`;
+      const s = hqGame(id, k, weapon, gear, level, seed);
+      const all = stormHQ(s, id, s.guards.map((g) => g.id));
+      if (!all) throw new Error(`no assault: ${where}`);
+      for (const b of all.reports) check(b, where);
+      watchFights(true);
+      try {
+        const t = hqGame(id, k, weapon, gear, level, seed);
+        expect(startAssault(t, id, t.guards.map((g) => g.id)), where).toBe(true);
+        for (let i = 0; t.fight && i < 1e5; i++) {
+          const { ended } = stepFight(t, 0.25);
+          if (ended) check(ended, `${where}, live`);
+        }
+        expect(t.fight, where).toBeUndefined();
+      } finally {
+        watchFights(false);
+      }
+    }
+    expect(rooms).toBeGreaterThan(20); // most of these squads get to the Boss Room
   });
 
   it('at FizzCo Tower Preston turns 2 guards who aren\'t Loyal, and an all-Loyal squad stays together', () => {

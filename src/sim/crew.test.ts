@@ -7,10 +7,10 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { CLOSE, GADGETS, GUARD_BASE, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -19,7 +19,7 @@ import { footholdFor, guardOf } from './fighters.ts';
 import { BORDERS, DISTRICT_BY_ID, PLOT_BY_ID, withinTwo } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
-import { canAssault, makeTruce } from './rivals.ts';
+import { canAssault, hqPlot, makeTruce } from './rivals.ts';
 import { festivalDays } from './calendar.ts';
 import { canSaveTemplate, dropTemplate, saveTemplate, switchTemplates, templateAt, templates, templatesOn, TEMPLATES_ID } from './templates.ts';
 import { helperLines } from './automation.ts';
@@ -1229,5 +1229,95 @@ describe("Act 2: Squawk's flight over the Pier", () => {
     expect(pierTarget(s)).toBe(shack); // no stand by the Pier: the Blend Shack next door
     s.rivals.blenders.alive = false;
     expect(pierFlightGoal(s)).toBeNull();
+  });
+});
+
+describe('HQ Assault from the Raid Planner', () => {
+  /** Rank 7, twelve kitted raiders, and Brock down to the Blend Shack and one stand: Weakened. */
+  const weakened = (seed: number) => {
+    const s = newGame(seed);
+    s.rank = 7;
+    s.cash = 1e6;
+    s.guards = Array.from({ length: 12 }, (_, i) => guardOf('hatchets', 'pro', 5, 'Loyal', { id: `h${i}`, name: `Raider ${i}` }));
+    for (const p of PLOTS.filter((q) => s.plots[q.id].owner === 'blenders' && q.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null };
+    return { s, hq: hqPlot('blenders').id, ids: s.guards.map((g) => g.id) };
+  };
+
+  it("on a rival's HQ its one objective is HQ Assault, under the HQ's rules: Weakened is its gate, no Foothold", () => {
+    const { s, hq, ids } = weakened(151);
+    expect(PLOTS.some((p) => p.district === PLOT_BY_ID[hq].district && s.plots[p.id].owner === 'player')).toBe(false); // nothing of yours on the Boardwalk
+    expect(canRaid(s, hq, ids, 'hq')).toEqual({ ok: true });
+    expect(canRaid(s, hq, ids, 'smash')).toEqual({ ok: false, why: 'An HQ falls only to an HQ Assault' });
+    const stand = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && p.type !== 'hq')!.id;
+    expect(canRaid(s, stand, ids, 'hq')).toEqual({ ok: false, why: "Plan an HQ Assault at the rival's HQ" });
+    expect(canRaid(s, hq, [], 'hq')).toEqual({ ok: false, why: 'Pick your squad' });
+    expect(canRaid(s, hq, [...ids, 'h12'], 'hq')).toEqual({ ok: false, why: 'Squad cap is 12' });
+    expect(canSaveTemplate(s, ids, 'hq')).toEqual({ ok: false, why: 'An HQ falls once: no template' });
+    expect(saveTemplate(s, ids, 'hq', hq)).toBeNull();
+    const strong = newGame(152);
+    strong.rank = 7;
+    expect(canRaid(strong, hq, ids, 'hq')).toEqual({ ok: false, why: 'Only once they are Weakened' });
+    s.phase = 'open'; // no longer only at Morning Prep
+    expect(canAssault(s, 'blenders', ids)).toEqual({ ok: true });
+    expect(planRaid(s, hq, ids, 'hq', 'tonight')).toBe(true);
+    expect(s.raids.find((r) => r.attacker === 'player')).toMatchObject({ target: hq, objective: 'smash', assault: true, leave: PLAYER_RAID_LEAVE });
+    expect(canRaid(s, hq, ids, 'hq')).toEqual({ ok: false, why: 'Already planned' });
+  });
+
+  it('it travels on the raid clock and storms the Gate, the Yard and the Boss Room when it gets there; Sneaky by night goes unseen', () => {
+    const { s, hq, ids } = weakened(153);
+    s.guards[0].trait = 'Sneaky';
+    expect(detectionChance(s, hq, true, true)).toBe(0); // the HQ's 50%, less 25 at night and 25 for a Sneaky raider
+    expect(planRaid(s, hq, ids, 'hq', 'tonight')).toBe(true);
+    const raid = s.raids.find((r) => r.assault)!;
+    openStand(s);
+    simulateRestOfDay(s);
+    expect(s.rivals.blenders.alive).toBe(true); // nothing until it gets there
+    sleepUntilDawn(s);
+    expect(raid.detected).toBe(false); // unseen: they strike first at the Gate
+    expect(s.rivals.blenders.alive).toBe(false);
+    expect(s.plots[hq].owner).toBe('player');
+    expect(s.battles[0]).toMatchObject({ hq: 'boss', outcome: 'smashed', target: hq });
+  });
+
+  it("by day customers see it: a Smash's 0.2 stars; then the squad walks home", () => {
+    const { s, hq, ids } = weakened(154);
+    s.reputation = 4;
+    expect(raidRepCost(s, ids, 'hq', false)).toBe(0.2);
+    expect(planRaid(s, hq, ids, 'hq', 'now')).toBe(true);
+    const raid = s.raids.find((r) => r.assault)!;
+    expect(raid.leave).toBe(OPEN); // from Morning Prep it sets out as the stands open
+    openStand(s);
+    let report: BattleReport | undefined;
+    while (!report && s.minute < CLOSE) for (const e of tickMinute(s)) if (e.type === 'fight' && e.raid === raid) report = e.report;
+    expect(s.minute).toBe(raid.at);
+    expect(report).toMatchObject({ hq: 'boss', target: hq });
+    expect(s.reputation).toBeCloseTo(3.8, 5);
+    expect(raid.back).toBeGreaterThan(s.minute); // walking home: still away
+    expect(availableRaiders(s)).toEqual([]);
+  });
+
+  it('a rival gone before it gets there: the squad turns back', () => {
+    const { s, hq, ids } = weakened(155);
+    planRaid(s, hq, ids, 'hq', 'now');
+    const raid = s.raids.find((r) => r.assault)!;
+    openStand(s);
+    s.rivals.blenders.alive = false;
+    while (s.minute < raid.at!) tickMinute(s);
+    expect(s.news).toContain(`Your squad found nothing to raid at ${PLOT_BY_ID[hq].name} and turned back.`);
+    expect(raid.back).toBeGreaterThan(s.minute);
+    expect(s.battles).toEqual([]);
+  });
+
+  it("the Planner's odds on it are a pure read: its own dice, every stage, nothing changed", () => {
+    const { s, ids } = weakened(156);
+    const before = JSON.stringify(s);
+    const full = hqOdds(s, 'blenders', ids, true);
+    expect(JSON.stringify(s)).toBe(before);
+    expect(hqOdds(s, 'blenders', ids, true)).toBe(full); // the same dice each time
+    expect(full).toBeGreaterThan(0.8);
+    s.guards.push(guardOf('fists', 'none', 1, 'Loyal', { id: 'rookie', name: 'Rookie' }));
+    expect(hqOdds(s, 'blenders', ['rookie'], true)).toBe(0); // a lone rookie never gets past the Gate
+    expect(hqOdds(s, 'blenders', [], true)).toBe(0);
   });
 });

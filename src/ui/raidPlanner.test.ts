@@ -127,4 +127,31 @@ describe('the Raid Planner', () => {
     expect(html).toMatch(/data-testid="raid-foothold"[^>]*>Get a Foothold in [^<]+ first</);
     expect(html).toMatch(/data-testid="raid-tonight"\s+disabled title="Get a Foothold in/);
   });
+
+  it("on a rival's HQ it plans HQ Assault: the three stages, one number, and Now is the assault", () => {
+    const s = newGame(86);
+    s.rank = 7;
+    s.guards = Array.from({ length: 4 }, (_, i) => guardOf('hatchets', 'pro', 5, 'Loyal', { id: `h${i}`, name: `Raider ${i}` }));
+    const hq = hqPlot('blenders').id;
+    const { p, acts } = planner();
+    let html = p.panel(s, hq);
+    expect(html).toMatch(/<i data-art="house"><\/i>HQ Assault<\/b>/);
+    expect(html).toContain('<i>Gate</i>');
+    expect(html).not.toContain('data-action="objective"'); // no Smash, Shakedown or Sabotage at an HQ
+    expect(html).not.toContain('raid-unscouted');
+    expect(html).not.toContain('raid-foothold'); // an HQ needs no Foothold
+    expect(html).not.toContain('tplSave');
+    expect(html).toContain('data-testid="raid-hq-lock">Only once they are Weakened<');
+    expect(html).toMatch(/data-testid="assault"\s+disabled title="Only once they are Weakened"/);
+    s.rivals.blenders.peakPlots = 99; // Weakened
+    html = p.panel(s, hq);
+    expect(html).not.toContain('raid-hq-lock');
+    expect(html).not.toContain('raid-odds-range'); // its stages are known: one number
+    expect(html).toMatch(/<b class="cl-odds">(Long shot|Risky|Coin flip|Good odds|Sure thing)<\/b>/);
+    p.click({ action: 'raid', plot: hq, when: 'now' });
+    expect(acts.at(-1)).toEqual({ type: 'raid', plot: hq, guards: ['h0', 'h1', 'h2', 'h3'], objective: 'hq', when: 'now' });
+    const stand = raidTargets(s).find((t) => s.plots[t.id].stand)!.id;
+    footholdFor(s, stand);
+    expect(p.panel(s, stand)).toMatch(/class="cl-b go" data-action="objective" data-value="smash"/); // a stand: back on Smash
+  });
 });

@@ -42,6 +42,7 @@ export const templateAt = (s: GameState, plotId: string): RaidTemplate | undefin
 export function canSaveTemplate(s: GameState, guardIds: readonly string[], objective: RaidObjective): Blocker {
   if (s.rank < RAID_TEMPLATES.rank) return { ok: false, why: `Raid templates unlock at Rank ${RAID_TEMPLATES.rank}` };
   if (!templatesOn(s)) return { ok: false, why: 'Raid templates are switched off' };
+  if (objective === 'hq') return { ok: false, why: 'An HQ falls once: no template' };
   if (!guardIds.length) return { ok: false, why: 'Pick your squad first' };
   if (templateFor(s, guardIds, objective)) return { ok: false, why: 'Already saved' };
   if (templates(s).length >= RAID_TEMPLATES.max) return { ok: false, why: `${RAID_TEMPLATES.max} saved: drop one first` };
@@ -50,7 +51,7 @@ export function canSaveTemplate(s: GameState, guardIds: readonly string[], objec
 
 /** Save the squad and objective, aimed at `target`, named for whoever leads it: "Rosa's Smash". */
 export function saveTemplate(s: GameState, guardIds: readonly string[], objective: RaidObjective, target?: string): RaidTemplate | null {
-  if (!canSaveTemplate(s, guardIds, objective).ok) return null;
+  if (objective === 'hq' || !canSaveTemplate(s, guardIds, objective).ok) return null;
   const lead = s.guards.find((g) => g.id === guardIds[0]);
   const base = `${lead ? `${lead.name.split(' ')[0]}'s ` : ''}${LABEL[objective]}`;
   const taken = new Set(templates(s).map((t) => t.name));

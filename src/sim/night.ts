@@ -252,7 +252,7 @@ export function raidFought(s: GameState, r: Raid, report: BattleReport, daytime:
  * home again, no fight and no Grudge. */
 function nothingThere(s: GameState, r: Raid): boolean {
   const ps = s.plots[r.target];
-  if (ps.owner && ps.owner !== 'player' && hasBuilding(ps)) return false;
+  if (ps.owner && ps.owner !== 'player' && (r.assault ? s.rivals[ps.owner as RivalId].alive : hasBuilding(ps))) return false; // crew: an HQ while its rival stands
   r.back = s.minute + Math.max(0, s.minute - r.leave!);
   s.news.push(`Your squad found nothing to raid at ${PLOT_BY_ID[r.target].name} and turned back.`);
   return true;

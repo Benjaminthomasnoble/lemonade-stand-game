@@ -24,7 +24,7 @@ import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './rei
 import { fitGarrison, knockOut } from './garrison.ts';
 import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './captives.ts';
 import { shakedownLoot } from './loot.ts';
-import { breakTruce } from './rivals.ts';
+import { breakTruce, canAssault, HQ_STAGES, hqPlot, hqStageInput, hqSurvivors } from './rivals.ts';
 import { bump, difficulty, districtControl, peaceful } from './modes.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
@@ -83,10 +83,14 @@ export interface Raid {
   syndicate?: true; // a Syndicate strike (threat.ts): boss-led, all Smash, 2–3 plots, full kit
   siege?: true; // a Big Squeeze siege night's strike, on a target named at dawn (squeeze.ts)
   help?: { from: string; ids: string[] }[]; // your raid was spotted (reinforce.ts): the henchmen each rival plot sent, home after the fight
+  assault?: true; // an HQ Assault from the Raid Planner: the Gate, the Yard and the Boss Room once it gets there (fight.ts)
 }
 
-/** What a raid sets out to do: the fight's two objectives, plus Sabotage (fought like a Shakedown). */
-export type RaidObjective = Objective | 'sabotage';
+/** What a raid sets out to do: the fight's two objectives, Sabotage (fought like a Shakedown) and, on a rival's HQ,
+ * HQ Assault (its Gate is a Smash). */
+export type RaidObjective = Objective | 'sabotage' | 'hq';
+/** The fight a raid's objective is fought as. */
+export const fightObjective = (o: RaidObjective): Objective => (o === 'sabotage' ? 'shakedown' : o === 'hq' ? 'smash' : o);
 
 export interface BattleReport {
   delivery?: boolean;
@@ -709,7 +713,7 @@ export function raidRepCost(s: GameState, guardIds: string[], objective: RaidObj
   if (night) return 0;
   const squad = s.guards.filter((g) => guardIds.includes(g.id));
   if (squad.length && squad.every((g) => g.trait === 'Gentle Giant')) return 0;
-  return objective === 'smash' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid;
+  return objective === 'smash' || objective === 'hq' ? DAYTIME_RAID_REP.smash : DAYTIME_RAID_REP.raid; // an HQ Assault by day: a Smash's stars
 }
 
 export function raidTargets(s: GameState): Plot[] {
@@ -773,18 +777,33 @@ export function maybeSabotage(s: GameState, raid: Raid, rng: Rng): void {
   if (nextRandom(rng) < RIVAL_SABOTAGE[raid.attacker as RivalId]) { raid.objective = 'shakedown'; raid.sabotage = true; }
 }
 
+/** A raid of yours on this plot is planned, on its way, walking home or playing live. */
+const planned = (s: GameState, plotId: string) => [...s.raids, ...(s.fight ? [s.fight.raid] : [])].some((r) => r.attacker === 'player' && r.target === plotId);
+
+/** A rival's HQ in the Raid Planner: its one objective is HQ Assault, under the HQ's own rules (rivals.ts canAssault:
+ * Weakened, the HQ's rank, no ban, the squad cap), one at a time. Being Weakened is the HQ's gate: no Foothold needed. */
+function canStormHQ(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective): Blocker {
+  const owner = s.plots[plotId].owner;
+  if (!owner || owner === 'player') return { ok: false, why: 'Pick a rival HQ' };
+  if (objective !== 'hq') return { ok: false, why: 'An HQ falls only to an HQ Assault' };
+  const can = canAssault(s, owner as RivalId, guardIds);
+  if (!can.ok) return can;
+  return planned(s, plotId) ? { ok: false, why: 'Already planned' } : { ok: true };
+}
+
 export function canRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective = 'smash'): Blocker {
   const ps = s.plots[plotId];
+  if (PLOT_BY_ID[plotId].type === 'hq') return canStormHQ(s, plotId, guardIds, objective);
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no raids in this Sandbox' };
   if (s.rank < RAID_RANK) return { ok: false, why: `Raids unlock at Rank ${RAID_RANK}, ${RANKS[RAID_RANK - 1].title}` };
   const ban = raidBan(s); if (ban) return ban; // Sheriff Budd's Citation
-  if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'Storm an HQ from the Rivals board' };
+  if (objective === 'hq') return { ok: false, why: "Plan an HQ Assault at the rival's HQ" };
   if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
   const d = PLOT_BY_ID[plotId].district; // Land and territory: a Foothold (a plot of yours there) lets you raid there
   if (!hasFoothold(s, 'player', d)) return { ok: false, why: `Get a Foothold in ${DISTRICT_BY_ID[d].name} first` };
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
-  if ([...s.raids, ...(s.fight ? [s.fight.raid] : [])].some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' }; // a raid there playing live counts too
+  if (planned(s, plotId)) return { ok: false, why: 'Already planned' }; // a raid there playing live counts too
   if (objective === 'sabotage') return canSabotage(s, plotId, guardIds);
   return { ok: true };
 }
@@ -815,7 +834,7 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
     const seen = detectionChance(s, plotId, night, sneakyIn(s, guardIds));
     const lead = travelMinutes(s, squadHome(s, plotId, guardIds), plotId); // spotted as it sets out: the warning comes this far ahead
     return winChance((rng) => {
-      const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, detected: nextRandom(rng) < seen, eta: '' };
+      const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: fightObjective(objective), detected: nextRandom(rng) < seen, eta: '' };
       return withRivalHelp(battleInput(s, raid, squad, night, new Set(), rng), rivalHelpFor(s, raid, rng), lead);
     }, oddsSeed(plotId), runs);
   } finally {
@@ -837,10 +856,50 @@ export function raidOddsRange(s: GameState, plotId: string, guardIds: string[], 
   return [Math.min(...odds), Math.max(...odds)];
 }
 
+/**
+ * The Raid Planner's odds on an HQ Assault: how often this squad takes the Gate, the Yard and the Boss Room in a row,
+ * fought as rivals.ts fights them (survivors carry on, a little worn), each try with its own detection roll at the
+ * HQ (unseen, they strike first at the Gate). A pure read: its own dice, no truce broken, the ids handed back.
+ */
+export function hqOdds(s: GameState, rival: RivalId, guardIds: string[], night: boolean, trials = 24): number {
+  const fit = raidSquad(s, guardIds);
+  if (!fit.length) return 0;
+  const hq = hqPlot(rival).id;
+  const seen = detectionChance(s, hq, night, sneakyIn(s, guardIds));
+  const nextId = s.nextId;
+  const rng = { seed: oddsSeed(hq) };
+  let won = 0;
+  try {
+    for (let t = 0; t < trials; t++) {
+      const detected = nextRandom(rng) < seen;
+      let squad = squadFighters(fit, 'att', night, rival);
+      for (const stage of HQ_STAGES) {
+        const input = hqStageInput(s, rival, stage, squad, rng, detected);
+        const res = runBattle(input, rng);
+        if (res.winner !== 'att' || (stage === 'gate' && res.outcome !== 'smashed')) break;
+        if (stage === 'boss') won++;
+        squad = hqSurvivors(input, res);
+      }
+    }
+  } finally {
+    s.nextId = nextId;
+  }
+  return won / trials;
+}
+
+/** An HQ Assault gets to the gate (fight.ts): is it spotted? The HQ's gadgets against the squad, less at night and
+ * with a Sneaky guard along (detectionChance). Unseen, the squad strikes first at the Gate. */
+export function spotAssault(s: GameState, raid: Raid, night: boolean): void {
+  const rng = { seed: s.seed };
+  raid.detected = nextRandom(rng) < detectionChance(s, raid.target, night, sneakyIn(s, raid.guards ?? []));
+  s.seed = rng.seed;
+}
+
 export function planRaid(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, when: 'now' | 'tonight'): BattleReport | boolean {
   if (!canRaid(s, plotId, guardIds, objective).ok) return false;
-  const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective: objective === 'sabotage' ? 'shakedown' : objective, guards: guardIds, detected: false, eta: '' };
+  const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: plotId, objective: fightObjective(objective), guards: guardIds, detected: false, eta: '' };
   if (objective === 'sabotage') raid.sabotage = true;
+  if (objective === 'hq') raid.assault = true; // the Gate, the Yard and the Boss Room once it gets there (fight.ts)
   // Sheriff Budd reads your stars before the raid (or a broken truce) costs any; the fight's minute makes it a daytime raid.
   const cited = !!citationRisk(s, !raidIsNightAt(squadTrip(s, plotId, when, guardIds).at));
   breakTruce(s, s.plots[plotId].owner as RivalId);

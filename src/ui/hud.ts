@@ -9,11 +9,11 @@ import {
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
-  isSpoiled, PERIMETERS, SQUAD_CAP, threatLevel,
+  isSpoiled, PERIMETERS, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
-  canAssault, hasBuilding, HQS, isWrecked,
+  canAssault, hasBuilding, hqPlot, isWrecked,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
@@ -123,7 +123,6 @@ export type Action =
   | { type: 'factionBuyout'; rival: RivalId }
   | { type: 'negotiator'; id: string | null } // who you bring to Sit-downs (src/ui/sitdown.ts): a guard, or go alone
   | { type: 'haggle'; rival: RivalId; move: 'offer' | 'firm' } // Juni's and Preston's buyout haggle: open, or hold firm
-  | { type: 'assault'; rival: RivalId; guards: string[] }
   | { type: 'setup' } // open the New Game screen
   | { type: 'start'; settings: Settings }
   | { type: 'cancelSetup' }
@@ -448,7 +447,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'negotiator': case 'haggle': onAction(sitdownAction(d)); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
-      case 'assault': onAction({ type: 'assault', rival: d.rival as RivalId, guards: [...planner.squad] }); planner.squad.clear(); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;
       case 'evening': case 'ledger': onAction({ type: d.action }); break;
@@ -853,15 +851,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   /** A rival's HQ: Dot's Diner sit-downs and the assault. */
   function hqPanel(s: GameState, id: RivalId) {
     const st = rivalStatus(s, id);
-    const hq = HQS[id];
     const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} · ${rivalStars(s, id).toFixed(1)} stars${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
     if (s.rank < SITDOWN_RANK) return head;
     const sit = sitDown(clubs, s, id); // the Truce, the Faction Buyout and your negotiator (src/ui/sitdown.ts)
-    const ids = [...planner.squad];
-    const ab = canAssault(s, id, ids);
-    const assault = locked(ab) ? '' : `<div class="cl-planner" data-testid="hq-assault"><b title="Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${esc(hq.boss)} and their &quot;${esc(hq.move)}&quot;">Storm the HQ</b>
-      <span class="cl-stages"><i>Gate</i>${A.glyph('arrow')}<i>Yard</i>${A.glyph('arrow')}<i>Boss</i></span>${planner.picker(s)}${tape(`${ids.length}/${SQUAD_CAP(s.rank)}`)}
-      ${btn('assault', 'Storm it!', ab, `data-rival="${id}" data-testid="assault"`, 'go')}</div>`;
+    // crew: HQ Assault is the Raid Planner's objective here: the squad, the odds, then Tonight or Now (src/ui/raidPlanner.ts)
+    const assault = locked(canAssault(s, id, [...planner.squad])) ? '' : `<div data-testid="hq-assault">${planner.panel(s, hqPlot(id).id)}</div>`;
     return head + sit + squeezePanel(s, id, assault); // the campaign's Sourwood Manor: the Big Squeeze first (src/ui/squeeze.ts)
   }
 

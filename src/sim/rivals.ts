@@ -2,7 +2,7 @@
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
-import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard } from './crew.ts';
+import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard, type Raid } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import type { Blocker, GameState, KeptBuilding } from './economy.ts';
@@ -564,7 +564,6 @@ export function canAssault(s: GameState, id: RivalId, guardIds: string[]): Block
   const squeeze = squeezeAssault(s, id); // campaign: Sourwood Manor opens with the Big Squeeze, not once she's Weakened
   if (squeeze ? !squeeze.ok : !isWeakened(s, id)) return squeeze ?? { ok: false, why: 'Only once they are Weakened' };
   const ban = raidBan(s); if (ban) return ban; // crew: Sheriff Budd's Citation
-  if (s.phase !== 'prep') return { ok: false, why: 'Storm the HQ at Morning Prep' };
   if (!guardIds.length) return { ok: false, why: 'Pick your squad' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
   return { ok: true };
@@ -590,9 +589,11 @@ export function hqSquad(s: GameState, id: RivalId, guardIds: string[]): Fighter[
 /**
  * One stage's fight: who holds it, and in the Boss Room the boss and their move (dice from rng). The campaign's
  * Sourwood Manor is fought as nights' Big Squeeze left it (squeeze.ts): the Gate at its HP and the Yard short its
- * benched elites (squeezedHq); the Stewards the siege added come in with Old Money's call (manorStewards).
+ * benched elites (squeezedHq); the Stewards the siege added come in with Old Money's call (manorStewards). An HQ
+ * Assault from the Raid Planner (crew) rolls its detection at the HQ: unseen (`detected` false), the squad strikes
+ * first at the Gate, against the HQ's gadgets. Past the Gate they know you're in.
  */
-export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng): BattleInput {
+export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: Fighter[], rng: Rng, detected = true): BattleInput {
   const hq = squeezedHq(s, id);
   const size = stage === 'gate' ? 1 + hq.tier : stage === 'yard' ? hq.yard : 1 + Math.ceil(hq.tier / 2);
   const defenders = Array.from({ length: size }, (_, i) => henchmanFor(s, id, Math.min(5, hq.tier + (stage === 'yard' ? 1 : 0)), rng, i));
@@ -603,8 +604,8 @@ export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: F
     bossMoves = bossMovesOf(s, id, b.id, rng);
   }
   return {
-    attackers: squad, defenders, perimeter: 0, fenceHp: 0, gadgets: [],
-    standHp: stage === 'gate' ? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: true,
+    attackers: squad, defenders, perimeter: 0, fenceHp: 0, gadgets: stage === 'gate' ? [...s.plots[hqPlot(id).id].defense.gadgets] : [],
+    standHp: stage === 'gate' ? hq.gate : 0, objective: stage === 'gate' ? 'smash' : 'shakedown', detected: stage !== 'gate' || detected,
     ...(bossMoves ? { bossMoves } : {}),
   };
 }
@@ -668,14 +669,15 @@ export function hqStageOver(s: GameState, id: RivalId, stage: HqStage, input: Ba
   return 'won';
 }
 
-/** Three fights in a row, all at once: the Gate, the Yard, the Boss Room. Survivors carry on with the HP they have left. */
-export function stormHQ(s: GameState, id: RivalId, guardIds: string[]): AssaultResult | false {
-  if (!canAssault(s, id, guardIds).ok) return false;
+/** Three fights in a row, all at once: the Gate, the Yard, the Boss Room. Survivors carry on with the HP they have left.
+ * `sent`: an HQ Assault from the Raid Planner that has got there (crew), checked as it was planned, spotted or not. */
+export function stormHQ(s: GameState, id: RivalId, guardIds: string[], sent?: Raid): AssaultResult | false {
+  if (!sent && !canAssault(s, id, guardIds).ok) return false;
   let squad = hqSquad(s, id, guardIds);
   const rng = { seed: s.seed };
   const reports: BattleReport[] = [];
   for (const stage of HQ_STAGES) {
-    const input = hqStageInput(s, id, stage, squad, rng);
+    const input = hqStageInput(s, id, stage, squad, rng, sent?.detected);
     const res = runBattle(input, rng);
     s.seed = rng.seed;
     const next = hqStageOver(s, id, stage, input, res, reports);

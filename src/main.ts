@@ -11,7 +11,7 @@ import {
   alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, nothingTonight, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
-  factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, stormHQ, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
+  factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
   setTasteOffEntry, sponsorFestival, forgiveSquawk, nudgeStockTarget, setStockTarget, toggleAutoRestock, setByHand, toggleAutoPrice,
   announceControl, listPlot, placeBid, unlistPlot, withdrawBid,
@@ -21,7 +21,7 @@ import { waitAt } from './sim/clubhouse.ts';
 import { ringTheBell } from './sim/reinforce.ts';
 import { autoDefendOn, cycleDefendPriority, setAutoDefend } from './sim/autodefend.ts';
 import { settleCaptive } from './sim/captives.ts';
-import { atOnce, fightCommand, fightFrame, fightStatus, finishFight, liveReport, startAssault, watchFights } from './sim/fight.ts';
+import { atOnce, fightCommand, fightFrame, fightStatus, finishFight, liveReport, watchFights } from './sim/fight.ts';
 import { createAudio, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
@@ -684,13 +684,6 @@ async function main() {
       case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
       case 'negotiator': setNegotiator(state, a.id); break;
       case 'haggle': if (haggle(state, a.rival, a.move) && a.move === 'firm') stinger('raid-won'); break;
-      case 'assault': {
-        if (state.fight) { // one fight at a time: with one on, the assault is fought at once and shown after
-          const r = stormHQ(state, a.rival, a.guards);
-          if (r) { hud.inspected = null; onFight(r.reports[r.reports.length - 1], true); }
-        } else if (startAssault(state, a.rival, a.guards)) { hud.inspected = null; playLive(); }
-        break;
-      }
       case 'callSqueeze': callBigSqueeze(state); break; // Vera answers on the phone, at the next lull
       case 'replay': if (state.battles[a.index] && !state.fight) playBattle(state.battles[a.index]); break;
       case 'fight': if (a.cmd === 'rally' || a.cmd === 'fallBack') fightCommand(state, a.cmd); break;

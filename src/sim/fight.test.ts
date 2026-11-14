@@ -6,12 +6,12 @@ import {
 } from './fight.ts';
 import { battleOf, fencedOf, fighterOf, footholdFor, guardOf, guardsOf, henchmenOf } from './fighters.ts';
 import { leftBehind } from './captives.ts';
-import { FACTIONS, PERIMETERS } from './balance.ts';
+import { CLOSE, FACTIONS, PERIMETERS } from './balance.ts';
 import { PLOT_BY_ID } from './map.ts';
 import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
-  buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS,
+  buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS, hqPlot,
 } from './economy.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
@@ -446,6 +446,28 @@ describe('a live HQ assault', () => {
     expect(fightStatus(s)!.bossMove).toBe('Blender Rush');
     stepFight(s, BOSS_MOVE_SHOWN);
     expect(fightStatus(s)?.bossMove).toBeUndefined();
+  });
+
+  it('planned in the Raid Planner, it goes live when it gets to the gate, and the squad walks home after', () => {
+    const s = rich(9, 'blenders');
+    s.reputation = 4;
+    const hq = hqPlot('blenders').id;
+    const ids = s.guards.slice(0, 12).map((g) => g.id);
+    expect(planRaid(s, hq, ids, 'hq', 'now')).toBe(true);
+    const raid = s.raids.find((r) => r.assault)!;
+    openStand(s);
+    while (!s.fight && s.minute < CLOSE) tickMinute(s);
+    expect(s.minute).toBe(raid.at);
+    expect(s.fight).toMatchObject({ night: false, hq: { rival: 'blenders', stage: 'gate' } });
+    expect(s.fight!.raid).toBe(raid);
+    expect(s.fight!.input.detected).toBe(raid.detected); // rolled at the HQ: unseen, they strike first
+    const stages: string[] = [];
+    for (let i = 0; i < 4 && s.fight; i++) { stages.push(s.fight.hq!.stage); expect(s.fight.night).toBe(false); play(s); }
+    expect(stages).toEqual(['gate', 'yard', 'boss']);
+    expect(s.rivals.blenders.alive).toBe(false);
+    expect(s.reputation).toBeCloseTo(3.8, 5); // by day: a Smash's stars
+    expect(s.raids.find((r) => r.id === raid.id)!.back).toBeGreaterThan(s.minute);
+    expect(awayGuards(s)).toEqual(new Set(ids)); // walking home
   });
 });
 

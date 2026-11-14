@@ -1,8 +1,9 @@
 // The Raid Planner (spec: Raids): pick an objective and a squad, read the
-// odds dial, then go tonight or now. Lives on a rival plot's card; the HQ
-// panel borrows its squad picker. Mounted from hud.ts, drawn with its clay kit.
+// odds dial, then go tonight or now. Lives on a rival plot's card, and on a
+// rival HQ's card for its one objective, HQ Assault (the Gate, the Yard, the
+// Boss Room). Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, hqPlot, HQS, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
+  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, hqOdds, hqPlot, HQS, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
   SABOTAGE_NEEDS, squadTrip, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
@@ -26,7 +27,7 @@ export function templatesSwitch(s: GameState): string {
 export interface Planner {
   /** Guards picked for the next raid or HQ assault. */
   squad: Set<string>;
-  /** The planner on a rival plot's card (`inMenu`: drawn in the Raid Planner menu, whose links close it). */
+  /** The planner on a rival plot's or HQ's card (`inMenu`: drawn in the Raid Planner menu, whose links close it). */
   panel(s: GameState, plotId: string, inMenu?: boolean): string;
   /** Faces to tap in and out of the squad. */
   picker(s: GameState): string;
@@ -122,22 +123,32 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${objective === 'sabotage' && !sb.ok ? `<span class="cl-note bad" data-testid="raid-objective-lock">${k.esc(sb.why)}</span>` : ''}`;
   }
 
+  /** On a rival's HQ, its one objective: HQ Assault, three fights in a row, the squad carrying its HP door to door. */
+  function stages(s: GameState, id: string) {
+    const hq = HQS[s.plots[id].owner as RivalId];
+    return `<div class="cl-acts"><b title="${k.esc(`Gate ${hq.gate.toLocaleString('en-US')} HP, the Yard, then ${hq.boss} and their "${hq.move}"`)}">${k.ART.house()}HQ Assault</b>
+      <span class="cl-stages"><i>Gate</i>${glyph('arrow')}<i>Yard</i>${glyph('arrow')}<i>Boss</i></span></div>`;
+  }
+
   function panel(s: GameState, id: string, inMenu = false) {
     if (s.rank < RAID_RANK) return '';
     open(s, id);
+    const hq = PLOT_BY_ID[id].type === 'hq'; // a rival's HQ: HQ Assault is its one objective
+    if (hq) objective = 'hq'; else if (objective === 'hq') objective = 'smash';
     const crew = availableRaiders(s);
     for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
     if (!crew.length) return '<span class="cl-note">No guards free</span>';
     const ids = [...squad];
-    const goals = objectives(s, id, ids, k.whole(shakedownLoot(s, id)), inMenu);
-    const saved = templateRow(s, id, ids, new Set(crew.map((g) => g.id)));
+    const goals = hq ? stages(s, id) : objectives(s, id, ids, k.whole(shakedownLoot(s, id)), inMenu);
+    const saved = hq ? '' : templateRow(s, id, ids, new Set(crew.map((g) => g.id)));
     const scouted = isScouted(s, id);
     const odds = (night: boolean): Odds => {
       const ps = s.plots[id];
       const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, scouted, ps.stand?.level, ps.defense, ps.garrison, ps.garrisonOut, s.guards.map((g) => [g.id, g.weapon, g.gear, g.level])]);
       let v = oddsMemo.get(key);
       if (v === undefined) {
-        if (scouted) { const one = raidOdds(s, id, ids, objective, night); v = [one, one]; } else v = raidOddsRange(s, id, ids, objective, night);
+        if (hq) { const one = hqOdds(s, ps.owner as RivalId, ids, night); v = [one, one]; } // its stages are known: one number
+        else if (scouted) { const one = raidOdds(s, id, ids, objective, night); v = [one, one]; } else v = raidOddsRange(s, id, ids, objective, night);
         if (oddsMemo.size > 200) oddsMemo.clear();
         oddsMemo.set(key, v);
       }
@@ -155,16 +166,17 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     return `<div class="cl-planner" data-testid="raid-planner">
       ${saved}
       ${goals}
-      ${intel(s, id)}
+      ${hq ? '' : intel(s, id)}
       ${picker(s)}
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
       ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
       ${!can.ok && /^Get a Foothold/.test(can.why) ? `<span class="cl-note bad" data-testid="raid-foothold" title="Raids go only where you hold a plot: buy one in its district">${k.esc(can.why)}</span>` : ''}
+      ${hq && !can.ok && !ban && !/^(Pick|Squad cap|Already)/.test(can.why) ? `<span class="cl-note bad" data-testid="raid-hq-lock">${k.esc(can.why)}</span>` : ''}
       ${ban ? `<span class="cl-note bad" data-testid="raid-ban" title="Sheriff Budd's Citation: no raids or HQ assaults till then">${k.esc(ban.why)}</span>` : ''}
       ${risk && !ban ? `<span class="cl-note bad" data-testid="raid-citation" title="${k.esc(`Under ${risk.stars} stars, Sheriff Budd cites every daytime raid: about a day's sales, and no raids or HQ assaults for ${risk.banDays} days. Tonight's raids are never cited.`)}">Now earns a Citation: ${k.whole(risk.fine)}, ${risk.banDays}-day ban</span>` : ''}
       <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"${tip(`${chance(night)} to win`)}`, 'go')}
-      ${!nowOffered ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}${glyph('star')}</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="raid-now"${tip(`${chance(now)} to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}${risk ? `; Sheriff Budd's Citation: ${k.whole(risk.fine)} and no raids for ${risk.banDays} days` : ''}`)}`)}</div></div>`;
+      ${!nowOffered ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}${glyph('star')}</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="${hq ? 'assault' : 'raid-now'}"${tip(`${chance(now)} to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}${risk ? `; Sheriff Budd's Citation: ${k.whole(risk.fine)} and no raids for ${risk.banDays} days` : ''}`)}`)}</div></div>`;
   }
 
   function click(d: DOMStringMap) {

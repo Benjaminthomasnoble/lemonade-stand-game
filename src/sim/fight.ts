@@ -13,10 +13,10 @@
 // the skips (Finish the day, Sleep till dawn) fight everything at once.
 import { FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, type RivalId } from './balance.ts';
 import { createFight, type BattleInput, type BattleResult, type Fight, type FightCommand, type FightStatus, type Side } from './combat.ts';
-import { fightRaid, raidInput, type BattleReport, type Raid } from './crew.ts';
+import { fightRaid, raidInput, spotAssault, type BattleReport, type Raid } from './crew.ts';
 import { raidFought } from './night.ts';
 import type { FactionId } from './map.ts';
-import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, type HqStage } from './rivals.ts';
+import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, stormHQ, type AssaultResult, type HqStage } from './rivals.ts';
 import { nextRandom } from './rng.ts';
 import { tickMinute, type GameState, type SimEvent } from './economy.ts';
 
@@ -86,6 +86,7 @@ function begin(s: GameState, o: Pick<LiveFight, 'raid' | 'night' | 'input' | 'si
  * instead (the report comes back), so nothing waits off screen.
  */
 export function startFight(s: GameState, raid: Raid, night = s.phase !== 'open'): BattleReport | true {
+  if (raid.assault) return reachHQ(s, raid, night); // crew: an HQ Assault from the Raid Planner gets to the gate
   const mine = raid.attacker === 'player' || s.plots[raid.target].owner === 'player';
   if (!watching || !mine || s.fight) return fightRaid(s, raid, night);
   const rng = { seed: s.seed };
@@ -96,18 +97,29 @@ export function startFight(s: GameState, raid: Raid, night = s.phase !== 'open')
   return true;
 }
 
+/** An HQ Assault from the Raid Planner gets to the gate on the raid clock (crew): spotted or not at the HQ (crew.ts
+ * spotAssault), then its three stages, live while the game watches and no other fight is on, else all at once. */
+function reachHQ(s: GameState, raid: Raid, night: boolean): BattleReport | true {
+  const id = s.plots[raid.target].owner as RivalId;
+  spotAssault(s, raid, night);
+  if (watching && !s.fight && startAssault(s, id, raid.guards ?? [], raid, night)) return true;
+  const { reports } = stormHQ(s, id, raid.guards ?? [], raid) as AssaultResult; // sent: it always fights its way to an end
+  return reports[reports.length - 1];
+}
+
 /**
  * Storm a Weakened rival's HQ live: the Gate first, then the Yard and the Boss Room as each one falls. The squad
  * carries its HP from stage to stage; the campaign's Sourwood Manor is as the Big Squeeze left it (rivals.ts).
+ * `sent`: an HQ Assault from the Raid Planner that has got there (crew), fought by day or by `night`.
  */
-export function startAssault(s: GameState, id: RivalId, guardIds: string[]): boolean {
-  if (s.fight || !canAssault(s, id, guardIds).ok) return false;
+export function startAssault(s: GameState, id: RivalId, guardIds: string[], sent?: Raid, night = false): boolean {
+  if (s.fight || (!sent && !canAssault(s, id, guardIds).ok)) return false;
   const squad = hqSquad(s, id, guardIds);
   const rng = { seed: s.seed };
-  const input = hqStageInput(s, id, 'gate', squad, rng);
+  const input = hqStageInput(s, id, 'gate', squad, rng, sent?.detected);
   s.seed = rng.seed;
-  const raid: Raid = { id: `r${s.nextId++}`, attacker: 'player', target: hqPlot(id).id, objective: input.objective, guards: guardIds, detected: true, eta: '' };
-  begin(s, { raid, night: false, input, side: 'att', hq: { rival: id, stage: 'gate', reports: [] } });
+  const raid: Raid = sent ?? { id: `r${s.nextId++}`, attacker: 'player', target: hqPlot(id).id, objective: input.objective, guards: guardIds, detected: true, eta: '' };
+  begin(s, { raid, night, input, side: 'att', hq: { rival: id, stage: 'gate', reports: [] } });
   return true;
 }
 
@@ -126,8 +138,8 @@ function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
       const after = HQ_STAGES[HQ_STAGES.indexOf(stage) + 1];
       const input = hqStageInput(s, rival, after, hqSurvivors(f.input, res), rng);
       s.seed = rng.seed;
-      begin(s, { raid: { ...f.raid, objective: input.objective }, night: false, input, side: 'att', hq: { rival, stage: after, reports } }, FIGHT_LEAD_IN + FIGHT_BREAK);
-    }
+      begin(s, { raid: { ...f.raid, objective: input.objective }, night: f.night, input, side: 'att', hq: { rival, stage: after, reports } }, FIGHT_LEAD_IN + FIGHT_BREAK);
+    } else if (f.raid.assault) raidFought(s, { ...f.raid, objective: 'smash' }, report, !f.night, f.start ?? s.minute - f.ticked); // crew: the squad walks home (by day, a Smash's stars)
   } else {
     // Who joined mid-fight is part of the fight's record: they get the credit (and the bruises).
     const joins = f.commands.flatMap((c) => (c.type === 'join' ? [{ t: c.t, fighters: c.fighters }] : []));

@@ -186,7 +186,8 @@ try {
     await page.screenshot({ path: `test-results/${shot}.png` });
   }
 
-  // Rival endgame: buy a plot at a sit-down, then storm the weakened Blend Shack with a full squad.
+  // Rival endgame: buy a plot at a sit-down, then storm the weakened Blend Shack with a full squad (the Raid Planner's
+  // HQ Assault: it travels on the raid clock and fights live when it gets there).
   await page.waitForFunction(() => !window.__game.vip(), null, { timeout: 120000 });
   const hq = await page.evaluate(() => {
     const g = window.__game, st = g.state;
@@ -207,8 +208,12 @@ try {
   await page.waitForSelector('[data-testid="hq-assault"]');
   await page.screenshot({ path: 'test-results/14-hq-panel.png' });
   for (let i = 0; i < 12; i++) { const face = `[data-testid="hq-assault"] [data-action="squad"][data-id="sg${i}"][aria-pressed="false"]`; if (await page.$(face)) await page.click(face); } // Dex's picks stay in
-  await page.click('[data-testid="assault"]');
-  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 60000 });
+  await page.click('[data-testid="assault"]'); // Now: the squad sets out as the stands open
+  const at = await page.evaluate(() => { const g = window.__game; g.act({ type: 'open' }); g.act({ type: 'speed', value: 0 }); return g.state.raids.find((r) => r.assault)?.at ?? 0; });
+  if (!at) fail('HQ assault did not set out');
+  await page.evaluate((m) => window.__game.fastForward(m - window.__game.state.minute - 1), at);
+  await page.evaluate(() => window.__game.act({ type: 'speed', value: 1 }));
+  await page.waitForFunction(() => window.__game.battle(), null, { timeout: 90000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'test-results/15-hq-assault.png' });
   await page.evaluate(() => window.__game.finishFight()); // the assault plays live, stage by stage: settle the rest now

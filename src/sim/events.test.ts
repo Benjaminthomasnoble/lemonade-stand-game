@@ -419,11 +419,12 @@ describe('the Food Critic', () => {
     openStand(s);
     simulateRestOfDay(s);
     expect(e.verdict).toBe(criticVerdict(criticChecks(s, LOTTIES_CORNER)));
+    expect(Math.abs(e.verdict!)).toBe(FOOD_CRITIC.stars); // +0.1 or −0.1, nothing between
     expect(s.today.reputationAfter).toBe(s.reputation);
-    expect(s.news.some((n) => /^CRITIC (RAVES|SHRUGS|PANS)/.test(n))).toBe(true);
+    expect(s.news.some((n) => /^CRITIC (RAVES|PANS)/.test(n))).toBe(true);
   });
 
-  it('three checks: a short line, a fair price for the main segment, a card it loves or that shines; 3 = +0.1, 2 = 0, fewer = −0.1', () => {
+  it('three checks: a short line, a fair price for the main segment, a card it loves or that shines; all 3 = +0.1, else −0.1', () => {
     const s = quietGame(47);
     const plot = standIn(s, 'downtown');
     const st = s.plots[plot].stand!;
@@ -436,8 +437,10 @@ describe('the Food Critic', () => {
     st.price = appealFor(s, plot, 'office').fairPrice;
     const c = criticChecks(s, plot);
     expect(c).toEqual({ tasted: true, line: true, price: true, recipe: false }); // office workers love Sparkling, not Classic
-    expect(criticVerdict(c)).toBe(0);
+    expect(criticVerdict(c)).toBe(-FOOD_CRITIC.stars); // two of three is a miss: the spec has no middle verdict
     expect(criticVerdict({ ...c, recipe: true })).toBe(FOOD_CRITIC.stars);
+    expect(criticVerdict({ ...c, recipe: true, line: false })).toBe(-FOOD_CRITIC.stars);
+    expect(criticVerdict({ ...c, recipe: true, price: false })).toBe(-FOOD_CRITIC.stars);
     expect(SEGMENTS.office.favorites).toContain('sparkling');
     st.day.walkedPast.line = 20; // 5%: too long
     expect(criticChecks(s, plot).line).toBe(false);

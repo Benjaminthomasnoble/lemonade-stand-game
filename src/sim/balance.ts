@@ -299,7 +299,7 @@ export const SUPPLY_SHOCK = 2;
 export const EVENT_TRAFFIC = { viralVideo: 2, celebrity: 2, parade: 2, roadworks: 0.5, touristBus: 1.5, street: [4, 6] as [number, number] };
 /** Tourist Bus: tourists are this share of the district's walkers for the day. placeholder: spec gap ("tourists fill one district") */
 export const TOURIST_BUS_SHARE = 0.7;
-/** Food Critic: a short line, a fair price and a fitting card. All three: +0.1 star; two: nothing; fewer: −0.1 (spec). The line is
+/** Food Critic: a short line, a fair price and a fitting card. All three: +0.1 star; anything less: −0.1 (spec). The line is
  * short while under 5% of the stand's walkers leave over it. placeholder: spec gap (the 5%) */
 export const FOOD_CRITIC = { stars: 0.1, line: 0.05 };
 /** L4 The Lemon Shack and up make their own ice as they pour, at the Market price, so none melts overnight (spec). */

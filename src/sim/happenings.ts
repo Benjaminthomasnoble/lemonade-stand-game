@@ -159,10 +159,9 @@ export function criticChecks(s: GameState, plotId: string): CriticChecks {
   };
 }
 
-/** All three: +0.1 star; two: nothing; fewer (or nothing to taste): −0.1. */
+/** All three: +0.1 star; anything less (or nothing to taste): −0.1 (spec: "+0.1 or −0.1"). */
 export function criticVerdict(c: CriticChecks): number {
-  const passed = c.tasted ? [c.line, c.price, c.recipe].filter(Boolean).length : 0;
-  return passed === 3 ? FOOD_CRITIC.stars : passed === 2 ? 0 : -FOOD_CRITIC.stars;
+  return c.tasted && c.line && c.price && c.recipe ? FOOD_CRITIC.stars : -FOOD_CRITIC.stars;
 }
 
 function critique(s: GameState, e: WorldEvent): void {
@@ -170,13 +169,10 @@ function critique(s: GameState, e: WorldEvent): void {
   const c = criticChecks(s, plotId);
   const delta = criticVerdict(c);
   e.verdict = delta;
-  if (delta) {
-    s.reputation = clamp(round2(s.reputation + delta), 1, 5);
-    s.today.reputationAfter = s.reputation;
-  }
+  s.reputation = clamp(round2(s.reputation + delta), 1, 5);
+  s.today.reputationAfter = s.reputation;
   const at = short(plotId);
   if (delta > 0) s.news.push(`CRITIC RAVES! "Four spoons," writes the Bugle's critic of ${at}: +${FOOD_CRITIC.stars} star.`);
-  else if (delta === 0) s.news.push(`CRITIC SHRUGS: "Perfectly fine," writes the Bugle's critic of ${at}.`);
   else {
     const gripe = !c.tasted ? 'Nothing to taste!' : !c.line ? 'I waited forty minutes!' : !c.price ? 'Highway robbery!' : 'Wrong lemonade for this crowd.';
     s.news.push(`CRITIC PANS ${at.toUpperCase()}! "${gripe}" writes the Bugle's critic: −${FOOD_CRITIC.stars} star.`);

@@ -6,7 +6,7 @@
 import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, priceCeiling, topPriceMods,
-  canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
+  canUpgradeStand, CLOSE, costPerCup, standCost, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, threatLevel,
@@ -86,7 +86,7 @@ export type Action =
   | { type: 'select'; plot: string }
   | { type: 'inspect'; plot: string | null }
   | { type: 'buyPlot'; plot: string }
-  | { type: 'build'; plot: string }
+  | { type: 'build'; plot: string; level: number }
   | { type: 'view'; target: 'home' | 'bay' }
   | { type: 'perimeter'; plot: string }
   | { type: 'gadget'; plot: string; id: GadgetId }
@@ -407,7 +407,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'spec': onAction({ type: 'spec', slot: Number(d.slot), id: d.id as SpecId }); break;
       case 'select': onAction({ type: 'select', plot: d.plot! }); break;
       case 'buyPlot': onAction({ type: 'buyPlot', plot: d.plot! }); break;
-      case 'build': onAction({ type: 'build', plot: d.plot! }); break;
+      case 'build': onAction({ type: 'build', plot: d.plot!, level: Number(d.level ?? 1) }); break;
       case 'close-plot': onAction({ type: 'inspect', plot: null }); break;
       case 'view': onAction({ type: 'view', target: d.target as 'home' | 'bay' }); break;
       case 'tab': tab = (tab === d.tab && d.tab !== 'today' ? 'today' : d.tab) as typeof tab; redraw(); break;
@@ -818,7 +818,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(plotType(s, p));
       const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
-      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || p.type === 'hq' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
+      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || p.type === 'hq' || ps.facility ? '' : buildButtons(s, id); // any level the rank has unlocked, paid at once
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
@@ -842,12 +842,19 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
 
-  /** Tapping your stand answers with its next upgrade from Day 1, before the Grow tab's lesson. */
+  /** Tapping your stand answers with its next upgrade from Day 1, before the Grow tab's lesson, mid-day too: it's instant. */
   function upgradeHere(s: GameState) {
     const st = selectedStand(s), next = STAND_LEVELS[st.level];
     const up = canUpgradeStand(s);
     const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
-    return next && s.phase === 'prep' && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top)}"`, 'go') : '';
+    return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top)}"`, 'go') : '';
+  }
+
+  /** An empty plot of yours: a button for each stand level the rank has unlocked, at every step's cost paid at once. */
+  function buildButtons(s: GameState, id: string) {
+    const top = (l: StandLevel) => ceilingFor(l.level, PLOT_BY_ID[id].district, 'classic', topPriceMods(s, id));
+    return STAND_LEVELS.map((l) => ({ l, b: canBuildStand(s, id, l.level) })).filter(({ b }) => !locked(b))
+      .map(({ l, b }) => btn('build', `${l.name.split(' ').pop()} ${whole(standCost(l.level))}`, b, `data-plot="${id}" data-level="${l.level}" data-testid="build${l.level > 1 ? `-${l.level}` : ''}"${b.ok ? ` title="${esc(l.name)}: ${levelStats(l, top(l))}"` : ''}`, 'go')).join('');
   }
 
   /** A rival's HQ: Dot's Diner sit-downs and the assault. */

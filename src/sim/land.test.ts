@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
+  canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
   LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
@@ -439,5 +440,49 @@ describe('Trophy plots', () => {
     expect(loaded.today.books?.invested).toBe(550); // on today's Ledger, so the day's rows still add up
     const again = migrateSave(JSON.parse(JSON.stringify(loaded)))!;
     expect(again.cash).toBe(loaded.cash);
+  });
+});
+
+describe('building stands', () => {
+  it('builds any level the rank has unlocked straight onto an empty plot, every step paid at once', () => {
+    const s = newGame(111);
+    const lot = street(s, 'maple');
+    give(s, lot.id);
+    Object.assign(s, { cash: 1e6, rank: 3 });
+    expect([1, 2, 3, 4, 5].map(standCost)).toEqual([150, 550, 4050, 64050, 714050]);
+    expect(canBuildStand(s, lot.id, 4)).toEqual({ ok: false, why: `Needs Rank 5, ${RANKS[4].title}` }); // a Lemon Shack waits for Rank 5
+    const cash = s.cash;
+    expect(buildStand(s, lot.id, 3)).toBe(true);
+    expect(s.cash).toBe(cash - 4050);
+    expect(s.plots[lot.id]).toMatchObject({ invested: 4050, stand: { level: 3 } });
+    expect(currentHp(s.plots[lot.id])).toBe(800);
+    expect(s.plots[lot.id].stand!.price).toBe(priceCeiling(s, lot.id));
+    expect(s.news.at(-1)).toBe(`A brand-new Kiosk opens at ${lot.name}!`);
+  });
+
+  it('builds and upgrades mid-day: the new level pours, holds and stands at full HP at once; the night waits for morning', () => {
+    const s = newGame(112);
+    Object.assign(s, { cash: 1e6, rank: 3 });
+    openStand(s);
+    expect(s.phase).toBe('open');
+    const lot = street(s, 'maple');
+    give(s, lot.id);
+    expect(buildStand(s, lot.id, 2)).toBe(true); // bought and built in business hours
+    const ps = s.plots[lot.id];
+    ps.stand!.hp = 100; // dented
+    ps.stand!.day.customers = 300; // and sold some today
+    expect(isDamaged(ps)).toBe(true);
+    const cap = storageFor(ps.stand!, 'lemons');
+    expect(upgradeStand(s, lot.id)).toBe(true);
+    expect(ps.stand!.level).toBe(3);
+    expect(currentHp(ps)).toBe(800); // the Kiosk's full HP
+    expect(pourRate(s, lot.id)).toBe(120); // its cups an hour from the next minute
+    expect(serviceLeft(s, lot.id)).toBe(1200 - 300); // its day's service, less what the Wooden Stand sold
+    expect(storageFor(ps.stand!, 'lemons')).toBeGreaterThan(cap);
+    s.phase = 'night';
+    expect(canUpgradeStand(s, lot.id)).toEqual({ ok: false, why: 'Too late tonight: upgrade tomorrow' });
+    const next = street(s, 'maple');
+    give(s, next.id);
+    expect(canBuildStand(s, next.id)).toEqual({ ok: false, why: 'Too late tonight: build tomorrow' });
   });
 });

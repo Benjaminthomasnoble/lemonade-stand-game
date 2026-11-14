@@ -648,7 +648,7 @@ async function main() {
         if (hud.menu !== 'goals') hud.menu = null;
         break;
       case 'buyPlot': buyPlot(state, a.plot); break;
-      case 'build': buildStand(state, a.plot); break;
+      case 'build': buildStand(state, a.plot, a.level); break;
       case 'view': if (a.target === 'home') focusPlot(state.selected); else world.bayView(); break;
       case 'perimeter': buyPerimeter(state, a.plot); break;
       case 'gadget': buyGadget(state, a.plot, a.id); break;

@@ -341,7 +341,9 @@ export function newStand(level = 1, price = STAND_LEVELS[level - 1].topPrice): S
   };
 }
 
-function investedFor(level: number): number {
+/** A stand of this level built new on an empty plot: every step's cost, paid at once (L1 $150, L2 $550, L3 $4,050,
+ * L4 $64,050, L5 $714,050). It's what the plot's investment gets, for yours and a rival's alike. */
+export function standCost(level: number): number {
   return STAND_LEVELS.slice(0, level).reduce((a, l) => a + l.cost, 0);
 }
 
@@ -385,7 +387,7 @@ function placeRivalStand(s: GameState, id: RivalId, p: Plot, rng: Rng): void {
   const base = p.district === 'groves' ? 1 : p.district === 'downtown' || p.district === 'hilltop' ? 3 : 2;
   const level = p.type === 'field' ? 0 : clamp(base + (p.type === 'prime' || p.type === 'landmark' ? 1 : 0), 1, f.maxLevel);
   const stand = level ? newStand(level, rivalPrice(id, level, p)) : null;
-  s.plots[p.id] = { owner: id, stand, invested: level ? investedFor(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
+  s.plots[p.id] = { owner: id, stand, invested: level ? standCost(level) : 0, landValue: p.baseLand, defense: NO_DEFENSE() };
 }
 
 /**
@@ -984,7 +986,13 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   return true;
 }
 
-export function canBuildStand(s: GameState, plotId: string): Blocker {
+/**
+ * Build a stand of any level your rank has unlocked straight onto an empty plot of yours that takes one (not a Field,
+ * a Dock or a Trophy, and nothing built there), paying every step's cost at once (spec: "a Kiosk built on an empty
+ * plot costs $150 + $400 + $3,500 = $4,050, paid at once"). Any hour of the day, the Evening too; not at night, when
+ * repairs and rebuilds wait for the morning as well.
+ */
+export function canBuildStand(s: GameState, plotId: string, level = 1): Blocker {
   const type = plotType(s, PLOT_BY_ID[plotId]); // a Sandbox map may have retagged it
   const ps = s.plots[plotId];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
@@ -992,20 +1000,25 @@ export function canBuildStand(s: GameState, plotId: string): Blocker {
   if (ps.stand) return { ok: false, why: 'There is already a stand here' };
   if (type === 'field' || type === 'dock') return { ok: false, why: `${type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
   if (ps.facility) return { ok: false, why: 'A facility is built here' };
-  if (s.phase !== 'prep') return { ok: false, why: 'Build during Morning Prep' };
-  if (s.cash < STAND_LEVELS[0].cost) return { ok: false, why: `Needs $${STAND_LEVELS[0].cost}` };
+  if (!STAND_LEVELS[level - 1]) return { ok: false, why: 'No such stand' };
+  const gate = STAND_RANK_GATE[level - 1];
+  if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
+  if (s.phase === 'night') return { ok: false, why: 'Too late tonight: build tomorrow' };
+  const cost = standCost(level);
+  if (s.cash < cost) return { ok: false, why: `Needs $${cost.toLocaleString('en-US')}` };
   return { ok: true };
 }
 
-export function buildStand(s: GameState, plotId: string): boolean {
-  if (!canBuildStand(s, plotId).ok) return false;
+export function buildStand(s: GameState, plotId: string, level = 1): boolean {
+  if (!canBuildStand(s, plotId, level).ok) return false;
   const ps = s.plots[plotId];
-  book(s, 'invested', -STAND_LEVELS[0].cost);
-  ps.stand = newStand(1);
-  ps.stand.price = priceCeiling(s, plotId); // a new table opens at its ceiling
-  ps.invested += STAND_LEVELS[0].cost;
+  const cost = standCost(level);
+  book(s, 'invested', -cost);
+  ps.stand = newStand(level); // at full HP, with its level's draw, pour, top price and stock cap from the next minute
+  ps.stand.price = priceCeiling(s, plotId); // a new stand opens at its ceiling
+  ps.invested += cost;
   s.selected = plotId;
-  s.news.push(`A brand-new Folding Table opens at ${PLOT_BY_ID[plotId].name}!`);
+  s.news.push(`A brand-new ${STAND_LEVELS[level - 1].name.replace(/^The /, '')} opens at ${PLOT_BY_ID[plotId].name}!`);
   return true;
 }
 
@@ -1068,7 +1081,7 @@ export function canUpgradeStand(s: GameState, plotId = s.selected): Blocker {
   const next = STAND_LEVELS[st.level];
   if (!next) return { ok: false, why: 'Already the Citrus Palace' };
   if (st.wrecked) return { ok: false, why: 'Rebuild it first' };
-  if (s.phase !== 'prep') return { ok: false, why: 'Upgrade during Morning Prep' };
+  if (s.phase === 'night') return { ok: false, why: 'Too late tonight: upgrade tomorrow' }; // repairs and rebuilds wait for the morning too
   const gate = STAND_RANK_GATE[next.level - 1];
   if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
   if (s.cash < next.cost) return { ok: false, why: `Needs $${next.cost.toLocaleString('en-US')}` };

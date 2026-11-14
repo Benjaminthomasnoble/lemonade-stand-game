@@ -53,7 +53,7 @@ function previewKey(s: GameState): string {
   return k.join('|');
 }
 
-/** Morning Prep's preview: a ticket per helper at work today, with what it spent at dawn and will spend at Open, or what it set. */
+/** Morning Prep's preview: a ticket per helper at work today, with what it spent so far and will spend at Open, or what it set. */
 export function autoTickets(s: GameState): string[] {
   if (s.phase !== 'prep') return [];
   const key = previewKey(s);
@@ -65,7 +65,8 @@ export function autoTickets(s: GameState): string[] {
     }
     const more = p.pending > 0 ? `+${money(p.pending)} at Open` : '';
     const note = [p.count ? `${p.count} stand${p.count === 1 ? '' : 's'}` : '', more].filter(Boolean).join(' · ');
-    const tip = `${p.name} spent ${money(p.spent)} at dawn${more ? `, and buys ${money(p.pending)} more when the stands open` : ''}`;
+    // Its own report (a helper may have worked at dawn or since: a policy set at Prep, a target raised), then the money.
+    const tip = `${p.name}: ${p.line ? `${p.line}, ` : ''}${money(p.spent)} so far today${more ? `; ${money(p.pending)} more when the stands open` : ''}`;
     return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(tip)}">${crateArt()}<b>${esc(p.name)}: ${money(p.spent)}</b>${note ? `<span class="cl-note">${note}</span>` : ''}</div>`;
   });
   memo = { key, out };

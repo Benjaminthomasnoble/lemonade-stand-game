@@ -4,6 +4,7 @@ import { btn, esc, whole } from './recipes.ts';
 import type { BulkKit } from './bulk.ts';
 import { policyAction, policyCards, policyToggle } from './policies.ts';
 import { registryScreen } from './registry.ts';
+import { autoTickets } from './automation.ts';
 
 /** A bare clay kit: each card is its test id, title, subtitle and buttons. */
 const kit: BulkKit = {
@@ -31,6 +32,22 @@ function tycoon(): { s: GameState; d: DistrictId; other: string } {
   s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(1), invested: standCost(1), defense: NO_DEFENSE() };
   return { s, d, other: p.id };
 }
+
+describe("Morning Prep's helper tickets", () => {
+  it("each reads its own report and what it spent so far today: Profit set at Prep, its restock on Auto-Restock's", () => {
+    const { s, d, other } = tycoon();
+    s.day = 20; // the Market and Auto-Restock are open
+    s.phase = 'prep';
+    for (const id of [LOTTIES_CORNER, other]) Object.assign(s.plots[id].stand!, { autoRestock: false, stockTarget: 50, pitcherCups: 0, inventory: { ...s.plots[id].stand!.inventory, lemons: [], sugar: 0, ice: 0 } });
+    delete s.today.auto;
+    expect(setPolicy(s, d, 'profit')).toBe(true);
+    const tickets = autoTickets(s);
+    const title = (id: string) => tickets.find((x) => x.includes(`data-testid="auto-${id}"`))?.match(/title="([^"]*)"/)?.[1];
+    expect(title('policies')).toBe('District policies: 1 district, 2 plots, $0.00 so far today');
+    expect(title('restock')).toMatch(/^Auto-Restock: [^,]*, \$\d+\.\d\d so far today/);
+    expect(tickets.join('')).not.toContain('at dawn');
+  });
+});
 
 describe("the Grow tab's district policy", () => {
   it('waits for Rank 7', () => {

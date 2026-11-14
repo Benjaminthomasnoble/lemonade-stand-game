@@ -97,7 +97,7 @@ describe('story acts', () => {
     delete old.story; delete old.goals; delete old.scenes; delete old.phone;
     const loaded = migrateSave(JSON.parse(JSON.stringify(old)))!;
     expect(loaded.story?.act).toBe(3);
-    expect(loaded.scenes?.seen).toContain('steward'); // past Day 5: don't replay it
+    expect(loaded.scenes?.seen).toContain('steward'); // past his Day 3: don't replay it
     expect(goalsNow(loaded)).toHaveLength(3);
   });
 
@@ -204,6 +204,17 @@ describe('story scenes', () => {
     const exit = { exit: true, seconds: 10, lines: [{ who: 'Brock', text: 'Bro.', at: 1 }], recap: 'Brock leaves town.' };
     expect(playScene(sb, 'exit-blenders', exit)).toBe(true);
     expect(beginScene(sb)?.recap).toBe('Brock leaves town.');
+  });
+
+  it('a save from before the scene queue counts the Steward seen once his Day 3 dawn is behind it', () => {
+    const load = (day: number) => {
+      const old = newGame(34) as Partial<GameState> & GameState;
+      old.day = day;
+      delete old.scenes;
+      return migrateSave(JSON.parse(JSON.stringify(old)))!;
+    };
+    expect(load(LESSON_DAY.defense).scenes!.seen).not.toContain('steward'); // his morning: still to come
+    expect(load(LESSON_DAY.defense + 1).scenes!.seen).toContain('steward'); // Day 4: he's been
   });
 
   it("the Steward's scene ends with Vera on the phone, watched or skipped; no scene runs over a minute", () => {

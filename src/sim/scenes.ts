@@ -5,7 +5,7 @@
 // most important first: SCENE_PRIORITY). Skipping posts the one-line recap.
 // Boss exit scenes also play in Sandbox and Endless. Pure state, saved with the
 // run so a reload never replays a scene.
-import { BRAND_TIERS, type RivalId } from './balance.ts';
+import { BRAND_TIERS, LESSON_DAY, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { alert } from './alerts.ts';
 import { gameOver, isEndless } from './modes.ts';
@@ -201,7 +201,7 @@ export function migrateScenes(s: GameState): void {
   if (!s.scenes) {
     // A run from before the scene queue: don't replay what it has already been through.
     const seen: string[] = [];
-    if (s.day > 5) seen.push('steward');
+    if (s.day > LESSON_DAY.defense) seen.push('steward'); // his visit is Day 3's dawn (story.ts stewardVisit)
     if (s.guards.some((g) => g.name === DEX)) seen.push('dex');
     s.scenes = { seen, queue: [] };
   }

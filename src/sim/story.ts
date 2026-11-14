@@ -227,8 +227,9 @@ export function leanLine(s: GameState): string {
 }
 
 /**
- * Lessons: Dex arrives unposted on Day 4 for the "station Dex" lesson; if nobody does by closing, he takes the Corner
- * himself, so the night is covered. That ticks the lesson off without Lottie's reward: nobody stationed him.
+ * Lessons: Dex arrives unposted on Day 4 (LESSON_DAY.crew) for the "station Dex" lesson; if nobody does by closing,
+ * he takes the Corner himself, so the night is covered. That ticks the lesson off without Lottie's reward: nobody
+ * stationed him.
  */
 function dexOnDuty(s: GameState): void {
   const dex = s.guards.find((g) => g.name === 'Dex Moody');
@@ -242,10 +243,11 @@ function dexOnDuty(s: GameState): void {
 }
 
 /**
- * Day 5 at dawn (campaign): a Sourwood Steward kicks over the table at Lottie's Corner "as a reminder" (Vera phones
- * once the scene is over). A scene, not a raid: no fight, no Threat or Reputation change, and the tutorial raid stays
- * the first. It costs one spilled pitcher: the Corner's lemons and sugar for 10 cups (the ice melted overnight), or
- * what's left of them. A fence doesn't stop him. Then the Picket Fence's lesson: "Fence the Corner".
+ * Day 3 at dawn (LESSON_DAY.defense, campaign): a Sourwood Steward kicks over the table at Lottie's Corner "as a
+ * reminder" (Vera phones once the scene is over). A scene, not a raid: no fight, no Threat or Reputation change, and
+ * the tutorial raid stays the first. It costs one spilled pitcher: the Corner's lemons and sugar for 10 cups (the ice
+ * melted overnight), or what's left of them. A fence doesn't stop him. Then the Picket Fence's lesson: "Fence the
+ * Corner".
  */
 function stewardVisit(s: GameState): void {
   if (s.day !== LESSON_DAY.defense) return;
@@ -440,8 +442,8 @@ function recordDay(s: GameState): void {
 
 /**
  * After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Day 1 (before
- * the Market's lesson) gets Lottie's stock; the first brand tier brings Benny Buzz to paint the sign (his scene, at
- * the next lull).
+ * the Market's lesson, LESSON_DAY.market) gets Lottie's stock; the first brand tier brings Benny Buzz to paint the
+ * sign (his scene, at the next lull).
  */
 export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);

@@ -7,7 +7,7 @@
 // Which scenes a run has seen is kept per run in localStorage, so the saved
 // game's shape doesn't change.
 import * as THREE from 'three';
-import { LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
+import { LESSON_DAY, LOTTIES_CORNER, type GameState } from '../sim/economy.ts';
 import type { SceneLine, Speaker } from '../sim/scenes.ts';
 import type { PlotView } from './bay.ts';
 import { kit } from './clay/kit.ts';
@@ -132,10 +132,10 @@ export function createScenes(scene: THREE.Scene, hooks: SceneHooks): Scenes {
         if (hooks.driven || s.phase !== 'open') return;
         const done = seen(s.runId);
         const minute = s.minute;
-        // Day 5, mid-morning: the Steward's "reminder" (spec Act 1).
-        if (s.day === 5 && minute > 10 * 60 && !done.has('steward') && s.settings.mode === 'campaign') { markSeen(s.runId, 'steward'); start('steward', views); }
+        // Day 3 (the fence's lesson), mid-morning: the Steward's "reminder" (spec Act 1).
+        if (s.day === LESSON_DAY.defense && minute > 10 * 60 && !done.has('steward') && s.settings.mode === 'campaign') { markSeen(s.runId, 'steward'); start('steward', views); }
         // Dex turns up the day he joins.
-        else if (s.day >= 6 && !done.has('dex') && s.guards.some((g) => g.name === 'Dex Moody') && minute > 9 * 60) { markSeen(s.runId, 'dex'); start('dex', views); }
+        else if (s.day >= LESSON_DAY.crew && !done.has('dex') && s.guards.some((g) => g.name === 'Dex Moody') && minute > 9 * 60) { markSeen(s.runId, 'dex'); start('dex', views); }
         return;
       }
       const c = current;

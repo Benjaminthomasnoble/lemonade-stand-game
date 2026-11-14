@@ -119,7 +119,7 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep the bot built its first on Days 12–20 on Classic, mostly before Dex's push; on main 0bc4c8d it built it on Days 18, 24 and 15 on maps 42–44. Whether to retune Act 2's cash or move the window is an open call for Ben.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep after the 2026-11-14 retune the bot built its first on Days 14–28 on Classic, on Days 14–16 on seven of the ten maps (Days 12–20 before the retune, mostly before Dex's push). Whether to retune Act 2's cash or move the window is an open call for Ben.
 
 ### Crew
 
@@ -576,7 +576,7 @@ Each fair ends in a Taste-Off on its last day. Three judges post their hints at 
 
 The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps); the pacing report shows it without judging it, since a curious player can upgrade with a tap from Day 1 (Onboarding: the first 30 minutes). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
-These targets are under review, an open call for Ben, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing sweep is in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt; it played main 9e57e5e, so re-sweep current main before quoting its days.
+These targets are under review, an open call for Ben, and the simulated days above (the economy model's) predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing bot's sweep after the 2026-11-14 retune is /mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt (the one before it, on main 9e57e5e, is pacing-sweep.txt beside it). Across its ten Classic maps the medians of Ranks 2–6, Rank 9 and Domination land on target (Rank 9 on Day 128, Domination on Day 136), Ranks 7 and 8 come 1–4 days early and Rank 10 ten days early; the reference map reaches Rank 9 on Day 119 and Domination on Day 127. The spec's Pacing targets vs the simulation lists its days and what else misses.
 
 ### Lottie's Tips
 
@@ -687,8 +687,10 @@ How the raids on you are planned and sent, night by night. Values marked (placeh
 | The run can be lost | No | Yes | Yes | Yes, unless the Cookie Jar is Always (placeholder) |
 | Customer traffic | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
 | Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
-| Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 | — |
-| Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) | — |
+| Simulated pace (economy model: days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 | — |
+| Simulated Domination day (economy model: reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) | — |
+| Pacing bot's pace after the 2026-11-14 retune (days to Ranks 5–9, median of ten maps) | ×1.00 | ×1.00 | ×1.03 | — |
+| Pacing bot's Domination day (reference map; ten maps, median) | 128 (124–149, 136) | 127 (124–166, 136) | 137 (131–147 on 8 of 10 maps, 137) | — |
 | Simulated raids on you in a campaign (twelve runs, every rumor answered) | 46–79 | 76–119 | 115–166 | — |
 
 Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms 14 days into Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act. Laid Back's Threat stops at 4, so its Syndicate forms at Rank 9, where Classic reaches Threat 5. Delivery Raids need Threat 3, which Laid Back reaches only at Rank 7: before then, the movie star's first chopper draws no FizzCo raid and no tip from Juni. Custom starts from Classic's numbers. The raid counts are from twelve simulated campaigns with business days skipped, from all your defenses holding to none holding; with every rumor left to lapse they were 32–48, 62–96 and 101–137. Every run's first raid came on Night 3.

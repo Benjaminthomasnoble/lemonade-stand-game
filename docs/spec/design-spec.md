@@ -1154,29 +1154,29 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 
 ### Pacing targets vs the simulation
 
-| Milestone | Target day | Simulated Classic day (range on ten maps) |
+| Milestone | Target day | Simulated Classic day: reference map (range on ten maps, median) |
 | --- | --- | --- |
-| First upgrade to L2 | 5 (its lesson) | 4 (4–5) |
-| Rank 2 | 5 (its lesson) | 4 (3–4) |
-| Rank 3 | About 10 | 9 (8–12) |
-| Rank 4 | About 22 | 19 (15–34) |
-| Rank 5 | About 37 | 41 (26–48) |
-| Rank 6 | 52–58 | 58 (48–60) |
-| Rank 7 | 71–80 | 78 (67–82) |
-| Rank 8 | 95–105 | 104 (87–105) |
-| Rank 9 | 125–135 | 135 (123–138) |
-| Domination | About 140–150, not before 136 | 143 (131–146) |
-| Rank 10 (after victory) | About 150–160 | 157 (148–162) |
+| First upgrade to L2 | 5 (its lesson) | 3 (2–5, 3) |
+| Rank 2 | 5 (its lesson) | 5 (3–5, 5) |
+| Rank 3 | About 10 | 9 (9–15, 10) |
+| Rank 4 | About 22 | 20 (17–30, 20) |
+| Rank 5 | About 37 | 33 (26–44, 39) |
+| Rank 6 | 52–58 | 48 (40–57, 52) |
+| Rank 7 | 71–80 | 65 (59–77, 67) |
+| Rank 8 | 95–105 | 87 (80–114, 94) |
+| Rank 9 | 125–135 | 119 (116–158, 128) |
+| Domination | About 140–150, not before 136 | 127 (124–166, 136) |
+| Rank 10 (after victory) | About 150–160 | 129 (127–165 on the nine maps that reached it, 140) |
 
-Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
+The simulated player is the pacing bot (`npm run sim -- pacing`, tools/pacing.ts), which plays every system: stands, specializations and land, crew, raids and HQ assaults, VIPs and contracts, and the siege. The days above are its sweep of ten maps (seeds 42–51, the reference map 42) after the economy was retuned on 2026-11-14. Across the ten maps the medians of Ranks 2–6, Rank 9 and Domination land on target, Ranks 7 and 8 come 1–4 days early and Rank 10 ten days early. The reference map runs hot: Ranks 6–10 come 4–21 days early and Domination on Day 127. Every map ends in Domination eight days after Rank 9, since the bot calls the Big Squeeze the next morning and the 7-day siege follows. The first L2 comes on Day 3 because the bot taps its stand before the Day 5 lesson, so the report shows that line without judging it. The bot is tireless and efficient, so a real player should land a few days later, closer to the targets. Its longest stretch without a new rank, stand level, facility, VIP first, marketing tier or fallen rival runs 10–24 days across the maps (median 17), against 7. The economy model's run (`docs/spec/pacing.csv`), which sets the Net Worth chart and the simulated days elsewhere in this spec (the rank ladder, Progression and unlocks, the acts and Appendix A), lands every milestone within 15% of its target on the reference map (Rank 9 on Day 135, Domination on Day 143, Domination on Days 131–146 across ten maps), and its longest lull is 7 days, the siege of Sourwood Manor.
 
-These targets are under review, along with the pacing economy behind them and the late-game stand mix in Income growth by stage, and the simulated days above predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing sweep, with a simulated player that uses every system, is in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt; it played main 9e57e5e, so re-sweep current main before quoting its days. Whether to retune the economy or restate these targets is open call (d) in Design calls settled on 2026-11-14.
+These targets are still under review. In the ten-map medians of the retuned sweep, the bot's takings run 1.7–2.3 times the spec's from Day 19 to Day 103 (the stages in Income growth by stage, which the pacing check wants within 0.75–1.33 times), and its Net Worth runs 1.7–2.5 times the chart's from Day 50 to Day 110; Days 1–18 sit at 0.75–1.05 times and Days 104–143 at 1.33–1.39 times. On the reference map it runs 51 Lemon Shacks by Day 77 (the spec's player has 28) and 72 Citrus Palaces by Day 134 (39), on plots that see about 700 and 800 passersby a day against the 1,800 and 4,000 they need; across the ten maps they pay back in a median 13 and 27 days, against 4–11 and 11–15. VIPs bring it 4% of takings on Days 52–96 and 9% on Days 97–136 (the targets are 11% and 18%), and its first chopper, ship and Supply Deal load on Days 85, 94 and 118 (targets 72, 87 and 109). Its worst raid after Day 6 cost 1.48 days of takings (map 47, Day 7), and five of the ten maps had one over 0.6 days (open call (b)). Laid Back runs at Classic's pace, and on Cutthroat the bot takes Sourwood Manor before Day 170 on eight of the ten maps (see Difficulty differences). The sweep is /mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt, and the one from before the retune (main 9e57e5e) is pacing-sweep.txt beside it. Whether to keep the retune and restate what it misses, or tune further, is open call (d) in Design calls settled on 2026-11-14.
 
 ### Difficulty differences
 
-Laid Back halves raids, lowers Threat by 1 and only ever Busts your stands. Ranks 5–9 arrive about 14% sooner (Rank 9 on Day 118), and Domination lands on Day 126 (120–136 across ten maps).
+Laid Back halves raids, lowers Threat by 1 and only ever Busts your stands. The target is Ranks 5–9 about 14% sooner (Rank 9 on Day 118) and Domination on Day 126 (120–136 across ten maps), as in the economy model's run. The pacing bot, after the 2026-11-14 retune, keeps Classic's pace on Laid Back: the medians of its ten maps reach Rank 9 on Day 128 and Domination on Day 136 (124–149), and the reference map reaches them on Days 120 and 128.
 
-Cutthroat raises raids by half, cuts the raid warning to 5 game minutes, shortens the Respect cooldown to 1 day and has no Cookie Jar; customer traffic and costs stay as on Classic. In Sandbox and Endless its Syndicate forms at Threat 4. Ranks 5–9 arrive at about Classic's pace (Rank 9 on Day 143) under 1.3–1.7 times the raids, and Domination lands on Day 151 (134–163 across ten maps), always before Day 170.
+Cutthroat raises raids by half, cuts the raid warning to 5 game minutes, shortens the Respect cooldown to 1 day and has no Cookie Jar; customer traffic and costs stay as on Classic. In Sandbox and Endless its Syndicate forms at Threat 4. The target is Ranks 5–9 at about Classic's pace (Rank 9 on Day 143) under 1.3–1.7 times the raids, and Domination on Day 151 (134–163 across ten maps), always before Day 170, as in the economy model's run. The pacing bot, after the retune, reaches Ranks 5–9 about 3% behind its Classic medians (Rank 9 on Day 133) under 1.34 times Classic's raids. It takes Sourwood Manor before Day 170 on eight of the ten maps, on Days 131–147 (median 137; Day 137 on the reference map). On maps 45 and 47 it reaches Rank 9 and plays the siege but never wins the assault.
 
 ### Anti-snowball and anti-grind levers
 
@@ -2309,7 +2309,7 @@ Guards gain about 1 level every 35 days of duty; fights and the Training Yard sp
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the target is to build it on Days 15–19. The simple sim player (`npm run sim -- 20`) has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep the bot built its first on Days 12–20 on Classic, and on main 0bc4c8d on Days 18, 24 and 15 on maps 42–44: open call (c) in Design calls settled on 2026-11-14.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the target is to build it on Days 15–19. The simple sim player (`npm run sim -- 20`) has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep after the 2026-11-14 retune the bot built its first on Days 14–28 on Classic, on Days 14–16 on seven of the ten maps (Days 12–20 before the retune): open call (c) in Design calls settled on 2026-11-14.
 
 ### Land prices and traffic by district
 
@@ -2475,8 +2475,10 @@ Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8
 | Lottie's Cookie Jar | Always | Once per act | Never |
 | Customer traffic | ×1.0 | ×1.0 | ×1.0 |
 | Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 |
-| Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 |
-| Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
+| Simulated pace (economy model: days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 |
+| Simulated Domination day (economy model: reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
+| Pacing bot's pace after the 2026-11-14 retune (days to Ranks 5–9, median of ten maps) | ×1.00 | ×1.00 | ×1.03 |
+| Pacing bot's Domination day (reference map; ten maps, median) | 128 (124–149, 136) | 127 (124–166, 136) | 137 (131–147 on 8 of 10 maps, 137) |
 | Simulated raids on you in a campaign (twelve runs; every raid beaten to none) | 46–79 | 76–119 | 115–166 |
 
 Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms two weeks into Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
@@ -2813,7 +2815,7 @@ These design calls were settled with the auditors' recommended defaults while Be
 The docs keep these rules as they stand until Ben decides.
 
 - **(a) Rumors and the raid rate.** Should the raid nights that answered rumors bring count against the week's raid rate? Today a rumor sets the night's first raid's gang and plot, and adds a raid only on a night the draw gave none; that measures 3–5 raid nights a week at Threats 1–3.
-- **(b) The 0.8-day line.** Does "no raid costs more than 0.8 days of income", and the pacing check's 0.6 (`RAID_LOSS` in tools/pacing.ts), still hold against the early raids? On main 0bc4c8d the worst raid after Day 6 cost 0.27, 0.83 and 0.33 days on maps 42–44, on Days 8, 11 and 86, so map 43's Day 11 raid still goes over both lines. Before the bot's newer play (5ad8377, 0bc4c8d) the worst were 0.43, 0.83 and 0.54 days, each on Days 9–12, and 6 of 10 Classic maps in the pacing sweep went over 0.6; an earlier bot saw 1.38 days on map 44, Day 7. Soften the early raids, or restate both lines.
-- **(c) The first Clubhouse on Days 15–19.** The simple sim player (`npm run sim -- 20`) has $1,902–$2,036 at dawns 15–19 against the $2,306 for a Street plot and the Clubhouse, so it builds later; in the pacing sweep (/mnt/project-files/gameplay-build/integration/pacing-sweep.txt) the bot built its first on Days 12–20 on Classic, mostly before Dex's push, and on main 0bc4c8d on Days 18, 24 and 15 on maps 42–44. Retune Act 2's cash, or move the window.
-- **(d) The pacing economy and the late-game stand mix.** Retune the economy toward the pacing targets, or restate them: see the pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt (played on main 9e57e5e; re-sweep current main before quoting its days). It also shows the first Wooden Stand landing on Day 3 (tapping the stand upgrades it before the Day 5 lesson), Domination hinging on Vera's fall, and the VIP share of takings and the first Supply Deal off their targets.
+- **(b) The 0.8-day line.** Does "no raid costs more than 0.8 days of income", and the pacing check's 0.6 (`RAID_LOSS` in tools/pacing.ts), still hold against the early raids? On main 0bc4c8d the worst raid after Day 6 cost 0.27, 0.83 and 0.33 days on maps 42–44, on Days 8, 11 and 86, so map 43's Day 11 raid still goes over both lines. Before the bot's newer play (5ad8377, 0bc4c8d) the worst were 0.43, 0.83 and 0.54 days, each on Days 9–12, and 6 of 10 Classic maps in the pacing sweep went over 0.6; an earlier bot saw 1.38 days on map 44, Day 7. In the sweep after the 2026-11-14 retune (/mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt), 5 of 10 went over 0.6, the worst 1.48 days (map 47, Day 7, while it still ran one stand). Soften the early raids, or restate both lines.
+- **(c) The first Clubhouse on Days 15–19.** The simple sim player (`npm run sim -- 20`) has $1,902–$2,036 at dawns 15–19 against the $2,306 for a Street plot and the Clubhouse, so it builds later; in the pacing sweep after the 2026-11-14 retune (/mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt) the bot built its first on Days 14–28 on Classic, on Days 14–16 on seven of the ten maps (before the retune, Days 12–20, mostly before Dex's push). Retune Act 2's cash, or move the window.
+- **(d) The pacing economy and the late-game stand mix.** The economy was retuned toward the pacing targets on 2026-11-14: Lottie's Goals pay 2%, 5% and 8% of a recent day's sales, the Kiosk costs $5,500 with $150 a day of upkeep, and the Lemon Shack's and Citrus Palace's upkeep is $2,500 and $8,000 a day. In the pacing bot's sweep after it (/mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt; the one before, on main 9e57e5e, is pacing-sweep.txt), Classic's ten-map medians reach Rank 9 on Day 128 and Domination on Day 136, on target, and the reference map reaches them on Days 119 and 127. Still off: takings run 1.7–2.3 times the spec's on Days 19–103; the bot builds about twice the spec's Shacks and Palaces, on plots with well under half the passersby they need; VIPs bring a third to a half of their share of takings on Days 52–136, and the first chopper, ship and Supply Deal load 7–13 days late; the longest lull runs 10–24 days; Laid Back keeps Classic's pace; and Domination still hinges on Vera's fall, since on Cutthroat maps 45 and 47 the bot never takes Sourwood Manor. Keep the retune and restate what it misses, or tune further. The first Wooden Stand still lands on Day 3 (tapping the stand upgrades it before the Day 5 lesson), and the report shows it without judging it.
 - **(e) Overnight repairs and the reserve.** Should overnight fence and Slick repairs keep Auto-Repair's wage and loan reserve? Today they're paid whenever the cash covers them.

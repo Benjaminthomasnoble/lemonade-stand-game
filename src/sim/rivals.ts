@@ -1,11 +1,11 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
-import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
+import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, PERIMETERS, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
 import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard, type Raid } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
-import type { Blocker, GameState, KeptBuilding } from './economy.ts';
+import type { Blocker, GameState, KeptBuilding, PlotState } from './economy.ts';
 import { netWorth, ownedPlots, rivalPrice } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bump, checkVictory, peaceful } from './modes.ts';
@@ -182,6 +182,19 @@ export const MYSTERY = {
  * holds, up to `fieldTier` (placeholders: the spec gives no numbers). Tilly phones after your raids (src/sim/phone.ts).
  */
 export const DIG_IN = { cost: 0.6, hp: 1.5, fieldTier: 2 };
+/** A fence of `tier` at full HP on `owner`'s land: the tier's HP, and Dig In's half again on Hollis land, bales behind it. */
+export function wholeFence(tier: number, owner: FactionId | null): number {
+  const per = PERIMETERS[tier - 1];
+  return per ? Math.round(per.hp * (owner === 'hollis' ? DIG_IN.hp : 1)) : 0;
+}
+/**
+ * Land that changes hands keeps its fence, but not Hollis's hay bales: on anyone else's land it's never more than whole.
+ * Each handover calls it once the new owner is set (or names them as `owner`).
+ */
+export function settleFence(ps: PlotState, owner: FactionId | null = ps.owner): void {
+  const full = wholeFence(ps.defense.tier, owner);
+  if (ps.defense.fenceHp > full) ps.defense.fenceHp = full;
+}
 /**
  * FizzCo's Cease-and-Desist (Hostile Takeover): from Act `act` (Fields & Fizz, where the spec's first letter comes), a
  * letter costs FizzCo's Strike `cost` and blocks your marketing in one district for `days` days: your tier bonus and
@@ -419,6 +432,7 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
   book(s, 'invested', -price);
   s.rivals[id].cash += price;
   ps.owner = 'player';
+  settleFence(ps); // Hollis's bales stay with Hollis
   s.rivals[id].held = s.rivals[id].held?.filter((x) => x !== plotId); // a sale, not a taking: no Grudge
   ps.garrison = 0;
   if (ps.stand) ps.stand.price = Math.max(ps.stand.price, 0.5);
@@ -554,6 +568,7 @@ export function handOverKept(s: GameState, plotId: string, buyer: FactionId): vo
   if (!ps.kept) return;
   Object.assign(ps, ps.kept);
   delete ps.kept;
+  settleFence(ps, buyer); // a bought-out Hollis's fences come without the bales
   if (buyer !== 'player' && ps.stand) ps.stand.price = rivalPrice(buyer, ps.stand.level, PLOT_BY_ID[plotId]);
 }
 
@@ -576,7 +591,7 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   s.raids = s.raids.filter((x) => x.attacker !== id);
   const hq = hqPlot(id), prize = TROPHIES[id];
   const trophy = prize && s.plots[hq.id] ? ` Their HQ, ${hq.name}, becomes Lottie's ${prize.name}: ${prize.perk.toLowerCase()}.` : '';
-  if (s.plots[hq.id]?.owner === id) s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
+  if (s.plots[hq.id]?.owner === id) { s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 }; settleFence(s.plots[hq.id]); }
   // An Out-of-Towner (no HQ here) packs up and goes home, gone bust or out of stands; it comes back on its next date (schemes.ts).
   s.news.push(how !== 'bankrupt' ? `${FACTIONS[id].name} are finished!${trophy}` : FACTIONS[id].outOfTown ? `${FACTIONS[id].name} pack up and leave town.` : `${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.${trophy}`);
   recoverPage(s, id); // world: their recipe page comes home, on every route

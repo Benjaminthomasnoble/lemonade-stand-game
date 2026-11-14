@@ -9,7 +9,7 @@ import {
   CLOSE, DIG_IN, fenceFull, fencePrice, hayBales, hhmm, NIGHT_SHIFT, nightShiftStealth, NO_DEFENSE, eliteStewards,
   BRAND_TIERS, GADGETS, growBrand, marketingMultiplier, RIVAL_BRAND, likeliestTarget, raidStart, travelMinutes, softSpot, successScore, ACT_BY_RANK,
   buildFacility, canBuildFacility, plotBuyoutPrice, tillyFieldRate, TILLY_FIELD_BUYOUT, PICKUP_MINUTE, deliver, threatLevel,
-  eventsOf, nearbyPlots, OPEN, PLOT_BY_ID, TARGET_TAKINGS_DAYS,
+  eventsOf, nearbyPlots, OPEN, PLOT_BY_ID, TARGET_TAKINGS_DAYS, buyPlot, eliminate,
   type BattleReport, type GadgetId, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
@@ -636,6 +636,40 @@ describe('Dig In', () => {
     rivalGuardSpend(s, 'hollis', { seed: 1 });
     expect(ps.defense.fenceHp).toBe(full);
     expect(guard - budgetOf(s, 'hollis').guard).toBeGreaterThanOrEqual(Math.ceil(PERIMETERS[ps.defense.tier - 1].repair * DIG_IN.cost)); // crew's flat repair
+  });
+
+  it('a Hollis Field that changes hands keeps its fence, but not the bales\' HP: bought by Sit-down, after a Faction Buyout, or on load', () => {
+    const fenced = (seed: number) => {
+      const s = bare(seed);
+      rivalGuardSpend(s, 'hollis', { seed: 1 });
+      rivalGuardSpend(s, 'hollis', { seed: 1 });
+      s.rank = 5;
+      s.cash = 1e7;
+      const field = ownedPlots(s, 'hollis').find((q) => q.type === 'field')!.id;
+      const tier = s.plots[field].defense.tier;
+      expect(s.plots[field].defense.fenceHp).toBe(Math.round(PERIMETERS[tier - 1].hp * DIG_IN.hp)); // bales behind it
+      return { s, field, whole: PERIMETERS[tier - 1].hp };
+    };
+    const a = fenced(24);
+    expect(plotBuyout(a.s, a.field)).toBe(true);
+    const ps = a.s.plots[a.field];
+    expect(ps.owner).toBe('player');
+    expect(ps.defense.fenceHp).toBe(a.whole); // a whole fence of its tier, no more
+    expect(fenceFull(ps)).toBe(a.whole);
+    expect(hayBales(a.s, a.field)).toBe(false);
+    expect(fenceRepairCost(ps)).toBe(0);
+    const b = fenced(25); // Tilly sells the business: the Field's fence stays put for its buyer
+    eliminate(b.s, 'hollis', 'buyout');
+    expect(b.s.plots[b.field].kept?.defense.fenceHp).toBe(Math.round(b.whole * DIG_IN.hp));
+    expect(buyPlot(b.s, b.field)).toBe(true);
+    expect(b.s.plots[b.field].defense).toMatchObject({ fenceHp: b.whole });
+    const c = fenced(26); // an old save where the bought Field kept the bales' HP
+    c.s.plots[c.field].owner = 'player';
+    const loaded = migrateSave(JSON.parse(JSON.stringify(c.s)))!;
+    expect(loaded.plots[c.field].defense.fenceHp).toBe(c.whole);
+    const still = ownedPlots(loaded, 'hollis').find((q) => q.type === 'field' && loaded.plots[q.id].defense.tier)!;
+    expect(loaded.plots[still.id].defense.fenceHp).toBe(fenceFull(loaded.plots[still.id])); // Hollis's own keep their bales
+    expect(fenceFull(loaded.plots[still.id])).toBeGreaterThan(PERIMETERS[loaded.plots[still.id].defense.tier - 1].hp);
   });
 
   it('Tilly phones the morning after you raid her (the phone reads her Grudge jump)', () => {

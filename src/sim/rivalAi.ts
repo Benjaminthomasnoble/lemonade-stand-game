@@ -13,7 +13,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, RivalState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, hqPlot, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, hqPlot, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE, settleFence, wholeFence,
   RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS, TARGET_TAKINGS_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
@@ -145,6 +145,7 @@ export function migrateRivals(s: GameState): void {
     const hq = s.plots[hqPlot(id).id];
     if (!r.alive && !FACTIONS[id].outOfTown && hq && !hq.owner) s.plots[hqPlot(id).id] = { ...hq, owner: 'player', garrison: 0 };
   }
+  for (const p of PLOTS) if (s.plots[p.id]) settleFence(s.plots[p.id]); // a save from before: a bought Hollis fence kept its bales' HP
   s.schemes ??= [];
   if (s.negotiator && !s.guards.some((g) => g.id === s.negotiator)) delete s.negotiator; // they left the crew
   provideMysteryGoal(); // Act 3's mystery on Lottie's card (src/sim/schemes.ts)
@@ -537,10 +538,7 @@ export function stockCups(st: Stand): number {
 /** What a rival pays for a fence of `tier`: your price, or Dig In's share of it for Hollis. */
 export const fencePrice = (id: RivalId, tier: number) => Math.ceil(PERIMETERS[tier - 1].cost * (id === 'hollis' ? DIG_IN.cost : 1));
 /** A plot's fence at full HP: the tier's HP, and half again on Hollis land, where hay bales are stacked behind it. */
-export function fenceFull(ps: PlotState): number {
-  const per = PERIMETERS[ps.defense.tier - 1];
-  return per ? Math.round(per.hp * (ps.owner === 'hollis' ? DIG_IN.hp : 1)) : 0;
-}
+export const fenceFull = (ps: PlotState): number => wholeFence(ps.defense.tier, ps.owner);
 /** Hay bales behind the fence (Dig In): a Hollis fence still standing. The art thread stacks bales where this is true. */
 export function hayBales(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];

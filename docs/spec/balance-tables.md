@@ -315,27 +315,99 @@ HQ assaults are fought at Morning Prep, which counts as night (Night Owls hit 25
 | Landmark | ×5 | ×8 |
 | Field, Dock, Industrial | Tiny | See table above |
 
-Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's side lot next to it (sold to you on Day 3) is also worth $300 and gets 300 passersby a day. Buying rule: Maple Row from the start, Old Town from Rank 2, other districts from Rank 3 through a Foothold or a bordering Foothold.
+Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's side lot next to it (sold to you on Day 3) is also worth $300 and gets 300 passersby a day. Buying rule: Maple Row from the start, Old Town from Rank 2, other districts from Rank 3 through a Foothold there or in a bordering district. In a Sandbox, Maple Row from the start and every other district on the map from Rank 2, through the same Foothold rule. First Dibs skips the rule.
 
 ### Land, repairs and loans
 
 | Rule | Value |
 |---|---|
-| Land appreciation | Value × (1 + development); development = district stand levels ÷ (4 × purchasable plots), capped at 1 (so up to ×2) |
+| Land appreciation | Value × (1 + development); development = district stand levels ÷ (4 × purchasable plots), capped at 1 (so up to ×2). HQ land rises with its district too |
 | Facility development | Each facility tier counts as 2 stand levels |
-| Majority land discount | −10% |
-| First Dibs (after your Smash) | 100% of land value, 24 game hours |
-| Fire Sale (rival eliminated, by capture, buyout or 7 days bankrupt) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days (2 full days when it falls in the Evening or at night), then auction |
+| Majority land discount | −10% on open land in that district, First Dibs and Fire Sale prices included (a Fire Sale plot there costs 67.5% of land value). It checks before the buy, so the purchase that makes the Majority pays full. Not for Plot Buyouts or auction bids; rivals never get it |
+| First Dibs (after a Smash) | A smashed plot nobody rebuilds goes For Sale at its land value, cleared. Whoever smashed it has First Dibs for that day, dawn to dawn. Yours costs land value (less Majority, Good Dirt and Family Silver) and skips the buying rule's rank and Foothold checks. A rival that smashed it buys at once out of Grow if it can; if it can't, the plot goes straight to auction. Unused First Dibs opens a sealed-bid auction (see Auctions and selling) |
+| Fire Sale (rival eliminated, by capture, buyout or 7 days bankrupt) | Every plot the rival held: you get First Dibs at 75% of each day's land value for 2 days (2 full days when it falls in the Evening or at night), then auction |
 | Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere, × (1 + their Grudge/200), +0.2 more for the Sourwoods (placeholder) |
 | HQ Assault (rival Weakened) | Each HQ from its own rank: Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 (the Big Squeeze). The same rank opens that rival's Faction Buyout |
 | Weakened (needed for HQ Assault and Faction Buyout) | Any one of: the rival holds 40% or less of its peak plots; its Net Worth is under 25% of yours; your daily sales (cups and bottles, in dollars) were at least 2× theirs for 7 days in a row |
 | Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston, who haggle: they counter at 2.1× and never sign below 1.8×; see Rivals); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
-| Rebuild a Wrecked building | 15% of what was invested in it, within 24 game hours (you and rivals alike) |
-| Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild) |
-| Busted repair (Laid Back) | 10% of what was invested |
-| Loans (First Bank of Citrine Bay) | Up to 50% of non-cash Net Worth; 3% interest per week; 4-week terms |
+| Rebuild a Wrecked building | 15% of what was invested in it, you and rivals alike. Approve yours any time until the Evening ends: it's paid then, built overnight and open at dawn at full HP. Book it by the end of the day after the smash, or the plot goes For Sale at the second dawn. A rival decides the morning after: it books the rebuild if its Grow money covers the bill and its rebuild chance comes up (see Rivals); otherwise the plot goes For Sale |
+| Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild). Approve it any time until the Evening ends; it's done by dawn |
+| A Damaged building | A stand pours its HP share of its cups an hour (at 60% HP, 60% of them), never under 1 cup an hour while it stands. A facility works at its full rate |
+| Rival repairs | At closing a rival books the repairs on its Damaged buildings, paid out of its cash and done by dawn, but only with the bill plus $500 in hand (placeholder) |
+| Busted repair (Laid Back) | 10% of what was invested. A Busted stand never lapses: it waits for its fix |
+| Loans (First Bank of Citrine Bay) | Up to 50% of non-cash Net Worth; 3% interest per week; 4-week terms; the second missed payment costs a plot (see Loans) |
 
-There is no property tax and no insurance: cheap rebuilds take their place.
+There is no property tax and no insurance: cheap rebuilds take their place. Storm damage is in Weather and seasons, and the Hurricane and the Health Inspection are in Random events.
+
+#### District control
+
+| Tier | Plots you hold | What it does |
+|---|---|---|
+| Foothold | 1 | Opens buying there and next door (see the buying rule above), and raids on rival plots there (see Your raids) |
+| Majority | 51% | Your stands there +10% sales and rival stands −10% appeal (see Demand constants); open land there 10% cheaper for you |
+| Stronghold | 75% | +10% detection on your plots there, and Ring the Bell help gets there in half the time (both placeholders) |
+| Full Control | Every plot | The district's perk, for exactly as long as you hold every plot: lose one and it switches off |
+
+| District | Purchasable plots | Majority at | Stronghold at | Full Control perk |
+|---|---|---|---|---|
+| Maple Row | 12 | 7 | 9 | Neighborhood Watch (see Gadgets) |
+| Old Town | 12 | 7 | 9 | Town Favorite (see Demand constants) |
+| Campus & Arts | 13 | 7 | 10 | Word of Mouth (see Demand constants) |
+| Downtown | 17 | 9 | 13 | Power Lunch (see Demand constants) |
+| The Boardwalk | 15 | 8 | 12 | Tourist Trap (see Demand constants) |
+| The Harbor | 14 | 8 | 11 | Shipping Lane (see Contracts) |
+| The Groves | 15 | 8 | 12 | Orchard Fresh (see Demand constants) |
+| Hilltop Estates | 9 | 5 | 7 | Old Money (see Contracts) |
+
+Control counts purchasable plots only. Civic plots and HQs never count, so a Trophy HQ on its own is not a Foothold; Vacant Lots do count. Owning every purchasable plot on the map earns Every Last Plot, once a run, in every mode.
+
+#### Auctions and selling
+
+A plot goes to sealed bids at the Registry of Deeds when its First Dibs runs out unused (after a Smash or a Fire Sale), when a rival that smashed it can't buy it, or when you list it.
+
+| Rule | Value |
+|---|---|
+| Sealed bids | One plot a lot, open 24 game hours: it closes at the next dawn. Bids open at the plot's land value when it opened. The highest bid wins and pays what it bid, and the plot changes hands with whatever stands on it. You and every rival still in may bid; your bid needs no rank or Foothold |
+| Your bid | The buttons: the opening bid, then 1.25×, 1.5×, 2×, 3× and 5× it, rounded up to two significant figures (placeholder). Change or withdraw it until dawn. Nothing is held back: the cash must be on hand at dawn, or the bid bounces. A win costs 10% less with Family Silver and 10% less with Sharp Pencil |
+| Rival bids | A rival bids with a chance set by where the lot is: its home district 1, a district where it holds a Foothold 0.7, next to either 0.4, anywhere else 0.15 (placeholder). It offers what the lot is worth to it, the opening bid plus 75% of what's built on it, × (1 + 0.4 × that chance × its push × a 0.5–1.5 roll) (placeholder), out of its Grow money and never past its cash, and only if that reaches the opening bid. Push: the Blenders 0.85, Cold Brew 0.9, Hollis 1, the Sourwoods 1.2, FizzCo 1.35, Snootwater 0.85 (placeholder). A rival's Auction snipe tops your bid by 5% (see Schemes) |
+| Ties | To you, then to the rival that pushes harder |
+| No bids | The plot stays open land, For Sale at its land value |
+| The gavel | Each outbid rival's Grudge rises toward the winner (see Attention and Grudge), and Preston phones when FizzCo outbids you. A Town Hall freeze on the lot holds the gavel until the dawn after the freeze ends (see Schemes) |
+| Selling a plot | List a plot of yours for the same sealed bids, opening at its land value; only rivals bid. It keeps working until it sells, and you can pull it before dawn. The top bid comes to you on the Ledger's Invested row, and the plot goes with what's built on it: its guards go back to the Clubhouse, and a VIP offer for its pad or pier lapses. No takers: it's still yours |
+| What you can't list | Lottie's Corner (it stays in the family), a Trophy HQ, a Wrecked or Busted plot, or a plot with a VIP pickup booked. A listed plot that is smashed, or gets a pickup booked, before dawn comes off the block |
+
+#### The Lavender auction
+
+| Rule | Value |
+|---|---|
+| When | The first dawn at Rank 8, once a game: Vera's old harp teacher swaps her Hilltop estate for a houseboat and auctions the Lavender page. In the campaign it waits for Act 5 and opens the morning Act 5 begins; Sandbox and Endless go by rank alone. It doesn't open if the page is already home (a Sandbox fair win can bring it first) |
+| Bids | Sealed for 24 game hours, from $1,000,000 (placeholder), with the same buttons and rules as a plot. With no bids it runs again the next day |
+| Rival bids | Each rival still in bids $1,500,000 × its push next to FizzCo's × a 0.85–1.15 roll (placeholder), rounded to $1,000, out of its cash above its reserve (a once-a-game prize, so it digs past its Grow money); a bid under the opening bid doesn't count. Expect the winning bid to be about $1,500,000, about a day of income at that rank |
+| Winning | Yours: the page goes into Lottie's book, and the cost goes on the Ledger's Other row. A rival's: the page hangs in its HQ until it falls, then comes home |
+
+#### Loans
+
+| Rule | Value |
+|---|---|
+| How much | Up to half your non-cash Net Worth, less what you already owe, rounded down to $50 |
+| When | Any hour. Borrowing more adds to what you owe and starts the 4 weeks over |
+| Payments | Every 7 days at dawn: what you owe ÷ the weeks left, plus 3% of what you owe as interest |
+| Paying early | Pay off what you owe at any time, with no interest for the weeks not started |
+| A missed payment | No cash for it at dawn: that week's interest is added to what you owe, and the week still counts down |
+| Repossession | The second missed payment, in a row or not, costs your lowest-worth plot as Net Worth counts it: land, 75% of what's built on it, and its stock at cost (a stand's supplies, a standing Warehouse's sugar). Never a Trophy; Lottie's Corner only when no other plot is left. The plot goes back to open land, cleared; its worth comes off the loan, anything over the debt comes back to you on the Ledger's Invested row, and the count of misses starts over |
+
+#### Helpers
+
+| Helper | Arrives | Rule |
+|---|---|---|
+| Auto-Restock | Day 2 | At dawn and again as the stands open, it tops each stand up at the Market's price to its stock target: the forecast day's sales plus the cups its Local Orders still owe, within the stock cap. Set a stand's own target (a thirtieth of the cap a tap), or switch a stand off |
+| Marisol's Auto-Price | Rank 3 | Each dawn, the card and Sweetness pair that should make the most on the forecast, priced at that card's ceiling. A stand whose card you picked keeps it; a price you set takes the stand off Auto-Price |
+| Bulk actions | Rank 3 | One order puts stands up a level, or buys plots their next fence, across every building, every stand of one level, everything in one district or every unfenced plot, within a budget and your cash. Cheapest first; on a tie, the stand that made the most on its last full day, or the plot with the most in it. Each buy passes its own checks |
+| Auto-Repair | Rank 3 | At closing it books the rebuilds and repairs your plots need: Wrecked first, then Busted, then the most damaged. It keeps back tomorrow's wages, and the loan payment when the next dawn is due day; a fix that doesn't fit waits for you, and a cheaper one after it can still go. Skip any plot (not while a Fortify policy holds it). Morning Prep shows what it will spend |
+| Warehouse | Rank 4 | Keeps its district's stands stocked (see VIP facilities) |
+| Dex's Auto-Defend | Rank 4 | See Commands and help |
+| Raid templates | Rank 6 | See Your raids |
+| District policies | Rank 7 | One preset per district, run each dawn (one set at Morning Prep starts at once). Profit puts every stand there on Auto-Price and Auto-Restock at the forecast's target. Fortify lifts each plot's Auto-Defend priority to at least 2, buys the next fences and holds Auto-Repair on. Expand levels up stands, puts a Folding Table on your empty Street, Prime and Landmark plots, and buys open ones of those with a Table, cheapest first. Fortify and Expand spend up to the district's daily budget, $50,000 to start; any plot of yours can opt out (placeholders) |
 
 ### Supplies and recipes
 
@@ -692,7 +764,7 @@ On all ten simulated maps the player builds all six helipad and pier tiers; the 
 | The Sourwood Family | Hilltop Estates | 35 / 35 / 30% | 1.0 | L5 | M4 | 1.2 | Old Money |
 | Snootwater Springs | Out of town | 25 / 15 / 60% | 0.9 | L4 | M2 | 0.85 | Blender Rush, under its own name |
 
-The everyday prices, brand caps, auction push and every Snootwater number are placeholders. A rival's everyday price is the ceiling a Classic lemonade stand of its level gets in that district (the same formula as yours) times its factor, less 25% while a price war runs there. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, never above the faction's cap. A rival's rebuild chance drops 30 points for each other Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rivals hold VIP facilities too: FizzCo's Bottling Works L1 at its Harbor plant (placeholder) and a Jetty, the Sourwoods' Helipad and marina Jetty, and a Lemon Grove on each of Hollis's Fields. The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
+The everyday prices, brand caps, auction push and every Snootwater number are placeholders. A rival's everyday price is the ceiling a Classic lemonade stand of its level gets in that district (the same formula as yours) times its factor, less 25% while a price war runs there. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, never above the faction's cap. A rival's rebuild chance drops 30 points for each other Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rivals hold VIP facilities too: FizzCo's Bottling Works L1 at its Harbor plant (placeholder) and a Jetty, the Sourwoods' Helipad and marina Jetty, and a Lemon Grove on each of Hollis's Fields. The Lavender auction at the Hilltop estate opens when you reach Rank 8 (in the campaign, as Act 5 begins); expect the winning bid to be about $1,500,000, about a day of income at that rank (see The Lavender auction).
 
 #### Budgets and growth
 
@@ -807,6 +879,18 @@ Rivals keep stars by the same rules: their own drift from their stands, and the 
 | Crew and defenses | None (Dex joins on Day 4) |
 | Starting Net Worth | About $525 |
 | Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand. The offer holds a week, through Day 9 (placeholder), and her table counts as $100 invested, like the Corner's |
+
+#### Sandbox maps
+
+| Map | Districts | Rivals | Default picks |
+|---|---|---|---|
+| Small | 4 | 2 | The Blenders and Hollis (placeholder) |
+| Medium | 6 | 3 | The Blenders, Cold Brew and Hollis (placeholder) |
+| Large | 8, the whole bay | 5 | All five |
+
+Small and Medium maps are cut from Citrine Bay. You start in Maple Row, and each rival brings its home district; the rest are fillers that keep the map in one piece. Of the ways to do that, the cut takes one on the water (ships need a Dock), then one with Old Town, then the one that keeps the most real Field, Dock and Industrial land, then fillers in this order: Old Town, The Harbor, The Groves, Campus & Arts, The Boardwalk, Downtown, Hilltop Estates (placeholder). Picks that can't make a map of that size are refused: the Sourwoods and the Blenders on Small. With the default picks, Small is Maple Row, Old Town, The Boardwalk and The Groves, and Medium adds Campus & Arts and The Harbor.
+
+Every map keeps at least one Field, one Dock and one Industrial plot, so VIP clients and the Bottling Works stay reachable. A map short of one turns a plain Street plot into it, never Lottie's Corner or its side lot: a Dock on the plain plot nearest the water (within 30 map units of the shore, placeholder), a Field or Industrial lot on the cheapest plain plot outside Maple Row. The plot keeps its land price and starts open and empty. The default Small map gets its Dock on the Boardwalk and its Industrial lot in The Groves.
 
 ### Story
 

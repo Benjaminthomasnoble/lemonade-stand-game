@@ -335,7 +335,7 @@ export const RANKS = [
 
 /**
  * Lottie's Tips (spec "Success Score and ranks": "You pick 1 of 3 Lottie's Tips perks from a pool of about 24"; canon
- * 322): each rank-up deals TIP_CARDS of these and you keep one for good (src/sim/tips.ts says where each one works).
+ * 322): each rank-up deals TIP_CARDS of these and you keep one for good (src/sim/perks.ts says where each one works).
  * Seven are the spec's own at its numbers: +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun
  * twice, campaigns last 50% longer, +20% defense at night, buyouts 15% cheaper. Its eighth, open at 07:00, waits for
  * a business day that can start an hour early (spec gap). The other seventeen and their numbers are placeholders:

@@ -9,7 +9,7 @@ import {
 } from './damage.ts';
 import { repairCards } from './evening.ts';
 
-/** Lottie's Corner as the spec's Kiosk ($4,050 from a table built new, 800 HP, 120 cups an hour) at Morning Prep. */
+/** Lottie's Corner as the spec's Kiosk ($6,050 from a table built new, 800 HP, 120 cups an hour) at Morning Prep. */
 function kiosk(): GameState {
   const s = newGame(21);
   s.rank = 6;
@@ -39,12 +39,12 @@ describe('the HP readout and the repair', () => {
     expect(row).toContain('--v:0.500');
     expect(row).toContain('400/800 HP. Damaged: pours 60 of 120 cups an hour until repaired');
     expect(row).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
-    expect(row).toContain('Repair $304');
+    expect(row).toContain('Repair $454');
     expect(row).not.toContain('disabled');
     const [ticket] = damageTickets(s);
     expect(ticket).toContain('data-testid="damaged"');
     expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
-    expect(ticket).toContain('Repair $304');
+    expect(ticket).toContain('Repair $454');
   });
 
   it("a Damaged stand behind an Express Window counts the window's +30%, as it pours", () => {
@@ -63,12 +63,12 @@ describe('the HP readout and the repair', () => {
     expect(damageHere(s, LOTTIES_CORNER)).toContain('disabled title="Too late tonight: approve it tomorrow"');
     s.phase = 'report';
     s.cash = 10;
-    expect(damageHere(s, LOTTIES_CORNER)).toContain('disabled title="Needs $304"');
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('disabled title="Needs $454"');
     s.cash = 1000;
     approveRepair(s, LOTTIES_CORNER);
     const row = damageHere(s, LOTTIES_CORNER);
     expect(row).toContain('Fixing tonight');
-    expect(row).toContain('Paid $304: good as new at dawn');
+    expect(row).toContain('Paid $454: good as new at dawn');
     expect(row).not.toContain('data-action="repair"');
   });
 
@@ -97,7 +97,7 @@ describe('the HP readout and the repair', () => {
     expect(card).toContain('--v:0.500');
     expect(card).toContain('400/800 HP. Damaged: pours 60 of 120 cups an hour until repaired');
     expect(card).toContain(`<button class="cl-b go" data-action="repair" data-plot="${LOTTIES_CORNER}"`);
-    expect(card).toContain('Repair $304');
+    expect(card).toContain('Repair $454');
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
     expect(damageCard(s, rival.id)).toBe('');
     s.plots[LOTTIES_CORNER].stand!.wrecked = true;
@@ -129,7 +129,7 @@ describe('the HP readout and the repair', () => {
     s.plots[LOTTIES_CORNER].stand!.hp = 400;
     expect(helperRows(s.today)).not.toContain('ledger-repair');
     damageAtClose(s);
-    expect(helperRows(s.today)).toContain('<tr data-testid="ledger-repair"><td>Auto-Repair: 1 fix overnight</td><td>$304.00</td></tr>');
+    expect(helperRows(s.today)).toContain('<tr data-testid="ledger-repair"><td>Auto-Repair: 1 fix overnight</td><td>$454.00</td></tr>');
   });
 
   it('the Evening repair cards list your Damaged buildings', () => {
@@ -139,7 +139,7 @@ describe('the HP readout and the repair', () => {
     s.plots[LOTTIES_CORNER].stand!.hp = 200;
     const cards = repairCards(s).join('');
     expect(cards).toContain('data-testid="damaged"');
-    expect(cards).toContain('Repair $456');
+    expect(cards).toContain('Repair $681');
   });
 });
 
@@ -219,7 +219,7 @@ describe('Storms', () => {
     const row = damageHere(s, LOTTIES_CORNER);
     expect(row).not.toContain('Fixing tonight');
     expect(row).toContain(`title="Adds to tonight's repair: good as new at dawn"`);
-    expect(row).toContain('Repair $152');
+    expect(row).toContain('Repair $227');
   });
 });
 
@@ -330,12 +330,12 @@ describe('the rebuild', () => {
     const btn = rebuildButton(s, LOTTIES_CORNER);
     expect(btn).toContain(`data-action="rebuild" data-plot="${LOTTIES_CORNER}" data-testid="rebuild"`);
     expect(btn).toContain('title="Built overnight: open at dawn. Book it today or the plot goes For Sale"');
-    expect(btn).toContain('Rebuild $608');
+    expect(btn).toContain('Rebuild $908');
     const [ticket] = rebuildTickets(s);
     expect(ticket).toContain('cl-ticket red');
     expect(ticket).toContain('data-testid="wrecked"');
     expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
-    expect(ticket).toContain('Rebuild $608');
+    expect(ticket).toContain('Rebuild $908');
     expect(wreckNote(s, LOTTIES_CORNER)).toContain('Wrecked');
     s.phase = 'night';
     expect(rebuildButton(s, LOTTIES_CORNER)).toContain('disabled title="Too late: it goes For Sale at dawn"');
@@ -356,7 +356,7 @@ describe('the rebuild', () => {
     ps.busted = true;
     ps.wreckedDay = s.day - 1;
     const btn = rebuildButton(s, LOTTIES_CORNER);
-    expect(btn).toContain('Fix $405');
+    expect(btn).toContain('Fix $605');
     expect(btn).toContain('title="Fixed overnight: open at dawn"');
     expect(rebuildTickets(s)[0]).toContain('Busted: closed until you fix it');
     expect(wreckNote(s, LOTTIES_CORNER)).toContain('Busted');

@@ -467,13 +467,13 @@ describe('loan repossession', () => {
 
   it('takes the lowest-value plot as Net Worth counts it, land plus buildings, credits that, and never a Trophy', () => {
     const s = loanGame(92);
-    s.plots[LOTTIES_CORNER].invested = 4050; // a Kiosk on $300 of land: worth more than a bare $1,000 lot
+    s.plots[LOTTIES_CORNER].invested = 6050; // a Kiosk on $300 of land: worth more than a bare $1,000 lot
     const lot = purchasablePlots('maple').find((p) => p.id !== LOTTIES_CORNER && !s.plots[p.id].owner)!;
     give(s, lot.id);
     s.plots[lot.id].landValue = 1000;
     give(s, hqPlot('hollis').id);
     s.plots[hqPlot('hollis').id].landValue = 1; // cheapest of all, but a Trophy is never lost
-    expect(plotWorth(s, LOTTIES_CORNER)).toBe(300 + 0.75 * 4050);
+    expect(plotWorth(s, LOTTIES_CORNER)).toBe(300 + 0.75 * 6050);
     miss(s);
     // Land values move with development each dawn: the bank pays what the lot is worth that morning.
     const worth = plotWorth(s, lot.id);
@@ -552,12 +552,12 @@ describe('building stands', () => {
     const lot = street(s, 'maple');
     give(s, lot.id);
     Object.assign(s, { cash: 1e6, rank: 3 });
-    expect([1, 2, 3, 4, 5].map(standCost)).toEqual([150, 550, 4050, 64050, 714050]);
+    expect([1, 2, 3, 4, 5].map(standCost)).toEqual([150, 550, 6050, 66050, 716050]);
     expect(canBuildStand(s, lot.id, 4)).toEqual({ ok: false, why: `Needs Rank 5, ${RANKS[4].title}` }); // a Lemon Shack waits for Rank 5
     const cash = s.cash;
     expect(buildStand(s, lot.id, 3)).toBe(true);
-    expect(s.cash).toBe(cash - 4050);
-    expect(s.plots[lot.id]).toMatchObject({ invested: 4050, stand: { level: 3 } });
+    expect(s.cash).toBe(cash - 6050);
+    expect(s.plots[lot.id]).toMatchObject({ invested: 6050, stand: { level: 3 } });
     expect(currentHp(s.plots[lot.id])).toBe(800);
     expect(s.plots[lot.id].stand!.price).toBe(priceCeiling(s, lot.id));
     expect(s.news.at(-1)).toBe(`A brand-new Kiosk opens at ${lot.name}!`);
@@ -942,6 +942,8 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(gadgets).toBeGreaterThanOrEqual(2);
     s.rank = 4;
     s.plots[LOTTIES_CORNER].stand!.level = 4; // a third slot
+    bot.takings = [1e5]; // money for every stand's fence and slots: on Day 10 a Lemon Shack's upkeep sorts this one last
+    bot.sec = 1e5; // by profit (since the 2026-11-14 retune), so it's served after the others
     morning(s, bot);
     expect(s.plots[LOTTIES_CORNER].defense.gadgets).toEqual(['alarm', 'goose', 'slick']);
     expect(bot.played.gadgets).toBeGreaterThan(gadgets);

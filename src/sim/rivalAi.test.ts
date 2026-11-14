@@ -99,7 +99,7 @@ describe('rival dawn budget', () => {
     expect(levels(s, id).filter((l, i) => l === before[i] + 1).length).toBe(owed.length);
   });
 
-  it('the small gangs stay small: a Level 3 waits while Grow saves its $3,500', () => {
+  it('the small gangs stay small: a Level 3 waits while Grow saves its $5,500', () => {
     const s = newGame(13);
     const id: RivalId = 'coldbrew';
     const stands = ownedPlots(s, id).filter((p) => s.plots[p.id].stand).length;

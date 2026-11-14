@@ -135,15 +135,15 @@ describe('stand specialization slots', () => {
     const plot = 'maple-3s';
     const s = standAt(3, plot);
     const ps = s.plots[plot];
-    expect(buildingInvested(ps)).toBe(4050); // a Kiosk built on an empty plot: $150 + $400 + $3,500
-    expect(rebuildCost(ps)).toBe(608);
+    expect(buildingInvested(ps)).toBe(6050); // a Kiosk built on an empty plot: $150 + $400 + $5,500
+    expect(rebuildCost(ps)).toBe(908);
     expect(fit(s, 0, 'fortified', plot)).toBe(true);
-    expect(buildingInvested(ps)).toBe(6050); // plus the slot's $2,000
+    expect(buildingInvested(ps)).toBe(8050); // plus the slot's $2,000
     ps.stand!.hp = 600; // half of the Fortified Kiosk's 1,200
-    expect(repairCost(s, plot)).toBe(454); // 15% of $6,050 × half
-    expect(rebuildCost(ps)).toBe(908); // 15% of $6,050
+    expect(repairCost(s, plot)).toBe(604); // 15% of $8,050 × half
+    expect(rebuildCost(ps)).toBe(1208); // 15% of $8,050
     expect(fit(s, 0, 'express', plot)).toBe(true); // a swap replaces what was there
-    expect(buildingInvested(ps)).toBe(6050);
+    expect(buildingInvested(ps)).toBe(8050);
     const palace = standAt(5, plot);
     const both = palace.plots[plot];
     const levels = buildingInvested(both);

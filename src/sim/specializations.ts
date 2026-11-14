@@ -32,7 +32,7 @@ export function fittedOn(st: Stand | null | undefined): SpecId[] {
 /**
  * What went into a stand's slots: each filled slot's price, as its first fitting paid it (a swap only replaces what was
  * there). It is part of the building, so its rebuilds and repairs count it (damage.ts buildingInvested): a Wrecked
- * stand comes back with its fittings, and a Fortified Kiosk ($4,050 + $2,000) rebuilds for 15% of $6,050.
+ * stand comes back with its fittings, and a Fortified Kiosk ($6,050 + $2,000) rebuilds for 15% of $8,050.
  */
 export function specsInvested(st: Stand): number {
   return (st.specs ?? []).slice(0, specSlots(st.level)).reduce((a, x, i) => a + (x && x in SPECIALIZATIONS ? SPEC_SLOTS[i].cost : 0), 0);

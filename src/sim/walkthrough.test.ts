@@ -49,7 +49,7 @@ function day26(o: { bell?: boolean; picket?: boolean; dice?: number } = {}) {
   const lc = s.plots[LOTTIES_CORNER];
   lc.stand!.level = 3;
   lc.defense = o.picket ? { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] } : { tier: 2, fenceHp: PERIMETERS[1].hp, gadgets: ['alarm', 'goose'] };
-  lc.stand!.lastProfit = 521; // the walkthrough's Kiosk: about $521 a day, as the sim's Kiosk makes it (tested below)
+  lc.stand!.lastProfit = 431; // the walkthrough's Kiosk: about $431 a day, as the sim's Kiosk makes it (tested below)
   const club = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!.id;
   s.plots[club].owner = 'player';
   buildClubhouse(s, club);
@@ -170,24 +170,25 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
     expect(s.rivals.blenders.respectUntil).toBe(s.day + 1 + 3);
   });
 
-  it('with only a Picket Fence and Dex, the raid gets in and takes about $521, a day of the Kiosk\'s profit', () => {
+  it('with only a Picket Fence and Dex, the raid gets in and takes about $431, a day of the Kiosk\'s profit', () => {
     const { s, report, cash } = day26({ picket: true });
     expect(report.outcome).toBe('robbed');
-    near(report.loot, 521, 521 * 0.05);
+    near(report.loot, 431, 431 * 0.05);
     expect(s.cash).toBe(cash - report.loot);
   });
 
-  // Measured, and pinned: a Kiosk on Lottie's Corner at 3.3 stars makes $520.84 on a warm day (81°) at Auto-Price's
+  // Measured, and pinned: a Kiosk on Lottie's Corner at 3.3 stars makes $430.84 on a warm day (81°) at Auto-Price's
   // $3.00 ceiling. The day of profit a Shakedown takes is the demand model's to set, so the spec's "about $800" was
-  // restated to about $521 to match (design-spec.md, "How a stand holds off a raid").
-  it('... and a day of the Kiosk\'s profit is about $521', () => {
+  // restated to match (design-spec.md, "How a stand holds off a raid"): $520.84 until the 2026-11-14 retune raised
+  // the Kiosk's upkeep from $60 to $150 a day.
+  it('... and a day of the Kiosk\'s profit is about $431', () => {
     const s = newGame(26);
     s.rank = 4; s.cash = 1e5; s.reputation = 3.3; s.day = 20;
     s.plots[LOTTIES_CORNER].stand!.level = 3; // Auto-Price (from Rank 3) posts it at its ceiling as it opens
     buySupply(s, 'lemons', 10); buySupply(s, 'sugar', 10); buySupply(s, 'ice', 20);
     openStand(s);
     simulateRestOfDay(s);
-    near(shakedownLoot(s, LOTTIES_CORNER), 521, 521 * 0.05);
+    near(shakedownLoot(s, LOTTIES_CORNER), 431, 431 * 0.05);
   });
 });
 
@@ -290,15 +291,16 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 
-  // Measured, and pinned: a Blenders Kiosk on the Boardwalk makes $1,555.04 on a hot day (93°) at $2.16, the rival's
-  // price. The spec's "about $2,400" (the expected loot, the take at the till and the money line) was restated to about
-  // $1,555 to match (design-spec.md, "A night Shakedown (Day 24)").
-  it('expected loot is about $1,555, one day of the Kiosk\'s profit', () => {
+  // Measured, and pinned: a Blenders Kiosk on the Boardwalk makes $1,465.04 on a hot day (93°) at $2.16, the rival's
+  // price. The spec's "about $2,400" (the expected loot, the take at the till and the money line) was restated to match
+  // (design-spec.md, "A night Shakedown (Day 24)"): $1,555.04 until the 2026-11-14 retune raised the Kiosk's upkeep,
+  // which rivals pay too, from $60 to $150 a day.
+  it('expected loot is about $1,465, one day of the Kiosk\'s profit', () => {
     const { s, kiosk } = day24();
     buySupply(s, 'lemons', 2); buySupply(s, 'sugar', 2); buySupply(s, 'ice', 4);
     openStand(s);
     simulateRestOfDay(s);
-    near(shakedownLoot(s, kiosk), 1555, 1555 * 0.05);
+    near(shakedownLoot(s, kiosk), 1465, 1465 * 0.05);
   });
 
   // The squad sets out from the Clubhouse its guards wait at, else the Corner (squadHome). Day 24 doesn't say

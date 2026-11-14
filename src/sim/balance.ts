@@ -166,14 +166,18 @@ export const PERKS = {
  * `stock`: the cups of lemons, sugar and ice a stand holds, one and a half days at full pour (spec: Stands).
  * `storage`: those cups in Classic's mix (half a lemon, a scoop and 3 cubes a cup), in whole packs. Every card pours
  * that same stock (RECIPES below), so every card holds the same (economy.ts storageFor).
+ * The Kiosk's price and the upkeep from the Kiosk up were tuned with the pacing bot playing every system (2026-11-14).
+ * At a $3,500 Kiosk and $60, $300 and $1,500 a day, the reference map took 1.7-9x the spec's takings from Day 9 to
+ * Day 103 and reached Ranks 4-8 5-21 days early: the Kiosk's price slows the climb to it, and the Shack's upkeep (as high
+ * as its payback allows) and the Palace's slow the middle and late game. Rivals pay the same upkeep.
  */
 export interface StandLevel { level: number; name: string; cost: number; draw: number; capacityPerHour: number; topPrice: number; upkeep: number; hp: number; guardPosts: number; stock: number; storage: Record<SupplyId, number> }
 export const STAND_LEVELS: StandLevel[] = [
   { level: 1, name: 'The Folding Table', cost: 150, draw: 1.0, capacityPerHour: 20, topPrice: 1.5, upkeep: 5, hp: 100, guardPosts: 1, stock: 300, storage: { lemons: 160, sugar: 300, ice: 900 } },
   { level: 2, name: 'The Wooden Stand', cost: 400, draw: 1.5, capacityPerHour: 50, topPrice: 2.0, upkeep: 15, hp: 300, guardPosts: 2, stock: 750, storage: { lemons: 380, sugar: 750, ice: 2280 } },
-  { level: 3, name: 'The Kiosk', cost: 3500, draw: 2.3, capacityPerHour: 120, topPrice: 3.0, upkeep: 60, hp: 800, guardPosts: 3, stock: 1800, storage: { lemons: 900, sugar: 1800, ice: 5400 } },
-  { level: 4, name: 'The Lemon Shack', cost: 60000, draw: 3.5, capacityPerHour: 300, topPrice: 4.5, upkeep: 300, hp: 2000, guardPosts: 4, stock: 4500, storage: { lemons: 2260, sugar: 4500, ice: 13500 } },
-  { level: 5, name: 'The Citrus Palace', cost: 650000, draw: 5.0, capacityPerHour: 700, topPrice: 7.0, upkeep: 1500, hp: 5000, guardPosts: 6, stock: 10500, storage: { lemons: 5260, sugar: 10500, ice: 31500 } },
+  { level: 3, name: 'The Kiosk', cost: 5500, draw: 2.3, capacityPerHour: 120, topPrice: 3.0, upkeep: 150, hp: 800, guardPosts: 3, stock: 1800, storage: { lemons: 900, sugar: 1800, ice: 5400 } },
+  { level: 4, name: 'The Lemon Shack', cost: 60000, draw: 3.5, capacityPerHour: 300, topPrice: 4.5, upkeep: 2500, hp: 2000, guardPosts: 4, stock: 4500, storage: { lemons: 2260, sugar: 4500, ice: 13500 } },
+  { level: 5, name: 'The Citrus Palace', cost: 650000, draw: 5.0, capacityPerHour: 700, topPrice: 7.0, upkeep: 8000, hp: 5000, guardPosts: 6, stock: 10500, storage: { lemons: 5260, sugar: 10500, ice: 31500 } },
 ];
 export const BUILDING_VALUE_SHARE = 0.75;
 /** Rank needed to upgrade TO each level (index = level - 1). */

@@ -356,8 +356,8 @@ export function newStand(level = 1, price = STAND_LEVELS[level - 1].topPrice): S
   };
 }
 
-/** A stand of this level built new on an empty plot: every step's cost, paid at once (L1 $150, L2 $550, L3 $4,050,
- * L4 $64,050, L5 $714,050). It's what the plot's investment gets, for yours and a rival's alike. */
+/** A stand of this level built new on an empty plot: every step's cost, paid at once (L1 $150, L2 $550, L3 $6,050,
+ * L4 $66,050, L5 $716,050). It's what the plot's investment gets, for yours and a rival's alike. */
 export function standCost(level: number): number {
   return STAND_LEVELS.slice(0, level).reduce((a, l) => a + l.cost, 0);
 }
@@ -1036,7 +1036,7 @@ export const facilityLand = (type: string): boolean => FACILITY_LAND[type] !== u
 /**
  * Build a stand of any level your rank has unlocked straight onto an empty plot of yours that takes one (a Street,
  * Prime or Landmark plot, never a Field, a Dock, an Industrial lot or a Trophy, and nothing built there), paying every
- * step's cost at once (spec: "a Kiosk built on an empty plot costs $150 + $400 + $3,500 = $4,050, paid at once"). Any
+ * step's cost at once (spec: "a Kiosk built on an empty plot costs $150 + $400 + $5,500 = $6,050, paid at once"). Any
  * hour of the day, the Evening too; not at night, when repairs and rebuilds wait for the morning as well.
  */
 export function canBuildStand(s: GameState, plotId: string, level = 1): Blocker {

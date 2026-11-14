@@ -18,7 +18,7 @@ import {
 } from './economy.ts';
 
 /** The spec's Kiosk on Lottie's Corner: a Folding Table built new ($150, not Lottie's own $100 one), a Lemonade Cart
- * ($400) and a Kiosk ($3,500), $4,050 in all. */
+ * ($400) and a Kiosk ($5,500), $6,050 in all. */
 function kiosk(seed = 1): GameState {
   const s = newGame(seed);
   s.rank = 6;
@@ -51,14 +51,14 @@ function stockUp(s: GameState) {
 }
 
 describe('rebuild and repair cost basis', () => {
-  it('a Kiosk built from an empty plot has $4,050 in it: $608 to rebuild, $405 to fix when Busted', () => {
+  it('a Kiosk built from an empty plot has $6,050 in it: $908 to rebuild, $605 to fix when Busted', () => {
     const s = kiosk();
     const ps = s.plots[LOTTIES_CORNER];
-    expect(buildingInvested(ps)).toBe(4050);
+    expect(buildingInvested(ps)).toBe(6050);
     ps.stand!.wrecked = true;
-    expect(rebuildCost(ps)).toBe(608);
+    expect(rebuildCost(ps)).toBe(908);
     ps.busted = true;
-    expect(rebuildCost(ps)).toBe(405);
+    expect(rebuildCost(ps)).toBe(605);
   });
 
   it('fences and gadgets do not raise the rebuild bill, but still count toward Net Worth', () => {
@@ -67,14 +67,14 @@ describe('rebuild and repair cost basis', () => {
     expect(buyPerimeter(s, LOTTIES_CORNER)).toBe(true);
     expect(buyPerimeter(s, LOTTIES_CORNER)).toBe(true);
     expect(buyGadget(s, LOTTIES_CORNER, 'alarm')).toBe(true);
-    expect(ps.invested).toBe(4050 + 150 + 1200 + 100);
-    expect(buildingInvested(ps)).toBe(4050);
+    expect(ps.invested).toBe(6050 + 150 + 1200 + 100);
+    expect(buildingInvested(ps)).toBe(6050);
     ps.stand!.wrecked = true;
-    expect(rebuildCost(ps)).toBe(608);
+    expect(rebuildCost(ps)).toBe(908);
     const cash = s.cash;
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
-    expect(s.cash).toBe(cash - 608);
-    expect(ps.invested).toBe(4050 + 150 + 1200 + 100); // the rebuild doesn't touch Net Worth's figure
+    expect(s.cash).toBe(cash - 908);
+    expect(ps.invested).toBe(6050 + 150 + 1200 + 100); // the rebuild doesn't touch Net Worth's figure
   });
 
   it("Lottie's starting Folding Table counts as $100: $15 to rebuild, $10 to fix when Busted", () => {
@@ -88,20 +88,20 @@ describe('rebuild and repair cost basis', () => {
     expect(rebuildCost(ps)).toBe(10);
   });
 
-  it('the Corner grown into a Kiosk has $4,000 in it: $600 to rebuild, $300 at half HP', () => {
+  it('the Corner grown into a Kiosk has $6,000 in it: $900 to rebuild, $450 at half HP', () => {
     const s = newGame(3);
     s.rank = 6; s.cash = 100000; s.phase = 'prep';
     expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
     expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
     const ps = s.plots[LOTTIES_CORNER];
-    expect(buildingInvested(ps)).toBe(4000);
+    expect(buildingInvested(ps)).toBe(6000);
     ps.stand!.hp = 400;
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(300);
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(450);
     delete ps.stand!.hp;
     ps.stand!.wrecked = true;
-    expect(rebuildCost(ps)).toBe(600);
+    expect(rebuildCost(ps)).toBe(900);
     ps.busted = true;
-    expect(rebuildCost(ps)).toBe(400);
+    expect(rebuildCost(ps)).toBe(600);
   });
 
   it('a Folding Table built new counts its $150: $23 to rebuild', () => {
@@ -295,14 +295,14 @@ describe('a Damaged stand pours its HP share', () => {
 });
 
 describe('repairs', () => {
-  it('cost 15% of the building × the share of HP lost: a Kiosk at half HP is $304', () => {
+  it('cost 15% of the building × the share of HP lost: a Kiosk at half HP is $454', () => {
     const s = kiosk();
     const ps = s.plots[LOTTIES_CORNER];
     expect(repairCost(s, LOTTIES_CORNER)).toBe(0);
     ps.stand!.hp = 400;
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(304);
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(454);
     ps.stand!.hp = 1;
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(607); // 799 of 800 HP lost: still under the $608 rebuild
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(907); // 799 of 800 HP lost: still under the $908 rebuild
   });
 
   it('on Laid Back never cost more than the Busted fix', () => {
@@ -311,9 +311,9 @@ describe('repairs', () => {
     upgradeStand(s, LOTTIES_CORNER);
     upgradeStand(s, LOTTIES_CORNER);
     s.plots[LOTTIES_CORNER].stand!.hp = 400;
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(300); // the Corner's Kiosk: $4,000 with Lottie's $100 table
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(450); // the Corner's Kiosk: $6,000 with Lottie's $100 table
     s.plots[LOTTIES_CORNER].stand!.hp = 40;
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(400);
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(600);
   });
 
   it('are paid on approval, run overnight, and the stand opens at dawn as good as new', () => {
@@ -323,9 +323,9 @@ describe('repairs', () => {
     const cash = s.cash, repairs = s.today.books?.repairs ?? 0;
     expect(canRepair(s, LOTTIES_CORNER).ok).toBe(true);
     expect(approveRepair(s, LOTTIES_CORNER)).toBe(true);
-    expect(s.cash).toBe(cash - 304);
-    expect(s.today.books!.repairs).toBe(repairs - 304); // the Ledger's repairs row
-    expect(ps.repair).toEqual({ by: 'player', cost: 304, hp: 400 });
+    expect(s.cash).toBe(cash - 454);
+    expect(s.today.books!.repairs).toBe(repairs - 454); // the Ledger's repairs row
+    expect(ps.repair).toEqual({ by: 'player', cost: 454, hp: 400 });
     expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Fixing tonight' });
     expect(approveRepair(s, LOTTIES_CORNER)).toBe(false);
     // Still Damaged through today: it pours at half speed until the repair runs tonight.
@@ -351,7 +351,7 @@ describe('repairs', () => {
     expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Too late tonight: approve it tomorrow' });
     s.phase = 'report';
     s.cash = 100;
-    expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Needs $304' });
+    expect(canRepair(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Needs $454' });
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
     s.plots[rival.id].stand!.hp = 1;
     expect(canRepair(s, rival.id)).toEqual({ ok: false, why: 'Not your plot' });
@@ -397,7 +397,7 @@ describe('repairs', () => {
     expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
     expect(ps.stand!.hp).toBeUndefined();
     expect(ps.repair).toBeUndefined();
-    expect(s.cash).toBe(cash - 60000 + 304);
+    expect(s.cash).toBe(cash - 60000 + 454);
   });
 
   it("a rival's 30-day upgrade brings its stand back full too", () => {
@@ -456,7 +456,7 @@ describe('Auto-Repair (Rank 3)', () => {
     s.rank = 3;
     const side = PLOTS.find((p) => p.district === 'maple' && !s.plots[p.id].owner && p.type === 'street')!;
     s.plots[side.id] = { owner: 'player', stand: newStand(1), invested: 150, landValue: 300, defense: { tier: 0, fenceHp: 0, gadgets: [] } };
-    s.plots[LOTTIES_CORNER].stand!.hp = 400; // $304
+    s.plots[LOTTIES_CORNER].stand!.hp = 400; // $454
     s.plots[side.id].stand!.hp = 10; // 90% of a $150 table lost: $21
     return { s, side: side.id };
   }
@@ -466,10 +466,10 @@ describe('Auto-Repair (Rank 3)', () => {
     s.cash = 1000;
     closeShop(s);
     expect(s.phase).toBe('report');
-    expect(s.plots[LOTTIES_CORNER].repair).toMatchObject({ by: 'player', cost: 304, hp: 400 });
+    expect(s.plots[LOTTIES_CORNER].repair).toMatchObject({ by: 'player', cost: 454, hp: 400 });
     expect(s.plots[side].repair).toMatchObject({ by: 'player', cost: 21, hp: 90 });
-    expect(s.cash).toBeLessThanOrEqual(1000 - 325);
-    expect(s.news).toContain('Auto-Repair: 2 fixes booked for tonight, $325. Good as new at dawn.');
+    expect(s.cash).toBeLessThanOrEqual(1000 - 475);
+    expect(s.news).toContain('Auto-Repair: 2 fixes booked for tonight, $475. Good as new at dawn.');
     expect(sleepUntilDawn(s)).toBe(true);
     expect(isDamaged(s.plots[LOTTIES_CORNER])).toBe(false);
     expect(isDamaged(s.plots[side])).toBe(false);
@@ -479,15 +479,15 @@ describe('Auto-Repair (Rank 3)', () => {
     const { s } = twoDamaged();
     s.cash = 1000;
     expect(helpers().map((h) => h.id)).toContain(AUTO_REPAIR);
-    expect(prepPreview(s).find((p) => p.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', count: 0, spent: 0, pending: 325, at: 'closing', line: '' }); // nothing at dawn: it books at closing
+    expect(prepPreview(s).find((p) => p.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', count: 0, spent: 0, pending: 475, at: 'closing', line: '' }); // nothing at dawn: it books at closing
     closeShop(s);
     const day = s.history[s.history.length - 1];
     expect(day).toBe(s.today); // closing time: the day's record is still open
-    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 325, count: 2, amount: 0 });
-    expect(helperLines(day).find((h) => h.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', line: '2 fixes overnight', spent: 325 });
-    expect(day.books?.repairs).toBe(-325);
+    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 475, count: 2, amount: 0 });
+    expect(helperLines(day).find((h) => h.id === AUTO_REPAIR)).toEqual({ id: AUTO_REPAIR, name: 'Auto-Repair', line: '2 fixes overnight', spent: 475 });
+    expect(day.books?.repairs).toBe(-475);
     damageAtClose(s); // nothing left to book: the line stays as it was
-    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 325, count: 2, amount: 0 });
+    expect(day.auto?.[AUTO_REPAIR]).toEqual({ spent: 475, count: 2, amount: 0 });
   });
 
   it('waits until Rank 3', () => {
@@ -510,8 +510,8 @@ describe('Auto-Repair (Rank 3)', () => {
     expect(autoRepairs(s, side)).toBe(false);
     damageAtClose(s);
     expect(s.plots[side].repair).toBeUndefined();
-    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(304);
-    expect(s.news).toContain('Auto-Repair: 1 fix booked for tonight, $304. Good as new at dawn.');
+    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(454);
+    expect(s.news).toContain('Auto-Repair: 1 fix booked for tonight, $454. Good as new at dawn.');
     expect(toggleAutoRepair(s, side)).toBe(true); // back on
     expect(s.plots[side].noAutoRepair).toBeUndefined();
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
@@ -521,17 +521,17 @@ describe('Auto-Repair (Rank 3)', () => {
 
   it('fixes the worst first when the cash runs short', () => {
     const { s, side } = twoDamaged();
-    s.cash = 100; // enough for the $21 table, not the $304 Kiosk
-    s.plots[LOTTIES_CORNER].stand!.hp = 100; // 12.5% HP: $532, the worst
+    s.cash = 100; // enough for the $21 table, not the $454 Kiosk
+    s.plots[LOTTIES_CORNER].stand!.hp = 100; // 12.5% HP: $795, the worst
     s.plots[side].stand!.hp = 50; // 50%: $12
     damageAtClose(s);
     expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
     expect(s.plots[side].repair?.cost).toBe(12);
     expect(s.cash).toBe(88);
-    s.cash = 600; // now the Kiosk too
+    s.cash = 850; // now the Kiosk too
     damageAtClose(s);
-    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(532);
-    expect(s.cash).toBe(68);
+    expect(s.plots[LOTTIES_CORNER].repair?.cost).toBe(795);
+    expect(s.cash).toBe(55);
   });
 
   it("Morning Prep previews tonight's bill: what it would book now, at closing, within the cash", () => {
@@ -626,7 +626,7 @@ describe('Auto-Repair (Rank 3)', () => {
     table.stand!.wrecked = true;
     delete table.stand!.hp;
     table.wreckedDay = s.day;
-    s.cash = 30; // the $23 rebuild, not the $304 repair as well
+    s.cash = 30; // the $23 rebuild, not the $454 repair as well
     damageAtClose(s);
     expect(table.repair).toEqual({ by: 'player', cost: 23, hp: 100, rebuild: true });
     expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
@@ -668,9 +668,9 @@ describe('rebuilds run overnight', () => {
     const cash = s.cash, repairs = s.today.books?.repairs ?? 0;
     expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: true });
     expect(rebuildStand(s, LOTTIES_CORNER)).toBe(true);
-    expect(s.cash).toBe(cash - 608);
-    expect(s.today.books!.repairs).toBe(repairs - 608); // the Ledger's Repairs and rebuilds row
-    expect(ps.repair).toEqual({ by: 'player', cost: 608, hp: 800, rebuild: true });
+    expect(s.cash).toBe(cash - 908);
+    expect(s.today.books!.repairs).toBe(repairs - 908); // the Ledger's Repairs and rebuilds row
+    expect(ps.repair).toEqual({ by: 'player', cost: 908, hp: 800, rebuild: true });
     expect(rebuilding(ps)).toBe(true);
     expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Rebuilding tonight' });
     expect(approveRebuild(s, LOTTIES_CORNER)).toBe(false);
@@ -678,7 +678,7 @@ describe('rebuilds run overnight', () => {
     simulateRestOfDay(s);
     expect(ps.stand!.wrecked).toBe(true); // a plank pile all day long
     expect(ps.stand!.day.customers).toBe(0);
-    expect(s.cash).toBeLessThanOrEqual(cash - 608);
+    expect(s.cash).toBeLessThanOrEqual(cash - 908);
     expect(sleepUntilDawn(s)).toBe(true);
     expect(ps.stand!.wrecked).toBe(false);
     expect(currentHp(ps)).toBe(800);
@@ -697,7 +697,7 @@ describe('rebuilds run overnight', () => {
     expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Too late: it goes For Sale at dawn' });
     s.phase = 'report';
     s.cash = 100;
-    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Needs $608' });
+    expect(canRebuild(s, LOTTIES_CORNER)).toEqual({ ok: false, why: 'Needs $908' });
     expect(approveRebuild(s, LOTTIES_CORNER)).toBe(false);
     const rival = PLOTS.find((p) => s.plots[p.id].owner === 'hollis' && s.plots[p.id].stand)!;
     expect(canRebuild(s, rival.id)).toEqual({ ok: false, why: 'Not your plot' });
@@ -723,7 +723,7 @@ describe('rebuilds run overnight', () => {
     const { s, ps } = smashedAtNight(43);
     expect(autoRepairs(s, LOTTIES_CORNER)).toBe(true);
     closeShop(s);
-    expect(ps.repair).toMatchObject({ by: 'player', cost: 608, rebuild: true });
+    expect(ps.repair).toMatchObject({ by: 'player', cost: 908, rebuild: true });
     expect(sleepUntilDawn(s)).toBe(true);
     expect(ps.stand!.wrecked).toBe(false);
     expect(s.plots[LOTTIES_CORNER].owner).toBe('player');
@@ -1006,8 +1006,8 @@ describe('the Hurricane', () => {
     expect(currentHp(corner)).toBe(1200 - 320); // 40% of the Kiosk's own 800 HP: it keeps 73%, not 60%
     expect(isDamaged(corner)).toBe(true);
     expect(s.news).toContain(`HURRICANE! The bay takes a pounding. ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a pounding. Repair it by the Evening.`);
-    // A repair is 15% of what went in, scaled by the HP lost: $6,050 × 15% × 320/1,200 = $242.
-    expect(repairCost(s, LOTTIES_CORNER)).toBe(242);
+    // A repair is 15% of what went in, scaled by the HP lost: $8,050 × 15% × 320/1,200 = $322.
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(322);
   });
 
   it('only on its day: a Storm the next week is just a Storm again', () => {
@@ -1199,12 +1199,12 @@ describe('saves', () => {
     ps.wreckedDay = s.day;
     expect(approveRebuild(s, LOTTIES_CORNER)).toBe(true);
     const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
-    expect(back.plots[LOTTIES_CORNER].repair).toEqual({ by: 'player', cost: 608, hp: 800, rebuild: true });
+    expect(back.plots[LOTTIES_CORNER].repair).toEqual({ by: 'player', cost: 908, hp: 800, rebuild: true });
     ps.stand!.wrecked = false; // a rebuild booked on a standing building
     migrateDamage(s);
     expect(ps.repair).toBeUndefined();
     ps.stand!.hp = 400;
-    ps.repair = { by: 'player', cost: 304, hp: 400, rebuild: 'yes' as never };
+    ps.repair = { by: 'player', cost: 454, hp: 400, rebuild: 'yes' as never };
     migrateDamage(s);
     expect(ps.repair).toBeUndefined();
   });
@@ -1215,7 +1215,7 @@ describe('saves', () => {
     approveRepair(s, LOTTIES_CORNER);
     const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
     expect(back.plots[LOTTIES_CORNER].stand!.hp).toBe(400);
-    expect(back.plots[LOTTIES_CORNER].repair).toEqual({ by: 'player', cost: 304, hp: 400 });
+    expect(back.plots[LOTTIES_CORNER].repair).toEqual({ by: 'player', cost: 454, hp: 400 });
   });
 
   it('migrating cleans odd values and changes nothing the second time', () => {

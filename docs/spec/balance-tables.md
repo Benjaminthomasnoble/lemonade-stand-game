@@ -10,11 +10,11 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 300 | 5 | 100 | 1 | — |
 | L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 750 | 15 | 300 | 2 | 2–4 |
-| L3 | The Kiosk | 3 | 3,500 | 2.3 | 120 | 3.00 | 1,800 | 60 | 800 | 3 | 4–7 |
-| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 300 | 2,000 | 4 | 4–11 |
-| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 1,500 | 5,000 | 6 | 11–15 |
+| L3 | The Kiosk | 3 | 5,500 | 2.3 | 120 | 3.00 | 1,800 | 150 | 800 | 3 | 4–7 |
+| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 2,500 | 2,000 | 4 | 4–11 |
+| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 8,000 | 5,000 | 6 | 11–15 |
 
-Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower (an L4 on the Maple Row Landmark takes about 14 days).
+Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
 
 Stock is the cups of lemons, sugar and ice a stand holds: a day and a half at full pour (10 selling hours). A restock never fills it past that. From L3 your stands' radios play 101.5 The Squeeze through business hours. From L4 your stands have an ice machine: it makes their ice as they pour, at the Market price, so none melts overnight and Auto-Restock buys none (a Power Outage stops it for the day).
 
@@ -783,7 +783,7 @@ Each rival splits its money three ways, by its Grow / Guard / Strike shares: Gro
 | Marketing | Its next marketing tier at your price, once your Rank opens it, up to its brand cap, and only while Grow holds twice the price (FizzCo: once) |
 | A raid's cost | 1 night of wages for each henchman sent, at the raid's level, out of Strike; a Blender Rush costs half |
 
-Rivals pay your prices, so the small gangs climb slowly: an L3 costs $3,500 and an L4 $60,000, six times the Blenders' starting cash. In three simulated campaigns the Blenders, Cold Brew and Hollis never reached L4 before they fell, FizzCo kept the L4s it starts with, and the Sourwoods built an L5 in one of them, after Day 120.
+Rivals pay your prices and upkeep, so the small gangs climb slowly: an L3 costs $5,500 and an L4 $60,000, six times the Blenders' starting cash. In three simulated campaigns played before the 2026-11-14 retune (when an L3 cost $3,500 and upkeep was lower), the Blenders, Cold Brew and Hollis never reached L4 before they fell, FizzCo kept the L4s it starts with, and the Sourwoods built an L5 in one of them, after Day 120.
 
 #### Attention and Grudge
 

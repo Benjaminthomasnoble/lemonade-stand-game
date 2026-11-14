@@ -69,7 +69,7 @@ describe('bulk orders (Rank 3)', () => {
     give(s, b, 2);
     give(s, c, 1);
     const order = { act: 'upgrade' as const, group: 'district:oldtown' as const, budget: STAND_LEVELS[1].cost + 100 };
-    expect(bulkPlan(s, order)).toMatchObject({ members: 2, picks: [{ plot: c, cost: STAND_LEVELS[1].cost }] }); // the $400 Wooden Stand first; the $3,500 Kiosk doesn't fit
+    expect(bulkPlan(s, order)).toMatchObject({ members: 2, picks: [{ plot: c, cost: STAND_LEVELS[1].cost }] }); // the $400 Wooden Stand first; the $5,500 Kiosk doesn't fit
     runBulk(s, { ...order, budget: Infinity });
     expect(levels(s, [a, b, c])).toEqual([3, 3, 2]);
     expect(bulkPlan(s, { act: 'upgrade', group: 'level:3', budget: Infinity })).toMatchObject({ picks: [], why: 'Needs Rank 5, District Big Shot' });
@@ -104,7 +104,7 @@ describe('bulk orders (Rank 3)', () => {
     expect(bulkMembers(s, 'fence', 'unfenced')).toEqual(expect.arrayContaining([LOTTIES_CORNER, a, b]));
     expect(bulkMembers(s, 'fence', 'unfenced')).not.toContain(c);
     const plan = bulkPlan(s, { act: 'fence', group: 'unfenced', budget: picket * 2 });
-    expect(plan.picks.map((p) => p.plot)).toEqual([a, b]); // the Kiosk ($4,050 in it) and the Wooden Stand ($550) beat Lottie's $150 Table
+    expect(plan.picks.map((p) => p.plot)).toEqual([a, b]); // the Kiosk ($6,050 in it) and the Wooden Stand ($550) beat Lottie's $150 Table
     expect(runBulk(s, { act: 'fence', group: 'unfenced', budget: Infinity })).toBe(3);
     expect([LOTTIES_CORNER, a, b, c].map((id) => s.plots[id].defense.tier)).toEqual([1, 1, 1, 1]);
     expect(s.plots[a].defense.fenceHp).toBe(PERIMETERS[0].hp);
@@ -264,7 +264,7 @@ describe('district policies (Rank 7)', () => {
     const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner)
       .reduce((a, p) => (plotPrice(s, p.id) < plotPrice(s, a.id) ? p : a)).id;
     const table = standCost(1), wooden = STAND_LEVELS[1].cost, kiosk = STAND_LEVELS[2].cost;
-    // A Table on the empty plot ($150), the Table up to Wooden ($400), the Wooden Stand up to a Kiosk ($3,500), then the
+    // A Table on the empty plot ($150), the Table up to Wooden ($400), the Wooden Stand up to a Kiosk ($5,500), then the
     // cheapest land with a Table; the Kiosk's $60,000 Lemon Shack is dearer than all of them and doesn't fit.
     const budget = table + wooden + kiosk + plotPrice(s, open) + table;
     s.phase = 'report';

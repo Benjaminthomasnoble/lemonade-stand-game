@@ -435,15 +435,15 @@ Every stand climbs 5 levels; each upgrade buys more passersby, a faster pour and
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | L1 The Folding Table | 1 | $150 to build new | ×1.0 | 20 | $1.50 | 300 | 100 | 5 | 1 | — |
 | L2 The Wooden Stand | 1 | $400 | ×1.5 | 50 | $2.00 | 750 | 300 | 15 | 2 | 2–4 |
-| L3 The Kiosk | 3 | $3,500 | ×2.3 | 120 | $3.00 | 1,800 | 800 | 60 | 3 | 4–7 |
-| L4 The Lemon Shack | 5 | $60,000 | ×3.5 | 300 | $4.50 | 4,500 | 2,000 | 300 | 4 | 4–11 |
-| L5 The Citrus Palace | 7 | $650,000 | ×5.0 | 700 | $7.00 | 10,500 | 5,000 | 1,500 | 6 | 11–15 |
+| L3 The Kiosk | 3 | $5,500 | ×2.3 | 120 | $3.00 | 1,800 | 800 | 150 | 3 | 4–7 |
+| L4 The Lemon Shack | 5 | $60,000 | ×3.5 | 300 | $4.50 | 4,500 | 2,000 | 2,500 | 4 | 4–11 |
+| L5 The Citrus Palace | 7 | $650,000 | ×5.0 | 700 | $7.00 | 10,500 | 5,000 | 8,000 | 6 | 11–15 |
 
-Costs are per step, so a Kiosk built on an empty plot costs $150 + $400 + $3,500 = $4,050, paid at once. Upgrades are instant: a crate drops, its slats fall open, and the new level starts selling (see Visual style and art direction).
+Costs are per step, so a Kiosk built on an empty plot costs $150 + $400 + $5,500 = $6,050, paid at once. Upgrades are instant: a crate drops, its slats fall open, and the new level starts selling (see Visual style and art direction).
 
 Stock is the cups of lemons, sugar and ice a stand can hold: one and a half days of selling at full speed. Upkeep is charged at closing every day (see Economy and balance).
 
-Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passersby a day for L4 and 4,000 for L5. Quieter plots stretch them: an L4 on the Maple Row Landmark takes about 14 days.
+Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passersby a day for L4 and 4,000 for L5. Quieter plots stretch them: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
 
 ### What each upgrade feels like
 
@@ -453,7 +453,7 @@ Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passers
 | L2 The Wooden Stand | The Day 5 lesson: 1.5× the passersby and 2.5× the pour for $400, repaid in 2–4 days |
 | L3 The Kiosk | The workhorse: it pays back almost anywhere, opens the first specialization slot and takes Local Orders (see VIP clients) |
 | L4 The Lemon Shack | A plot decision: it wants a busy Prime or Landmark. Its ice machine makes ice as needed, so none melts overnight, and a third gadget slot opens (see Defenses) |
-| L5 The Citrus Palace | The showpiece: $1,500 a day in upkeep, so only the busiest plots carry it. It opens a second specialization slot, and Rank 10 gilds its dome |
+| L5 The Citrus Palace | The showpiece: $8,000 a day in upkeep, so only the busiest plots carry it. It opens a second specialization slot, and Rank 10 gilds its dome |
 
 Ice-machine ice costs the same as Market ice, and a Power Outage stops the machines for a day (see Events and the living world).
 
@@ -480,7 +480,7 @@ A damaged stand sells at its HP share of capacity: at 60% HP it pours 60% of its
 
 Repairs and rebuilds happen overnight: approve one by the end of the Evening, and the stand opens at dawn as good as new. A stand smashed at night therefore misses a day of sales on top of the bill. Auto-Repair (Rank 3) books them for you at closing, most urgent first, and Morning Prep previews the bill. It keeps back tomorrow's wages and any loan payment due at dawn, so a fix the rest of your cash can't cover waits on the Day's end card for you. In a district on the Fortify policy (Rank 7), Auto-Repair looks after every plot, skipped ones included; a plot's skip comes back when the policy ends or the plot leaves it.
 
-A Kiosk ($4,050 invested) at half HP costs $304 to repair; Wrecked, it costs $608 to rebuild.
+A Kiosk ($6,050 invested) at half HP costs $454 to repair; Wrecked, it costs $908 to rebuild.
 
 An unrebuilt plot follows Knock it down, buy it up: First Dibs for whoever smashed it, then an auction (see Land and territory). On Laid Back your stands are only ever Busted, so a raid can close one but never cost you the plot. Rival stands can still be Wrecked on every difficulty.
 
@@ -730,7 +730,7 @@ Day 26 on Classic, Threat 2. Lottie's Corner is a Kiosk with Chain-Link, a Tin-C
 5. **Nerve:** 2 of 5 down counts as half, so the other 3 roll Nerve. One runs; 2 keep chopping until they drop at 15 seconds, the fence still at 260 HP.
 6. **Aftermath:** the reserves jog in to 4 Bros seeing stars, each with a 10% chance to be Nabbed. The night costs $120 of fence repair, and Brock's Respect cooldown keeps him away for 3 days.
 
-With only a Picket Fence and Dex, the raid gets in and takes about $521, a day of the Kiosk's profit.
+With only a Picket Fence and Dex, the raid gets in and takes about $431, a day of the Kiosk's profit.
 
 **Fun check:** Defense is set up by day and pays off at night: the goose honks, the fence holds, the Bros wobble home. Pausing warnings, the Respect cooldown and losses near a day's profit keep it from becoming babysitting.
 
@@ -1130,7 +1130,7 @@ The simulated Classic player's average daily income climbs about 5,000× across 
 
 ### Cost curves
 
-From L2 up, each upgrade costs 9–17× the last, while a stand's income rises only about 2–3×. That gap makes plot choice matter: a Lemon Shack needs about 1,800 passersby a day and a Citrus Palace about 4,000.
+From L2 up, each upgrade costs 11–14× the last, while a stand's income rises only about 2–3×. That gap makes plot choice matter: a Lemon Shack needs about 1,800 passersby a day and a Citrus Palace about 4,000.
 
 Paybacks on suitable plots run 2–4 days at L2, 4–7 at L3, 4–11 at L4 and 11–15 at L5 (see Appendix A). A Kiosk pays back almost anywhere.
 
@@ -1140,7 +1140,7 @@ Defense costs scale with what you protect. A Picket Fence costs $150 and a Citru
 
 ### Upkeep, wages and loans
 
-- **Upkeep** runs from $5 a day for a Folding Table to $1,500 for a Citrus Palace.
+- **Upkeep** runs from $5 a day for a Folding Table to $8,000 for a Citrus Palace ($150 for a Kiosk, $2,500 for a Lemon Shack), so a big stand has to earn its keep on a rainy day too.
 - **Wages** run $15 a day for a Rookie up to $90 for a Legend. Guards level up about once every 35 days of duty.
 - **Loans** from Marisol cover up to 50% of non-cash Net Worth at 3% interest per week over 4 weeks. Two missed payments let the bank repossess your lowest-value plot, valued as Net Worth counts it (land, 75% of the buildings and the stock on hand at cost). It never takes a Trophy, and it takes Lottie's Corner only when no other plot is left. The plot's value pays down the loan, and anything over what you owe comes back to you.
 
@@ -2206,11 +2206,11 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 5 | 100 | 1 | — |
 | L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 15 | 300 | 2 | 2–4 |
-| L3 | The Kiosk | 3 | 3,500 | 2.3 | 120 | 3.00 | 60 | 800 | 3 | 4–7 |
-| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 300 | 2,000 | 4 | 4–11 |
-| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 1,500 | 5,000 | 6 | 11–15 |
+| L3 | The Kiosk | 3 | 5,500 | 2.3 | 120 | 3.00 | 150 | 800 | 3 | 4–7 |
+| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 2,500 | 2,000 | 4 | 4–11 |
+| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 8,000 | 5,000 | 6 | 11–15 |
 
-Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower (an L4 on the Maple Row Landmark takes about 14 days).
+Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
 
 ### Stand specializations
 
@@ -2619,14 +2619,14 @@ You are a Neighborhood Name (Rank 4) at Threat 2 and 3.3 stars, with a Clubhouse
 
 1. **20:00 Pick a target.** In the Raid Planner you tap the Blenders' Kiosk by the arcade, on a Boardwalk Prime plot. Its defenses show "?", so the win chance reads about 49–83%: the Planner knows what a Kiosk's owner builds, but not who holds its posts.
 2. **Scout.** You fly Captain Squawk over it, and Gull Flight reveals its defenses for 3 days. It has a Picket Fence, a Tin-Can Alarm, a Guard Goose and 3 Smoothie Bros with paddleboards. The win chance settles at about 80%, counting the detection roll and the help a spotted raid can meet.
-3. **Plan.** Objective: Shakedown, with expected loot of about $1,555, one day of the Kiosk's profit. Time: tonight, leaving at 01:00 for a trip of 1.5 game hours across the Maple Row–Boardwalk border. Nothing shows in red: a night raid costs no Reputation, and 3.3 stars is far above the Citation line. The Planner flags that Dex's and Rosa's posts at the Corner sit empty until about 04:20.
+3. **Plan.** Objective: Shakedown, with expected loot of about $1,465, one day of the Kiosk's profit. Time: tonight, leaving at 01:00 for a trip of 1.5 game hours across the Maple Row–Boardwalk border. Nothing shows in red: a night raid costs no Reputation, and 3.3 stars is far above the Citation line. The Planner flags that Dex's and Rosa's posts at the Corner sit empty until about 04:20.
 4. **01:00 Approach.** The raid arrow crosses the map in about 12 real seconds. Detection is 50% + 15% cans + 15% goose − 25% at night = 55%. The roll misses, so the Blenders get no warning or help, and your squad gets a first strike: +25% damage for 5 seconds.
 5. **02:30 Breach.** The clock slows to 1 game minute per real second. HONK: the goose stuns the first guard to the fence, Dex, for 3 seconds ("a tactical pause," he says later). The other 4 chop through the Picket Fence's 150 HP in 3 seconds. Meanwhile the Bros swing over it at 22.5 a hit (18 plus their 25% fence-line bonus), each at the guard across the fence from it: Dex, Rosa and Big Lou take 67.5 each, and Pip and Marnie none.
 6. **Brawl.** It's 5 against 3, and the Bros' bonus fell with the fence. The squad spreads its swings the same way, so two Bros drop together at 7.5 seconds. With 2 of 3 down, the last one rolls Nerve and bolts for the pier. None of your guards is knocked out.
-7. **Objective.** With no Bro standing, the squad spends 10 game minutes at the till and walks out at 02:48 with about $1,555.
+7. **Objective.** With no Bro standing, the squad spends 10 game minutes at the till and walks out at 02:48 with about $1,465.
 8. **Aftermath.** Everyone walks home on their own feet, so nobody misses a day; a guard KO'd by a club would be Out for 1 day, and by a hatchet 2. Nobody was left behind, so nobody can be Nabbed. The squad is home by 04:20, and the Corner's posts are filled again.
 9. **Grudge and Reputation.** Reputation doesn't move because it was night; by day the same raid would cost 0.1 star. Brock's Grudge toward you jumps, and at dawn he calls: "Bro. That was my rent money." The Corkboard pins his likeliest target, and Defenses shows his reply on Day 26.
-10. **The money.** Cash and Success Score rise by about $1,555, most of the $1,750 the squad's clubs and vests cost, and the kit is still theirs for the next raid. With nobody hurt, there's no other bill.
+10. **The money.** Cash and Success Score rise by about $1,465, most of the $1,750 the squad's clubs and vests cost, and the kit is still theirs for the next raid. With nobody hurt, there's no other bill.
 
 ## Glossary
 
@@ -2740,7 +2740,7 @@ These design calls were settled with the auditors' recommended defaults while Be
 - **Fights in turn.** One fight plays at a time. A raid on you that reaches its plot during another fight waits at the plot's edge and goes in live as that fight ends, and your own raids that land meanwhile are fought at once and replayed. Before: the docs were silent on fights that overlap.
 - **Combat anchors.** A Threat 1 raid of 3 fists fails about 78% of the time against a Picket Fence and one fists guard, and real Threat 1 parties (2–3 fists) about 92%. A fully kitted L5 plot holds against a Threat 4 raid about 80% of the time behind a P4 and nearly always behind a P5. Threat 4 and 5 raiders both wear Pro Gear, 6 in 10 with hatchets and the rest with clubs. Before: about 60% and about 75%.
 - **Rally cue.** The fight bar shows each side's standing count against the mark where its one Nerve roll comes, so you can time a Rally to cover it. Before: no cue.
-- **Walkthrough figures (Days 24 and 26).** The unscouted Planner reads about 49–83% and the scouted one about 80%, counting the detection roll and the help a spotted raid meets. The Day 24 Shakedown takes about $1,555 and no guard is knocked out, and on Day 26 Brock's raid takes about $521 from a Kiosk with only a Picket Fence and Dex. Five clubs need about 74 seconds to chop through 2,500 HP of fence; real Barbed Wire's sting knocks them out first. Before: 40–85%, 81%, $2,400 with Pip Out for 1 day, $800 and 75 seconds.
+- **Walkthrough figures (Days 24 and 26).** The unscouted Planner reads about 49–83% and the scouted one about 80%, counting the detection roll and the help a spotted raid meets. The Day 24 Shakedown takes about $1,465 and no guard is knocked out, and on Day 26 Brock's raid takes about $431 from a Kiosk with only a Picket Fence and Dex (the 2026-11-14 retune's $150 Kiosk upkeep took $90 off each day of profit: $1,555 and $521 before). Five clubs need about 74 seconds to chop through 2,500 HP of fence; real Barbed Wire's sting knocks them out first. Before: 40–85%, 81%, $2,400 with Pip Out for 1 day, $800 and 75 seconds.
 - **Fall Back in the tutorial raid.** Any fence or guard sends Night 3's Bros home, unless your guards Fall Back and give the fight up. Before: any fence or guard sent them home.
 - **How rival help travels.** Help sets out when your raid does and walks at raid pace, about 1–2 game hours from a nearby plot, so it's nearly always there by contact. Your own reserves take Ring the Bell's 30 game minutes from the same district, 60 from a bordering one. Before: the defender "sends help", with no timing.
 - **HQ assaults as night fights.** An assault at Morning Prep, in the Evening or at night is a night fight (no Reputation, Night Owls hit 25% harder), and the HQ win rates are measured at Morning Prep. Each Yard's henchmen stand a level above the rest of their HQ's. Before: the docs didn't say when an assault counts as night, and called the Yard's henchmen elite.

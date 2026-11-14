@@ -243,7 +243,7 @@ describe('what a Faction Buyout buys', () => {
     const lot = ownedPlots(s, 'blenders').find((p) => p.type !== 'hq')!.id;
     const ps = s.plots[lot];
     ps.stand = newStand(3);
-    ps.invested = 3500 + 400 + 150 + 500;
+    ps.invested = 5500 + 400 + 150 + 500;
     ps.defense = { tier: 1, fenceHp: 100, gadgets: [] };
     s.rivals.blenders.cash = 10_000;
     return { s, lot };

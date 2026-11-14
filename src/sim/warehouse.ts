@@ -3,7 +3,9 @@
 // Where to build it"). It is a facility (FACILITIES in vip.ts), so fences, gadgets, its 3 guard posts, raids, smashing and
 // rebuilds come with PlotState.facility. Here is what it does for the stands of yours in its district:
 // - Market runs: while open, a stand there that holds less than an hour's pour is topped up to what it can still sell,
-//   at the Market's price (without one, Auto-Restock stocks a stand at dawn and at opening only).
+//   at the Market's price (without one, Auto-Restock stocks a stand at dawn and at opening only). The last run before
+//   the 19:00 Local Order pour also tops up a stand short of the cups it owes them ("filled from stands and the
+//   Warehouse").
 // - The sugar store ("Sugar keeps: a stocked Warehouse rides it out"): on a dawn the Market's sugar is at or under its
 //   normal price, the Warehouse fills up for WAREHOUSE.sugarDays days of its stands' sugar; on a dearer dawn (a Sugar
 //   Shortage) those stands take the stored sugar first, at what it cost, before Auto-Restock buys the rest.
@@ -14,9 +16,9 @@ import { CUPS_PER_PITCHER, OPEN, SUPPLIES, WAREHOUSE } from './balance.ts';
 import type { DistrictId } from './map.ts';
 import type { GameState } from './economy.ts';
 import { cupsInStock, pitcherNeeds, playerStands, storageFor } from './economy.ts';
-import { autoRestock, bookHelper, registerHelper, restockGoal, restockOn, stockTarget } from './automation.ts';
+import { autoRestock, bookHelper, owedCups, registerHelper, restockGoal, restockOn, stockTarget } from './automation.ts';
 import { pourRate, serviceLeft } from './demand.ts';
-import { facilityPlots } from './vip.ts';
+import { facilityPlots, PICKUP_MINUTE } from './vip.ts';
 import { book } from './ledger.ts';
 import { inspectorClosed } from './damage.ts';
 import { gameOver } from './modes.ts';
@@ -125,15 +127,20 @@ export function warehouseAtDawn(s: GameState): void {
 /**
  * Every game minute while open (tickMinute calls it): each WAREHOUSE.runEvery minutes, a market run for each stand a
  * Warehouse supplies that holds less than an hour's pour and can still sell, topped up to what it can sell by closing
- * (Auto-Restock's goal), at the Market's price.
+ * (Auto-Restock's goal, which counts the cups owed to Local Orders), at the Market's price. The last run before the
+ * Local Order pour (vip.ts PICKUP_MINUTE.local) also runs for a stand that holds less than those owed cups and an hour's
+ * pour, so the order draws on the Warehouse.
  */
 export function warehouseRuns(s: GameState): void {
   if (s.phase !== 'open' || s.minute === OPEN || (s.minute - OPEN) % WAREHOUSE.runEvery !== 0) return;
   const ids = suppliedStands(s);
   if (!ids.length) return;
+  const beforePour = s.minute < PICKUP_MINUTE.local && s.minute + WAREHOUSE.runEvery >= PICKUP_MINUTE.local;
   let spent = 0, runs = 0;
   for (const id of ids) {
-    if (inspectorClosed(s, s.plots[id]) || serviceLeft(s, id) <= 0 || cupsInStock(s, id) >= pourRate(s, id)) continue;
+    if (inspectorClosed(s, s.plots[id])) continue;
+    const owed = beforePour ? owedCups(s, id) : 0;
+    if (owed > 0 ? cupsInStock(s, id) >= owed + pourRate(s, id) : serviceLeft(s, id) <= 0 || cupsInStock(s, id) >= pourRate(s, id)) continue;
     const before = s.cash;
     autoRestock(s, id);
     if (s.cash < before - 1e-9) { runs++; spent += before - s.cash; }

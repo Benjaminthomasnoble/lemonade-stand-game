@@ -6,6 +6,7 @@ import {
   pickupsAtClose, playerStands, PLOT_BY_ID, PLOTS, recipeCost, RIVAL_BID, shippingLane, simulateRestOfDay, sleepUntilDawn, stock, successScore, syndicateFestRaid,
   tripLoad, tripMinutes, VIP_MAX_GAP, VIP_STAR_BONUS, vipAtDawn, YEAR_DAYS, yourDays, type GameState, type Order, type OrderBid,
   grantPage, isPremium, MEGA_PREMIUM_PAGES, RECIPES, tierOpen, DELIVERY_RAID_CHANCE, raidFought, migrateSave, migrateWorld, type BattleReport,
+  AUTO_RESTOCK_DAY, cupsInStock, NO_DEFENSE, standCost, WAREHOUSE, WAREHOUSE_ID, warehouseRuns,
 } from './economy.ts';
 import { rowAmount } from './ledger.ts';
 import { nextRandom } from './rng.ts';
@@ -536,6 +537,35 @@ describe('VIP clients', () => {
     pickupsAtClose(s);
     expect(o.loaded ?? 0).toBe(0);
     expect(s.news.at(-1)).toBe(`Order fell through: ${o.client}. Its stand was smashed. (−0.3 star)`);
+  });
+
+  it("a Local Order draws on the Warehouse in its stand's district: the last run before the pour tops the stand up", () => {
+    const s = newGame(28, { lessons: false });
+    Object.assign(s, { rank: 4, day: AUTO_RESTOCK_DAY, cash: 100_000, phase: 'prep' });
+    const [shed, kiosk] = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner).map((p) => p.id);
+    s.plots[shed] = { ...s.plots[shed], owner: 'player', stand: null, facility: undefined, invested: 0, defense: NO_DEFENSE() };
+    s.plots[kiosk] = { ...s.plots[kiosk], owner: 'player', stand: newStand(3), invested: standCost(3), defense: NO_DEFENSE() };
+    const st = s.plots[kiosk].stand!;
+    // 600 cups on the shelf: five hours' pour at a Kiosk, but 1,500 owed tonight.
+    st.pitcherCups = 0;
+    st.inventory = { lemons: [{ qty: 300, day: s.day, unitCost: 0.2 }], sugar: 600, sugarCost: 0.03, ice: 1800, iceCost: 0.01 };
+    order(s, { id: 'l5', tier: 'local', qty: 1500, pay: 2250, plot: kiosk, due: s.day });
+    const none = structuredClone(s); // the same evening with no Warehouse
+    expect(buildFacility(s, shed, 'warehouse')).toBe(true);
+    for (const g of [s, none]) {
+      g.phase = 'open';
+      g.minute = PICKUP_MINUTE.local - 2 * WAREHOUSE.runEvery; // an earlier run: 600 cups is more than an hour's pour
+      warehouseRuns(g);
+      expect(cupsInStock(g, kiosk)).toBe(600);
+      g.minute = PICKUP_MINUTE.local - WAREHOUSE.runEvery; // 18:45, the last run before the pour
+      warehouseRuns(g);
+      g.minute = PICKUP_MINUTE.local;
+      pickupsAt(g);
+    }
+    expect(s.orders.some((o) => o.id === 'l5')).toBe(false); // all 1,500 poured
+    expect(s.news.some((n) => n.startsWith('Delivered 1,500 cups for'))).toBe(true);
+    expect(s.today.auto?.[WAREHOUSE_ID]?.amount).toBe(1); // one market run
+    expect(none.orders.find((o) => o.id === 'l5')?.loaded).toBe(600); // without it, the shelf is all there is
   });
 
   it('a Local Order goes out on a real business day before the ice melts', () => {

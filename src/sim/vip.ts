@@ -679,8 +679,8 @@ export const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
  * (the pitcher on hand, then whole pitchers from its lemons and sugar, each cup with its ice, an ice machine making what
  * the cooler lacks), the cup and the card's extra paid as they go, and the client paying for each cup. The order goes in
  * the day's books, not the stand's till: a Shakedown takes a day of its walk-in profit (loot.ts). A Warehouse in its
- * district tops the stand up on its market runs, the owed cups included (warehouse.ts, automation.ts restockGoal). A stand
- * the health inspector closed pours nothing until dawn. */
+ * district tops the stand up on its market runs, and its last run before the pour tops it up to the owed cups (warehouse.ts
+ * warehouseRuns, automation.ts restockGoal). A stand the health inspector closed pours nothing until dawn. */
 function pour(s: GameState, o: Order): Pickup | null {
   const plot = localStand(s, o);
   const ps = plot ? s.plots[plot] : undefined;

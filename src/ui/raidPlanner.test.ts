@@ -91,6 +91,25 @@ describe('the Raid Planner', () => {
     expect([...p.squad].sort()).toEqual(s.guards.map((g) => g.id).filter((id) => !fill.includes(id)).sort()); // the two left, filled again
   });
 
+  it('sent so late in the night it gets there after 7am, Tonight is a daytime raid: its stars, and the Citation under the line', () => {
+    const { s, target } = setup(89);
+    s.reputation = 1.8;
+    s.phase = 'night' as GameState['phase'];
+    s.minute = 23 * 60; // it leaves at 01:00 and gets there by night
+    const { p } = planner();
+    for (const g of s.guards) p.squad.add(g.id);
+    const tonight = (html: string) => html.match(/<button[^>]*data-testid="raid-tonight"[^>]*>.*?<\/button>/s)![0];
+    const early = p.panel(s, target);
+    expect(tonight(early)).not.toContain('class="bad"');
+    expect(early).not.toContain('raid-citation');
+    s.minute = 24 * 60 + 6 * 60 + 10; // 06:10: any walk gets there after 07:00
+    const late = p.panel(s, target);
+    expect(tonight(late)).toMatch(/<span class="bad">−0\.[12]/);
+    expect(tonight(late)).toContain('it lands after 7am, by day');
+    expect(late).toMatch(/data-testid="raid-citation"[^>]*>Lands by day: Citation \$\d+, 2-day ban</);
+    expect(late).not.toContain('data-testid="raid-now"'); // no Now at night
+  });
+
   it('lists Smash, Shakedown, Sabotage and HQ Assault: a rank lock hides one, any other lock says why', () => {
     const { s } = setup(83); // three Hotheads: no Lookout, nobody Sneaky
     const target = raidTargets(s).find((t) => s.plots[t.id].owner === 'blenders' && s.plots[t.id].stand)!.id;

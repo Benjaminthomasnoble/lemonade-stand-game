@@ -3,7 +3,7 @@
 // rival HQ's card for its one objective, HQ Assault (the Gate, the Yard, the
 // Boss Room). Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, hqOdds, hqPlot, HQS, inTruce, raidIsNightAt, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
+  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, foughtByDay, hqOdds, hqPlot, HQS, inTruce, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
   SABOTAGE_NEEDS, squadTrip, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
@@ -158,11 +158,15 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       }
       return v;
     };
-    const nightNow = raidIsNightAt(squadTrip(s, id, 'now', ids).at); // the fight's minute decides, after this squad's walk there
-    const night = odds(true), now = odds(nightNow);
-    const stars = raidRepCost(s, ids, objective, nightNow);
+    // The fight's minute decides, after this squad's walk there. Tonight's is night too, unless it's sent so late in the
+    // night that it gets there after 07:00: then it waits for the stands to open, and it's a daytime raid.
+    const nightNow = !foughtByDay(squadTrip(s, id, 'now', ids).at), nightLate = !foughtByDay(squadTrip(s, id, 'tonight', ids).at);
+    const night = odds(nightLate), now = odds(nightNow);
+    const stars = raidRepCost(s, ids, objective, nightNow), starsLate = raidRepCost(s, ids, objective, nightLate);
     const nowOffered = s.phase !== 'report' && s.phase !== 'night';
     const risk = nowOffered ? citationRisk(s, !nightNow) : null; // Sheriff Budd, below the line by day
+    const riskLate = citationRisk(s, !nightLate); // only in the night phase: by day, Tonight leaves at 01:00
+    const cite = risk ?? riskLate;
     const ban = raidBan(s);
     const can = canRaid(s, id, ids, objective);
     // A disabled button carries its reason as the title, so the odds tip only goes on a live one.
@@ -178,8 +182,8 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${!can.ok && /^Get a Foothold/.test(can.why) ? `<span class="cl-note bad" data-testid="raid-foothold" title="Raids go only where you hold a plot: buy one in its district">${k.esc(can.why)}</span>` : ''}
       ${hq && !can.ok && !ban && !/^(Pick|Squad cap|Already)/.test(can.why) ? `<span class="cl-note bad" data-testid="raid-hq-lock">${k.esc(can.why)}</span>` : ''}
       ${ban ? `<span class="cl-note bad" data-testid="raid-ban" title="Sheriff Budd's Citation: no raids or HQ assaults till then">${k.esc(ban.why)}</span>` : ''}
-      ${risk && !ban ? `<span class="cl-note bad" data-testid="raid-citation" title="${k.esc(`Under ${risk.stars} stars, Sheriff Budd cites every daytime raid: about a day's sales, and no raids or HQ assaults for ${risk.banDays} days. Tonight's raids are never cited.`)}">Now earns a Citation: ${k.whole(risk.fine)}, ${risk.banDays}-day ban</span>` : ''}
-      <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"${tip(`${chance(night)} to win`)}`, 'go')}
+      ${cite && !ban ? `<span class="cl-note bad" data-testid="raid-citation" title="${k.esc(`Under ${cite.stars} stars, Sheriff Budd cites every daytime raid: about a day's sales, and no raids or HQ assaults for ${cite.banDays} days. Night raids never are.`)}">${risk ? 'Now earns a Citation:' : 'Lands by day: Citation'} ${k.whole(cite.fine)}, ${cite.banDays}-day ban</span>` : ''}
+      <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight${starsLate ? ` <span class="bad">−${starsLate}${glyph('star')}</span>` : ''}`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"${tip(`${chance(night)} to win${nightLate ? '' : `; it lands after 7am, by day${starsLate ? `: −${starsLate} star` : ''}`}${riskLate ? `; Sheriff Budd's Citation: ${k.whole(riskLate.fine)} and no raids for ${riskLate.banDays} days` : ''}`)}`, 'go')}
       ${!nowOffered ? '' : k.btn('raid', `Now${stars ? ` <span class="bad">−${stars}${glyph('star')}</span>` : ''}`, can, `data-plot="${id}" data-when="now" data-testid="${hq ? 'assault' : 'raid-now'}"${tip(`${chance(now)} to win now${stars ? `; customers see it: −${stars} star` : nightNow ? ': it lands after dark, so no Reputation cost' : ': Gentle Giants alone, so no Reputation cost'}${risk ? `; Sheriff Budd's Citation: ${k.whole(risk.fine)} and no raids for ${risk.banDays} days` : ''}`)}`)}</div></div>`;
   }
 

@@ -7,10 +7,10 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, foughtByDay, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GADGETS, GUARD_BASE, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { CLOSE, GADGETS, GUARD_BASE, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -20,7 +20,7 @@ import { BORDERS, DISTRICT_BY_ID, PLOT_BY_ID, withinTwo } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
 import { canAssault, hqPlot, makeTruce, stormHQ, type AssaultResult } from './rivals.ts';
-import { nightStep, squadHome, startNight, travelMinutes } from './night.ts';
+import { nightStep, squadHome, squadTrip, startNight, travelMinutes } from './night.ts';
 import { festivalDays } from './calendar.ts';
 import { canSaveTemplate, dropTemplate, saveTemplate, switchTemplates, templateAt, templates, templatesOn, TEMPLATES_ID } from './templates.ts';
 import { helperLines } from './automation.ts';
@@ -1016,6 +1016,27 @@ describe("Sheriff Budd's Citation", () => {
     expect(citationRisk(t, true)).toBeNull();
     expect(planRaid(t, c, [t.guards[0].id], 'smash', 'now')).toBe(true);
     expect(t.cash).toBe(2000);
+  });
+
+  it('a raid sent so late tonight that it gets there after 07:00 waits for the stands: a daytime raid, star and Citation', () => {
+    const { s, a } = cited(91);
+    s.phase = 'night' as GameState['phase']; // late in the night, as startNight leaves it
+    s.minute = MINUTES_PER_DAY + 6 * 60 + 10; // 06:10: any walk ends after 07:00
+    const trip = squadTrip(s, a, 'tonight', [s.guards[0].id]);
+    expect(trip.at).toBeGreaterThan(NIGHT_END);
+    expect(foughtByDay(trip.at)).toBe(true);
+    expect(foughtByDay(NIGHT_END)).toBe(false); // 07:00 itself is still the night's clock
+    expect(planRaid(s, a, [s.guards[0].id], 'shakedown', 'tonight')).toBe(true);
+    expect(s.cash).toBe(1500);
+    expect(s.citations?.written).toEqual([{ day: s.day, fine: 500, target: a }]);
+    sleepUntilDawn(s);
+    openStand(s);
+    const before = s.reputation;
+    let report: BattleReport | undefined;
+    while (!report && s.phase === 'open') for (const e of tickMinute(s)) if (e.type === 'fight') report = e.report;
+    expect(report?.target).toBe(a);
+    expect(report?.night).toBeUndefined(); // by day, as the stands open
+    expect(s.reputation).toBe(Math.round((before - 0.1) * 100) / 100);
   });
 
   it('reads the stars before a broken truce costs one, never fines more than the till, and bans HQ assaults too', () => {

@@ -5,7 +5,7 @@
 import {
   BUILDING_POSTS, BUSTED_REPAIR_SHARE, LESSON_DAY, SIDE_LOT, CAPTAIN, CLOSE, CLUBHOUSE, COMBAT, DAYTIME_RAID_REP, DETECTION_BASE, DETECTION_CAP,
   DUTY_DAYS_PER_LEVEL, EAGLE_EYE_DETECTION, FACTIONS, FORMER_RIVAL, GADGETS, GADGET_SLOTS, GEAR, GUARD_BASE, GUARD_FEE, GUARD_LEVEL_TITLES, GUARD_WAGE,
-  GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_STEALTH, OPEN, PERIMETERS,
+  GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_END, NIGHT_STEALTH, OPEN, PERIMETERS,
   PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
   RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
   STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, WEAPONS, WRECKER_CHOP,
@@ -713,6 +713,9 @@ export function detectionChance(s: GameState, plotId: string, night: boolean, sn
 export const raidIsNightAt = (minute: number) => minute < OPEN || minute >= CLOSE;
 /** Is it night on the clock now? A raid's fight minute decides whether it is a night raid. */
 export const raidIsNight = (s: GameState) => raidIsNightAt(s.minute);
+/** A raid that gets there at `at` (on today's clock, past midnight counting on from 1,440) is fought by day: in business
+ * hours, or after 07:00, when the squad still on the road waits for the stands to open (Morning Prep runs no clock). */
+export const foughtByDay = (at: number) => at > NIGHT_END || !raidIsNightAt(at);
 
 /** Stars a raid fought now costs: 0.1 by day (0.2 for a Smash), nothing at night, nothing when Gentle Giants go alone. */
 export function raidRepCost(s: GameState, guardIds: string[], objective: RaidObjective, night = raidIsNight(s)): number {
@@ -924,7 +927,7 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   if (objective === 'sabotage') raid.sabotage = true;
   if (objective === 'hq') raid.assault = true; // the Gate, the Yard and the Boss Room once it gets there (fight.ts)
   // Sheriff Budd reads your stars before the raid (or a broken truce) costs any; the fight's minute makes it a daytime raid.
-  const cited = !!citationRisk(s, !raidIsNightAt(squadTrip(s, plotId, when, guardIds).at));
+  const cited = !!citationRisk(s, foughtByDay(squadTrip(s, plotId, when, guardIds).at));
   breakTruce(s, s.plots[plotId].owner as RivalId);
   const sent = sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
   if (cited) cite(s, plotId);

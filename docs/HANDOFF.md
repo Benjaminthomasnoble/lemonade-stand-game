@@ -111,10 +111,10 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 
 **Audio** (`src/audio.ts`, the music thread):
 
-- The adaptive score: day, night and raid music, Lottie's Theme layers by rank, the faction leitmotifs (Snootwater's too) and the Syndicate medley.
-- Threat tension layers; Calm Audio must mute them through `createAudio`'s `calm()` (`calmAudioOn(state.settings)`).
+- The adaptive score: day, night and raid music, Lottie's Theme layers by rank, and the Syndicate medley. Done (synthesized in `src/audio.ts`, cued by `audioCues` in main.ts): short faction leitmotifs (Snootwater's too) on boss phone calls, rival jingles on 101.5 and Snootwater's arrival; a retired jingle's second of dead air; still to do: motifs under raids, at HQs and in exit scenes.
+- Threat tension layers: done (`audio.threat(level)`: T3 drone, T4 pizzicato, T5 cane tap; Calm Audio and mute silence them).
 - The six mix sliders (Music, Radio, Voice, Effects, Alerts, Ambience) and their ducking; today there's one mute button.
-- The Regatta horn: `audio.horn()` plays only in a ship show (`onHorn`, `src/world/vip.ts`), not with `shipDocks`' "Just the wind" line (beats.ts).
+- The Regatta horn: done; `audio.horn()` also plays when the first ship docks (`state.story.vip.docked`, watched by `audioCues`).
 
 ### 2. The pacing decision (pending)
 

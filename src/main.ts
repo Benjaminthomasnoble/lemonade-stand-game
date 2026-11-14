@@ -22,11 +22,13 @@ import { ringTheBell } from './sim/reinforce.ts';
 import { autoDefendOn, cycleDefendPriority, setAutoDefend } from './sim/autodefend.ts';
 import { settleCaptive } from './sim/captives.ts';
 import { atOnce, fightCommand, fightFrame, fightStatus, finishFight, liveReport, watchFights } from './sim/fight.ts';
-import { createAudio, STINGER_CHOKE_SECONDS, TICK_SECONDS, type Stinger } from './audio.ts';
+import { RADIO_LINE_MS, soundtrack } from './ui/radio.ts';
+import { createAudio, STINGER_CHOKE_SECONDS, TICK_SECONDS, type Motif, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
+import { airedToday, morningShow, radioOn, RIVAL_JINGLES, threatLevel } from './sim/economy.ts'; // audio cues (threat layers, radio leitmotifs)
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
 import { runBulk, setPolicy, togglePolicyPlot } from './sim/economy.ts'; // land: bulk orders and district policies (src/sim/policies.ts)
 import { gullScout, pierTarget, scoutWithLookout } from './sim/scouting.ts';
@@ -780,7 +782,12 @@ async function main() {
   window.addEventListener('pagehide', saveNow);
   if (saveUnreadable()) hud.toast("Couldn't read your saved game. It's kept aside.");
   const bugle = createBugle(document.getElementById('ui')!);
-  const phone = createPhone(document.getElementById('ui')!, (boss, line) => { audio.ring(); setTimeout(() => { audio.babble(line, 0.9, 'flat'); twins?.caption(HQS[boss].boss, line); }, 700); });
+  // A boss's call opens on their gang's leitmotif (spec: Faction leitmotifs), then the ring.
+  const phone = createPhone(document.getElementById('ui')!, (boss, line) => {
+    audio.motif(boss);
+    const lead = 1600;
+    setTimeout(() => { audio.ring(); setTimeout(() => { audio.babble(line, 0.9, 'flat'); twins?.caption(HQS[boss].boss, line); }, 700); }, lead);
+  });
   document.getElementById('ui')!.prepend(bubbleLayer);
   // Tape queue counters, HP pills and raid snakes ride over the world, under the HUD (src/world/markers.ts).
   const markerLayer = document.createElement('div');
@@ -813,6 +820,32 @@ async function main() {
   hud.muted = audio.muted();
   // First visit (no save, no pinned seed): pick a mode and difficulty before the first morning.
   if (!saved && !seedParam) { hud.setup = { settings: defaultSettings(), cancel: false }; hud.leaderboard = loadLeaderboard(); }
+  // Music cues from the sim (spec: Adaptive music): the Threat level's tension layers, the rival jingles' leitmotifs and
+  // a retired jingle's second of dead air as their lines air on 101.5, Snootwater's motif when it comes to town, and
+  // the first ship's horn (the first 3 notes of Lottie's Theme) as it docks.
+  let cueWait = 0, lastLine = '', snootHere = -1, docked: boolean | undefined;
+  const motifOf = (text: string) => (Object.keys(RIVAL_JINGLES) as RivalId[]).find((r) => text.includes(RIVAL_JINGLES[r])) as Motif | undefined;
+  const audioCues = (realDt: number) => {
+    audio.threat(state.outcome ? 0 : threatLevel(state));
+    if ((cueWait -= realDt) > 0) return;
+    cueWait = 0.5;
+    const dock = !!state.story?.vip?.docked;
+    if (docked === false && dock) audio.horn();
+    docked = dock;
+    const snoot = Object.values(state.plots).filter((p) => p.owner === 'snootwater').length;
+    if (snootHere === 0 && snoot > 0) audio.motif('snootwater');
+    snootHere = snoot;
+    if (!radioOn(state, soundtrack())) { lastLine = ''; return; }
+    const show = state.phase === 'prep' ? morningShow(state) : airedToday(state).slice(-1);
+    const on = state.phase === 'prep' ? show[Math.floor(performance.now() / RADIO_LINE_MS) % Math.max(1, show.length)] : show[0];
+    if (!on || on.text === lastLine) return;
+    const first = lastLine === '';
+    lastLine = on.text;
+    if (first) return; // tuning in mid-line plays nothing
+    if (on.kind === 'rival') { const m = motifOf(on.text); if (m) audio.motif(m); }
+    else if (on.kind === 'silence') audio.deadAir(1);
+  };
+
   const flushNews = () => {
     if (!state.news.length) return;
     const cards = alertTexts(state); // alerts show as cards in the feed, not as toasts
@@ -1010,6 +1043,7 @@ async function main() {
     const ticks = !state.fight && (state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume && performance.now() >= tickHold ? raidTicks(state) : 0;
     if (!ticks) tickIn = 0;
     else if ((tickIn -= realDt) <= 0) { audio.tick(); tickIn = Math.max(tickIn, -0.05) + TICK_SECONDS / ticks; }
+    audioCues(realDt);
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it. The
     // Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
     const due = waitStep(state, options, { ledger: hud.ledger, frozen, paper, speed: knob.speed }, waits, realDt, dt);

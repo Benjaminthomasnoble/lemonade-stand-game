@@ -18,7 +18,7 @@ class FakeAudio {
   addEventListener() {}
   removeEventListener() {}
 }
-const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
+const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {}, setTargetAtTime() {} });
 class FakeContext {
   currentTime = 0;
   destination = {};
@@ -67,5 +67,39 @@ describe('the raid countdown and Calm Audio', () => {
     audio.tick();
     audio.stinger('raid-incoming');
     expect([oscillators, played.length]).toEqual([0, before]);
+  });
+});
+
+describe('threat layers, leitmotifs and dead air', () => {
+  it('the tension layers start at Threat 3 and Calm Audio keeps them silent', () => {
+    let calm = true;
+    const audio = createAudio(() => calm);
+    audio.start();
+    audio.threat(5);
+    expect(oscillators).toBe(0); // Calm Audio: no drone, no pizzicato, no cane
+    calm = false;
+    audio.threat(2);
+    expect(oscillators).toBe(0); // below Threat 3: the theme alone
+    audio.threat(3);
+    expect(oscillators).toBe(4); // the drone: three saws and their swell
+    audio.threat(3);
+    expect(oscillators).toBe(4); // it holds, it isn't rebuilt each frame
+    audio.threat(5);
+    expect(oscillators).toBeGreaterThan(4); // pizzicato on the beat, and the cane tap
+  });
+
+  it('each gang has its own motif; muted, nothing plays; dead air drops the bed', () => {
+    const audio = createAudio();
+    audio.start();
+    for (const m of ['sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders', 'snootwater'] as const) {
+      const before = oscillators;
+      audio.motif(m);
+      expect(oscillators, m).toBeGreaterThanOrEqual(before + 4);
+    }
+    audio.deadAir(1);
+    audio.toggle(); // mute
+    const before = oscillators;
+    audio.motif('sourwood');
+    expect(oscillators).toBe(before);
   });
 });

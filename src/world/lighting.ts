@@ -43,7 +43,9 @@ export const LOOKS: Record<Script, Look> = {
   night: look({ sun: '#ffcf9c', sunI: 1.5, sunDir: [-25, 20, -2], sky: '#6a68b8', ground: '#2e2a4f', hemiI: 0.85, fog: '#2a2340', exposure: 1.22, glow: 2.4, windows: 1.6, pools: 0.85, vig: 0.58, vigTint: '#2a2060', env: 0.35, night: 1, shade: ['#4f4ab8', 0.45], shadowI: 0.95, sat: 1.06 }),
 };
 
-const KEYS: [number, Script][] = [[7.5, 'dawn'], [8.5, 'noon'], [16.5, 'noon'], [17.5, 'golden'], [19.5, 'golden'], [20.25, 'night']];
+// Night hours count on past midnight (the sim's night clock runs to 1,860 minutes, 31:00): night holds to 06:00 (30),
+// then blends into dawn by 07:00, when Morning Prep picks up at dawn.
+const KEYS: [number, Script][] = [[7.5, 'dawn'], [8.5, 'noon'], [16.5, 'noon'], [17.5, 'golden'], [19.5, 'golden'], [20.25, 'night'], [30, 'night'], [31, 'dawn']];
 /**
  * The lamps (the clay glow channel: clay-snake neon, string lights, bulbs and lamplit windows; and the streetlight
  * pools and halos) are switches, not a blend: off from the open at 08:00, when the streetlights click off, until
@@ -67,12 +69,15 @@ function scriptAt(hour: number, out: Look): Look {
       return mixLook(out, LOOKS[s0], LOOKS[s1], t * t * (3 - 2 * t));
     }
   }
-  return copyLook(out, LOOKS.night);
+  return copyLook(out, LOOKS[KEYS[KEYS.length - 1][1]]);
 }
 
-/** The game hour the lights follow for a phase: Morning Prep is dawn, the business day runs on the clock, after closing is night. */
+/** The game hour the lights follow for a phase: Morning Prep is dawn, and the business day and the night run on the
+ * clock (night hours past midnight count on from 24, so 03:00 is 27 and the night ends at 31, 07:00). */
 export function hourOf(phase: Phase, minute: number): number {
-  return phase === 'prep' ? 7 : phase === 'open' ? minute / 60 : 21.5;
+  if (phase === 'prep') return 7;
+  if (phase === 'open') return minute / 60;
+  return Math.max(20, Math.min(31, minute / 60)); // the report and the night: dusk into night, then the dawn blend
 }
 
 /** Weather on top of a look: cloud and rain dim the sun and grey the air. */

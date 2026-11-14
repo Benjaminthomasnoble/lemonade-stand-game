@@ -2,7 +2,7 @@
 // and the one reduced-motion setting the world listens to. (No DOM: plain materials stand in for clay.)
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { LAMPS, lookAt } from './lighting.ts';
+import { LAMPS, hourOf, lookAt } from './lighting.ts';
 import { collectClay } from './clay/bake.ts';
 import { Baker } from './clay/core.ts';
 import { onReducedMotion, reducedMotion, setReducedMotion } from './clay/kit.ts';
@@ -26,6 +26,25 @@ describe('lighting: the lamps are a switch', () => {
     expect(prep.glow).toBe(0);
     expect(prep.pools).toBeGreaterThan(0);
     expect(lookAt(LAMPS.off).pools).toBe(0);
+  });
+});
+
+describe('lighting: the night follows the clock', () => {
+  it('runs the night on the sim clock past midnight, from dusk to the dawn blend', () => {
+    expect(hourOf('prep', 420)).toBe(7);
+    expect(hourOf('open', 720)).toBe(12);
+    expect(hourOf('night', 1260)).toBe(21);
+    expect(hourOf('night', 1620)).toBe(27); // 03:00
+    expect(hourOf('night', 1860)).toBe(31); // 07:00, Morning Prep next
+  });
+
+  it('holds night until 06:00, then blends into the dawn Morning Prep opens on', () => {
+    const night = lookAt(27), late = lookAt(30), mid = lookAt(30.5), end = lookAt(31), prep = lookAt(7);
+    expect(late.night).toBeCloseTo(night.night);
+    expect(mid.night).toBeLessThan(late.night);
+    expect(mid.night).toBeGreaterThan(end.night);
+    expect(end.night).toBeCloseTo(prep.night);
+    expect(end.sunI).toBeCloseTo(prep.sunI);
   });
 });
 

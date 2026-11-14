@@ -38,7 +38,33 @@ export interface Audio {
   tick(): void;
   /** Beats into the theme while it plays (120 BPM, first beat 0.12 s in), else null: idle bobs keep its time. */
   beat(): number | null;
+  /**
+   * The Threat level's tension layers under everything (call each frame with threatLevel(s)): from Threat 3 a low guitar
+   * drone, from 4 pizzicato strings on the beat, at 5 a cane tap every other beat. Calm Audio and mute silence them.
+   */
+  threat(level: number): void;
+  /** A faction's leitmotif, a few synthesized notes in its own voice (rival jingles on the radio, a boss's phone call). */
+  motif(faction: Motif): void;
+  /** Dead air: the bed drops out for `seconds` (a retired rival's jingle slot on 101.5). */
+  deadAir(seconds?: number): void;
 }
+
+export type Motif = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders' | 'snootwater';
+/** Each gang's leitmotif: notes as [Hz, start s, length s], a voice and a level. The theme sits around D minor (F-A-D). */
+const MOTIFS: Record<Motif, { voice: OscillatorType; notes: [number, number, number][]; gain: number; decay: number; vibrato?: number; lp?: number }> = {
+  // Vera's Sourwoods: a harpsichord waltz in C harmonic minor (96 BPM), prim and icy
+  sourwood: { voice: 'square', gain: 0.03, decay: 0.25, lp: 2600, notes: [[523.3, 0, 0.28], [622.3, 0.31, 0.28], [784, 0.62, 0.28], [493.9, 0.94, 0.28], [523.3, 1.25, 0.55]] },
+  // Hollis Sweet Tea: a banjo roll in G Mixolydian (116 BPM), a stubborn porch stomp
+  hollis: { voice: 'triangle', gain: 0.07, decay: 0.18, notes: [[392, 0, 0.12], [493.9, 0.13, 0.12], [587.3, 0.26, 0.12], [698.5, 0.39, 0.2], [587.3, 0.65, 0.4]] },
+  // FizzCo: a bubbly synth arpeggio rising through C Lydian (128 BPM), a shiny jingle
+  fizzco: { voice: 'sine', gain: 0.06, decay: 0.12, notes: [[523.3, 0, 0.1], [659.3, 0.117, 0.1], [740, 0.234, 0.1], [784, 0.35, 0.1], [1046.5, 0.47, 0.3]] },
+  // Cold Brew: a lazy electric piano in D Dorian (80 BPM), behind the beat
+  coldbrew: { voice: 'triangle', gain: 0.06, decay: 0.6, lp: 1200, notes: [[293.7, 0, 0.5], [349.2, 0.4, 0.5], [440, 0.78, 0.5], [493.9, 1.1, 0.4], [523.3, 1.45, 0.8]] },
+  // The Boardwalk Blenders: a galloping surf-guitar run in D Mixolydian (152 BPM), beach-bro party rock
+  blenders: { voice: 'sawtooth', gain: 0.045, decay: 0.15, lp: 1400, notes: [[146.8, 0, 0.09], [146.8, 0.1, 0.09], [185, 0.2, 0.09], [220, 0.3, 0.09], [261.6, 0.4, 0.09], [293.7, 0.5, 0.4]] },
+  // Snootwater Springs: a glass harmonica up high, with a snooty wobble
+  snootwater: { voice: 'sine', gain: 0.05, decay: 0.7, vibrato: 6, notes: [[1318.5, 0, 0.45], [1975.5, 0.35, 0.45], [1661.2, 0.7, 0.45], [2637, 1.05, 0.8]] },
+};
 
 /** Calm Audio (spec: Mix and accessibility): `calm` says whether it is on. While it is, the countdown plays no ticks
  * and the Raid Incoming stinger plays at CALM_RAID_VOLUME. */
@@ -61,6 +87,11 @@ export function createAudio(calm: () => boolean = () => false): Audio {
   let ctx: AudioContext | null = null;
   let lastDing = 0;
   let lastBabble = 0;
+  // the tension layers: a drone that fades in and out, and notes scheduled a little ahead of the audio clock
+  let drone: { gain: GainNode; stop(): void } | null = null;
+  let nextPulse = 0, pulseN = 0;
+  let deadUntil = 0;
+  const PULSE = 0.5; // the theme's 120 BPM
 
   return {
     start() {
@@ -188,6 +219,89 @@ export function createAudio(calm: () => boolean = () => false): Audio {
           o.stop(t + len + 0.01);
         }
       } catch { /* no Web Audio */ }
+    },
+    threat(level) {
+      const on = started && !muted && !calm();
+      if (!ctx && !on) return;
+      try {
+        ctx ??= new AudioContext();
+        const c = ctx, now = c.currentTime;
+        // T3+: a low guitar drone on D, two detuned saws through a dark filter with a slow swell
+        const want = on && level >= 3 ? 0.018 + (level - 3) * 0.006 : 0;
+        if (want && !drone) {
+          const gain = c.createGain(); gain.gain.value = 0.0001;
+          const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+          const lfo = c.createOscillator(), depth = c.createGain(); lfo.frequency.value = 0.18; depth.gain.value = 120;
+          lfo.connect(depth).connect(lp.frequency);
+          const oscs = [73.42, 73.42 * 1.004, 110].map((f) => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(lp); o.start(); return o; });
+          lfo.start();
+          lp.connect(gain).connect(c.destination);
+          drone = { gain, stop: () => { for (const o of [...oscs, lfo]) o.stop(); } };
+        }
+        if (drone) {
+          const g = drone.gain.gain;
+          if (Math.abs(g.value - Math.max(want, 0.0001)) > 0.001) { g.cancelScheduledValues(now); g.setTargetAtTime(Math.max(want, 0.0001), now, 1.2); }
+          if (!want && g.value < 0.0005) { const d = drone; drone = null; d.stop(); }
+        }
+        if (!on || level < 4) { nextPulse = 0; return; }
+        if (nextPulse < now) nextPulse = now + 0.05;
+        // T4+: pizzicato strings on each beat (D A F A); T5: a cane tap on every other beat
+        const PIZZ = [146.83, 220, 174.61, 220];
+        while (nextPulse < now + 0.25) {
+          const t = nextPulse;
+          const o = c.createOscillator(), g = c.createGain();
+          o.type = 'triangle'; o.frequency.value = PIZZ[pulseN % 4];
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.035, t + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+          o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.24);
+          if (level >= 5 && pulseN % 2 === 0) {
+            // a cane's rubber tip on the boardwalk: a low knock with a hard click on top
+            for (const [f, v, len] of [[180, 0.06, 0.07], [1400, 0.015, 0.015]] as const) {
+              const k = c.createOscillator(), kg = c.createGain();
+              k.type = 'sine'; k.frequency.setValueAtTime(f, t); k.frequency.exponentialRampToValueAtTime(f * 0.7, t + len);
+              kg.gain.setValueAtTime(v, t); kg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+              k.connect(kg).connect(c.destination); k.start(t); k.stop(t + len + 0.01);
+            }
+          }
+          pulseN++;
+          nextPulse += PULSE;
+        }
+      } catch { /* no Web Audio */ }
+    },
+    motif(faction) {
+      if (muted || !started) return;
+      const m = MOTIFS[faction];
+      if (!m) return;
+      try {
+        ctx ??= new AudioContext();
+        const c = ctx, t0 = c.currentTime + 0.03;
+        let end = 0;
+        for (const [f, at, len] of m.notes) {
+          const t = t0 + at, o = c.createOscillator(), g = c.createGain();
+          o.type = m.voice; o.frequency.value = f;
+          if (m.vibrato) { const v = c.createOscillator(), vg = c.createGain(); v.frequency.value = m.vibrato; vg.gain.value = f * 0.012; v.connect(vg).connect(o.frequency); v.start(t); v.stop(t + len + m.decay); }
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(m.gain, t + 0.012);
+          g.gain.setValueAtTime(m.gain, t + len * 0.6);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + len + m.decay);
+          let out: AudioNode = g;
+          if (m.lp) { const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = m.lp; g.connect(lp); out = lp; }
+          o.connect(g); out.connect(c.destination);
+          o.start(t); o.stop(t + len + m.decay + 0.02);
+          end = Math.max(end, at + len + m.decay);
+        }
+        // the bed ducks under the motif, as under a stinger
+        ducks++;
+        bed.volume = BED_VOLUME * DUCK;
+        window.setTimeout(() => { ducks = Math.max(0, ducks - 1); if (!ducks && performance.now() >= deadUntil) bed.volume = BED_VOLUME; }, (end + 0.1) * 1000);
+      } catch { /* no Web Audio */ }
+    },
+    deadAir(seconds = 1) {
+      if (muted || !started) return;
+      deadUntil = performance.now() + seconds * 1000;
+      bed.volume = 0;
+      window.setTimeout(() => { if (performance.now() >= deadUntil) bed.volume = ducks ? BED_VOLUME * DUCK : BED_VOLUME; }, seconds * 1000 + 10);
     },
     ding(big = false) {
       if (muted || !started) return;

@@ -599,14 +599,15 @@ export const RESPECT_DAYS = 3;
 /** Rival raids on the player per week, by Threat (Classic). */
 export const RAIDS_PER_WEEK = [1, 2, 3, 4, 6];
 /** Typical raiding party by Threat: size range, weapon odds (fists, clubs, hatchets) and padding; its henchmen fight at
- * the Threat's level (HENCHMEN). Threat 4's Pro Gear and four hatchets in five are placeholders (combat: a fully kitted
- * L5 plot then holds about 75% of Threat 4 raids, canon's anchor; in vests with 30% hatchets it held them all). */
+ * the Threat's level (HENCHMEN). Threat 4's Pro Gear and three hatchets in five are placeholders (combat: a fully kitted
+ * L5 plot behind a P4 then holds about 75% of Threat 4 raids, canon's anchor; in vests with 30% hatchets it held them
+ * all), and Threat 5 ("Full kit") brings no fewer: as many hatchets, a level up. */
 export const RAID_PARTY: { size: [number, number]; weapons: [number, number, number]; gear: GearId }[] = [
   { size: [2, 3], weapons: [1, 0, 0], gear: 'none' },
   { size: [3, 5], weapons: [0.7, 0.3, 0], gear: 'none' },
   { size: [5, 8], weapons: [0.3, 0.7, 0], gear: 'vest' },
-  { size: [8, 12], weapons: [0, 0.2, 0.8], gear: 'pro' },
-  { size: [12, 20], weapons: [0, 0.5, 0.5], gear: 'pro' },
+  { size: [8, 12], weapons: [0, 0.4, 0.6], gear: 'pro' },
+  { size: [12, 20], weapons: [0, 0.4, 0.6], gear: 'pro' },
 ];
 /** Share of raids on the player that are a Smash, by Threat (the rest are Shakedowns). */
 export const SMASH_SHARE = [0, 0.3, 0.6, 0.7, 1];

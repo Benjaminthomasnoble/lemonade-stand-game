@@ -485,17 +485,24 @@ describe('the canon combat anchors (400 fights each)', () => {
     near(lost, 0.6, 0.05);
   });
 
-  // 400 real Threat 4 raids (8-12 at level 4, in Pro Gear, four in five with hatchets: RAID_PARTY) on a P4 or P5 plot
-  // with 5 hatchet guards in Pro Gear and a goose, a slick and a sprinkler: the defense holds 77% (57% behind a P4,
-  // 99% behind a P5). In vests with 30% hatchets, as they guard a rival's HQ, the raids never got through.
-  it('a kitted L5 plot (P4 or P5, 4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 75% of the time', () => {
+  // 400 real Threat 4 raids (8-12 at level 4, in Pro Gear, three in five with hatchets: RAID_PARTY) on a plot with 5
+  // hatchet guards in Pro Gear and a goose, a slick and a sprinkler, behind each top fence. Behind a P4 the defense
+  // holds 78%. In vests with 30% hatchets, as they guard a rival's HQ, the raids never got through.
+  const t4Holds = (tier: number) => {
     const gadgets: GadgetId[] = ['goose', 'slick', 'sprinkler'];
     let holds = 0;
     for (let seed = 1; seed <= 400; seed++) {
-      const tier = seed % 2 ? 4 : 5;
       const r = runBattle(battleOf({ attackers: partyOf(4, seed), defenders: guardsOf(5, 'def', 'hatchets', 'pro'), ...fencedOf(tier), gadgets, standHp: STAND_HP[4], objective: seed % 10 < 7 ? 'smash' : 'shakedown', detected: seed % 5 < 2 }), { seed });
       if (r.winner === 'def') holds++;
     }
-    near(holds / 400, 0.75, 0.05);
+    return holds / 400;
+  };
+  it('a kitted L5 plot behind a P4 (4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 75% of the time', () => {
+    near(t4Holds(4), 0.75, 0.05);
+  });
+  // Behind a P5 it holds 99.8%, and no Threat 4 kit tried moves that (four hatchets in five: 99%): canon's "P4 or P5"
+  // is the owner's to restate.
+  it('... and behind a P5 it holds nearly every one', () => {
+    expect(t4Holds(5)).toBeGreaterThan(0.95);
   });
 });

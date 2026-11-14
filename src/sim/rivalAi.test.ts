@@ -579,7 +579,7 @@ describe('Old Money: elite Stewards', () => {
       expect(raid.attacker).toBe('sourwood');
       return raid.party!;
     };
-    expect(raidBy(9).filter((f) => !f.id.startsWith('sourwood-boss')).every((f) => f.weapon === 'hatchets' && f.level === 5)).toBe(true); // Threat 5 alone is half clubs; Vera herself leads it (threat.ts raidBoss)
+    expect(raidBy(9).filter((f) => !f.id.startsWith('sourwood-boss')).every((f) => f.weapon === 'hatchets' && f.level === 5)).toBe(true); // Threat 5 alone is two in five clubs; Vera herself leads it (threat.ts raidBoss)
     const act4 = raidBy(8);
     expect(act4.every((f) => f.level === 4)).toBe(true); // Threat 4's henchmen, not one up
     expect(act4.some((f) => f.weapon !== 'hatchets')).toBe(true);

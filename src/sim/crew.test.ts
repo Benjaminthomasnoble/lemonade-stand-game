@@ -990,21 +990,36 @@ describe('rival plot defenses', () => {
 describe('rival henchmen', () => {
   const share = (fs: Fighter[], weapon: string) => fs.filter((f) => f.weapon === weapon).length / fs.length;
 
-  it('a Threat 4 raiding party comes in Pro Gear, four in five with hatchets; at home the tier keeps its vests', () => {
+  it('a Threat 4 raiding party comes in Pro Gear, three in five with hatchets; at home the tier keeps its vests', () => {
     const s = newGame(120);
     const rng = { seed: 7 };
     const raiders = Array.from({ length: 40 }, () => raidParty(s, 'fizzco', 4, rng)).flat();
     const home = Array.from({ length: 400 }, (_, i) => henchmanFor(s, 'fizzco', 4, rng, i)); // an HQ's defenders, its help
     expect(raiders.every((f) => f.level === 4 && f.gear === 'pro' && f.armor === GEAR.pro.armor)).toBe(true);
     expect(share(raiders, 'fists')).toBe(0);
-    expect(share(raiders, 'hatchets')).toBeGreaterThan(0.72);
-    expect(share(raiders, 'hatchets')).toBeLessThan(0.88);
+    expect(share(raiders, 'hatchets')).toBeGreaterThan(0.52);
+    expect(share(raiders, 'hatchets')).toBeLessThan(0.68);
     expect(home.every((f) => f.level === 4 && f.gear === 'vest' && f.armor === GEAR.vest.armor)).toBe(true);
     expect(share(home, 'fists')).toBeGreaterThan(0);
     expect(share(home, 'hatchets')).toBeGreaterThan(0.22);
     expect(share(home, 'hatchets')).toBeLessThan(0.38);
-    // At every other Threat a raider is kitted as the tier's henchmen are at home.
-    for (const t of [1, 2, 3, 5]) expect([RAID_PARTY[t - 1].gear, RAID_PARTY[t - 1].weapons]).toEqual([HENCHMEN[t - 1].gear, HENCHMEN[t - 1].weapons]);
+    // At Threats 1-3 a raider is kitted as the tier's henchmen are at home.
+    for (const t of [1, 2, 3]) expect([RAID_PARTY[t - 1].gear, RAID_PARTY[t - 1].weapons]).toEqual([HENCHMEN[t - 1].gear, HENCHMEN[t - 1].weapons]);
+  });
+
+  it('a Threat 5 raiding party ("Full kit") is kitted no lighter than a Threat 4 one, a level up', () => {
+    const [t4, t5] = [RAID_PARTY[3], RAID_PARTY[4]];
+    expect(GEAR[t5.gear].armor).toBeGreaterThanOrEqual(GEAR[t4.gear].armor);
+    expect(GEAR[t5.gear].hp).toBeGreaterThanOrEqual(GEAR[t4.gear].hp);
+    expect(t5.weapons[0]).toBeLessThanOrEqual(t4.weapons[0]); // no more fists
+    expect(t5.weapons[2]).toBeGreaterThanOrEqual(t4.weapons[2]); // no fewer hatchets
+    expect(HENCHMEN[4].level).toBeGreaterThan(HENCHMEN[3].level);
+    const s = newGame(120);
+    const rng = { seed: 9 };
+    const raiders = Array.from({ length: 40 }, () => raidParty(s, 'fizzco', 5, rng)).flat();
+    expect(raiders.every((f) => f.level === 5 && f.gear === t5.gear)).toBe(true);
+    expect(share(raiders, 'hatchets')).toBeGreaterThan(t5.weapons[2] - 0.08);
+    expect(share(raiders, 'hatchets')).toBeLessThan(t5.weapons[2] + 0.08);
   });
 });
 

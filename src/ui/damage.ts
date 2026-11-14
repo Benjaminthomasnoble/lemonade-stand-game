@@ -10,9 +10,9 @@
 // existing classes; clicks go through the HUD's one listener (data-action="repair" and "rebuild" approve,
 // "autoRepair" flips the switch, "goto" flies there).
 import {
-  autoRepairOn, buildingHp, canRebuild, canRepair, clockText, cupsInStock, currentHp, eventDef, expressWindow, FACILITIES, hpShare, hurricaneLoss,
-  hurricaneOn, hurricaneToday, inspectionFault, inspectionOn, inspectionStock, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, pourRate,
-  rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
+  autoRepairOn, autoRepairs, buildingHp, canRebuild, canRepair, clockText, cupsInStock, currentHp, eventDef, expressWindow, FACILITIES, fortifyKeeps,
+  hpShare, hurricaneLoss, hurricaneOn, hurricaneToday, inspectionFault, inspectionOn, inspectionStock, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID,
+  PLOTS, pourRate, rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
@@ -89,13 +89,15 @@ export function rebuildTickets(s: GameState, testid = 'rebuild'): string[] {
   return out;
 }
 
-/** Auto-Repair's switch on a plot of yours with a building (Rank 3 on): on, or this plot skipped. */
+/** Auto-Repair's switch on a plot of yours with a building (Rank 3 on): on, or this plot skipped. Held on while its
+ * district's Fortify policy keeps it on (your skip waits for the policy to end). */
 export function autoRepairToggle(s: GameState, plotId: string): string {
   const ps = s.plots[plotId];
   if (ps?.owner !== 'player' || !(ps.stand || ps.facility) || !autoRepairOn(s)) return '';
-  const on = !ps.noAutoRepair;
-  const tip = on ? 'Fixed overnight by itself. Tap to skip this plot' : 'Auto-Repair skips this plot. Tap to turn it on';
-  return `<button class="cl-toggle${on ? ' on' : ''}" data-action="autoRepair" data-plot="${plotId}" data-testid="auto-repair" aria-pressed="${on}" title="${tip}"><i></i>Auto-Repair</button>`;
+  const held = fortifyKeeps(s, plotId);
+  const on = autoRepairs(s, plotId);
+  const tip = held ? 'Fortify keeps this on' : on ? 'Fixed overnight by itself. Tap to skip this plot' : 'Auto-Repair skips this plot. Tap to turn it on';
+  return `<button class="cl-toggle${on ? ' on' : ''}" data-action="autoRepair" data-plot="${plotId}" data-testid="auto-repair" aria-pressed="${on}"${held ? ' disabled' : ''} title="${tip}"><i></i>Auto-Repair</button>`;
 }
 
 /** The stand panel's card (the Defend tab, beside the fence that guards it): the selected stand's HP meter, its points in

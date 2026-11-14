@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BULK, bulkGroups, bulkMembers, bulkPlan, FACILITIES, helperLines, LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PERIMETERS, PLOTS, runBulk,
   STAND_LEVELS, standCost, type DistrictId, type GameState,
-  canSetPolicy, districtPolicy, landAtDawn, migrateSave, plotPrice, policiesAtDawn, POLICIES, POLICY, priceCeiling, setPolicy, togglePolicyPlot,
+  autoRepairs, canSetPolicy, districtPolicy, landAtDawn, migrateSave, plotPrice, policiesAtDawn, POLICIES, POLICY, priceCeiling, setPolicy, toggleAutoRepair,
+  togglePolicyPlot,
 } from './economy.ts';
 import { defendPriority } from './autodefend.ts';
 import { AUTO_RESTOCK } from './automation.ts';
@@ -190,13 +191,14 @@ describe('district policies (Rank 7)', () => {
     const { s, ids } = tycoon(43);
     s.plots[ids[0]].noAutoRepair = true;
     togglePolicyPlot(s, ids[2]);
+    s.plots[ids[2]].noAutoRepair = true;
     s.phase = 'report';
     const picket = PERIMETERS[0].cost, chain = PERIMETERS[1].cost;
     setPolicy(s, 'oldtown', 'fortify', picket * 2);
     const cash = s.cash;
     nextDawn(s);
     expect(ids.map((id) => s.plots[id].defense.tier)).toEqual([1, 1, 0]);
-    expect(s.plots[ids[0]].noAutoRepair).toBeUndefined();
+    expect(ids.map((id) => autoRepairs(s, id))).toEqual([true, true, false]); // the plot out of the policy keeps its skip
     expect(ids.map((id) => defendPriority(s, id))).toEqual([POLICY.priority, POLICY.priority, 0]);
     expect(s.cash).toBe(cash - picket * 2);
     expect(s.news[s.news.length - 1]).toBe(`Old Town, Fortify: 2 new fences, $${picket * 2}.`);
@@ -207,6 +209,31 @@ describe('district policies (Rank 7)', () => {
     nextDawn(s);
     expect(ids.map((id) => s.plots[id].defense.tier)).toEqual([2, 1, 0]);
     expect(s.today.auto?.[POLICIES]).toMatchObject({ count: 2, amount: 1, spent: chain });
+  });
+
+  it('Fortify keeps Auto-Repair on while it holds, and your skip comes back when it ends', () => {
+    const { s, ids } = tycoon(46);
+    s.plots[ids[0]].noAutoRepair = true; // skipped before the policy
+    s.phase = 'report';
+    setPolicy(s, 'oldtown', 'fortify', 0);
+    nextDawn(s);
+    nextDawn(s); // a dawn after it ran: the skip is still there, held off
+    expect(s.plots[ids[0]].noAutoRepair).toBe(true);
+    expect(autoRepairs(s, ids[0])).toBe(true);
+    expect(toggleAutoRepair(s, ids[1])).toBe(false); // the switch is held on
+    expect(s.plots[ids[1]].noAutoRepair).toBeUndefined();
+    togglePolicyPlot(s, ids[0]); // the plot leaves the policy: its skip is back
+    expect(autoRepairs(s, ids[0])).toBe(false);
+    togglePolicyPlot(s, ids[0]);
+    expect(autoRepairs(s, ids[0])).toBe(true);
+    setPolicy(s, 'oldtown', 'profit'); // Fortify ends
+    nextDawn(s);
+    expect(autoRepairs(s, ids[0])).toBe(false);
+    expect(autoRepairs(s, ids[1])).toBe(true);
+    expect(toggleAutoRepair(s, ids[1])).toBe(true); // and the switch is yours again
+    expect(autoRepairs(s, ids[1])).toBe(false);
+    setPolicy(s, 'oldtown', null);
+    expect(autoRepairs(s, ids[0])).toBe(false);
   });
 
   it('Expand builds on your empty plots, buys open land and upgrades, cheapest first within its budget', () => {

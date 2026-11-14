@@ -14,8 +14,8 @@
 // before they run (land's dawn hook), and any plot can opt out:
 // - Profit: Marisol's Auto-Price takes every stand there (card, Sweetness and price), and Auto-Restock stocks each to
 //   the forecast's expected sales and what its orders owe, so nothing sits on the shelf.
-// - Fortify: Auto-Repair looks after every plot there, Dex's Auto-Defend gives each at least POLICY.priority, and
-//   the next fences go up, cheapest first, within the district's daily budget.
+// - Fortify: Auto-Repair looks after every plot there (a plot's own skip waits for the policy to end), Dex's Auto-Defend
+//   gives each at least POLICY.priority, and the next fences go up, cheapest first, within the district's daily budget.
 // - Expand: within the district's daily budget, cheapest first: stands up a level, a Folding Table on your empty
 //   plots, and open land with a Table on it.
 import { BULK_RANK, PERIMETERS, POLICY, RANKS, STAND_LEVELS } from './balance.ts';
@@ -245,13 +245,11 @@ function profit(s: GameState, d: DistrictId, dawn: boolean): Steered {
   return { steered, spent: round2(before - s.cash - restocked), line: taken ? `${plural(taken, 'stand')} on Auto-Price and Auto-Restock` : '' };
 }
 
-/** Fortify: Auto-Repair on every plot there, Dex's priority at least POLICY.priority, and the next fences within the budget. */
+/** Fortify: Dex's priority at least POLICY.priority on every plot there, and the next fences within the budget. Auto-Repair
+ * stays on there while the policy holds (damage.ts fortifyKeeps), and a plot's own skip is kept for when it ends. */
 function fortify(s: GameState, d: DistrictId, budget: number): Steered {
   const ids = following(s, d).filter((id) => building(s.plots[id]));
-  for (const id of ids) {
-    delete s.plots[id].noAutoRepair;
-    if (defendPriority(s, id) < POLICY.priority) setDefendPriority(s, id, POLICY.priority);
-  }
+  for (const id of ids) if (defendPriority(s, id) < POLICY.priority) setDefendPriority(s, id, POLICY.priority);
   const before = s.cash;
   const bought = buyPicks(s, 'fence', actPlan(s, 'fence', ids, budget));
   return { steered: ids.length, spent: round2(before - s.cash), line: bought ? plural(bought, 'new fence') : '' };

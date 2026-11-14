@@ -2,8 +2,8 @@
 // the Morning Prep dock, a ticket per helper with the day's automatic spending (what they bought at dawn and will
 // buy at Open) or what they set, and each helper's one-line report in the Ledger. Mounted from hud.ts.
 import {
-  AUTO_PRICE, AUTO_PRICE_RANK, autoRepairReserve, currentHp, helperLines, isWrecked, owedCups, playerStands, PLOTS, prepPreview, priceNote, pricingOn,
-  restockOpen, stock, stockCapCups, stockTarget, suggestedTarget, type DayStats, type GameState,
+  AUTO_PRICE, AUTO_PRICE_RANK, autoRepairReserve, autoRepairs, currentHp, helperLines, isWrecked, owedCups, playerStands, PLOTS, prepPreview, priceNote,
+  pricingOn, restockOpen, stock, stockCapCups, stockTarget, suggestedTarget, type DayStats, type GameState,
 } from '../sim/economy.ts';
 import { btn, esc, tape } from './recipes.ts';
 import * as A from './clay.ts';
@@ -50,9 +50,9 @@ function previewKey(s: GameState): string {
     k.push(p.id, st.level, st.recipe, st.sweetness, st.price, st.autoRestock ? 1 : 0, st.stockTarget ?? -1, st.autoPrice === false ? 0 : 1, st.ownCard ? 1 : 0,
       st.wrecked ? 1 : 0, stock(st, 'lemons'), st.inventory.sugar, st.inventory.ice, Object.keys(st.campaigns).join());
   }
-  for (const p of PLOTS) { // Auto-Repair's closing bill: each building's HP, a fall, what's booked and the plots it skips
+  for (const p of PLOTS) { // Auto-Repair's closing bill: each building's HP, a fall, what's booked and the plots it looks after (skips and Fortify)
     const ps = s.plots[p.id];
-    if (ps.owner === 'player' && (ps.stand || ps.facility)) k.push(p.id, currentHp(ps), isWrecked(ps) ? 1 : 0, ps.repair?.cost ?? 0, ps.noAutoRepair ? 1 : 0);
+    if (ps.owner === 'player' && (ps.stand || ps.facility)) k.push(p.id, currentHp(ps), isWrecked(ps) ? 1 : 0, ps.repair?.cost ?? 0, autoRepairs(s, p.id) ? 1 : 0);
   }
   k.push(autoRepairReserve(s)); // and the wages and loan payment it keeps back
   return k.join('|');

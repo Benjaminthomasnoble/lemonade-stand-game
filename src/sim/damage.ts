@@ -19,8 +19,8 @@
 // and daytime raids, Delivery Raids, your raids and rival-vs-rival ones; each fight starts from currentHp. HQ assaults
 // (rivals.ts) fight their own Gate and never touch a stand's HP.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, INSPECTION, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, SEASON_TEMP_SHIFT,
-  STAND_HP, STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, INSPECTION, POLICY, REBUILD_SHARE, RIVAL_REPAIR_RESERVE,
+  SEASON_TEMP_SHIFT, STAND_HP, STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
 } from './balance.ts';
 import { difficulty, loanPayment } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
@@ -528,16 +528,24 @@ export const AUTO_REPAIR = 'repair';
 /** Auto-Repair takes over the overnight fixes from Rank 3. */
 export const autoRepairOn = (s: GameState) => s.rank >= AUTO_REPAIR_RANK;
 
-/** Does Auto-Repair look after this plot of yours? On for every plot unless you skip it. */
-export function autoRepairs(s: GameState, plotId: string): boolean {
+/** Does the Fortify policy keep Auto-Repair on this plot of yours? Its district's policy is Fortify (Rank 7) and the plot
+ * follows it. Read off s.policies, as policies.ts (which sets them) imports this lane. */
+export function fortifyKeeps(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
-  return autoRepairOn(s) && ps?.owner === 'player' && !ps.noAutoRepair;
+  return ps?.owner === 'player' && !ps.noPolicy && s.rank >= POLICY.rank && s.policies?.[PLOT_BY_ID[plotId].district]?.kind === 'fortify';
 }
 
-/** Skip a plot of yours from Auto-Repair, or take it back on. */
+/** Does Auto-Repair look after this plot of yours? On for every plot unless you skip it, and while Fortify keeps it on
+ * (your skip waits: it is back when the policy ends or the plot leaves it). */
+export function autoRepairs(s: GameState, plotId: string): boolean {
+  const ps = s.plots[plotId];
+  return autoRepairOn(s) && ps?.owner === 'player' && (!ps.noAutoRepair || fortifyKeeps(s, plotId));
+}
+
+/** Skip a plot of yours from Auto-Repair, or take it back on (not while Fortify keeps it on). */
 export function toggleAutoRepair(s: GameState, plotId: string): boolean {
   const ps = s.plots[plotId];
-  if (ps?.owner !== 'player' || !autoRepairOn(s)) return false;
+  if (ps?.owner !== 'player' || !autoRepairOn(s) || fortifyKeeps(s, plotId)) return false;
   if (ps.noAutoRepair) delete ps.noAutoRepair; else ps.noAutoRepair = true;
   return true;
 }

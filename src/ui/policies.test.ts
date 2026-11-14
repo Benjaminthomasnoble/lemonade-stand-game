@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PLOT_BY_ID, PLOTS, setPolicy, standCost, togglePolicyPlot, type DistrictId, type GameState } from '../sim/economy.ts';
+import {
+  LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PLOT_BY_ID, PLOTS, setPolicy, standCost, toggleAutoRepair, togglePolicyPlot, type DistrictId, type GameState,
+} from '../sim/economy.ts';
+import { autoRepairToggle } from './damage.ts';
 import { btn, esc, whole } from './recipes.ts';
 import type { BulkKit } from './bulk.ts';
 import { policyAction, policyCards, policyToggle } from './policies.ts';
@@ -105,6 +108,18 @@ describe("the Grow tab's district policy", () => {
     // A rival's plot there has no switch.
     const theirs = PLOTS.find((x) => x.district === d && s.plots[x.id].owner && s.plots[x.id].owner !== 'player');
     if (theirs) expect(policyToggle(s, theirs.id)).toBe('');
+  });
+
+  it("holds a Fortify plot's Auto-Repair switch on, and gives your skip back when the plot leaves it", () => {
+    const { s, d, other } = tycoon();
+    toggleAutoRepair(s, other); // skipped first
+    expect(autoRepairToggle(s, other)).toContain('aria-pressed="false" title="Auto-Repair skips this plot. Tap to turn it on"');
+    setPolicy(s, d, 'fortify');
+    const held = autoRepairToggle(s, other);
+    expect(held).toContain('<button class="cl-toggle on" data-action="autoRepair"');
+    expect(held).toContain('aria-pressed="true" disabled title="Fortify keeps this on"');
+    togglePolicyPlot(s, other);
+    expect(autoRepairToggle(s, other)).toContain('aria-pressed="false" title="Auto-Repair skips this plot. Tap to turn it on"');
   });
 
   it("puts the same chips on each district in the Land Registry's Yours tab", () => {

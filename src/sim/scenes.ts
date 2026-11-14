@@ -7,6 +7,7 @@
 // run so a reload never replays a scene.
 import { BRAND_TIERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
+import { alert } from './alerts.ts';
 import { gameOver, isEndless } from './modes.ts';
 import { CALL_PRIORITY, LINES, phoneCall } from './phone.ts';
 import { grandkid } from './grandkid.ts';
@@ -302,7 +303,7 @@ export function endScene(s: GameState, skipped: boolean): void {
   delete sc.playing;
   if (!sc.seen.includes(p.id)) sc.seen.push(p.id);
   const def = named(s, sceneDef(p.id, p.data));
-  if (skipped && def?.recap) s.news.push(def.recap);
+  if (skipped && def?.recap) alert(s, { kind: 'note', text: def.recap, ...(def.plot ? { plot: def.plot } : {}) }); // a feed card (and the news)
   if (def?.call) phoneCall(s, def.call.who, LINES[def.call.line], { priority: CALL_PRIORITY.story });
 }
 

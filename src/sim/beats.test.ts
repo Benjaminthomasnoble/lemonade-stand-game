@@ -550,6 +550,7 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback from Rank 3', () =
     nextDawn(s);
     expect(seasonOf(s.day)).toBe('winter');
     expect(s.news).toContain('Lottie: "Nobody buys a smoothie in sleet."');
+    expect(s.alerts!.some((a) => a.kind === 'note' && a.text === 'Lottie: "Nobody buys a smoothie in sleet."')).toBe(true);
     expect(medium(s)).toMatchObject({ text: 'Get the Blenders Weakened', story: true, done: false });
     s.rivals.blenders.outsoldDays = 7; // outsold 2x for 7 days running
     expect(isWeakened(s, 'blenders')).toBe(true);
@@ -573,6 +574,7 @@ describe('boss exit scenes', () => {
       expect(first.seconds).toBeLessThan(60);
       endScene(s, true);
       expect(s.news).toContain(first.recap);
+      expect(s.alerts!.some((a) => a.kind === 'note' && a.text === first.recap)).toBe(true); // a feed card, not just a toast
       expect(sceneReady(s)).toBe(false); // one scene a day: Juni's waits for tomorrow
       nextDawn(s);
       expect(beginScene(s)?.id).toBe('exit-coldbrew');

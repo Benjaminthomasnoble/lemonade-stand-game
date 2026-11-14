@@ -330,7 +330,7 @@ function act2Beats(s: GameState): void {
   const st = s.story!;
   if (!hasStory(s) || st.act !== 2) return;
   if (st.since === s.day && !hasClubhouse(s)) alert(s, { kind: 'note', text: 'Dex: "The shed sleeps one, Miss Lottie. A Clubhouse sleeps six. Just saying."' });
-  if (seasonOf(s.day) === 'winter' && seasonOf(s.day - 1) !== 'winter' && s.rivals.blenders.alive) s.news.push('Lottie: "Nobody buys a smoothie in sleet."');
+  if (seasonOf(s.day) === 'winter' && seasonOf(s.day - 1) !== 'winter' && s.rivals.blenders.alive) alert(s, { kind: 'note', text: 'Lottie: "Nobody buys a smoothie in sleet."' });
 }
 
 /** Note the payback raids (a won Shakedown, then a Smash on another Blenders stand) before the battle log forgets them. */

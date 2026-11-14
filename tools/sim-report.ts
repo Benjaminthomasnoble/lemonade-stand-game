@@ -24,6 +24,9 @@ const pacing = process.argv[2] === 'pacing' || process.argv[2] === 'pacing-run';
 const days = pacing ? 0 : Number(process.argv[2] ?? 14);
 const s = newGame(Number(process.argv[3] ?? 42));
 const targets: Record<SupplyId, number> = { lemons: 50, sugar: 100, ice: 360 };
+/** The spec's window for the first Clubhouse: "the simulated player builds it on Days 15-19" (balance-tables.md). */
+const CLUBHOUSE_DAYS = [15, 19];
+const club: { day?: number; dawns: { cash: number; need: number; lot: string }[] } = { dawns: [] };
 for (let d = 0; d < days; d++) {
   for (const id of Object.keys(targets) as SupplyId[]) {
     const st = selectedStand(s);
@@ -49,15 +52,26 @@ for (let d = 0; d < days; d++) {
   for (const p of playerStands(s)) if (s.plots[p.id].stand!.wrecked) rebuildStand(s, p.id);
   // Lottie's Tips (perks.ts): like a player who takes the first card of each hand she deals, from the Rank lesson (Day 5).
   for (let h = tipHand(s); h && pickTip(s, h.cards[0]); h = tipHand(s)) console.log(`   dawn of day ${s.day}: Lottie's tip for rank ${h.rank}, ${TIPS[h.cards[0]].name}`);
-  // Act 2: Dex pushes for a first Clubhouse (a story goal from Day 15; spec: Days 15-19), on the card or behind the
-  // payback. It needs an empty Street plot of yours: the bot buys the cheapest open one once it can pay for the plot
-  // and the Clubhouse both, then builds.
+  // Act 2: Dex pushes for a first Clubhouse (the story goal from Day 15, ahead of the payback). It needs an empty Street
+  // plot of yours: at dawn, before the day's stock, the bot buys the cheapest free one once it can pay for the plot and
+  // the Clubhouse both, then builds. Its only other spending is the stock, wages and fixes that keep the stand selling.
   if (hasStory(s) && storyAct(s) >= 2 && !hasClubhouse(s)) {
     const lot = clubhouseSite(s) ? null : PLOTS.filter((p) => p.type === 'street' && !s.plots[p.id].dibs?.table && canBuyPlot(s, p.id).ok).sort((a, b) => plotPrice(s, a.id) - plotPrice(s, b.id))[0];
-    if (lot && s.cash >= plotPrice(s, lot.id) + CLUBHOUSE[0].cost && buyPlot(s, lot.id)) console.log(`   dawn of day ${s.day}: bought ${lot.name} for Dex's Clubhouse`);
-    if (canBuildClubhouse(s).ok && buildClubhouse(s)) console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`);
+    const need = (lot ? plotPrice(s, lot.id) : 0) + CLUBHOUSE[0].cost;
+    if (s.day >= CLUBHOUSE_DAYS[0] && s.day <= CLUBHOUSE_DAYS[1]) club.dawns.push({ cash: s.cash, need, lot: lot?.name ?? 'your empty lot' });
+    if (lot && s.cash >= need && buyPlot(s, lot.id)) console.log(`   dawn of day ${s.day}: bought ${lot.name} for Dex's Clubhouse`);
+    if (canBuildClubhouse(s).ok && buildClubhouse(s)) { club.day = s.day; console.log(`   dawn of day ${s.day}: the first Clubhouse goes up for Dex`); }
   }
   s.news.length = 0;
+}
+// The first Clubhouse against the spec's window, once the run has reached its last dawn: and if it missed, what the bot
+// had at those dawns against the plot and the Clubhouse.
+if (!pacing && hasStory(s) && s.day >= CLUBHOUSE_DAYS[1]) {
+  const [from, to] = CLUBHOUSE_DAYS;
+  const ok = club.day !== undefined && club.day <= to;
+  console.log(`check: first Clubhouse on Days ${from}-${to}: ${club.day === undefined ? `not up by day ${s.day}` : `day ${club.day}`}  ${ok ? 'ok' : 'LATE'}`);
+  const cash = club.dawns.map((x) => x.cash), last = club.dawns[club.dawns.length - 1];
+  if (!ok && last) console.log(`   dawns ${from}-${to}: cash $${Math.min(...cash).toFixed(0)}-$${Math.max(...cash).toFixed(0)} against $${last.need.toFixed(0)} (${last.lot} and the Clubhouse's $${CLUBHOUSE[0].cost})`);
 }
 
 const jobKey = (j: PacingJob) => `${j.difficulty} ${j.seed}`;

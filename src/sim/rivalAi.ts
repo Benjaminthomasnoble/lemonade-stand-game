@@ -671,12 +671,14 @@ export function pickRaider(s: GameState, rng: Rng, size: number, may: (id: Rival
   return best;
 }
 
-/** A boss's party as it sets out for you, Strike paying its wages: a Blender Rush from the swarms, Vera's elite Stewards from Act 5. */
-function sendOut(s: GameState, raider: RivalId, party: Fighter[], threat: number): Fighter[] {
+/** A boss's party as it sets out for you, Strike paying its wages: a Blender Rush from the swarms, Vera's elite Stewards
+ * from Act 5. `house`: a raid that comes whatever Strike holds (a rumored one) pays only when Strike can cover it. */
+function sendOut(s: GameState, raider: RivalId, party: Fighter[], threat: number, house = false): Fighter[] {
   let out = swarms(raider) ? blenderRush(s, party, threat, raider) : party;
   const elite = raider === 'sourwood' && actOf(s) >= OLD_MONEY.act; // Old Money: Vera sends her elite Stewards
   if (elite) out = eliteStewards(out);
-  spend(s, raider, 'strike', raidCost(s, raider, out.length, elite ? Math.min(5, threat + 1) : threat));
+  const cost = raidCost(s, raider, out.length, elite ? Math.min(5, threat + 1) : threat);
+  if (!house || canSpend(s, raider, 'strike', cost)) spend(s, raider, 'strike', cost);
   return out;
 }
 
@@ -737,10 +739,11 @@ export function blenderRush(s: GameState, party: Fighter[], tier: number, by: Ri
 /**
  * planNight's last line: settle tonight's rival raids. Each boss's Attention is updated from today's trade, the
  * raid on the player goes to the keenest boss who can pay for it, and every rival raid is paid from its Strike
- * bucket; one nobody can pay for is called off. The tutorial raid is on the house. A Blenders raid is a Blender
- * Rush (a big, cheap, fist-heavy party), and Brock phones before one on you. A raid on another rival goes where
- * the attacker's Grudge points, and the target's Grudge toward the attacker rises. Returns any extra raids to add
- * (none yet).
+ * bucket; one nobody can pay for is called off. The tutorial raid is on the house. A rumored raid (a day call,
+ * calls.ts) keeps its gang and its plot: that gang comes for that plot, paying when its Strike can and on the house
+ * when it can't. A Blenders raid is a Blender Rush (a big, cheap, fist-heavy party), and Brock phones before one on
+ * you. A raid on another rival goes where the attacker's Grudge points, and the target's Grudge toward the attacker
+ * rises. Returns any extra raids to add (none yet).
  */
 export function signatureRaids(s: GameState): Raid[] {
   const rng = { seed: s.seed };
@@ -753,9 +756,9 @@ export function signatureRaids(s: GameState): Raid[] {
     if (s.plots[raid.target].owner === 'player') {
       if (raid.tutorial || raid.syndicate) { kept.push(raid); continue; } // the scripted first raid, and the Syndicate's strikes (threat.ts)
       const size = raid.party.length;
-      const raider = pickRaider(s, rng, size);
+      const raider = raid.rumor ? attacker : pickRaider(s, rng, size);
       if (!raider) continue; // every boss is broke tonight
-      const target = likeliestTarget(s, raider)?.id ?? raid.target; // the weakest valuable stand near their turf: the Corkboard's pin
+      const target = raid.rumor ? raid.target : likeliestTarget(s, raider)?.id ?? raid.target; // the weakest valuable stand near their turf: the Corkboard's pin
       if (raider !== attacker) {
         s.seed = rng.seed;
         raid.party = raidPartyFor(s, raider).slice(0, size);
@@ -769,7 +772,7 @@ export function signatureRaids(s: GameState): Raid[] {
           raid.eta = hhmm(raid.at);
         }
       }
-      raid.party = sendOut(s, raider, raid.party, threat);
+      raid.party = sendOut(s, raider, raid.party, threat, raid.rumor);
       if (swarms(raider)) {
         s.rivals[raider].rush = s.day;
         raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)

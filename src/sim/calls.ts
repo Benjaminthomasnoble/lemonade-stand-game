@@ -12,6 +12,7 @@ import type { GameState } from './economy.ts';
 import { book } from './ledger.ts';
 import { nextRandom } from './rng.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
+import { mayRaidYou } from './threat.ts';
 
 export type CallKind = 'undercut' | 'heckler' | 'rush' | 'permit' | 'rumor';
 
@@ -68,13 +69,13 @@ export const liveCall = (s: GameState): DayCall | undefined => (s.calls?.day ===
 
 const yourStands = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].stand && !s.plots[p.id].stand!.wrecked);
 
-/** The rival whose stand is nearest this plot (alive): who undercuts, heckles or schemes. */
-export function nearestRival(s: GameState, plotId: string): RivalId | null {
+/** The rival whose stand is nearest this plot (alive, and passing `may` when given): who undercuts, heckles or schemes. */
+export function nearestRival(s: GameState, plotId: string, may: (id: RivalId) => boolean = () => true): RivalId | null {
   const at = PLOT_BY_ID[plotId];
   let best: { id: RivalId; d: number } | null = null;
   for (const p of PLOTS) {
     const o = s.plots[p.id].owner;
-    if (!o || o === 'player' || !s.plots[p.id].stand || !s.rivals[o as RivalId]?.alive) continue;
+    if (!o || o === 'player' || !s.plots[p.id].stand || !s.rivals[o as RivalId]?.alive || !may(o as RivalId)) continue;
     const d = Math.hypot(p.x - at.x, p.z - at.z);
     if (!best || d < best.d) best = { id: o as RivalId, d };
   }
@@ -108,7 +109,8 @@ export function planCalls(s: GameState): void {
     const [lo, hi] = slots[i];
     const at = lo + Math.floor((nextRandom(rng) * (hi - lo)) / 15) * 15;
     const plot = pickPlot();
-    const rival = kind === 'permit' || kind === 'rush' ? null : nearestRival(s, plot);
+    // A rumor names only a gang that may raid you tonight (threat.ts mayRaidYou: no Truce, not backing off).
+    const rival = kind === 'permit' || kind === 'rush' ? null : nearestRival(s, plot, kind === 'rumor' ? (id) => mayRaidYou(s, id) : undefined);
     if ((kind === 'undercut' || kind === 'heckler' || kind === 'rumor') && !rival) return;
     c.list.push({ id: s.day * 10 + i, kind, at, plot, rival });
   });
@@ -116,7 +118,7 @@ export function planCalls(s: GameState): void {
   // Brock too: the first raid is his.
   if (s.day === 1 && c.list[0] && s.rivals.blenders.alive) c.list[0].rival = 'blenders';
   const rumor = c.list.find((x) => x.kind === 'rumor');
-  if (rumor && s.day === 3 && s.plots[LOTTIES_CORNER].owner === 'player') { rumor.plot = LOTTIES_CORNER; if (s.rivals.blenders.alive) rumor.rival = 'blenders'; }
+  if (rumor && s.day === 3 && s.plots[LOTTIES_CORNER].owner === 'player') { rumor.plot = LOTTIES_CORNER; if (mayRaidYou(s, 'blenders')) rumor.rival = 'blenders'; }
 }
 
 /** Each business minute: plan the day, break in a call at its minute, and let one nobody answered lapse. */

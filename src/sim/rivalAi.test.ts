@@ -512,6 +512,44 @@ describe('Blender Rush', () => {
   });
 });
 
+describe('a rumored raid (a day call) keeps its gang and its plot', () => {
+  /** Day 20's Evening at Rank 5, past the first raid, with a second stand of yours off Maple Row and every Strike at
+   * `strike`: tonight's one raid is the rumored one, by `attacker`, on the plot of yours that isn't its pin. */
+  function rumored(attacker: RivalId, strike: number): { s: GameState; raid: Raid } {
+    const s = newGame(48);
+    s.day = 20;
+    s.story!.act = 2;
+    s.rank = 5;
+    pastTutorial(s);
+    const far = PLOTS.find((p) => p.district === 'boardwalk' && p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[far.id] = { ...s.plots[far.id], owner: 'player', stand: newStand(2) };
+    for (const id of RIVALS) budgetOf(s, id).strike = strike;
+    const target = [LOTTIES_CORNER, far.id].find((id) => id !== likeliestTarget(s, attacker)!.id)!;
+    const raid: Raid = { id: 'rumor', attacker, target, objective: 'shakedown', party: raidPartyFor(s, attacker).slice(0, 3), detected: false, eta: '23:00', leave: 1320, at: 1380, rumor: true };
+    s.raids = [raid];
+    return { s, raid };
+  }
+
+  it('comes from that gang to that plot, paid from its Strike when it can', () => {
+    const { s, raid } = rumored('hollis', 1e5);
+    signatureRaids(s);
+    expect(s.raids).toEqual([raid]);
+    expect(raid).toMatchObject({ attacker: 'hollis', target: raid.target, at: 1380 });
+    expect(budgetOf(s, 'hollis').strike).toBeCloseTo(1e5 - raidCost(s, 'hollis', raid.party!.length), 2);
+  });
+
+  it("comes on the house when its Strike can't pay, a Blender Rush with Brock's call all the same", () => {
+    const { s, raid } = rumored('blenders', 0);
+    const cash = s.rivals.blenders.cash;
+    signatureRaids(s);
+    expect(s.raids).toEqual([raid]);
+    expect(raid.attacker).toBe('blenders');
+    expect(raid.party!.length).toBe(RAID_PARTY[threatLevel(s) - 1].size[1]);
+    expect(s.rivals.blenders.cash).toBe(cash);
+    expect(s.phone!.queue.some((c) => c.who === 'blenders' && c.raid === raid.id)).toBe(true);
+  });
+});
+
 describe('Old Money: elite Stewards', () => {
   it('each Steward comes one henchman level up, in that level\'s gear, every weapon one tier toward hatchets', () => {
     const s = newGame(61);

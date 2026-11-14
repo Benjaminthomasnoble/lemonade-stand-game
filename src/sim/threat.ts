@@ -118,11 +118,13 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const rumor = rumorTonight(s); // a day call's rumor (calls.ts): that rival comes for that plot tonight
   const rumored = rumor && mayRaidYou(s, rumor.rival) && mine.some((p) => p.id === rumor.plot) ? rumor : undefined;
   for (let i = 0; i < Math.max(n, rumored ? 1 : 0); i++) {
-    const rival = i === 0 && rumored ? rumored.rival : pickRival(s, rng);
+    const told = i === 0 && !!rumored; // flagged, so the bosses keep its gang and plot (rivalAi signatureRaids)
+    const rival = told ? rumored.rival : pickRival(s, rng);
     if (!rival) break;
-    const target = i === 0 && rumored ? PLOT_BY_ID[rumored.plot] : weakest(s, rival, mine, taken);
-    const raid = pact ? syndicateStrike(s, rng, rival, target) : raidOnYou(s, rng, rival, target, threatLevel(s));
+    const target = told ? PLOT_BY_ID[rumored.plot] : weakest(s, rival, mine, taken);
+    const raid = pact ? syndicateStrike(s, rng, rival, target, told) : raidOnYou(s, rng, rival, target, threatLevel(s));
     if (!raid) continue;
+    if (told) raid.rumor = true;
     taken.add(target.id);
     out.push(raid);
   }
@@ -131,12 +133,13 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
 
 /** A Syndicate strike, sent by one of its members (`rival`, who may raid you): Threat 5's raid whatever the Threat,
  * always a Smash, flagged for combat's hooks. Paid from the sender's Strike, or short of it from the Pact's (the leader
- * first); null when nobody in it can pay (the bosses settle no Syndicate strike in signatureRaids). */
-function syndicateStrike(s: GameState, rng: Rng, rival: RivalId, target: Plot): Raid | null {
+ * first); null when nobody in it can pay (the bosses settle no Syndicate strike in signatureRaids), unless it must
+ * come (`house`: a rumored raid), when it's on the house. */
+function syndicateStrike(s: GameState, rng: Rng, rival: RivalId, target: Plot, house = false): Raid | null {
   const raid: Raid = { ...raidOnYou(s, rng, rival, target, SYNDICATE_TIER), objective: 'smash', syndicate: true };
   const cost = raidCost(s, rival, raid.party!.length, SYNDICATE_TIER);
   const payer = [rival, syndicateLeader(s), ...syndicateMembers(s)].find((id): id is RivalId => !!id && canSpend(s, id, 'strike', cost));
-  if (!payer) return null;
+  if (!payer) return house ? raid : null;
   spend(s, payer, 'strike', cost);
   return raid;
 }

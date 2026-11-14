@@ -634,24 +634,41 @@ Fights run in every mode at 1 game minute per real second. In the campaign, the 
 
 A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered or won page beyond the starting three and Strawberry. Pay arrives with each pickup. Choppers land at 17:30, in the golden hour (the mood scene "The first helicopter"); ships and Supply Deal loads come in at 10:00. Once a facility tier stands, its client type offers at least one job every 10 days; you may still turn any offer down. In the simulation, VIP clients (helicopters, ships and Supply Deals) earn about 11% of revenue on Days 52–96, 18% on Days 97–136 and 20% after that.
 
+| Rule | Value |
+|---|---|
+| Daily chance a client calls | Rolled each dawn while the tier is open: Local Orders 50%, Caterer Trucks 40%, Helicopter VIPs 1 in 3, Ship Contracts 16.8%, Supply Deals 8.2%, Mega Contracts 1 in 20. A chopper, ship or Supply Deal client also calls once 10 days pass without one, and those three chances are set so the average gap, that floor included, comes to about 3, 5 and 7 days |
+| Order sizes | Rolled in the tier's range (a pad's or pier's own), in steps of 100. A Local Order goes to one of your working L3+ stands and pours its card; every other client asks for a card from Lottie's book, and a Mega client for a premium one |
+| The Order Book | Holds 4 offers (placeholder). Each offer stands today and tomorrow; a new one in a full book lets the oldest go a day early |
+| Rival bids (VIP clients only) | Each rival in business bids on an offer 15% of the time, 5% under the client's price, needing 3/4 of the window (rounded up, at least a day). While FizzCo's Harbor bottling plant stands, FizzCo bids 50% of the time, 15% under, needing 1/4 of the window. The client keeps the strongest bid (all placeholders) |
+| How a client weighs bids | In stars: the bidder's Reputation, +1 for each 10% under its price, −0.25 for each day it takes (placeholders). Ties go to you, and you may match the rival's price. A lost bid costs no star: the rival does the job, keeps 5% of the pay (placeholder) and counts the pay in its day's sales. An offer you let go with a bid on it goes the same way |
+| Shipping Lane (The Harbor at Full Control) | Ship Contracts pay 15% more, at each pickup. Supply Deals and Mega Contracts don't |
+| Old Money (Hilltop Estates at Full Control) | VIP clients call 50% more often: daily chances of 1 in 2 for choppers, 29% for ships and 18.7% for Supply Deals (gaps of about 2, 3.3 and 4.7 days, the floor included), and 1.5× for Mega clients |
+| Harbor Fest (Fall days 12–14) | A chopper client and a ship client call every Fest day while you have the pad or pier for them (placeholder) |
+| Pickups | Each trip opens a 2-hour window and loads up to the facility's daily rate: choppers at 17:30, a Heliport's second trip at 19:30 (placeholder); ships, Supply Deal loads and Mega freighters at 10:00 (a Mega loads at the Cargo Terminal's 25,000 a day). A Local Order pours at its stand from the stand's own stock at 19:00 on each day until it's due, and a Caterer Truck loads the whole order at its Warehouse at 20:00 (both times placeholders) |
+| Where trucks load | At your standing Warehouse nearest your working stands (the least distance to them all), else the first one. Bottles bank bay-wide between pickups; no Warehouse holds any |
+| Bottling | At dawn, only while an accepted order still needs bottles and as far as your cash goes: each recipe the orders want, the soonest due first, at that recipe's cost per cup less the cup, plus the bottle and cap. A page that has left the book can't be bottled |
+| Delivery Raids | See Raids |
+
 ### VIP facilities
 
-| Facility | Tier | Rank | Cost ($) | Order size served (bottles) | Loading (bottles/day) |
-|---|---|---|---|---|---|
-| Helipad line (Field) | Pad | 6 | 50,000 | 2,000–4,000 | 2,000 |
-| | Helipad | 7 | 200,000 | 4,000–7,000 | 5,000 |
-| | Heliport | 8 | 800,000 | 7,000–10,000 | 20,000 (2 trips) |
-| Pier line (Dock) | Jetty | 7 | 250,000 | 10,000–20,000 | 5,000 |
-| | Pier | 7 | 750,000 | 20,000–40,000 | 10,000 |
-| | Cargo Terminal | 8 | 3,000,000 | 40,000–60,000 | 25,000 |
+| Facility | Tier | Rank | Cost ($) | Order size served (bottles) | Loading (bottles/day) | HP |
+|---|---|---|---|---|---|---|
+| Helipad line (Field) | Pad | 6 | 50,000 | 2,000–4,000 | 2,000 | 800 |
+| | Helipad | 7 | 200,000 | 4,000–7,000 | 5,000 | 2,000 |
+| | Heliport | 8 | 800,000 | 7,000–10,000 | 20,000 (2 trips of 10,000) | 5,000 |
+| Pier line (Dock) | Jetty | 7 | 250,000 | 10,000–20,000 | 5,000 | 1,500 |
+| | Pier | 7 | 750,000 | 20,000–40,000 | 10,000 | 3,500 |
+| | Cargo Terminal | 8 | 3,000,000 | 40,000–60,000 | 25,000 | 8,000 |
 
-| Facility | Rank | Cost ($) | Plot | Effect |
-|---|---|---|---|---|
-| Warehouse | 4 | 15,000 | Street or Industrial | Stores bottles and supplies; auto-supplies stands in its district |
-| Bottling Works L1 | 5 | 25,000 | Industrial | 1,500 bottles/day |
-| Bottling Works L2 | 6 | +100,000 | Industrial | 4,000 bottles/day |
-| Bottling Works L3 | 7 | +400,000 | Industrial | 12,000 bottles/day |
-| Lemon Grove | 5 | 25,000 | Field | +5% traffic at all your stands (up to 2 Groves; +10% each with Hollis Orchards) |
+| Facility | Rank | Cost ($) | Plot | HP | Effect |
+|---|---|---|---|---|---|
+| Warehouse | 4 | 15,000 | Street or Industrial | 1,000 | Keeps your stands in its district stocked, those with Auto-Restock on: every 15 game minutes while open (placeholder), a stand holding less than an hour's pour is topped up, at the Market price, to what it can sell by closing, and the last run before the 19:00 Local Order pour covers the cups the order owes. Stores 5 days of those stands' sugar (placeholder), bought on a dawn when sugar is at or under its usual price and handed out first on a dearer one (a Sugar Shortage), at what it cost; a Warehouse that falls loses its sugar. Caterer Trucks load at it (see Contracts), and it holds no bottles |
+| Bottling Works L1 | 5 | 25,000 | Industrial | 1,000 | 1,500 bottles/day |
+| Bottling Works L2 | 6 | +100,000 | Industrial | 2,500 | 4,000 bottles/day |
+| Bottling Works L3 | 7 | +400,000 | Industrial | 6,000 | 12,000 bottles/day |
+| Lemon Grove | 5 | 25,000 | Field | 800 | +5% traffic at all your stands (up to 2 Groves; +10% each with Hollis Orchards) |
+
+HP is the chopping it takes to knock a facility down. The spec gives facilities none, so every facility HP is a placeholder; each has 3 guard posts.
 
 On all ten simulated maps the player builds all six helipad and pier tiers; the first chopper lands on Days 63–80 and the first ship docks on Days 73–89, both in Act 4, and the first Supply Deal arrives on Days 105–113, as the Cargo Terminal opens.
 

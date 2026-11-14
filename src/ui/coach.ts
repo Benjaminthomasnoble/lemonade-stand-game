@@ -59,10 +59,10 @@ const stockOf = (s: GameState, id: 'lemons' | 'sugar' | 'ice') => {
   return id === 'lemons' ? st.inventory.lemons.reduce((a, b) => a + b.qty, 0) : st.inventory[id];
 };
 const supplied = (s: GameState) => { const st = own(s); return !!st && restockOn(s, st); }; // Auto-Restock runs from Day 2
-/** Enough of one supply for the day: some in stock and no "!" on it (lemons and sugar share theirs), or no cash for more. */
-const stocked = (s: GameState, e: CoachEnv, id: 'lemons' | 'sugar' | 'ice') => supplied(s)
-  || (stockOf(s, id) > 0 && !e.has(`[data-fill="${id}"][data-low]`))
-  || e.has(`[data-action="buy"][data-id="${id}"]:disabled`);
+/** A supply you've beaten Lottie to: no cash or room for more, or (buying by hand) some in stock and no "!" on it
+ * (lemons and sugar share theirs). Auto-Restock on never shows a "!" and fills the stand, so she shows the button anyway. */
+const stocked = (s: GameState, e: CoachEnv, id: 'lemons' | 'sugar' | 'ice') => e.has(`[data-action="buy"][data-id="${id}"]:disabled`)
+  || (!supplied(s) && stockOf(s, id) > 0 && !e.has(`[data-fill="${id}"][data-low]`));
 
 /** The rival stand nearest Lottie's Corner: who the tour introduces. */
 export function rivalNear(s: GameState): { plot: string; rival: RivalId } | null {
@@ -99,11 +99,7 @@ export const STEPS: Step[] = [
 
   { id: 'd1-bosses', when: (s) => prep(s, 1), at: '[data-testid="bosses"]', say: (s) => `The ${gangs(s)} gang bosses. Cross them all out!`, tap: 'Got it', mood: 'grumpy' },
 
-  // Day 1, the morning: stock, price, open.
-  // The supply buttons wear a "!" while today's stock runs short: tap until it pops off (or you can't afford more).
-  { id: 'd1-lemons', when: (s) => prep(s, 1), at: '[data-action="buy"][data-id="lemons"]', say: 'Lemons first! Tap till the ! goes.', done: (s, e) => stocked(s, e, 'lemons') },
-  { id: 'd1-sugar', when: (s) => prep(s, 1), at: '[data-action="buy"][data-id="sugar"]', say: 'Now sugar. Same trick!', done: (s, e) => stocked(s, e, 'sugar') },
-  { id: 'd1-ice', when: (s) => prep(s, 1), at: '[data-action="buy"][data-id="ice"]', say: 'Ice keeps it cold. Fill it up.', done: (s, e) => stocked(s, e, 'ice') },
+  // Day 1, the morning: Lottie stocked the table, so price, the crowd, open.
   { id: 'd1-price', when: (s) => prep(s, 1), at: '.cl-price .cl-row', say: 'Your price. Too high and folks walk.', doneOnClick: '[data-action="price"],[data-action="priceCeiling"]', tap: 'Got it' },
   { id: 'd1-crowd', when: (s) => prep(s, 1), at: '.cl-crowd', say: 'More faces lit, more customers.', tap: 'Got it' },
   { id: 'd1-open', when: (s) => prep(s, 1), at: '[data-testid="open"]', say: 'All set? Open up!', done: (s) => s.phase !== 'prep' || s.day > 1, mood: 'happy' },
@@ -117,10 +113,15 @@ export const STEPS: Step[] = [
   { id: 'd1-report', when: (s) => s.phase === 'report', at: '[data-testid="report"] .cl-end-row', say: 'Cups sold, folks missed, your stars.', tap: 'Got it' },
   { id: 'd1-sleep', when: (s) => s.phase === 'report', at: '[data-testid="report"] [data-testid="night"]', say: 'Sleep. Quiet nights fly by.', done: (s) => s.phase !== 'report', doneOnClick: '[data-action="night"],[data-action="sleep"]' },
 
-  // Day 2: weather, recipes, and Auto-Restock (the Market's lesson, LESSON_DAY.market). That morning turns it on by
-  // itself, so Lottie points at its switch and stock target while it's on (a tap on the target, or Got it, ends it).
+  // Day 2: weather, recipes, the Market's supply buttons and Auto-Restock (the Market's lesson, LESSON_DAY.market).
+  // Lottie stocked Day 1 only, so she shows each supply button (a tap on it, or Got it, ends it). Bought by hand, a
+  // button wears a "!" while today's stock runs short: tap until it pops off. That morning turns Auto-Restock on by
+  // itself, so she then points at its switch and stock target while it's on (a tap on the target, or Got it, ends it).
   { id: 'd2-sky', when: (s) => s.day >= LESSON_DAY.forecast && s.phase === 'prep', at: '.cl-wx', say: 'Check the sky every morning.', tap: 'Got it' },
   { id: 'd2-recipe', when: (s) => s.day >= LESSON_DAY.recipes && s.phase === 'prep', at: '.cl-recipe', say: 'Try each pitcher. Watch the faces.', doneOnClick: '[data-action="recipe"],[data-action="sweet"]', tap: 'Got it' },
+  { id: 'd2-lemons', when: (s) => s.day >= LESSON_DAY.market && s.phase === 'prep', at: '[data-action="buy"][data-id="lemons"]', say: (s) => (supplied(s) ? 'Buy lemons here. Hold to fill up.' : 'Lemons first! Tap till the ! goes.'), done: (s, e) => stocked(s, e, 'lemons'), doneOnClick: '[data-action="buy"][data-id="lemons"]', tap: 'Got it' },
+  { id: 'd2-sugar', when: (s) => s.day >= LESSON_DAY.market && s.phase === 'prep', at: '[data-action="buy"][data-id="sugar"]', say: 'Now sugar. Same trick!', done: (s, e) => stocked(s, e, 'sugar'), doneOnClick: '[data-action="buy"][data-id="sugar"]', tap: 'Got it' },
+  { id: 'd2-ice', when: (s) => s.day >= LESSON_DAY.market && s.phase === 'prep', at: '[data-action="buy"][data-id="ice"]', say: 'Ice keeps it cold. Fill it up.', done: (s, e) => stocked(s, e, 'ice'), doneOnClick: '[data-action="buy"][data-id="ice"]', tap: 'Got it' },
   { id: 'd2-auto', when: (s) => s.phase === 'prep' && supplied(s), at: '.cl-stock .cl-auto', say: 'I buy supplies each dawn. Set the target.', doneOnClick: '[data-action="stockTarget"]', tap: 'Got it' },
   { id: 'd2-rivals', when: (s) => s.day >= 2 && s.phase === 'open' && !!rivalNear(s), plot: (s) => rivalNear(s)?.plot ?? null, camera: 'plot', say: (s) => `${rivalName(s)} want your customers.`, tap: 'Not today!', mood: 'grumpy' },
 

@@ -4,7 +4,7 @@
 // Boss Room). Mounted from hud.ts, drawn with its clay kit.
 import {
   armedGadgets, availableRaiders, canAssault, canRaid, canSabotage, dexSquad, foughtByDay, GADGETS, hqOdds, hqPlot, HQS, inTruce, postsFor, raidOdds, raidOddsRange, RAID_RANK,
-  raidRepCost, rebuildChance, SABOTAGE_NEEDS, squadTrip, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
+  raidRepCost, rebuildChance, SABOTAGE_NEEDS, squadTrip, threatLevel, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
 import { fitGarrison } from '../sim/garrison.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
@@ -18,6 +18,7 @@ import { glyph } from './clay.ts';
 import { canSaveTemplate, templateAt, templateFor, templates, templatesOn, templatesUnlocked, type RaidTemplate } from '../sim/templates.ts';
 import { PLOT_BY_ID } from '../sim/map.ts';
 import { helpPlots } from '../sim/reinforce.ts';
+import { tipOn } from '../sim/perks.ts';
 
 /** The Crew tab's switch for raid templates, from Rank 6 (spec: every helper is a switch, a target and a Ledger line). */
 export function templatesSwitch(s: GameState): string {
@@ -157,10 +158,11 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     const scouted = isScouted(s, id);
     const odds = (night: boolean): Odds => {
       const ps = s.plots[id];
-      // Everything the odds read: the squad as it fights and where it sets out from, and the help the rival can send.
+      // Everything the odds read: the squad as it fights (Elbow Grease too) and where it sets out from, and the help the
+      // rival can send (how much, by Threat: a rank-up on the spot can lift it).
       const help = helpPlots(s, id).map((h) => [h.id, s.plots[h.id].garrison, s.plots[h.id].garrisonOut]);
       const key = JSON.stringify([s.day, s.phase === 'open', id, ids, objective, night, scouted, ps.stand?.level, ps.defense, ps.garrison, ps.garrisonOut, help,
-        s.guards.map((g) => [g.id, g.weapon, g.gear, g.level, g.specialty, g.trait, g.club, g.post])]);
+        threatLevel(s), tipOn(s, 'elbowGrease'), s.guards.map((g) => [g.id, g.weapon, g.gear, g.level, g.specialty, g.trait, g.club, g.post])]);
       let v = oddsMemo.get(key);
       if (v === undefined) {
         if (hq) { const one = hqOdds(s, ps.owner as RivalId, ids, night); v = [one, one]; } // its stages are known: one number

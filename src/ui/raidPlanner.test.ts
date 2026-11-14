@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hqPlot, LOTTIES_CORNER, newGame, PERIMETERS, planRaid, postsFor, raidOdds, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { hqPlot, LOTTIES_CORNER, newGame, PERIMETERS, planRaid, postsFor, raidOdds, raidTargets, threatLevel, type Blocker, type GameState } from '../sim/economy.ts';
 import { helpPlots } from '../sim/reinforce.ts';
 import { footholdFor, guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
@@ -123,6 +123,18 @@ describe('the Raid Planner', () => {
     expect(shown()).toBe(fresh());
     for (const g of s.guards) { g.post = LOTTIES_CORNER; g.club = LOTTIES_CORNER; } // they set out from somewhere else
     expect(shown()).toBe(fresh());
+    const ranked = shown();
+    s.rank = 5; // a rank-up on the spot: Threat 2 to 3, and a spotted raid meets more help (RIVAL_HELP)
+    expect(threatLevel(s)).toBe(3);
+    expect(shown()).toBe(fresh());
+    expect(shown()).not.toBe(ranked);
+    const ps = s.plots[target], kept = ps.defense;
+    ps.defense = { tier: 2, fenceHp: PERIMETERS[1].hp, gadgets: [] }; // a Chain-Link to chop through first
+    const tipped = shown();
+    s.story!.tips = { held: ['elbowGrease'], hands: [] }; // Lottie's tip, picked on the spot: the raiders chop 15% harder
+    expect(shown()).toBe(fresh());
+    expect(shown()).not.toBe(tipped);
+    ps.defense = kept;
     const before = shown();
     for (const { id } of helpPlots(s, target)) s.plots[id].garrison = 0; // nobody next door to send
     expect(shown()).toBe(fresh());

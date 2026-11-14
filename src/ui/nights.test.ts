@@ -7,7 +7,7 @@ import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
 import * as A from './clay.ts';
 import { raidersLine, span, tripLines, tripNote } from './trips.ts';
-import { FACTIONS, likeliestTarget, onYou, type RivalId } from '../sim/economy.ts';
+import { FACTIONS, likeliestTarget, onYou, planNight, type RivalId } from '../sim/economy.ts';
 import { footholdFor } from '../sim/fighters.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
@@ -200,34 +200,107 @@ describe("the Day's end card's raid line", () => {
     expect(raidersLine(s)).toBe('');
   });
 
-  it("Night 3: raiders are on the way, with no gang, makeup or time, and one fix at the Corkboard's pin", () => {
+  /** The Evening of Day 10 in a Classic run at Rank 3: the Corner and `more` stands beside it, a ready guard in the
+   * reserve, cash to spare, and tonight's raids planned at closing (`before` runs first, for a day's answered rumor).
+   * Three quiet nights in a row: the cap's raid comes. */
+  const evening = (seed: number, more: number, before?: (s: GameState) => void) => {
+    const s = newGame(seed);
+    Object.assign(s, { day: 10, tutorialRaidDone: true, lastRaidOnYou: 7, rank: 3, cash: 5000, phase: 'report', minute: CLOSE });
+    const corner = PLOT_BY_ID[LOTTIES_CORNER];
+    for (const p of PLOTS.filter((x) => x.district === corner.district && x.type === 'street' && !s.plots[x.id].owner).slice(0, more)) {
+      s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(1) };
+    }
+    s.guards.push({ id: 'g1', name: 'Rosa Test', trait: 'Hothead', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 0 } as Guard);
+    before?.(s);
+    planNight(s);
+    return s;
+  };
+  /** The plot the line's one fix is for. */
+  const fixPlot = (line: string) => line.match(/data-plot="([^"]+)"[^>]*data-testid="raiders-fix"/)?.[1];
+
+  it("Night 3: raiders are on the way, with no gang, makeup or time, and one fix where they're headed", () => {
     const s = night3();
     const raid = s.raids.find((r) => onYou(s, r))!;
     expect(raid).toBeTruthy();
-    const pin = likeliestTarget(s, raid.attacker as RivalId)!;
     s.cash = 1000;
     const line = raidersLine(s);
     expect(line).toContain('data-testid="raiders-tonight"');
     expect(line).toContain('Raiders on the way tonight');
     for (const tell of [FACTIONS[raid.attacker as RivalId].name, 'Blenders', clockText(raid.at!), clockText(raid.leave!), 'fists']) expect(line).not.toContain(tell);
     expect(line.match(/data-testid="raiders-fix"/g)).toHaveLength(1); // one button
-    // No guards yet on Night 3: the fix is the pinned plot's first fence.
-    expect(line).toContain(`data-action="perimeter" data-plot="${pin.id}"`);
+    // No guards yet on Night 3: the fix is the raided plot's first fence.
+    expect(line).toContain(`data-action="perimeter" data-plot="${raid.target}"`);
     expect(line).toContain(`$${PERIMETERS[0].cost}`);
+    expect(line).toContain("where they're headed");
     s.cash = 10;
     expect(raidersLine(s)).toMatch(/data-testid="raiders-fix" disabled title="Needs \$/); // short of cash: shown, with the reason
   });
 
-  it('a ready guard in the reserve is posted at the pin before any fence is bought', () => {
+  it("a ready guard in the reserve is posted where they're headed before any fence is bought, and the fence goes there next", () => {
     const s = night3();
     const raid = s.raids.find((r) => onYou(s, r))!;
     s.cash = 1000;
     s.guards.push({ id: 'g1', name: 'Rosa Test', trait: 'Hothead', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 0 } as Guard);
-    const pin = likeliestTarget(s, raid.attacker as RivalId)!;
-    expect(raidersLine(s)).toContain(`data-action="post" data-id="g1" data-plot="${pin.id}"`);
-    s.guards[s.guards.length - 1].post = pin.id; // posted: the next fix is the fence wherever the pin is now
-    const next = likeliestTarget(s, raid.attacker as RivalId)!;
-    expect(raidersLine(s)).toContain(`data-action="perimeter" data-plot="${next.id}"`);
+    expect(raidersLine(s)).toContain(`data-action="post" data-id="g1" data-plot="${raid.target}"`);
+    s.guards[s.guards.length - 1].post = raid.target; // posted: the next fix stays on the raid's plot
+    expect(raidersLine(s)).toContain(`data-action="perimeter" data-plot="${raid.target}"`);
+  });
+
+  it('with two stands, the next fix stays on the raid\'s plot when the first one moves the pin', () => {
+    const s = evening(1, 1);
+    const raids = s.raids.filter((r) => onYou(s, r));
+    expect(raids).toHaveLength(1);
+    const [raid] = raids;
+    const pin = () => likeliestTarget(s, raid.attacker as RivalId)!.id;
+    expect(pin()).toBe(raid.target); // an untold raid goes for its raider's pin at closing
+    expect(raidersLine(s)).toContain(`data-action="post" data-id="g1" data-plot="${raid.target}"`);
+    s.guards.find((g) => g.id === 'g1')!.post = raid.target;
+    expect(pin()).not.toBe(raid.target); // the guard there moves the pin to your other stand...
+    expect(fixPlot(raidersLine(s))).toBe(raid.target); // ...but the raid still comes here, so its fence is the fix
+    expect(raidersLine(s)).toContain(`data-action="perimeter" data-plot="${raid.target}"`);
+  });
+
+  it("an answered rumor's raid gets its fix at the rumored plot, not at the raider's pin", () => {
+    let told = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const s = evening(seed, 3, (x) => {
+        x.lastRaidOnYou = x.day - 1; // no quiet-night cap tonight: the rumored raid may be the only one
+        const pin = likeliestTarget(x, 'blenders')!.id;
+        const plot = PLOTS.find((p) => x.plots[p.id].owner === 'player' && p.id !== pin)!.id;
+        x.calls = { day: x.day, list: [], mods: {}, rumor: { day: x.day, rival: 'blenders', plot } };
+      });
+      const raids = s.raids.filter((r) => onYou(s, r));
+      if (raids.length !== 1) continue;
+      told++;
+      const [raid] = raids;
+      expect(raid.rumor).toBe(true);
+      expect(raid.target).toBe(s.calls!.rumor!.plot);
+      expect(likeliestTarget(s, raid.attacker as RivalId)!.id).not.toBe(raid.target);
+      expect(fixPlot(raidersLine(s))).toBe(raid.target);
+    }
+    expect(told).toBeGreaterThan(5);
+  });
+
+  it('on a siege night the fix is at one of the targets named that dawn, wherever the sender\'s pin is', () => {
+    let pinOff = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = newGame(seed, { mode: 'campaign' });
+      Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, lastRaidOnYou: 135, cash: 50000, story: { act: 5, since: 106 } });
+      for (const id of Object.keys(FACTIONS).filter((r) => s.rivals[r as RivalId]) as RivalId[]) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
+      for (const p of PLOTS.filter((x) => x.district === 'maple' && x.type === 'street' && !s.plots[x.id].owner).slice(0, 5)) {
+        s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
+      }
+      expect(callBigSqueeze(s)).toBe(true);
+      Object.assign(s, { phase: 'report', minute: CLOSE });
+      planNight(s);
+      const targets = siegeTargets(s);
+      const raids = s.raids.filter((r) => onYou(s, r));
+      expect(raids.length).toBeGreaterThan(0);
+      expect(raids.every((r) => r.siege && targets.includes(r.target))).toBe(true);
+      expect(targets).toContain(fixPlot(raidersLine(s)));
+      if (!targets.includes(likeliestTarget(s, raids[0].attacker as RivalId)!.id)) pinOff++;
+    }
+    expect(pinOff).toBeGreaterThan(0); // on some siege nights the sender's pin isn't a target at all
   });
 });
 

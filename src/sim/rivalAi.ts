@@ -376,7 +376,8 @@ const byScore = (s: GameState, attacker: RivalId) => (a: Plot, b: Plot) => targe
  * The likeliest target of `attacker`'s next raid on `victim` (spec: "the weakest valuable stand near their turf,
  * meaning the highest value divided by defense"): the victim's building with the best targetScore in a district where
  * the attacker holds land or one bordering those, or the victim's best anywhere when nothing of theirs is near.
- * Deterministic, so the Rivals Corkboard pins exactly what the raid goes for.
+ * Deterministic, so the Rivals Corkboard pins what an untold raid goes for as it's planned at closing. A planned raid
+ * keeps its plot after that, and an answered rumor's raid and a siege night's strike go where those named.
  */
 export function likeliestTarget(s: GameState, attacker: RivalId, victim: FactionId = 'player'): Plot | null {
   const turf = turfOf(s, attacker);

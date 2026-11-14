@@ -3,8 +3,7 @@
 // Evening's Tonight list shows each raid out and each squad walking home.
 // Plain functional lines on the HUD's note and ticket styles.
 import {
-  canBuyPerimeter, canPost, clockText, emptyPosts, guardReady, likeliestTarget, onYou, PERIMETERS, PLOT_BY_ID, raidsOut, squadsHomeward, squadTrip,
-  type GameState, type RivalId,
+  canBuyPerimeter, canPost, clockText, emptyPosts, guardReady, onYou, PERIMETERS, PLOT_BY_ID, raidsOut, squadsHomeward, squadTrip, type GameState,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -48,14 +47,16 @@ export function tripLines(s: GameState): string[] {
 }
 
 /** The Day's end card's raid line (spec: Top bar and alerts, "Day's end"): a raid on you is planned tonight, so
- * raiders are on the way, with one fix at the Corkboard's pin for the first of them to set out (rivals'
- * likeliestTarget): a guard from the reserve posted there, else its next fence. It names no gang, makeup or time:
- * the warning card in the feed shows those as they set out (src/ui/alerts.ts). */
+ * raiders are on the way, with one fix where they're headed: at the plot of the first raid to set out that still has
+ * a fix, a guard from the reserve posted there, else its next fence. A raid's plot is set when it's planned (threat.ts:
+ * an answered rumor's, a siege night's named targets, or the raider's Corkboard pin at closing), so the fix stays on
+ * it as you take fixes. It names no gang, makeup or time: the warning card in the feed shows those as they set out
+ * (src/ui/alerts.ts). */
 export function raidersLine(s: GameState): string {
-  const first = s.raids.filter((r) => onYou(s, r)).sort((a, b) => (a.leave ?? 0) - (b.leave ?? 0))[0];
-  if (!first) return '';
-  const pin = likeliestTarget(s, first.attacker as RivalId);
-  return `<div class="cl-raidwarn" data-testid="raiders-tonight" title="A raid is coming tonight. Its warning card shows who, where and when.">${art('foot', A.footSVG)}<b>Raiders on the way tonight</b>${pin ? fixAt(s, pin.id) : ''}</div>`;
+  const mine = s.raids.filter((r) => onYou(s, r)).sort((a, b) => (a.leave ?? 0) - (b.leave ?? 0));
+  if (!mine.length) return '';
+  const fix = mine.map((r) => fixAt(s, r.target)).find(Boolean) ?? '';
+  return `<div class="cl-raidwarn" data-testid="raiders-tonight" title="A raid is coming tonight. Its warning card shows who, where and when.">${art('foot', A.footSVG)}<b>Raiders on the way tonight</b>${fix}</div>`;
 }
 
 /** The one fix at a plot: post a ready guard from the reserve there, else buy its next fence (shown once its rank is
@@ -64,10 +65,10 @@ function fixAt(s: GameState, plotId: string): string {
   const ps = s.plots[plotId], name = PLOT_BY_ID[plotId].name;
   const out = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
   const g = s.guards.find((x) => !x.post && guardReady(s, x) && !out.has(x.id) && canPost(s, x.id, plotId).ok);
-  if (g) return btn('post', `+${art('shield', A.shieldSVG)}${esc(place(plotId))}`, `data-id="${g.id}" data-plot="${plotId}" data-testid="raiders-fix" title="${esc(`Post ${g.name} at ${name}, the likeliest target`)}"`);
+  if (g) return btn('post', `+${art('shield', A.shieldSVG)}${esc(place(plotId))}`, `data-id="${g.id}" data-plot="${plotId}" data-testid="raiders-fix" title="${esc(`Post ${g.name} at ${name}, where they're headed`)}"`);
   const next = PERIMETERS[ps.defense.tier];
   if (!next || s.rank < next.rank || ps.stand?.wrecked || ps.facility?.wrecked) return '';
   const b = canBuyPerimeter(s, plotId);
-  const tip = b.ok ? `${next.name} at ${name}, the likeliest target: ${next.hp} HP` : b.why;
+  const tip = b.ok ? `${next.name} at ${name}, where they're headed: ${next.hp} HP` : b.why;
   return btn('perimeter', `${art(`fence${ps.defense.tier + 1}`, () => A.fenceSVG(ps.defense.tier + 1))}${esc(place(plotId))} ${whole(next.cost)}`, `data-plot="${plotId}" data-testid="raiders-fix" ${b.ok ? '' : 'disabled '}title="${esc(tip)}"`);
 }

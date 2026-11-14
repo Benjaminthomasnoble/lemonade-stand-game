@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { HIRE_RANK, LESSON_DAY, newGame, PLOT_BY_ID, refreshRecruits, type Blocker } from '../sim/economy.ts';
+import {
+  buyGadget, buyPerimeter, HIRE_RANK, LESSON_DAY, LOTTIES_CORNER, newGame, PLOT_BY_ID, refreshRecruits, toggleAutoRepair, type Blocker,
+} from '../sim/economy.ts';
 import type { Kit } from './hud.ts';
-import { crewPanel, HIRING_HALL, hiringHallButton } from './crew.ts';
+import { crewPanel, defenseSheet, HIRING_HALL, hiringHallButton } from './crew.ts';
 import { menuUnlocked } from './menus.ts';
 
 /** The clay kit, drawn as bare tags: art as <i data-art>, buttons as the HUD's own (disabled with the reason). */
@@ -9,7 +11,7 @@ const art = new Proxy({}, { get: (_, name) => () => `<i data-art="${String(name)
 const kit = {
   ART: art, GADGET_ART: art, WEAPON_ART: art,
   btn: (action: string, label: string, b: Blocker = { ok: true }, extra = '', cls = '') => `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${b.ok ? '' : `disabled title="${b.why}"`}>${label}</button>`,
-  card: () => '', tape: (t: string) => `<tape>${t}</tape>`, meter: (v: number) => `<meter value="${v}">`, pips: () => '',
+  card: (...parts: string[]) => `<card>${parts.join(' | ')}</card>`, tape: (t: string) => `<tape>${t}</tape>`, meter: (v: number) => `<meter value="${v}">`, pips: () => '',
   locked: (b: Blocker) => !b.ok && /Rank \d/.test(b.why), esc: (t: string) => t, whole: (n: number) => `$${Math.round(n)}`,
 } as unknown as Kit;
 
@@ -34,5 +36,23 @@ describe('the Hiring Hall plot', () => {
     s.settings.lessons = false; // lessons off: it follows the rank alone
     s.day = 1;
     expect(hiringHallButton(kit, s)).toContain('data-menu="crew"');
+  });
+});
+
+describe('the Defend sheet', () => {
+  it('a plot Auto-Repair skips says so on its fence and its sprung Slick: you patch them', () => {
+    const s = newGame(42);
+    s.rank = 4;
+    s.cash = 5000;
+    buyPerimeter(s, LOTTIES_CORNER);
+    buyGadget(s, LOTTIES_CORNER, 'slick');
+    s.plots[LOTTIES_CORNER].defense.slickSprung = true;
+    const on = defenseSheet(kit, s, LOTTIES_CORNER);
+    expect(on).toContain('to repair overnight.');
+    expect(on).toContain('sprung. Re-laid overnight for $25');
+    toggleAutoRepair(s, LOTTIES_CORNER);
+    const skipped = defenseSheet(kit, s, LOTTIES_CORNER);
+    expect(skipped).toContain('to repair: Auto-Repair skips this plot.');
+    expect(skipped).toContain('sprung. Auto-Repair skips this plot');
   });
 });

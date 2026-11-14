@@ -18,7 +18,7 @@ import type { Blocker, GameState, PlotState } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, priceCeiling } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
-import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
+import { applyRaidDamage, approveRebuild, autoRepairOn, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
 import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { fitGarrison, knockOut } from './garrison.ts';
@@ -216,13 +216,18 @@ export function mendFence(ps: PlotState, full = PERIMETERS[ps.defense.tier - 1].
   delete ps.defense.repairs;
 }
 
+/** Is this plot of yours mended overnight? Always below Rank 3; from Rank 3, unless Auto-Repair skips it (damage.ts):
+ * then its chopped fence and sprung Slick wait to be patched by hand. */
+export const mendsOvernight = (s: GameState, ps: PlotState): boolean => !(autoRepairOn(s) && ps.noAutoRepair);
+
 /** Overnight, each of your raided plots has its fence repaired and a sprung Slick re-laid, paid from your cash (rivals pay
- * theirs from their Guard money: rivalDefenseSpend). Short of cash, it waits: the fence stays chopped, the Slick stays sprung. */
+ * theirs from their Guard money: rivalDefenseSpend). Short of cash, it waits: the fence stays chopped, the Slick stays sprung.
+ * From Rank 3 a plot Auto-Repair skips is left for you to patch. */
 export function overnightRepairs(s: GameState): void {
   const short = new Set<string>();
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (ps.owner !== 'player') continue;
+    if (ps.owner !== 'player' || !mendsOvernight(s, ps)) continue;
     const pay = (cost: number): boolean => {
       if (!cost) return false;
       if (s.cash < cost) { short.add(PLOT_BY_ID[p.id].name); return false; }

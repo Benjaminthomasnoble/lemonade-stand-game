@@ -3,14 +3,14 @@ import {
   buildClubhouse, buyGadget, buyPerimeter, canBuyGadget, canHire, canPromote, detectionChance, dutyXp, equip, GUARD_FEE, hireGuard, LOTTIES_CORNER, migrateSave, newGame, openStand,
   payCrew, planRaid, PLOTS, promote,
   expectedPassersby, raidOdds, raidOddsRange, raidTargets, rebuildCost, rebuildStand, refreshRecruits, RIVAL_HIRE_FEE, servingsAvailable, simulateRestOfDay, sleepUntilDawn,
-  threatLevel, tickMinute, welcomeDex, type GameState,
+  threatLevel, tickMinute, toggleAutoRepair, welcomeDex, type GameState,
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
   canRaid, foughtByDay, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { CLOSE, GADGETS, GUARD_BASE, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GUARD_BASE, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -675,6 +675,42 @@ describe('overnight repairs', () => {
     expect(ps.defense.slickSprung).toBeUndefined();
     expect(s.cash).toBe(45);
     expect(slipped(fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true))).toBe(3);
+  });
+
+  it("from Rank 3 a plot Auto-Repair skips keeps its chopped fence and sprung Slick for you; below it, every fence is mended", () => {
+    const s = newGame(98);
+    s.rank = 4;
+    s.cash = 2000;
+    buyPerimeter(s, LOTTIES_CORNER);
+    buyGadget(s, LOTTIES_CORNER, 'slick');
+    const ps = s.plots[LOTTIES_CORNER];
+    fightRaid(s, raidOn(s, LOTTIES_CORNER, 4), true);
+    expect(ps.defense.slickSprung).toBe(true);
+    expect(toggleAutoRepair(s, LOTTIES_CORNER)).toBe(true); // Plots to skip
+    const cash = s.cash, hp = ps.defense.fenceHp, bill = fenceRepairCost(ps);
+    expect(bill).toBeGreaterThan(0);
+    overnightRepairs(s);
+    expect(s.cash).toBe(cash); // nothing paid for the skipped plot
+    expect(ps.defense.fenceHp).toBe(hp);
+    expect(fenceRepairCost(ps)).toBe(bill);
+    expect(ps.defense.slickSprung).toBe(true);
+    expect(repairFence(s, LOTTIES_CORNER)).toBe(true); // patched by hand
+    expect(ps.defense.fenceHp).toBe(PERIMETERS[0].hp);
+    expect(toggleAutoRepair(s, LOTTIES_CORNER)).toBe(true); // taken back on
+    overnightRepairs(s);
+    expect(ps.defense.slickSprung).toBeUndefined();
+    // Below Rank 3 there's no Auto-Repair, so no skip list: the flat repair runs every night, a skip left over or not.
+    const low = newGame(99);
+    low.rank = AUTO_REPAIR_RANK - 1;
+    low.cash = 1000;
+    buyPerimeter(low, LOTTIES_CORNER);
+    fightRaid(low, raidOn(low, LOTTIES_CORNER), true);
+    low.plots[LOTTIES_CORNER].noAutoRepair = true;
+    const before = low.cash;
+    overnightRepairs(low);
+    expect(low.cash).toBe(before - PERIMETERS[0].repair);
+    expect(fenceRepairCost(low.plots[LOTTIES_CORNER])).toBe(0);
+    expect(low.plots[LOTTIES_CORNER].defense.fenceHp).toBe(PERIMETERS[0].hp);
   });
 
   it('a rival pays its repairs from its Guard money; overnight repairs leave its plots alone', () => {

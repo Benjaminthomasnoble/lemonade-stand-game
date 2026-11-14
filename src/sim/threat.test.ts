@@ -5,7 +5,7 @@ import {
   customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
   feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed, BORDERS, FACTIONS, likeliestTarget, PLOT_BY_ID, spreadRaids,
   buyPlot, fillPosts, LOTTIES_SIDE_LOT, openStands, simulateRestOfDay, tickMinute, BAY_RIVALS, budgetOf, MAX_QUIET_NIGHTS,
-  type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
+  BOSS_SCALE, GUARD_BASE, hqStageInput, RAID_BOSS, raidBoss, type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { answerCall, callChoices, liveCall } from './calls.ts';
 
@@ -235,6 +235,21 @@ describe('who rides with a raid', () => {
         expect(f.gear).toBe('pro');
       }
     }
+  });
+
+  it('a boss leads a raid as tough as in their Boss Room: HP and Hit grow with their HQ\'s tier, ×1 at tier 1 to ×1.75 at tier 4', () => {
+    expect([1, 2, 3, 4].map(BOSS_SCALE)).toEqual([1, 1.25, 1.5, 1.75]);
+    const s = newGame(5);
+    for (const id of BAY_RIVALS) {
+      const m = BOSS_SCALE(HQS[id].tier);
+      const lead = raidBoss(s, id);
+      expect(lead).toMatchObject({ side: 'att', boss: true, name: HQS[id].boss, chop: RAID_BOSS.chop, nerve: RAID_BOSS.nerve, armor: RAID_BOSS.armor });
+      expect(lead.hp).toBeCloseTo(GUARD_BASE.hp * RAID_BOSS.hp * m);
+      expect(lead.hit).toBeCloseTo(RAID_BOSS.hit * m);
+      const room = hqStageInput(s, id, 'boss', [], { seed: 1 }).defenders.find((f) => f.boss)!;
+      expect([room.hp, room.hit, room.chop, room.nerve, room.armor]).toEqual([lead.hp, lead.hit, lead.chop, lead.nerve, lead.armor]);
+    }
+    expect(raidBoss(s, 'blenders').hp).toBe(GUARD_BASE.hp * RAID_BOSS.hp); // the first boss, unscaled
   });
 
   it('below Threat 5 no boss comes along', () => {

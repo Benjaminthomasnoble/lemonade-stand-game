@@ -4,7 +4,7 @@
 // and the scripted tutorial raid on Night 3: any fence or guard bounces it; undefended it takes the till.
 // Pure and seeded, like the rest of the sim.
 import {
-  FACTIONS, GUARD_BASE, MAX_QUIET_NIGHTS, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
+  BOSS_SCALE, FACTIONS, GUARD_BASE, MAX_QUIET_NIGHTS, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
   SMASH_SHARE, SYNDICATE_RAIDS_PER_WEEK, SYNDICATE_TIER, type RivalId,
 } from './balance.ts';
 import type { BattleInput, BattleResult, Fighter, Objective } from './combat.ts';
@@ -220,7 +220,7 @@ export function rivalRaids(s: GameState, rng: Rng): Raid[] {
 
 /** A boss at the head of a raid on you: as tough as in their Boss Room. */
 export function raidBoss(s: GameState, id: RivalId): Fighter {
-  const m = 0.75 + 0.25 * HQS[id].tier;
+  const m = BOSS_SCALE(HQS[id].tier);
   return {
     id: `${id}-boss-${s.nextId++}`, name: HQS[id].boss, side: 'att', hp: GUARD_BASE.hp * RAID_BOSS.hp * m, hit: RAID_BOSS.hit * m,
     chop: RAID_BOSS.chop, nerve: RAID_BOSS.nerve, armor: RAID_BOSS.armor, weapon: 'clubs', level: 5, boss: true,

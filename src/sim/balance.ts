@@ -621,8 +621,11 @@ export const RIVAL_LOOKOUTS = { perRaid: [0, 0, 1, 1, 2], stealth: 0.1 };
  * Threat 5 share before it forms is a placeholder: spec gap). */
 export const RIVAL_VS_RIVAL = [0.3, 0.3, 0.3, 0.15, 0.15];
 /** A boss as they fight in their Boss Room (rivals.ts boss), and leading a raid (Threat 5, every Syndicate strike): HP as a
- * multiple of a guard's, all scaled by their HQ's tier. */
-export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2 };
+ * multiple of a guard's, HP and Hit scaled by their HQ's tier (BOSS_SCALE: tierBase + tierStep a tier, so ×1 at the
+ * Blend Shack's tier 1 and ×1.75 at tier 4). */
+export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2, tierBase: 0.75, tierStep: 0.25 };
+/** How much a boss's HP and Hit grow with their HQ's tier (RAID_BOSS). */
+export const BOSS_SCALE = (tier: number) => RAID_BOSS.tierBase + RAID_BOSS.tierStep * tier;
 /** The Syndicate's raids on you per week, Classic (Laid Back ×0.5 = 3, Cutthroat ×1.5 = 9). */
 export const SYNDICATE_RAIDS_PER_WEEK = 6;
 /** A Syndicate strike comes as a Threat 5 raid whatever the Threat (Cutthroat's forms at 4): 12–20 in full kit, boss-led,

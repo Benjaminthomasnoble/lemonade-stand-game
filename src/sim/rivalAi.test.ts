@@ -1114,6 +1114,31 @@ describe('Rivals Corkboard', () => {
     expect(pinOf(board(s), 'sourwood')).not.toContain('cork-strings'); // no Grudge, no string
   });
 
+  it('in a Peaceful Sandbox: no raid pins, no Broke, an HQ for Sit-downs only, and each boss\'s running scheme', () => {
+    const s = newGame(99, { mode: 'sandbox', peaceful: true });
+    s.day = 20;
+    s.rank = 4;
+    for (const id of RIVALS) budgetOf(s, id).strike = 0; // broke, were there raids
+    const hq = PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === 'hollis')!;
+    s.schemes = [{ kind: 'blitz', by: 'hollis', day: 19, until: 21, plots: [], district: 'groves' }];
+    const html = board(s);
+    expect(html).not.toContain('cork-target');
+    expect(html).not.toContain('Eyeing ');
+    expect(html).not.toContain('>Raid ');
+    expect(html).not.toContain('Broke');
+    expect(html).not.toContain('HQ assault');
+    expect(pinOf(html, 'hollis')).toContain(`data-plot="${hq.id}" title="${hq.name}: Sit-downs"`);
+    expect(pinOf(html, 'hollis')).toContain('<span class="cl-note bad" data-testid="cork-scheme">Ad blitz</span>');
+    expect(pinOf(html, 'blenders')).not.toContain('cork-scheme'); // nothing running
+    const raids = newGame(99, { mode: 'sandbox' }); // the same Sandbox with raids on: the pins are back
+    raids.day = 20;
+    raids.rank = 4;
+    raids.schemes = [{ kind: 'blitz', by: 'hollis', day: 19, until: 21, plots: [], district: 'groves' }];
+    expect(board(raids)).toContain('cork-target');
+    expect(board(raids)).toContain('HQ assault');
+    expect(board(raids)).not.toContain('cork-scheme');
+  });
+
   it('from Rank 3, pins each rival\'s weakest valuable stand for your Raid Planner (never its HQ), and always their HQ', () => {
     const s = newGame(98);
     expect(pinOf(board(s), 'hollis')).not.toContain('Raid '); // the Raid Planner opens at Rank 3

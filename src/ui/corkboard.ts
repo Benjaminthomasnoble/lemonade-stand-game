@@ -7,10 +7,12 @@
 // Threat meter and Done. Tapping a plot flies there and puts the board away,
 // like any menu's list (data-action="inspect"): yours to fortify, theirs for
 // the Raid Planner, their HQ for a Sit-down (an Out-of-Towner, with no HQ in
-// the Bay, sits down at its busiest stand).
+// the Bay, sits down at its busiest stand). A Peaceful Sandbox has no raids or
+// HQ assaults, so its board pins no targets: it notes each boss's running
+// scheme instead (their marketing stands in for their raids).
 import {
-  budgetOf, FACTIONS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, PLOTS, RAID_PARTY, RAID_RANK, raidCost, rivalStars, softSpot,
-  successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId,
+  budgetOf, FACTIONS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, peaceful, PLOTS, RAID_PARTY, RAID_RANK, raidCost, rivalStars,
+  runningSchemes, softSpot, successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId, type SchemeKind,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 import { pactPhoto, pactStrings } from './pactboard.ts';
@@ -35,6 +37,11 @@ const WANTS: Record<RivalId, string> = {
   sourwood: 'Control of the Pact',
   snootwater: 'Your thinnest district, bottled',
 };
+/** In Peaceful, each boss's running scheme on their photo, where the raid pins would be. */
+const SCHEMING: Record<SchemeKind, string> = {
+  priceWar: 'Price war', posters: 'Posters', snipe: 'Outbidding you', blitz: 'Ad blitz', cease: 'Cease-and-Desist',
+  buyout: 'Buyout offer', fine: "Mayor's fine", freeze: 'Sale frozen', spoil: 'Night Shift',
+};
 /** Grudge per pip of red string: five pips is a feud. */
 const PIP = GRUDGE.feud / 5;
 
@@ -57,20 +64,23 @@ const tableOf = (s: GameState, id: RivalId): Plot | undefined =>
 
 /** One boss's photo: score, motive, stamps, strings, and the plots to tap. */
 function pin(s: GameState, id: RivalId): string {
-  const eye = likeliestTarget(s, id);
-  const soft = s.rank >= RAID_RANK ? softSpot(s, id) : null; // the Raid Planner opens at Rank 3
+  const calm = peaceful(s); // no raids for anyone: nothing to fortify or plan
+  const eye = calm ? null : likeliestTarget(s, id);
+  const soft = !calm && s.rank >= RAID_RANK ? softSpot(s, id) : null; // the Raid Planner opens at Rank 3
   const hq = hqOf(s, id), table = tableOf(s, id);
   const truce = inTruce(s, id) ? s.rivals[id].truceUntil : 0;
+  const scheming = calm ? [...new Set(runningSchemes(s).filter((x) => x.by === id).map((x) => x.kind))] : [];
   const tags = [
     `<span class="cl-note" data-testid="cork-stars" title="${esc(`Reputation ${rivalStars(s, id).toFixed(2)} stars: their stands' appeal, ×0.7 at 1 star to ×1.3 at 5`)}">${rivalStars(s, id).toFixed(1)} stars</span>`, // demand: rival Reputation
     isWeakened(s, id) ? '<span class="cl-note bad" data-testid="cork-weakened">WEAKENED</span>' : '',
     truce ? `<span class="cl-note">Truce to Day ${truce}</span>` : '',
-    broke(s, id) ? '<span class="cl-note">Broke</span>' : '',
+    !calm && broke(s, id) ? '<span class="cl-note">Broke</span>' : '',
+    ...scheming.map((k) => `<span class="cl-note bad" data-testid="cork-scheme">${esc(SCHEMING[k])}</span>`),
   ].join('');
   const acts = [
     eye ? btn(`Eyeing ${eye.name}`, `data-plot="${eye.id}" data-testid="cork-target"`, `${BOSS[id]}'s likeliest raid target: your weakest valuable stand near their turf. Go fortify it.`) : '',
     soft ? btn(`Raid ${soft.name}`, `data-plot="${soft.id}"`, `Their weakest valuable stand: plan a raid on it`) : '',
-    hq ? btn('Their HQ', `data-plot="${hq.id}"`, `${hq.name}: Sit-downs and the HQ assault`) : '',
+    hq ? btn('Their HQ', `data-plot="${hq.id}"`, calm ? `${hq.name}: Sit-downs` : `${hq.name}: Sit-downs and the HQ assault`) : '',
     table ? btn('Sit down', `data-plot="${table.id}"`, `No HQ in the Bay: the Truce and the Faction Buyout are at ${table.name}`) : '',
   ].join('');
   return `<div class="cl-card" data-big data-testid="cork-${id}" title="${esc(`${HQS[id].boss}, ${FACTIONS[id].name}`)}">

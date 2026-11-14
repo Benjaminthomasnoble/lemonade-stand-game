@@ -17,7 +17,7 @@ import { isFullMenu, menuScreen, menuUnlocked, plannerTargets } from './menus.ts
 import { keyName, keysPanel, withKey } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
 import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
-import { repTip, scoreParts, scoreTip, standRepTip, threatTip } from './meters.ts';
+import { repTip, scoreParts, scoreTip, standRepTip, threatLemons, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { defaultSettings, DISTRICT_BY_ID } from '../sim/economy.ts';
 import { callBigSqueeze, formSyndicate, newStand, PLOT_BY_ID, PLOTS, siegeTargets, syndicateMembers, type Mode } from '../sim/economy.ts';
@@ -432,6 +432,22 @@ describe('the top bar explains itself', () => {
     const easy = newGame(5, { difficulty: 'laidback' });
     easy.rank = 5;
     expect(threatTip(easy)).toMatch(/^Threat 2: set by Rank 5, District Big Shot; Laid Back −1\n/);
+  });
+
+  it("the Threat chip's sour lemons come with Day 3's lesson: one at Rank 1, none on Day 2 or in a Peaceful run", () => {
+    const s = newGame(5);
+    s.day = LESSON_DAY.threat - 1;
+    expect(threatLemons(s)).toBe(0); // Day 2: no chip yet
+    s.day = LESSON_DAY.threat;
+    expect(s.rank).toBe(1);
+    expect(threatLemons(s)).toBe(1); // Threat 1 shows its one lemon
+    s.rank = 3;
+    expect(threatLemons(s)).toBe(2);
+    expect(threatLemons(newGame(5, { lessons: false }))).toBe(1); // lessons off: from Day 1
+    expect(threatLemons(newGame(5, { difficulty: 'laidback', lessons: false }))).toBe(1); // Laid Back's −1 stops at 1
+    const calm = newGame(5, { mode: 'sandbox', peaceful: true });
+    calm.day = 9;
+    expect(threatLemons(calm)).toBe(0);
   });
 
   it('once the Syndicate stands, Threat counts the bosses in it, one fewer for each you eliminate', () => {

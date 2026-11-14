@@ -7,9 +7,9 @@ import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, expressWindow, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, standCost, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
-  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, peaceful, customDefaults,
+  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
-  isSpoiled, PERIMETERS, threatLevel,
+  isSpoiled, PERIMETERS,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
@@ -37,7 +37,7 @@ import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts'
 import { keysPanel, withKey } from './keys.ts';
 import { squeezePanel } from './squeeze.ts';
 import { attachTips } from './tips.ts';
-import { cashTip, dayTip, scoreTip, standRepTip, threatTip } from './meters.ts';
+import { cashTip, dayTip, scoreTip, standRepTip, threatLemons, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
 import { standPanel } from './stand.ts';
 import { campaignCards } from './marketing.ts';
@@ -547,7 +547,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const lo = r.ss, hi = next?.ss ?? r.ss;
     const pct = (v: number) => (hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 1);
     const now = pct(ss), peak = Math.max(now, pct(ss + investedSliver(s))); // the striped sliver: building money not yet earned back (src/sim/score.ts)
-    const threat = threatLevel(s);
+    const lemons = threatLemons(s); // one sour lemon a Threat level, from Day 3's lesson
     const goalsOpen = hud.menu === 'goals';
     const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
     const folded = phone && !unfolded;
@@ -566,7 +566,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         ${cash}
         ${bossBoard(s, opens('corkboard'))}
         ${taught(s, 'rank') ? `<div class="cl-chip cl-rank" title="${esc(scoreTip(s) + (peak > now ? '\n(Striped: invested in buildings, it fills back in)' : ''))}"${opens('rank')}>${ART.rosette()}${tape(`R${s.rank}`, 'cl-t-rank')}<span class="cl-snake" style="--v:${now.toFixed(3)};--p:${peak.toFixed(3)}"><i></i><u></u></span><span class="sr" data-testid="score">${Math.round(ss)}</span></div>` : ''}
-        ${threat >= 2 && !peaceful(s) && taught(s, 'threat') ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: threat }, () => ART.sour()).join('')}</div>` : ''}
+        ${lemons ? `<div class="cl-chip cl-threat" title="${esc(threatTip(s))}" data-testid="threat"${opens('corkboard')}>${Array.from({ length: lemons }, () => ART.sour()).join('')}</div>` : ''}
         ${s.bottles ? `<div class="cl-chip" title="Bottles ready for big orders: ${esc(bottleStock(s))}"${opens('orders')}>${ART.crate()}${tape(s.bottles.toLocaleString('en-US'))}</div>` : ''}
       </div>
       <div class="cl-right">

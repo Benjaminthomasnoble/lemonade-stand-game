@@ -5,9 +5,10 @@
 // and your stand's card explains them. Plain text with line breaks, for title
 // attributes.
 import {
-  BUILDING_VALUE_SHARE, assetValue, difficulty, PLOTS, RANKS, redDaysLeft, seasonDay, seasonOf, successScore, syndicateFormed,
+  BUILDING_VALUE_SHARE, assetValue, difficulty, peaceful, PLOTS, RANKS, redDaysLeft, seasonDay, seasonOf, successScore, syndicateFormed,
   syndicateMembers, threatLevel, type GameState,
 } from '../sim/economy.ts';
+import { taught } from '../sim/story.ts';
 
 const whole = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
 const signed = (n: number) => `${n >= 0 ? '+' : '-'}${whole(Math.abs(n))}`;
@@ -38,6 +39,12 @@ export function scoreTip(s: GameState): string {
     `Peak ${whole(s.peakScore)}${s.peakDay ? ` (day ${s.peakDay})` : ''}`,
     `R${s.rank} ${RANKS[s.rank - 1].title}${next ? `: ${whole(next.ss - ss)} to ${next.title}` : ''}`,
   ].join('\n');
+}
+
+/** The Threat chip's sour lemons, one a level: from the defense lesson (Day 3; Day 1 with the lessons off), so Threat 1
+ * shows one. 0 hides the chip (before then, and in a Peaceful run). */
+export function threatLemons(s: GameState): number {
+  return !peaceful(s) && taught(s, 'threat') ? threatLevel(s) : 0;
 }
 
 /** Threat moves only at a rank-up: name the rank that set it, and the difficulty's nudge; and once the Syndicate

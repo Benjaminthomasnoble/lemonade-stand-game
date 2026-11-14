@@ -35,6 +35,7 @@ import { scoutingAtDawn, scoutingToday } from './scouting.ts';
 import { raidsOnYou, rivalRaids, spreadRaids, tutorialBounce, tutorialDone, withDex } from './threat.ts';
 import { fortifiedFrame } from './specializations.ts'; // demand: the Fortified Frame's max HP
 import { cite, citationRisk, citationsAtDawn, migrateCitations, raidBan } from './citations.ts';
+import { migrateTemplates, noteTemplateRaid } from './templates.ts';
 
 export interface Guard {
   id: string;
@@ -511,6 +512,7 @@ export function migrateCrew(s: GameState): void {
   s.recruits ??= [];
   tidyPosts(s); // saves from before guard posts: the extra guards wait at the Clubhouse
   migrateCitations(s);
+  migrateTemplates(s);
   for (const ps of Object.values(s.plots)) {
     const per = ps.defense && PERIMETERS[ps.defense.tier - 1];
     if (per && ps.defense.fenceHp < per.hp && !ps.defense.repairs) ps.defense.repairs = 1; // chopped before overnight repairs: fixed at the next dawn
@@ -842,6 +844,7 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   breakTruce(s, s.plots[plotId].owner as RivalId);
   const sent = sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
   if (cited) cite(s, plotId);
+  noteTemplateRaid(s, guardIds, objective, plotId); // a template's raid: it's aimed here now, and the Ledger counts it
   return sent;
 }
 

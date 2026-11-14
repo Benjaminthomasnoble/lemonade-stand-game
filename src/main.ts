@@ -29,6 +29,7 @@ import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
 import { gullScout, scoutWithLookout } from './sim/scouting.ts';
+import { raidTemplate } from './sim/templates.ts';
 import { aimGull, trackGull } from './ui/gull.ts';
 import {
   clearSave, dawnsOf, loadDawn, loadDawnSlot, loadGame, loadLeaderboard, loadSlot, onSaveTrouble, recordScore, saveDawn, saveGame, saveOnHide, saveSlot,
@@ -664,6 +665,7 @@ async function main() {
       case 'gullTo': flyOver(a.plot); break; // crew: Gull Flight from the Raid Planner
       case 'gullLand': if (flight.active()) { flight.stop(); gullBtn.classList.remove('on'); } break;
       case 'gullScout': gullScout(state, a.plot); break;
+      case 'template': raidTemplate(state, a); break; // crew: raid templates (Rank 6)
       case 'clubhouse': buildClubhouse(state, a.plot); break;
       case 'club': waitAt(state, a.id, a.plot); break;
       case 'defend': fillPosts(state, a.plot); break;

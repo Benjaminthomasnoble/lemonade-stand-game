@@ -243,6 +243,7 @@ export interface GameState {
   recruitDay?: number; // the Hiring Hall last refreshed its recruits (crew)
   scouting?: Record<string, Scouted>; // rival plots a Lookout or Gull Flight has scouted, fresh for 3 days (crew)
   citations?: import('./citations.ts').CitationState; // Sheriff Budd's Citations: the raid ban, Election Day's rules (crew)
+  raidTemplates?: import('./templates.ts').TemplateState; // raid templates (Rank 6): saved squads and objectives, and their switch (crew)
   clubhouse?: number; // old saves: one Clubhouse level for the whole crew (clubhouse.ts moves it onto a Street plot)
   nextId: number;
   raids: Raid[]; // planned for tonight (theirs and yours)

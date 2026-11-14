@@ -585,6 +585,8 @@ export const ELECTION = {
 };
 /** Sabotage (spoil a stand's stock: it can't sell its next day) opens at this Rank, for you and for rivals raiding you. */
 export const SABOTAGE_RANK = 4;
+/** Raid templates (spec: Rank 6, "save a squad and objective for one-tap repeats"): how many you can keep. placeholder: spec gap (no number). */
+export const RAID_TEMPLATES = { rank: 6, max: 3 };
 /** Each rival's chance that a raid on one of your stands is a Sabotage: Cold Brew's Night Shift leans on it (placeholder: spec gap, no rates given). */
 export const RIVAL_SABOTAGE: Record<RivalId, number> = { sourwood: 0.1, hollis: 0.1, fizzco: 0.1, coldbrew: 0.4, blenders: 0.1 };
 export const TRAITS = [

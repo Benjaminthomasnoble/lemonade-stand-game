@@ -13,6 +13,15 @@ import { shakedownLoot } from '../sim/loot.ts';
 import { citationRisk, raidBan } from '../sim/citations.ts';
 import { flyOver, snapshotTip } from './gull.ts';
 import { glyph } from './clay.ts';
+import { canSaveTemplate, templateAt, templateFor, templates, templatesOn, templatesUnlocked, type RaidTemplate } from '../sim/templates.ts';
+import { PLOT_BY_ID } from '../sim/map.ts';
+
+/** The Crew tab's switch for raid templates, from Rank 6 (spec: every helper is a switch, a target and a Ledger line). */
+export function templatesSwitch(s: GameState): string {
+  if (!templatesUnlocked(s)) return '';
+  const on = templatesOn(s);
+  return `<button class="cl-toggle${on ? ' on' : ''}" data-action="tplSwitch" data-testid="raid-templates-switch" aria-pressed="${on}" title="On: the Raid Planner keeps your saved raids, and opens on a plot with the one that last went there"><i></i>Raid templates</button>`;
+}
 
 export interface Planner {
   /** Guards picked for the next raid or HQ assault. */
@@ -65,13 +74,32 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     return `${unknown}<div class="cl-acts">${k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}"${b.ok ? ` title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"` : ''}`, 'ghost')}${fly}</div>`;
   }
 
-  /** The plot the Planner last opened on: opening it on another, Dex fills the squad to the cap (swap anyone after). */
+  /** The plot the Planner last opened on: opening it on another, Dex fills the squad to the cap (swap anyone after), or
+   * the raid template that last went there fills the squad and the objective, so repeating it is one tap. */
   let openFor: string | null = null;
   function open(s: GameState, id: string) {
     if (openFor === id) return;
     openFor = id;
     squad.clear();
+    const t = templateAt(s, id);
+    if (t) { for (const g of t.guards) squad.add(g); objective = t.objective; return; } // the panel drops anyone not free
     for (const g of dexSquad(s)) squad.add(g);
+  }
+
+  /** Raid templates (Rank 6, switch on): each a tap that fills the squad and objective, with a drop; then Save. */
+  function templateRow(s: GameState, id: string, ids: string[], free: Set<string>) {
+    if (!templatesOn(s)) return '';
+    const now = templateFor(s, ids, objective);
+    const name = (g: string) => s.guards.find((x) => x.id === g)?.name.split(' ')[0] ?? '';
+    const chip = (t: RaidTemplate) => {
+      const ready = t.guards.filter((g) => free.has(g)).length;
+      const tip = `${t.guards.map(name).filter(Boolean).join(', ')}: ${t.objective}${t.target ? `, last at ${PLOT_BY_ID[t.target]?.name ?? t.target}` : ''}${ready < t.guards.length ? ` (${ready} of ${t.guards.length} free)` : ''}`;
+      return k.btn('tplUse', k.esc(t.name), ready ? { ok: true } : { ok: false, why: 'Nobody in it is free' }, `data-ids="${t.guards.join(',')}" data-value="${t.objective}" data-testid="raid-template"${ready ? ` title="${k.esc(tip)}"` : ''}`, `tiny ${now === t ? 'go' : 'ghost'}`)
+        + `<button class="cl-b tiny ghost" data-action="tplDrop" data-id="${t.id}" aria-label="Drop ${k.esc(t.name)}" title="Drop ${k.esc(t.name)}">${glyph('close')}</button>`;
+    };
+    const sv = canSaveTemplate(s, ids, objective);
+    const save = k.locked(sv) ? '' : k.btn('tplSave', `${glyph('plus')}Save`, sv, `data-plot="${id}" data-testid="raid-template-save"${sv.ok ? ' title="Keep this squad and objective as a raid template"' : ''}`, 'tiny ghost');
+    return `<div class="cl-acts" data-testid="raid-templates">${templates(s).map(chip).join('')}${save}</div>`;
   }
 
   /**
@@ -102,6 +130,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     if (!crew.length) return '<span class="cl-note">No guards free</span>';
     const ids = [...squad];
     const goals = objectives(s, id, ids, k.whole(shakedownLoot(s, id)), inMenu);
+    const saved = templateRow(s, id, ids, new Set(crew.map((g) => g.id)));
     const scouted = isScouted(s, id);
     const odds = (night: boolean): Odds => {
       const ps = s.plots[id];
@@ -124,6 +153,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     // A disabled button carries its reason as the title, so the odds tip only goes on a live one.
     const tip = (t: string) => (can.ok ? ` title="${t}"` : '');
     return `<div class="cl-planner" data-testid="raid-planner">
+      ${saved}
       ${goals}
       ${intel(s, id)}
       ${picker(s)}
@@ -144,6 +174,10 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); return true;
       case 'scout': squad.delete(d.id!); onAction({ type: 'scout', id: d.id!, plot: d.plot! }); return true;
       case 'gullTo': onAction({ type: 'gullTo', plot: d.plot! }); return true;
+      case 'tplUse': squad.clear(); for (const g of (d.ids ?? '').split(',').filter(Boolean)) squad.add(g); objective = d.value as RaidObjective; redraw(); return true; // the panel drops anyone not free
+      case 'tplSave': onAction({ type: 'template', op: 'save', plot: d.plot, guards: [...squad], objective }); return true;
+      case 'tplDrop': onAction({ type: 'template', op: 'drop', id: d.id }); return true;
+      case 'tplSwitch': onAction({ type: 'template', op: 'switch' }); return true;
     }
     return false;
   }

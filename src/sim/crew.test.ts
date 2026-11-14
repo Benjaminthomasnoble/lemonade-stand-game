@@ -20,6 +20,8 @@ import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
 import { canAssault, makeTruce } from './rivals.ts';
 import { festivalDays } from './calendar.ts';
+import { canSaveTemplate, dropTemplate, saveTemplate, switchTemplates, templateAt, templates, templatesOn, TEMPLATES_ID } from './templates.ts';
+import { helperLines } from './automation.ts';
 
 /** An empty Street plot of yours, for a Clubhouse. */
 const streetLot = (s: GameState) => { const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; return lot.id; };
@@ -1080,5 +1082,62 @@ describe('the Raid Planner squad', () => {
     s.rank = 7;
     s.guards = Array.from({ length: 14 }, (_, i) => g(`x${i}`, 'clubs', 'vest', 1));
     expect(dexSquad(s)).toHaveLength(12); // the Rank 7 cap
+  });
+});
+
+describe('raid templates (Rank 6)', () => {
+  /** Rank 6, three guards, two rival stands, and a lot of yours in each one's district (raids need a Foothold). */
+  const sixth = (seed: number) => {
+    const s = newGame(seed);
+    s.rank = 6;
+    s.guards = ['Rosa Reyes', 'Bo Banks', 'Kit Kim'].map((name, i) => guardOf('clubs', 'vest', 2, 'Loyal', { id: `g${i}`, name }));
+    const [a, b] = raidTargets(s).filter((p) => s.plots[p.id].stand).map((p) => p.id);
+    for (const t of [a, b]) { const lot = PLOTS.find((p) => p.district === PLOT_BY_ID[t].district && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; }
+    return { s, a, b };
+  };
+  const line = (s: GameState) => helperLines(s.today).find((l) => l.id === TEMPLATES_ID)?.line;
+
+  it('saves a squad and objective named for its lead, up to 3, from Rank 6', () => {
+    const { s, a } = sixth(121);
+    s.rank = 5;
+    expect(canSaveTemplate(s, ['g0'], 'smash')).toEqual({ ok: false, why: 'Raid templates unlock at Rank 6' });
+    s.rank = 6;
+    expect(saveTemplate(s, ['g0', 'g1'], 'smash', a)?.name).toBe("Rosa's Smash");
+    expect(canSaveTemplate(s, ['g1', 'g0'], 'smash')).toEqual({ ok: false, why: 'Already saved' }); // the same squad, in any order
+    expect(saveTemplate(s, ['g0'], 'smash')?.name).toBe("Rosa's Smash 2");
+    expect(saveTemplate(s, ['g2'], 'shakedown')?.name).toBe("Kit's Shakedown");
+    expect(canSaveTemplate(s, ['g1'], 'smash')).toEqual({ ok: false, why: '3 saved: drop one first' });
+    expect(dropTemplate(s, templates(s)[1].id)).toBe(true);
+    expect(templates(s).map((t) => t.name)).toEqual(["Rosa's Smash", "Kit's Shakedown"]);
+    expect(canSaveTemplate(s, [], 'smash')).toEqual({ ok: false, why: 'Pick your squad first' });
+  });
+
+  it("a raid sent with one aims it at that plot and counts on the Ledger's line; the switch turns them off", () => {
+    const { s, a, b } = sixth(122);
+    const t = saveTemplate(s, ['g0', 'g1'], 'shakedown', a)!;
+    expect(templateAt(s, a)).toBe(t);
+    expect(planRaid(s, b, ['g1', 'g0'], 'shakedown', 'tonight')).toBe(true);
+    expect(t.target).toBe(b); // re-aimed: the Planner opens with it there now
+    expect(templateAt(s, a)).toBeUndefined();
+    expect(line(s)).toBe('1 raid sent');
+    expect(planRaid(s, a, ['g2'], 'smash', 'tonight')).toBe(true); // no template: not counted
+    expect(line(s)).toBe('1 raid sent');
+    expect(switchTemplates(s)).toBe(true);
+    expect(templatesOn(s)).toBe(false);
+    expect(templateAt(s, b)).toBeUndefined(); // off: the Planner opens with Dex's squad
+    expect(canSaveTemplate(s, ['g2'], 'sabotage')).toEqual({ ok: false, why: 'Raid templates are switched off' });
+    switchTemplates(s);
+    expect(templateAt(s, b)).toBe(t);
+  });
+
+  it('saves keep them; loading drops a broken one, and does it once', () => {
+    const { s, a } = sixth(123);
+    saveTemplate(s, ['g0'], 'smash', a);
+    const back = JSON.parse(JSON.stringify(s)) as GameState;
+    (back.raidTemplates!.list as unknown[]).push({ id: 'bad' }, 'junk');
+    migrateSave(back);
+    expect(back.raidTemplates!.list).toEqual(s.raidTemplates!.list);
+    migrateSave(back);
+    expect(back.raidTemplates!.list).toEqual(s.raidTemplates!.list);
   });
 });

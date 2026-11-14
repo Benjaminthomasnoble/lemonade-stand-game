@@ -3,7 +3,8 @@ import { hqPlot, newGame, raidTargets, type Blocker, type GameState } from '../s
 import { guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
-import { createRaidPlanner } from './raidPlanner.ts';
+import { createRaidPlanner, templatesSwitch } from './raidPlanner.ts';
+import { saveTemplate } from '../sim/templates.ts';
 
 /** The clay kit, drawn as bare tags: art as <i data-art>, buttons as the HUD's own (disabled with the reason). */
 const art = new Proxy({}, { get: (_, name) => () => `<i data-art="${String(name)}"></i>` });
@@ -87,5 +88,30 @@ describe('the Raid Planner', () => {
     html = p.panel(s, target);
     expect(html).toContain(`data-action="goto" data-plot="${hqPlot('blenders').id}" data-testid="objective-hq" title="Storm The Blend Shack: the Gate, the Yard, the Boss Room"`);
     expect(p.panel(s, target, true)).toContain(`data-action="inspect" data-plot="${hqPlot('blenders').id}"`); // from the menu: it closes on the HQ's card
+  });
+
+  it('from Rank 6 a template is one tap: the Planner opens on its target with its squad and objective', () => {
+    const { s, target } = setup(84);
+    const { p, acts } = planner();
+    expect(templatesSwitch(s)).toBe(''); // Rank 4: no templates yet
+    s.rank = 6;
+    expect(templatesSwitch(s)).toContain('data-testid="raid-templates-switch" aria-pressed="true"');
+    saveTemplate(s, ['r0', 'r2'], 'shakedown', target);
+    let html = p.panel(s, target);
+    expect([...p.squad]).toEqual(['r0', 'r2']); // the template that last went here, not Dex's three
+    expect(html).toMatch(/class="cl-b tiny go" data-action="tplUse" data-ids="r0,r2" data-value="shakedown"/);
+    expect(html).toMatch(/class="cl-b go" data-action="objective" data-value="shakedown"/);
+    expect(html).toMatch(/data-action="tplSave"[^>]*disabled title="Already saved"/);
+    p.click({ action: 'squad', id: 'r1' }); // a different squad: it can be saved too
+    html = p.panel(s, target);
+    expect(html).toMatch(/class="cl-b tiny ghost" data-action="tplUse"/);
+    p.click({ action: 'tplSave', plot: target });
+    expect(acts.at(-1)).toEqual({ type: 'template', op: 'save', plot: target, guards: ['r0', 'r2', 'r1'], objective: 'shakedown' });
+    p.click({ action: 'objective', value: 'smash' });
+    p.click({ action: 'tplUse', ids: 'r0,r2', value: 'shakedown' }); // one tap back to the template
+    expect([...p.squad]).toEqual(['r0', 'r2']);
+    expect(p.panel(s, target)).toMatch(/class="cl-b go" data-action="objective" data-value="shakedown"/);
+    p.click({ action: 'tplSwitch' });
+    expect(acts.at(-1)).toEqual({ type: 'template', op: 'switch' });
   });
 });

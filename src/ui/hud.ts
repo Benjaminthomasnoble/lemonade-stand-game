@@ -57,7 +57,7 @@ import { keptNote, plotBuyoutRow, sitDown, sitdownAction } from './sitdown.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
-import { createRaidPlanner } from './raidPlanner.ts';
+import { createRaidPlanner, templatesSwitch } from './raidPlanner.ts';
 import {
   auctionControls, landNotes, landTickets, listingControls, priceTip, registryButton, registryScreen, sellPlotButton, TOWN_HALL, type RegistryTab,
 } from './registry.ts';
@@ -110,6 +110,7 @@ export type Action =
   | { type: 'gullTo'; plot: string } // crew: the Raid Planner's Fly over (Captain Squawk takes off beside a rival plot)
   | { type: 'gullLand' } // crew: the Gull Flight ticket's Land
   | { type: 'gullScout'; plot: string } // crew: Squawk circled a rival plot (main.ts's tracker, src/ui/gull.ts)
+  | { type: 'template'; op: 'save' | 'drop' | 'switch'; id?: string; plot?: string; guards?: string[]; objective?: RaidObjective } // crew: raid templates (Rank 6, src/sim/templates.ts)
   | { type: 'replay'; index: number }
   | { type: 'defend'; plot: string }
   | { type: 'mute' }
@@ -437,7 +438,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'autodefend': onAction({ type: 'autodefend' }); break;
       case 'priority': onAction({ type: 'priority', plot: d.plot! }); break;
       case 'captive': onAction({ type: 'captive', id: d.id!, choice: d.choice as CaptiveChoice }); break;
-      case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': case 'gullTo': planner.click(d); break;
+      case 'squad': case 'squadAll': case 'objective': case 'raid': case 'scout': case 'gullTo': case 'tplUse': case 'tplSave': case 'tplDrop': case 'tplSwitch': planner.click(d); break;
       case 'planTarget': planTarget = d.plot ?? null; redraw(); break; // the Raid Planner menu's target (src/ui/menus.ts)
       case 'replay': onAction({ type: 'replay', index: Number(d.index) }); break;
       case 'facility': onAction({ type: 'facility', plot: d.plot!, kind: d.kind as FacilityKind }); break;
@@ -681,7 +682,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   const kit: Kit = { ART, btn, card, tape, meter, pips, locked, esc, whole, GADGET_ART, WEAPON_ART };
   const clubs = clubKit(kit); // the Clubhouse panels (src/ui/clubhouse.ts) draw with it
   /** combat's panels under the crew (Defend tab, Crew roster): the Nabbed (src/ui/captives.ts), Dex's Auto-Defend switch (src/ui/autodefend.ts). */
-  const crewExtras = (s: GameState) => captivesPanel(clubs, s) + autoDefendSwitch(s);
+  const crewExtras = (s: GameState) => captivesPanel(clubs, s) + autoDefendSwitch(s) + templatesSwitch(s); // crew: raid templates' switch (src/ui/raidPlanner.ts)
   const planner = createRaidPlanner(kit, redraw, onAction);
   function levelStats(l: StandLevel, top: number) {
     return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;

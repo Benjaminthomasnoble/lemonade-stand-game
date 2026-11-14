@@ -323,7 +323,7 @@ export function canTruce(s: GameState, id: RivalId): Blocker {
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   if (inTruce(s, id)) return { ok: false, why: `Truce until day ${s.rivals[id].truceUntil}` };
   if ((s.noTruceUntil ?? 0) >= s.day) return { ok: false, why: `Nobody trusts your handshake until day ${s.noTruceUntil! + 1}` };
-  if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
+  if (s.phase === 'night') return { ok: false, why: 'Too late tonight: sit down tomorrow' }; // land: any hour of the day, the Evening too
   if (s.cash < truceCost(s, id)) return { ok: false, why: `Tribute is ${money(truceCost(s, id))}` };
   return { ok: true };
 }
@@ -367,7 +367,7 @@ export function canPlotBuyout(s: GameState, plotId: string): Blocker {
   if (!ps.owner || ps.owner === 'player') return { ok: false, why: 'Pick a rival plot' };
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
   if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' };
-  if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
+  if (s.phase === 'night') return { ok: false, why: 'Too late tonight: sit down tomorrow' }; // land: any hour of the day, the Evening too
   const price = plotBuyoutPrice(s, plotId);
   if (s.cash < price) return { ok: false, why: `They want ${money(price)}` };
   return { ok: true };
@@ -416,14 +416,14 @@ export const caveChance = (s: GameState, id: RivalId) => Math.max(0, Math.min(1,
 export const BOSS_NAME: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera' };
 const bossName = (id: RivalId) => BOSS_NAME[id];
 
-/** Everything a Faction Buyout needs but the money: the rank, a Weakened rival who sells, Morning Prep, a boss at the table. */
+/** Everything a Faction Buyout needs but the money: the rank, a Weakened rival who sells, any hour but night, a boss at the table. */
 function buyoutTable(s: GameState, id: RivalId): Blocker {
   if (s.rank < Math.max(FACTION_BUYOUT_RANK, HQS[id].rank)) return rankNeed(Math.max(FACTION_BUYOUT_RANK, HQS[id].rank));
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
   const tilly = tillyWaits(s, id, 'buyout'); if (tilly) return tilly;
   if (factionBuyoutPrice(s, id) === null) return { ok: false, why: `${HQS[id].boss} never sells` };
   if (!isWeakened(s, id)) return { ok: false, why: 'Only once they are Weakened' };
-  if (s.phase !== 'prep') return { ok: false, why: 'Sit-downs happen at Morning Prep' };
+  if (s.phase === 'night') return { ok: false, why: 'Too late tonight: sit down tomorrow' }; // land: any hour of the day, the Evening too
   if (s.rivals[id].haggle?.day === s.day && s.rivals[id].haggle?.out) return { ok: false, why: `${bossName(id)} walked out. Back tomorrow` };
   return { ok: true };
 }

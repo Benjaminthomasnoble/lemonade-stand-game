@@ -10,7 +10,7 @@ import {
   BRAND_TIERS, CLUBHOUSE, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RAID_RANK, RANKS, SALES_GOAL_SHARE,
   SEASON_DAYS, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, WEAPONS, type RivalId, type Sweetness,
 } from './balance.ts';
-import { DISTRICTS, LOTTIES_CORNER, onMap, plotOnMap, PLOTS, type DistrictId } from './map.ts';
+import { DISTRICTS, LOTTIES_CORNER, onMap, plotOnMap, PLOTS, plotType, type DistrictId } from './map.ts';
 import type { GameState, Goal } from './economy.ts';
 import { averageStopChance, canBuyPlot, expectedCups, netWorth, playerStands, plotPrice, restockOn, servingsAvailable, successScore } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
@@ -91,11 +91,11 @@ function cheapestPlot(s: GameState, d: DistrictId): number {
 /** Can a stand go up in this district now (the land is open to you, whatever it costs)? */
 function districtOpen(s: GameState, d: DistrictId): boolean {
   return PLOTS.some((p) => {
-    if (p.district !== d || !STAND_PLOTS.includes(p.type)) return false;
+    if (p.district !== d || !STAND_PLOTS.includes(plotType(s, p))) return false; // land: as a Sandbox map tagged it
     const ps = s.plots[p.id];
     if (ps.owner === 'player') return !ps.stand;
     const b = canBuyPlot(s, p.id);
-    return b.ok || /^(Needs \$|Buy land during)/.test(b.why);
+    return b.ok || /^Needs \$/.test(b.why);
   });
 }
 

@@ -167,14 +167,13 @@ export function loanLimit(s: GameState): number {
 
 export function canBorrow(s: GameState, amount: number): Blocker {
   if (gameOver(s)) return { ok: false, why: 'The run is over' };
-  if (s.phase === 'open') return { ok: false, why: 'The bank sees you at Morning Prep or after closing' };
   if (amount <= 0) return { ok: false, why: 'Pick an amount' };
   const limit = loanLimit(s);
   if (amount > limit) return { ok: false, why: limit ? `The bank lends up to ${money(limit)}` : 'Nothing to borrow against yet' };
   return { ok: true };
 }
 
-/** Borrow from the First Bank of Citrine Bay: 3% a week on what's left, paid off over 4 weekly dawns. */
+/** Borrow from the First Bank of Citrine Bay, any hour: 3% a week on what's left, paid off over 4 weekly dawns. */
 export function borrow(s: GameState, amount: number): boolean {
   if (!canBorrow(s, amount).ok) return false;
   book(s, 'loan', amount);
@@ -197,7 +196,7 @@ export function loanPayment(s: GameState): number {
 /** Pay off what's left early (no interest on weeks not yet started). */
 export function repayLoan(s: GameState): boolean {
   const l = s.loan;
-  if (!l || s.cash < l.principal || s.phase === 'open') return false;
+  if (!l || s.cash < l.principal) return false;
   book(s, 'loan', -l.principal);
   delete s.loan;
   s.news.push('Marisol: "Loan paid off. I\'ve framed the receipt."');

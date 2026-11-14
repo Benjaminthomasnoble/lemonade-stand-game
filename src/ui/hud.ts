@@ -710,7 +710,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   /** Marisol's bank only shows up when you owe her or could use her. */
   function bank(s: GameState) {
     const l = s.loan;
-    if (l) return card(ART.piggy(), `You owe ${whole(l.principal)}`, `${whole(loanPayment(s))} on day ${l.nextDue}${l.missed ? ' · missed one!' : ''}`, btn('repay', 'Pay off', s.cash >= l.principal && s.phase !== 'open' ? { ok: true } : { ok: false, why: `Needs ${whole(l.principal)}` }, 'data-testid="repay"'), `Marisol's bank: 3% a week over 4 weeks${l.missed ? '. One more miss and the bank takes a plot.' : ''}`);
+    if (l) return card(ART.piggy(), `You owe ${whole(l.principal)}`, `${whole(loanPayment(s))} on day ${l.nextDue}${l.missed ? ' · missed one!' : ''}`, btn('repay', 'Pay off', s.cash >= l.principal ? { ok: true } : { ok: false, why: `Needs ${whole(l.principal)}` }, 'data-testid="repay"'), `Marisol's bank: 3% a week over 4 weeks${l.missed ? '. One more miss and the bank takes a plot.' : ''}`);
     const limit = loanLimit(s);
     if (!limit || s.cash > 60) return '';
     const amt = Math.floor(limit / 2 / 50) * 50 || limit;

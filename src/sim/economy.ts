@@ -954,7 +954,6 @@ export function canBuyPlot(s: GameState, plotId: string): Blocker {
   if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' }; // Sourwood's Old Money
   if (ps.auction) return { ok: false, why: 'Up for auction: bid instead' };
   if (ps.dibs && ps.dibs.who !== 'player') return { ok: false, why: 'Someone else has First Dibs today' };
-  if (s.phase === 'open') return { ok: false, why: 'Buy land during Morning Prep' };
   const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day;
   const reach = reachBlocker(s, p.district);
   if (!dibs && !reach.ok) return reach;

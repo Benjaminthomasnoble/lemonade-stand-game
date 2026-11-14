@@ -3,6 +3,7 @@ import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
+  canBorrow, canFactionBuyout, canPlotBuyout, canTruce, plotBuyout, repayLoan,
   LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
@@ -484,5 +485,33 @@ describe('building stands', () => {
     const next = street(s, 'maple');
     give(s, next.id);
     expect(canBuildStand(s, next.id)).toEqual({ ok: false, why: 'Too late tonight: build tomorrow' });
+  });
+});
+
+describe('land, Sit-downs and loans keep no hours', () => {
+  it('sell land on the spot, meet at the Diner and see the bank in business hours and the Evening; the Diner shuts at night', () => {
+    const s = newGame(121);
+    Object.assign(s, { cash: 1e7, rank: 10 }); // Brock is Weakened next to all that cash
+    openStand(s);
+    const lot = street(s, 'maple');
+    expect(canBuyPlot(s, lot.id)).toEqual({ ok: true });
+    expect(buyPlot(s, lot.id)).toBe(true);
+    expect(s.plots[lot.id].stand).toBeNull(); // a Vacant Lot until a stand goes up
+    const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'coldbrew' && p.type !== 'hq' && plotOnMap(s, p))!;
+    expect(canTruce(s, 'blenders')).toEqual({ ok: true });
+    expect(plotBuyout(s, theirs.id)).toBe(true);
+    expect(s.plots[theirs.id].owner).toBe('player');
+    expect(canFactionBuyout(s, 'blenders')).toEqual({ ok: true });
+    expect(canBorrow(s, 100)).toEqual({ ok: true });
+    expect(borrow(s, 100) && repayLoan(s)).toBe(true);
+    s.phase = 'report'; // the Evening
+    expect(canTruce(s, 'blenders')).toEqual({ ok: true });
+    expect(canBuyPlot(s, street(s, 'maple').id)).toEqual({ ok: true });
+    s.phase = 'night';
+    expect(canTruce(s, 'blenders')).toEqual({ ok: false, why: 'Too late tonight: sit down tomorrow' });
+    expect(canFactionBuyout(s, 'blenders')).toEqual({ ok: false, why: 'Too late tonight: sit down tomorrow' });
+    expect(canPlotBuyout(s, PLOTS.find((p) => s.plots[p.id].owner === 'coldbrew' && p.type !== 'hq')!.id)).toEqual({ ok: false, why: 'Too late tonight: sit down tomorrow' });
+    expect(canBuyPlot(s, street(s, 'maple').id)).toEqual({ ok: true }); // land still sells on the spot
+    expect(canBorrow(s, 100)).toEqual({ ok: true });
   });
 });

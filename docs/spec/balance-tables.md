@@ -151,7 +151,7 @@ From Level 3 a guard can take one specialty, for good. Promotion is free (placeh
 
 | Specialist | Rank | Effect |
 |---|---|---|
-| Lookout | 4 | +25% detection on the plot where posted (several don't stack). Scouts a rival plot by day, off post through the business day; what they saw stays good for 3 days. Can lead a Sabotage |
+| Lookout | 4 | +25% detection on the plot where posted (several don't stack). Scouts a rival plot by day, off post through the business day; what they saw stays good for 3 days, as does a Gull Flight's look (Squawk circling a rival plot). Can lead a Sabotage |
 | Wrecker | 4 | +50% Chop, on top of a Lumberjack's (×2 for both) (placeholder) |
 | Captain | 6 | The whole side gets +20 Nerve and +10% Hit, once however many Captains |
 

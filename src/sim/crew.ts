@@ -1159,7 +1159,7 @@ export function crewAtDawn(s: GameState): void {
   scoutingAtDawn(s);
   citationsAtDawn(s, rng); // a ban run out; Election Day's vote
   if (s.day >= LESSON_DAY.crew) welcomeDex(s);
-  if (s.day === 3) offerSideLot(s);
+  if (s.day === LESSON_DAY.defense) offerSideLot(s); // Day 3: "Defense and a second stand"
   refreshRecruits(s);
   trainingYard(s); // the reserve at an L2+ Clubhouse earns a day's XP (clubhouse.ts)
   captivesAtDawn(s); // combat: a rival gives up on your guard's ransom (captives.ts)
@@ -1205,10 +1205,10 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
 }
 
 /**
- * Day 3: Lottie sells you her side lot next to the Corner for $300, table included. The lot is fixed like the Corner
- * ($300 land, 300 passersby: src/sim/map.ts), so the sale turns $300 of cash into $300 of land. Bought already on
- * Days 1-2 and still empty, it gets her table anyway. Her table counts as $100 invested, like the Corner's
- * (economy.ts lottiesTable).
+ * Day 3 (LESSON_DAY.defense): Lottie sells you her side lot next to the Corner for $300, table included. The lot is
+ * fixed like the Corner ($300 land, 300 passersby: src/sim/map.ts), so the sale turns $300 of cash into $300 of land.
+ * Bought already on Days 1-2 and still empty, it gets her table anyway. Her table counts as $100 invested, like the
+ * Corner's (economy.ts lottiesTable).
  */
 export function offerSideLot(s: GameState): void {
   const ps = s.plots[LOTTIES_SIDE_LOT];

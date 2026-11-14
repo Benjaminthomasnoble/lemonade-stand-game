@@ -4,7 +4,7 @@
 // judging day; Preston rings from the tow truck, still on his car phone. One cameo every CAMEO_DAYS days, the beaten
 // bosses taking turns, none sooner than CAMEO_DAYS after their own fall. Endless only: Endless Summer from the start, or
 // the campaign's Epilogue after Keep squeezing. Vera has no cameo: she's at the Corner with Lottie. Pure, like the rest.
-import { CAMEO_DAYS, FACTIONS, type RivalId } from './balance.ts';
+import { CAMEO_DAYS, FACTIONS, PHONE_GRUDGE_LINE, type RivalId } from './balance.ts';
 import { CONTESTANT_NAME, tasteOffToday } from './calendar.ts';
 import { onYou } from './night.ts';
 import type { GameState } from './economy.ts';
@@ -38,8 +38,8 @@ export const PRESTON_CALLS: readonly string[] = [
 ];
 /** Tilly rings the morning she judges the County Fair's Taste-Off. */
 export const TILLY_JUDGES = "I'm judging the County Fair today, sugar. Bring your best, or bring a hankie.";
-/** Juni, informing: tonight's raid on you, else the boss with the biggest Grudge (whether it's past the phone's 30, when
- * they're spoiling for a fight), else nobody left to tell on. */
+/** Juni, informing: tonight's raid on you, else the boss with the biggest Grudge (whether it's past PHONE_GRUDGE_LINE,
+ * when they're spoiling for a fight), else nobody left to tell on. */
 export const juniRaidTip = (rival: RivalId, plot: string) => `${CONTESTANT_NAME[rival]}'s crew hits ${plotName(plot)} tonight. You didn't hear it from me.`;
 export const juniGrudgeTip = (rival: RivalId) => `Psst. ${CONTESTANT_NAME[rival]} has it in for you. Lock up. Consider me decaf.`;
 export const juniQuietTip = (rival: RivalId) => `Psst. ${CONTESTANT_NAME[rival]}'s been quiet. Too quiet. Consider me decaf.`;
@@ -71,7 +71,7 @@ export function cameosAtClose(s: GameState): void {
     const raid = s.raids.find((x) => !x.delivery && onYou(s, x));
     const top = RIVALS.filter((r) => s.rivals[r].alive).sort((a, b) => s.rivals[b].grudge - s.rivals[a].grudge)[0];
     if (raid) phoneCall(s, 'coldbrew', juniRaidTip(raid.attacker as RivalId, raid.target), { tip: true, priority: CALL_PRIORITY.story, until: s.day });
-    else phoneCall(s, 'coldbrew', !top ? JUNI_NOBODY : s.rivals[top].grudge > 30 ? juniGrudgeTip(top) : juniQuietTip(top), tomorrow);
+    else phoneCall(s, 'coldbrew', !top ? JUNI_NOBODY : s.rivals[top].grudge > PHONE_GRUDGE_LINE ? juniGrudgeTip(top) : juniQuietTip(top), tomorrow);
   }
   seen[due] = { day: s.day, n: n + 1 };
   st.cameoDay = s.day;

@@ -839,6 +839,8 @@ export const VICTORY_PAINT_SECONDS = 5.5; // placeholder: spec gap ("a sweep the
 export const CAMEO_DAYS = 5; // placeholder: spec gap ("Beaten bosses cameo")
 /** A boss phones when their Grudge toward you jumps this much at once (a raid on them adds 8 or 20). */
 export const PHONE_GRUDGE_JUMP = 8; // placeholder: spec gap ("a mood shift")
+/** ...or it climbs past this line: spoiling for a fight (the Bugle's brief on the call, and Juni's Endless tips, read it too). */
+export const PHONE_GRUDGE_LINE = 30; // placeholder: spec gap ("a mood shift")
 /** ...or their Attention on you, beyond Threat, rises this much from one dawn to the next (one more district of yours on their border). */
 export const PHONE_ATTENTION_JUMP = 0.5; // placeholder: spec gap ("a mood shift")
 /** Marisol's loans from the First Bank of Citrine Bay. */

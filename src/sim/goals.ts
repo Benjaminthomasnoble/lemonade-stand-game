@@ -139,7 +139,7 @@ function shortGoals(s: GameState): Candidate[] {
     if (s.day === 1) lesson({ id: 'lesson-pitcher', text: 'Sell out your first pitcher', progress: sold / CUPS_PER_PITCHER, done: sold >= CUPS_PER_PITCHER });
     // Met when you open with the right pitcher for the forecast, so the lesson is there to see at Morning Prep.
     if (s.day === LESSON_DAY.recipes) { const m = recipeMatch(s); lesson({ id: 'lesson-recipe', text: 'Match a recipe to the weather', progress: m, done: s.phase !== 'prep' && m >= 0.98 }); }
-    if (s.day === 3) {
+    if (s.day === LESSON_DAY.defense) { // Day 3's second stand: Lottie's side lot comes with the fence's lesson (crew.ts)
       const stands = playerStands(s);
       const selling = stands.filter((p) => s.phase !== 'prep' && s.plots[p.id].stand!.day.customers > 0).length;
       const clean = s.today.walkedPast.soldOut === 0;

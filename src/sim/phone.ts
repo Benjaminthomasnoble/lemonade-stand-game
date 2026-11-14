@@ -8,7 +8,7 @@
 // Endless keep the taunts. The sim picks who calls and when, and the line when
 // the spec scripts one; otherwise the boss's own pool by mood fills it in
 // (src/world/barks.ts).
-import { FACTIONS, PHONE_ATTENTION_JUMP, PHONE_GRUDGE_JUMP, type RivalId } from './balance.ts';
+import { FACTIONS, PHONE_ATTENTION_JUMP, PHONE_GRUDGE_JUMP, PHONE_GRUDGE_LINE, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { playerWon, threatLevel, type Raid } from './crew.ts';
@@ -153,7 +153,7 @@ export function bossBrief(s: GameState): string | null {
   if (s.battles.some((b) => b.day === s.day - 1 && b.attacker === c.who && b.defender === 'player')) return null;
   const name = FACTIONS[c.who].name, d = plotsOf(s, c.who) - c.plots;
   const plural = (n: number) => `${n} plot${n === 1 ? '' : 's'}`;
-  const move = d > 0 ? `grab ${plural(d)} after the call` : d < 0 ? `lose ${plural(-d)} after the call` : s.rivals[c.who].grudge > 30 ? 'hang up spoiling for a fight' : 'keep quiet after the call';
+  const move = d > 0 ? `grab ${plural(d)} after the call` : d < 0 ? `lose ${plural(-d)} after the call` : s.rivals[c.who].grudge > PHONE_GRUDGE_LINE ? 'hang up spoiling for a fight' : 'keep quiet after the call';
   return `Bugle: ${name} ${move}.`;
 }
 
@@ -183,7 +183,7 @@ export function phoneCheck(s: GameState, dawn = false): void {
     ph.grudge[r] = st.grudge;
     if (dawn) ph.attention[r] = a;
     if (!st.alive || g0 === undefined) continue;
-    if (jumped(g0, st.grudge, PHONE_GRUDGE_JUMP) || (g0 <= 30 && st.grudge > 30)) {
+    if (jumped(g0, st.grudge, PHONE_GRUDGE_JUMP) || (g0 <= PHONE_GRUDGE_LINE && st.grudge > PHONE_GRUDGE_LINE)) {
       // Most jumps follow a raid of yours on them: they call about it at the next dawn ("at dawn he calls").
       const fight = s.battles.find((b) => b.day >= s.day - 1 && b.attacker === 'player' && b.defender === r);
       const won = !!fight && playerWon(fight);

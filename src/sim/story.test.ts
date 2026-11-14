@@ -12,7 +12,7 @@ import { ownedRecipes } from './recipes.ts';
 import { bossBrief, CALL_PRIORITY, LINES, phoneAtClose, phoneCall, phoneCheck, takeCall } from './phone.ts';
 import { beginScene, endScene, playingScene, playScene, SCENE_MAX_SECONDS, sceneDef, sceneLine, sceneReady } from './scenes.ts';
 import { actBegan, cornerName, cornerSign, rankTenLine, dexGooseLine, LEAN_LINES, leanLine, marisolLine, storyAtClose, storyAtDawn, storyDateline, storyHeadline, taught } from './story.ts';
-import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
+import { CAMEO_DAYS, FACTIONS, LESSON_DAY, PERIMETERS, PHONE_GRUDGE_JUMP, PHONE_GRUDGE_LINE, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
 import { CREW_NAME, crewCall, crewCheer, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
@@ -249,6 +249,27 @@ describe('boss phone taunts', () => {
     const rang: string[] = [];
     for (let call = takeCall(s); call; call = takeCall(s)) { rang.push(call.who); s.day++; }
     expect(rang).toEqual(['sourwood', 'blenders']);
+  });
+
+  it('a Grudge climbing past the line rings without a jump, and the next Bugle has them hang up spoiling for a fight', () => {
+    const s = newGame(23);
+    const below = PHONE_GRUDGE_LINE - 2, past = PHONE_GRUDGE_LINE + 1;
+    expect(past - below).toBeLessThan(PHONE_GRUDGE_JUMP); // no jump: only the line can ring it
+    s.rivals.hollis.grudge = below;
+    phoneCheck(s); // the climb from the start to just below the line is a jump: set it aside
+    s.phone!.queue.length = 0;
+    s.rivals.hollis.grudge = past;
+    phoneCheck(s);
+    expect(s.phone!.queue.map((c) => c.who)).toEqual(['hollis']);
+    expect(takeCall(s)).toMatchObject({ who: 'hollis', mood: 'warn' });
+    s.rivals.hollis.grudge = past + 2; // already past it: no second call
+    phoneCheck(s);
+    expect(s.phone!.queue).toEqual([]);
+    s.rivals.hollis.grudge = past;
+    s.day++;
+    expect(bossBrief(s)).toBe(`Bugle: ${FACTIONS.hollis.name} hang up spoiling for a fight.`);
+    s.rivals.hollis.grudge = PHONE_GRUDGE_LINE; // at the line is no fight yet
+    expect(bossBrief(s)).toBe(`Bugle: ${FACTIONS.hollis.name} keep quiet after the call.`);
   });
 
   it('a raid on you tonight gets its taunt once its warning is out, never before, and none once it has hit', () => {

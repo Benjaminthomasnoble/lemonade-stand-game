@@ -89,12 +89,6 @@ export function stopOdds(thirst: number, appealBeforePrice: number, fit: number)
 export const majorityHeld = (s: GameState, d: DistrictId): boolean => tierAtLeast(controlTier(s, d), 'majority');
 
 /**
- * Full Control: the player holds every purchasable plot (land's controlTier), so the district's perk is on (live: lose
- * one plot and it switches off). Demand's own perks ask land's perkActive; vip.ts reads this for Shipping Lane and Old Money.
- */
-export const fullControl = (s: GameState, d: DistrictId): boolean => controlTier(s, d) === 'full';
-
-/**
  * Curb appeal is ×1.0 at every stand level (a level pays off through draw, service and top price). Majority pushes
  * it: your stands in a district you hold 51%+ of sell 10% more, and rival stands there lose 10% appeal.
  * Billboards (rival stands within 2 plots −10%) multiply in here too, and the stand panel's curb row is this number.

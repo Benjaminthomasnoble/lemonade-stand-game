@@ -48,10 +48,10 @@ export function defenseSheet(k: Kit, s: GameState, id: string): string {
   out.push(damageCard(s, id)); // the stand itself: its HP, and the repair once it's Damaged (src/ui/damage.ts)
   if (cur) out.push(k.card(k.ART.fence(ps.defense.tier), cur.name, cur ? k.meter(ps.defense.fenceHp / cur.hp, 'hp') : '',
     (fenceRepairCost(ps) ? k.btn('repairFence', `Patch ${k.whole(fenceRepairCost(ps))}`, { ok: true }, `data-plot="${id}"`) : ''),
-    `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands. Each raid costs ${k.whole(cur.repair)} to repair${mendsOvernight(s, ps) ? ' overnight' : ': Auto-Repair skips this plot'}.`));
+    `${cur.name}: ${ps.defense.fenceHp}/${cur.hp} HP. Defenders hit ${cur.tier === 5 ? 50 : 25}% harder while it stands. Each raid costs ${k.whole(cur.repair)} to repair${mendsOvernight(s, id) ? ' overnight' : ': Auto-Repair skips this plot'}.`));
   if (next && !k.locked(pb)) out.push(k.card(k.ART.fence(next.tier), next.name, `${next.hp} HP`, k.btn('perimeter', k.whole(next.cost), pb, `data-plot="${id}" data-testid="perimeter"`, 'go'), `${next.hp} HP${next.breachDps ? ', hurts attackers breaking through' : ''}${next.slow ? ', slows them down' : ''}`));
   const installed = ps.defense.gadgets.map((g) => (g === 'slick' && ps.defense.slickSprung
-    ? `<span class="cl-slot" title="${GADGETS[g].name}: sprung. ${mendsOvernight(s, ps) ? `Re-laid overnight for ${k.whole(GADGETS[g].reset ?? 0)}` : 'Auto-Repair skips this plot'}">${k.GADGET_ART[g]()}</span>`
+    ? `<span class="cl-slot" title="${GADGETS[g].name}: sprung. ${mendsOvernight(s, id) ? `Re-laid overnight for ${k.whole(GADGETS[g].reset ?? 0)}` : 'Auto-Repair skips this plot'}">${k.GADGET_ART[g]()}</span>`
     : `<span class="cl-slot full" title="${GADGETS[g].name}: ${k.esc(GADGETS[g].text)}">${k.GADGET_ART[g]()}</span>`)).join('');
   const free = Array.from({ length: Math.max(0, slots - ps.defense.gadgets.length) }, () => '<span class="cl-slot">+</span>').join('');
   // The Neighborhood Watch's free Tin-Can (shown in its own slot below) takes the alarm off the shelf.

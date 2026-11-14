@@ -3,7 +3,7 @@ import {
   BULK, bulkGroups, bulkMembers, bulkPlan, FACILITIES, helperLines, LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PERIMETERS, PLOTS, runBulk,
   STAND_LEVELS, standCost, type DistrictId, type GameState,
   autoRepairs, canSetPolicy, districtPolicy, landAtDawn, migrateSave, plotPrice, policiesAtDawn, POLICIES, POLICY, priceCeiling, setPolicy, toggleAutoRepair,
-  togglePolicyPlot,
+  togglePolicyPlot, GADGETS, mendsOvernight, overnightRepairs,
 } from './economy.ts';
 import { defendPriority } from './autodefend.ts';
 import { AUTO_RESTOCK } from './automation.ts';
@@ -234,6 +234,27 @@ describe('district policies (Rank 7)', () => {
     expect(autoRepairs(s, ids[1])).toBe(false);
     setPolicy(s, 'oldtown', null);
     expect(autoRepairs(s, ids[0])).toBe(false);
+  });
+
+  it("Fortify mends a skipped plot's chopped fence and sprung Slick overnight, as Auto-Repair does", () => {
+    const { s, ids } = tycoon(47);
+    const [held, out] = [ids[0], ids[1]];
+    for (const id of [held, out]) {
+      s.plots[id].defense = { tier: 1, fenceHp: 10, gadgets: ['slick'], repairs: 1, slickSprung: true }; // raided last night
+      s.plots[id].noAutoRepair = true;
+    }
+    togglePolicyPlot(s, out); // this one keeps its skip
+    s.phase = 'report';
+    setPolicy(s, 'oldtown', 'fortify', 0);
+    nextDawn(s);
+    expect([mendsOvernight(s, held), mendsOvernight(s, out)]).toEqual([true, false]);
+    const cash = s.cash;
+    overnightRepairs(s);
+    expect(s.plots[held].defense).toEqual({ tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['slick'] }); // patched and re-laid
+    expect(s.plots[out].defense).toMatchObject({ fenceHp: 10, repairs: 1, slickSprung: true }); // left for you to patch
+    expect(s.cash).toBe(cash - PERIMETERS[0].repair - (GADGETS.slick.reset ?? 0));
+    setPolicy(s, 'oldtown', null); // the policy ends: the skip is back
+    expect(mendsOvernight(s, held)).toBe(false);
   });
 
   it('Expand builds on your empty plots, buys open land and upgrades, cheapest first within its budget', () => {

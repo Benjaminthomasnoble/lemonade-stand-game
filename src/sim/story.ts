@@ -293,7 +293,7 @@ function skipFindsACorner(s: GameState): void {
   if (!hasStory(s) || s.day < LESSON_DAY.land || storyAct(s) > 1 || s.rank < DISTRICT_RANK.oldtown) return;
   if (s.scenes?.seen.includes('skip') || s.scenes?.queue.some((q) => q.id === 'skip')) return;
   if (PLOTS.some((p) => p.district === 'oldtown' && s.plots[p.id].owner === 'player')) return;
-  const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner && (!s.plots[p.id].dibs || s.plots[p.id].dibs!.who === 'player'));
+  const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner && (!s.plots[p.id].dibs || s.plots[p.id].dibs!.who === 'player') && !s.plots[p.id].auction);
   if (!open.length) return;
   const lot = open.reduce((a, b) => (plotPrice(s, b.id) < plotPrice(s, a.id) ? b : a));
   const price = money(plotPrice(s, lot.id)), name = lot.name.replace(/ lot /, ' ');

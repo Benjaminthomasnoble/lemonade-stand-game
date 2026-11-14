@@ -18,7 +18,7 @@ import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
 import { forecastAtDawn, seasonWeather, weatherAtOpen, type DayWeather } from './weather.ts';
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
-import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
+import { familySilver, FIRE_SALE, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, outOfTownerState, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { bookNightShift, historicHedges, landFrozen, outOfTownerAtDawn, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
@@ -936,13 +936,20 @@ export function lemonsExpiringTomorrow(s: GameState, st: Stand): number {
 
 // ---------- land ----------
 
-/** Land rises with development (more and bigger stands in a district), up to ×2 base. HQ land rises with its district too. */
+/** Land rises with development (more and bigger stands in a district), up to ×2 base. HQ land rises with its district too.
+ * A Fire Sale's First Dibs follows the land: 75% of each day's value, so the sale stays a sale as the district empties
+ * (Lottie's side-lot offer keeps its fixed $300). */
 function updateLandValues(s: GameState): void {
   for (const d of mapDistricts(s)) {
     const dev = development(s, d.id);
     for (const p of PLOTS) if (p.district === d.id && p.type !== 'civic') s.plots[p.id].landValue = Math.round(p.baseLand * (1 + (LAND_DEVELOPMENT_MAX - 1) * dev));
   }
   s.plots[LOTTIES_CORNER].landValue = Math.max(s.plots[LOTTIES_CORNER].landValue, START.landValue);
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    const dibs = ps.dibs;
+    if (dibs?.who === 'player' && dibs.price !== undefined && !dibs.table && dibs.until >= s.day) dibs.price = Math.round(ps.landValue * FIRE_SALE.share);
+  }
 }
 
 export type Blocker = { ok: true } | { ok: false; why: string };

@@ -4,7 +4,7 @@ import {
   buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
   canBorrow, canFactionBuyout, canPlotBuyout, canTruce, plotBuyout, repayLoan,
-  LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
+  LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
@@ -487,6 +487,52 @@ describe('building stands', () => {
     const next = street(s, 'maple');
     give(s, next.id);
     expect(canBuildStand(s, next.id)).toEqual({ ok: false, why: 'Too late tonight: build tomorrow' });
+  });
+});
+
+describe('Fire Sale prices follow the land', () => {
+  it("a dawn after the rival falls, First Dibs costs 75% of that day's land value, not the day it fell", () => {
+    const s = newGame(11);
+    dawn(s); // land values carry the bay's development from the first dawn
+    const theirs = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders' && p.type !== 'hq');
+    eliminate(s, 'blenders', 'bankrupt'); // the Fire Sale clears their stands off the Boardwalk
+    const one = theirs[0];
+    const fell = s.plots[one.id].landValue;
+    expect(plotPrice(s, one.id)).toBe(Math.round(fell * 0.75));
+    dawn(s); // the Boardwalk's development drops with their stands gone, and its land with it
+    const land = s.plots[one.id].landValue;
+    expect(land).toBeLessThan(fell);
+    expect(s.plots[one.id].dibs).toMatchObject({ who: 'player', until: s.day }); // the second and last day of First Dibs
+    expect(plotPrice(s, one.id)).toBe(Math.round(land * 0.75)); // still 25% off
+    expect(canBuyPlot(s, one.id)).toEqual(s.cash >= plotPrice(s, one.id) ? { ok: true } : { ok: false, why: `Needs $${plotPrice(s, one.id).toLocaleString('en-US')}` });
+  });
+
+  it("leaves Lottie's side-lot offer at its fixed $300", () => {
+    const s = newGame(12);
+    s.day = 3;
+    offerSideLot(s);
+    dawn(s);
+    expect(s.plots[LOTTIES_SIDE_LOT].dibs).toMatchObject({ price: 300, table: true });
+    expect(plotPrice(s, LOTTIES_SIDE_LOT)).toBe(300);
+  });
+});
+
+describe("Skip's Old Town corner", () => {
+  it('passes over a plot on the block: he names the cheapest Old Town lot you can buy on the spot', () => {
+    const s = newGame(301);
+    s.scenes!.seen.push('opening', 'steward', 'dex', 'benny');
+    Object.assign(s, { rank: 2, day: 7, cash: 1e5 });
+    const open = () => PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner && !s.plots[p.id].auction);
+    const cheapest = open().reduce((a, b) => (plotPrice(s, b.id) < plotPrice(s, a.id) ? b : a));
+    openAuction(s, cheapest.id, 'sale'); // a smashed lot whose First Dibs lapsed
+    s.plots[cheapest.id].auction!.closes = s.day + 3; // still on the block at the next dawn
+    dawn(s);
+    const q = s.scenes!.queue.find((x) => x.id === 'skip')!;
+    expect(q.data!.plot).not.toBe(cheapest.id);
+    const lot = q.data!.plot!;
+    expect(Math.min(...open().map((p) => plotPrice(s, p.id)))).toBe(plotPrice(s, lot));
+    expect(canBuyPlot(s, lot).ok).toBe(true);
+    expect(s.alerts?.some((a) => a.plot === lot && a.text.startsWith('Skip:'))).toBe(true);
   });
 });
 

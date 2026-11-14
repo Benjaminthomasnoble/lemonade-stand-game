@@ -7,7 +7,7 @@ import {
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   LAVENDER, LESSON_DAY, newStand, pageHolder, RAID_RANK, type GameState, type Guard, type RivalId,
 } from './economy.ts';
-import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
+import { answerOffer, beatsAtDawn, beatsOnTheClock, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, FINALE, INVOICE } from './exits.ts';
 import { ceaseAndDesist, ceaseIn } from './schemes.ts';
 import { budgetOf } from './rivalAi.ts';
@@ -928,6 +928,35 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     storyAfterAct(s);
     expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniPad && c.tip)).toBe(true);
     expect(scriptedRaider(s, next)).toBe('fizzco');
+  });
+
+  it('after the first trip, Juni rings on the clock once before each FizzCo Delivery Raid, until its warning is out', () => {
+    const s = act4(122);
+    s.rank = 7; // a Jetty too
+    s.reputation = 4.5;
+    s.story!.vip = { heli: '', ship: '' }; // the movie star and the Regatta came and went
+    const heli = offer(s, 'heli', site(s, 'helipad'));
+    const ship = offer(s, 'ship', site(s, 'pier'));
+    expect(acceptOrder(s, heli.id) && acceptOrder(s, ship.id)).toBe(true);
+    s.phase = 'open';
+    const tips = () => s.phone!.queue.filter((c) => c.who === 'coldbrew' && c.tip).map((c) => c.text);
+    const hit = (id: string, o: Order, warned = false) =>
+      s.raids.push({ id, attacker: 'fizzco', target: o.plot!, objective: 'shakedown', detected: warned, eta: '18:00', delivery: true, order: o.id, warned });
+    hit('r7', heli, true);
+    beatsOnTheClock(s);
+    expect(tips()).toEqual([]); // its warning is out: nothing left to tip
+    hit('r8', heli);
+    beatsOnTheClock(s); // the ten-minute tick after the trip's raid was rolled
+    expect(tips()).toEqual(["FizzCo's crew hits the pad today. You didn't hear it from me."]);
+    expect(takeCall(s)?.text).toBe("FizzCo's crew hits the pad today. You didn't hear it from me.");
+    beatsOnTheClock(s);
+    expect(tips()).toEqual([]); // once a raid
+    hit('r9', ship);
+    beatsOnTheClock(s);
+    expect(tips()).toEqual(["FizzCo's crew hits the pier today. You didn't hear it from me."]);
+    s.raids = [];
+    beatsOnTheClock(s);
+    expect(s.story!.vip!.tipped).toBeUndefined(); // raids over, nothing kept
   });
 });
 

@@ -40,8 +40,8 @@ export interface StoryState {
   offer?: { from: RivalId; until: number };
   asked?: boolean;
   tribute?: number;
-  /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the day Juni last tipped you off about the pad, the last day the ship's contract was in your Order Book, and its docking. */
-  vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean };
+  /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the day Juni last tipped you off about the pad, the last day the ship's contract was in your Order Book, and its docking. `tipped`: the FizzCo Delivery Raids out now that Juni has rung about (raid ids). */
+  vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean; tipped?: string[] };
   /** Act 4's lawyers (src/sim/beats.ts): the dawn FizzCo's Cease-and-Desist on Downtown taught the lesson. */
   lawyers?: number;
   /** Dex Moody has joined (every mode): once a run, so nothing brings a fresh Dex back. */

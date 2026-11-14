@@ -213,7 +213,8 @@ export function phoneAtClose(s: GameState): void {
 /**
  * Juni's tip calls (campaign): once Cold Brew is out she's FizzCo's informant, and while FizzCo stands she phones at
  * closing ahead of a FizzCo raid on you tonight, before its warning is out. A tip takes the day's one call; it gives
- * nothing but the warning itself. Her warning about the first chopper's pickup is in src/sim/beats.ts.
+ * nothing but the warning itself. Her warnings before a pickup's Delivery Raid (rolled by day, as a trip loads) ring on
+ * the clock instead: src/sim/beats.ts.
  */
 export function juniTips(s: GameState): void {
   if (!juniInforms(s)) return;

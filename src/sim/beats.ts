@@ -13,7 +13,7 @@
 import { FACTIONS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { alert } from './alerts.ts';
-import { deliveryRaidRisk } from './night.ts';
+import { deliveryRaidRisk, onYou } from './night.ts';
 import { CALL_PRIORITY, juniInforms, LINES, phoneCall } from './phone.ts';
 import { ownsRecipe, pageHolder } from './recipes.ts';
 import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.ts';
@@ -174,6 +174,26 @@ function chopperTip(s: GameState): void {
 }
 
 /**
+ * Juni's tip before each later FizzCo Delivery Raid (spec: a warning before a FizzCo raid or Delivery Raid). One is rolled
+ * as a trip starts loading, by day, so her closing-time tips (phone.ts juniTips) can't come first: she rings on the clock,
+ * once a raid, while its warning isn't out. The movie star's first trip has its own tip at dawn (chopperTip).
+ */
+function deliveryTips(s: GameState): void {
+  const v = s.story?.vip;
+  if (!v || !juniInforms(s)) return;
+  const tipped = (v.tipped ?? []).filter((id) => s.raids.some((r) => r.id === id)); // raids still out
+  for (const r of s.raids) {
+    if (r.attacker !== 'fizzco' || !r.delivery || r.warned || !onYou(s, r) || tipped.includes(r.id)) continue;
+    const o = s.orders.find((x) => x.id === r.order);
+    if (o && v.heli === o.id && !o.loaded) continue; // the first trip: chopperTip's
+    tipped.push(r.id);
+    phoneCall(s, 'coldbrew', `FizzCo's crew hits the ${o?.tier === 'ship' ? 'pier' : 'pad'} today. You didn't hear it from me.`, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
+  }
+  if (tipped.length) v.tipped = tipped;
+  else delete v.tipped;
+}
+
+/**
  * The first ship docks at its first trip (10 am, loading a day at a time): its horn plays the first 3 notes of Lottie's
  * Theme (audio's), and she blames the wind. It has docked once the contract has bottles aboard, a raid holds its
  * loading, or it left your Order Book while you were open (its whole load in one trip, or raiders overran it).
@@ -189,11 +209,13 @@ function shipDocks(s: GameState): void {
   alert(s, { kind: 'note', text: 'Lottie: "That horn? Just the wind, kid. Just the wind."', ...(o?.plot ? { plot: o.plot } : {}) });
 }
 
-/** On the clock (storyMinute, and after each tap): the first ship's docking, and Juni's tip before the chopper loads. */
+/** On the clock (storyMinute, and after each tap): the first ship's docking, and Juni's tips before the chopper loads
+ * and before each later FizzCo Delivery Raid. */
 export function beatsOnTheClock(s: GameState): void {
   if (!hasStory(s) || !s.story || s.story.epilogue !== undefined) return;
   shipDocks(s);
   chopperTip(s);
+  deliveryTips(s);
 }
 
 /** Vera's first fine through Mayor Fontaine (rivals' Old Money, src/sim/schemes.ts): he brings it to the Corner himself. */

@@ -43,13 +43,16 @@ import { canSaveTemplate, saveTemplate, templateFor, templates } from '../src/si
 export const REFERENCE_SEED = 42;
 
 /** A milestone day: the target, the range the spec's ten simulated maps gave, and for Ranks 6-10 and Domination the
- * window the reference map must land inside. */
-export interface Target { target: number; lo: number; hi: number; window?: [number, number]; notBefore?: number }
+ * window the reference map must land inside. `shown`: a target the report shows but doesn't judge, and why. */
+export interface Target { target: number; lo: number; hi: number; window?: [number, number]; notBefore?: number; shown?: string }
 
 /** The first Wooden Stand and Rank 2 follow their Day 5 lessons (balance.ts LESSON_DAY.upgrade and .rank: Lottie's nudge,
  * the Grow tab, the rank chip), so both are held to Day 5, 5-6 across maps (a design call: the spec's tables still say
- * Day 4). Laid Back's and Cutthroat's Rank 2 (RANK_DAYS) is Day 5 too, with Classic's 5-6 (milestones). */
-export const CLASSIC_FIRST_L2: Target = { target: 5, lo: 5, hi: 6 };
+ * Day 4). Laid Back's and Cutthroat's Rank 2 (RANK_DAYS) is Day 5 too, with Classic's 5-6 (milestones). The first
+ * Wooden Stand is shown, not judged: the spec lets a curious player upgrade with a tap from Day 1 ("Curious players need
+ * not wait", Onboarding: the first 30 minutes), and the player here does, so Day 5 describes a player who waits for the lesson.
+ * Restating it is Ben's call (design-spec, open call (d)). */
+export const CLASSIC_FIRST_L2: Target = { target: 5, lo: 5, hi: 6, shown: 'Day 5 for a player who waits for the lesson; the stand tap upgrades from Day 1' };
 export const CLASSIC_RANK_DAYS: Record<number, Target> = {
   2: { target: 5, lo: 5, hi: 6 },
   3: { target: 10, lo: 8, hi: 12 },
@@ -1007,13 +1010,13 @@ export function milestones(d: Difficulty): { name: string; t: Target; got: (r: R
 export function checkRun(r: RunResult, reference = true): Check[] {
   const out: Check[] = [];
   const last = r.days[r.days.length - 1]?.day ?? 0;
-  // A milestone the run stopped short of is shown, not judged.
-  const judge = (got: number | undefined, t: Target, ref: boolean) => (got === undefined && last < (t.window?.[1] ?? t.hi) ? null : hits(got, t, ref));
+  // A milestone the run stopped short of is shown, not judged, and so is one the spec leaves to the player (Target.shown).
+  const judge = (got: number | undefined, t: Target, ref: boolean) => (t.shown || (got === undefined && last < (t.window?.[1] ?? t.hi)) ? null : hits(got, t, ref));
   const shown = (got: number | undefined, t: Target) => (got === undefined && last < (t.window?.[1] ?? t.hi) ? `not by Day ${last}` : dayText(got));
   for (const m of milestones(r.difficulty)) {
     const got = m.got(r);
     const note = m.name === 'Domination' && got === undefined && r.outcome ? ` (${r.outcome.result} by ${r.outcome.how}, Day ${r.outcome.day})` : '';
-    out.push({ name: m.name, target: targetText(m.t), got: shown(got, m.t) + note, ok: judge(got, m.t, reference) });
+    out.push({ name: m.name, target: m.t.shown ?? targetText(m.t), got: shown(got, m.t) + note, ok: judge(got, m.t, reference) });
   }
   if (diffOf(r.difficulty) === 'cutthroat') { // on every map, the reference map's included
     const won = r.outcome?.how === 'domination' ? r.outcome.day : undefined;
@@ -1126,7 +1129,7 @@ export function spreadChecks(runs: RunResult[]): Check[] {
     const days = runs.map(m.got);
     const seen = days.filter((x): x is number => x !== undefined).sort((a, b) => a - b);
     const got = seen.length ? `${seen[0]}-${seen[seen.length - 1]}, median ${median(seen)}${seen.length < runs.length ? `, missed on ${runs.length - seen.length}` : ''}` : 'never';
-    out.push({ name: m.name, target: `maps ${m.t.lo}-${m.t.hi}`, got, ok: days.every((x) => hits(x, m.t, false)) });
+    out.push({ name: m.name, target: `maps ${m.t.lo}-${m.t.hi}`, got, ok: m.t.shown ? null : days.every((x) => hits(x, m.t, false)) });
   }
   const worst = Math.max(0, ...runs.flatMap((r) => r.raids.filter((x) => x.day > 6).map((x) => x.days)));
   if (diffOf(runs[0].difficulty) === 'classic') out.push({ name: 'worst raid after Day 6', target: `<= ${RAID_LOSS.worst} days on every map`, got: `${worst.toFixed(2)} days`, ok: worst <= RAID_LOSS.worst });

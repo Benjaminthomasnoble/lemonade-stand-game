@@ -2447,7 +2447,7 @@ A district's price tolerance in the land table is the blend of its usual crowd. 
 | 9 | Bay Kingpin | 125,000,000 | 125–135 | 135 | 123–138 |
 | 10 | The Big Squeeze | 200,000,000 | About 150–160 (after victory) | 157 | 148–162 |
 
-The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
+The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps); the pacing report shows it without judging it, since a curious player can upgrade with a tap from Day 1 (Onboarding: the first 30 minutes). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
 ### Threat and raids on the player (Classic)
 

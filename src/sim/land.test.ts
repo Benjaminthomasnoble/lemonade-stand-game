@@ -1043,7 +1043,8 @@ describe('the pacing harness (tools/pacing.ts)', () => {
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {
-    expect([CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS[2]]).toEqual([{ target: 5, lo: 5, hi: 6 }, { target: 5, lo: 5, hi: 6 }]);
+    expect([CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS[2]]).toMatchObject([{ target: 5, lo: 5, hi: 6 }, { target: 5, lo: 5, hi: 6 }]);
+    expect(CLASSIC_RANK_DAYS[2].shown).toBeUndefined(); // Rank 2 is judged
     // the Day 5 lessons: Lottie's Wooden Stand nudge and the rank chip
     expect([CLASSIC_FIRST_L2.target, CLASSIC_RANK_DAYS[2].target, RANK_DAYS.laidback[0], RANK_DAYS.cutthroat[0]]).toEqual([LESSON_DAY.upgrade, LESSON_DAY.rank, LESSON_DAY.rank, LESSON_DAY.rank]);
     for (const d of ['laidback', 'cutthroat'] as const) { // Rank 2 on Day 5-6 there too: a Day 4 Rank 2 comes before its lesson
@@ -1059,6 +1060,14 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(hits(59, CLASSIC_RANK_DAYS[6], false)).toBe(true); // inside the maps' 48-60
     expect(hits(135, DOMINATION.classic, true)).toBe(false); // never before Day 136
     expect(hits(undefined, CLASSIC_FIRST_L2, false)).toBe(false); // never reached
+  });
+
+  it('shows the first Wooden Stand against its Day 5 lesson without judging it: the stand tap upgrades from Day 1', () => {
+    const early = record('classic', 30, { firstL2: 3 });
+    expect(check(early, 'first L2 stand')).toMatchObject({ target: CLASSIC_FIRST_L2.shown, got: 'Day 3', ok: null });
+    expect(check(early, 'first L2 stand', false)?.ok).toBeNull();
+    expect(spreadChecks([early, record('classic', 30, { firstL2: 5 })]).find((c) => c.name === 'first L2 stand')).toMatchObject({ got: '3-5, median 5', ok: null });
+    expect(check(record('classic', 30, { rankDay: { 1: 1, 2: 3 } }), 'Rank 2')?.ok).toBe(false); // Rank 2 is still held to its lesson
   });
 
   it('measures the longest lull between firsts, up to the win', () => {

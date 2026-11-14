@@ -5,10 +5,11 @@
 import { readFileSync } from 'node:fs';
 import {
   approveRepair, buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, PLOTS, rankFor, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
-  dayProfit, buyPlot, canBuyPlot, CLUBHOUSE, plotPrice,
+  dayProfit, buyPlot, canBuyPlot, CLUBHOUSE, plotPrice, TIPS,
 } from '../src/sim/economy.ts';
 import { clubhouseSite } from '../src/sim/clubhouse.ts';
 import { goalsNow } from '../src/sim/goals.ts';
+import { pickTip, tipHand } from '../src/sim/perks.ts';
 import { pacingReport } from './pacing.ts';
 
 const pacing = process.argv[2] === 'pacing';
@@ -38,6 +39,8 @@ for (let d = 0; d < days; d++) {
   sleepUntilDawn(s);
   if (s.battles[0] && s.battles[0] !== before) console.log(`   night: ${battleHeadline(s.battles[0])}`);
   for (const p of playerStands(s)) if (s.plots[p.id].stand!.wrecked) rebuildStand(s, p.id);
+  // Lottie's Tips (perks.ts): like a player who takes the first card of each hand she deals, from the Rank lesson (Day 5).
+  for (let h = tipHand(s); h && pickTip(s, h.cards[0]); h = tipHand(s)) console.log(`   dawn of day ${s.day}: Lottie's tip for rank ${h.rank}, ${TIPS[h.cards[0]].name}`);
   // Act 2: Dex pushes for a first Clubhouse (a story goal from Day 15; spec: Days 15-19). It needs an empty Street plot of
   // yours: the bot buys the cheapest open one once it can pay for the plot and the Clubhouse both, then builds.
   if (goalsNow(s).some((g) => g.text === 'Build Dex a Clubhouse' && !g.done)) {

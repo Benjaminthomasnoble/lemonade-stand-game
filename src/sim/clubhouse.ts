@@ -54,8 +54,9 @@ export function squadClub(s: GameState, guardIds: readonly string[], target: str
   return best;
 }
 
-/** Everyone in the fight playing live, either side: who it began with, and who has joined it or is on the way. */
-function inLiveFight(s: GameState): string[] {
+/** Everyone in the fight playing live, either side: who it began with, and who has joined it or is on the way. They're
+ * busy till it ends: out of the reserve (awayOnRaid), and off a squad of yours setting out meanwhile (night.ts muster). */
+export function inLiveFight(s: GameState): string[] {
   const f = s.fight;
   if (!f) return [];
   const joined = [...(f.input.joins ?? []), ...f.commands.flatMap((c) => (c.type === 'join' ? [c] : []))].flatMap((j) => j.fighters);

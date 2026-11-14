@@ -394,6 +394,61 @@ describe('fights on you play one after another', () => {
   });
 });
 
+describe('a guard is in one fight at a time', () => {
+  /**
+   * Gus stands the Corner's post and is on tonight's raid (or HQ Assault on the Blend Shack), Pip with him unless he
+   * goes alone. Cold Brew land at the Corner a minute before the squad sets out at 01:00: tanky raiders at a Fortress
+   * wall, a fight still on when the squad gets where it's going. Played as the game plays it, till that fight is over.
+   */
+  function heldAtHisPost(alone: boolean, hq = false) {
+    const s = newGame(1);
+    Object.assign(s, { rank: 10, cash: 1e6 });
+    if (hq) for (const p of ownedPlots(s, 'blenders').filter((p) => p.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null }; // Weakened
+    const home = ownedPlots(s, 'player')[0].id;
+    const gus = guardOf('hatchets', 'pro', 5, 'Smooth Talker', { post: home, name: 'Gus' });
+    const pip = guardOf('hatchets', 'pro', 5, 'Smooth Talker', { name: 'Pip' });
+    s.guards = alone ? [gus] : [gus, pip];
+    const trip = (id: string) => travelMinutes(s, squadHome(s, id), id);
+    const target = hq ? hqPlot('blenders').id : raidTargets(s).filter((p) => s.plots[p.id].stand).sort((a, b) => trip(a.id) - trip(b.id))[0].id;
+    if (!hq) footholdFor(s, target);
+    Object.assign(s, { phase: 'report', minute: CLOSE });
+    expect(planRaid(s, target, s.guards.map((g) => g.id), hq ? 'hq' : 'smash', 'tonight')).toBe(true);
+    const mine = s.raids.find((r) => r.attacker === 'player')!;
+    const owner = s.plots[target].owner as RivalId, grudge = s.rivals[owner].grudge;
+    s.plots[home].defense = { tier: 5, fenceHp: 5000, gadgets: [] }; // a long fight
+    const party = henchmenOf(3, 3, 'hatchets').map((f) => ({ ...f, hp: 5000, nerve: 1000, chop: 1 }));
+    const theirs: Raid = { id: 'rr', attacker: 'coldbrew', target: home, objective: 'smash', party, detected: true, eta: '00:59', leave: mine.leave! - 60, at: mine.leave! - 1, launched: true, warned: true };
+    s.raids.push(theirs);
+    startNight(s);
+    const atOnce: BattleReport[] = []; // fights reported while he's at the Corner
+    const look = (ev: SimEvent[]) => { for (const e of ev) if (e.type === 'fight' && s.fight?.raid === theirs) atOnce.push(e.report); };
+    let held: BattleReport | undefined;
+    for (let frames = 0; !held && frames < 1e5; frames++) {
+      if (!s.fight) { look(tickMinute(s)); continue; }
+      const ended = fightFrame(s, 0.25, false, look)?.ended;
+      if (ended?.target === home) held = ended;
+    }
+    return { s, gus, pip, mine, target, held: held!, atOnce, grudge: () => s.rivals[owner].grudge - grudge };
+  }
+
+  it('a guard still defending his post as his squad sets out stays behind: it goes without him, or not at all', () => {
+    for (const hq of [false, true]) {
+      const { s, gus, pip, mine, held, atOnce } = heldAtHisPost(false, hq);
+      expect(held.defenders.filter((f) => f.id === gus.id)).toHaveLength(1); // he held the Corner
+      expect(mine.guards).toEqual([pip.id]); // and Pip went without him
+      expect(atOnce.length).toBeGreaterThan(0); // fought at once while Gus was still at the Corner
+      for (const b of atOnce) expect(b.attackers.map((f) => f.id)).toEqual([pip.id]);
+      expect(s.battles.filter((b) => [...b.attackers, ...b.defenders].some((f) => f.id === gus.id))).toEqual([held]);
+    }
+    const { s, mine, target, atOnce, grudge } = heldAtHisPost(true);
+    expect(s.raids).not.toContain(mine);
+    expect(s.news).toContain(`Raid on ${PLOT_BY_ID[target].name} called off: nobody fit to go.`);
+    expect(atOnce).toEqual([]);
+    expect(s.battles.some((b) => b.target === target)).toBe(false); // no fight there,
+    expect(grudge()).toBe(0); // and no Grudge
+  });
+});
+
 describe('the fight buttons', () => {
   /** A fight where the raiders' Nerve check comes at a known moment: 4 fists against 2 clubs over a fence. */
   const nerveFight = () => battleOf({ attackers: henchmenOf(4, 1, 'fists'), defenders: guardsOf(2, 'def', 'clubs', 'vest'), ...fencedOf(2), standHp: STAND_HP[1] });

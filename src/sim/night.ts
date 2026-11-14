@@ -22,7 +22,7 @@ import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
 import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidIsNightAt, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { fightOnScreen, startFight } from './fight.ts';
-import { clubhouses, squadClub } from './clubhouse.ts';
+import { clubhouses, inLiveFight, squadClub } from './clubhouse.ts';
 import { alert, isMajor, onFeed, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed, syndicateMembers } from './syndicate.ts';
@@ -202,8 +202,9 @@ const warnMinute = (s: GameState, r: Raid) => (r.detected ? r.leave! : Math.max(
 export const spotChance = (s: GameState, r: Raid) =>
   Math.max(0.05, detectionChance(s, r.target, s.phase === 'night') - lookoutStealth(r)) - nightShiftStealth(s, r);
 
-/** The raid sets out (a raid on you is rolled an hour early with the Grapevine): detection is rolled (spotChance). Your own squad musters: anyone KO'd, gone or still out on another raid stays
- * behind, and with nobody fit to go the raid is called off (no fight, no Grudge). */
+/** The raid sets out (a raid on you is rolled an hour early with the Grapevine): detection is rolled (spotChance). Your own squad musters: anyone KO'd, gone, still out on another raid
+ * or still in the fight playing live (a guard on post defends it till his squad sets out) stays behind, and with nobody
+ * fit to go the raid is called off (no fight, no Grudge). */
 function launch(s: GameState, r: Raid): void {
   r.launched = true;
   if (r.attacker === 'player') { muster(s, r); return; }
@@ -217,7 +218,8 @@ function launch(s: GameState, r: Raid): void {
 }
 
 function muster(s: GameState, r: Raid): void {
-  const busy = new Set(s.raids.filter((x) => x !== r && x.attacker === 'player' && x.launched).flatMap((x) => x.guards ?? []));
+  // combat: a guard in the fight playing live is in it till it ends, so he can't be in this one too (clubhouse.ts)
+  const busy = new Set([...s.raids.filter((x) => x !== r && x.attacker === 'player' && x.launched).flatMap((x) => x.guards ?? []), ...inLiveFight(s)]);
   r.guards = (r.guards ?? []).filter((id) => { const g = s.guards.find((x) => x.id === id); return !!g && guardReady(s, g) && !busy.has(id); });
   const off = r.guards.length ? sabotageCalledOff(s, r) : `Raid on ${PLOT_BY_ID[r.target].name} called off: nobody fit to go.`; // crew: a Sabotage still needs its Lookout or Sneaky guard
   if (!off) return;

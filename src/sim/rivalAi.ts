@@ -13,7 +13,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, RivalState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, hqPlot, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
   RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
@@ -141,6 +141,9 @@ export function migrateRivals(s: GameState): void {
     r.held ??= ownedPlots(s, id).map((p) => p.id);
     r.trade ??= { base: Math.max(0, r.cash), days: 0, margin: 0, upkeep: 0, wages: 0, scale: 1, last: 0 };
     r.trade.wages ??= 0;
+    // A save from before a bust rival's HQ became your Trophy: the old Fire Sale left that HQ with no owner for good.
+    const hq = s.plots[hqPlot(id).id];
+    if (!r.alive && !FACTIONS[id].outOfTown && hq && !hq.owner) s.plots[hqPlot(id).id] = { ...hq, owner: 'player', garrison: 0 };
   }
   s.schemes ??= [];
   if (s.negotiator && !s.guards.some((g) => g.id === s.negotiator)) delete s.negotiator; // they left the crew

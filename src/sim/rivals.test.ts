@@ -350,6 +350,20 @@ describe('a rival out of the game', () => {
     expect(s.news).toContain(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red. Their HQ, ${hqPlot('hollis').name}, becomes Lottie's ${TROPHIES.hollis!.name}: ${TROPHIES.hollis!.perk.toLowerCase()}.`);
   });
 
+  it('an old save where a rival went bust before Trophies came with bankruptcy: its HQ becomes yours on load', () => {
+    const s = rich(9);
+    eliminate(s, 'blenders', 'bankrupt');
+    const hq = hqPlot('blenders').id;
+    s.plots[hq] = { ...s.plots[hq], owner: null }; // what the old Fire Sale left: an HQ nobody owns, ever
+    expect(hasTrophy(s, 'blenders')).toBe(false);
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.plots[hq]).toMatchObject({ owner: 'player', garrison: 0 });
+    expect(hasTrophy(loaded, 'blenders')).toBe(true);
+    expect(migrateSave(JSON.parse(JSON.stringify(loaded)))!.plots[hq].owner).toBe('player'); // and stays so, load after load
+    const alive = migrateSave(JSON.parse(JSON.stringify(rich(9))))!;
+    expect(alive.plots[hqPlot('hollis').id].owner).toBe('hollis'); // a rival still in business keeps its HQ
+  });
+
   /** The Blenders go out on Day 8, every rival has the Grow money for anything, and their Fire Sale plots are the only open land. */
   function fireSale(seed: number) {
     const s = newGame(seed, { difficulty: 'laidback' });

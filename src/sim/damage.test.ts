@@ -908,11 +908,11 @@ describe('the Hurricane', () => {
     const q = s.weatherQueue!.find((d) => d.day === 19)!;
     expect(q.weather.kind).toBe('storm');
     expect(q.forecast).toEqual(q.weather); // the look-ahead calls it right
-    const warning = 'HURRICANE WARNING! It hits in 2 days: every building in the bay takes damage. Fortified Frames; rebuilds cost only 15%.';
+    const warning = 'HURRICANE WARNING! It hits in 2 days: every building in the bay takes damage. Fortified Frames; repairs never cost more than a 15% rebuild.';
     expect(s.news).toContain(warning);
     expect(s.world!.paper!.wire).toContain(warning); // in this morning's paper, though it went to press before the roll
     dawn(s); // Day 18
-    expect(s.news).toContain('HURRICANE TOMORROW! It hits at the open: every building in the bay takes damage. Fortified Frames; rebuilds cost only 15%.');
+    expect(s.news).toContain('HURRICANE TOMORROW! It hits at the open: every building in the bay takes damage. Fortified Frames; repairs never cost more than a 15% rebuild.');
     expect(s.world!.paper!.wire.some((l) => l.startsWith('HURRICANE TOMORROW!'))).toBe(true);
     expect(hurricaneToday(s)).toBe(false);
     dawn(s); // Day 19: it starts at dawn

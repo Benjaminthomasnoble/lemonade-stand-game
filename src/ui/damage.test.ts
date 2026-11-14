@@ -237,7 +237,7 @@ describe('the Hurricane', () => {
     let [ticket] = stormTicket(s);
     expect(ticket).toContain('data-testid="hurricane"');
     expect(ticket).toContain('<b>Hurricane in 2 days</b>');
-    expect(ticket).toContain('Fortified Frames; rebuilds cost only 15%');
+    expect(ticket).toContain('Fortified Frames; repairs never cost more than a 15% rebuild');
     expect(ticket).toContain('--v:0.400'); // Lottie's table keeps 40 of its 100 HP
     expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
     s.day++;

@@ -177,7 +177,7 @@ export function stormAtOpen(s: GameState): void {
 
 /** The Hurricane in the events table: world's scheduler (events.ts) rolls it, and land registers it below. */
 export const HURRICANE_ID = 'hurricane';
-const HURRICANE_COUNTER = 'Fortified Frames; rebuilds cost only 15%';
+const HURRICANE_COUNTER = 'Fortified Frames; repairs never cost more than a 15% rebuild'; // it damages, never wrecks
 const HURRICANE_HITS = `every building in the bay takes damage. ${HURRICANE_COUNTER}.`;
 
 /** The Hurricane on the calendar: coming, or today (the dawn after its day retires it). */

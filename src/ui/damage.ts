@@ -155,7 +155,7 @@ export function hurricaneTicket(s: GameState): string[] {
   const worst = PLOTS.map((p) => p.id).filter((id) => s.plots[id].owner === 'player' && hurricaneLoss(s.plots[id]) > 0)
     .sort((a, b) => after(a) - after(b))[0];
   const keeps = worst ? ` ${place(worst)} keeps ${Math.round(after(worst) * 100)}% of its HP.` : '';
-  const tip = `${when}: every building in the bay takes damage.${keeps} Fortified Frames at Morning Prep add 50% HP; repairs cost 15% of what went in`;
+  const tip = `${when}: every building in the bay takes damage.${keeps} Fortified Frames at Morning Prep add 50% HP; repairs never cost more than a 15% rebuild`;
   const acts = worst ? `<span class="cl-acts">${meter(after(worst))}${go(worst)}</span>` : '';
   return [`<div class="cl-ticket red" data-testid="hurricane" title="${esc(tip)}">${pic}<b>${when}</b><span class="cl-note">${esc(counter)}</span>${acts}</div>`];
 }

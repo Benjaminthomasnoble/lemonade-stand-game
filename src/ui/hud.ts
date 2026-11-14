@@ -5,7 +5,7 @@
 // Buttons carry data-action and go through one listener.
 import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
-  averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, priceCeiling, topPriceMods,
+  averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, expressWindow, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, standCost, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
@@ -181,6 +181,10 @@ export type Action =
 const money = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const whole = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
 const cents = (n: number) => (n < 1 ? `${Math.round(n * 100)}¢` : money(n));
+/** A stand level's numbers for a tooltip. `express` is the stand's Express Window (×1.3 on its pour, as pourRate counts it). */
+export function levelStats(l: StandLevel, top: number, express = 1): string {
+  return `${Math.round(l.capacityPerHour * express)} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;
+}
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
@@ -721,20 +725,18 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   /** combat's panels under the crew (Defend tab, Crew roster): the Nabbed (src/ui/captives.ts), Dex's Auto-Defend switch (src/ui/autodefend.ts). */
   const crewExtras = (s: GameState) => captivesPanel(clubs, s) + autoDefendSwitch(s) + templatesSwitch(s); // crew: raid templates' switch (src/ui/raidPlanner.ts)
   const planner = createRaidPlanner(kit, redraw, onAction);
-  function levelStats(l: StandLevel, top: number) {
-    return `${l.capacityPerHour} cups/hour · draws ×${l.draw} · top price ${money(top)} here · upkeep ${money(l.upkeep)}/day · holds ${l.stock.toLocaleString('en-US')} cups`;
-  }
   function growPanel(s: GameState) {
     const st = selectedStand(s);
     const cur = standLevel(st);
     // The top price at this stand: the level's top × the district's tolerance × the card's bonus (the price tag's ceiling).
     const topAt = (l: StandLevel) => ceilingFor(l.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected));
+    const fast = expressWindow(s.plots[s.selected]); // its Express Window pours ×1.3 now, and after the upgrade (it keeps its slots)
     const next = STAND_LEVELS[cur.level];
     const top = STAND_LEVELS[STAND_LEVELS.length - 1];
     const bars = (l: StandLevel) => `<span class="cl-bars"><span>${ART.cup()}${meter(l.capacityPerHour / top.capacityPerHour)}</span><span>${ART.head(1)}${meter(l.draw / top.draw)}</span><span>${ART.crate()}${meter(l.stock / top.stock)}</span></span>`;
     const up = canUpgradeStand(s);
     const out: string[] = [];
-    if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur, topAt(cur))}\nNext: ${levelStats(next, topAt(next))}`, 'data-big'));
+    if (next && !locked(up)) out.push(card(ART.stand(next.level), `${next.name}`, bars(next), btn('upgrade', whole(next.cost), up, 'data-testid="upgrade"', 'go'), `Now: ${levelStats(cur, topAt(cur), fast)}\nNext: ${levelStats(next, topAt(next), fast)}`, 'data-big'));
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
     out.push(...specCards(kit, s)); // specializations: a card for each open slot at this stand (src/ui/specializations.ts)
     out.push(...campaignCards(kit, s)); // local campaigns: this stand's and its district's (src/ui/marketing.ts)
@@ -891,7 +893,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const st = selectedStand(s), next = STAND_LEVELS[st.level];
     const up = canUpgradeStand(s);
     const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
-    return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top)}"`, 'go') : '';
+    return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top, expressWindow(s.plots[s.selected]))}"`, 'go') : '';
   }
 
   /** An empty plot of yours: a button for each stand level the rank has unlocked, at every step's cost paid at once. */

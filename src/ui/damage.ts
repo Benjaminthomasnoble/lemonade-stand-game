@@ -10,9 +10,9 @@
 // existing classes; clicks go through the HUD's one listener (data-action="repair" and "rebuild" approve,
 // "autoRepair" flips the switch, "goto" flies there).
 import {
-  autoRepairOn, buildingHp, canRebuild, canRepair, clockText, cupsInStock, currentHp, eventDef, FACILITIES, hpCapacity, hpShare, hurricaneLoss,
-  hurricaneOn, hurricaneToday, inspectionFault, inspectionOn, inspectionStock, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, rebuildCost,
-  rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
+  autoRepairOn, buildingHp, canRebuild, canRepair, clockText, cupsInStock, currentHp, eventDef, expressWindow, FACILITIES, hpShare, hurricaneLoss,
+  hurricaneOn, hurricaneToday, inspectionFault, inspectionOn, inspectionStock, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, pourRate,
+  rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
@@ -26,15 +26,16 @@ const n0 = (n: number) => n.toLocaleString('en-US');
 const place = (id: string) => PLOT_BY_ID[id].name.replace(/ lot /, ' ');
 const meter = (v: number) => `<span class="cl-snake hp" style="--v:${Math.max(0, Math.min(1, v)).toFixed(3)}"><i></i></span>`;
 
-/** A standing building's HP for its tooltip: the points, and what a Damaged stand still pours. */
+/** A standing building's HP for its tooltip: the points, and what a Damaged stand still pours of its full pour (an
+ * Express Window's +30% counted, as pourRate counts it). */
 function hpTip(s: GameState, plotId: string): string {
   const ps = s.plots[plotId];
   const what = ps.stand ? standLevel(ps.stand).name : FACILITIES[ps.facility!.kind].names[ps.facility!.level - 1];
   const hp = `${what}: ${n0(currentHp(ps))}/${n0(buildingHp(ps))} HP`;
   if (!isDamaged(ps)) return hp;
   if (!ps.stand) return `${hp}. Damaged until repaired`;
-  const full = standLevel(ps.stand).capacityPerHour;
-  return `${hp}. Damaged: pours ${hpCapacity(ps, full)} of ${full} cups an hour until repaired`;
+  const full = Math.round(standLevel(ps.stand).capacityPerHour * expressWindow(ps));
+  return `${hp}. Damaged: pours ${pourRate(s, plotId)} of ${full} cups an hour until repaired`;
 }
 
 /** Your Damaged building's fix: Repair $X (a blocked one says why), or a note once tonight's repair is booked. Damage

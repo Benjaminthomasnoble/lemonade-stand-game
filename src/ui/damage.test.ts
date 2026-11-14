@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, damageAtClose, eventsOf, HURRICANE_ID, INSPECTION_ID, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS,
-  stormAtOpen, toggleAutoRepair, upgradeStand, type GameState,
+  approveRebuild, approveRepair, damageAtClose, eventsOf, fitSpec, HURRICANE_ID, INSPECTION_ID, LESSON_DAY, LOTTIES_CORNER, newGame, newStand,
+  PLOTS, pourRate, stormAtOpen, toggleAutoRepair, upgradeStand, type GameState,
 } from '../sim/economy.ts';
 import { helperRows } from './automation.ts';
 import {
@@ -45,6 +45,15 @@ describe('the HP readout and the repair', () => {
     expect(ticket).toContain('data-testid="damaged"');
     expect(ticket).toContain(`data-action="goto" data-plot="${LOTTIES_CORNER}"`);
     expect(ticket).toContain('Repair $304');
+  });
+
+  it("a Damaged stand behind an Express Window counts the window's +30%, as it pours", () => {
+    const s = kiosk();
+    expect(fitSpec(s, LOTTIES_CORNER, 0, 'express')).toBe(true); // 120 cups an hour × 1.3 = 156
+    s.plots[LOTTIES_CORNER].stand!.hp = 400;
+    expect(pourRate(s, LOTTIES_CORNER)).toBe(78);
+    expect(damageHere(s, LOTTIES_CORNER)).toContain('400/800 HP. Damaged: pours 78 of 156 cups an hour until repaired');
+    expect(damageCard(s, LOTTIES_CORNER)).toContain('400/800 HP. Damaged: pours 78 of 156 cups an hour until repaired');
   });
 
   it('says why a repair cannot be approved, and shows a booked one as fixing tonight', () => {

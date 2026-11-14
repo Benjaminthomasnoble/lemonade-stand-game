@@ -14,7 +14,7 @@ import {
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
 import { phoneCheck } from './phone.ts';
 import { checkGoals, GOAL_PROVIDERS, goalsNow } from './goals.ts';
-import { playScene } from './scenes.ts';
+import { playScene, SPEAKERS } from './scenes.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -727,8 +727,8 @@ describe('Old Money', () => {
     expect(budgetOf(s, 'sourwood').strike).toBe(strike); // the act's lesson, not a scheme Vera pays for
     expect(canBuyPlot(s, first)).toEqual({ ok: false, why: 'Town Hall froze this sale' });
     expect(schemeNote(s, first)).toBe('<span class="cl-note bad">Frozen, thaws day 113</span>');
-    expect(s.scenes!.queue.at(-1)).toMatchObject({ id: 'hedges', data: { lines: HEDGES.lines } });
-    expect(HEDGES.lines[0]).toMatchObject({ who: 'Mayor Fontaine' });
+    expect(s.scenes!.queue.at(-1)).toMatchObject({ id: 'hedges', data: { speaker: 'fontaine', plot: first, lines: HEDGES.lines } }); // he walks on to the plot
+    expect(HEDGES.lines[0]).toMatchObject({ who: SPEAKERS.fontaine });
     expect(s.news).toContain('Bugle: Town Hall freezes a Hilltop land sale "to protect historic hedges"');
     expect(s.rivals.sourwood.hedges).toBe(110);
     expect(buyPlot(s, second)).toBe(true); // once a run: the next Hilltop deal goes through

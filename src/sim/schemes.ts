@@ -578,7 +578,7 @@ export function historicHedges(s: GameState, plotId: string): boolean {
   if (!freezeLand(s, plotId, true)) return false;
   vera.hedges = s.day;
   s.news.push('Bugle: Town Hall freezes a Hilltop land sale "to protect historic hedges"');
-  playScene(s, 'hedges', HEDGES);
+  playScene(s, 'hedges', { ...HEDGES, plot: plotId }); // Mayor Fontaine, at the plot
   return true;
 }
 

@@ -197,9 +197,10 @@ export const OLD_MONEY = {
 /**
  * Act 5's Historic hedges beat (spec: "the Mayor freezes your Hilltop land deal to protect historic hedges. Teaches
  * Old Money."): the first time you go to buy a Hilltop Estates plot, Town Hall freezes that sale for
- * OLD_MONEY.freezeDays days. The scene plays as captions (the world has no staging for the Mayor yet).
+ * OLD_MONEY.freezeDays days. Mayor Fontaine walks on to that plot to say so (the world stages him by `speaker`).
  */
 export const HEDGES = {
+  speaker: 'fontaine' as const,
   seconds: 13,
   lines: [
     { who: 'Mayor Fontaine', text: 'Terribly sorry. That sale is frozen, to protect the historic hedges.', at: 1 },

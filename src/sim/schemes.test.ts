@@ -8,6 +8,7 @@ import {
   AD_BLITZ, adBlitzBoost, adBlitzIn, DISTRICT_BY_ID, ACT_BY_RANK, underCeaseAndDesist,
   blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
   detectionChance, MYSTERY, MYSTERY_GOAL, mysteryGoal, mysteryOn, NIGHT_SHIFT, nightShiftUnmasked, welcomeDex,
+  closeAuctions, openAuction, placeBid, PRESTON_OUTBID,
   type DayStats, type GameState, type RivalId, type Scheme,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
@@ -261,7 +262,7 @@ describe('auction snipes', () => {
     s.day = 10;
     const lot = PLOTS.find((p) => !s.plots[p.id].owner && p.type === 'street')!.id;
     expect(startScheme(s, 'fizzco', 'snipe')).toBeNull(); // no auction open: nothing to snipe
-    (s.plots[lot] as { auction?: object }).auction = { closes: 11, min: 1000, bid: 5000 }; // land's auctions, once they land
+    s.plots[lot].auction = { kind: 'sale', closes: 11, min: 1000, bid: 5000 };
     const snipe = startScheme(s, 'fizzco', 'snipe')!;
     expect(snipe).toMatchObject({ kind: 'snipe', by: 'fizzco', until: 11, plots: [lot] });
     expect(snipeBid(s, 'hollis', lot, 3000, 5000)).toBe(3000); // Hollis isn't sniping
@@ -280,7 +281,7 @@ describe('auction snipes', () => {
     s.day = 10;
     s.rank = 9; // Threat 5
     const lot = PLOTS.find((p) => !s.plots[p.id].owner && p.type === 'street')!.id;
-    (s.plots[lot] as { auction?: object }).auction = { closes: 40, min: 1000 };
+    s.plots[lot].auction = { kind: 'sale', closes: 40, min: 1000 };
     for (const id of RIVALS) if (id !== 'fizzco') s.rivals[id].truceUntil = 999;
     while (!runningSchemes(s).length && s.day < 200) { s.day++; schemesAtDawn(s); }
     const [snipe] = runningSchemes(s);
@@ -289,6 +290,33 @@ describe('auction snipes', () => {
     s.day = 41;
     schemesAtDawn(s);
     expect(snipe.done).toBe(true);
+  });
+
+  it('take the lot at the gavel: FizzCo tops your sealed bid by 5% and Preston rings to gloat', () => {
+    const s = newGame(5);
+    s.day = 10;
+    s.cash = 100_000;
+    const lot = PLOTS.find((p) => !s.plots[p.id].owner && p.type === 'street')!.id;
+    openAuction(s, lot, 'sale');
+    const yours = s.plots[lot].auction!.min * 3;
+    expect(placeBid(s, lot, yours)).toBe(true);
+    for (const id of RIVALS) budgetOf(s, id).grow = 0; // nobody else can bid
+    budgetOf(s, 'fizzco').strike = s.rivals.fizzco.cash = 1_000_000;
+    expect(startScheme(s, 'fizzco', 'snipe')).toMatchObject({ plots: [lot], until: s.day + 1 });
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[lot].owner).toBe('fizzco');
+    expect(s.cash).toBe(100_000); // a losing sealed bid costs nothing
+    expect(s.news).toContain(`Skip Larkin: "Outbid on ${PLOT_BY_ID[lot].name}. ${FACTIONS.fizzco.name} went to $${Math.ceil(yours * (1 + SCHEMES.snipe.over)).toLocaleString('en-US')}."`);
+    expect(s.phone!.queue.some((c) => c.who === 'fizzco' && c.text === PRESTON_OUTBID)).toBe(true);
+  });
+
+  it('never go after a plot you listed yourself', () => {
+    const s = newGame(5);
+    s.day = 10;
+    const lot = PLOTS.find((p) => !s.plots[p.id].owner && p.type === 'street')!.id;
+    s.plots[lot] = { ...s.plots[lot], owner: 'player', auction: { kind: 'listing', closes: 11, min: 1000 } };
+    expect(startScheme(s, 'fizzco', 'snipe')).toBeNull();
   });
 });
 

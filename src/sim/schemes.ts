@@ -584,12 +584,11 @@ export function historicHedges(s: GameState, plotId: string): boolean {
 
 // ---------- auction snipe ----------
 
-/** An open auction on a plot, as land's auctions keep it (PlotState.auction once they land; none before). */
-interface Lot { closes: number; min: number; bid?: number }
-const lotOn = (s: GameState, plotId: string) => (s.plots[plotId] as { auction?: Lot }).auction;
-/** Lots open now: the ones you bid on first, then the dearest. */
+/** The sealed-bid auction open on a plot (auction.ts). */
+const lotOn = (s: GameState, plotId: string) => s.plots[plotId].auction;
+/** Lots open to bids now (never a plot you listed yourself): the ones you bid on first, then the dearest. */
 function openLots(s: GameState): string[] {
-  const lots = PLOTS.map((p) => p.id).filter((id) => (lotOn(s, id)?.closes ?? -1) >= s.day);
+  const lots = PLOTS.map((p) => p.id).filter((id) => lotOn(s, id)?.kind !== 'listing' && (lotOn(s, id)?.closes ?? -1) >= s.day);
   return lots.sort((a, b) => Number(lotOn(s, b)!.bid !== undefined) - Number(lotOn(s, a)!.bid !== undefined) || lotOn(s, b)!.min - lotOn(s, a)!.min);
 }
 
@@ -602,8 +601,8 @@ function startSnipe(s: GameState, id: RivalId): Scheme | null {
 }
 
 /**
- * A sealed bid with a snipe behind it (the seam for land's auctions: a rival's bid goes through here as the lot
- * closes). A rival sniping the lot tops your sealed bid by `SCHEMES.snipe.over`; Strike moves the money it adds into
+ * A sealed bid with a snipe behind it (auction.ts sends each rival's bid through here as the lot closes). A rival
+ * sniping the lot tops your sealed bid by `SCHEMES.snipe.over`; Strike moves the money it adds into
  * Grow, which pays the bid. Without a snipe, without your bid, or when Strike or cash can't cover it, the bid stands.
  */
 export function snipeBid(s: GameState, id: RivalId, lot: string, bid: number, yours?: number): number {

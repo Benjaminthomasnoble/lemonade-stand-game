@@ -4,8 +4,10 @@ import {
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
   customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
   feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed, BORDERS, FACTIONS, likeliestTarget, PLOT_BY_ID, spreadRaids,
+  buyPlot, fillPosts, LOTTIES_SIDE_LOT, openStands, simulateRestOfDay, tickMinute,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
+import { answerCall, callChoices, liveCall } from './calls.ts';
 
 /** Rank for a Threat on a difficulty (Laid Back takes 1 off). */
 const rankFor = (threat: number, difficulty: Difficulty) => Math.min(10, difficulty === 'laidback' ? threat * 2 + 1 : threat * 2 - 1);
@@ -255,6 +257,40 @@ describe('the tutorial raid comes once a run', () => {
     const s = fair(43);
     s.day = TUTORIAL_RAID_DAY - 1; // Day 14, no Kiosk yet: not its night
     expect(nights(s, 60).every((raids) => !raids.length)).toBe(true);
+  });
+
+  it("follows the Day 3 rumor: with the side lot bought, Brock's pair still come for the Corner", () => {
+    /** Days 1-2 played, Lottie's side lot bought at Day 3's dawn, then Day 3 to closing with its rumor answered by `pick`. */
+    const night3 = (pick: (labels: string[]) => number) => {
+      const s = newGame(53);
+      for (let d = 1; d <= 2; d++) { openStands(s); simulateRestOfDay(s); sleepUntilDawn(s); }
+      expect([s.day, s.tutorialRaidDone]).toEqual([TUTORIAL_RAID_DAY, false]);
+      s.cash = 1000;
+      expect(buyPlot(s, LOTTIES_SIDE_LOT)).toBe(true);
+      openStands(s);
+      let rumors = 0;
+      while (s.phase === 'open') {
+        const call = liveCall(s);
+        if (call) {
+          const labels = callChoices(s, call).map((c) => c.label);
+          if (call.kind === 'rumor') { rumors++; expect([call.rival, call.plot]).toEqual(['blenders', LOTTIES_CORNER]); }
+          expect(answerCall(s, call.kind === 'rumor' ? pick(labels) : labels.length - 1, { postGuards: (p) => fillPosts(s, p) })).toBe(true);
+        }
+        tickMinute(s);
+      }
+      expect(rumors).toBe(1);
+      return s;
+    };
+    const fenced = night3((labels) => labels.findIndex((l) => l.endsWith('fence'))); // rush a Picket fence in at the Corner
+    expect(fenced.plots[LOTTIES_CORNER].defense.tier).toBe(1);
+    expect(fenced.raids.filter((r) => onYou(fenced, r))).toMatchObject([{ attacker: 'blenders', target: LOTTIES_CORNER, tutorial: true }]);
+    sleepUntilDawn(fenced);
+    expect(fenced.battles.filter((b) => b.defender === 'player')).toMatchObject([{ target: LOTTIES_CORNER, outcome: 'repelled' }]);
+    expect(fenced.tutorialRaidDone).toBe(true);
+    const open = night3((labels) => labels.length - 1); // Bring it on: they come for the Corner all the same, and take its till
+    expect(open.raids.filter((r) => onYou(open, r))).toMatchObject([{ attacker: 'blenders', target: LOTTIES_CORNER, tutorial: true }]);
+    sleepUntilDawn(open);
+    expect(open.battles.filter((b) => b.defender === 'player')).toMatchObject([{ target: LOTTIES_CORNER, outcome: 'robbed' }]);
   });
 
   it("a fresh run starts the flag at not yet, so a save past Day 15 with the first raid still to come keeps it coming", () => {

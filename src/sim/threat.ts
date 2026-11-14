@@ -67,9 +67,9 @@ function weakest(s: GameState, rival: RivalId, mine: Plot[], taken: Set<string>)
 
 /** The scripted first raid on you: two Smoothie Bros with bare fists, announced, for a Shakedown, straight at Dex.
  * It always bounces (withDex, tutorialBounce). Brock calls first: his scripted first call rings the same day (phone.ts). */
-function tutorialRaid(s: GameState, rng: Rng, mine: Plot[], rival: RivalId): Raid {
+function tutorialRaid(s: GameState, rng: Rng, mine: Plot[], rival: RivalId, told?: Plot): Raid {
   const dex = s.guards.find((g) => g.name === DEX && g.post && s.plots[g.post]?.owner === 'player' && hasBuilding(s.plots[g.post]));
-  const target = dex ? PLOT_BY_ID[dex.post!] : weakest(s, rival, mine, new Set());
+  const target = told ?? (dex ? PLOT_BY_ID[dex.post!] : weakest(s, rival, mine, new Set()));
   const party = raidParty(s, rival, 1, rng).slice(0, 2).map((f) => ({ ...f, weapon: 'fists' as const, hp: 30, hit: 2, chop: 1, nerve: 20 }));
   const leave = RAID_LEAVE.first + Math.floor(nextRandom(rng) * RAID_LEAVE.steps) * 15;
   const at = leave + travelMinutes(s, raidStart(s, rival, target.id), target.id);
@@ -102,10 +102,14 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const u = nextRandom(rng);
   const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));
   if (s.day <= NO_RAID_DAYS || !mine.length) return [];
+  const rumor = rumorTonight(s); // a day call's rumor (calls.ts): that rival comes for that plot tonight
+  const rumored = rumor && mayRaidYou(s, rumor.rival) && mine.some((p) => p.id === rumor.plot) ? rumor : undefined;
   if (!tutorialDone(s)) {
-    // Brock's Bros; if the Blenders are out or in a Truce with you, the next rival who may raid sends the same two.
-    const rival = (['blenders', ...RIVALS] as RivalId[]).find((r) => mayRaidYou(s, r));
-    return tutorialNight(s) && rival ? [tutorialRaid(s, rng, mine, rival)] : [];
+    // Brock's Bros, at the plot today's answered rumor named (Day 3's is the Corner), sent by the rumor's gang when it
+    // may come; if the Blenders are out or in a Truce with you, the next rival who may raid sends the same two.
+    const told = rumor ? mine.find((p) => p.id === rumor.plot) : undefined;
+    const rival = rumored?.rival ?? (['blenders', ...RIVALS] as RivalId[]).find((r) => mayRaidYou(s, r));
+    return tutorialNight(s) && rival ? [tutorialRaid(s, rng, mine, rival, told)] : [];
   }
   if (siegeTonight(s)) return siegeStrike(s, rng);
   const pact = syndicateFormed(s);
@@ -115,8 +119,6 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const n = Math.max(pact && s.syndicate!.formed === s.day ? 1 : 0, due, raidCount(weeklyRaids(s) / 7, u));
   const out: Raid[] = [];
   const taken = new Set<string>();
-  const rumor = rumorTonight(s); // a day call's rumor (calls.ts): that rival comes for that plot tonight
-  const rumored = rumor && mayRaidYou(s, rumor.rival) && mine.some((p) => p.id === rumor.plot) ? rumor : undefined;
   for (let i = 0; i < Math.max(n, rumored ? 1 : 0); i++) {
     const told = i === 0 && !!rumored; // flagged, so the bosses keep its gang and plot (rivalAi signatureRaids)
     const rival = told ? rumored.rival : pickRival(s, rng);

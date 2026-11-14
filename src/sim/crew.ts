@@ -19,7 +19,7 @@ import { hasFoothold, lottiesTable, ownedPlots } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, autoRepairOn, buildingInvested, currentHp, dollarsUp, fortifyKeeps, hpLostNote, plotsAtDawn } from './damage.ts';
-import { allBeds, awayOnRaid, clubhouses, clubhouseSite, koDays, trainingYard } from './clubhouse.ts';
+import { allBeds, awayOnRaid, clubhouses, clubhouseSite, IN_THE_FIGHT, inLiveFight, koDays, trainingYard } from './clubhouse.ts';
 import { helpHome, rivalHelpFor, sendHelp, withBell, withRivalHelp } from './reinforce.ts';
 import { fitGarrison, knockOut } from './garrison.ts';
 import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './captives.ts';
@@ -400,15 +400,18 @@ export function postsFor(s: GameState, plotId: string): number {
 /** Everyone holding a post here, including guards who are Out or away on a raid (it stays theirs till they're back). */
 export const postedAt = (s: GameState, plotId: string) => s.guards.filter((g) => g.post === plotId);
 
-/** Can this guard take a post here? (null is the Clubhouse reserve, always open.) */
+/** Can this guard take a post here? (null is the Clubhouse reserve, always open.) Not while he's in the fight playing
+ * live: he keeps his post, or his place in the reserve, till it ends (clubhouse.ts inLiveFight). */
 export function canPost(s: GameState, id: string, plotId: string | null): Blocker {
   const g = s.guards.find((x) => x.id === id);
   if (!g) return { ok: false, why: 'No such guard' };
-  if (plotId === null || g.post === plotId) return { ok: true };
-  if (s.plots[plotId].owner !== 'player') return { ok: false, why: 'Not your plot' };
-  const posts = postsFor(s, plotId);
-  if (!posts) return { ok: false, why: 'No guard posts on a bare lot' };
-  if (postedAt(s, plotId).length >= posts) return { ok: false, why: `All ${posts} post${posts === 1 ? '' : 's'} taken` };
+  if (plotId !== null && g.post !== plotId) {
+    if (s.plots[plotId].owner !== 'player') return { ok: false, why: 'Not your plot' };
+    const posts = postsFor(s, plotId);
+    if (!posts) return { ok: false, why: 'No guard posts on a bare lot' };
+    if (postedAt(s, plotId).length >= posts) return { ok: false, why: `All ${posts} post${posts === 1 ? '' : 's'} taken` };
+  }
+  if (inLiveFight(s).includes(id)) return { ok: false, why: IN_THE_FIGHT };
   return { ok: true };
 }
 
@@ -419,22 +422,26 @@ export function postGuard(s: GameState, id: string, plotId: string | null): bool
   return true;
 }
 
-/** Post a guard at the first of these plots with a post free (canPost's cap holds); null leaves them where they are. */
+/** Post a guard at the first of these plots with a post free (canPost's cap holds, and the fight playing live keeps its
+ * own); null leaves them where they are. */
 export function postAtFirstFree(s: GameState, id: string, plotIds: readonly string[]): string | null {
   return plotIds.find((plotId) => postGuard(s, id, plotId)) ?? null;
 }
 
-/** Ready guards who could move to this plot: the reserve first, then guards from plots no warned raid is heading for. */
-function movers(s: GameState, plotId: string): Guard[] {
+/** Ready guards who could move to this plot: the reserve first, then guards from plots no warned raid is heading for.
+ * Not those in the fight playing live (canPost holds them till it ends), unless `fighting` counts them in. */
+function movers(s: GameState, plotId: string, fighting = false): Guard[] {
   const threatened = new Set(incomingRaids(s).map((r) => r.target));
   const raiding = new Set(s.raids.flatMap((r) => (r.attacker === 'player' ? r.guards ?? [] : [])));
-  return s.guards.filter((g) => g.post !== plotId && guardReady(s, g) && !raiding.has(g.id) && !(g.post && threatened.has(g.post)))
+  const held = new Set(fighting ? [] : inLiveFight(s));
+  return s.guards.filter((g) => g.post !== plotId && guardReady(s, g) && !raiding.has(g.id) && !held.has(g.id) && !(g.post && threatened.has(g.post)))
     .sort((a, b) => (a.post ? 1 : 0) - (b.post ? 1 : 0));
 }
 
-/** How many guards "fill the posts" here would move. */
-export const fillable = (s: GameState, plotId: string) =>
-  s.plots[plotId].owner === 'player' ? Math.min(Math.max(0, postsFor(s, plotId) - postedAt(s, plotId).length), movers(s, plotId).length) : 0;
+/** How many guards "fill the posts" here would move. `fighting`: as many as it would with the fight playing live over
+ * (the HUD holds All here for the fight when those are the guards it would bring). */
+export const fillable = (s: GameState, plotId: string, fighting = false) =>
+  s.plots[plotId].owner === 'player' ? Math.min(Math.max(0, postsFor(s, plotId) - postedAt(s, plotId).length), movers(s, plotId, fighting).length) : 0;
 
 /** Fill a plot's free posts (the raid warning's button). Returns how many guards moved. */
 export function fillPosts(s: GameState, plotId: string): number {

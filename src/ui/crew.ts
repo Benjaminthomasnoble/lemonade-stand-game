@@ -75,6 +75,8 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   // The post button steps through your plots with a free post (and the guard's own), then the Clubhouse reserve.
   const spots: (string | null)[] = [...PLOTS.filter((p) => s.plots[p.id].owner === 'player' && (p.id === g.post || canPost(s, g.id, p.id).ok)).map((p) => p.id), null];
   const nextPost = spots[(spots.indexOf(g.post) + 1) % spots.length];
+  const move = canPost(s, g.id, nextPost); // in the fight playing live, he stays put till it ends
+  const stay = nextPost === g.post || !move.ok;
   const where = (id: string | null) => (id ? k.esc(PLOT_BY_ID[id].name) : 'the Clubhouse');
   const nextWeapon = (['clubs', 'hatchets'] as WeaponId[]).find((w) => WEAPONS[w].hit > WEAPONS[g.weapon].hit);
   const nextGear = (['vest', 'pro'] as GearId[]).find((x) => GEAR[x].hp > GEAR[g.gear].hp);
@@ -84,7 +86,7 @@ function guardRow(k: Kit, s: GameState, g: Guard): string {
   return `<div class="cl-guard" data-testid="guard" title="${k.esc(tip)}">${guardFace(k, s, g)}
       <span class="cl-name">${k.esc(g.name.split(' ')[0])}</span>${k.pips(g.level, 5)}
       <span class="cl-acts">
-        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${nextPost === g.post ? 'disabled' : ''} title="Posted at ${where(g.post)}${nextPost === g.post ? '' : `: tap to move to ${where(nextPost)}`}" aria-label="Move post">${k.ART.foot()}</button>
+        <button class="cl-b ghost tiny" data-action="post" data-id="${g.id}" data-plot="${nextPost ?? ''}" ${stay ? 'disabled' : ''} title="Posted at ${where(g.post)}${!move.ok ? ` (${k.esc(move.why)})` : stay ? '' : `: tap to move to ${where(nextPost)}`}" aria-label="Move post">${k.ART.foot()}</button>
         ${nextWeapon && wb && !k.locked(wb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextWeapon}" ${wb.ok ? '' : 'disabled'} title="${WEAPONS[nextWeapon].name} for ${k.whole(WEAPONS[nextWeapon].cost)}${wb.ok ? '' : ` (${k.esc(wb.why)})`}">${k.WEAPON_ART[nextWeapon]()}</button>` : ''}
         ${nextGear && gb && !k.locked(gb) ? `<button class="cl-b tiny" data-action="equip" data-id="${g.id}" data-item="${nextGear}" ${gb.ok ? '' : 'disabled'} title="${GEAR[nextGear].name} for ${k.whole(GEAR[nextGear].cost)}${gb.ok ? '' : ` (${k.esc(gb.why)})`}">${k.ART.shield()}</button>` : ''}
         ${promoteButtons(k, s, g)}

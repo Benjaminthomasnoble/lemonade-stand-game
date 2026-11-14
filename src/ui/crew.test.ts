@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   buyGadget, buyPerimeter, HIRE_RANK, LESSON_DAY, LOTTIES_CORNER, newGame, PLOT_BY_ID, refreshRecruits, resetSlick, toggleAutoRepair, type Blocker,
+  buildClubhouse, newStand, ownedPlots, PLOTS, type Guard, type Raid,
 } from '../sim/economy.ts';
+import { finishFight, startFight, watchFights } from '../sim/fight.ts';
+import { guardOf, henchmenOf } from '../sim/fighters.ts';
+import { ringTheBell } from '../sim/reinforce.ts';
 import type { Kit } from './hud.ts';
-import { crewPanel, defenseSheet, HIRING_HALL, hiringHallButton } from './crew.ts';
-import { repairCards } from './evening.ts';
+import { clubKit, crewPanel, defenseSheet, HIRING_HALL, hiringHallButton } from './crew.ts';
+import { clubhouseRoom } from './clubhouse.ts';
+import { guardsHere, repairCards } from './evening.ts';
 import { menuUnlocked } from './menus.ts';
 
 /** The clay kit, drawn as bare tags: art as <i data-art>, buttons as the HUD's own (disabled with the reason). */
@@ -78,5 +83,46 @@ describe('the Defend sheet', () => {
     resetSlick(s, LOTTIES_CORNER);
     expect(defenseSheet(kit, s, LOTTIES_CORNER)).not.toContain('data-action="resetSlick"');
     expect(repairCards(s).join('')).not.toContain('data-action="resetSlick"');
+  });
+});
+
+describe('a guard in the fight playing live', () => {
+  beforeAll(() => watchFights(true)); // as the game does: fights you're in play live
+  afterAll(() => watchFights(false));
+
+  it("keeps his post: the buttons that would move him show disabled, with why, till it's over", () => {
+    // 23:00, and Brock's raid on the Corner plays live: Gus holds its post, Pip a Kiosk down the street, and Lou waits
+    // at one of two Clubhouses there.
+    const s = newGame(41);
+    Object.assign(s, { rank: 7, cash: 1e6, phase: 'night', minute: 23 * 60 });
+    const home = ownedPlots(s, 'player')[0].id;
+    const [kiosk, club, club2] = PLOTS.filter((p) => p.type === 'street' && p.district === PLOT_BY_ID[home].district && !s.plots[p.id].owner).map((p) => p.id);
+    s.plots[kiosk] = { ...s.plots[kiosk], owner: 'player', stand: newStand(3) };
+    for (const c of [club, club2]) { s.plots[c].owner = 'player'; expect(buildClubhouse(s, c)).toBe(true); }
+    const gus = guardOf('clubs', 'vest', 1, 'Eagle Eye', { name: 'Gus', post: home });
+    const pip = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Pip', post: kiosk });
+    const lou = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Lou', club });
+    s.guards = [gus, pip, lou];
+    const tag = (html: string, action: string, g: Guard) => html.match(new RegExp(`<button [^>]*data-action="${action}" data-id="${g.id}"[^>]*>`))?.[0] ?? '';
+    const post = (g: Guard) => tag(crewPanel(kit, s), 'post', g); // the Crew tab's post button
+    const face = (g: Guard) => tag(clubhouseRoom(clubKit(kit), s, club2), 'club', g); // the other Clubhouse's "wait here"
+    const card = () => guardsHere(s, kiosk, (g) => `<i data-face="${g.id}"></i>`); // the Kiosk's plot card: + and All here
+    expect(post(gus)).toContain(`title="Posted at ${PLOT_BY_ID[home].name}: tap to move to`);
+    expect(post(gus)).not.toContain('disabled');
+    const raid: Raid = { id: 'ra', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '23:00', leave: 22 * 60, at: 23 * 60, launched: true, warned: true };
+    expect(startFight(s, raid, true)).toBe(true);
+    expect(ringTheBell(s, 'ra')).toBe(true); // Lou is in it from the moment he sets out
+    expect(post(gus)).toContain(`disabled title="Posted at ${PLOT_BY_ID[home].name} (In the fight)"`);
+    expect(post(lou)).toContain('disabled title="Posted at the Clubhouse (In the fight)"');
+    expect(post(pip)).not.toContain('disabled'); // not in it: he moves as ever
+    expect(face(lou)).toContain('disabled title="Lou (In the fight)"');
+    expect(card()).toContain(`data-id="${gus.id}" data-plot="${kiosk}" data-testid="post-here" disabled title="Gus: In the fight"`);
+    expect(card()).toMatch(/data-action="defend" data-plot="[^"]+" disabled title="In the fight">All here</);
+    finishFight(s);
+    expect(s.fight).toBeUndefined();
+    expect(post(gus)).not.toContain('disabled');
+    expect(face(lou)).toContain('title="Lou: wait here"');
+    expect(face(lou)).not.toContain('disabled');
+    expect(card()).not.toContain('In the fight');
   });
 });

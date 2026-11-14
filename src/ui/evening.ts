@@ -6,6 +6,7 @@
 import {
   canBuyPerimeter, canPost, fenceRepairCost, fillable, guardReady, isWrecked, mendsOvernight, PERIMETERS, PLOT_BY_ID, PLOTS, slickResetCost, type GameState, type Guard,
 } from '../sim/economy.ts';
+import { IN_THE_FIGHT } from '../sim/clubhouse.ts';
 import * as A from './clay.ts';
 import { damageTickets, rebuildTickets } from './damage.ts';
 
@@ -69,8 +70,14 @@ export function guardsHere(s: GameState, plotId: string, face: (g: Guard) => str
   const here = s.guards.filter((g) => g.post === plotId);
   const free = s.guards.filter((g) => g.post !== plotId && guardReady(s, g) && !away.has(g.id));
   if (!here.length && !free.length) return '';
-  const next = free.find((g) => canPost(s, g.id, plotId).ok); // the plot's posts cap it (crew)
-  const add = next ? btn('post', `+${art('shield', A.shieldSVG)}`, `data-id="${next.id}" data-plot="${plotId}" data-testid="post-here" title="Post ${esc(next.name)} here"`, 'tiny go') : '';
-  const all = fillable(s, plotId) > 1 ? btn('defend', 'All here', `data-plot="${plotId}" title="Every ready guard to ${esc(PLOT_BY_ID[plotId].name)}"`) : '';
+  const tries = free.map((g) => ({ g, b: canPost(s, g.id, plotId) })); // the plot's posts cap it (crew)
+  const next = tries.find((t) => t.b.ok)?.g;
+  // Only guards in the fight playing live could come: the buttons wait for it to end (crew's canPost holds them).
+  const held = next ? undefined : tries.find((t) => !t.b.ok && t.b.why === IN_THE_FIGHT)?.g;
+  const shield = `+${art('shield', A.shieldSVG)}`;
+  const add = next ? btn('post', shield, `data-id="${next.id}" data-plot="${plotId}" data-testid="post-here" title="Post ${esc(next.name)} here"`, 'tiny go')
+    : held ? btn('post', shield, `data-id="${held.id}" data-plot="${plotId}" data-testid="post-here" disabled title="${esc(`${held.name}: ${IN_THE_FIGHT}`)}"`, 'tiny go') : '';
+  const all = fillable(s, plotId) > 1 ? btn('defend', 'All here', `data-plot="${plotId}" title="Every ready guard to ${esc(PLOT_BY_ID[plotId].name)}"`)
+    : fillable(s, plotId, true) > 1 ? btn('defend', 'All here', `data-plot="${plotId}" disabled title="${IN_THE_FIGHT}"`) : '';
   return `<span class="cl-faces" title="${here.length} guard${here.length === 1 ? '' : 's'} posted here">${here.map(face).join('')}${add}${all}</span>`;
 }

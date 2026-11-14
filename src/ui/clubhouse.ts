@@ -3,7 +3,7 @@
 // beds and who waits there, and a tap brings a guard off post over from
 // another Clubhouse; its tape names the Training Yard and the Infirmary once
 // it has them. Mounted from hud.ts, drawn with its clay kit.
-import { bedsAt, clubExtras, clubhouseSite, clubOf } from '../sim/clubhouse.ts';
+import { bedsAt, canWaitAt, clubExtras, clubhouseSite, clubOf } from '../sim/clubhouse.ts';
 import { canBuildClubhouse, CLUBHOUSE, FACILITIES, PLOT_BY_ID, rosterCap, type Blocker, type GameState, type Guard } from '../sim/economy.ts';
 
 /** The parts of the HUD's clay kit these panels draw with. */
@@ -42,7 +42,8 @@ export function clubhouseRoom(k: ClubKit, s: GameState, plotId: string): string 
   if (ps.owner !== 'player' || ps.facility?.kind !== 'clubhouse' || ps.facility.wrecked) return '';
   const faces = s.guards.filter((g) => !g.post).map((g) => {
     const here = clubOf(s, g) === plotId;
-    return `<button class="cl-pick${here ? ' on' : ''}" data-action="club" data-id="${g.id}" data-plot="${plotId}" aria-pressed="${here}" ${here ? 'disabled' : ''} title="${k.esc(g.name)}${here ? ' waits here' : ': wait here'}">${k.face(s, g)}</button>`;
+    const b = canWaitAt(s, g.id, plotId); // in the fight playing live, he stays put till it ends
+    return `<button class="cl-pick${here ? ' on' : ''}" data-action="club" data-id="${g.id}" data-plot="${plotId}" aria-pressed="${here}" ${here || !b.ok ? 'disabled' : ''} title="${k.esc(g.name)}${!b.ok ? ` (${k.esc(b.why)})` : here ? ' waits here' : ': wait here'}">${k.face(s, g)}</button>`;
   }).join('');
   return `<div class="cl-squad" data-testid="clubhouse">${k.tape(`${bedsAt(s, plotId)} beds${extras(ps.facility.level)}`)}${faces}</div>`;
 }

@@ -10,7 +10,7 @@
 // faster.
 import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL, KO_OUT_DAYS } from './balance.ts';
 import { PLOT_BY_ID, PLOTS, plotType, type Plot } from './map.ts';
-import type { GameState } from './economy.ts';
+import type { Blocker, GameState } from './economy.ts';
 import { levelUp, type Guard } from './crew.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { chickenSoup } from './perks.ts';
@@ -55,13 +55,17 @@ export function squadClub(s: GameState, guardIds: readonly string[], target: str
 }
 
 /** Everyone in the fight playing live, either side: who it began with, and who has joined it or is on the way. They're
- * busy till it ends: out of the reserve (awayOnRaid), and off a squad of yours setting out meanwhile (night.ts muster). */
+ * busy till it ends: out of the reserve (awayOnRaid), off a squad of yours setting out meanwhile (night.ts muster), and
+ * where they stand: no other post or Clubhouse (crew's canPost, canWaitAt). */
 export function inLiveFight(s: GameState): string[] {
   const f = s.fight;
   if (!f) return [];
   const joined = [...(f.input.joins ?? []), ...f.commands.flatMap((c) => (c.type === 'join' ? [c] : []))].flatMap((j) => j.fighters);
   return [...f.input.attackers, ...f.input.defenders, ...joined].map((x) => x.id);
 }
+
+/** Why a guard in the fight playing live can't be moved till it ends: the HUD shows it on the buttons that would. */
+export const IN_THE_FIGHT = 'In the fight';
 
 /** Guards away fighting: on a raid of yours (planned or live), on their way to one of your plots (Ring the Bell), or in
  * the fight playing live. A guard sent off post mid-fight is still in it: not in the reserve, nor free to raid, till it ends. */
@@ -102,10 +106,19 @@ export function trainingYard(s: GameState): void {
   }
 }
 
-/** Send a guard off post to wait at this Clubhouse. */
+/** Can this guard wait at this Clubhouse? One still standing, and not while he's in the fight playing live: he stays
+ * where he is till it ends. */
+export function canWaitAt(s: GameState, guardId: string, plotId: string): Blocker {
+  if (!s.guards.some((x) => x.id === guardId)) return { ok: false, why: 'No such guard' };
+  if (!clubhouses(s).some((p) => p.id === plotId)) return { ok: false, why: 'No Clubhouse here' };
+  if (inLiveFight(s).includes(guardId)) return { ok: false, why: IN_THE_FIGHT };
+  return { ok: true };
+}
+
+/** Send a guard off post to wait at this Clubhouse (canWaitAt). */
 export function waitAt(s: GameState, guardId: string, plotId: string): boolean {
-  const g = s.guards.find((x) => x.id === guardId);
-  if (!g || !clubhouses(s).some((p) => p.id === plotId)) return false;
+  if (!canWaitAt(s, guardId, plotId).ok) return false;
+  const g = s.guards.find((x) => x.id === guardId)!;
   g.post = null;
   g.club = plotId;
   return true;

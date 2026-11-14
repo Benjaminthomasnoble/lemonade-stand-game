@@ -13,8 +13,11 @@ import {
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
   buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS, hqPlot,
   buildClubhouse, callBigSqueeze, newStand, planNight, playerWon, RESERVE_MINUTES, startNight, waitingRaids, type BattleReport, type SimEvent,
+  canPost, detectionChance, fillable, fillPosts, postAtFirstFree, postGuard, presentGuards, type Blocker,
 } from './economy.ts';
 import { ringTheBell } from './reinforce.ts';
+import { canWaitAt, IN_THE_FIGHT, waitAt } from './clubhouse.ts';
+import { setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
 function crew(seed: number): GameState {
@@ -446,6 +449,80 @@ describe('a guard is in one fight at a time', () => {
     expect(atOnce).toEqual([]);
     expect(s.battles.some((b) => b.target === target)).toBe(false); // no fight there,
     expect(grudge()).toBe(0); // and no Grudge
+  });
+});
+
+describe('a guard in the fight playing live stays where he is till it ends', () => {
+  const held: Blocker = { ok: false, why: IN_THE_FIGHT };
+
+  it("no post, no Clubhouse, no All here and no Auto-Defend moves him; the rest of the crew moves, and he does once it's over", () => {
+    // 23:00, and Brock's raid on the Corner plays live: Gus (Eagle Eye) holds its post, Pip a Kiosk down the street,
+    // and Lou waits at one of two Clubhouses on the same street.
+    const s = newGame(41);
+    Object.assign(s, { rank: 7, cash: 1e6, phase: 'night', minute: 23 * 60 });
+    const home = ownedPlots(s, 'player')[0].id;
+    const [kiosk, club, club2] = PLOTS.filter((p) => p.type === 'street' && p.district === PLOT_BY_ID[home].district && !s.plots[p.id].owner).map((p) => p.id);
+    s.plots[kiosk] = { ...s.plots[kiosk], owner: 'player', stand: newStand(3) };
+    for (const c of [club, club2]) { s.plots[c].owner = 'player'; expect(buildClubhouse(s, c)).toBe(true); }
+    const gus = guardOf('clubs', 'vest', 1, 'Eagle Eye', { name: 'Gus', post: home });
+    const pip = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Pip', post: kiosk });
+    const lou = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Lou', club });
+    s.guards = [gus, pip, lou];
+    const raid: Raid = { id: 'ra', attacker: 'blenders', target: home, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '23:00', leave: 22 * 60, at: 23 * 60, launched: true, warned: true };
+    expect(startFight(s, raid, true)).toBe(true);
+    const seen = detectionChance(s, kiosk, true);
+    // Gus brawls at the Corner: not to the Kiosk, the reserve or a Clubhouse, and All here would bring Lou, not him.
+    expect(canPost(s, gus.id, kiosk)).toEqual(held);
+    expect(canPost(s, gus.id, null)).toEqual(held);
+    expect(postGuard(s, gus.id, kiosk)).toBe(false);
+    expect(postAtFirstFree(s, gus.id, [kiosk, club])).toBeNull();
+    expect(canWaitAt(s, gus.id, club)).toEqual(held);
+    expect(waitAt(s, gus.id, club)).toBe(false);
+    expect([fillable(s, kiosk), fillable(s, kiosk, true)]).toEqual([1, 2]);
+    // Rung, Lou is in it too, from the moment he sets out: All here has nobody left to bring.
+    expect(ringTheBell(s, 'ra')).toBe(true);
+    expect(canPost(s, lou.id, kiosk)).toEqual(held);
+    expect(canWaitAt(s, lou.id, club2)).toEqual(held);
+    expect(waitAt(s, lou.id, club2)).toBe(false);
+    expect(fillPosts(s, kiosk)).toBe(0);
+    // Pip isn't in it: he moves as ever, and Dex's Auto-Defend posts him again, not Lou.
+    expect(postGuard(s, pip.id, null)).toBe(true);
+    expect(waitAt(s, pip.id, club2)).toBe(true);
+    expect(setAutoDefend(s, true)).toBe(true);
+    expect(setDefendPriority(s, kiosk, 1)).toBe(true);
+    expect(stationByPriority(s)).toBe(1);
+    expect([gus.post, pip.post, lou.post, lou.club]).toEqual([home, kiosk, null, club]);
+    expect(presentGuards(s, kiosk)).toEqual([pip]); // Gus's Eagle Eye spots raids at the Corner only
+    expect(detectionChance(s, kiosk, true)).toBe(seen);
+    play(s);
+    expect(s.fight).toBeUndefined();
+    expect(canPost(s, gus.id, kiosk)).toEqual({ ok: true });
+    expect(postGuard(s, gus.id, kiosk)).toBe(true);
+    expect(waitAt(s, lou.id, club2)).toBe(true);
+    expect([gus.post, lou.club]).toEqual([kiosk, club2]);
+  });
+
+  it('an HQ assault holds its squad at every door; a guard left at home moves, and they do once the last door is fought', () => {
+    const s = newGame(4);
+    Object.assign(s, { rank: 10, cash: 1e9 });
+    for (const p of ownedPlots(s, 'blenders').filter((p) => p.type !== 'hq').slice(1)) s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null }; // Weakened
+    const home = ownedPlots(s, 'player')[0].id;
+    s.guards = Array.from({ length: 9 }, () => guardOf('hatchets', 'pro', 5));
+    const [lead, left] = [s.guards[0], s.guards[8]];
+    expect(startAssault(s, 'blenders', s.guards.slice(0, 8).map((g) => g.id))).toBe(true);
+    expect(canPost(s, lead.id, home)).toEqual(held);
+    expect(postGuard(s, lead.id, home)).toBe(false);
+    expect(postGuard(s, left.id, home)).toBe(true);
+    expect(postGuard(s, left.id, null)).toBe(true);
+    const doors: string[] = [];
+    for (let i = 0; i < 4 && s.fight; i++) {
+      doors.push(s.fight.hq!.stage);
+      for (const f of s.fight.input.attackers) expect(canPost(s, f.id, null)).toEqual(held);
+      play(s);
+    }
+    expect(doors).toEqual(['gate', 'yard', 'boss']);
+    expect(s.fight).toBeUndefined();
+    expect(postGuard(s, lead.id, home)).toBe(true);
   });
 });
 

@@ -193,14 +193,16 @@ describe('Ring the Bell', () => {
     expect(arrived(ended, marnie) === undefined).toBe(marnie.xp === 0);
   });
 
-  it('a guard in the fight is not in the reserve: sent off post mid-fight, they never answer the bell into it again', () => {
+  it('a guard in the fight is not in the reserve: off post mid-fight, they never answer the bell into it again', () => {
     watchFights(true);
     const { s, maple, dex, lou, pip, marnie } = bay(3);
     const r = warned(s, 15);
     while (!s.fight) nightStep(s);
     stepFight(s, 5); // 1.5 s into the fight
-    // Dex, holding the Corner, is sent to wait at the Maple Row Clubhouse (the Crew tab's post button does the same).
-    expect(waitAt(s, dex.id, maple)).toBe(true);
+    // Dex, holding the Corner, can't be sent to wait at the Maple Row Clubhouse: the buttons wait for the fight (crew's
+    // canPost, canWaitAt). A game saved before they did, though, can load with him off post in it.
+    expect(waitAt(s, dex.id, maple)).toBe(false);
+    Object.assign(dex, { post: null, club: maple });
     expect(reserveAt(s, maple).map((g) => g.name)).toEqual(['Big Lou', 'Pip']); // he's still in the brawl
     expect(availableRaiders(s).map((g) => g.name)).not.toContain('Dex'); // and can't set out on a raid from it either
     expect(ringTheBell(s, r.id)).toBe(true);

@@ -61,7 +61,7 @@ Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for
 | P4 | Barbed Wire | 6 | 25,000 | 2,500 | 4 damage/second; attackers 30% slower | 2,500 |
 | P5 | Citrus Fortress Wall | 8 | 100,000 | 5,000 | Defenders +25% damage (+50% total) | 10,000 |
 
-Defenders get +25% damage while any perimeter stands. Repairs run overnight and cost 10% of the tier's price after each raid on that plot.
+Defenders get +25% damage while any perimeter stands. Repairs run overnight and cost 10% of the tier's price after each raid on that plot, and a sprung Lemon-Peel Slick is re-laid the same night for its fee. Both come out of your cash and wait while you can't pay. From Rank 3 they pass over the plots on Auto-Repair's skip list (unless a Fortify policy holds the plot), which you patch by hand. They don't keep back the wage and loan reserve that Auto-Repair's fixes keep: whether they should is an open call for Ben.
 
 ### Gadgets (2 slots per plot, a 3rd at L4)
 

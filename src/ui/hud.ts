@@ -45,6 +45,7 @@ import { specCards } from './specializations.ts';
 import { autoTickets, helperRows, priceSwitch, restockControl } from './automation.ts';
 import { booksRows } from './ledger.ts';
 import { bennyPitch, cornerName, storyDateline, taught } from '../sim/story.ts';
+import { investedSliver } from '../sim/score.ts';
 import { bossBoard, goalCard, offerTicket, sceneTicket, withScene } from './story.ts';
 import { kidPanel, pickKid, typeName } from './grandkid.ts';
 import { nameDraft } from '../sim/grandkid.ts';
@@ -527,7 +528,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const r = RANKS[s.rank - 1], next = RANKS[s.rank];
     const lo = r.ss, hi = next?.ss ?? r.ss;
     const pct = (v: number) => (hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 1);
-    const now = pct(ss), peak = Math.max(now, pct(s.peakScore));
+    const now = pct(ss), peak = Math.max(now, pct(ss + investedSliver(s))); // the striped sliver: building money not yet earned back (src/sim/score.ts)
     const threat = threatLevel(s);
     const goalsOpen = hud.menu === 'goals';
     const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;

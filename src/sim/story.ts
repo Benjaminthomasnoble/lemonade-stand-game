@@ -24,6 +24,7 @@ import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 import { endingFor } from './modes.ts';
 import { crewName } from './grandkid.ts';
 import { cameosAtClose, cameosAtDawn } from './cameos.ts';
+import { migrateScore, scoreCheck, type ScoreBooks } from './score.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -50,6 +51,8 @@ export interface StoryState {
   cameos?: Partial<Record<RivalId, { day: number; n: number }>>;
   cameoDay?: number;
   cameoNews?: { day: number; who: RivalId; n: number };
+  /** The score's books between looks: the Rank badge's invested sliver (src/sim/score.ts). */
+  score?: ScoreBooks;
 }
 
 /** The rival whose fall closes each act (Act 1 closes with the Summer Fair instead). */
@@ -173,6 +176,7 @@ export function migrateStory(s: GameState): void {
   migrateScenes(s);
   migratePhone(s);
   migrateGoals(s);
+  migrateScore(s);
 }
 
 /** One act a dawn, so each climax gets its own morning (actAtDawn). */
@@ -336,6 +340,7 @@ export function storyAtStart(s: GameState): void {
  */
 export function actAtDawn(s: GameState): void {
   migrateStory(s);
+  scoreCheck(s); // land values, VIP pickups, loans, Fire Sales and dawn events have moved the score: the peak first, then the win check (score.ts)
   advanceAct(s);
 }
 
@@ -353,14 +358,17 @@ export function storyAtDawn(s: GameState): void {
   scenesAtDawn(s);
   cameosAtDawn(s); // Endless: Tilly rings the County Fair's judging morning
   phoneCheck(s, true);
+  scoreCheck(s); // the Cookie Jar and the goals' rewards (score.ts)
 }
 
-/** Every game minute while open (one line in tickMinute): goals tick off as they're met. */
+/** Every game minute while open (one line in tickMinute): goals tick off as they're met, and the score updates. */
 export function storyMinute(s: GameState): void {
-  if (s.minute % 10 !== 0) return;
-  checkGoals(s);
-  beatsOnTheClock(s); // the first ship docks; Juni's tip before the first chopper loads
-  phoneCheck(s);
+  if (s.minute % 10 === 0) {
+    checkGoals(s);
+    beatsOnTheClock(s); // the first ship docks; Juni's tip before the first chopper loads
+    phoneCheck(s);
+  }
+  scoreCheck(s); // a rank-up on the spot, and the peak (score.ts)
 }
 
 /** Closing time (one line in closeDay, after tonight's raids are planned): the day's goals, Dex's post, tonight's warning calls. */
@@ -370,6 +378,7 @@ export function storyAtClose(s: GameState): void {
   recordDay(s);
   cameosAtClose(s); // Endless: a beaten boss's cameo
   phoneAtClose(s);
+  scoreCheck(s); // the day's goal rewards (score.ts)
 }
 
 // ---------- the tone guide's lines on triggers that already exist (spec "Tone guide") ----------
@@ -420,6 +429,7 @@ export function storyAfterAct(s: GameState): void {
   beatsOnTheClock(s); // a chopper order just taken, with its bottles ready: Juni's tip now
   checkGoals(s);
   phoneCheck(s);
+  scoreCheck(s); // a purchase's invested dip, a buyout's jump (score.ts)
 }
 
 /**

@@ -121,7 +121,7 @@ describe('economy', () => {
 
   it('buys land on Maple Row and opens a second stand; Old Town needs Rank 2', () => {
     const s = newGame(13);
-    s.cash = 2000;
+    s.cash = 1150; // the score stays under Corner Hustler's $1,500 (a rank-up comes on the spot)
     const lot = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!;
     expect(buyPlot(s, lot.id)).toBe(true);
     expect(buildStand(s, lot.id)).toBe(true);

@@ -542,6 +542,7 @@ describe('Act 3: the handshake and the night flight', () => {
     expect(left.story!.asked).toBe(true);
     const low = act3(103, HANDSHAKE_DAY);
     low.rank = 3;
+    low.cash = 20000; // a Block Boss's score, so no rank-up at dawn
     nextDawn(low);
     expect(low.story!.offer).toBeUndefined();
     const sandbox = newGame(104, { mode: 'sandbox' });

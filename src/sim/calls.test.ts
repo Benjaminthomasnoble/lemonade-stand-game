@@ -61,7 +61,7 @@ describe('day calls', () => {
     const cash = s.cash;
     expect(answerCall(s, 0, crew(s))).toBe(true);
     expect(s.plots[LOTTIES_CORNER].defense.tier).toBe(1);
-    expect(cash - s.cash).toBe(Math.ceil(150 * CALLS.rumor.rush)); // a Picket rushed in
+    expect(cash - s.cash).toBeCloseTo(Math.ceil(150 * CALLS.rumor.rush), 6); // a Picket rushed in
     while (s.phase === 'open') tickMinute(s);
     const raid = s.raids.find((r) => onYou(s, r));
     expect(raid).toBeTruthy();

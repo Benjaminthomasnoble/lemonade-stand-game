@@ -6,7 +6,7 @@ import { callsOnTheClock, type CallsState } from './calls.ts';
 import { nextRandom, randomRange } from './rng.ts';
 import {
   BRAND_TIERS, BUILDING_VALUE_SHARE, CAMPAIGNS, CLOSE, CUP_COST, CUPS_PER_PITCHER,
-  DAWN, FACTIONS, HIRE_RANK, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
+  DAWN, FACTIONS, HOURLY_TRAFFIC, LAND_DEVELOPMENT_MAX, MARKET_SWING, NIGHT_END, OPEN,
   RANKS, RECIPES, repMultiplier, SEASON_DAYS,
   SEASONS, STAND_LEVELS, STAND_RANK_GATE, START, SUPPLIES, WEATHER,
   type CampaignId, type LocalCampaignId, type RecipeId, type RivalId, type Season, type SegmentId, type StandLevel, type SupplyId, type Sweetness,
@@ -21,7 +21,7 @@ import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type 
 import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { historicHedges, landFrozen, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
-import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
+import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
 import { LOTTIES_CORNER, mapDistricts, nearbyPlots, onMap, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
@@ -41,7 +41,7 @@ import { actAtDawn, migrateStory, storyAtClose, storyAtDawn, storyAtStart, story
 import { goalsNow, type GoalSlot, type GoalState } from './goals.ts';
 import { automationAtDawn, holdPrices, repostPrice, restockAtOpen, type HelperDay } from './automation.ts';
 import { book, logScore, sellCup, useStock, type LedgerRow } from './ledger.ts';
-import { grandkid } from './grandkid.ts';
+import { scoreCheck } from './score.ts';
 import type { SceneState } from './scenes.ts';
 import type { PhoneState } from './phone.ts';
 import type { LiveFight } from './fight.ts';
@@ -756,6 +756,7 @@ function serveAt(s: GameState, plotId: string, rng: Rng, a: Appeal, seg: Segment
 export function tickMinute(s: GameState): SimEvent[] {
   if (s.phase === 'night') { // the night runs on the same clock; at 07:00 dawn opens Morning Prep
     const night = nightStep(s);
+    scoreCheck(s); // night loot and a VIP pickup's pay move the score too: a rank-up on the spot (score.ts)
     if (s.minute >= NIGHT_END && !s.fight && sleepUntilDawn(s)) night.push({ type: 'dawn' }); // combat: a live fight holds dawn at 07:00 till it's over
     return night;
   }
@@ -854,9 +855,8 @@ function closeDay(s: GameState): void {
   if (s.history.length > 60) s.history.shift();
   const score = successScore(s);
   logScore(s, score); // the Ledger's chart (ledger.ts)
-  if (score > s.peakScore) { s.peakScore = score; s.peakDay = s.day; }
   trackOutselling(s);
-  checkRank(s);
+  scoreCheck(s); // the peak and a rank-up, before tonight's raids are planned (score.ts)
   damageAtClose(s); // rivals book their repairs at closing, like you (damage.ts)
   s.phase = 'report';
   stationByPriority(s); // Dex's Auto-Defend posts the idle reserve by each plot's priority (autodefend.ts)
@@ -1064,16 +1064,6 @@ export function rankFor(score: number) {
   return { ...r, next };
 }
 
-function checkRank(s: GameState): void {
-  const r = rankFor(successScore(s)).rank;
-  if (r > s.rank) {
-    const was = s.rank;
-    s.rank = r;
-    s.news.push(`RANK UP! ${grandkid(s).first} is now a ${RANKS[r - 1].title}`);
-    if (was < HIRE_RANK && r >= HIRE_RANK) refreshRecruits(s, true); // the Hiring Hall opens (Dex comes on Day 6, not with a rank)
-  }
-}
-
 // ---------- upgrades and marketing (milestone 2) ----------
 
 export function canUpgradeStand(s: GameState, plotId = s.selected): Blocker {
@@ -1099,7 +1089,7 @@ export function upgradeStand(s: GameState, plotId = s.selected): boolean {
   repostPrice(s, plotId); // Auto-Price follows the new level's ceiling (automation.ts)
   restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
   s.news.push(`${PLOT_BY_ID[plotId].name} gets a makeover: say hello to ${next.name}!`);
-  checkRank(s);
+  scoreCheck(s); // the makeover's invested dip (score.ts)
   return true;
 }
 

@@ -37,6 +37,7 @@ import { raidsOnYou, rivalRaids, spreadRaids, tutorialBounce, tutorialDone, with
 import { fortifiedFrame } from './specializations.ts'; // demand: the Fortified Frame's max HP
 import { cite, citationRisk, citationsAtDawn, migrateCitations, raidBan } from './citations.ts';
 import { migrateTemplates, noteTemplateRaid } from './templates.ts';
+import { builtFree } from './score.ts';
 
 export interface Guard {
   id: string;
@@ -1155,6 +1156,7 @@ export function offerSideLot(s: GameState): void {
     ps.stand = newStand(1);
     ps.stand.price = priceCeiling(s, LOTTIES_SIDE_LOT);
     ps.invested += STAND_LEVELS[0].cost;
+    builtFree(s, LOTTIES_SIDE_LOT); // her gift: no invested dip (score.ts)
     alert(s, { kind: 'note', text: "Lottie's table goes up on your side lot", plot: LOTTIES_SIDE_LOT });
   } else if (!ps.owner) {
     ps.dibs = { who: 'player', until: s.day + 6, price: SIDE_LOT_PRICE, table: true };

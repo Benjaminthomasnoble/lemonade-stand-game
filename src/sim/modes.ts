@@ -14,6 +14,7 @@ import { beginEpilogue, storyAct } from './story.ts';
 import { announceControl, awardEveryLastPlot, rivalsInPlay } from './land.ts';
 import type { Grandkid } from './grandkid.ts';
 import { endVictoryShow, type VictoryStage } from './victory.ts';
+import { samplePeak } from './score.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -122,6 +123,7 @@ export function dominationProgress(s: GameState) {
 export function checkVictory(s: GameState): boolean {
   awardEveryLastPlot(s); // land: earned the moment it's true, in any mode, Endless after the win too
   if (s.outcome) return false;
+  samplePeak(s); // the peak first: TARGET HIT never sits beside a lower one (score.ts)
   const win = winCondition(s);
   if (win === 'none') return false;
   const won = win === 'economic' ? successScore(s) >= s.settings.target : dominationProgress(s).done;

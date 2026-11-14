@@ -20,9 +20,8 @@ function playTo(s: GameState, day: number): void {
   }
 }
 
-/** A second player stand next to the Corner, priced at its ceiling. */
-function sideLot(s: GameState): string {
-  const id = 'maple-1n';
+/** A second player stand next to the Corner (or at `id`), priced at its ceiling. */
+function sideLot(s: GameState, id = 'maple-1n'): string {
   s.plots[id].owner = 'player';
   s.plots[id].stand = newStand(1);
   s.plots[id].stand!.price = priceCeiling(s, id);
@@ -233,7 +232,7 @@ function profitOf(s: GameState, plotId: string, recipe: RecipeId, sweetness: Swe
 describe("Marisol's Auto-Price", () => {
   it('waits for Rank 3, then each dawn gives every stand the card and Sweetness that should make the most, priced at the top', () => {
     const s = newGame(31);
-    const side = sideLot(s);
+    const side = sideLot(s, 'maple-5n'); // out of the Corner's reach: next-door stands split walkers, and she picks stand by stand
     playTo(s, AUTO_RESTOCK_DAY);
     expect(s.today.auto!.price).toBeUndefined(); // below Rank 3 you price your own stands
     expect(prepPreview(s).map((p) => p.id)).toEqual(['restock']);

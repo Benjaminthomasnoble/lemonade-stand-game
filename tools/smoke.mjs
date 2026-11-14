@@ -176,7 +176,7 @@ try {
       for (let i = 0; i < 12 && st.phase !== 'prep'; i++) g.act({ type: st.phase === 'open' ? 'skip' : 'sleep' });
       st.bottles = 50000;
       st.raids = [];
-      st.rank = 2; // keep Threat low so no delivery raid in the smoke test
+      for (const r of Object.values(st.rivals)) r.respectUntil = st.day + 1; // rivals back off today: no delivery raid in the smoke test (a rank set lower comes right back now)
       // A Pad loads 2,000 bottles a day and a Jetty 5,000: each order goes in one pickup.
       st.orders.push({ id: 'smoke-' + tier, tier, client: `Smoke Test ${tier}`, qty: tier === 'ship' ? 5000 : 2000, pay: 1000, due: st.day, expires: st.day, plot, accepted: true });
       g.act({ type: 'open' });

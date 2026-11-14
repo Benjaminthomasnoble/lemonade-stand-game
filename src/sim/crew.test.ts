@@ -883,6 +883,19 @@ describe('Sabotage', () => {
     expect(expectedPassersby(s, target)).toBeGreaterThan(0);
   });
 
+  it("a Sabotage whose Lookout or Sneaky guard is KO'd before it sets out is called off: the stock is safe", () => {
+    const { s, target, muscle } = saboteurs(128);
+    expect(planRaid(s, target, [...muscle, 'sn'], 'sabotage', 'tonight')).toBe(true);
+    s.guards.find((g) => g.id === 'sn')!.outUntil = s.day + 2; // KO'd before 01:00, as a raid on you leaves them
+    openStand(s);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    expect(s.battles.some((b) => b.attacker === 'player' && b.target === target)).toBe(false);
+    expect(s.news).toContain(`Sabotage on ${PLOT_BY_ID[target].name} called off: no Lookout or Sneaky guard fit to go.`);
+    expect(isSpoiled(s, s.plots[target])).toBe(false);
+    expect(s.plots[target].stand!.spoiledDay ?? 0).toBeLessThan(s.day);
+  });
+
   it('a Sabotage sent now lands by day: customers see it, and the stand sells nothing its next day', () => {
     const { s, target, muscle } = saboteurs(124);
     expect(s.phase).toBe('prep');

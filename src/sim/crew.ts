@@ -770,6 +770,12 @@ export function canSabotage(s: GameState, plotId: string, guardIds: string[]): B
 }
 /** The one Sabotage lock the squad itself fixes (the Planner keeps the objective pickable and says so in red). */
 export const SABOTAGE_NEEDS = 'Sabotage needs a Lookout or a Sneaky guard';
+/** A Sabotage setting out (night.ts musters the squad): the guards still fit to go need their Lookout or Sneaky guard,
+ * as canSabotage did at planning. Null when it may go; otherwise the news line that calls it off. */
+export function sabotageCalledOff(s: GameState, r: Raid): string | null {
+  if (!r.sabotage || raidSquad(s, r.guards ?? []).some((g) => g.specialty === 'lookout' || g.trait === 'Sneaky')) return null;
+  return `Sabotage on ${PLOT_BY_ID[r.target].name} called off: no Lookout or Sneaky guard fit to go.`;
+}
 
 /** A Sabotage that got its 10 minutes with the stock: every lemon, scoop of sugar and cube of ice is ruined, and the stand can't sell its next day. */
 export function spoilStock(s: GameState, plotId: string): void {

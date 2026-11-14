@@ -18,7 +18,7 @@ import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
-import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidRepCost, threatLevel, type BattleReport, type Raid } from './crew.ts';
+import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, pruneAlerts } from './alerts.ts';
@@ -201,9 +201,10 @@ function launch(s: GameState, r: Raid): void {
 function muster(s: GameState, r: Raid): void {
   const busy = new Set(s.raids.filter((x) => x !== r && x.attacker === 'player' && x.launched).flatMap((x) => x.guards ?? []));
   r.guards = (r.guards ?? []).filter((id) => { const g = s.guards.find((x) => x.id === id); return !!g && guardReady(s, g) && !busy.has(id); });
-  if (r.guards.length) return;
+  const off = r.guards.length ? sabotageCalledOff(s, r) : `Raid on ${PLOT_BY_ID[r.target].name} called off: nobody fit to go.`; // crew: a Sabotage still needs its Lookout or Sneaky guard
+  if (!off) return;
   s.raids = s.raids.filter((x) => x !== r);
-  s.news.push(`Raid on ${PLOT_BY_ID[r.target].name} called off: nobody fit to go.`);
+  s.news.push(off);
 }
 
 /** After the fight your squad walks home the same way, carrying anyone KO'd; their posts fill again as they arrive.

@@ -1,6 +1,6 @@
 ## Appendix A: Balance tables
 
-Every number below is final for version 1, checked by a 170-day simulation that takes a competent Classic player to Rank 9 on Day 135 and Domination on Day 143 on the reference map (Domination on Days 131–146 across ten shuffled maps).
+Numbers marked (placeholder) are stand-ins still to be tuned, the pacing targets are under review (see Ranks), and open calls for Ben are named where they apply; every other number is checked against main's code. The simulated days come from the economy model's 170-day run (`docs/spec/pacing.csv`), which takes a competent Classic player to Rank 9 on Day 135 and Domination on Day 143 on the reference map (Domination on Days 131–146 across ten shuffled maps).
 
 Dollars are game dollars, days are game days, and "×" multiplies a base value.
 
@@ -119,7 +119,7 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,955–$2,092 at those dawns against the $2,306 for a Street plot and the Clubhouse. Whether to retune Act 2's cash or move the window is an open call for Ben.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,955–$2,092 at those dawns against the $2,306 for a Street plot and the Clubhouse, while the pacing bot builds its first on Days 12–20 on Classic (mostly before Dex's push). Whether to retune Act 2's cash or move the window is an open call for Ben.
 
 ### Crew
 
@@ -284,7 +284,7 @@ HQ assaults are fought at Morning Prep, which counts as night (Night Owls hit 25
 | Threat 4 raids (8–12) vs a kitted L5 behind Barbed Wire (5 L1 guards with hatchets and Pro Gear; goose, slick and sprinkler) | The defense holds 80% |
 | The same behind a Citrus Fortress Wall | The defense holds 100% |
 | 5 hatchets vs Barbed Wire (2,500 HP) | Breached at 18 s |
-| 5 clubs vs Barbed Wire | Breached at 73.5 s (about 74 s) |
+| 5 clubs vs 2,500 HP of fence without a sting | Breached at 73.5 s (about 74 s). Real Barbed Wire's sting knocks all five out at 25 s, so they never get through |
 | 12 clubs vs a Citrus Palace (5,000 HP) | Damaged at 60 s, 200 HP left |
 | 12 hatchets vs a Citrus Palace | Smashed at 15 s |
 | Blend Shack, 5 L2 guards with clubs | 83% |
@@ -576,11 +576,11 @@ Each fair ends in a Taste-Off on its last day. Three judges post their hints at 
 
 The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
-These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+These targets are under review, an open call for Ben, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing sweep is in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt; it played main 9e57e5e, so re-sweep current main before quoting its days.
 
 ### Lottie's Tips
 
-Each rank-up from Rank 2 deals a hand of 3 tips you don't hold; you keep one for good, and the other two go back in the pool. A tip that needs a higher rank waits for it, and the tips about raids and guards are never dealt in Peaceful. Seven are canon's numbers; the other seventeen are placeholders. Canon's eighth example, opening at 07:00, isn't in the pool: 07:00 is Morning Prep.
+Each rank-up from Rank 2 deals a hand of 3 tips you don't hold; you keep one for good, and the other two go back in the pool. A tip that needs a higher rank waits for it, and the tips about raids and guards are never dealt in Peaceful. Seven are canon's numbers; the other seventeen are placeholders. Canon's old eighth example, opening at 07:00, was dropped: 07:00 is Morning Prep.
 
 | Tip | What it does | Dealt |
 |---|---|---|
@@ -815,7 +815,7 @@ From Day 8, each dawn a rival with no scheme running starts one on 2 / 3.5 / 5 /
 | Land freeze | Sourwood | From Act 5, $1,500 of Strike: nobody can buy one plot for 3 days, and your First Dibs on it waits the freeze out. In the campaign, Act 5's first Hilltop buy is frozen once for free |
 | Old Money's Stewards | Sourwood | From Act 5, Vera's raids and plot guards come one level higher (in that level's padding), each weapon one tier toward hatchets. Sourwood Manor's own defenders don't change |
 | Dig In | Hollis | Its fences and their repairs cost 60% of your price, and hay bales give its fences 1.5× HP (the bales don't stay when the land changes hands). It fences every Field it holds, up to a Chain-Link Fence |
-| Blender Rush | The Blenders and the Out-of-Towner | Every raid comes at the top of the Threat's party size, each weapon one tier toward fists (hatchets to clubs, clubs to fists), for half the wages. Brock phones first |
+| Blender Rush | The Blenders and the Out-of-Towner | Every raid it sends, except the scripted Night 3 raid and a Syndicate strike, comes at the top of its party-size range (the Threat's on you, the next Threat's on a rival, Threat 3's at most), each weapon one tier toward fists (hatchets to clubs, clubs to fists), for half the wages. Brock phones first |
 
 #### Sit-downs and buyouts
 
@@ -971,6 +971,9 @@ The design spec's Appendix A collects these from its sections so every number ha
 | Rivals | Breaking a Truce | −1 star; no rival accepts a Truce for 14 days |
 | Rivals | Trophy perks | Blender Bar +20% top price; Juni's Grapevine 1 game hour; Hollis Orchards +10% traffic per Grove; Bottling Line 25%; Family Silver 10% |
 | Rivals | Grow / Guard / Strike splits | See the Rivals table |
+| Modes | In the Red | Cash below $0 at dawn (after wages and loan payments) starts 3 days In the Red. Still below $0 at the 4th dawn running, Lottie's Cookie Jar pays the shortfall plus a day of stand upkeep and guard wages (how often: see Difficulty); with no Cookie Jar left the run ends (Squeezed Out) |
+| Modes | Run Out of Town | A run that can be lost ends at dawn with no stands left and less than $150, a Folding Table's price |
+| Modes | Sandbox's Economic win | Reach a Success Score target picked from the Rank 4–10 thresholds ($25,000 to $200,000,000); it starts at Rank 8's $20,000,000 |
 
 ### Day calls (src/sim/calls.ts `CALLS`)
 

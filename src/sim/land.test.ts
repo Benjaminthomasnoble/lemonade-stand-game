@@ -856,6 +856,18 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(JSON.stringify(s)).toBe(mid); // every trial put back
   });
 
+  it('never weighs a stand on an Industrial lot, its own or one for sale: that land waits for the Bottling Works', () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 40, rank: 6, cash: 1e7 });
+    give(s, street(s, 'oldtown').id); // a Foothold next door to Downtown
+    const [mine, open] = PLOTS.filter((p) => p.type === 'industrial' && !s.plots[p.id].owner); // Downtown Depot and the Old Cannery
+    give(s, mine.id);
+    for (const p of PLOTS) if (!s.plots[p.id].owner && p.type !== 'industrial' && p.type !== 'civic') s.plots[p.id].owner = 'hollis'; // nothing else for sale
+    expect(canBuyPlot(s, open.id)).toEqual({ ok: true });
+    const industrial = (id: string) => !!id && plotType(s, PLOTS.find((p) => p.id === id)!) === 'industrial';
+    expect(growthCandidates(s, 1e7).filter((b) => industrial(b.plot)).map((b) => b.what)).toEqual([]);
+  });
+
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
     const s = newGame(REFERENCE_SEED);
     const lot = street(s, 'maple').id;

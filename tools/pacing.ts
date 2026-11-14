@@ -141,7 +141,7 @@ const PLOT_CANDIDATES = 24; // open plots weighed each morning, busiest first
 const RAID_ODDS = 0.6; // a squad goes out only when it should win
 const ODDS_RUNS = 16; // the Planner's dice, cut down so a run stays quick
 const DOMINATION_RANK = 8; // from here the player buys toward a Majority in every district
-const STAND_TYPES = ['street', 'prime', 'landmark', 'industrial'];
+const STAND_TYPES = ['street', 'prime', 'landmark']; // land a stand goes up on: Fields, Docks and Industrial lots hold facilities (canBuildStand)
 const WAREHOUSE_RUNS = 0.02; // a Warehouse's market runs, as a share of its district's stand profit: the sell-outs it saves (a guess)
 /** The bank's term in days (4 weekly payments): a buy that pays back inside it is worth borrowing for. */
 export const LOAN_TERM = LOAN.weeks * 7;

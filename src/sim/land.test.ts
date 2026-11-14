@@ -8,20 +8,20 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { rowAmount, stockValue } from './ledger.ts';
-import { CLOSE, LAVENDER, LESSON_DAY } from './balance.ts';
+import { CLOSE, LAVENDER, LESSON_DAY, STAND_LEVELS } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
 import { clubhouseSite, reserveAt } from './clubhouse.ts';
 import { autoDefendOn } from './autodefend.ts';
 import { bellParty } from './reinforce.ts';
-import { buildClubhouse, canBuildClubhouse, postedAt, postGuard, welcomeDex } from './crew.ts';
+import { buildClubhouse, canBuildClubhouse, guardWage, postedAt, postGuard, welcomeDex } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
 import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
-  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, milestones, morning, newBot, pacingPlan, pacingReport,
-  pickAnswer, playRun, promotions, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, strongest, TIP_ORDER, type PacingJob, type RunResult,
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, dayBills, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, milestones, morning, newBot, pacingPlan, pacingReport,
+  pickAnswer, playRun, promotions, RANK_DAYS, REFERENCE_SEED, reserve, runFromText, runToText, spreadChecks, strongest, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -888,6 +888,19 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     morning(s, bot);
     expect(s.policies?.maple?.kind).toBe('profit');
     expect(bot.played.policies).toBe(1);
+  });
+
+  it("keeps back the day's bills beside its stock: every stand's upkeep at closing and every guard's wage at dawn", () => {
+    const s = newGame(REFERENCE_SEED);
+    expect(dayBills(s)).toBe(STAND_LEVELS[0].upkeep); // Lottie's Folding Table, and no guards yet
+    const stock = reserve(s) - dayBills(s);
+    welcomeDex(s);
+    expect(dayBills(s)).toBe(STAND_LEVELS[0].upkeep + guardWage(s.guards[0])); // and Dex's wage
+    expect(reserve(s) - dayBills(s)).toBe(stock); // beside the same stock
+    s.plots[LOTTIES_CORNER].stand!.level = 4; // a Lemon Shack's upkeep is due at closing whatever the weather sold
+    expect(dayBills(s)).toBe(STAND_LEVELS[3].upkeep + guardWage(s.guards[0]));
+    s.plots[LOTTIES_CORNER].stand!.wrecked = true; // and a wrecked stand's too
+    expect(dayBills(s)).toBe(STAND_LEVELS[3].upkeep + guardWage(s.guards[0]));
   });
 
   it('kits its guards out as the rank opens the gear, from the security money', () => {

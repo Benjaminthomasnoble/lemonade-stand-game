@@ -19,7 +19,7 @@ import {
   buyGadget, buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand, canBuyGadget,
   canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canPromote, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
   callCrew, costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
-  GADGETS, gameOver, GEAR, guardFighter, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
+  GADGETS, gameOver, GEAR, guardFighter, guardReady, guardWage, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
   netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
   plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, promote, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
   repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, siegeTargets, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
@@ -507,10 +507,17 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
   return out.filter((b) => b.gain > 0);
 }
 
-/** Cash kept back for the day's stock and bills, and the bank's next weekly payment while a loan is out. */
-function reserve(s: GameState): number {
+/** The day's bills: every stand's upkeep (a wrecked one's too), charged at closing, and every guard's wage, paid at
+ * the next dawn. */
+export const dayBills = (s: GameState) =>
+  playerStands(s).reduce((a, p) => a + standLevel(s.plots[p.id].stand!).upkeep, 0) + s.guards.reduce((a, g) => a + guardWage(g), 0);
+
+/** Cash kept back for the day's stock and bills, and the bank's next weekly payment while a loan is out. Without the
+ * bills, a rainy day's takings that fall short of a Lemon Shack's or a Citrus Palace's upkeep leave no cash for the
+ * next day's stock or the guards' pay. */
+export function reserve(s: GameState): number {
   const w = typical();
-  return 100 + loanPayment(s) + ownStands(s).reduce((a, p) => a + expectedCups(s, p.id, w) * costPerCup(s, s.plots[p.id].stand!) * 1.3, 0);
+  return 100 + loanPayment(s) + dayBills(s) + ownStands(s).reduce((a, p) => a + expectedCups(s, p.id, w) * costPerCup(s, s.plots[p.id].stand!) * 1.3, 0);
 }
 
 /** Spend the security money: guards up to the beds, their weapons and padding, and a Clubhouse when they're full (from

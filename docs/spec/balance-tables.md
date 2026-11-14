@@ -100,12 +100,14 @@ Guards gain about 1 level every 35 days of duty; fights and the Training Yard sp
 
 ### Clubhouse and squads
 
-| Clubhouse | Rank | Cost ($) | Beds | Extra |
-|---|---|---|---|---|
-| None | — | — | 2 ("Dex sleeps in the shed") | — |
-| L1 | 2 | 2,000 | +6 | — |
-| L2 | 5 | 15,000 | +12 | Training Yard |
-| L3 | 7 | 80,000 | +24 | Infirmary |
+| Clubhouse | Rank | Cost ($) | Beds | HP | Extra |
+|---|---|---|---|---|---|
+| None | — | — | 2 ("Dex sleeps in the shed") | — | — |
+| L1 | 2 | 2,000 | +6 | 800 (placeholder) | — |
+| L2 | 5 | 15,000 | +12 | 2,000 (placeholder) | Training Yard |
+| L3 | 7 | 80,000 | +24 | 5,000 (placeholder) | Infirmary |
+
+Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all day (off post, not Out, not on a raid) earns a day of duty's XP, 1/35 of the way to the next level (placeholder). Infirmary (L3): while one stands, every knockout is Out 1 day less, never below 0 (fit again at the next dawn). Guards waiting at a Clubhouse are your reserve for Ring the Bell (see Combat).
 
 | Rank | Raid squad cap (guards) |
 |---|---|
@@ -114,6 +116,118 @@ Guards gain about 1 level every 35 days of duty; fights and the Training Yard sp
 | 7 | 12 |
 
 A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19.
+
+### Combat
+
+A fight runs in quarter-second ticks from contact, when the raiders reach the fence (or the guards, or the stand). One fight-second is one game minute, and a fight plays at 1 game minute per real second. Every swing lands for exactly its Hit or Chop times the multipliers below, and everyone swings at the nearest enemy. Nobody dies: a fighter at 0 HP is knocked out. The same rules run when you raid a rival and when a rival raids you. `npm run combat` measures the checks at the end of this section.
+
+#### Fighters and traits
+
+| Fighter | Value |
+|---|---|
+| Every fighter, guard or henchman | 100 HP, Nerve 50, a swing every 1.5 s (the first at contact) |
+| Each level above 1 | +10% HP, Hit and Chop (see Guards by level) |
+| Speed | 1/3 plot-length a second (placeholder) |
+| Ground | Reach 0.12 and shoulder room 0.1 plot-lengths (placeholders); the perimeter stands 0.4 out from the stand, guards with no perimeter hold at 0.2, and the stand is 0.5 wide |
+
+| Trait | In a fight |
+|---|---|
+| Tough Cookie | HP ×1.2 |
+| Gentle Giant | HP ×1.5, Hit ×0.7 |
+| Hothead | Hit ×1.15, Nerve −20 |
+| Night Owl | Hit and Chop ×1.25 at night |
+| Lumberjack | Chop +50% (with a Wrecker's +50%, Chop ×2) |
+| Sprinter | Speed ×1.25 |
+| Butterfingers | Once a fight, a 10% chance the weapon slips on one of the first three swings; they finish on fists |
+| Goose Whisperer | The Guard Goose stuns the first 2 raiders instead of 1 (never more than 2) |
+| Former Rival | +10% Hit and Chop against their old faction: its plots, its raids on you and its HQ |
+| Loyal | Hostile Takeover can't turn them |
+
+Eagle Eye, Sneaky, Smooth Talker and the rest of Loyal work outside the brawl (see Crew).
+
+#### How a fight runs
+
+| Rule | Value |
+|---|---|
+| Breach | Raiders chop the perimeter first; while it stands they can't reach the guards or the stand |
+| Fence line | Defenders deal +25% damage while any perimeter stands (+50% behind a Citrus Fortress Wall) |
+| Barbed Wire | Raiders within 0.1 plot-lengths of the fence line (placeholder) move at 70% Speed, standing or cut |
+| First strike | An undetected raid: +25% on every swing and chop for the first 5 s |
+| Guard Goose | Stuns the first raider to arrive for 3 s (the first 2 with a Goose Whisperer on the plot) |
+| Lemon-Peel Slick | Stuns the first 3 raiders to arrive for 4 s |
+| Sprinkler Ambush | Soaked raiders deal 20% less damage all fight |
+| Nerve check | Once a side has lost half its fighters (rounded down; a side of one never checks), each one still standing rolls once and stays if a roll of 0–100 lands under their Nerve (+20 during a Rally); the rest run home |
+| Captain | His whole side gets +20 Nerve and +10% Hit, once however many Captains |
+| Shakedown or Sabotage | 10 game minutes at the till, once the perimeter is down and no guard is standing |
+| Smash | The objective starts when the perimeter is down and no guard is standing; a stand not knocked down 60 game minutes after that is only Damaged |
+| Raiders give up | At 120 fight-seconds, if they haven't reached the objective (placeholder) |
+| Knocked out | Out 1 day, 2 after a hatchet KO; the Infirmary takes a day off (so does Lottie's Chicken Soup tip), never below 0. Rival henchmen stay on their plot's books and come back the same way |
+| Nabbed | Each KO'd raider a beaten raid leaves behind is Nabbed 10% of the time (never a boss). A side that wins, Falls Back or holds the field when time runs out carries its KO'd home. A captive's ransom is their hire fee; releasing one gives +0.05 star; or recruit them as a Former Rival (a Loyal one refuses). A rival holds a guard of yours for 3 days (placeholder), then they go over to it (a Loyal one walks home) |
+
+#### Commands and help
+
+| Command | Rule |
+|---|---|
+| Rally | +20 Nerve for 10 s, every 30 s, either side |
+| Fall Back | Once per fight: everyone standing retreats with the KO'd, nobody is left behind, and the fight is lost |
+| Ring the Bell | Defense only, once per raid. The reserve at every Clubhouse in range sets out: 30 game minutes from the same district, 60 from a bordering one (placeholders), half that into a district where you hold a Stronghold (placeholder). Whoever arrives before contact starts in the fight; the rest join as they arrive and count in the Nerve check. A Captain in the bell party leads the guards on post too (rung mid-fight, only the guards who join) |
+| Dex's Auto-Defend | From Rank 4. Dex rings the bell when a raid on you is warned, and each Evening posts the idle reserve, most seasoned first, by each plot's priority: 0 (the default, left to the bell) to 3 (placeholder) |
+| A rival's help | A rival who spots your raid sends help from its other plots and its HQ in the same or a bordering district: half each one's fit garrison (rounded down), nearest first, capped by Threat at 0.3 / 0.3 / 2 / 2 / 3 henchmen, where a fraction is the chance of one (placeholders). They walk over at raid travel times (see Raids) |
+| One fight at a time | One fight plays live. A raid on you that reaches its plot meanwhile waits at the edge and goes in as that fight ends; your own raids that land meanwhile are fought at once and replayed after |
+
+#### HQ assaults
+
+An HQ falls in three fights in a row: the Gate, the Yard and the Boss Room. The squad carries its HP from stage to stage; the KO'd and the runners are done for that assault, and a stall at any stage ends it and adds 30 Grudge. Unseen, the squad strikes first at the Gate, against the HQ's gadgets; past the Gate they know you're in. The Gate is a Smash on the Gate's HP. In the Yard and the Boss Room the squad must beat everyone in the room, then hold it for 10 game minutes, as in a Shakedown.
+
+| HQ | Tier | Gate | Yard | Boss Room | Boss move |
+|---|---|---|---|---|---|
+| Blend Shack (Blenders) | 1 | 2,000 HP, 2 henchmen | 3 henchmen | Brock + 2 | Blender Rush at 0 s: the 3 guards nearest him are stunned for 4 s |
+| Grindhouse (Cold Brew) | 2 | 2,750 HP, 3 | 6 | Juni + 2 | Espresso Shot at 0 s: her side swings and steps 50% faster for 10 s |
+| Hollis Homestead | 3 | 3,500 HP, 4 | 4 | Tilly + 3 | Hay Bale Wall at 0 s: a 320-HP hay bale in front of 4 of your guards, who chop through it first |
+| FizzCo Tower | 4 | 4,250 HP, 5 | 9 | Preston + 3 | Hostile Takeover at 6 s: 2 of your guards switch sides, unless they're Loyal |
+| Sourwood Manor | 4 | 5,000 HP, 5 | 10 | Vera + 3 | Old Money: 3 Stewards join at 1 s (in the campaign, one more for each plot the siege took from you), and her cane disarms one guard at 3 s |
+
+The tiers, Yard sizes, stage sizes and boss moves are placeholders, except the spec's 3 guards for Blender Rush, +50% for 10 s for the Espresso Shot and 2 guards for Hostile Takeover. A boss's move goes off only while the boss is standing. Gate and Boss Room henchmen fight at the HQ's tier and Yard henchmen a level higher (at most 5), with the home kit by level below. Old Money's Stewards are Level 5. In the campaign, Sourwood Manor opens once the Big Squeeze siege is over (see Raids): each night you held every target cuts its Gate by 500 HP (never below 1,500) and benches one Yard henchman.
+
+| Henchman level | Padding | Fists / clubs / hatchets |
+|---|---|---|
+| 1 | None | 100 / 0 / 0% |
+| 2 | None | 70 / 30 / 0% |
+| 3 | Padded Vest | 30 / 70 / 0% |
+| 4 | Padded Vest | 10 / 60 / 30% |
+| 5 | Pro Gear | 0 / 50 / 50% |
+
+| Boss | Value (placeholders) |
+|---|---|
+| HP | 2.5 × a guard's (250), × the tier scale |
+| Hit | 8, × the tier scale |
+| Chop, Nerve, padding, weapon | Chop 2; Nerve 200; damage taken ×0.8; clubs |
+| Tier scale | 0.75 + 0.25 × the HQ's tier: ×1 at tier 1, ×1.75 at tier 4 |
+
+A boss at the head of a Threat 5 raid on you is the same as in their Boss Room.
+
+#### Measured by `npm run combat`
+
+HQ assaults are fought at Morning Prep, which counts as night (Night Owls hit 25% harder), over 40 seeds.
+
+| Check | Result |
+|---|---|
+| Threat 1 raid (3 fists) vs an undefended L1 | The raiders win 100% |
+| Threat 1 raid (3 fists) vs a Picket Fence and 1 guard with fists, seen or unseen | The raiders fail 78% |
+| Real Threat 1 parties (2–3 fists) vs the same | The raiders fail 92% |
+| Threat 4 raids (8–12) vs a kitted L5 behind Barbed Wire (5 L1 guards with hatchets and Pro Gear; goose, slick and sprinkler) | The defense holds 80% |
+| The same behind a Citrus Fortress Wall | The defense holds 100% |
+| 5 hatchets vs Barbed Wire (2,500 HP) | Breached at 18 s |
+| 5 clubs vs Barbed Wire | Breached at 73.5 s (about 74 s) |
+| 12 clubs vs a Citrus Palace (5,000 HP) | Damaged at 60 s, 200 HP left |
+| 12 hatchets vs a Citrus Palace | Smashed at 15 s |
+| Blend Shack, 5 L2 guards with clubs | 83% |
+| Grindhouse, 8 L2 guards with clubs and vests | 80% |
+| Hollis Homestead, 8 L3 guards with hatchets and vests | 83% |
+| FizzCo Tower, 12 L4 guards with hatchets and Pro Gear | 98% |
+| Sourwood Manor, 12 L4 guards with hatchets and Pro Gear | 33% |
+| Sourwood Manor, 12 L5 guards with hatchets and Pro Gear | 85% |
+| Sourwood Manor after 7 good siege nights (Gate 1,500 HP, Yard 3), 12 L4 guards | 100% |
 
 ### Land prices and traffic by district
 

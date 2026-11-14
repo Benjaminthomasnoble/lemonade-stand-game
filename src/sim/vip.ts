@@ -341,10 +341,13 @@ function rollBid(s: GameState, o: Order, rng: Rng): void {
 }
 
 /** An offer with a rival's bid leaves the book without you (lost, turned down or let go): the rival does the job and keeps
- * its margin. No star is lost. */
+ * its margin. No star is lost. The job's pay counts in the rival's sales for the day (Weakened's outselling, rivals.ts). */
 function rivalTakesJob(s: GameState, o: Order): void {
   const b = liveBid(s, o);
-  if (b) s.rivals[b.rival].cash = Math.round((s.rivals[b.rival].cash + b.pay * RIVAL_BID.margin) * 100) / 100;
+  if (!b) return;
+  const r = s.rivals[b.rival];
+  r.cash = Math.round((r.cash + b.pay * RIVAL_BID.margin) * 100) / 100;
+  r.salesToday = (r.salesToday ?? 0) + b.pay;
 }
 
 /** At dawn: production, expiring offers, new offers. */

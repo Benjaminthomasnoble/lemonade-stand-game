@@ -591,6 +591,26 @@ describe('review rules', () => {
     expect(isWeakened(s, 'fizzco')).toBe(true);
   });
 
+  it("a rival's bottle jobs count in its daily sales: your day must double its cups and bottles", () => {
+    const s = rich(7);
+    const field = PLOTS.find((p) => p.type === 'field')!.id;
+    // A chopper client FizzCo bid on, let go: at the next dawn FizzCo does the job.
+    s.offers.push({ id: 'job', tier: 'heli', client: 'test', qty: 4000, pay: 90_000, due: s.day + 3, expires: s.day, plot: field, accepted: false, bid: { rival: 'fizzco', pay: 85_500, days: 1 } });
+    openStand(s);
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    expect(s.offers.some((o) => o.id === 'job')).toBe(false);
+    expect(s.rivals.fizzco.salesToday).toBe(85_500);
+    // Six days outsold so far; today you take $120,000, double FizzCo's cups but not its cups and bottles.
+    s.rivals.fizzco.outsoldDays = 6;
+    openStand(s);
+    s.today.revenue = 120_000;
+    simulateRestOfDay(s);
+    const cups = PLOTS.filter((p) => s.plots[p.id].owner === 'fizzco' && s.plots[p.id].stand).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
+    expect(s.history.at(-1)!.revenue).toBeGreaterThanOrEqual(2 * cups);
+    expect(s.rivals.fizzco.outsoldDays).toBe(0);
+  });
+
   it('each recent Smash cuts the rebuild chance by 30 points', () => {
     const s = rich();
     const p = ownedPlots(s, 'sourwood').find((q) => s.plots[q.id].stand)!;

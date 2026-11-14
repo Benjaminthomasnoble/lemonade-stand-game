@@ -52,6 +52,20 @@ export function dismissAlert(s: GameState, id: string): void {
   s.alerts = (s.alerts ?? []).filter((a) => a.id !== id);
 }
 
+/** Small news (sold out, notes, a regular's pickup with no show) melts off the feed after this many game minutes;
+ * it stays in the log. */
+export const ALERT_LIFE = 90;
+/** Small news: the cards that melt. */
+export const isSmall = (a: Alert) => a.kind === 'soldout' || a.kind === 'note' || (a.kind === 'pickup' && !a.scene);
+
+/** Is this card on the feed now? A raid warning while its raid is out, small news for ALERT_LIFE game minutes of the
+ * day it came, and big news until it's dismissed (or dawn). The feed (src/ui/alerts.ts) and the quiet night
+ * (night.ts) both read this, so nothing the player can't see holds the night. */
+export function onFeed(s: GameState, a: Alert): boolean {
+  if (a.raid) return s.raids.some((r) => r.id === a.raid);
+  return !isSmall(a) || (a.day === s.day && s.minute - a.minute <= ALERT_LIFE);
+}
+
 /** Warnings go once their raid has hit (its result card takes over) or was called off. */
 export function pruneAlerts(s: GameState): void {
   if (!s.alerts?.length) return;

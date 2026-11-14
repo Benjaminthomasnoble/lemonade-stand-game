@@ -7,7 +7,7 @@ import {
   SAVE_VERSION, secondsPerMinute, simulateRestOfDay, sleepUntilDawn, startNight, tickMinute, travelMinutes, VIP_STAR_BONUS,
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
-  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance,
+  CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance, ALERT_LIFE, onFeed,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
@@ -213,6 +213,25 @@ describe('the night on the clock', () => {
     const note = alert(s, { kind: 'note', text: 'Something stirs on Maple Row' });
     expect(quietNight(s)).toBe(false); // any alert ends the quiet
     dismissAlert(s, note.id);
+    expect(quietNight(s)).toBe(true);
+  });
+
+  it('a note from the night holds the quiet only while it is on the feed: it melts after ALERT_LIFE game minutes', () => {
+    const s = evening(16);
+    startNight(s);
+    while (s.minute < 23 * 60) nightStep(s);
+    const note = alert(s, { kind: 'note', text: 'You nabbed a Smoothie Bro.', plot: LOTTIES_CORNER }); // an aftermath line
+    expect(quietNight(s)).toBe(false);
+    while (s.minute - note.minute < ALERT_LIFE) nightStep(s);
+    expect([onFeed(s, note), quietNight(s)]).toEqual([true, false]); // its last minute on the feed
+    nightStep(s);
+    expect([onFeed(s, note), quietNight(s)]).toEqual([false, true]); // melted: the quiet speed comes back
+    expect(s.alerts).toContain(note); // the card itself stays in the log till dawn
+    // Big news stays on the feed until it's put away, and holds the night as long.
+    const big = alert(s, { kind: 'vip', text: 'First chopper in: Test!', plot: LOTTIES_CORNER });
+    for (let i = 0; i <= ALERT_LIFE; i++) nightStep(s);
+    expect([onFeed(s, big), quietNight(s)]).toEqual([true, false]);
+    dismissAlert(s, big.id);
     expect(quietNight(s)).toBe(true);
   });
 

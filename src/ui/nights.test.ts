@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alert, clockText, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, planRaid, raidBoss, raidPartyFor, raidTargets, squadTrip, startNight,
-  type GameState, type Guard, type Raid,
+  alert, ALERT_LIFE, clockText, CLOSE, hhmm, LOTTIES_CORNER, newGame, nightStep, PERIMETERS, planRaid, quietNight, raidBoss, raidPartyFor, raidTargets,
+  squadTrip, startNight, type GameState, type Guard, type Raid,
 } from '../sim/economy.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
@@ -144,6 +144,22 @@ describe('the raid warning card', () => {
     const shields = (c: string) => c.split(mark).length - 1;
     expect(s.guards.filter((g) => g.post === LOTTIES_CORNER)).toHaveLength(0);
     expect(shields(alertCards(s)[0])).toBe(1);
+  });
+});
+
+describe('the feed and the quiet night', () => {
+  it('a small card melts off the feed the same minute it stops holding the night', () => {
+    const s = newGame(11);
+    s.phase = 'report';
+    s.minute = CLOSE;
+    s.raids = [];
+    s.alerts = [];
+    startNight(s);
+    while (s.minute < 23 * 60) nightStep(s);
+    alert(s, { kind: 'note', text: 'Dex: "Honk!"', plot: LOTTIES_CORNER });
+    while (!quietNight(s)) { expect(alertCards(s)).toHaveLength(1); nightStep(s); }
+    expect(alertCards(s)).toEqual([]);
+    expect(s.minute - 23 * 60).toBe(ALERT_LIFE + 1);
   });
 });
 

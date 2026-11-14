@@ -21,7 +21,7 @@ import { autoRestock, servingsAvailable } from './economy.ts';
 import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidIsNightAt, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
 import { startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
-import { alert, isMajor, pruneAlerts } from './alerts.ts';
+import { alert, isMajor, onFeed, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
 import { siegeFought, squeezeAtDawn } from './squeeze.ts';
@@ -69,10 +69,11 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
  * (a detected raid's whole ETA; Cutthroat's 5-minute notice lasts 5 real seconds). With auto-pause on, the notice
  * waits for you first. */
 export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r));
-/** Nothing has come in tonight: no warning is out and no card from the night is still on the feed, so a quiet night
- * runs at 3×. Once the raid is fought (its card goes) the night is quiet again. */
+/** Nothing has come in tonight: no warning is out and no card from the night is still on the feed (a note melts off
+ * it after ALERT_LIFE: alerts.ts onFeed), so a quiet night runs at 3×. Once the raid is fought (its card goes) the
+ * night is quiet again. */
 export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => r.warned && onYou(s, r))
-  && !(s.alerts ?? []).some((a) => a.day === s.day && a.minute > CLOSE);
+  && !(s.alerts ?? []).some((a) => a.day === s.day && a.minute > CLOSE && onFeed(s, a));
 /** Game minutes until a raid hits. */
 export const minutesLeft = (s: GameState, r: Raid) => Math.max(0, (r.at ?? s.minute) - s.minute);
 

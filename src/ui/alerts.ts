@@ -4,7 +4,7 @@
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
 import {
-  awayAt, canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
+  awayAt, canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, onFeed, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
 } from '../sim/economy.ts';
 import { scoutingToday } from '../sim/scouting.ts';
@@ -76,24 +76,17 @@ function card(s: GameState, a: Alert): string {
     <span class="cl-acts">${a.plot ? btn('goto', 'Go there', `data-plot="${a.plot}"`) : ''}${act}${btn('dismiss', A.glyph('close'), `data-id="${a.id}" title="Dismiss" aria-label="Dismiss"`, 'tiny ghost')}</span></div>`;
 }
 
-/** Small news (sold out, notes, pickups) melts off the feed after this many game minutes; it stays in the log. */
-export const ALERT_LIFE = 90;
 /** Cards past this many shrink to a small stack of icon blobs (the words stay on hover). */
 export const ALERT_FULL = 2;
 
-/** The alert cards, newest first. Raid warnings stay until the raid hits; big news until dismissed (or dawn); small news melts. */
+/** The alert cards, newest first. Raid warnings stay until the raid hits; big news until dismissed (or dawn); small
+ * news melts after ALERT_LIFE game minutes (the sim's onFeed, which the quiet night reads too). */
 export function alertCards(s: GameState): string[] {
   const out: string[] = [];
   for (const a of [...(s.alerts ?? [])].reverse()) {
-    if (a.raid) {
-      const r = s.raids.find((x) => x.id === a.raid);
-      if (r) out.push(warning(s, a, r));
-      continue;
-    }
-    if (a.kind === 'perk') continue; // a hand of Lottie's Tips is its own ticket at the top of the feed (src/ui/perks.ts)
-    const small = a.kind === 'soldout' || a.kind === 'note' || (a.kind === 'pickup' && !a.scene);
-    if (small && (a.day !== s.day || s.minute - a.minute > ALERT_LIFE)) continue;
-    out.push(card(s, a));
+    if (a.kind === 'perk' || !onFeed(s, a)) continue; // a hand of Lottie's Tips is its own ticket at the top of the feed (src/ui/perks.ts)
+    const r = a.raid ? s.raids.find((x) => x.id === a.raid) : undefined;
+    out.push(r ? warning(s, a, r) : card(s, a));
   }
   // A raid warning or a VIP's Watch keeps its strip: the one tap it offers can't hide.
   let shown = 0;

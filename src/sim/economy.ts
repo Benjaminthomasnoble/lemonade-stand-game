@@ -803,7 +803,8 @@ export function tickMinute(s: GameState): SimEvent[] {
   callsOnTheClock(s); // a day call breaks in at its minute (calls.ts)
   eventsOnTheClock(s); // world: mid-day events break in on 101.5
   if (s.minute >= CLOSE) {
-    closeDay(s);
+    // local and caterer orders go out at closing: a Caterer Truck's load at a Warehouse plays in the world
+    for (const pk of closeDay(s)) events.push({ type: 'pickup', ...pk });
     events.push({ type: 'close' });
   }
   return events;
@@ -831,7 +832,7 @@ function passerby(s: GameState, p: Plot, rng: Rng, hourIdx: number): SimEvent {
   return { type: 'passerby', plot: p.id, at: chosen, segment: seg, buys: result.buys, reason: result.reason, price: result.paid ?? salePrice(s, chosen), owner: chosenOwner };
 }
 
-function closeDay(s: GameState): void {
+function closeDay(s: GameState): ReturnType<typeof pickupsAtClose> {
   const t = s.today;
   let satSum = 0, satN = 0, revenue = 0, cupCosts = 0, upkeep = 0, stands = 0;
   const levels = STAND_LEVELS.map(() => 0);
@@ -862,7 +863,7 @@ function closeDay(s: GameState): void {
   closeTills(s); // combat: each stand's day in its books, for Shakedown loot
   t.revenue = round2(t.revenue + revenue); // world: the day's VIP pickups (booked as they load) stay in its sales
   t.cupCosts = round2(cupCosts);
-  pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
+  const closing = pickupsAtClose(s); // local and caterer orders go out at closing (adds to today's revenue)
   t.satisfaction = satN ? satSum / satN : 0;
   book(s, 'upkeep', -round2(upkeep), stands); // stand upkeep only: wages, tribute and interest left cash when paid
   if (stands) t.upkeepLevels = levels; // the Ledger's "5 Wooden Stands at $15"
@@ -880,6 +881,7 @@ function closeDay(s: GameState): void {
   stationByPriority(s); // Dex's Auto-Defend posts the idle reserve by each plot's priority (autodefend.ts)
   planNight(s);
   storyAtClose(s);
+  return closing;
 }
 
 /** Sleep till dawn: the rest of the night runs minute by minute (raids hit at their minute), then dawn opens

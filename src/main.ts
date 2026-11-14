@@ -27,7 +27,7 @@ import { createAudio, STINGER_CHOKE_SECONDS, TICK_SECONDS, type Motif, type Stin
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
-import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
+import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, loadsAtFacility, pickupPlace, raidKidStand, seasonOf } from './sim/economy.ts';
 import { airedToday, morningShow, radioOn, RIVAL_JINGLES, threatLevel } from './sim/economy.ts'; // audio cues (threat layers, radio leitmotifs)
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
 import { runBulk, setPolicy, togglePolicyPlot } from './sim/economy.ts'; // land: bulk orders and district policies (src/sim/policies.ts)
@@ -419,6 +419,8 @@ async function main() {
       if (e.type === 'dawn') { atDawn(); continue; }
       if (e.type !== 'pickup') continue;
       const o = e.order, first = firsts.has(o.id);
+      // a Caterer Truck loads at your Warehouse at closing: it plays in the world, the camera stays put
+      if (e.ok && live && o.plot && loadsAtFacility(o) && pickupPlace(o) === 'Warehouse' && bay.views[o.plot] && !vip.active()) { vip.play('truck', bay.views[o.plot], false); continue; }
       if (!e.ok || !o.plot || !isVip(o.tier) || (!live && !first)) continue;
       flushNews();
       if (first && autoPauses(options, state, 'vip')) continue; // the show waits for its card's Watch
@@ -990,7 +992,7 @@ async function main() {
     vip: () => vip.active(),
     hqOf: (id: RivalId) => hqPlot(id).id,
     vipWhere: () => vip.where(),
-    vipPlay: (kind: 'heli' | 'ship', plot: string, big = false, level = 1, client = '', first = false) => { vip.play(kind, bay.views[plot], big, level, client, first); showShot(plot, kind); },
+    vipPlay: (kind: 'heli' | 'ship' | 'truck', plot: string, big = false, level = 1, client = '', first = false) => { vip.play(kind, bay.views[plot], big, level, client, first); if (kind === 'truck') focusPlot(plot, 30); else showShot(plot, kind); },
     vipSkip: () => vip.skip(),
     dex: () => welcomeDex(state),
     coach: () => ({ step: coach.current(), seen: [...coach.memory().seen], off: coach.memory().off }),

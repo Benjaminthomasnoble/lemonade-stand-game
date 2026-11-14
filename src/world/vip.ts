@@ -5,7 +5,7 @@
 // the sim has already paid out by the time this plays.
 import * as THREE from 'three';
 import type { PlotView } from './bay.ts';
-import { chopper, citrusCrate, ship, paintFor, type Chopper, type Ship, type ShipKind } from './clay/rides.ts';
+import { chopper, citrusCrate, ship, truck, paintFor, type Chopper, type Ship, type ShipKind, type Truck } from './clay/rides.ts';
 import { Baker } from './clay/core.ts';
 import { holdProp, makeCrew } from './clay/cast.ts';
 import { Figure, crowdDetail, type FigureSpec, type Pose } from './clay/figure.ts';
@@ -16,12 +16,15 @@ import { kit } from './clay/kit.ts';
 import { PLINTH } from './diorama.ts';
 import { SEA_X, SEA_Z } from '../sim/map.ts';
 
+/** A chopper at the pad, a ship at the pier, or a Caterer Truck at the Warehouse (it loads at closing). */
+export type VipKind = 'heli' | 'ship' | 'truck';
+
 export interface VipView {
   /**
    * `level` is the facility tier: Pad, Helipad, Heliport size the chopper (small, bigger, biggest);
    * Jetty, Pier, Cargo Terminal choose the ship. `client` picks the chopper's paint job.
    */
-  play(kind: 'heli' | 'ship', view: PlotView, big: boolean, level?: number, client?: string, photo?: boolean): void;
+  play(kind: VipKind, view: PlotView, big: boolean, level?: number, client?: string, photo?: boolean): void;
   update(dt: number): void;
   /** Cut the show short (a tap does it too): a first visit still gets its Bugle photo of the loading. */
   skip(): void;
@@ -35,7 +38,7 @@ export interface VipEvents {
   /** A ship's horn: the first three notes of Lottie's Theme (F-A-D). */
   onHorn?(): void;
   /** The loading beat of a show played with `photo`: the frame on screen now is the Bugle's photo. */
-  onPhoto?(kind: 'heli' | 'ship'): void;
+  onPhoto?(kind: VipKind): void;
 }
 
 /** Spec, Juice and motion: a big moment runs up to 6 seconds, always skippable. */
@@ -139,7 +142,9 @@ const SHIPS: ShipKind[] = ['yacht', 'cruise', 'freighter'];
 const LINE_TOP = 70; // the fishing line runs up out of shot
 
 interface Job {
-  kind: 'heli' | 'ship';
+  kind: VipKind;
+  /** Caterer Trucks: the truck, its crates by the shed, and how far it has rolled (for the button wheels). */
+  truck?: { v: Truck; crates: THREE.Mesh[]; from: THREE.Vector3[]; rolled: number; beeped: boolean };
   obj: THREE.Group;
   heli?: Chopper;
   ship?: Ship;
@@ -174,6 +179,7 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
     if (!job) return;
     scene.remove(job.obj);
     if (job.heli) { scene.remove(job.heli.line); job.heli.line.geometry.dispose(); (job.heli.line.material as THREE.Material).dispose(); }
+    if (job.truck) for (const c of job.truck.crates) { scene.remove(c); c.geometry.dispose(); }
     if (job.crew) { scene.remove(job.crew.group); job.crew.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); }
     listen(false);
     // each pickup builds its own ride: free its geometry when it leaves
@@ -201,7 +207,33 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
       fx.clear();
       const at = (x: number, y: number, z: number) => view.root.localToWorld(new THREE.Vector3(x, y, z));
       const yaw0 = view.root.rotation.y;
-      if (kind === 'heli') {
+      if (kind === 'truck') {
+        // A Caterer Truck rolls up the street to the Warehouse's door at closing, the crates by the shed hop into
+        // its bed, and off it goes (six seconds, like the others).
+        const tv = truck(P.teal, '#C98E66');
+        const scale = 1.3;
+        tv.group.scale.setScalar(scale);
+        const lane = 2.4; // plot-local: on the forecourt in front of the roll-up door
+        const from = at(-18, 0, lane), stop = at(0.2, 0, lane), to = at(18, 0, lane);
+        const yaw = Math.atan2(stop.x - from.x, stop.z - from.z);
+        const path = (t: number) => {
+          if (t < 2.2) { const k = t / 2.2, e = 1 - (1 - k) ** 2; return { pos: from.clone().lerp(stop, e), yaw, sq: 0, tilt: -0.04 * (1 - k) }; }
+          if (t < 2.5) { const k = (t - 2.2) / 0.3; return { pos: stop.clone(), yaw, sq: Math.sin(k * Math.PI) * 0.06, tilt: 0.05 * Math.sin(k * Math.PI) }; } // brakes: a nod forward
+          if (t < 4.3) return { pos: stop.clone(), yaw, sq: 0, tilt: 0 };
+          const k = (t - 4.3) / 1.7, e = k * k;
+          return { pos: stop.clone().lerp(to, e), yaw, sq: 0, tilt: -0.04 * Math.min(1, k * 3) };
+        };
+        // three crates wait by the shed (beside its own stacked ones) and hop into the bed while it stands
+        const crates = [0, 1, 2].map((k) => {
+          const B = new Baker(); citrusCrate(B, 0, -0.3, 0, 0.8, 0.6, 0.7, 500 + k * 7);
+          const m = new THREE.Mesh(B.build(), kit().fig); m.castShadow = true;
+          m.position.copy(at(-2.6 + k * 0.95, 0.3, 0.3)); m.rotation.y = yaw0 + (k - 1) * 0.1;
+          scene.add(m); return m;
+        });
+        scene.add(tv.group);
+        job = { kind, obj: tv.group, t: 0, path, length: SHOW_SECONDS, pad: stop, horns: [], photo,
+          truck: { v: tv, crates, from: crates.map((c) => c.position.clone()), rolled: 0, beeped: false } };
+      } else if (kind === 'heli') {
         // Pad: a small chopper; Helipad: a bigger one; Heliport: the biggest
         const lv = Math.max(1, Math.min(3, level));
         const heli = chopper(paintFor(client), [1.25, 1.5, 1.75][lv - 1]);
@@ -323,6 +355,22 @@ export function createVip(scene: THREE.Scene, events: VipEvents = {}): VipView {
         // rotor wash flattens the clay grass tufts on the lawn into rings, just outside the cap's rim
         const low = h.group.position.y - job.pad.y;
         if (low < 6 && job.t - ringAt > 0.4) { ringAt = job.t; fx.ring(job.ground!, job.ring! + 0.2 + Math.max(0, low) * 0.15, job.street); if (low < 1) fx.dust(job.pad, 3, 2.2); }
+      } else if (job.truck) {
+        const tk = job.truck;
+        tk.v.body.scale.set(1 + p.sq * 0.4, 1 - p.sq, 1);
+        tk.v.body.rotation.x = p.tilt;
+        tk.rolled += job.obj.position.distanceTo(prev);
+        for (const w of tk.v.wheels) w.rotation.x = (tk.rolled / (0.45 * 1.3)) * (w.rotation.y ? -1 : 1);
+        job.obj.updateMatrixWorld();
+        const bed = job.obj.localToWorld(new THREE.Vector3(0, 1.4, -0.9)); // the bed, in the truck's own space
+        tk.crates.forEach((c, k) => {
+          const t0 = 2.6 + k * 0.5, q = (job!.t - t0) / 0.45;
+          if (q < 0) return;
+          if (q >= 1) { c.position.copy(bed).add(new THREE.Vector3(0, k * 0.05, 0)); c.visible = job!.t < 4.3; return; } // aboard: the truck's own cargo rides on
+          c.position.lerpVectors(tk.from[k], bed, q); c.position.y += Math.sin(q * Math.PI) * 1.8;
+          c.rotation.z = q * Math.PI * 2 * (k % 2 ? 1 : -1);
+        });
+        if (!tk.beeped && job.t >= 2.4) { tk.beeped = true; fx.word(job.obj.position.clone().setY(3.6), 'BEEP BEEP!', P.teal, undefined, 0.9); }
       } else if (job.ship) {
         const s = job.ship;
         s.hull.scale.set(1 + p.sq * 0.4, 1 - p.sq, 1 + p.sq * 0.2);

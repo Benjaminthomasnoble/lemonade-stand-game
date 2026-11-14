@@ -23,7 +23,8 @@ import { FACTIONS, PLAYER_COLOR, type BattleReport, type Fighter, type RivalId }
 import { COMBAT, type GadgetId } from '../sim/balance.ts';
 import type { PlotView } from './bay.ts';
 import { gadgetModels } from './buildings.ts';
-import { Baker, sph, cap, cone, tor, box, lumpy, canvasTex, PAPER } from './clay/core.ts';
+import { Baker, sph, cap, cone, tor, box, rbox, lumpy, canvasTex, PAPER } from './clay/core.ts';
+import { HQS } from '../sim/rivals.ts';
 import { bakeGroup } from './clay/bake.ts';
 import { P } from './clay/palette.ts';
 import { kit } from './clay/kit.ts';
@@ -83,6 +84,19 @@ const SPIN = 1.2; // of the slick's stun, this long spinning; the rest flat on y
 /** World units per plot-length: the sim's fence line (COMBAT.fenceAt) is the clay fence's front. */
 const L = FENCE.zf / COMBAT.fenceAt;
 const WORD: Record<Fighter['weapon'], string> = { fists: 'BONK!', clubs: 'THWACK!', hatchets: 'CHOP!' };
+/** The knockout blow, said big: by weapon, or by the fence that did it (stakes or wire). */
+const KO_WORD: Record<Fighter['weapon'], string> = { fists: 'POW!', clubs: 'WHACK!', hatchets: 'CHOP!' };
+const FENCE_KO: Record<number, string> = { 3: 'POKED!', 4: 'SNAGGED!' };
+/** Brock's Blender Rush lays them flat this long (combat.ts BOSS_MOVES.blenders.stun is the sim's say; this is the look). */
+const RUSH_FLAT = 2;
+/** A hay bale (Tilly's Hay Bale Wall): straw clay with two twine bands. */
+const baleGeometry = (() => {
+  const B = new Baker();
+  B.add(lumpy(rbox(1.3, 0.75, 0.75, 0.12, 3), 0.04, 6, 3), P.straw);
+  for (const x of [-0.35, 0.35]) B.add(tor(0.42, 0.022, 4, 16), P.walnut, { p: [x, 0.0, 0], r: [0, Math.PI / 2, 0], s: [1, 1.05, 1] });
+  for (let k = 0; k < 6; k++) B.add(cap(0.012, 0.22, 2, 4), '#E9C46A', { p: [-0.5 + k * 0.2, 0.4, (k % 2 ? 0.1 : -0.12)], r: [0.3, 0, (k - 2.5) * 0.3] }); // stray straws
+  return B.build();
+})();
 const LAMP = '#FFB55E';
 const INK = '#2E2A4F';
 
@@ -194,6 +208,11 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   const punchDir = new THREE.Vector3();
   let swingsShown = 0;
   let extraAtt = 0, extraDef = 0, lastKo = -1, won = false;
+  /** Contact spots from the sim (t = 0), and who comes in later (Ring the Bell reserves, rival help, called Stewards). */
+  let contactAt = new Map<string, THREE.Vector3>();
+  const late = new Set<string>();
+  let lateN = 0, rang = false;
+  const bales = new Map<string, THREE.Mesh>();
   let honker: THREE.Group | null = null, honk = 0;
   let gadgetsObj: THREE.Object3D | undefined, gadgetsSwap: THREE.Object3D | null = null;
   let gadgets: GadgetId[] = [];
@@ -279,6 +298,9 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     units = [];
     report = null;
     won = false;
+    late.clear(); lateN = 0; rang = false;
+    for (const b of bales.values()) scene.remove(b);
+    bales.clear();
     if (fence) fence.visible = true;
     view?.root.children.forEach((c) => { if (c.name === 'sentry') c.visible = true; });
     // every pool back to empty: no stars or beams from this fight float on into the next
@@ -296,6 +318,12 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
   }
 
   const byId = (id: string) => units.find((u) => u.f.id === id);
+  /** Anyone in this fight, drawn or not: the lines at contact, then whoever joined late (a live report's joins grow). */
+  const fighterOf = (id: string): Fighter | undefined => report
+    ? report.attackers.find((f) => f.id === id) ?? report.defenders.find((f) => f.id === id) ?? report.joins?.flatMap((j) => j.fighters).find((f) => f.id === id)
+    : undefined;
+  const sideOf = (id: string) => fighterOf(id)?.side ?? (report?.attackers.some((f) => f.id === id) ? 'att' : 'def');
+  const dropExtra = (id: string) => { if (sideOf(id) === 'att') extraAtt = Math.max(0, extraAtt - 1); else extraDef = Math.max(0, extraDef - 1); };
   const head = (u: Unit) => u.obj.position.clone().setY(u.fig.height + 0.4);
   const standing = (u: Unit) => u.state === 'march' || u.state === 'stand';
   const setState = (u: Unit, s: State) => { u.state = s; u.st = 0; };
@@ -418,12 +446,51 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
     }
   }
 
+  /** Build a fighter and put them in the fight: at their spot (defenders), marching in from the street (raiders),
+   * or, arriving late, jogging in from behind the stand (defenders) or up the street (raiders). */
+  function spawn(f: Fighter, i: number, n: number, spot0: THREE.Vector3 | undefined, isLate = false): Unit {
+    const r = report!, v0 = view!;
+    const isAtt = f.side === 'att';
+    const owner = (isAtt ? r.attacker : r.defender) as Owner;
+    // the crew's own look, tier weapon and kit: Padded Vest, Pro Gear, level chevrons, Lanky Dex
+    // The HQ Boss Room's boss fights as themselves: Vera taps her cane, Brock flexes.
+    const boss = owner !== 'player' && f.id.includes('-boss-') ? BOSS_OF[owner as keyof typeof BOSS_OF] : undefined;
+    const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? crowdDetail() : 1 }) : makeCrew(owner, {
+      weapon: f.weapon,
+      gear: f.gear ?? (f.armor > 0 ? 'pro' : 'none'),
+      level: Math.max(0, (f.level ?? 1) - 1), // every crew's level goes to the figure (Vera's elite garrison too)
+      dex: owner === 'player' && f.name === 'Dex Moody',
+      seed: i + 1 + (isLate ? 40 : 0),
+    }, kit().fig, { detail: lowDetail ? crowdDetail() : 1 });
+    const obj = fig.root;
+    obj.userData.boss = boss;
+    const spread = (i - (n - 1) / 2) * Math.min(1.1, 9 / Math.max(1, n));
+    const spot = spot0 ?? (isAtt ? local(spread, 3.1) : local(spread * 0.8, 0.9));
+    const out = local(0, 1).sub(local(0, 0));
+    // raiders start out on the street, straight out from their spot; late defenders come round from behind the stand
+    if (isAtt) obj.position.copy(spot).add(out.multiplyScalar((isLate ? 9 : 7) + Math.random() * 2));
+    else if (isLate) obj.position.copy(local((Math.random() - 0.5) * 6, -7.5));
+    else obj.position.copy(spot);
+    const target = spot.clone();
+    const home = isAtt ? local(spread * 1.5, 16) : local(spread * 0.6, -7);
+    obj.rotation.y = Math.atan2(target.x - obj.position.x, target.z - obj.position.z) || (isAtt ? Math.PI + v0.root.rotation.y : v0.root.rotation.y);
+    if (!isLate && !isAtt) obj.rotation.y = v0.root.rotation.y;
+    scene.add(obj);
+    batch!.track(obj); // every fighter draws through one batch: a whole brawl is one call
+    // raiders time their march to reach their spot as the fight starts; the late jog in
+    const speed = isLate ? 4 : isAtt ? Math.max(1.5, obj.position.distanceTo(target) / APPROACH) : 2.8;
+    const u: Unit = { f, owner, fig, obj, target, home, speed, swing: 0, state: 'march', st: 0, spin: 0, flop: 0, frozen: 0, stars: -1, phase: owner === 'fizzco' ? 0 : Math.random() * 6, inCloud: false, zig: Math.random() * 3, foe: null };
+    units.push(u);
+    return u;
+  }
+
   function handle(ev: BattleReport['events'][number], idx: number) {
     switch (ev.type) {
       case 'at': {
         // where the sim has them at contact: defenders are already there, raiders are marching to it
         const u = byId(ev.a);
         if (u && standing(u)) u.target.copy(sim(ev.x, ev.z));
+        else if (!u && ev.t > 0) arrive(ev.a, sim(ev.x, ev.z)); // a late arrival walks into the brawl
         break;
       }
       case 'move': {
@@ -467,16 +534,16 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         break;
       case 'ko': {
         const u = byId(ev.a);
-        if (u) knockOut(u, idx === lastKo);
+        if (u) { knockOut(u, idx === lastKo); koBlow(u, ev); }
         else {
           if (idx === lastKo) { freeze = 0.3; punch = calm() ? 0 : 1; }
-          if (report && report.attackers.some((f) => f.id === ev.a)) extraAtt = Math.max(0, extraAtt - 1); else extraDef = Math.max(0, extraDef - 1);
+          dropExtra(ev.a);
         }
         break;
       }
       case 'flee': {
         const u = byId(ev.a);
-        if (!u) { if (report && report.attackers.some((f) => f.id === ev.a)) extraAtt = Math.max(0, extraAtt - 1); else extraDef = Math.max(0, extraDef - 1); return; }
+        if (!u) { dropExtra(ev.a); return; }
         if (!standing(u)) return;
         setState(u, 'fled');
         u.inCloud = false;
@@ -496,6 +563,13 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
           u.frozen = COMBAT.goose.stun;
           takeStars(u);
           { const d = (report.defender ?? 'player') as Owner; fx.word(head(u).setY(2.6), 'HONK!', mainOf(d), accentOf(d), 1.1); }
+        } else if (ev.by === 'rush') {
+          // Blender Rush: Brock barrels through and lays them flat on their backs (no peel spin)
+          u.inCloud = false;
+          u.flop = RUSH_FLAT;
+          takeStars(u);
+          fx.dust(u.obj.position, 4, 0.6);
+          fx.word(head(u), 'WHUMP!', mainOf('blenders'), accentOf('blenders'), 0.9);
         } else {
           // the peels: spin like a top, then flop flat on your back for the rest of the stun
           u.spin = SPIN;
@@ -518,7 +592,98 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       case 'grab':
         pop(local(0, 0.6).setY(2.4), 'They grab the till!', 'miss');
         break;
+      case 'boss': bossMove(ev.a, ev.move); break;
+      case 'bale': {
+        // Hay Bale Wall: a bale thumps down between the raider and the stand; chopped through, it bursts
+        const u = byId(ev.a);
+        const old = bales.get(ev.a);
+        if (ev.hp <= 0) {
+          if (old) { fx.chips(old.position.clone().setY(0.6), 10); fx.dust(old.position, 6, 1); scene.remove(old); bales.delete(ev.a); }
+          return;
+        }
+        if (!u || old) return;
+        const b = new THREE.Mesh(baleGeometry, kit().fig);
+        b.castShadow = true;
+        const toStand = d3.copy(local(0, 0)).sub(u.obj.position).setY(0).normalize();
+        b.position.copy(u.obj.position).addScaledVector(toStand, 0.9).setY(0.38);
+        b.rotation.y = Math.atan2(toStand.x, toStand.z);
+        scene.add(b);
+        bales.set(ev.a, b);
+        fx.dust(b.position.clone().setY(0.1), 5, 0.9);
+        break;
+      }
+      case 'turn': {
+        // Hostile Takeover: they sign on the spot and swap colours
+        const u = byId(ev.a);
+        if (!u || !report) return;
+        recolour(u, ev.side);
+        break;
+      }
     }
+  }
+
+  /** The KO blow, said big: the weapon's word, or the fence's (stakes poke, wire snags); a hatchet KO is Out 2 days. */
+  function koBlow(u: Unit, ev: Extract<BattleReport['events'][number], { type: 'ko' }>) {
+    const at = head(u).setY(u.fig.height + 1.1);
+    if (ev.by === 'fence' || ev.weapon === 'fence') {
+      const tier = report?.perimeter ?? 3;
+      const def = (report?.defender ?? 'player') as Owner;
+      sideWord(at, FENCE_KO[tier] ?? 'BONK!', def, 1.05);
+      // a stake or a curl of wire pops off the fence with them
+      if (tier === 4) deb(u.obj.position.clone().setY(0.8), '#9aa5b1', [0.7, 0.05, 0.05], [0, 3, 0], 1, 9, 0);
+      else deb(u.obj.position.clone().setY(0.6), def === 'player' ? P.lemon : mainOf(def), [0.12, 0.9, 0.12], [0, 3.4, 0], 2, 8, 0);
+      return;
+    }
+    const by = ev.by ? byId(ev.by) : undefined;
+    const w = (ev.weapon ?? by?.f.weapon ?? 'fists') as Fighter['weapon'];
+    sideWord(at, KO_WORD[w] ?? 'POW!', by?.owner ?? (u.owner === report?.attacker ? report.defender : report?.attacker) as Owner, 1.1);
+    if (w === 'hatchets') pop(at.clone().setY(at.y - 0.6), `${u.f.name}: Out 2 days`, 'miss'); // a hatchet KO keeps them out longer
+  }
+
+  /** The Boss Room's move: its name over the boss, then the move itself (its effects come as their own events). */
+  function bossMove(id: string, move: string) {
+    const b = byId(id);
+    if (!b || !report) return;
+    const name = move === 'cane' ? 'TAP TAP!' : (HQS[b.owner as RivalId]?.move ?? move).toUpperCase() + '!';
+    fx.word(head(b).setY(b.fig.height + 1.4), name, mainOf(b.owner), accentOf(b.owner), 1.35);
+    fx.dust(b.obj.position, 5, 0.8);
+    if (move === 'rush') {
+      // Brock barrels at the raiders nearest him, then plants his feet
+      const foes = units.filter((u) => u.f.side !== b.f.side && standing(u)).sort((p, q) => p.obj.position.distanceTo(b.obj.position) - q.obj.position.distanceTo(b.obj.position)).slice(0, 3);
+      if (foes.length) { b.target.copy(foes.reduce((c, u) => c.add(u.obj.position), new THREE.Vector3()).multiplyScalar(1 / foes.length)); b.speed = 9; b.state = 'march'; }
+    }
+    if (move === 'espresso') for (const u of units) if (u.owner === b.owner && standing(u)) fx.stars(head(u), 1);
+  }
+
+  /** Swap a fighter's colours and side (Hostile Takeover): a fresh figure in the new crew's look, in the same spot. */
+  function recolour(u: Unit, side: Fighter['side']) {
+    if (!report) return;
+    const owner = (side === 'att' ? report.attacker : report.defender) as Owner;
+    const fig = makeCrew(owner, { weapon: u.f.weapon, gear: u.f.gear ?? 'none', level: Math.max(0, (u.f.level ?? 1) - 1), seed: units.indexOf(u) + 1 }, kit().fig, { detail: lowDetail ? crowdDetail() : 1 });
+    fig.root.position.copy(u.obj.position);
+    fig.root.rotation.y = u.obj.rotation.y;
+    batch?.untrack(u.obj);
+    scene.remove(u.obj);
+    scene.add(fig.root);
+    batch?.track(fig.root);
+    u.fig = fig; u.obj = fig.root; u.owner = owner;
+    u.f = { ...u.f, side };
+    u.home = side === 'att' ? local((Math.random() - 0.5) * 6, 16) : local((Math.random() - 0.5) * 4, -7);
+    fx.dust(u.obj.position, 5, 0.7);
+    fx.word(head(u), 'SIGNED!', mainOf(owner), accentOf(owner), 0.95);
+  }
+
+  /** A late arrival (Ring the Bell's reserves, help for a raid, Vera's called Stewards) jogs in to their spot. */
+  function arrive(id: string, spot: THREE.Vector3) {
+    const f = fighterOf(id);
+    if (!f || !report || !view || late.has(id)) return;
+    late.add(id);
+    const mine = units.filter((u) => u.f.side === f.side).length;
+    if (mine >= perSide) { if (f.side === 'att') extraAtt++; else extraDef++; return; } // a full side: into the cloud they go
+    const u = spawn(f, lateN++, 1, spot, true);
+    const owner = u.owner;
+    if (!rang && f.side === 'def' && owner === 'player') { rang = true; sideWord(local(-3.6, -1).setY(2.6), 'DING-DING!', owner, 1.1); } // the bell brings them
+    else if (lateN === 1) sideWord(u.obj.position.clone().setY(2.2), f.side === 'att' ? 'HERE WE COME!' : 'HOLD ON!', owner, 0.9);
   }
 
   /** One pose on twos: walk, swing, squash, puff, dazed wobble, the cloud and the gadgets. */
@@ -675,7 +840,7 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
         o.rotation.x = -1.35 * Math.min(1, u.flop / 0.2);
         o.position.y = u.flop > 0.2 ? 0.18 : 0.18 * (u.flop / 0.2);
         fig.pose({ sq: 0, aL: [0, 1.5], aR: [0, -1.5], lL: 0.4, lR: -0.4 }, f);
-        if (u.flop <= 0) { o.rotation.x = 0; o.position.y = 0; }
+        if (u.flop <= 0) { o.rotation.x = 0; o.position.y = 0; dropStars(u); }
         continue;
       }
       // walk toward the target in the crew's own gait
@@ -811,47 +976,26 @@ export function createBattle(scene: THREE.Scene, pop: Pop, camera?: THREE.Camera
       gadgetsObj = v0.root.getObjectByName('gadgets');
       standObj = v0.root.children[0];
       v0.root.children.forEach((c) => { if (c.name === 'sentry') c.visible = false; });
-      extraAtt = Math.max(0, r.attackers.length - perSide);
-      extraDef = Math.max(0, r.defenders.length - perSide);
       // where the sim puts everyone at contact (plot-lengths: x across, z out from the stand front)
-      const at = new Map<string, THREE.Vector3>();
-      for (const ev of r.events) { if (ev.t > 0) break; if (ev.type === 'at') at.set(ev.a, sim(ev.x, ev.z)); }
-      const add = (f: Fighter, i: number, n: number) => {
-        const isAtt = f.side === 'att';
-        const owner = (isAtt ? r.attacker : r.defender) as Owner;
-        // the crew's own look, tier weapon and kit: Padded Vest, Pro Gear, level chevrons, Lanky Dex
-        // The HQ Boss Room's boss fights as themselves: Vera taps her cane, Brock flexes.
-        const boss = owner !== 'player' && f.id.includes('-boss-') ? BOSS_OF[owner as keyof typeof BOSS_OF] : undefined;
-        const fig = boss ? makeBoss(boss, kit().fig, { detail: lowDetail ? crowdDetail() : 1 }) : makeCrew(owner, {
-          weapon: f.weapon,
-          gear: f.gear ?? (f.armor > 0 ? 'pro' : 'none'),
-          level: Math.max(0, (f.level ?? 1) - 1), // every side's chevrons: Vera's elite Stewards wear theirs
-          dex: owner === 'player' && f.name === 'Dex Moody',
-          seed: i + 1,
-        }, kit().fig, { detail: lowDetail ? crowdDetail() : 1 });
-        const obj = fig.root;
-        obj.userData.boss = boss;
-        const spread = (i - (n - 1) / 2) * Math.min(1.1, 9 / Math.max(1, n));
-        const spot = at.get(f.id) ?? (isAtt ? local(spread, 3.1) : local(spread * 0.8, 0.9));
-        // raiders start out on the street, straight out from their spot
-        if (isAtt) obj.position.copy(spot).add(local(0, 1).sub(local(0, 0)).multiplyScalar(7 + Math.random() * 2));
-        else obj.position.copy(spot);
-        const target = spot.clone();
-        const home = isAtt ? local(spread * 1.5, 16) : local(spread * 0.6, -7);
-        obj.rotation.y = isAtt ? Math.PI + v0.root.rotation.y : v0.root.rotation.y;
-        scene.add(obj);
-        batch!.track(obj); // every fighter draws through one batch: a whole brawl is one call
-        // raiders time their march to reach their spot as the fight starts
-        const speed = isAtt ? Math.max(1.5, obj.position.distanceTo(target) / APPROACH) : 2.8;
-        units.push({ f, owner, fig, obj, target, home, speed, swing: 0, state: 'march', st: 0, spin: 0, flop: 0, frozen: 0, stars: -1, phase: owner === 'fizzco' ? 0 : Math.random() * 6, inCloud: false, zig: Math.random() * 3, foe: null });
-      };
+      contactAt = new Map<string, THREE.Vector3>();
+      const firstAt = new Map<string, number>();
+      for (const ev of r.events) {
+        if (ev.type !== 'at') continue;
+        if (!firstAt.has(ev.a)) firstAt.set(ev.a, ev.t);
+        if (ev.t <= 0) contactAt.set(ev.a, sim(ev.x, ev.z));
+      }
+      // anyone whose first spot comes after contact (an HQ room's called Stewards) walks in when they get there
+      const atStart = (f: Fighter) => (firstAt.get(f.id) ?? 0) <= 0;
+      const attackers = r.attackers.filter(atStart), defenders = r.defenders.filter(atStart);
+      extraAtt = Math.max(0, attackers.length - perSide);
+      extraDef = Math.max(0, defenders.length - perSide);
       // phones and big fights use the crowd-detail figures (about a third of the triangles)
-      lowDetail = phone || crowdDetail() <= LOW_DETAIL || Math.min(r.attackers.length, perSide) + Math.min(r.defenders.length, perSide) > 10;
+      lowDetail = phone || crowdDetail() <= LOW_DETAIL || Math.min(attackers.length, perSide) + Math.min(defenders.length, perSide) > 10;
       batch = createFigureBatch(kit().fig, { instances: 512, vertices: 120_000, indices: 360_000 });
       scene.add(batch.mesh);
-      const atts = r.attackers.slice(0, perSide), defs = r.defenders.slice(0, perSide);
-      atts.forEach((f, i) => add(f, i, atts.length));
-      defs.forEach((f, i) => add(f, i, defs.length));
+      const atts = attackers.slice(0, perSide), defs = defenders.slice(0, perSide);
+      atts.forEach((f, i) => spawn(f, i, atts.length, contactAt.get(f.id)));
+      defs.forEach((f, i) => spawn(f, i, defs.length, contactAt.get(f.id)));
       for (const o of new Set([r.attacker, r.defender] as Owner[])) {
         const h = new THREE.InstancedMesh(hatOf(o), kit().fig, HATS);
         h.frustumCulled = false;

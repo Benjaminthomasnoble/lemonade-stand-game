@@ -314,6 +314,19 @@ export function liveReport(s: GameState): BattleReport | null {
       duration: Infinity, koed: [], fled: [], ...(f.hq ? { hq: f.hq.stage } : {}),
       gadgets: f.input.gadgets.length ? f.input.gadgets : undefined, night: f.night || undefined, // the replay's gadgets and dark
     };
+    // Who joins later (Ring the Bell's reserves, a boss's called Stewards), read fresh: the world draws them as they arrive.
+    const view = r;
+    Object.defineProperty(r, 'joins', {
+      enumerable: true,
+      configurable: true,
+      // the final report (settle) writes its own joins over the live ones
+      set: (value) => Object.defineProperty(view, 'joins', { value, writable: true, enumerable: true, configurable: true }),
+      get: () => [
+        ...(f.input.joins ?? []),
+        ...f.commands.flatMap((c) => (c.type === 'join' ? [{ t: c.t, fighters: c.fighters }] : [])),
+        ...(f.input.bossMoves ?? []).flatMap((m) => (m.type === 'call' ? [{ t: m.t, fighters: m.fighters.map((x) => ({ ...x, side: 'def' as const })) }] : [])),
+      ],
+    });
     views.set(f, r);
   }
   return r;

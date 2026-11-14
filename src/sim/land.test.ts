@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
+  buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
   LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
+import { stockValue } from './ledger.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
 /** Hand the player a plot outright (tests skip the buying). */
@@ -408,5 +410,34 @@ describe('loan repossession', () => {
     expect(s.news).toContain(`REPOSSESSED! The First Bank of Citrine Bay takes ${lot.name} to cover $${Math.round(worth).toLocaleString('en-US')} of the loan.`);
     expect(s.loan).toBeUndefined(); // $1,000 of land more than covers what was owed
     expect(worth).toBeGreaterThan(owed);
+  });
+});
+
+describe('Trophy plots', () => {
+  it('a captured HQ holds only its Trophy: no stand and no facility go up there', () => {
+    const s = newGame(101);
+    eliminate(s, 'hollis', 'buyout');
+    const hq = hqPlot('hollis').id;
+    expect(s.plots[hq]).toMatchObject({ owner: 'player', stand: null });
+    Object.assign(s, { phase: 'prep', cash: 1e7, rank: 10 });
+    expect(canBuildStand(s, hq)).toEqual({ ok: false, why: 'A Trophy holds only its HQ' });
+    expect(buildStand(s, hq)).toBe(false);
+    for (const k of Object.keys(FACILITIES) as FacilityKind[]) expect(canBuildFacility(s, hq, k).ok).toBe(false);
+  });
+
+  it('an older save with a stand on its Trophy has it taken down, its cost and its stock paid back', () => {
+    const s = newGame(102);
+    const hq = hqPlot('hollis').id;
+    const st = newStand(2);
+    st.inventory.sugar = 10;
+    st.inventory.sugarCost = 0.5;
+    s.plots[hq] = { ...s.plots[hq], owner: 'player', stand: st, invested: 550 + 120 }; // a Wooden Stand, and a fence
+    const back = 550 + stockValue(st);
+    const loaded = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(loaded.plots[hq]).toMatchObject({ owner: 'player', stand: null, invested: 120 });
+    expect(loaded.cash).toBeCloseTo(s.cash + back, 2);
+    expect(loaded.today.books?.invested).toBe(550); // on today's Ledger, so the day's rows still add up
+    const again = migrateSave(JSON.parse(JSON.stringify(loaded)))!;
+    expect(again.cash).toBe(loaded.cash);
   });
 });

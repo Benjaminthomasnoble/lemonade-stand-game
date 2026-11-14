@@ -2,7 +2,7 @@
 // buy, what lifts land prices, district control tiers and the Full Control
 // perks. Pure functions over GameState, like the rest of the sim.
 import {
-  DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STRONGHOLD, type MapSize, type RivalId,
+  DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STAND_LEVELS, STRONGHOLD, type MapSize, type RivalId,
 } from './balance.ts';
 import { BORDERS, cutMap, mapDistricts, onMap, picksFit, plotOnMap, PLOTS, type DistrictId, type Plot } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -10,6 +10,7 @@ import type { Settings } from './modes.ts';
 import { hasFoothold } from './economy.ts';
 import { districtControl } from './modes.ts';
 import { closeAuctions, openLavender } from './auction.ts';
+import { book, stockValue } from './ledger.ts';
 
 // ---------- the map (spec: Sandbox: Turf War) ----------
 
@@ -215,4 +216,22 @@ export function landAtDawn(s: GameState): void {
 /** Fill in what older saves lack (idempotent; migrateSave calls it on every load). */
 export function migrateLand(s: GameState): void {
   s.control ??= controlSnapshot(s);
+  clearTrophyStands(s);
+}
+
+/**
+ * A Trophy holds only its HQ (spec: "the HQ becomes your Trophy building"; one building per plot), so it is never
+ * smashed, never lapses and is never lost. An older save that built a stand on one has it taken down: what the stand
+ * cost and the stock on it come back as cash, on today's Ledger.
+ */
+function clearTrophyStands(s: GameState): void {
+  for (const p of PLOTS) {
+    const ps = s.plots[p.id];
+    if (p.type !== 'hq' || ps?.owner !== 'player' || !ps.stand) continue;
+    const build = Math.min(ps.invested, STAND_LEVELS.slice(0, ps.stand.level).reduce((a, l) => a + l.cost, 0));
+    book(s, 'invested', build); // a building sold comes back off Invested
+    book(s, 'stock', Math.round(stockValue(ps.stand) * 100) / 100);
+    ps.invested = Math.round((ps.invested - build) * 100) / 100;
+    ps.stand = null;
+  }
 }

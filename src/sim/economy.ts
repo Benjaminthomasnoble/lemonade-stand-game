@@ -988,6 +988,7 @@ export function canBuildStand(s: GameState, plotId: string): Blocker {
   const type = plotType(s, PLOT_BY_ID[plotId]); // a Sandbox map may have retagged it
   const ps = s.plots[plotId];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
+  if (type === 'hq') return { ok: false, why: 'A Trophy holds only its HQ' }; // land: one building per plot, so it's never smashed, lapses or lost
   if (ps.stand) return { ok: false, why: 'There is already a stand here' };
   if (type === 'field' || type === 'dock') return { ok: false, why: `${type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
   if (ps.facility) return { ok: false, why: 'A facility is built here' };

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   defaultSettings, MAP_SIZES, grantPage, LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice,
-  PLOTS, purchasablePlots, recipeCost, type DistrictId, type GameState,
+  hqPlot, PLOTS, purchasablePlots, recipeCost, type DistrictId, type GameState,
 } from '../sim/economy.ts';
 import {
-  controlNote, landNotes, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, vacantNote,
+  controlNote, landNotes, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, trophyNote, vacantNote,
 } from './registry.ts';
 import { menuScreen, menuUnlocked } from './menus.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
@@ -202,6 +202,17 @@ describe('the Land Registry', () => {
     const theirs = PLOTS.filter((p) => p.type !== 'hq' && s.plots[p.id].owner && s.plots[p.id].owner !== 'player');
     expect(tags.map(plotOf).sort()).toEqual(theirs.map((p) => p.id).sort());
     for (const tag of tags) expect(tag).toContain(`Buy it $${plotBuyoutPrice(s, plotOf(tag)).toLocaleString('en-US')}`);
+  });
+});
+
+describe('Trophy on the plot card', () => {
+  it('your Trophy shows its name with its perk, and no Build button', () => {
+    const s = newGame(66);
+    const hq = hqPlot('blenders').id;
+    expect(trophyNote(s, hq)).toBe(''); // still Brock's HQ
+    s.plots[hq].owner = 'player';
+    expect(landNotes(s, hq)).toContain('title="Frozen recipes sell for 20% more" data-testid="trophy">Blender Bar</span>');
+    expect(vacantNote(s, hq)).toBe(''); // a Trophy is no Vacant Lot
   });
 });
 

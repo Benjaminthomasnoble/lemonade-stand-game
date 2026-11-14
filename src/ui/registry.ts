@@ -6,9 +6,9 @@
 // mounts it and every button goes through hud's one click listener.
 import {
   auctionCloses, auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS,
-  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, mapDistricts, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
+  districtControl, FACILITIES, FACTIONS, familySilver, hqPlot, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, mapDistricts, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
   plotOnMap, plotType,
-  plotPrice, PLOTS, purchasablePlots, reachBlocker, RECIPES, recipeCost, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
+  plotPrice, PLOTS, purchasablePlots, reachBlocker, RECIPES, recipeCost, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast, TROPHIES,
   type Blocker, type DistrictId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
@@ -63,8 +63,15 @@ export function vacantNote(s: GameState, plotId: string): string {
   return `<span class="cl-note" title="Counts for land value and control. Sells nothing, costs no upkeep, can't be Wrecked: it changes hands only by sale or buyout.">Vacant Lot</span>`;
 }
 
+/** Your Trophy: a captured HQ holds just its Trophy building, with its perk, and nothing else is built there. */
+export function trophyNote(s: GameState, plotId: string): string {
+  const r = (Object.keys(FACTIONS) as RivalId[]).find((id) => hqPlot(id).id === plotId);
+  if (!r || s.plots[plotId].owner !== 'player') return '';
+  return `<span class="cl-note good" title="${esc(TROPHIES[r].perk)}" data-testid="trophy">${esc(TROPHIES[r].name)}</span>`;
+}
+
 /** Everything land adds to a plot card under its name. */
-export const landNotes = (s: GameState, plotId: string) => (plotOnMap(s, plotId) || PLOT_BY_ID[plotId].type === 'civic' ? vacantNote(s, plotId) + controlNote(s, plotId)
+export const landNotes = (s: GameState, plotId: string) => (plotOnMap(s, plotId) || PLOT_BY_ID[plotId].type === 'civic' ? trophyNote(s, plotId) + vacantNote(s, plotId) + controlNote(s, plotId)
   : '<span class="cl-note" title="This Sandbox map leaves the district out: nobody buys or builds here">Off this map</span>');
 
 /** The Buy button's tooltip when a discount applies: "Land $1,000, −10% for your Majority". Empty when you pay the plain price. */

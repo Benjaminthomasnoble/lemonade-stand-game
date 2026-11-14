@@ -818,7 +818,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(plotType(s, p));
       const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
-      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
+      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || p.type === 'hq' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,

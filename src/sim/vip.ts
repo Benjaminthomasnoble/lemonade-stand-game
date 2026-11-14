@@ -158,7 +158,7 @@ export const MAX_GROVES = 2;
  * Caterer Trucks at closing. */
 export const PICKUP_MINUTE: Record<OrderTier, number> = { local: 19 * 60, caterer: 20 * 60, heli: 17 * 60 + 30, ship: 10 * 60, deal: 10 * 60, mega: 10 * 60 };
 
-const CLIENTS: Record<OrderTier, string[]> = {
+export const CLIENTS: Record<OrderTier, string[]> = {
   local: ['the Maple Row Block Party', 'Little League Opening Day', 'the Old Town Bake Sale', 'the Campus Book Fair', 'a Fire Station Open House'],
   caterer: ['Bayside Catering Co.', 'Dot\'s Diner (big weekend)', 'the Hilltop Garden Club', 'Harbor Fest Food Tent'],
   heli: ['a movie star\'s pool party', 'a tech mogul\'s rooftop launch', 'a celebrity wedding', 'the music festival VIP tent', 'the Governor\'s Gala'],

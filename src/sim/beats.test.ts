@@ -906,6 +906,20 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     expect(s.offers.find((o) => o.tier === 'heli')).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, plot: pad });
   });
 
+  it('an older save whose chopper or ship came and went, its order gone from the books, still counts it as had', () => {
+    const old = newGame(124);
+    delete old.story!.vip; // as a save from before the scripted first chopper and ship
+    old.lastOffer = { heli: 3, ship: 3 };
+    old.seenClients = ["a tech mogul's rooftop launch", 'the S.S. Sunny Disposition (cruise line)']; // delivered long ago
+    migrateStory(old);
+    expect(old.story!.vip).toEqual({ heli: '', ship: '' });
+    const pad = newGame(125);
+    delete pad.story!.vip;
+    pad.seenClients = ['a celebrity wedding']; // a chopper only: the Regatta can still come
+    migrateStory(pad);
+    expect(pad.story!.vip).toEqual({ heli: '' });
+  });
+
   it("a Pad up in Act 3 takes ordinary choppers, bids and all; the movie star and Juni's pad tip wait for Act 4", () => {
     const s = act4(121);
     s.story!.act = 3; // Rank 6 opens the Pad while the Grindhouse still stands

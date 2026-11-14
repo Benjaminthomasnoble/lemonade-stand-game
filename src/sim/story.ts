@@ -26,6 +26,7 @@ import { crewCall } from './grandkid.ts';
 import { cameosAtClose, cameosAtDawn } from './cameos.ts';
 import { migrateScore, scoreCheck, scoreMinute, type ScoreBooks } from './score.ts';
 import { migrateTips, type TipsState } from './perks.ts';
+import { CLIENTS } from './vip.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -175,9 +176,11 @@ function inferAct(s: GameState): number {
 export function migrateStory(s: GameState): void {
   if (!s.story || !(s.story.act >= 1 && s.story.act <= ACTS.length)) s.story = { act: inferAct(s), since: s.day }; // older saves: from which climaxes are behind them
   if (hasStory(s) && s.endlessSince !== undefined && s.story.epilogue === undefined) s.story.epilogue = s.endlessSince;
-  // A save from before the scripted first chopper and ship: a tier with an offer or order on the books already had its
-  // first. (vip.ts sets lastOffer the dawn a tier opens, before any call, so that alone is no sign of one.)
-  const had = (tier: 'heli' | 'ship') => [...(s.offers ?? []), ...(s.orders ?? [])].some((o) => o.tier === tier);
+  // A save from before the scripted first chopper and ship: a tier with an offer or order on the books, or a client of
+  // its who has already come and gone (seenClients outlives the order), already had its first. (vip.ts sets lastOffer
+  // the dawn a tier opens, before any call, so that alone is no sign of one.)
+  const had = (tier: 'heli' | 'ship') => [...(s.offers ?? []), ...(s.orders ?? [])].some((o) => o.tier === tier)
+    || (s.seenClients ?? []).some((c) => CLIENTS[tier].includes(c));
   s.story.vip ??= { ...(had('heli') ? { heli: '' } : {}), ...(had('ship') ? { ship: '' } : {}) };
   // A save from before Act 4's scripted letter: a Cease-and-Desist on Downtown still on the books already taught it.
   const letter = s.story.lawyers === undefined ? s.schemes?.find((x) => x.kind === 'cease' && x.district === 'downtown') : undefined;

@@ -140,7 +140,7 @@ function dueRepair(s: GameState, hit: string[]): string | undefined {
 export function hurricaneTicket(s: GameState): string[] {
   const e = hurricaneOn(s);
   if (!e || (s.phase !== 'prep' && s.phase !== 'open')) return [];
-  const pic = art('storm', () => A.skySVG('storm'));
+  const pic = art('hurricane', A.hurricaneSVG);
   const go = (id: string) => `<button class="cl-b tiny" data-action="goto" data-plot="${id}">Go there</button>`;
   const counter = eventDef(e)?.counter ?? '';
   if (s.phase === 'open' && hurricaneToday(s)) {
@@ -179,7 +179,7 @@ export function inspectionTicket(s: GameState): string[] {
   if (visit) {
     if (!visit.fault) return [];
     const tip = `The health inspector closed ${PLOT_BY_ID[id].name}: ${visit.fault === 'damaged' ? 'not at full HP' : 'short of stock'}. It opens again at dawn`;
-    return [`<div class="cl-ticket red" data-testid="inspection" title="${esc(tip)}">${art('notice', A.boardSVG)}<b>Closed until dawn</b><span class="cl-note">${name}</span><span class="cl-acts">${go}${repairButton(s, id)}</span></div>`];
+    return [`<div class="cl-ticket red" data-testid="inspection" title="${esc(tip)}">${art('inspect', A.inspectSVG)}<b>Closed until dawn</b><span class="cl-note">${name}</span><span class="cl-acts">${go}${repairButton(s, id)}</span></div>`];
   }
   if (e.live || ps.stand.wrecked) return [];
   const today = e.from === s.day;
@@ -191,7 +191,7 @@ export function inspectionTicket(s: GameState): string[] {
   const fix = fault === 'damaged' && !today ? repairButton(s, id)
     : fault === 'stock' && s.phase === 'open' ? `<button class="cl-b tiny go" data-action="restockNow" data-plot="${id}">Restock now</button>` : '';
   const tip = `A health inspector visits ${PLOT_BY_ID[id].name} ${today ? `at ${clockText(e.at ?? 0)}` : 'tomorrow'}. It passes at full HP with ${n0(need)} cups in stock (an hour's pour); otherwise it closes until dawn. Repairs run overnight`;
-  return [`<div class="cl-ticket${fault ? ' red' : ''}" data-testid="inspection" title="${esc(tip)}">${art('notice', A.boardSVG)}<b>${when}</b><span class="cl-note">${name}: ${esc(note)}</span><span class="cl-acts">${meter(gauge)}${go}${fix}</span></div>`];
+  return [`<div class="cl-ticket${fault ? ' red' : ''}" data-testid="inspection" title="${esc(tip)}">${art('inspect', A.inspectSVG)}<b>${when}</b><span class="cl-note">${name}: ${esc(note)}</span><span class="cl-acts">${meter(gauge)}${go}${fix}</span></div>`];
 }
 
 /** The feed's Storm ticket. Morning Prep with a Storm in the forecast: stock light, and your L1–L2 stands will want a

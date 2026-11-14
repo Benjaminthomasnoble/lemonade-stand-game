@@ -11,7 +11,8 @@ import { ACT_CLIMAX, hasStory, storyAct } from '../sim/story.ts';
 import { goalsNow } from '../sim/goals.ts';
 import { inPlay } from '../sim/land.ts';
 import { playingScene, sceneLine } from '../sim/scenes.ts';
-import { glyph, headBlob, INK, S, svg } from './clay.ts';
+import { glyph, handshakeSVG, headBlob, INK, S, svg } from './clay.ts';
+let HANDSHAKE = '';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const whole = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -50,7 +51,7 @@ export function offerTicket(s: GameState): string {
   const o = storyOffer(s);
   if (!o) return '';
   const tip = `No raids either way for 7 days. Break it: -1 star, and no Truces for 14 days.`;
-  return `<div class="cl-ticket" data-testid="story-offer" title="${esc(tip)}"><b>${esc(FACTIONS[o.from].boss.split(' ')[0])}: Truce at Dot's, ${whole(o.cost)}?</b>
+  return `<div class="cl-ticket" data-testid="story-offer" title="${esc(tip)}">${HANDSHAKE ||= handshakeSVG()}<b>${esc(FACTIONS[o.from].boss.split(' ')[0])}: Truce at Dot's, ${whole(o.cost)}?</b>
     <span class="cl-acts"><button class="cl-b tiny" data-action="storyOffer" data-accept="1"${o.why ? ` disabled title="${esc(o.why)}"` : ''}>Shake on it</button><button class="cl-b ghost tiny" data-action="storyOffer" data-accept="0">No thanks</button></span></div>`;
 }
 

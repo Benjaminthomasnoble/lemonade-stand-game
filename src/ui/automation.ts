@@ -9,8 +9,13 @@ import { btn, esc, tape } from './recipes.ts';
 import * as A from './clay.ts';
 
 const money = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-let crate: string | null = null; // drawn once: the markup stays the same between frames
-const crateArt = () => (crate ??= A.crateSVG());
+/** Each helper's own prop, drawn once so the markup stays the same between frames. */
+const HELPER_ART: Record<string, () => string> = {
+  restock: A.crateSVG, price: A.tagSVG, repair: A.hammerSVG, bulk: A.moneyBagSVG, policies: A.mapSVG,
+  warehouse: A.shedSVG, defend: A.shieldSVG, templates: A.raidSVG,
+};
+const drawn = new Map<string, string>();
+const helperArt = (id: string) => { let v = drawn.get(id); if (v === undefined) { v = (HELPER_ART[id] ?? A.crateSVG)(); drawn.set(id, v); } return v; };
 
 /** The dock's Auto-Restock, from Day 2: the stand's switch and, while it's on, its stock target in cups. */
 export function restockControl(s: GameState, plotId: string): string {
@@ -67,14 +72,14 @@ export function autoTickets(s: GameState): string[] {
   const out = prepPreview(s).map((p) => {
     if (p.id === AUTO_PRICE) { // nothing spent: what Marisol set, for the stand you're managing
       const note = priceNote(s, s.selected);
-      return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(`${p.name}: ${p.line}`)}">${crateArt()}<b>${esc(p.name)}: ${esc(p.line)}</b>${note ? `<span class="cl-note">${esc(note)}</span>` : ''}</div>`;
+      return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(`${p.name}: ${p.line}`)}">${helperArt(p.id)}<b>${esc(p.name)}: ${esc(p.line)}</b>${note ? `<span class="cl-note">${esc(note)}</span>` : ''}</div>`;
     }
     const more = p.pending > 0 ? `+${money(p.pending)} at ${p.at}` : '';
     const note = [p.count ? `${p.count} stand${p.count === 1 ? '' : 's'}` : '', more].filter(Boolean).join(' · ');
     // Its own report (a helper may have worked at dawn or since: a policy set at Prep, a target raised), then the money.
     const later = p.at === 'Open' ? 'when the stands open' : `at ${p.at}`;
     const tip = `${p.name}: ${p.line ? `${p.line}, ` : ''}${money(p.spent)} so far today${more ? `; ${money(p.pending)} more ${later}` : ''}`;
-    return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(tip)}">${crateArt()}<b>${esc(p.name)}: ${money(p.spent)}</b>${note ? `<span class="cl-note">${note}</span>` : ''}</div>`;
+    return `<div class="cl-ticket" data-testid="auto-${p.id}" title="${esc(tip)}">${helperArt(p.id)}<b>${esc(p.name)}: ${money(p.spent)}</b>${note ? `<span class="cl-note">${note}</span>` : ''}</div>`;
   });
   memo = { key, out };
   return out;

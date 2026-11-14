@@ -139,13 +139,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4e6; }
   box-shadow: 0 3px 0 rgba(46, 42, 79, 0.3);
 }
 .gullbtn.on { background: #3BB4C1; color: #FFFDF6; }
-.gull-ico {
-  width: 26px; height: 18px; position: relative; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #fff6e6 50%, #d9dde2);
-  border: 2px solid #2E2A4F;
-}
-.gull-ico::before { content: ''; position: absolute; left: 6px; top: -7px; width: 12px; height: 6px; background: #2E2A4F; border-radius: 3px 3px 0 0; }
-.gull-ico::after { content: ''; position: absolute; right: -7px; top: 5px; border: 4px solid transparent; border-left: 7px solid #ffa53a; }
-body.gull-flight #goals, body.gull-flight #plotcard { display: none; }
+/* The clay gull (clay.ts gullIcon) in the Fly Squawk button. */
+.gullbtn .cl-gull { width: 30px; height: 30px; display: block; margin: -4px 0; }
+body.gull-flight #plotcard { display: none; }
 #ui .clay .bump { animation: bump 0.25s ease-out; }
 #ui .clay .cl-short svg { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
 body.gull-flight .cl-plot { display: none; } /* Lottie's goal card stays up, even in flight */

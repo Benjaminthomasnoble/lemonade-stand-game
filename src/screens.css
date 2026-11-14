@@ -439,3 +439,57 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
 .clay .cl-b.cl-spec { display: inline-flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .2); padding: calc(var(--u) * .4) calc(var(--u) * .5); }
 .clay .cl-b.cl-spec > svg { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }
 .clay .cl-b.cl-spec > span { font-size: calc(var(--u) * 1.3); }
+/* The clay gull inside buttons and tickets. */
+.clay .cl-b .cl-gull { width: 1.5em; height: 1.5em; vertical-align: -0.4em; margin: -0.2em 0; }
+
+/* ---------- Restyle of the gameplay build's controls ---------- */
+/* Captions: a cream tape strip low in the middle, the speaker in Chewy. */
+.clay .cl-ticket.cl-caption { position: absolute; left: 50%; bottom: calc(var(--u) * 17); transform: translateX(-50%) rotate(-1deg); display: block; max-width: min(80vw, calc(var(--u) * 60)); pointer-events: none; z-index: 14; text-align: center; animation: cl-slap2 .4s cubic-bezier(.3,1.5,.5,1) both; font: 600 calc(var(--u) * 1.9)/1.25 'Fredoka', sans-serif; color: #2E2A4F; }
+.clay .cl-ticket.cl-caption b { font: 400 calc(var(--u) * 2.1)/1 'Chewy', cursive; color: #C8325A; margin-right: calc(var(--u) * .3); }
+/* A fast raid night lights the 3× knob with a little 12× tag. */
+.clay .cl-knob-s.cl-ff { position: relative; background: radial-gradient(circle at 34% 28%, #fff 0 5%, #ffd2c4 18%, #E8704F 60%, #b8523a 100%); }
+.clay .cl-knob-s.cl-ff i { position: absolute; right: calc(var(--u) * -1); top: calc(var(--u) * -1); font: 400 calc(var(--u) * 1.3)/1 'Chewy', cursive; font-style: normal; background: #FFF1D6; border: calc(var(--u) * .15) solid #2E2A4F; border-radius: calc(var(--u) * .6); padding: calc(var(--u) * .15) calc(var(--u) * .35); transform: rotate(8deg); }
+/* A switch that's locked on (Fortify keeps Auto-Repair on): no pointer, a faded track and a little lock look. */
+.clay .cl-toggle:disabled { cursor: not-allowed; opacity: .6; }
+.clay .cl-toggle:disabled i { background: repeating-linear-gradient(-45deg, #e6d6b8 0 calc(var(--u) * .4), #d5c4a2 calc(var(--u) * .4) calc(var(--u) * .8)); }
+/* The plot card's row of build buttons wraps instead of running off the card. */
+.clay .cl-plot .cl-acts { flex-wrap: wrap; }
+/* Tomorrow's booking row: a tape label and a wrapping row of campaign buttons. */
+.clay .cl-book { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--u) * .5); padding: calc(var(--u) * .5) 0; border-top: calc(var(--u) * .15) dashed rgba(46,42,79,.3); }
+.clay .cl-book > .cl-note { font: 400 calc(var(--u) * 1.8)/1 'Gochi Hand', cursive; background: #f3e9cc; padding: calc(var(--u) * .2) calc(var(--u) * .7); transform: rotate(-2deg); }
+.clay .cl-book .cl-acts { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .4); }
+/* Boss phone calls in HUD units, so they scale with the text-size option and fit phones. */
+#ui.clay .phonecall { left: calc(var(--u) * 1.8); bottom: calc(var(--u) * 17); gap: calc(var(--u) * 1); max-width: min(calc(var(--u) * 44), calc(100% - var(--u) * 3.6)); }
+#ui.clay .phonecall .ring { top: calc(var(--u) * -2.2); font-size: calc(var(--u) * 1.8); }
+#ui.clay .phonecall .polaroid { padding: calc(var(--u) * .6) calc(var(--u) * .6) calc(var(--u) * .4); border-width: calc(var(--u) * .28); }
+#ui.clay .phonecall .polaroid img { width: calc(var(--u) * 7.4); height: calc(var(--u) * 7.4); }
+#ui.clay .phonecall .cap { font-size: calc(var(--u) * 1.6); }
+#ui.clay .phonecall .said { font-size: calc(var(--u) * 1.7); padding: calc(var(--u) * .8) calc(var(--u) * 1.2); border-width: calc(var(--u) * .28); }
+/* The dawn front page in the clay look: a cream clay card, the masthead and headline on tape, the photo taped on. */
+#ui.clay .frontpage .paper { width: min(calc(var(--u) * 44), calc(100% - var(--u) * 3.6)); padding: calc(var(--u) * 1.6) calc(var(--u) * 1.8) calc(var(--u) * 1.2);
+  background: radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.6), transparent 60%), #FFF1D6; border: calc(var(--u) * .3) solid #2E2A4F; border-radius: calc(var(--u) * 2);
+  box-shadow: inset 0 calc(var(--u) * -.6) 0 rgba(139,94,60,.18), 0 calc(var(--u) * .8) calc(var(--u) * 1.4) rgba(46,42,79,.35); }
+#ui.clay .frontpage .mast { font: 400 calc(var(--u) * 3.4)/1 'Chewy', cursive; color: #C8325A; border-bottom: calc(var(--u) * .25) dashed rgba(46,42,79,.35); padding-bottom: calc(var(--u) * .6); }
+#ui.clay .frontpage .dateline { font-size: calc(var(--u) * 1.4); border-bottom: 0; }
+#ui.clay .frontpage img { border: calc(var(--u) * .25) solid #2E2A4F; border-radius: calc(var(--u) * .6); transform: rotate(-1.5deg); box-shadow: 0 calc(var(--u) * .3) calc(var(--u) * .5) rgba(46,42,79,.3); }
+#ui.clay .frontpage .head { font: 400 calc(var(--u) * 2.6)/1.05 'Chewy', cursive; display: table; margin: calc(var(--u) * 1) auto calc(var(--u) * .4); padding: calc(var(--u) * .3) calc(var(--u) * 1.2);
+  background: linear-gradient(180deg, #f3e9cc, #e4d3a8); transform: rotate(-1.5deg); clip-path: polygon(2% 0,98% 0,100% 20%,97% 50%,100% 80%,98% 100%,2% 100%,0 80%,3% 50%,0 20%); }
+#ui.clay .frontpage .tap { font-size: calc(var(--u) * 1.3); }
+/* The Land Registry: ruled deed paper, Skip's clipboard and the Registry of Deeds stamp; each row a deed slip. */
+.clay .cl-registry { background: repeating-linear-gradient(180deg, transparent 0 calc(var(--u) * 3.1), rgba(59,180,193,.22) calc(var(--u) * 3.1) calc(var(--u) * 3.2)), radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.6), transparent 60%), #FFF8E6; }
+.clay .cl-deeds-head { position: relative; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 1); }
+.clay .cl-deeds-head > svg { width: calc(var(--u) * 5); height: calc(var(--u) * 5); transform: rotate(-6deg); }
+.clay .cl-deeds-head .cl-stamp { position: absolute; right: calc(var(--u) * 1); top: calc(var(--u) * -1); opacity: .85; }
+.clay .cl-deeds-head .cl-stamp svg { width: calc(var(--u) * 7); height: calc(var(--u) * 7); }
+.clay .cl-registry .cl-books { border-collapse: separate; border-spacing: 0 calc(var(--u) * .6); }
+.clay .cl-registry .cl-books tr { background: #fffdf6; box-shadow: 0 calc(var(--u) * .2) calc(var(--u) * .3) rgba(46,42,79,.18); }
+.clay .cl-registry .cl-books tr:nth-child(odd) { transform: rotate(-.4deg); }
+.clay .cl-registry .cl-books tr:nth-child(even) { transform: rotate(.4deg); }
+.clay .cl-registry .cl-books td { padding: calc(var(--u) * .6) calc(var(--u) * 1); border-top: calc(var(--u) * .15) dashed rgba(200,50,90,.35); border-bottom: calc(var(--u) * .15) dashed rgba(200,50,90,.35); }
+.clay .cl-registry .cl-books td:first-child { border-left: calc(var(--u) * .5) solid #C8325A; }
+/* Order Book cards: the facts as little chips. */
+.clay .cl-chips { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .4); grid-column: 2; }
+.clay .cl-chips i { font: 600 calc(var(--u) * 1.5)/1 'Fredoka', sans-serif; font-style: normal; background: #fffdf6; border: calc(var(--u) * .15) solid rgba(46,42,79,.5); border-radius: 999px; padding: calc(var(--u) * .3) calc(var(--u) * .8); display: inline-flex; align-items: center; gap: calc(var(--u) * .3); }
+.clay .cl-chips i.bad { background: #fbe2d6; border-color: #E8704F; color: #a33a22; }
+.clay .cl-chips i svg { width: calc(var(--u) * 2); height: calc(var(--u) * 2); }
+.clay .cl-chips .cl-sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

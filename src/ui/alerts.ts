@@ -22,6 +22,22 @@ const ICON = {
   fence: (t: number) => art(`fence${t}`, () => A.fenceSVG(t)),
   weapon: (w: string) => art(`w-${w}`, w === 'hatchets' ? A.hatchetSVG : w === 'clubs' ? A.clubSVG : A.fistSVG),
 };
+/** A note card's prop, read from its words (a note Alert carries only text and plot): the first rule that matches. */
+const NOTE_ART: [RegExp, string, () => string][] = [
+  [/CEASE-AND-DESIST/i, 'basket', A.basketSVG],
+  [/MAYOR|LAND FREEZE|Town Hall|Citation|Sheriff/i, 'gavel', A.gavelSVG],
+  [/Price war/i, 'war', A.megaphoneSVG],
+  [/offers \$|buyout|Sell, or/i, 'bag', A.moneyBagSVG],
+  [/OUT-OF-TOWNERS|Snootwater/i, 'bus', A.busSVG],
+  [/nabbed|Ransom/i, 'fist', A.fistSVG],
+  [/Squawk|horn|ship|the wind/i, 'gull', A.gullSVG],
+  [/\bDex\b/, 'dex', () => A.faceSVG('Dex Moody')],
+  [/\bSkip\b|lot by|side lot|Snap it up/i, 'clipboard', A.clipboardSVG],
+  [/Benny|sign/i, 'board', A.boardSVG],
+  [/Wooden Stand/i, 'stand2', () => A.standSVG(2)],
+  [/sleet|snow|winter/i, 'storm', () => A.skySVG('storm')],
+];
+const noteArt = (text: string) => { const r = NOTE_ART.find(([re]) => re.test(text)); return r ? art(`note-${r[1]}`, r[2]) : ICON.lemon(); };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const whole = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const btn = (action: string, label: string, extra = '', cls = 'tiny') => `<button class="cl-b ${cls}" data-action="${action}" ${extra}>${label}</button>`;
@@ -67,7 +83,7 @@ function warning(s: GameState, a: Alert, r: Raid): string {
 
 function card(s: GameState, a: Alert): string {
   const vip = a.kind === 'vip' || a.kind === 'pickup';
-  const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
+  const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : noteArt(a.text);
   // The one action: Restock now on a sold-out stand while the stands are open (no supplies after closing) and once the
   // Market opens (LESSON_DAY.market, Day 2); Watch on a VIP card (a first arrival's show waits for it).
   const act = a.kind === 'soldout' && a.plot && s.phase === 'open' && taught(s, 'market') ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')

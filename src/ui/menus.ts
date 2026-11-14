@@ -11,7 +11,7 @@
 // targets and mounts crew's planner (src/ui/raidPlanner.ts) for the one picked,
 // the same panel as on its plot card; Rank and Perks shows the rank ladder,
 // a rank-up's hand of Lottie's Tips to pick from and the tips you keep (src/ui/perks.ts).
-import { glyph } from './clay.ts';
+import { glyph, raidSVG } from './clay.ts';
 import {
   deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, RAID_RANK, RANKS, RECIPES,
   dayIncomeCosts, dayProfit, peaceful, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
@@ -111,6 +111,9 @@ function ledger(s: GameState): string {
   return sheet('ledger', 'Ledger', `${charts(s)}${table}`);
 }
 
+/** An order card's facts as chips (quantity and recipe, due day, risk, extras), with hidden ' · ' joins so it reads as one line to a screen reader. */
+let RAID_ART = '';
+const orderChips = (parts: string[], risk: boolean) => `<span class="cl-chips">${parts.map((p, i) => `${i ? '<s class="cl-sep"> · </s>' : ''}<i${risk && /Delivery Raid/.test(p) ? ' class="bad"' : ''}>${p}</i>`).join('')}</span>`;
 function orders(s: GameState): string {
   const card = (o: GameState['offers'][number], waiting: boolean) => {
     const unit = o.tier === 'local' ? 'cups' : 'bottles';
@@ -119,7 +122,7 @@ function orders(s: GameState): string {
     const risk = deliveryRaidRisk(s, o);
     const acts = waiting ? `<span class="cl-acts"><button class="cl-b go" data-action="accept" data-id="${o.id}">Take it</button>${matchButton(s, o)}<button class="cl-b ghost" data-action="decline" data-id="${o.id}" title="No thanks" aria-label="No thanks">${glyph('close')}</button></span>` : '';
     return `<div class="cl-ticket order${risk ? ' warn' : ''}" data-testid="order-card" title="${esc(`${ORDER_TIERS[o.tier].label} for ${o.client}${waiting ? `; offer good till day ${o.expires}` : '; accepted'}`)}">
-      <b>${esc(o.client)}: ${whole(o.pay)}</b><span class="cl-note">${o.qty.toLocaleString('en-US')} ${unit} of ${recipe} · ${due}${risk ? ' · Delivery Raid possible' : ''}${esc(orderNote(s, o, waiting))}</span>${acts}</div>`;
+      <b>${esc(o.client)}: ${whole(o.pay)}</b>${orderChips([`${o.qty.toLocaleString('en-US')} ${unit} of ${recipe}`, due, ...(risk ? [`${RAID_ART ||= raidSVG()}Delivery Raid possible`] : []), ...orderNote(s, o, waiting).split(' · ').filter(Boolean).map(esc)], risk)}${acts}</div>`;
   };
   const body = [...s.offers.map((o) => card(o, true)), ...s.orders.map((o) => card(o, false))].join('');
   return sheet('orders', 'Order Book', body || row('<span class="cl-note">No offers yet. They come with the Bugle.</span>'));

@@ -14,9 +14,9 @@ import { btn, esc, locked, once } from './recipes.ts';
 
 const ART: Record<string, () => string> = {
   heatWave: once(() => A.skySVG('scorcher')), lemonBlight: once(() => A.lemonSourSVG()), sugarShortage: once(() => A.sugarSVG()),
-  viralVideo: once(() => A.megaphoneSVG()), celebrity: once(() => A.rankSVG()), parade: once(() => A.crowdSVG()),
-  roadworks: once(() => A.boardSVG()), touristBus: once(() => A.crowdSVG()), foodCritic: once(() => A.heartCupSVG()),
-  powerOutage: once(() => A.lampSVG()), captainSquawk: once(() => A.gooseSVG()), kidsDay: once(() => A.standSVG(1)),
+  viralVideo: once(() => A.megaphoneSVG()), celebrity: once(() => A.celebSVG()), parade: once(() => A.paradeSVG()),
+  roadworks: once(() => A.coneSVG()), touristBus: once(() => A.busSVG()), foodCritic: once(() => A.heartCupSVG()),
+  powerOutage: once(() => A.lampSVG()), captainSquawk: once(() => A.gullSVG()), kidsDay: once(() => A.standSVG(1)),
 };
 const fallback = once(() => A.boardSVG());
 
@@ -106,7 +106,7 @@ export function kidStandCard(s: GameState, plotId: string): string {
   const open = !locked(b) && !peaceful(s);
   const cost = open ? `<span class="cl-note bad" data-testid="kid-cost">−${KIDS_DAY.stars}${A.glyph('star')}, front page, Lottie's respect</span>` : '';
   const raid = open ? `<div class="cl-acts">${btn('kidRaid', 'Raid the kid stand', b, `data-plot="${plotId}" data-testid="kid-raid"`)}</div>` : '';
-  return `<div class="cl-planner" data-testid="kid-stand" title="${esc(eventDef(e)!.counter)}">${cost}<b>${A.standSVG(1)}Kid stand</b>`
+  return `<div class="cl-planner" data-testid="kid-stand" title="${esc(eventDef(e)!.counter)}">${cost}<b>${ART.kidsDay()}Kid stand</b>`
     + `<span class="cl-note">$${KIDS_DAY.price.toFixed(2)} a cup, until dusk</span>${raid}</div>`;
 }
 

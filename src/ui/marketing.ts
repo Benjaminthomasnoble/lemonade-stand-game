@@ -69,7 +69,7 @@ export function campaignCards(k: CampaignKit, s: GameState): string[] {
 }
 
 let icons: Record<LocalCampaignId, string> | null = null;
-const icon = (id: LocalCampaignId) => (icons ??= { sandwichBoard: A.boardSVG(), freeSamples: A.heartCupSVG(), sunny: A.lemonSVG(), couponBlitz: A.coinSVG() })[id];
+const icon = (id: LocalCampaignId) => (icons ??= { sandwichBoard: A.boardSVG(), freeSamples: A.heartCupSVG(), sunny: A.sunnySVG(), couponBlitz: A.coinSVG() })[id];
 
 /** While open, the stand panel books tomorrow's campaigns at the stand you manage: they start at the next open. */
 export function bookingRow(s: GameState, plotId: string): string {

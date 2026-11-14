@@ -40,17 +40,19 @@ function clayBlob(c: CanvasRenderingContext2D, cx: number, cy: number, r: number
 function sheen(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
   c.save(); c.globalAlpha = 0.7; c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(x, y, rx, ry, -0.6, 0, Math.PI * 2); c.fill(); c.restore();
 }
-function heartPath(c: CanvasRenderingContext2D, x: number, y: number, s: number) {
-  c.beginPath(); c.moveTo(x, y + s * 0.35);
-  c.bezierCurveTo(x - s * 1.1, y - s * 0.35, x - s * 0.5, y - s * 1.05, x, y - s * 0.45);
-  c.bezierCurveTo(x + s * 0.5, y - s * 1.05, x + s * 1.1, y - s * 0.35, x, y + s * 0.35); c.closePath();
-}
 
 const DRAW: Record<Emote, (c: CanvasRenderingContext2D) => void> = {
-  bought(c) {
-    heartPath(c, 128, 132, 62);
-    const g = c.createRadialGradient(100, 90, 4, 128, 120, 80); g.addColorStop(0, '#ffd0dc'); g.addColorStop(0.3, '#ff6f8f'); g.addColorStop(1, '#c8325a');
-    c.fillStyle = g; c.fill(); c.lineWidth = 7; c.strokeStyle = ink; c.stroke(); sheen(c, 100, 95, 13, 8);
+  bought(c) { // a cup of lemonade with a straw (spec: the 'bought' bubble is a cup)
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(150, 74); c.lineTo(176, 30); c.lineTo(204, 30); c.lineWidth = 16; c.strokeStyle = ink; c.stroke();
+    c.lineWidth = 8; c.strokeStyle = '#E8704F'; c.stroke();
+    c.beginPath(); c.moveTo(70, 74); c.lineTo(186, 74); c.lineTo(170, 210); c.quadraticCurveTo(168, 222, 156, 222); c.lineTo(100, 222); c.quadraticCurveTo(88, 222, 86, 210); c.closePath();
+    const g = c.createRadialGradient(104, 110, 6, 128, 150, 110); g.addColorStop(0, '#fff6c8'); g.addColorStop(0.35, '#F7C948'); g.addColorStop(1, '#c99a2a');
+    c.fillStyle = g; c.fill(); c.lineWidth = 7; c.strokeStyle = ink; c.stroke();
+    c.beginPath(); c.ellipse(128, 74, 58, 12, 0, 0, 6.3); c.fillStyle = '#fff1d6'; c.fill(); c.lineWidth = 6; c.stroke();
+    c.beginPath(); c.arc(92, 72, 22, 0, 6.3); c.fillStyle = '#F7C948'; c.fill(); c.lineWidth = 6; c.stroke();
+    c.beginPath(); c.moveTo(92, 52); c.lineTo(92, 92); c.moveTo(72, 72); c.lineTo(112, 72); c.lineWidth = 3; c.strokeStyle = '#fff6c8'; c.stroke();
+    sheen(c, 104, 130, 9, 26);
   },
   pricey(c) {
     clayBlob(c, 118, 128, 62, CLAY.lemon, 3);

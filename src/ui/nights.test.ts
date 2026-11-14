@@ -24,6 +24,8 @@ import { callBigSqueeze, formSyndicate, newStand, PLOT_BY_ID, PLOTS, siegeTarget
 import { squeezePanel } from './squeeze.ts';
 import { bugleSheet } from './bugle.ts';
 import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './knob.ts';
+/** The words of some HUD markup, tags dropped (the Order Book shows its facts as chips). */
+const plain = (h: string) => h.replace(/<[^>]+>/g, '');
 
 /** Night has fallen on Day 8 and a Blenders raid on Lottie's Corner has just been warned. */
 function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
@@ -403,7 +405,7 @@ describe('the ten menus', () => {
     s.offers.push({ id: 'o1', tier: 'heli', client: 'Gulfstream Grocers', qty: 3000, pay: 90000, due: 9, expires: 4, accepted: false });
     const html = menuScreen(s, 'orders', parts());
     expect(html).toContain('Gulfstream Grocers: $90,000');
-    expect(html).toContain('3,000 bottles of Classic Lemonade · day 9');
+    expect(plain(html)).toContain('3,000 bottles of Classic Lemonade · day 9');
     expect(html).toContain('Delivery Raid possible'); // Rank 6 is Threat 3
     expect(html).toContain('data-action="accept" data-id="o1"');
   });

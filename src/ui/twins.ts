@@ -45,13 +45,12 @@ export function createTwins(root: HTMLElement, calm: () => boolean, captions: ()
       line?.remove();
       clearTimeout(lineTimer);
       const el = document.createElement('div');
-      el.className = 'cl-ticket';
+      el.className = 'cl-ticket cl-caption'; // a tape strip low in the middle (screens.css .cl-caption)
       el.setAttribute('role', 'status');
       el.dataset.testid = 'caption';
       const b = document.createElement('b');
       b.textContent = `${who}:`;
       el.append(b, ` ${text}`);
-      Object.assign(el.style, { position: 'absolute', left: '50%', bottom: 'calc(var(--u) * 17)', transform: 'translateX(-50%)', display: 'block', maxWidth: 'min(80vw, calc(var(--u) * 60))', pointerEvents: 'none', zIndex: '14', textAlign: 'center' });
       root.appendChild(el);
       line = el;
       lineTimer = window.setTimeout(() => { el.remove(); if (line === el) line = null; }, CAPTION_MS);

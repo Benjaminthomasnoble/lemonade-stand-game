@@ -71,6 +71,7 @@ import { lessonsOn, storyAfterAct, storyDateline } from './sim/story.ts';
 import { answerOffer } from './sim/beats.ts';
 import { createGullFlight } from './world/gullflight.ts';
 import { setReducedMotion } from './world/clay/kit.ts';
+import { gullIcon } from './ui/clay.ts';
 
 // Each segment walks as its own clay customer (world/people.ts dresses them: balloons, strollers, bucket hats...).
 const LOOK: Record<SegmentId, { scale?: number; speed?: number; gait?: Gait; segment: SegmentId }> = {
@@ -908,7 +909,7 @@ async function main() {
   gullBtn.className = 'gullbtn';
   const gullTip = () => { gullBtn.title = withKey('Fly Captain Squawk over the bay', options, 'gull'); }; // its key as remapped
   gullTip();
-  gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
+  gullBtn.innerHTML = `${gullIcon()}<span class="lbl">Fly Squawk</span>`;
   gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else takeOff(); gullBtn.classList.toggle('on', flight.active()); });
   document.getElementById('ui')!.appendChild(gullBtn);
   /** The Raid Planner's Fly over (crew): Squawk takes off on a circle round the plot, heading north on its east side,

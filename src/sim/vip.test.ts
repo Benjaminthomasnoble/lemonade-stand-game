@@ -13,6 +13,8 @@ import { nextRandom } from './rng.ts';
 import { bottleStock, orderGoods, orderTicket, orderWhen } from '../ui/orders.ts';
 import { menuScreen } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
+/** The words of some HUD markup, tags dropped (the Order Book shows its facts as chips). */
+const plain = (h: string) => h.replace(/<[^>]+>/g, '');
 
 const day = (s: GameState) => { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); };
 
@@ -332,7 +334,7 @@ describe('VIP clients', () => {
     s.offers.push({ id: 'o1', tier: 'heli', client: 'a movie star\'s pool party', qty: 3000, pay: 90000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'pink' });
     const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
     let book = menuScreen(s, 'orders', parts);
-    expect(book).toContain(`3,000 bottles of Pink Lemonade · day ${s.day + 4} · Delivery Raid possible`); // Rank 7: Threat 3 and up
+    expect(plain(book)).toContain(`3,000 bottles of Pink Lemonade · day ${s.day + 4} · Delivery Raid possible`); // Rank 7: Threat 3 and up
     expect(orderGoods(s, s.offers[0])).toBe('3,000 bottles of Pink Lemonade');
     acceptOrder(s, 'o1');
     s.bottleStock = { pink: 1000 };
@@ -340,7 +342,7 @@ describe('VIP clients', () => {
     s.orders[0].loaded = 1000;
     expect(orderWhen(s, s.orders[0], false)).toBe(`1,000 of 3,000 loaded · next due day ${s.day + 4}`);
     book = menuScreen(s, 'orders', parts);
-    expect(book).toContain(`3,000 bottles of Pink Lemonade · 1,000 of 3,000 loaded · next due day ${s.day + 4}`);
+    expect(plain(book)).toContain(`3,000 bottles of Pink Lemonade · 1,000 of 3,000 loaded · next due day ${s.day + 4}`);
     const ticket = orderTicket(s, s.orders[0]);
     expect(ticket).toContain(`<b>Due day ${s.day + 4}</b>`);
     expect(ticket).toContain('--v:0.333');
@@ -703,7 +705,7 @@ describe('VIP clients', () => {
     s.offers.push({ id: 'o9', tier: 'heli', client: 'a pop star', qty: 4000, pay: 120000, due: s.day + 4, expires: s.day + 1, plot: field.id, accepted: false, recipe: 'classic', bid: { rival: 'fizzco', pay: 102000, days: 1 } });
     const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
     const book = menuScreen(s, 'orders', parts);
-    expect(book).toContain(' · FizzCo Beverages bids $102,000, 1 day (you: 2 days)');
+    expect(plain(book)).toContain(' · FizzCo Beverages bids $102,000, 1 day (you: 2 days)');
     expect(book).toContain('data-action="match" data-id="o9"');
     expect(book).toContain('>Match $102,000</button>');
     s.rivals.fizzco.alive = false; // out of business: the bid is gone
@@ -730,7 +732,7 @@ describe('VIP clients', () => {
     expect(s.news).toContain('Client cruise picks up 5,000 bottles: $230,000! Order complete!');
     s.offers.push({ id: 'o7', tier: 'ship', client: 'a cruise line', qty: 10000, pay: 400000, due: s.day + 7, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'classic' });
     const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
-    expect(menuScreen(s, 'orders', parts)).toContain(`10,000 bottles of Classic Lemonade · day ${s.day + 7} · Delivery Raid possible · Shipping Lane +15%`);
+    expect(plain(menuScreen(s, 'orders', parts))).toContain(`10,000 bottles of Classic Lemonade · day ${s.day + 7} · Delivery Raid possible · Shipping Lane +15%`);
   });
 
   it('Old Money: Full Control of Hilltop brings VIP offers 50% more often', () => {
@@ -1046,7 +1048,7 @@ describe('Mega Contracts', () => {
     expect(offerChance(s, 'mega')).toBeCloseTo(ORDER_TIERS.mega.chance * OLD_MONEY_OFFERS);
     s.offers = [{ id: 'm', tier: 'mega', client: "the Governor's Gala", qty: 150000, pay: 15000000, due: s.day + 14, expires: s.day + 1, plot: dock.id, accepted: false, recipe: 'lavender' }];
     const parts = { head: ['HOT ONE!', 'Thirsty town expected'] as [string, string], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } };
-    expect(menuScreen(s, 'orders', parts)).toContain(`150,000 bottles of Lavender Lemonade · day ${s.day + 14} · Delivery Raid possible`);
+    expect(plain(menuScreen(s, 'orders', parts))).toContain(`150,000 bottles of Lavender Lemonade · day ${s.day + 14} · Delivery Raid possible`);
     expect(dealShortfallPerDay(s, s.offers[0])).toBeLessThanOrEqual(0); // 12,000 a day covers about 10,700
     s.plots[PLOTS.find((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === 'bottling')!.id].facility!.level = 2;
     expect(dealShortfallPerDay(s, s.offers[0])).toBe(Math.ceil(150000 / 14 - 4000));

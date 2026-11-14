@@ -607,7 +607,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     if (!running) return `<div class="cl-corner">${views}</div>`;
     const sb = (v: number, label: string) => k('speed', label, withKey(`Speed ${v ? v + '×' : 'pause'}`, hud.options, 'pause', 'speed1', 'speed2', 'speed3'), `data-value="${v}"`, speed === v);
     const skip = s.phase === 'open' ? k('skip', A.glyph('skip'), 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', A.glyph('skip'), 'Skip to dawn (stops at big alerts)', 'data-testid="next"') : '';
-    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, A.glyph('pause'))}${sb(1, A.glyph('play'))}${sb(2, A.glyph('play2'))}${sb(3, A.glyph('play3'))}${skip}</div>`;
+    return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, A.glyph('pause'))}${sb(1, A.glyph('play'))}${sb(2, A.glyph('play2'))}${speed > 3 ? sb(3, A.glyph('play3')).replace('class="cl-knob-s', 'class="cl-knob-s on cl-ff').replace('</button>', `<i>${speed}×</i></button>`) : sb(3, A.glyph('play3'))}${skip}</div>`;
   }
 
   // ---------- left feed: little tickets for whatever needs you this morning ----------

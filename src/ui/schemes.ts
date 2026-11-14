@@ -18,7 +18,7 @@ import * as A from './clay.ts';
 /** Props are drawn once and reused, so renders compare equal and nothing flickers. */
 const memo = new Map<string, string>();
 const art = (key: string, f: () => string) => { let v = memo.get(key); if (v === undefined) { v = f(); memo.set(key, v); } return v; };
-const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.crateSVG), bag: () => art('bag', A.moneyBagSVG), ice: () => art('ice', A.iceSVG), board: () => art('board', A.boardSVG), goose: () => art('goose', A.gooseSVG) };
+const ICON = { war: () => art('war', A.megaphoneSVG), sour: () => art('sour', A.lemonSourSVG), shield: () => art('shield', A.shieldSVG), basket: () => art('basket', A.basketSVG), bag: () => art('bag', A.moneyBagSVG), ice: () => art('ice', A.iceSVG), board: () => art('board', A.boardSVG), goose: () => art('goose', A.gooseSVG) };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const btn = (action: string, label: string, extra = '', cls = 'tiny', why?: string) =>
   `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;

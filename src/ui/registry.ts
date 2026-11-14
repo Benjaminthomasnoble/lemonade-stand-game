@@ -279,12 +279,14 @@ function rivalsTab(s: GameState): string {
  * 'registry'): a paper screen over the world with For Sale, Auctions, Yours
  * and (Rank 4+) Rivals. Done puts it away like every other menu.
  */
+/** Skip's clipboard and the Registry of Deeds stamp, drawn once. */
+const DEEDS = { clip: '', stamp: '' };
 export function registryScreen(s: GameState, want: RegistryTab): string {
   const tabs = registryTabs(s);
   const tab = tabs.includes(want) ? want : 'buy';
   const body = { buy: buyTab, auctions: auctionsTab, mine: mineTab, rivals: rivalsTab }[tab](s);
   return `<div class="cl-modal-bg"><div class="cl-card-big cl-registry" data-testid="menu-registry">
-    <div class="cl-end-day" title="Skip Larkin keeps the deeds at Town Hall">${tape('Land Registry')}</div>
+    <div class="cl-end-day cl-deeds-head" title="Skip Larkin keeps the deeds at Town Hall">${DEEDS.clip ||= A.clipboardSVG()}${tape('Land Registry')}<span class="cl-stamp">${DEEDS.stamp ||= A.stampSVG()}</span></div>
     <div class="cl-tabs">${tabs.map((t) => `<button class="cl-tab${t === tab ? ' on' : ''}" data-action="registry" data-tab="${t}" data-testid="registry-tab-${t}">${TAB_LABEL[t]}</button>`).join('')}</div>
     ${body}
     <div class="cl-setup-foot"><span></span><button class="cl-link" data-action="menu" data-menu="" data-testid="menu-done">Done</button></div>

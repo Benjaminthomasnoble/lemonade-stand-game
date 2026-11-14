@@ -7,7 +7,7 @@
 // functional pieces on the HUD's ticket and button styles.
 import { GADGETS, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type RivalId } from '../sim/economy.ts';
 import { canGullScout, pierTarget, scoutedSnapshot, type Scouted } from '../sim/scouting.ts';
-import { glyph } from './clay.ts';
+import { glyph, gullIcon } from './clay.ts';
 import type { Kit } from './hud.ts';
 
 const TURN = Math.PI * 2;
@@ -108,14 +108,14 @@ export function gullTicket(k: Kit, s: GameState): string {
   const id = track.plot ?? (track.aim && canGullScout(s, track.aim).ok ? track.aim : pierTarget(s));
   const what = track.plot ? esc(place(track.plot)) : id ? `Circle ${esc(place(id))}` : 'Circle a rival stand';
   return `<div class="cl-ticket" data-testid="gull-flight" title="Fly a full circle round a rival plot: its defenses show for 3 days">
-    <span class="gull-ico" aria-hidden="true"></span><b>${what}</b>${track.plot ? k.meter(Math.floor(track.progress * 8) / 8) : ''}
+    ${gullIcon()}<b>${what}</b>${track.plot ? k.meter(Math.floor(track.progress * 8) / 8) : ''}
     <span class="cl-acts"><button class="cl-b tiny" data-action="gullLand" data-testid="gull-land">Land</button></span></div>`;
 }
 
 /** The Raid Planner's Fly over: Captain Squawk takes off beside the plot to circle it. */
 export function flyOver(k: Kit, s: GameState, plotId: string): string {
   const b = canGullScout(s, plotId);
-  return k.btn('gullTo', '<span class="gull-ico" aria-hidden="true"></span> Fly over', b, `data-plot="${plotId}" data-testid="gull-to"${b.ok ? ' title="Captain Squawk circles it: its defenses show for 3 days"' : ''}`, 'ghost');
+  return k.btn('gullTo', `${gullIcon()} Fly over`, b, `data-plot="${plotId}" data-testid="gull-to"${b.ok ? ' title="Captain Squawk circles it: its defenses show for 3 days"' : ''}`, 'ghost');
 }
 
 /** What a snapshot shows, for a tooltip. */

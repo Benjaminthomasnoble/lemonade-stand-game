@@ -3,9 +3,10 @@
 // world's (src/world/gullflight.ts): main.ts hands this tracker Captain Squawk's position each frame while he
 // flies, and a full circle round a rival plot scouts it (the sim's gullScout). The feed shows what he's circling
 // and how far round he is, with Land; the Raid Planner's Fly over takes off beside a plot; the Rivals Corkboard
-// pins the fresh snapshots. Plain functional pieces on the HUD's ticket and button styles.
+// pins the fresh snapshots. In Act 2's flight over the Pier, the ticket names the plot Lottie sent him to. Plain
+// functional pieces on the HUD's ticket and button styles.
 import { GADGETS, PERIMETERS, PLOT_BY_ID, PLOTS, type GameState, type RivalId } from '../sim/economy.ts';
-import { canGullScout, scoutedSnapshot, type Scouted } from '../sim/scouting.ts';
+import { canGullScout, pierTarget, scoutedSnapshot, type Scouted } from '../sim/scouting.ts';
 import { glyph } from './clay.ts';
 import type { Kit } from './hud.ts';
 
@@ -100,10 +101,11 @@ export function trackGull(s: GameState, flying: boolean, x: number, z: number, d
 /** The Raid Planner's Fly over: the ticket names the plot Squawk set out for until he's circling one. */
 export function aimGull(plotId: string): void { track.aim = plotId; }
 
-/** The feed's ticket while Squawk flies: the rival plot he's circling and how far round, and Land (the one-tap return). */
+/** The feed's ticket while Squawk flies: the rival plot he's circling and how far round, and Land (the one-tap return).
+ * Before he circles one, the plot he set out for: the Planner's Fly over, or Act 2's Blenders plot by the Pier. */
 export function gullTicket(k: Kit, s: GameState): string {
   if (!track.on) return '';
-  const id = track.plot ?? (track.aim && canGullScout(s, track.aim).ok ? track.aim : null);
+  const id = track.plot ?? (track.aim && canGullScout(s, track.aim).ok ? track.aim : pierTarget(s));
   const what = track.plot ? esc(place(track.plot)) : id ? `Circle ${esc(place(id))}` : 'Circle a rival stand';
   return `<div class="cl-ticket" data-testid="gull-flight" title="Fly a full circle round a rival plot: its defenses show for 3 days">
     <span class="gull-ico" aria-hidden="true"></span><b>${what}</b>${track.plot ? k.meter(Math.floor(track.progress * 8) / 8) : ''}

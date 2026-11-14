@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LOTTIES_CORNER, newGame, PLOT_BY_ID, raidTargets, type GameState } from '../sim/economy.ts';
-import { gullScout } from '../sim/scouting.ts';
+import { gullScout, pierTarget } from '../sim/scouting.ts';
 import { aimGull, fitCircle, gullTicket, scoutedPins, trackGull } from './gull.ts';
 import type { Kit } from './hud.ts';
 
@@ -80,5 +80,23 @@ describe('Gull Flight scouting', () => {
     expect(pins).toContain('Scouted by Captain Squawk');
     s.day += 3;
     expect(scoutedPins(s, rival)).toBe('');
+  });
+
+  it("in Act 2's flight over the Pier, the ticket names the Blenders plot Lottie sent him to", () => {
+    const s = newGame(74);
+    s.day = 20;
+    s.story = { ...s.story!, act: 2, since: 19 };
+    const target = pierTarget(s)!, p = PLOT_BY_ID[target];
+    land(s);
+    expect(fly(s, { x: 0, z: 0, heading: 0 }, 0, 0.2)).toEqual([]); // took off with G, wherever he was
+    expect(gullTicket(kit, s)).toContain(`<b>Circle ${p.name.replace(/ lot /, ' ')}</b>`);
+    const at = { x: p.x + 9, z: p.z, heading: Math.PI };
+    expect(fly(s, at, 1.6, 4.5)).toEqual([target]);
+    gullScout(s, target);
+    expect(s.pierFlight).toBe(20);
+    land(s);
+    expect(fly(s, { x: 0, z: 0, heading: 0 }, 0, 0.2)).toEqual([]);
+    expect(gullTicket(kit, s)).toContain('<b>Circle a rival stand</b>'); // flown: any stand again
+    land(s);
   });
 });

@@ -28,7 +28,7 @@ import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
-import { gullScout, scoutWithLookout } from './sim/scouting.ts';
+import { gullScout, pierTarget, scoutWithLookout } from './sim/scouting.ts';
 import { raidTemplate } from './sim/templates.ts';
 import { aimGull, trackGull } from './ui/gull.ts';
 import {
@@ -840,7 +840,7 @@ async function main() {
   gullBtn.className = 'gullbtn';
   gullBtn.title = 'Fly Captain Squawk over the bay (G)';
   gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
-  gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else flight.start(); gullBtn.classList.toggle('on', flight.active()); });
+  gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else takeOff(); gullBtn.classList.toggle('on', flight.active()); });
   document.getElementById('ui')!.appendChild(gullBtn);
   /** The Raid Planner's Fly over (crew): Squawk takes off on a circle round the plot, heading north on its east side,
    * so holding a left turn (A, or a drag left) keeps him on it; a full circle scouts it (src/ui/gull.ts). */
@@ -854,6 +854,8 @@ async function main() {
     gullBtn.classList.add('on');
     aimGull(id);
   };
+  /** G or the button: in Act 2's flight over the Pier, Squawk takes off beside the Blenders plot Lottie sent him to (crew). */
+  const takeOff = () => { const pier = pierTarget(state); if (pier) flyOver(pier); else flight.start(); };
   // Keys (every one remappable in Options): Space pauses and resumes, 1-3 set speed, W A S D pan, Q and E turn the
   // view a quarter at a time, G flies the gull, and a letter opens each menu. They work anywhere: mid-fight, at night
   // and in menus. Esc puts away whatever is on top.
@@ -887,7 +889,7 @@ async function main() {
     else if (k === 'turnLeft' || k === 'turnRight') world.turnStep(k === 'turnLeft' ? -1 : 1);
     else if (k === 'gull') {
       if (hud.setup) return;
-      if (flight.active()) flight.stop(); else flight.start();
+      if (flight.active()) flight.stop(); else takeOff();
       gullBtn.classList.toggle('on', flight.active());
     } else if ((MENU_IDS as string[]).includes(k)) act({ type: 'menu', id: k as MenuId });
   });

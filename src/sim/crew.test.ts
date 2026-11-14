@@ -12,10 +12,11 @@ import {
 } from './crew.ts';
 import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
-import { canGullScout, canScout, gullScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
+import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
+import { checkGoals, goalReward, goalsNow } from './goals.ts';
 import { reserveMinutes } from './reinforce.ts';
 import { footholdFor, guardOf } from './fighters.ts';
-import { BORDERS, DISTRICT_BY_ID } from './map.ts';
+import { BORDERS, DISTRICT_BY_ID, PLOT_BY_ID, withinTwo } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
 import { canAssault, makeTruce } from './rivals.ts';
@@ -1161,5 +1162,72 @@ describe('raids need a Foothold', () => {
     expect(canRaid(s, target.id, dex)).toEqual({ ok: true });
     s.plots[lot].owner = null;
     expect(canRaid(s, target.id, dex).ok).toBe(false);
+  });
+});
+
+describe("Act 2: Squawk's flight over the Pier", () => {
+  /** The campaign on Day 20, Act 2 since Day 19 (its first morning was Dex's Clubhouse push). */
+  const act2 = (seed: number) => {
+    const s = newGame(seed);
+    s.day = 20;
+    s.story = { ...s.story!, act: 2, since: 19 };
+    return s;
+  };
+  const byPier = (id: string) => withinTwo(PLOT_BY_ID[PIER], PLOT_BY_ID[id]);
+
+  it('is the short story goal until Squawk circles a Blenders plot by the Pier, and pays once', () => {
+    const s = act2(141);
+    checkGoals(s, false);
+    expect(goalsNow(s)[0]).toMatchObject({ text: PIER_GOAL, story: true, done: false });
+    const target = pierTarget(s)!;
+    expect(s.plots[target]).toMatchObject({ owner: 'blenders', stand: expect.anything() }); // a stand by the Pier
+    expect(byPier(target)).toBe(true);
+    const far = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && !byPier(p.id))!.id;
+    expect(gullScout(s, far)).toBe(true); // a Blenders stand up the beach: scouted, but not the Pier
+    expect(s.pierFlight).toBeUndefined();
+    const cash = s.cash, reward = goalReward(s, 'short');
+    expect(gullScout(s, target)).toBe(true);
+    expect(s.pierFlight).toBe(20);
+    expect(s.news.slice(-2)).toEqual([expect.stringMatching(/^Captain Squawk circles /), 'Lottie: "Good bird. Now we know what Brock\'s got."']);
+    expect(pierTarget(s)).toBeNull();
+    checkGoals(s);
+    expect(s.cash).toBe(cash + reward);
+    expect(s.news.at(-1)).toBe(`✓ ${PIER_GOAL} +$${reward}`);
+    expect(goalsNow(s)[0].text).toMatch(/^Sell [\d,]+ cups today$/); // the day's sales goal is back
+    const back = JSON.parse(JSON.stringify(s)) as GameState;
+    migrateSave(back);
+    expect(back.pierFlight).toBe(20);
+    expect(pierFlightGoal(back)).toEqual({ text: PIER_GOAL, progress: 1, done: true });
+  });
+
+  it("Lottie sends him on the act's second morning; a plot a Lookout watched today still counts", () => {
+    const s = act2(142);
+    s.day = 19;
+    expect(pierFlightGoal(s)).toBeNull(); // the act's first morning
+    s.phase = 'report';
+    sleepUntilDawn(s);
+    expect(s.day).toBe(20);
+    expect(s.news).toContain('Lottie: "Squawk! Go see what Brock keeps by the Pier."');
+    const target = pierTarget(s)!;
+    recordScouting(s, target, 'lookout');
+    expect(gullScout(s, target)).toBe(false); // today's snapshot stands...
+    expect(s.pierFlight).toBe(20); // ...and the flight is flown
+  });
+
+  it('only in the campaign, only in Act 2, and only while Brock stands', () => {
+    const sb = newGame(143, { mode: 'sandbox' });
+    sb.day = 20;
+    expect(pierFlightGoal(sb)).toBeNull();
+    const shack = PLOTS.find((p) => p.name === 'The Blend Shack')!.id;
+    expect(gullScout(sb, shack)).toBe(true);
+    expect(sb.pierFlight).toBeUndefined();
+    const s = act2(144);
+    s.story!.act = 3;
+    expect(pierFlightGoal(s)).toBeNull();
+    s.story!.act = 2;
+    for (const p of PLOTS) if (s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && byPier(p.id)) s.plots[p.id].owner = null;
+    expect(pierTarget(s)).toBe(shack); // no stand by the Pier: the Blend Shack next door
+    s.rivals.blenders.alive = false;
+    expect(pierFlightGoal(s)).toBeNull();
   });
 });

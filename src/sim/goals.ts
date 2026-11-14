@@ -21,6 +21,7 @@ import { hasClubhouse, hasStory, lessonsOn, storyAct, taught } from './story.ts'
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
 import { bigSqueezeGoal } from './squeeze.ts';
+import { pierFlightGoal } from './scouting.ts';
 
 export type GoalSlot = 'short' | 'medium' | 'long';
 export const GOAL_SLOTS: GoalSlot[] = ['short', 'medium', 'long'];
@@ -43,6 +44,7 @@ type Candidate = Goal & { id: string; urgent?: boolean; filler?: boolean };
  */
 export const GOAL_PROVIDERS: { id: string; slot: GoalSlot; goal: (s: GameState) => Goal | null }[] = [
   { id: 'big-squeeze', slot: 'long', goal: (s) => bigSqueezeGoal(s) }, // nights: the siege, then the storm (src/sim/squeeze.ts)
+  { id: 'pier-flight', slot: 'short', goal: (s) => pierFlightGoal(s) }, // crew: Act 2's flight over the Pier (src/sim/scouting.ts)
 ];
 
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);

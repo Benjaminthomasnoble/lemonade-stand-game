@@ -324,7 +324,7 @@ Demand is three plain steps, and the stand panel shows every number in them.
 
 Curb appeal starts at ×1.0; Billboards and Majority push it (see Marketing, and Land and territory). Stands within 2 plots share passing customers by appeal. Customers you share with your own stands stay yours, so only rival neighbors cost you: up to 35% in a crowded rival block.
 
-Eight segments make up the crowd, each with its own price tolerance, patience and peak hours (see Appendix A). Office workers pay ×1.2 but leave if 3 people are ahead; seniors pay ×0.9 and wait behind 10. High rollers pay ×2.0 and accept a line of 2.
+Eight segments make up the crowd, each with its own price tolerance, patience and peak hours (see Appendix A). Office workers pay ×1.2 but leave if more than 3 people are ahead; seniors pay ×0.9 and wait behind 10. High rollers pay ×2.0 and accept a line of 2.
 
 Every walk-away leaves a reason on the stand panel: too pricey, line too long, not thirsty, went to a rival, or sold out. Tap a walker in Street View to hear it from them.
 
@@ -353,7 +353,7 @@ Each stand has a ceiling, the most its crowd will pay, and the price tag marks i
 
 Price fit is ×1.0 at the ceiling. Each 10% under it adds 10% appeal, up to +25%: handy in a price war, though rarely worth it alone. Each 10% over it turns away a quarter of buyers, and nobody buys at 40% over.
 
-Over the ceiling, the thriftiest leave first: kids (×0.8) and students (×0.85), while tourists (×1.3) and high rollers keep buying. So Lottie's rule of thumb holds: a line out the door says raise it; "too pricey" bubbles say drop it. Marisol's Auto-Price (Rank 3) holds every stand at that sweet spot.
+Over the ceiling, the thriftiest leave first: kids (×0.8) and students (×0.85), while tourists (×1.3) and high rollers hang on longest. At 40% over even they walk. So Lottie's rule of thumb holds: a line out the door says raise it; "too pricey" bubbles say drop it. Marisol's Auto-Price (Rank 3) holds every stand at that sweet spot.
 
 ### Supplies
 
@@ -416,6 +416,10 @@ It's Day 3, Hot (88°F), at Lottie's Corner: an L1 Folding Table on a Maple Row 
 | Profit |  | $243.32 |
 
 On a Scorcher the same table would draw 230 customers but pour only 200, so 30 would leave a long line. A Wooden Stand here sells about 280 cups at $2.10 and clears about $505, repaying its $400 in under 2 such days. On a Rainy day the table sells just 50 cups, and stocking 200 melts $4.50 of ice.
+
+### Day calls
+
+Once on Day 1 and twice on every later business day, a small decision breaks in at one of your stands, and the clock waits for your pick. Every choice costs cash, customers, Reputation or a gang's Grudge: a rival undercuts you, a rival kid heckles your line, a thirsty rush arrives, Sheriff Budd checks your permit, or word comes of tonight's raid, and whatever you answer, that gang comes for that plot. Day 3's second call is the rumor of Night 3's raid. The numbers are in Appendix A.
 
 **Fun check:** Every lever answers in seconds: a price nudge moves the queue, a recipe swap lights mood bubbles, and walk-aways say why. The guardrails are one demand chain you can read off the stand panel, Auto-Restock from Day 2 and Auto-Price at Rank 3.
 
@@ -521,7 +525,7 @@ Every traffic bonus adds into one marketing number: brand tier, campaigns, Billb
 
 For example, an Old Town Kiosk on a 700-passerby street draws 700 × 2.3 = 1,610 passersby. With the Radio Jingle (+22%) and Sunny (+25%), that's +47%: 2,367 passersby.
 
-Marketing fills the sidewalk, not the cups. A stand already at its service limit just grows a longer line, so upgrade it or add an Express Window first (see Stands). Campus & Arts at Full Control halves every local campaign's cost (see Land and territory).
+Marketing fills the sidewalk, not the cups. A stand already at its service limit just grows a longer line, so upgrade it or add an Express Window first (see Stands). Campus & Arts at Full Control halves every local campaign's cost (see Land and territory): the cash, a Free Sample Day's cups (50) and a Coupon Blitz's price cut (−12.5% for the same +40%). A Billboard is a building, so it still costs $25,000.
 
 ### Rival marketing
 
@@ -587,7 +591,7 @@ Control is your share of a district's purchasable plots; civic and HQ plots don'
 | Maple Row | Neighborhood Watch | A free Tin-Can Alarm on every plot you own there; all raids anywhere +10% detection |
 | Old Town | Town Favorite | +10% traffic at your stands in Old Town and Maple Row |
 | Campus & Arts | Word of Mouth | Local campaigns half price everywhere |
-| Downtown | Power Lunch | Lunch rush ×1.5 in Downtown and Old Town |
+| Downtown | Power Lunch | Lunch rush (12:00–14:00) ×1.5 at your stands in Downtown and Old Town |
 | The Boardwalk | Tourist Trap | Tourists pay +20% everywhere |
 | The Harbor | Shipping Lane | Ship contracts pay +15% |
 | The Groves | Orchard Fresh | +10% traffic at all your stands |
@@ -2373,7 +2377,7 @@ The Sweetness dial shifts appeal by 10% for a segment: kids like Extra, seniors 
 | Workers | 0.9 | 5 | 12:00–13:00 and 17:00–18:00 | Half-and-Half |
 | High Rollers | 2.0 | 2 | 14:00–19:00 | Lavender, Secret Reserve |
 
-A district's price tolerance in the land table is the blend of its usual crowd.
+A district's price tolerance in the land table is the blend of its usual crowd. Maple Row's crowd blends to about 0.9, and its table value of 1.0 sets the ceiling there.
 
 ### Demand constants
 
@@ -2387,6 +2391,9 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 | Lemon Grove | +5% traffic at all your stands per Grove (up to 2); +10% per Grove with the Hollis Orchards trophy |
 | Town Favorite (Old Town at Full Control) | +10% traffic at your stands in Old Town and Maple Row |
 | Orchard Fresh (The Groves at Full Control) | +10% traffic at all your stands |
+| Power Lunch (Downtown at Full Control) | Lunch rush (12:00–14:00) ×1.5 at your stands in Downtown and Old Town |
+| Tourist Trap (The Boardwalk at Full Control) | Tourists pay +20% a cup at all your stands |
+| Word of Mouth (Campus & Arts at Full Control) | Local campaigns half price: their cash, a Free Sample Day's cups (50) and a Coupon Blitz's cut (−12.5%); not the Billboard |
 
 ### Weather and seasons
 
@@ -2532,7 +2539,7 @@ These numbers come from the sections above and are collected here so every numbe
 | --- | --- | --- |
 | Stands | Stock each level holds, L1 to L5 | 300 / 750 / 1,800 / 4,500 / 10,500 cups |
 | Pricing | Appeal when priced under the ceiling | +10% per 10% under, up to +25% |
-| Pricing | Buyers lost when priced over the ceiling | A quarter per 10% over |
+| Pricing | Buyers lost when priced over the ceiling | A quarter per 10% over; none buy at 40% over, whatever their tolerance |
 | Reputation | Buyers who leave without a cup | Target drops 0.1 star per 10% of buyers |
 | Weather | Storm damage to L1 and L2 stands | 25% of HP |
 | Repairs | A Damaged stand | 15% of what was invested × the share of HP lost |
@@ -2546,6 +2553,18 @@ These numbers come from the sections above and are collected here so every numbe
 | Rivals | Breaking a Truce | −1 star; no rival accepts a Truce for 14 days |
 | Rivals | Trophy perks | Blender Bar +20% top price; Juni's Grapevine 1 game hour; Hollis Orchards +10% traffic per Grove; Bottling Line 25%; Family Silver 10% |
 | Rivals | Grow / Guard / Strike splits | See the five factions table in Rivals |
+
+### Day calls
+
+One call breaks in on Day 1 (a rival undercut) and two on every later business day; Day 3 brings a rush or a heckler, then the rumor of Night 3's raid. The clock waits for your pick.
+
+| Call | Choices and what they cost |
+| --- | --- |
+| Rival undercut | Cut your price 25¢ · Free samples $10, +20% walkers today · Hold firm, −20% walkers today |
+| Rival heckler | Pay him off $8 · Chase him off, +6 Grudge with that gang · Ignore him, −15% walkers today |
+| Thirsty rush (+30% walkers today either way) | Raise the price 50¢ · Keep it fair, +0.03 stars |
+| Sheriff's permit | Pay $15 · Talk her down: half the time nothing, else a $30 fine |
+| Raid rumor | Rush the next fence in at 1.5× its price · Post your free guards there · Bring it on. Any answer: that gang comes for that plot tonight |
 
 ## Appendix B: Walkthroughs
 

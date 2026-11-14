@@ -50,7 +50,14 @@ export const RANK_DAYS: Record<'laidback' | 'cutthroat', number[]> = {
 export const DOMINATION: Record<'classic' | 'laidback' | 'cutthroat', Target> = {
   classic: { target: 145, lo: 131, hi: 146, window: [140, 150], notBefore: 136 },
   laidback: { target: 126, lo: 120, hi: 136 },
-  cutthroat: { target: 151, lo: 134, hi: 169 }, // "always before Day 170"; the ten maps ran 134-163
+  cutthroat: { target: 151, lo: 134, hi: 163 }, // the ten maps ran 134-163; "always before Day 170" is its own check
+};
+/** Cutthroat's Domination lands "always before Day 170", on every map (spec: Difficulty differences). */
+export const DOMINATION_BY = 170;
+/** The longest rank gap, Rank 8 to Rank 9, in days (spec: Gaps between ranks, "31 days"; the simulated Classic run's
+ * Days 104 to 135). Laid Back and Cutthroat: their own rank days (Day 87 to 118, Day 108 to 143). */
+export const RANK_8_TO_9: Record<'classic' | 'laidback' | 'cutthroat', number> = {
+  classic: 31, laidback: RANK_DAYS.laidback[7] - RANK_DAYS.laidback[6], cutthroat: RANK_DAYS.cutthroat[7] - RANK_DAYS.cutthroat[6],
 };
 /** Average daily income (takings: cups and orders) by stage, and the stands at its end (spec: Income growth by stage). */
 export const INCOME_STAGES: { from: number; to: number; income: number; stands: string }[] = [
@@ -85,12 +92,18 @@ export const MAX_LULL = 7;
 export const GROWTH: { from: number; to: number; x: number }[] = [{ from: 90, to: 120, x: 7 }, { from: 120, to: 150, x: 2.5 }];
 /** Paybacks in days on suitable plots, by the level built (Appendix A). */
 export const PAYBACKS: Record<number, [number, number]> = { 2: [2, 4], 3: [4, 7], 4: [4, 11], 5: [11, 15] };
+/** The passersby a day those paybacks assume for an L4 and an L5 (spec: "about 1,800 passersby a day for L4 and 4,000
+ * for L5"). */
+export const PLOT_TRAFFIC: Record<number, number> = { 4: 1800, 5: 4000 };
 
 // Tolerances the spec leaves open (placeholders: spec gap): "about" a dollar figure or a share.
 const ABOUT_INCOME: [number, number] = [0.75, 1.33]; // a stage's average income against its "about"
 const ABOUT_SHARE = 0.05; // a VIP share, give or take five points
 const ABOUT_GROWTH = 0.3; // a Net Worth multiple, give or take 30%
 const ABOUT_CHART: [number, number] = [0.67, 1.5]; // Net Worth against the pacing chart's
+const ABOUT_RANK = 1; // the run's rank on a chart day against the chart's: a rank either way (rank days land within 15%)
+const ABOUT_TRAFFIC = 0.75; // "about 1,800+": a level's median plot at three quarters of it or busier
+const ABOUT_GAP = 0.15; // the Rank 8 to Rank 9 gap on the reference map, as its milestones: within 15%
 
 // ---------- the player ----------
 
@@ -114,6 +127,7 @@ export interface RunResult {
   firstL2?: number; rankDay: Record<number, number>; outcome?: { result: string; how: string; day: number };
   firstLoad: Partial<Record<OrderTier, number>>; raids: RaidLoss[]; news: { day: number; what: string }[];
   paybacks: Record<number, number[]>; // the payback each upgrade promised when the player bought it, in days, by the level it made
+  traffic: Record<number, number[]>; // the passersby a day on each plot the player built or upgraded an L4 or L5 on, by level
   stuck?: string; // why the run stopped early, if it did
 }
 export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: number; log?: (line: string) => void }
@@ -124,6 +138,7 @@ interface Bot {
   secSpent: number; // what it has bought, all run
   takings: number[]; // the last week's takings
   paybacks: Record<number, number[]>;
+  traffic: Record<number, number[]>;
   orders: Map<Order, number>; // orders taken, and the bottles loaded at the last look
   log?: (line: string) => void;
 }
@@ -398,6 +413,7 @@ function morning(s: GameState, bot: Bot): void {
     budget -= before - s.cash;
     if (b.plot) used.add(b.plot);
     if (b.upgrade && b.level) (bot.paybacks[b.level] ??= []).push(b.cost / b.gain); // an upgrade's own payback, as Appendix A counts it
+    if (b.level && b.level in PLOT_TRAFFIC && b.plot) (bot.traffic[b.level] ??= []).push(PLOT_BY_ID[b.plot].baseTraffic); // the plot it went on
     bot.log?.(`        buy: ${b.what} ${money(before - s.cash)}, pays back in ${(b.cost / b.gain).toFixed(1)} days`);
   }
   if (s.rank >= DOMINATION_RANK) budget = dominationPush(s, bot, budget);
@@ -441,8 +457,8 @@ export function playRun(opts: PacingOpts): RunResult {
   const days = opts.days ?? 170;
   const difficulty = opts.difficulty ?? 'classic';
   const s = newGame(opts.seed, { difficulty });
-  const bot: Bot = { sec: 0, secSpent: 0, takings: [], paybacks: {}, orders: new Map(), log: opts.log };
-  const r: RunResult = { seed: opts.seed, difficulty, days: [], rankDay: { 1: 1 }, firstLoad: {}, raids: [], news: [], paybacks: bot.paybacks };
+  const bot: Bot = { sec: 0, secSpent: 0, takings: [], paybacks: {}, traffic: {}, orders: new Map(), log: opts.log };
+  const r: RunResult = { seed: opts.seed, difficulty, days: [], rankDay: { 1: 1 }, firstLoad: {}, raids: [], news: [], paybacks: bot.paybacks, traffic: bot.traffic };
   const seen = new WeakSet<BattleReport>(s.battles);
   const firsts = new Set<string>();
   const first = (key: string, what: string, day = s.day) => { if (!firsts.has(key)) { firsts.add(key); r.news.push({ day, what }); } };
@@ -552,6 +568,11 @@ export function checkRun(r: RunResult, reference = true): Check[] {
     const note = m.name === 'Domination' && got === undefined && r.outcome ? ` (${r.outcome.result} by ${r.outcome.how}, Day ${r.outcome.day})` : '';
     out.push({ name: m.name, target: targetText(m.t), got: shown(got, m.t) + note, ok: judge(got, m.t, reference) });
   }
+  if (diffOf(r.difficulty) === 'cutthroat') { // on every map, the reference map's included
+    const won = r.outcome?.how === 'domination' ? r.outcome.day : undefined;
+    const open = won === undefined && last < DOMINATION_BY;
+    out.push({ name: `Domination before Day ${DOMINATION_BY}`, target: 'every map', got: open ? `not by Day ${last}` : dayText(won), ok: open ? null : won !== undefined && won < DOMINATION_BY });
+  }
   for (const st of INCOME_STAGES) {
     const w = span(r, st.from, st.to);
     if (!w.length) continue;
@@ -590,7 +611,10 @@ export function checkRun(r: RunResult, reference = true): Check[] {
   }
   const lull = longestLull(r);
   out.push({ name: 'longest lull', target: `<= ${MAX_LULL} days (maps 5-10)`, got: `${lull.days} days from Day ${lull.from}`, ok: reference ? lull.days <= MAX_LULL : lull.days <= 10 });
-  if (r.rankDay[8] && r.rankDay[9]) out.push({ name: 'Rank 8 to Rank 9', target: '31 days', got: `${r.rankDay[9] - r.rankDay[8]} days`, ok: null });
+  if (r.rankDay[8] && r.rankDay[9]) { // held to 15% on the reference map, shown on the others (their rank days spread wider)
+    const gap = r.rankDay[9] - r.rankDay[8], want = RANK_8_TO_9[diffOf(r.difficulty)];
+    out.push({ name: 'Rank 8 to Rank 9', target: `${want} days`, got: `${gap} days`, ok: reference ? Math.abs(gap - want) <= want * ABOUT_GAP : null });
+  }
   const nw = (day: number) => r.days.find((d) => d.day === day)?.netWorth;
   for (const g of GROWTH) {
     const a = nw(g.from), b = nw(g.to);
@@ -604,6 +628,12 @@ export function checkRun(r: RunResult, reference = true): Check[] {
     if (!pb?.length) continue;
     const mid = median(pb);
     out.push({ name: `L${level} payback`, target: `${lo}-${hi} days`, got: `median ${mid.toFixed(1)} days of ${pb.length} built`, ok: mid >= lo && mid <= hi });
+  }
+  for (const [level, want] of Object.entries(PLOT_TRAFFIC)) {
+    const seen = r.traffic?.[Number(level)];
+    if (!seen?.length) continue;
+    const mid = median(seen);
+    out.push({ name: `L${level} plots`, target: `~${want.toLocaleString('en-US')}+ passersby a day`, got: `median ${Math.round(mid).toLocaleString('en-US')} of ${seen.length} built`, ok: mid >= want * ABOUT_TRAFFIC });
   }
   if (r.stuck) out.push({ name: 'run', target: 'plays every day', got: r.stuck, ok: false });
   return out;
@@ -621,18 +651,23 @@ export function longestLull(r: RunResult): { days: number; from: number } {
   return best;
 }
 
-/** The run's Net Worth beside the pacing chart's (docs/spec/pacing.csv), every `step` days. */
+/** The run's Net Worth beside the pacing chart's (docs/spec/pacing.csv), every `step` days, and on Classic its rank
+ * beside the chart's classic_rank (the chart has no rank column for the other difficulties). */
 export function chartChecks(r: RunResult, csv: string, step = 10): Check[] {
   const col = r.difficulty === 'laidback' ? 'laid_back_net_worth' : r.difficulty === 'cutthroat' ? 'cutthroat_net_worth' : 'classic_net_worth';
   const [head, ...rows] = csv.trim().split(/\r?\n/).map((l) => l.split(','));
   const at = head.indexOf(col), dayAt = head.indexOf('day');
+  const rankAt = diffOf(r.difficulty) === 'classic' ? head.indexOf('classic_rank') : -1;
   const out: Check[] = [];
   for (const row of rows) {
     const day = Number(row[dayAt]);
-    const got = r.days.find((d) => d.day === day)?.netWorth;
-    if ((day % step && day !== 1) || got === undefined) continue;
-    const target = Number(row[at]);
+    const run = r.days.find((d) => d.day === day);
+    if ((day % step && day !== 1) || !run) continue;
+    const target = Number(row[at]), got = run.netWorth;
     out.push({ name: `Net Worth Day ${day}`, target: money(target), got: `${money(got)} (${(got / target).toFixed(2)}x)`, ok: got >= target * ABOUT_CHART[0] && got <= target * ABOUT_CHART[1] });
+    if (rankAt < 0) continue;
+    const rank = Number(row[rankAt]);
+    out.push({ name: `Rank Day ${day}`, target: `Rank ${rank}`, got: `Rank ${run.rank}`, ok: Math.abs(run.rank - rank) <= ABOUT_RANK });
   }
   return out;
 }
@@ -650,6 +685,11 @@ export function spreadChecks(runs: RunResult[]): Check[] {
   if (diffOf(runs[0].difficulty) === 'classic') out.push({ name: 'worst raid after Day 6', target: `<= ${RAID_LOSS.worst} days on every map`, got: `${worst.toFixed(2)} days`, ok: worst <= RAID_LOSS.worst });
   const lulls = runs.map((r) => longestLull(r).days);
   out.push({ name: 'longest lull', target: '5-10 days', got: `${Math.min(...lulls)}-${Math.max(...lulls)} days`, ok: Math.max(...lulls) <= 10 });
+  if (diffOf(runs[0].difficulty) === 'cutthroat') {
+    const by = runs.map((r) => checkRun(r, false).find((c) => c.name.startsWith('Domination before'))!);
+    const won = by.filter((c) => c.ok).length, open = by.some((c) => c.ok === null);
+    out.push({ name: `Domination before Day ${DOMINATION_BY}`, target: 'every map', got: `${won} of ${runs.length} maps`, ok: open ? null : won === runs.length });
+  }
   return out;
 }
 

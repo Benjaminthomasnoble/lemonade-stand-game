@@ -15,7 +15,7 @@ import { clubhouseSite } from './clubhouse.ts';
 import { buildClubhouse, canBuildClubhouse } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
-import { chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, hits, longestLull, playRun, REFERENCE_SEED, type RunResult } from '../../tools/pacing.ts';
+import { chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, hits, longestLull, playRun, REFERENCE_SEED, spreadChecks, type RunResult } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
 /** Hand the player a plot outright (tests skip the buying). */
@@ -651,7 +651,44 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     const names = checkRun(r).map((c) => c.name);
     expect(names).toEqual(expect.arrayContaining(['first L2 stand', 'Rank 2', 'Rank 10', 'Domination', 'takings Days 1-8', 'security Days 1-14', 'first chopper loaded', 'longest lull', 'Rank 9 bar over Rank 8']));
     const chart = chartChecks(r, pacingCsv);
-    expect(chart.map((c) => [c.name, c.target])).toEqual([['Net Worth Day 1', '$662']]); // the chart's Day 1, read from docs/spec/pacing.csv
+    expect(chart.map((c) => [c.name, c.target])).toEqual([['Net Worth Day 1', '$662'], ['Rank Day 1', 'Rank 1']]); // the chart's Day 1, read from docs/spec/pacing.csv
+    expect(chart[1]).toMatchObject({ got: 'Rank 1', ok: true });
+  });
+
+  /** A run's record without playing it: `days` business days, the ranks and the win given. */
+  const record = (difficulty: 'classic' | 'cutthroat', days: number, rest: Partial<RunResult>): RunResult => ({
+    seed: 1, difficulty, rankDay: { 1: 1 }, firstLoad: {}, raids: [], news: [], paybacks: {}, traffic: {}, ...rest,
+    days: Array.from({ length: days }, (_, i) => ({ day: i + 1, rank: 1, netWorth: 0, score: 0, cash: 0, income: 0, orders: 0, vip: 0, security: 0, stands: 1, levels: [1], raidsOnYou: 0 })),
+  });
+  const check = (r: RunResult, name: string, reference = true) => checkRun(r, reference).find((c) => c.name === name);
+
+  it("holds Cutthroat's Domination to the ten maps' 134-163 and to Day 170 on every map", () => {
+    expect(DOMINATION.cutthroat).toMatchObject({ target: 151, lo: 134, hi: 163 });
+    const late = record('cutthroat', 170, { outcome: { result: 'won', how: 'domination', day: 165 } });
+    expect(check(late, 'Domination', false)?.ok).toBe(false); // past the maps' 163
+    expect(check(late, 'Domination before Day 170', false)).toMatchObject({ got: 'Day 165', ok: true }); // but before Day 170
+    expect(check(record('cutthroat', 170, {}), 'Domination before Day 170', false)).toMatchObject({ got: 'never', ok: false });
+    expect(check(record('cutthroat', 100, {}), 'Domination before Day 170', false)?.ok).toBeNull(); // a short run isn't judged
+    expect(check(record('classic', 170, {}), 'Domination before Day 170')).toBeUndefined(); // Cutthroat's promise
+    expect(spreadChecks([late, record('cutthroat', 170, {})]).find((c) => c.name === 'Domination before Day 170')).toMatchObject({ got: '1 of 2 maps', ok: false });
+  });
+
+  it('holds the Rank 8 to Rank 9 gap to 31 days on the reference map, within 15%', () => {
+    const gap = (from: number, to: number, reference = true) => check(record('classic', 170, { rankDay: { 1: 1, 8: from, 9: to } }), 'Rank 8 to Rank 9', reference);
+    expect(gap(104, 135)).toMatchObject({ target: '31 days', got: '31 days', ok: true }); // the spec's own run
+    expect(gap(100, 135)?.ok).toBe(true); // 35 days: inside 15%
+    expect(gap(100, 137)?.ok).toBe(false); // 37 days
+    expect(gap(100, 137, false)?.ok).toBeNull(); // the other maps: shown, not judged
+    expect(check(record('cutthroat', 170, { rankDay: { 1: 1, 8: 108, 9: 143 } }), 'Rank 8 to Rank 9')).toMatchObject({ target: '35 days', ok: true });
+  });
+
+  it("reads the passersby on each plot an L4 or L5 went on against the paybacks' ~1,800 and ~4,000", () => {
+    const r = record('classic', 30, { traffic: { 4: [1490, 2460, 4410], 5: [2550] } });
+    expect(check(r, 'L4 plots')).toMatchObject({ target: '~1,800+ passersby a day', got: 'median 2,460 of 3 built', ok: true });
+    expect(check(r, 'L5 plots')).toMatchObject({ got: 'median 2,550 of 1 built', ok: false }); // a Palace on a quiet plot
+    expect(check(record('classic', 30, {}), 'L4 plots')).toBeUndefined(); // none built yet
+    const run = playRun({ seed: REFERENCE_SEED, days: 8 });
+    expect(run.traffic).toEqual({}); // no Lemon Shack by Day 8
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {

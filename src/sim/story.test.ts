@@ -15,7 +15,7 @@ import { actBegan, cornerName, cornerSign, rankTenLine, dexGooseLine, LEAN_LINES
 import { CAMEO_DAYS, LESSON_DAY, PERIMETERS, RECORD_GAIN, VICTORY_PAINT_SECONDS } from './balance.ts';
 import { menuScreen, menuUnlocked } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
-import { CREW_NAME, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
+import { CREW_NAME, crewCall, crewCheer, crewName, grandkid, KID_LOOKS, KID_NAME, kidLook, NAME_MAX, nameDraft, renameCrew, setGrandkid } from './grandkid.ts';
 import { battleHeadline, crewOf, fightRaid, raidPartyFor, welcomeDex } from './crew.ts';
 import { hqStageOver } from './rivals.ts';
 import { bugleHeadline, frontPage } from './media.ts';
@@ -24,6 +24,7 @@ import type { BattleInput, BattleResult } from './combat.ts';
 import { crewField, kidPanel, pickKid, typeName } from '../ui/grandkid.ts';
 import { kidSpec } from '../world/stand.ts';
 import { SPECS } from '../world/clay/figure.ts';
+import { BRAWL } from '../world/barks.ts';
 import { CAMEO_NEWS, cameosAtClose, cameosAtDawn, cameoStories, JUNI_NOBODY, juniGrudgeTip, juniQuietTip, juniRaidTip, PRESTON_CALLS, TILLY_JUDGES } from './cameos.ts';
 import type { Raid } from './crew.ts';
 import { bayPainted, endVictoryShow, victoryStage, victoryTick } from './victory.ts';
@@ -736,6 +737,20 @@ describe('the Grandkid and the crew', () => {
     const st = defaultSettings();
     typeName(st, 'crew', 'Lemon Heads');
     expect(crewName(newGame(45, st))).toBe('Lemon Heads'); // named on the New Game screen
+  });
+
+  it('your crew cheers its own name when it wins a fight: "Peel Patrol!" until renamed, never a rival\'s line', () => {
+    const s = newGame(48);
+    expect(BRAWL.win.player).toContain('Peel Patrol!'); // the fight cloud's cheer (world/barks.ts) that names the crew
+    expect(BRAWL.win.player.map((t) => crewCheer(s, t))).toEqual(BRAWL.win.player);
+    renameCrew(s, 'Sour Patch Kids');
+    expect(crewCheer(s, 'Peel Patrol!')).toBe('Sour Patch Kids!');
+    expect(BRAWL.win.player.map((t) => crewCheer(s, t))).not.toContain('Peel Patrol!');
+    expect(crewCheer(s, 'Squeeze!')).toBe('Squeeze!'); // the other cheers stay
+    renameCrew(s, 'the Rind Gang');
+    expect(crewCheer(s, 'Peel Patrol!')).toBe('Rind Gang!'); // shouted without "The", as Dex says it
+    expect(crewCall(s)).toBe('Rind Gang');
+    expect(dexGooseLine(s)).toMatch(/^Rind Gang, hold the line!/);
   });
 });
 

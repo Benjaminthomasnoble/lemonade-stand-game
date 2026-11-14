@@ -22,7 +22,7 @@ import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
 import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
 import { endingFor } from './modes.ts';
-import { crewName } from './grandkid.ts';
+import { crewCall } from './grandkid.ts';
 import { cameosAtClose, cameosAtDawn } from './cameos.ts';
 import { migrateScore, scoreCheck, scoreMinute, type ScoreBooks } from './score.ts';
 import { migrateTips, type TipsState } from './perks.ts';
@@ -392,7 +392,7 @@ export function storyAtClose(s: GameState): void {
 // Brock's fence line rides his warning calls and Tilly's line her call after you raid her (src/sim/phone.ts).
 
 /** Dex's line, by your crew's name ("Peel Patrol, hold the line!"). */
-export const dexGooseLine = (s: GameState) => `${crewName(s).replace(/^the\s+/i, '')}, hold the line! Not you, Honkers. You hold that line over there.`;
+export const dexGooseLine = (s: GameState) => `${crewCall(s)}, hold the line! Not you, Honkers. You hold that line over there.`;
 
 /** After a fight on your plot (one line in crew.ts fightRaid): Dex was in it and the Guard Goose posted there stunned a raider. Once a day. */
 export function dexHoldsTheLine(s: GameState, b: BattleReport): void {

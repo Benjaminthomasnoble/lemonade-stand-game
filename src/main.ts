@@ -58,7 +58,7 @@ import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './w
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
-import { grandkid, renameCrew } from './sim/grandkid.ts';
+import { crewCheer, grandkid, renameCrew } from './sim/grandkid.ts';
 import { pickTip, tipsKey } from './sim/perks.ts';
 import { takeCall } from './sim/phone.ts';
 import { endVictoryShow, victoryStage, victoryTick } from './sim/victory.ts';
@@ -445,8 +445,9 @@ async function main() {
     },
     onHome: (who) => { if (Math.random() < 0.25) bubbles.say(who, '', { kind: 'thought', icon: 'zzz', ms: 1200 }); },
     onWin: (winners, _side, owner) => {
-      const l = pick(BRAWL.win[owner]);
-      winners.slice(0, 2).forEach((w, i) => setTimeout(() => bubbles.say(w, i ? pick(BRAWL.win[owner]) : l, { ms: 1800, color: sideColor(owner), height: 1.9 }), i * 350));
+      const wins = owner === 'player' ? BRAWL.win.player.map((t) => crewCheer(state, t)) : BRAWL.win[owner]; // your crew cheers its own name (sim/grandkid.ts)
+      const l = pick(wins);
+      winners.slice(0, 2).forEach((w, i) => setTimeout(() => bubbles.say(w, i ? pick(wins) : l, { ms: 1800, color: sideColor(owner), height: 1.9 }), i * 350));
       audio.babble(l, owner === 'player' ? 1.15 : 0.85, 'happy');
     },
   }, { phone: world.quality === 'phone' });

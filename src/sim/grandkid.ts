@@ -69,6 +69,11 @@ export function setGrandkid(st: Settings, change: Partial<Grandkid>): void {
 
 /** The player's crew as every crew-facing line names it. */
 export const crewName = (s: GameState | Settings): string => cleanName(settingsOf(s).crew, CREW_NAME);
+const shout = (name: string) => name.replace(/^the\s+/i, '');
+/** The crew's name as it's shouted, with no leading "The" (Dex's "Peel Patrol, hold the line!"). */
+export const crewCall = (s: GameState | Settings): string => shout(crewName(s));
+/** A win cheer in the fight cloud as your crew shouts it (world/barks.ts BRAWL.win.player): the default crew's "Peel Patrol!" is yours. */
+export const crewCheer = (s: GameState | Settings, line: string): string => (line === `${shout(CREW_NAME)}!` ? `${crewCall(s)}!` : line);
 /** Name the crew (the New Game screen, or the Crew roster mid-run): the field as typed; a blank one prints the default. */
 export function renameCrew(s: GameState | Settings, raw: string): void {
   settingsOf(s).crew = nameDraft(raw);

@@ -9,7 +9,7 @@ import { PLOT_BY_ID, type DistrictId } from './map.ts';
 import type { GameState, Stand } from './economy.ts';
 import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
-import { inPlay } from './land.ts';
+import { inPlay, pageHomeAway } from './land.ts';
 import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
 import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
@@ -129,7 +129,7 @@ export function grantPage(s: GameState, id: RecipeId, quiet = false, scene = tru
   delete w.holders[id];
   if (quiet) return true;
   (w.homed ??= {})[id] = s.day + 1; // tomorrow's paper (pagesAtDawn moves overnight ones to this morning's)
-  s.news.push(PAGE_HOME[id]);
+  s.news.push(pageHomeAway(s, id) ?? PAGE_HOME[id]); // land: a boss a Sandbox left out goes unnamed
   if (scene) pageScene(s, id);
   return true;
 }

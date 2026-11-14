@@ -2,7 +2,7 @@
 // buy, what lifts land prices, district control tiers and the Full Control
 // perks. Pure functions over GameState, like the rest of the sim.
 import {
-  DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STRONGHOLD, type MapSize, type RivalId,
+  DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STRONGHOLD, type MapSize, type RecipeId, type RivalId,
 } from './balance.ts';
 import { BORDERS, cutMap, mapDistricts, onMap, picksFit, plotOnMap, PLOTS, type DistrictId, type Plot } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -41,6 +41,25 @@ export const rivalsInPlay = (s: { settings: Settings }): RivalId[] => s.settings
 export const inPlay = (s: { settings: Settings }, id: RivalId) => rivalsInPlay(s).includes(id);
 /** The run's map size: a Sandbox's pick, else Large (the whole bay: the campaign, Endless and older saves). */
 export const mapSize = (s: { settings: Settings }): MapSize => s.settings.map ?? 'large';
+
+/** The boss each page's homecoming line names (recipes.ts PAGE_HOME): Vera for the harp teacher's Lavender. */
+const PAGE_BOSS: Partial<Record<RecipeId, RivalId>> = {
+  strawberry: 'blenders', frozen: 'blenders', honeyGinger: 'coldbrew', halfAndHalf: 'hollis', lavender: 'sourwood', sparkling: 'fizzco',
+};
+/** The same homecomings without them, for a Sandbox that left that boss out (a fair win brings the page home). */
+const PAGE_HOME_AWAY: Partial<Record<RecipeId, string>> = {
+  strawberry: 'The Strawberry page comes home! Lottie: "Berries go in last. Always last."',
+  frozen: 'The Frozen Lemonade page comes home, frame and all.',
+  honeyGinger: 'Honey-Ginger Hot Lemonade comes home, warm as ever.',
+  halfAndHalf: 'Hollis Half-and-Half comes home. Lottie: "Tea in my lemonade. Fine. It\'s good."',
+  lavender: 'The Lavender page comes home. Lottie: "Swapped for harp lessons, of all things!"',
+  sparkling: 'Sparkling Lemonade comes home, still laminated.',
+};
+/** A page's homecoming line when the boss it names isn't in this run, else null (the usual line). */
+export function pageHomeAway(s: { settings: Settings }, id: RecipeId): string | null {
+  const boss = PAGE_BOSS[id];
+  return boss && !inPlay(s, boss) ? PAGE_HOME_AWAY[id] ?? null : null;
+}
 
 /** Civic buildings and HQs are never bought, so they count toward neither control nor development. */
 export const isPurchasable = (p: Plot) => p.type !== 'civic' && p.type !== 'hq';

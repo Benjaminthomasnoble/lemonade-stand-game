@@ -8,6 +8,9 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
+import { LAVENDER } from './balance.ts';
+import { openLavender } from './auction.ts';
+import { grantPage } from './recipes.ts';
 import { clubhouseSite } from './clubhouse.ts';
 import { buildClubhouse, canBuildClubhouse } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
@@ -312,6 +315,30 @@ describe('Sandbox maps', () => {
     expect(blenderBar(s, 'frozen')).toBe(1); // no Blend Shack Trophy from a gang that never played
     const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
     expect(ownedRecipes(back)).not.toContain('frozen'); // an absent rival never fell, so no page comes home on load
+  });
+
+  it('a page that comes home names no boss the Sandbox left out, and the harp teacher sells without Vera', () => {
+    const s = sandbox(48, 'small', ['hollis', 'fizzco']); // no Brock, no Juni, no Vera
+    const said = (id: 'strawberry' | 'frozen' | 'honeyGinger' | 'halfAndHalf' | 'lavender' | 'sparkling') => {
+      s.news = [];
+      expect(grantPage(s, id)).toBe(true);
+      return s.news.join(' ');
+    };
+    for (const id of ['strawberry', 'frozen', 'honeyGinger', 'lavender'] as const) {
+      const line = said(id);
+      expect(line, id).toContain('comes home');
+      expect(line, id).not.toMatch(/Brock|Juni|Vera/);
+    }
+    expect(said('halfAndHalf')).toContain('Tilly hands over'); // Tilly plays
+    expect(said('sparkling')).toContain('FizzCo boardroom');
+    const t = sandbox(48, 'small', ['hollis', 'fizzco']);
+    t.rank = LAVENDER.rank;
+    openLavender(t);
+    expect(t.news.some((n) => n.includes('auctioning the Lavender page') && !n.includes('Vera') && !n.includes('Hilltop'))).toBe(true);
+    const c = newGame(48);
+    c.news = [];
+    grantPage(c, 'strawberry', false, false);
+    expect(c.news.join(' ')).toContain('Brock never learned'); // the campaign names its bosses
   });
 
   it('a Clubhouse goes on a plot the map tags a Street, never on a street plot it retagged as a Field or a Dock', () => {

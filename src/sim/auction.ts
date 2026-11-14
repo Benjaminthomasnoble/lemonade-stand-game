@@ -12,7 +12,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
 import { FIRE_SALE, familySilver, handOverKept, hqPlot } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
-import { announceControl } from './land.ts';
+import { announceControl, inPlay } from './land.ts';
 import { checkVictory } from './modes.ts';
 import { grantPage, movePage, pageHolder } from './recipes.ts';
 import { phoneCall } from './phone.ts';
@@ -355,7 +355,8 @@ export function openLavender(s: GameState): void {
   if (s.rank < LAVENDER.rank || s.lavender?.auction || !pageOnSale(s)) return;
   const first = !s.lavender;
   (s.lavender ??= {}).auction = { kind: 'page', closes: s.day + 1, min: LAVENDER.open };
-  if (first) s.news.push(`Skip Larkin: "Vera's old harp teacher is swapping her Hilltop estate for a houseboat, and she's auctioning the Lavender page! Sealed bids from ${money(LAVENDER.open)} close at dawn."`);
+  const who = inPlay(s, 'sourwood') ? "Vera's old harp teacher is swapping her Hilltop estate" : 'An old harp teacher is swapping her estate'; // a Sandbox without Vera (or the Hilltop)
+  if (first) s.news.push(`Skip Larkin: "${who} for a houseboat, and she's auctioning the Lavender page! Sealed bids from ${money(LAVENDER.open)} close at dawn."`);
 }
 
 function settlePage(s: GameState, rng: Rng): void {

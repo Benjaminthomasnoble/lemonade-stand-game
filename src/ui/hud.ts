@@ -31,7 +31,7 @@ import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
 import { recipeRow } from './recipes.ts';
 import { calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type WorldTab } from './calendar.ts';
-import { tripLines } from './trips.ts';
+import { raidersLine, tripLines } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
 import { keysPanel } from './keys.ts';
@@ -810,8 +810,9 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   function tonight(s: GameState) {
-    // Rival raids warn as they set out, on cards in the alert feed (src/ui/alerts.ts); the Ledger lists your own.
-    const out = tripLines(s);
+    // A raid on you tonight gets one line and one fix (trips.ts raidersLine); its card in the alert feed shows who and
+    // when as they set out (src/ui/alerts.ts). Then your own raids out, and squads walking home.
+    const out = [raidersLine(s), ...tripLines(s)].filter(Boolean);
     return out.length ? `<div class="cl-tonight">${out.join('')}</div>` : '';
   }
 

@@ -6,7 +6,8 @@ import {
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
 import * as A from './clay.ts';
-import { span, tripLines, tripNote } from './trips.ts';
+import { raidersLine, span, tripLines, tripNote } from './trips.ts';
+import { FACTIONS, likeliestTarget, onYou, type RivalId } from '../sim/economy.ts';
 import { footholdFor } from '../sim/fighters.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
@@ -177,6 +178,56 @@ describe('a sold-out card', () => {
       expect(alertCards(s)[0]).not.toContain('restockNow');
       expect(alertCards(s)[0]).toContain('data-action="goto"');
     }
+  });
+});
+
+describe("the Day's end card's raid line", () => {
+  /** Days 1-3 played to Day 3's closing: Night 3's first raid is planned. */
+  const night3 = () => {
+    const s = newGame(12);
+    for (let d = 1; d < 3; d++) { s.cash = Math.max(s.cash, 80); openStands(s); simulateRestOfDay(s); sleepUntilDawn(s); }
+    s.cash = Math.max(s.cash, 80);
+    openStands(s);
+    simulateRestOfDay(s);
+    return s;
+  };
+
+  it('no raid on you tonight: no line', () => {
+    const s = newGame(12);
+    openStands(s);
+    simulateRestOfDay(s);
+    expect(s.phase).toBe('report');
+    expect(raidersLine(s)).toBe('');
+  });
+
+  it("Night 3: raiders are on the way, with no gang, makeup or time, and one fix at the Corkboard's pin", () => {
+    const s = night3();
+    const raid = s.raids.find((r) => onYou(s, r))!;
+    expect(raid).toBeTruthy();
+    const pin = likeliestTarget(s, raid.attacker as RivalId)!;
+    s.cash = 1000;
+    const line = raidersLine(s);
+    expect(line).toContain('data-testid="raiders-tonight"');
+    expect(line).toContain('Raiders on the way tonight');
+    for (const tell of [FACTIONS[raid.attacker as RivalId].name, 'Blenders', clockText(raid.at!), clockText(raid.leave!), 'fists']) expect(line).not.toContain(tell);
+    expect(line.match(/data-testid="raiders-fix"/g)).toHaveLength(1); // one button
+    // No guards yet on Night 3: the fix is the pinned plot's first fence.
+    expect(line).toContain(`data-action="perimeter" data-plot="${pin.id}"`);
+    expect(line).toContain(`$${PERIMETERS[0].cost}`);
+    s.cash = 10;
+    expect(raidersLine(s)).toMatch(/data-testid="raiders-fix" disabled title="Needs \$/); // short of cash: shown, with the reason
+  });
+
+  it('a ready guard in the reserve is posted at the pin before any fence is bought', () => {
+    const s = night3();
+    const raid = s.raids.find((r) => onYou(s, r))!;
+    s.cash = 1000;
+    s.guards.push({ id: 'g1', name: 'Rosa Test', trait: 'Hothead', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 0 } as Guard);
+    const pin = likeliestTarget(s, raid.attacker as RivalId)!;
+    expect(raidersLine(s)).toContain(`data-action="post" data-id="g1" data-plot="${pin.id}"`);
+    s.guards[s.guards.length - 1].post = pin.id; // posted: the next fix is the fence wherever the pin is now
+    const next = likeliestTarget(s, raid.attacker as RivalId)!;
+    expect(raidersLine(s)).toContain(`data-action="perimeter" data-plot="${next.id}"`);
   });
 });
 

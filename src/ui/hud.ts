@@ -5,7 +5,7 @@
 // Buttons carry data-action and go through one listener.
 import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
-  averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, expressWindow, priceCeiling, topPriceMods,
+  averageStopChance, restockOn, BRAND_TIERS, canBuildStand, facilityLand, canBuyBrand, canBuyPlot, ceilingFor, expressWindow, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, standCost, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
   lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
@@ -871,7 +871,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(plotType(s, p));
       const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
-      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || p.type === 'hq' || ps.facility ? '' : buildButtons(s, id); // any level the rank has unlocked, paid at once
+      const stand = facilityLand(plotType(s, p)) || p.type === 'hq' || ps.facility ? '' : buildButtons(s, id); // any level the rank has unlocked, paid at once; a Field, Dock or Industrial lot takes facilities only
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // At night the card fences the stand; in the Evening it fences it and still takes an upgrade (the Ledger has the day);

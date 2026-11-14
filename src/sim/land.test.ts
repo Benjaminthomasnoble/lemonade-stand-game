@@ -588,6 +588,30 @@ describe('building stands', () => {
     give(s, next.id);
     expect(canBuildStand(s, next.id)).toEqual({ ok: false, why: 'Too late tonight: build tomorrow' });
   });
+
+  it('keeps Industrial lots for Bottling Works and Warehouses: no stand goes up there, retagged or not', () => {
+    const why = { ok: false, why: 'Industrial lots hold Bottling Works and Warehouses, not stands' };
+    const s = newGame(113);
+    Object.assign(s, { cash: 1e9, rank: 7 });
+    const lots = PLOTS.filter((p) => p.type === 'industrial' && !s.plots[p.id].owner); // Downtown Depot and the Old Cannery
+    expect(lots.length).toBeGreaterThan(0);
+    for (const p of lots) {
+      give(s, p.id);
+      for (const level of [1, 2, 3, 4, 5]) expect(canBuildStand(s, p.id, level)).toEqual(why);
+      expect(buildStand(s, p.id)).toBe(false);
+      expect(s.plots[p.id].stand).toBeNull();
+      expect(canBuildFacility(s, p.id, 'bottling')).toEqual({ ok: true }); // the land waits for the VIP engine
+      expect(canBuildFacility(s, p.id, 'warehouse')).toEqual({ ok: true });
+    }
+    // A Sandbox map short of Industrial land retags a street plot as one, and it is kept the same way.
+    const small = newGame(113, { mode: 'sandbox', map: 'small' });
+    const lot = Object.keys(small.settings.retag!).find((id) => small.settings.retag![id] === 'industrial')!;
+    expect(PLOTS.find((p) => p.id === lot)!.type).toBe('street');
+    give(small, lot);
+    Object.assign(small, { cash: 1e9, rank: 7 });
+    expect(canBuildStand(small, lot)).toEqual(why);
+    expect(canBuildFacility(small, lot, 'bottling')).toEqual({ ok: true });
+  });
 });
 
 describe('Fire Sale prices follow the land', () => {

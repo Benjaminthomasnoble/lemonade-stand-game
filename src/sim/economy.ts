@@ -1026,11 +1026,18 @@ export function buyPlot(s: GameState, plotId: string, quiet = false): boolean {
   return true;
 }
 
+/** Land kept for VIP facilities, never stands (spec: Plot types: Fields hold Helipads and Lemon Groves, Docks Piers,
+ * Industrial lots Bottling Works and Warehouses). A stand on the map's few Industrial lots would leave no ground for a
+ * Bottling Works, and with no bottles no chopper or ship ever loads. */
+const FACILITY_LAND: Partial<Record<string, string>> = { field: 'Fields hold helipads', dock: 'Docks hold piers', industrial: 'Industrial lots hold Bottling Works and Warehouses' };
+/** A Field, Dock or Industrial lot: no stand goes up on it. */
+export const facilityLand = (type: string): boolean => FACILITY_LAND[type] !== undefined;
+
 /**
- * Build a stand of any level your rank has unlocked straight onto an empty plot of yours that takes one (not a Field,
- * a Dock or a Trophy, and nothing built there), paying every step's cost at once (spec: "a Kiosk built on an empty
- * plot costs $150 + $400 + $3,500 = $4,050, paid at once"). Any hour of the day, the Evening too; not at night, when
- * repairs and rebuilds wait for the morning as well.
+ * Build a stand of any level your rank has unlocked straight onto an empty plot of yours that takes one (a Street,
+ * Prime or Landmark plot, never a Field, a Dock, an Industrial lot or a Trophy, and nothing built there), paying every
+ * step's cost at once (spec: "a Kiosk built on an empty plot costs $150 + $400 + $3,500 = $4,050, paid at once"). Any
+ * hour of the day, the Evening too; not at night, when repairs and rebuilds wait for the morning as well.
  */
 export function canBuildStand(s: GameState, plotId: string, level = 1): Blocker {
   const type = plotType(s, PLOT_BY_ID[plotId]); // a Sandbox map may have retagged it
@@ -1038,7 +1045,8 @@ export function canBuildStand(s: GameState, plotId: string, level = 1): Blocker 
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
   if (type === 'hq') return { ok: false, why: 'A Trophy holds only its HQ' }; // land: one building per plot, so it's never smashed, lapses or lost
   if (ps.stand) return { ok: false, why: 'There is already a stand here' };
-  if (type === 'field' || type === 'dock') return { ok: false, why: `${type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
+  const kept = FACILITY_LAND[type];
+  if (kept) return { ok: false, why: `${kept}, not stands` };
   if (ps.facility) return { ok: false, why: 'A facility is built here' };
   if (!STAND_LEVELS[level - 1]) return { ok: false, why: 'No such stand' };
   const gate = STAND_RANK_GATE[level - 1];

@@ -1,9 +1,9 @@
 // The pacing harness (spec: Economy and balance, "How the numbers were checked" and the pacing chart, docs/spec/pacing.csv).
 // A headless player plays a run through the game's public actions, the ones the HUD calls (buy a plot, build, upgrade,
 // hire, fence, raid, buy out, storm an HQ, take an order, bid), so it keeps working as the sim grows. It buys whatever
-// pays back fastest, keeps a fifth of its takings for security and raids rival stands at night. The run is then read
-// against the spec's targets: rank days and Domination, income by stage, security spend, raid losses, the VIP firsts and
-// share, lulls, Net Worth growth and the pacing chart.
+// pays back fastest, keeps a share of its takings for security (a quarter at first, tapering as the spec's does) and raids
+// rival stands at night. The run is then read against the spec's targets: rank days and Domination, income by stage,
+// security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the pacing chart.
 //   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v]
 // prints the report (tools/sim-report.ts). Pure: no DOM, no clock, no files.
 import {
@@ -107,15 +107,22 @@ const ABOUT_GAP = 0.15; // the Rank 8 to Rank 9 gap on the reference map, as its
 
 // ---------- the player ----------
 
-const SECURITY_CUT = 0.2; // a fifth of each day's takings goes to security
+/** The share of each day's takings set aside for security: the middle of the spec's share for that stretch (a quarter in
+ * the first two weeks, then 21%, 15% and 5%), as security tapers off while the business grows. */
+const securityCut = (day: number) => {
+  const sh = SECURITY_SHARE.find((x) => day >= x.from && day <= x.to) ?? SECURITY_SHARE[SECURITY_SHARE.length - 1];
+  return (sh.lo + sh.hi) / 2;
+};
 const SECURITY_POT_DAYS = 1.5; // the security money held back at most: this many days of takings (the rest grows the business)
 const MAX_PAYBACK = 45; // days: nothing slower is worth buying
 const MAX_BUYS = 12; // purchases a morning
+const SAVE_DAYS = 2; // days of takings the player will save for a buy that pays back faster than anything it can afford
 const PLOT_CANDIDATES = 24; // open plots weighed each morning, busiest first
 const RAID_ODDS = 0.6; // a squad goes out only when it should win
 const ODDS_RUNS = 16; // the Planner's dice, cut down so a run stays quick
 const DOMINATION_RANK = 8; // from here the player buys toward a Majority in every district
 const STAND_TYPES = ['street', 'prime', 'landmark', 'industrial'];
+const WAREHOUSE_RUNS = 0.02; // a Warehouse's market runs, as a share of its district's stand profit: the sell-outs it saves (a guess)
 
 export interface DayRow {
   day: number; rank: number; netWorth: number; score: number; cash: number;
@@ -134,7 +141,7 @@ export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: numb
 
 interface Buy { what: string; cost: number; gain: number; plot: string; level?: number; upgrade?: boolean; run: () => boolean }
 interface Bot {
-  sec: number; // the security money on hand: a fifth of the takings, less wages and repairs; hires, fences and Clubhouses come off it
+  sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
   takings: number[]; // the last week's takings
   paybacks: Record<number, number[]>;
@@ -229,15 +236,15 @@ function growthCandidates(s: GameState, budget: number): Buy[] {
 
 /** The VIP engine's average day: the bottles you make, sold best-paying first (ships and Supply Deals, then choppers, then
  * Caterer Trucks) to what the offers ask for and your Pier and Pad can load, less a bottle's cost each. Rough: offers
- * come and go, and a tier waits for its rank and stars. */
-function vipDay(s: GameState, bottles: number, heli: number, ship: number): number {
+ * come and go, and a tier waits for its rank and stars. `ware`: a Warehouse stands (the Caterer Trucks' gate). */
+function vipDay(s: GameState, bottles: number, heli: number, ship: number, ware = lineLevel(s, 'warehouse') > 0): number {
   const open = (t: OrderTier) => s.rank >= ORDER_TIERS[t].rank && s.reputation >= ORDER_TIERS[t].stars;
   const asked = (t: OrderTier, size: [number, number]) => (open(t) ? (ORDER_TIERS[t].chance * (size[0] + size[1])) / 2 : 0);
   const deal = ship >= 3 && open('deal') ? ORDER_TIERS.deal.size[0] / ORDER_TIERS.deal.days : 0; // a Supply Deal's bottles over its weeks
   const lines: [number, OrderTier][] = [
     [ship ? Math.min(asked('ship', SHIP_SIZES[ship - 1]) + deal, LOADING_PER_DAY.pier[ship - 1]) : 0, 'ship'],
     [heli ? Math.min(asked('heli', HELI_SIZES[heli - 1]), LOADING_PER_DAY.helipad[heli - 1]) : 0, 'heli'],
-    [lineLevel(s, 'warehouse') ? asked('caterer', ORDER_TIERS.caterer.size) : 0, 'caterer'], // Caterer Trucks need a Warehouse, which the bot doesn't build yet
+    [ware && bottles > 0 ? asked('caterer', ORDER_TIERS.caterer.size) : 0, 'caterer'], // Caterer Trucks need a Bottling Works and a Warehouse
   ];
   let left = bottles, day = 0;
   for (const [want, t] of lines.sort((a, b) => ORDER_TIERS[b[1]].pay - ORDER_TIERS[a[1]].pay)) {
@@ -250,8 +257,9 @@ function vipDay(s: GameState, bottles: number, heli: number, ship: number): numb
 const lineLevel = (s: GameState, kind: FacilityKind) =>
   Math.max(0, ...PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked).map((p) => s.plots[p.id].facility!.level));
 
-/** The VIP engine as the ranks open it: a Bottling Works, a Pad and a Jetty, two Lemon Groves, each grown a level at a
- * time, weighed by what it adds to the engine's day (vipDay; a Grove: +5% at every stand). A site is land of yours, land
+/** The VIP engine as the ranks open it: a Bottling Works, a Pad and a Jetty, two Lemon Groves and a Warehouse, each grown a
+ * level at a time, weighed by what it adds to the engine's day (vipDay; a Grove: +5% at every stand; a Warehouse: the
+ * Caterer Trucks, and WAREHOUSE_RUNS of its district's stands' day for the market runs). A site is land of yours, land
  * for sale, or a rival's plot bought out; a rival's plot that already holds one comes with it at its level (every Field
  * on Citrine Bay starts as Hollis's Grove or Sourwood's Pad, every Dock as FizzCo's or Sourwood's), and a Lemon Grove of
  * yours makes way for a Pad (buildFacility), so a Field bought out from Hollis is a Pad site too. */
@@ -260,13 +268,15 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
   const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && canPlotBuyout(s, id).ok;
   const now = { bottles: bottlingCapacity(s), heli: lineLevel(s, 'helipad'), ship: lineLevel(s, 'pier') };
   const base = vipDay(s, now.bottles, now.heli, now.ship);
+  const runs = (id: string) => WAREHOUSE_RUNS * ownStands(s).filter((p) => p.district === PLOT_BY_ID[id].district).reduce((a, p) => a + standProfit(s, p.id, typical()), 0);
   const made = (l: number) => (l ? BOTTLES_PER_DAY[l - 1] : 0);
   const adds = (kind: FacilityKind, from: number, to: number) =>
     kind === 'grove' ? (from ? 0 : 0.05 * ownStands(s).reduce((a, p) => a + standProfit(s, p.id, typical()), 0))
       : kind === 'bottling' ? vipDay(s, now.bottles + made(to) - made(from), now.heli, now.ship) - base
         : kind === 'helipad' ? vipDay(s, now.bottles, Math.max(now.heli, to), now.ship) - base
-          : vipDay(s, now.bottles, now.heli, Math.max(now.ship, to)) - base;
-  for (const kind of ['bottling', 'helipad', 'pier', 'grove'] as FacilityKind[]) {
+          : kind === 'warehouse' ? vipDay(s, now.bottles, now.heli, now.ship, true) - base
+            : vipDay(s, now.bottles, now.heli, Math.max(now.ship, to)) - base;
+  for (const kind of ['bottling', 'helipad', 'pier', 'grove', 'warehouse'] as FacilityKind[]) {
     const f = FACILITIES[kind];
     const have = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked);
     for (const p of have) {
@@ -287,7 +297,8 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
       .map((p) => {
         const ps = s.plots[p.id];
         const price = ps.owner === 'player' ? 0 : !ps.owner ? (canBuyPlot(s, p.id).ok ? plotPrice(s, p.id) : Infinity) : theirs(p.id) ? plotBuyoutPrice(s, p.id) : Infinity;
-        return { p, price, gain: adds(kind, 0, 1) - (ps.owner === 'player' && ps.facility ? adds('grove', 0, 1) : 0) }; // your Grove's 5% goes
+        const where = kind === 'warehouse' ? runs(p.id) : 0; // its market runs: the district's stands
+        return { p, price, gain: adds(kind, 0, 1) + where - (ps.owner === 'player' && ps.facility ? adds('grove', 0, 1) : 0) }; // your Grove's 5% goes
       }).filter((x) => x.price < Infinity && x.gain > 0 && x.price + f.costs[0] <= budget)
       .sort((a, b) => (a.price + f.costs[0]) / a.gain - (b.price + f.costs[0]) / b.gain);
     const site = sites[0];
@@ -402,10 +413,17 @@ function morning(s: GameState, bot: Bot): void {
     if (bid <= budget / 2 && canBid(s, lot, bid).ok && placeBid(s, lot, bid)) { budget -= bid; bot.log?.(`        bid: ${money(bid)} on ${lot}`); }
   }
   const used = new Set<string>();
-  const buys = [...facilityCandidates(s, budget), ...growthCandidates(s, budget)].sort((a, b) => a.cost / a.gain - b.cost / b.gain);
+  // Saving up: the best buy within a couple of days' takings, if it doesn't fit today, bars anything slower to pay back
+  // (a $400 Wooden Stand that pays back in 2 days beats $100 of signs that take 13).
+  const daily = weekTakings(bot) || ownStands(s).reduce((a, p) => a + standProfit(s, p.id, typical()), 0); // Day 1: what the stands should make
+  const reach = budget + SAVE_DAYS * daily;
+  const buys = [...facilityCandidates(s, reach), ...growthCandidates(s, reach)].sort((a, b) => a.cost / a.gain - b.cost / b.gain);
+  const goal = buys.find((b) => b.cost / b.gain <= MAX_PAYBACK);
+  const bar = goal && goal.cost > budget ? goal.cost / goal.gain : MAX_PAYBACK;
+  if (goal && bar < MAX_PAYBACK) bot.log?.(`        saving for: ${goal.what} ${money(goal.cost)}, pays back in ${bar.toFixed(1)} days`);
   let n = 0;
   for (const b of buys) {
-    if (n >= MAX_BUYS || b.cost / b.gain > MAX_PAYBACK) break;
+    if (n >= MAX_BUYS || b.cost / b.gain > bar) break;
     if (b.cost > budget || (b.plot && used.has(b.plot))) continue;
     const before = s.cash;
     if (!b.run()) continue;
@@ -424,7 +442,7 @@ function morning(s: GameState, bot: Bot): void {
 function evening(s: GameState, bot: Bot): void {
   fixUp(s);
   const b = s.today.books ?? {};
-  bot.sec += SECURITY_CUT * ((b.sales ?? 0) + (b.orders ?? 0)) + (b.wages ?? 0) + (b.repairs ?? 0) + (b.gear ?? 0); // rows: − out
+  bot.sec += securityCut(s.day) * ((b.sales ?? 0) + (b.orders ?? 0)) + (b.wages ?? 0) + (b.repairs ?? 0) + (b.gear ?? 0); // rows: − out
   if (s.rank < RAID_RANK) return;
   const ready = s.guards.filter((g) => guardReady(s, g)).sort((x, y) => Number(!!x.post) - Number(!!y.post)); // the reserve first
   // A Weakened rival's HQ: an HQ Assault from the Raid Planner tonight, with a full squad, when its odds are good.

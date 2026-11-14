@@ -24,7 +24,7 @@ import { backOnGuard, fitGarrison, knockOut } from './garrison.ts';
 import { joinFight } from './fight.ts';
 import { porchLit } from './perks.ts'; // Porch Light on the guards who answer the bell
 import { travelMinutes } from './night.ts';
-import type { Rng } from './rng.ts';
+import { nextRandom, type Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
 
 /** Game minutes from a Clubhouse to a plot: 30 within its district, 60 from a bordering one, null out of range
@@ -129,10 +129,10 @@ export interface RivalHelp { from: string; minutes: number; fighters: Fighter[] 
 
 /**
  * Who a rival sends when it spots your raid on one of its plots (RIVAL_HELP): half the garrison of each of its other
- * plots and its HQ in the same or a bordering district, nearest first, up to the cap by Threat. They walk over from
- * their plot (travelMinutes), and fight as they stand guard there: in their plot's kit (crew.ts garrisonHenchman), an
- * HQ's at the HQ's own strength, as its Gate is held (rivals.ts hqStageInput). An undetected raid gets no help. Draws
- * the henchmen's weapons from rng.
+ * plots and its HQ in the same or a bordering district, nearest first, up to the cap by Threat (its fraction is the
+ * chance of one more). They walk over from their plot (travelMinutes), and fight as they stand guard there: in their
+ * plot's kit (crew.ts garrisonHenchman), an HQ's at the HQ's own strength, as its Gate is held (rivals.ts hqStageInput).
+ * An undetected raid gets no help. Draws that chance, when someone could come, and the henchmen's weapons from rng.
  */
 export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
   const rival = s.plots[raid.target]?.owner;
@@ -142,7 +142,9 @@ export function rivalHelpFor(s: GameState, raid: Raid, rng: Rng): RivalHelp[] {
     .filter((p) => p.id !== raid.target && s.plots[p.id].owner === rival && (p.district === to || BORDERS[to].includes(p.district)))
     .map((p) => ({ id: p.id, minutes: travelMinutes(s, p.id, raid.target) }))
     .sort((a, b) => a.minutes - b.minutes || a.id.localeCompare(b.id));
-  let room = RIVAL_HELP.cap[threatLevel(s) - 1] ?? 0;
+  if (!near.some(({ id }) => Math.floor(fitGarrison(s, id) * RIVAL_HELP.share) > 0)) return []; // nobody to send: no draw
+  const cap = RIVAL_HELP.cap[threatLevel(s) - 1] ?? 0, more = cap - Math.floor(cap);
+  let room = Math.floor(cap) + (more > 0 && nextRandom(rng) < more ? 1 : 0);
   const out: RivalHelp[] = [];
   for (const { id, minutes } of near) {
     const n = Math.min(room, Math.floor(fitGarrison(s, id) * RIVAL_HELP.share));

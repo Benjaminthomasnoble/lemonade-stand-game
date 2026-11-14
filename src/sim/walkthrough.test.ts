@@ -237,9 +237,10 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(SQUAD.length * (WEAPONS.clubs.cost + GEAR.vest.cost)).toBe(1750);
   });
 
-  // Measured: unscouted, the Planner tries the Kiosk fully kitted for an L3 stand (a Picket Fence, a Tin-Can Alarm, a
-  // Guard Goose and 3 henchmen: its rival's row, and what it has) and bare, and reads 53–100% (the scouted 53% below
-  // to bare). The five beat anything short of 3 henchmen: 2 behind the fence still leave them 90%.
+  // Measured: unscouted, the Planner tries the Kiosk in its rival's kit a size up and a size down, help counted, and
+  // reads 0–100% (0–99.8% over 400 runs). A size up (L4) is a Chain-Link Fence, and 500 HP of fence alone holds the
+  // five off every time; a size down (L2: a Picket Fence, a Tin-Can Alarm, 3 henchmen with fists or clubs) barely
+  // slows them. Their own row, which the Kiosk has, is the scouted 80% below.
   it.fails('unscouted, the Planner reads 40–85% (crew: raid-planner-unscouted-ranges)', () => {
     const { s, kiosk } = day24();
     const [lo, hi] = raidOddsRange(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true);
@@ -260,12 +261,12 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(scoutedSnapshot(s, kiosk)).toMatchObject({ tier: 1, gadgets: ['alarm', 'goose'], garrison: 3, until: s.day + 2 });
   });
 
-  // Measured: the Planner reads 53% (61% over 400 runs). Each of its runs fights its own draw of the garrison the sim
-  // posts at a rival L3 Kiosk (crew's kit row: 3 Bros with clubs at 18 a hit, no vests) and rolls the 55% detection;
-  // a raid that's spotted loses its first strike (84% of 400 won) and also meets the help the Blenders send from their
-  // other Boardwalk plots (1 from their L2 stand next door, in its kit: fists or clubs at even odds, there by contact).
-  // Unseen, as the walkthrough has it, the squad wins all 400 (see raidInput below).
-  it.fails('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
+  // The Planner reads 80% (83% over 400 runs). Each of its runs fights its own draw of the garrison the sim posts at a
+  // rival L3 Kiosk (crew's kit row: 3 Bros with clubs at 18 a hit, no vests) and rolls the 55% detection. A raid that's
+  // spotted loses its first strike (83% won), and about one time in three (RIVAL_HELP at Threat 2) also meets one
+  // henchman sent from the Blenders' L2 stand next door, there by contact (26% won): spotted, it wins 66%. Unseen, as
+  // the walkthrough has it, the squad wins all 400 (see raidInput below).
+  it('scouted (Picket Fence, Tin-Can Alarm, Guard Goose, 3 Bros), the win chance settles at 81%', () => {
     const { s, kiosk } = day24();
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true), 0.81, 0.05);
   });
@@ -282,7 +283,7 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
       if (raid.help) helped++;
       if (runBattle(input, rng).winner === 'att') won++;
     }
-    expect(helped).toBeGreaterThan(100); // most spotted raids meet help
+    expect(helped).toBeGreaterThan(40); // about one spotted raid in three meets help
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 

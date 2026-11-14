@@ -281,9 +281,9 @@ describe('rivals send help', () => {
   const bare = () => ({ attackers: [], defenders: [], perimeter: 0, fenceHp: 0, gadgets: [], standHp: 0, objective: 'smash' as const, detected: true });
 
   it('a spotted raid brings half the garrison of their plots nearby, up to the cap by Threat', () => {
-    for (const [garrison, rank, want] of [[4, 6, 2], [6, 6, 2], [3, 6, 1], [1, 6, 0], [6, 10, 3], [6, 1, 1]]) {
+    for (const [garrison, rank, want] of [[4, 6, 2], [6, 6, 2], [3, 6, 1], [1, 6, 0], [6, 10, 3]]) {
       const { s, target, near } = spotted(garrison, rank);
-      expect(RIVAL_HELP.cap[threatLevel(s) - 1]).toBe(rank === 10 ? 3 : rank === 6 ? 2 : 1);
+      expect(RIVAL_HELP.cap[threatLevel(s) - 1]).toBe(rank === 10 ? 3 : 2);
       const r = raidOn(s, target, 600);
       const input = sendHelp(s, r, bare(), { seed: 1 });
       expect(input.defenders).toHaveLength(want);
@@ -291,6 +291,24 @@ describe('rivals send help', () => {
       expect(r.help ?? []).toEqual(want ? [{ from: near, ids: input.defenders.map((f) => f.id) }] : []);
       if (want) expect(s.news.at(-1)).toBe(`Spotted! The Boardwalk Blenders send ${want} to ${name(target)}.`);
     }
+  });
+
+  it('at Threats 1–2 one helper comes to about one spotted raid in three, never more', () => {
+    let helped = 0;
+    for (const rank of [1, 3]) {
+      for (let seed = 1; seed <= 200; seed++) {
+        const { s, target, near } = spotted(6, rank);
+        expect(RIVAL_HELP.cap[threatLevel(s) - 1]).toBe(0.3);
+        const r = raidOn(s, target, 600);
+        const n = sendHelp(s, r, bare(), { seed }).defenders.length;
+        expect(n).toBeLessThanOrEqual(1);
+        expect(s.plots[near].garrison).toBe(6 - n);
+        if (n) expect(s.news.at(-1)).toBe(`Spotted! The Boardwalk Blenders send 1 to ${name(target)}.`);
+        helped += n;
+      }
+    }
+    expect(helped / 400).toBeGreaterThan(0.25);
+    expect(helped / 400).toBeLessThan(0.35);
   });
 
   it('they walk over from their plot: there by contact they start in the fight, else they join as they arrive', () => {

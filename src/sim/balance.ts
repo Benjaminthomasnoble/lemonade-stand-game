@@ -717,9 +717,11 @@ export const RIVAL_KIT: { fence: number; gadgets: GadgetId[]; level: number; wea
 /**
  * A rival who spots your raid sends help (spec: "the defender sees the ETA and sends help"; no numbers): each of its
  * other plots and its HQ in the same or a bordering district sends this share of its garrison (rounded down), nearest
- * first, up to `cap` henchmen by Threat. Placeholders: spec gap.
+ * first, up to `cap` henchmen by Threat. A fraction is the chance of one more, drawn for each spotted raid: 0.3 at
+ * Threats 1–2 sends one helper about one time in three (combat: one helper there by contact took the spotted Day 24
+ * Shakedown from 83% to 26%). Placeholders: spec gap.
  */
-export const RIVAL_HELP = { share: 0.5, cap: [1, 1, 2, 2, 3] };
+export const RIVAL_HELP = { share: 0.5, cap: [0.3, 0.3, 2, 2, 3] };
 /**
  * Dex's Auto-Defend (Rank 4): each plot's priority runs 0 (the default: left to the bell) to `top` (placeholder: the
  * spec names no scale). He fills a plot's guard posts as crew's postsFor counts them.

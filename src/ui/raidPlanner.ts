@@ -49,7 +49,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
   // Unscouted, the needle sits at the worst case and the dial reads the range (spec: "40–85%").
   const dial = (r: Odds) => (pct(r[0]) === pct(r[1])
     ? `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="${pct(r[0])}% to win"><i></i></span><b class="cl-odds">${oddsWord(r[0])}</b>`
-    : `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="Not scouted: ${pct(r[0])}% if it is fully kitted, ${pct(r[1])}% if it is bare"><i></i></span><b class="cl-odds" data-testid="raid-odds-range">${chance(r)}</b>`);
+    : `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="Not scouted: ${pct(r[0])}% if kitted a size up, ${pct(r[1])}% a size down"><i></i></span><b class="cl-odds" data-testid="raid-odds-range">${chance(r)}</b>`);
 
   /** The squad is exactly these guards. */
   const holds = (ids: string[]) => ids.length === squad.size && ids.every((i) => squad.has(i));

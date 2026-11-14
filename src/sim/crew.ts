@@ -578,20 +578,22 @@ export function raidParty(s: GameState, rival: RivalId, threat: number, rng: Rng
   return Array.from({ length: n }, (_, i) => henchman(s, rival, threat, rng, i, 'att'));
 }
 
+/** One row of RIVAL_KIT: what a rival builds up on a plot of one size. */
+export type KitRow = (typeof RIVAL_KIT)[number];
 /** The kit row a rival plot builds toward: its stand's level, or a facility's tier + 2. */
-export const rivalKit = (ps: PlotState) => RIVAL_KIT[Math.min(5, Math.max(1, ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1))) - 1];
+export const rivalKit = (ps: PlotState): KitRow => RIVAL_KIT[Math.min(5, Math.max(1, ps.stand?.level ?? (ps.facility ? ps.facility.level + 2 : 1))) - 1];
 
-/** A rival plot's defenders: its garrison fit to fight (the knocked-out are Out; never more than its posts), armed and padded as its kit row says. */
-function garrisonFighters(s: GameState, plotId: string, rng: Rng): Fighter[] {
-  return Array.from({ length: Math.min(fitGarrison(s, plotId), postsFor(s, plotId)) }, (_, i) => garrisonHenchman(s, plotId, rng, i));
+/** A rival plot's defenders: its garrison fit to fight (the knocked-out are Out; never more than its posts), armed and
+ * padded as its kit row says (`kit`: another row, as the Raid Planner guesses at a plot it hasn't scouted). */
+function garrisonFighters(s: GameState, plotId: string, rng: Rng, kit?: KitRow): Fighter[] {
+  return Array.from({ length: Math.min(fitGarrison(s, plotId), postsFor(s, plotId)) }, (_, i) => garrisonHenchman(s, plotId, rng, i, kit));
 }
 
 /** One of a rival plot's garrison as they fight: armed (weapon drawn from rng), padded and levelled as the plot's kit
  * row says. Who stands guard there, and who it sends as help to a plot nearby (reinforce.ts rivalHelpFor). */
-export function garrisonHenchman(s: GameState, plotId: string, rng: Rng, i: number): Fighter {
+export function garrisonHenchman(s: GameState, plotId: string, rng: Rng, i: number, kit: KitRow = rivalKit(s.plots[plotId])): Fighter {
   const ps = s.plots[plotId];
   const rival = ps.owner as RivalId;
-  const kit = rivalKit(ps);
   const m = 1 + 0.1 * (kit.level - 1);
   const r = nextRandom(rng);
   const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
@@ -656,16 +658,16 @@ export function rivalDefenseSpend(s: GameState, id: RivalId, purse: GuardPurse):
   }
 }
 
-function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng, foe?: FactionId): Fighter[] {
+function defendersAt(s: GameState, plotId: string, night: boolean, away: Set<string>, rng: Rng, foe?: FactionId, kit?: KitRow): Fighter[] {
   const ps = s.plots[plotId];
   if (ps.owner === 'player') return squadFighters(s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g)), 'def', night, foe);
-  return garrisonFighters(s, plotId, rng);
+  return garrisonFighters(s, plotId, rng, kit);
 }
 
-function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng): BattleInput {
+function battleInput(s: GameState, raid: Raid, attackers: Fighter[], night: boolean, away: Set<string>, rng: Rng, kit?: KitRow): BattleInput {
   const ps = s.plots[raid.target];
   return tipsInFight(s, raid, night, { // Lottie's fighting tips (perks.ts)
-    attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng, raid.attacker), night),
+    attackers, defenders: withDex(s, raid, defendersAt(s, raid.target, night, away, rng, raid.attacker, kit), night),
     perimeter: ps.defense.tier, fenceHp: ps.defense.fenceHp, gadgets: armedGadgets(ps),
     standHp: currentHp(ps), objective: raid.objective, detected: raid.detected,
   });
@@ -841,8 +843,9 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[], object
 /** The Planner's own dice for a plot: the same plot and squad read the same odds from one day to the next. */
 const oddsSeed = (plotId: string) => [...plotId].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0, 0x811c9dc5);
 
-/** Defenses the Raid Planner can't see, as it tries them: a fence tier (0 for none), gadgets and a garrison fit to fight. */
-export interface DefenseGuess { tier: number; gadgets: GadgetId[]; garrison: number }
+/** Defenses the Raid Planner can't see, as it tries them: a fence tier (0 for none), gadgets, a garrison fit to fight,
+ * and the kit row the garrison is armed and padded from (the plot's own if left out). */
+export interface DefenseGuess { tier: number; gadgets: GadgetId[]; garrison: number; kit?: KitRow }
 
 /**
  * Estimated win chance for the Raid Planner (night or now): the raid fought many times, each against its own draw
@@ -865,7 +868,7 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
     const lead = travelMinutes(s, squadHome(s, plotId, guardIds), plotId); // spotted as it sets out: the warning comes this far ahead
     return winChance((rng) => {
       const raid: Raid = { id: 'odds', attacker: 'player', target: plotId, objective: fightObjective(objective), detected: nextRandom(rng) < seen, eta: '' };
-      return withRivalHelp(battleInput(s, raid, squad, night, new Set(), rng), rivalHelpFor(s, raid, rng), lead);
+      return withRivalHelp(battleInput(s, raid, squad, night, new Set(), rng, guess?.kit), rivalHelpFor(s, raid, rng), lead);
     }, oddsSeed(plotId), runs);
   } finally {
     ps.defense = keep.defense;
@@ -875,14 +878,18 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
   }
 }
 
-/** The win chance on a plot nobody has scouted, as a range (spec: Raid Planner, "the win chance shows as a range"): from
- * fully kitted for its size (the fence and gadgets its rival builds toward, every post filled) to bare. The real odds
- * always fall inside it, whatever the rival has done to the plot. */
+/** The win chance on a plot nobody has scouted, as a range (spec: Raid Planner, "the win chance shows as a range"): its
+ * rival's kit row one size up to one size down from the plot's own (the fence, the gadgets that fit and every post
+ * filled, armed and padded as that row says), never bare: a rival plot always has at least its row's fence. The help a
+ * spotted raid meets counts in each, and the real odds always fall inside, whatever the rival has done to the plot. */
 export function raidOddsRange(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): [number, number] {
   const ps = s.plots[plotId];
-  const kit = rivalKit(ps);
-  const full: DefenseGuess = { tier: kit.fence, gadgets: kit.gadgets.slice(0, GADGET_SLOTS(ps.stand?.level ?? 1)), garrison: postsFor(s, plotId) };
-  const odds = [raidOdds(s, plotId, guardIds, objective, night, runs), ...[full, { tier: 0, gadgets: [], garrison: 0 }].map((g) => raidOdds(s, plotId, guardIds, objective, night, runs, g))];
+  const own = RIVAL_KIT.indexOf(rivalKit(ps));
+  const row = (i: number): DefenseGuess => {
+    const kit = RIVAL_KIT[Math.max(0, Math.min(RIVAL_KIT.length - 1, i))];
+    return { tier: kit.fence, gadgets: kit.gadgets.slice(0, GADGET_SLOTS(ps.stand?.level ?? 1)), garrison: postsFor(s, plotId), kit };
+  };
+  const odds = [raidOdds(s, plotId, guardIds, objective, night, runs), ...[row(own + 1), row(own - 1)].map((g) => raidOdds(s, plotId, guardIds, objective, night, runs, g))];
   return [Math.min(...odds), Math.max(...odds)];
 }
 

@@ -70,14 +70,14 @@ function handshake(s: GameState): void {
 // ---------- Act 3: the night flight ----------
 
 /**
- * The morning after Cold Brew's first raid on you in Act 3 (their Night Shift: quiet night raids, src/sim/rivalAi.ts),
- * Squawk's night flight unmasks the baristas and Juni calls (the scene's follow-up). If Cold Brew hasn't hit you a
- * week in, Juni calls anyway.
+ * The morning after Juni's first Night Shift on you in Act 3 (a Cold Brew Sabotage raid: crew.ts maybeSabotage),
+ * Squawk's night flight unmasks the baristas, Lottie teaches your own Sabotage, and Juni calls (the scene's
+ * follow-up). If Cold Brew hasn't sabotaged you a week in, Juni calls anyway.
  */
 function nightFlight(s: GameState): void {
   const st = s.story!;
   if (st.act !== 3 || !s.rivals.coldbrew.alive || queued(s, 'nightFlight')) return;
-  if (s.battles.some((b) => b.day >= s.day - 1 && b.attacker === 'coldbrew' && b.defender === 'player')) playScene(s, 'nightFlight');
+  if (s.battles.some((b) => b.day >= s.day - 1 && b.attacker === 'coldbrew' && b.defender === 'player' && b.sabotage)) playScene(s, 'nightFlight');
   else if (s.day >= st.since + JUNI_CALLS_BY) {
     s.scenes!.seen.push('nightFlight');
     phoneCall(s, 'coldbrew', LINES.juniAct3, { priority: CALL_PRIORITY.story });

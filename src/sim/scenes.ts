@@ -131,16 +131,18 @@ export const SCENES: Record<string, SceneDef> = {
     ],
     recap: "Mayor Fontaine delivered one of Vera's fines.",
   },
-  // Act 3's night flight (src/sim/beats.ts): the morning after Cold Brew's first raid on you, Captain Squawk tells
-  // what he saw at 3 a.m. (captions: the world's Gull Flight isn't staged for it), then Juni calls.
+  // Act 3's night flight (src/sim/beats.ts): the morning after Juni's first Night Shift on you (a Cold Brew Sabotage),
+  // Captain Squawk tells what he saw at 3 a.m. (captions: the world's Gull Flight isn't staged for it), Lottie teaches
+  // your own Sabotage (crew.ts canSabotage), then Juni calls.
   nightFlight: {
-    seconds: 14,
+    seconds: 17,
     lines: [
       { who: 'Captain Squawk', text: 'SQUAWK! Three a.m.! Beanies at your stand!', at: 0.5 },
       { who: 'Captain Squawk', text: 'Tiny paper cups! Tiny mustaches! Baristas!', at: 4.6 },
       { who: 'Lottie', text: 'Cold Brew. I should have smelled the oat milk.', at: 8.8 },
+      { who: 'Lottie', text: 'Two can play, kid. Send a Lookout or a Sneaky one to spoil theirs.', at: 12.2 },
     ],
-    recap: 'Captain Squawk caught Cold Brew baristas in beanies at your stand at 3 a.m.',
+    recap: 'Captain Squawk caught Cold Brew baristas in beanies at your stand at 3 a.m. Sabotage theirs back: it takes a Lookout or a Sneaky guard.',
     call: { who: 'coldbrew', line: 'juniAct3' },
   },
   // A record day's closing (story.ts recordDay): Marisol Vega brings the Ledger round. story.ts puts in the real percentage.

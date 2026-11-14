@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
-  seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
+  SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   LAVENDER, pageHolder, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
@@ -610,14 +610,20 @@ describe('Act 3: the handshake and the night flight', () => {
     expect(sandbox.story?.offer).toBeUndefined();
   });
 
-  it("the morning after Cold Brew's first raid on you, Squawk's night flight plays and then Juni calls", () => {
+  it("the morning after Juni's first Night Shift on you (a Sabotage), Squawk's night flight plays, Lottie teaches Sabotage, then Juni calls", () => {
     const s = act3(105, 1);
-    s.battles.unshift({ ...tutorialRaid(s), attacker: 'coldbrew' });
+    s.scenes!.seen.push('steward'); // Act 1's Day 3 visit, long past
+    s.battles.unshift({ ...tutorialRaid(s), attacker: 'coldbrew' }); // a plain raid of hers: no flight
+    nextDawn(s);
+    expect(s.scenes!.queue.some((q) => q.id === 'nightFlight')).toBe(false);
+    s.battles.unshift({ ...tutorialRaid(s), attacker: 'coldbrew', sabotage: true, day: s.day });
     nextDawn(s);
     expect(sceneReady(s)).toBe(true);
     const sc = beginScene(s)!;
     expect(sc.id).toBe('nightFlight');
     expect(sc.lines[0]).toMatchObject({ who: 'Captain Squawk', text: 'SQUAWK! Three a.m.! Beanies at your stand!' });
+    expect(sc.lines.at(-1)).toMatchObject({ who: 'Lottie', text: expect.stringMatching(/Lookout or a Sneaky/) }); // your own Sabotage (crew.ts SABOTAGE_NEEDS)
+    expect(SABOTAGE_NEEDS).toMatch(/Lookout or a Sneaky guard/);
     endScene(s, false);
     expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniAct3)).toBe(true);
     const quiet = act3(106, JUNI_CALLS_BY - 1); // no raid of hers a week in: she calls anyway

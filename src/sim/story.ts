@@ -42,6 +42,8 @@ export interface StoryState {
   tribute?: number;
   /** Act 4's first chopper and first ship: the scripted offers' ids ('' when an older save had its first already), the day Juni last tipped you off about the pad, the last day the ship's contract was in your Order Book, and its docking. */
   vip?: { heli?: string; ship?: string; tip?: number; booked?: number; docked?: boolean };
+  /** Act 4's lawyers (src/sim/beats.ts): the dawn FizzCo's Cease-and-Desist on Downtown taught the lesson. */
+  lawyers?: number;
   /** Dex Moody has joined (every mode): once a run, so nothing brings a fresh Dex back. */
   dexJoined?: boolean;
   /** The tone guide's lines on triggers that exist: the day Dex last shouted at Honkers the goose, and the best day's profit so far (Marisol's record days). */
@@ -177,6 +179,9 @@ export function migrateStory(s: GameState): void {
   // first. (vip.ts sets lastOffer the dawn a tier opens, before any call, so that alone is no sign of one.)
   const had = (tier: 'heli' | 'ship') => [...(s.offers ?? []), ...(s.orders ?? [])].some((o) => o.tier === tier);
   s.story.vip ??= { ...(had('heli') ? { heli: '' } : {}), ...(had('ship') ? { ship: '' } : {}) };
+  // A save from before Act 4's scripted letter: a Cease-and-Desist on Downtown still on the books already taught it.
+  const letter = s.story.lawyers === undefined ? s.schemes?.find((x) => x.kind === 'cease' && x.district === 'downtown') : undefined;
+  if (letter) s.story.lawyers = letter.day;
   if (s.guards.some((g) => g.name === 'Dex Moody')) s.story.dexJoined = true;
   if (s.story.bestDay === undefined && s.history.length) s.story.bestDay = Math.max(...s.history.map(dayProfit)); // older saves: the best day on the books
   migrateScenes(s);

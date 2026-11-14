@@ -8,7 +8,8 @@
 // Squawk tells what he saw at 3 a.m., and Juni calls. The first chopper: a
 // movie star's pool party wants 4,000 bottles of Pink, and Juni warns that
 // FizzCo will hit the pad (the Delivery Raids lesson). The first ship: the
-// Regatta's flagship, and Lottie blames the wind. Pure, like the rest of the sim.
+// Regatta's flagship, and Lottie blames the wind. The lawyers: FizzCo's
+// Cease-and-Desist on your Downtown ads. Pure, like the rest of the sim.
 import { FACTIONS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { alert } from './alerts.ts';
@@ -17,6 +18,7 @@ import { CALL_PRIORITY, juniInforms, LINES, phoneCall } from './phone.ts';
 import { ownsRecipe, pageHolder } from './recipes.ts';
 import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.ts';
 import { playScene, queued } from './scenes.ts';
+import { ceaseAndDesist, ceaseIn } from './schemes.ts';
 import { hasStory } from './story.ts';
 import { bottlesOf, ORDER_TIERS, orderRecipe, PICKUP_MINUTE, type Order } from './vip.ts';
 
@@ -128,6 +130,17 @@ function firstOffers(s: GameState): void {
   }
 }
 
+/**
+ * The lawyers (spec Act 4: "a Cease-and-Desist arrives with a fruit basket and blocks your Downtown ads for 3 days"): the
+ * first dawn of the act you hold a Downtown stand, FizzCo's letter comes, asking nothing of its Strike. Once a run; one of
+ * FizzCo's own letters already on Downtown teaches it just as well. Not while a Truce with FizzCo holds.
+ */
+function lawyers(s: GameState): void {
+  const st = s.story!;
+  if (st.act !== 4 || st.lawyers !== undefined || !s.rivals.fizzco.alive || inTruce(s, 'fizzco')) return;
+  if (ceaseIn(s, 'downtown') || ceaseAndDesist(s, 'downtown', true)) st.lawyers = s.day;
+}
+
 /** Can FizzCo hit a pickup now? Alive, no Truce, no Respect, and Delivery Raids on (Threat 3+, not Peaceful). */
 const fizzcoCanHit = (s: GameState, o: Order) =>
   s.rivals.fizzco.alive && !inTruce(s, 'fizzco') && s.rivals.fizzco.respectUntil <= s.day && deliveryRaidRisk(s, o);
@@ -209,6 +222,7 @@ export function beatsAtDawn(s: GameState): void {
   nightFlight(s);
   firstOffers(s);
   chopperTip(s);
+  lawyers(s);
   teaAtTheManor(s);
   mayorsVisit(s);
 }

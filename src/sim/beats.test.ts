@@ -5,11 +5,13 @@ import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
-  LAVENDER, pageHolder, type GameState, type Guard, type RivalId,
+  LAVENDER, newStand, pageHolder, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, FINALE, INVOICE } from './exits.ts';
-import { ceaseAndDesist } from './schemes.ts';
+import { ceaseAndDesist, ceaseIn } from './schemes.ts';
+import { budgetOf } from './rivalAi.ts';
+import { CEASE } from './rivals.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
 import { eliminate, hqPlot, inTruce, makeTruce, truceCost } from './rivals.ts';
@@ -849,6 +851,40 @@ describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {
     expect(s.news).toContain('ACT 5: THE BIG SQUEEZE! Sourwood Manor is watching.');
     expect(storyHeadline(s)).toEqual(['ACT 5!', 'The Big Squeeze']);
     expect(s.phone!.queue.some((c) => c.who === 'sourwood' && c.text === LINES.veraAct5)).toBe(true);
+  });
+
+  it("the lawyers: the first Act 4 dawn you hold a Downtown stand, FizzCo's letter blocks your ads there, once, at no Strike", () => {
+    const s = lateAct(113, 4);
+    nextDawn(s);
+    expect(s.story!.lawyers).toBeUndefined(); // nothing of yours in Downtown to block yet
+    const lot = PLOTS.find((p) => p.district === 'downtown' && p.type === 'street' && !s.plots[p.id].owner)!.id;
+    s.plots[lot] = { ...s.plots[lot], owner: 'player', stand: newStand(1) };
+    s.rivals.fizzco.truceUntil = s.day + 1; // a Truce holds the letter back
+    nextDawn(s);
+    expect(ceaseIn(s, 'downtown')).toBeUndefined();
+    s.rivals.fizzco.truceUntil = 0;
+    s.alerts = [];
+    s.phone!.queue = [];
+    nextDawn(s);
+    expect(ceaseIn(s, 'downtown')).toMatchObject({ by: 'fizzco', day: s.day, until: s.day + CEASE.days - 1, plots: [lot], cost: 0 });
+    expect(s.story!.lawyers).toBe(s.day);
+    expect(s.alerts!.some((a) => a.text === "CEASE-AND-DESIST! FizzCo's lawyers block your ads in Downtown for 3 days. Lottie keeps the fruit basket.")).toBe(true);
+    expect(s.phone!.queue.some((c) => c.who === 'fizzco' && c.text === CEASE.taunt)).toBe(true); // Preston phones
+    // Once a run, and the story's letter asks nothing of FizzCo's Strike.
+    s.day += CEASE.days;
+    budgetOf(s, 'fizzco').strike = 0;
+    beatsAtDawn(s);
+    expect(ceaseIn(s, 'downtown')).toBeUndefined();
+    const fresh = lateAct(114, 4);
+    fresh.plots[lot] = { ...fresh.plots[lot], owner: 'player', stand: newStand(1) };
+    budgetOf(fresh, 'fizzco').strike = 0;
+    beatsAtDawn(fresh);
+    expect(ceaseIn(fresh, 'downtown')).toMatchObject({ cost: 0 });
+    // An older save whose Downtown letter is still on the books had its lesson.
+    const old = lateAct(115, 4);
+    old.schemes = [{ kind: 'cease', by: 'fizzco', day: old.day - 1, until: old.day + 1, plots: [], district: 'downtown', cost: CEASE.cost }];
+    migrateStory(old);
+    expect(old.story!.lawyers).toBe(old.day - 1);
   });
 
   it('tea at the Manor: days into Act 5, or the morning after the Lavender auction, Vera offers to buy you out; every reply is a no', () => {

@@ -433,18 +433,20 @@ function ceaseTarget(s: GameState): DistrictId | null {
 
 /**
  * FizzCo's lawyers send a Cease-and-Desist: your marketing counts for nothing in one district for 3 days (the one
- * where it pulls the most, unless `district` is given: the seam for story's Act 4 letter on Downtown). It comes with
- * a fruit basket. From Act 4, paid from FizzCo's Strike; null if there's nothing of yours to block there.
+ * where it pulls the most, unless `district` is given: story's Act 4 letter on Downtown). It comes with a fruit
+ * basket. From Act 4, paid from FizzCo's Strike; a `lesson` (the act's scripted beat, beats.ts) asks nothing of it.
+ * Null if there's nothing of yours to block there.
  */
-export function ceaseAndDesist(s: GameState, district?: DistrictId): Scheme | null {
+export function ceaseAndDesist(s: GameState, district?: DistrictId, lesson = false): Scheme | null {
   const id: RivalId = 'fizzco';
   if (!s.rivals[id].alive || actOf(s) < CEASE.act) return null;
   const d = district ?? ceaseTarget(s);
   const mine = d ? yoursIn(s, d) : [];
-  if (!d || !mine.length || runningSchemes(s).some((x) => x.kind === 'cease' && x.district === d) || !canSpend(s, id, 'strike', CEASE.cost)) return null;
-  spend(s, id, 'strike', CEASE.cost);
+  const cost = lesson ? 0 : CEASE.cost;
+  if (!d || !mine.length || runningSchemes(s).some((x) => x.kind === 'cease' && x.district === d) || !canSpend(s, id, 'strike', cost)) return null;
+  spend(s, id, 'strike', cost);
   s.schemes ??= [];
-  const letter: Scheme = { kind: 'cease', by: id, day: s.day, until: s.day + CEASE.days - 1, plots: mine.map((p) => p.id), district: d, cost: CEASE.cost };
+  const letter: Scheme = { kind: 'cease', by: id, day: s.day, until: s.day + CEASE.days - 1, plots: mine.map((p) => p.id), district: d, cost };
   s.schemes.push(letter);
   const name = DISTRICT_BY_ID[d].name;
   alert(s, { kind: 'note', text: `CEASE-AND-DESIST! FizzCo's lawyers block your ads in ${name} for ${CEASE.days} days. Lottie keeps the fruit basket.`, plot: mine[0].id });

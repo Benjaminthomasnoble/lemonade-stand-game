@@ -8,7 +8,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, onMap, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, nothingTonight, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, sleepPlan, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
@@ -573,11 +573,13 @@ async function main() {
       case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
       case 'skip': { resume(); settleFight(); const ev = atOnce(() => simulateRestOfDay(state, true)); crowd.clear(); drawEvents(ev, false); break; }
-      case 'night': // nothing coming tonight: Sleep skips to dawn; a raid night plays, racing to the warning
+      case 'night': { // nothing coming tonight: Sleep skips to dawn; a raid night plays, racing to the warning
         hud.ledger = false;
-        if (state.phase === 'report' && nothingTonight(state)) { act({ type: 'sleep' }); break; }
-        if (startNight(state)) { acc = 0; eveningWait = 0; resume(); }
+        const plan = sleepPlan(state);
+        if (plan === 'dawn') act({ type: 'sleep' });
+        else if (plan === 'night' && startNight(state)) { acc = 0; eveningWait = 0; resume(); }
         break;
+      }
       case 'evening': hud.ledger = false; eveningWait = 0; break;
       case 'ledger': hud.ledger = true; break;
       case 'sleep': {

@@ -167,6 +167,9 @@ export const onYou = (s: GameState, r: Raid) => r.attacker !== 'player' && s.plo
 /** Nothing of yours is in play tonight: no raid is coming for you and none of your squads is out. Sleep then skips
  * straight to dawn instead of playing out an empty night (Ben, 2026-11-08). */
 export const nothingTonight = (s: GameState) => !s.raids.some((r) => onYou(s, r) || r.attacker === 'player') && !s.fight;
+/** What Sleep does from the Evening: with nothing of yours in play it skips straight to dawn; otherwise the night
+ * plays on the clock (a raid night at the quiet speed until the warning). Null outside the Evening. */
+export const sleepPlan = (s: GameState): 'dawn' | 'night' | null => (s.phase !== 'report' ? null : nothingTonight(s) ? 'dawn' : 'night');
 
 /** Raids planned with only an eta (old saves) get their minutes. */
 function fillTimes(s: GameState, r: Raid): void {

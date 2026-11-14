@@ -8,6 +8,7 @@ import {
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance, ALERT_LIFE, onFeed,
+  nothingTonight, openStands, sleepPlan,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
@@ -287,6 +288,57 @@ describe('the night on the clock', () => {
     expect(raidPauses(defaultSettings({ difficulty: 'laidback' }))).toBe(true);
     expect(raidPauses(defaultSettings({ difficulty: 'cutthroat' }))).toBe(false);
     expect(raidPauses(defaultSettings({ difficulty: 'cutthroat', raidPause: true }))).toBe(true);
+  });
+});
+
+describe('Sleep from the Evening', () => {
+  it('with nothing coming (Night 1), Sleep skips straight to dawn', () => {
+    const s = newGame(5);
+    openStands(s);
+    simulateRestOfDay(s);
+    expect([s.day, s.phase]).toEqual([1, 'report']);
+    expect([nothingTonight(s), sleepPlan(s)]).toEqual([true, 'dawn']);
+    startNight(s);
+    expect(sleepPlan(s)).toBeNull(); // only from the Evening
+  });
+
+  it('a raid planned on you plays the night, detected or not', () => {
+    for (const detected of [true, false]) {
+      const s = evening(6);
+      raidOn(s, 21 * 60, 22 * 60 + 30, { detected });
+      expect([nothingTonight(s), sleepPlan(s)]).toEqual([false, 'night']);
+    }
+  });
+
+  it('a raid of yours tonight plays the night', () => {
+    const s = evening(8);
+    s.rank = 6;
+    s.guards = crew(3, null);
+    const target = raidTargets(s)[0];
+    footholdFor(s, target.id); // crew: raids need a Foothold in the target's district
+    expect(planRaid(s, target.id, ['g0', 'g1'], 'smash', 'tonight')).toBe(true);
+    expect([nothingTonight(s), sleepPlan(s)]).toEqual([false, 'night']);
+  });
+
+  it('a fight still on at closing plays the night; once it is over, Sleep skips to dawn', () => {
+    watchFights(true);
+    try {
+      const s = newGame(7);
+      openStands(s);
+      while (s.minute < CLOSE - 30) tickMinute(s);
+      s.raids = [];
+      raidOn(s, CLOSE - 30, CLOSE - 2); // a daytime raid on the Corner, fought live as it lands
+      while (s.phase === 'open') tickMinute(s);
+      expect(s.phase).toBe('report');
+      expect(s.fight).toBeTruthy();
+      expect(s.raids.some((r) => onYou(s, r))).toBe(false); // the raid itself is off the list while it is fought
+      expect([nothingTonight(s), sleepPlan(s)]).toEqual([false, 'night']);
+      for (let i = 0; s.fight && i < 1e5; i++) stepFight(s, 0.5);
+      expect(s.fight).toBeFalsy();
+      expect([nothingTonight(s), sleepPlan(s)]).toEqual([true, 'dawn']);
+    } finally {
+      watchFights(false);
+    }
   });
 });
 

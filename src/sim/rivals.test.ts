@@ -5,7 +5,7 @@ import {
   BAY_RIVALS, FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleAsk, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
-  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS, growLand, sleepUntilDawn, plotsAtDawn, type PlotState,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS, growLand, sleepUntilDawn, plotsAtDawn, startNight, type PlotState,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
@@ -402,6 +402,60 @@ describe('a rival out of the game', () => {
     }
     expect(early).toBe(0);
     expect(late).toBeGreaterThan(0);
+  });
+
+  it('an HQ that falls at night leaves its plots yours through the second full day after; a dawn bankruptcy keeps its 2 days', () => {
+    const dawn = (s: GameState) => { s.raids = []; s.phase = 'report'; expect(sleepUntilDawn(s)).toBe(true); };
+    const atAuction = (s: GameState, sale: string[]) => sale.filter((p) => s.plots[p].auction?.kind === 'fire').length;
+    for (let seed = 1; seed <= 5; seed++) {
+      const s = newGame(seed, { difficulty: 'laidback' });
+      s.day = 20;
+      s.cash = 1e6;
+      openStand(s);
+      simulateRestOfDay(s);
+      s.raids = [];
+      expect(startNight(s)).toBe(true); // Night 20: the Blend Shack falls
+      eliminate(s, 'blenders', 'hq');
+      const sale = PLOTS.filter((p) => s.plots[p.id].dibs?.who === 'player').map((p) => p.id);
+      expect(sale.length).toBeGreaterThan(0);
+      for (const p of sale) expect(s.plots[p].dibs!.until).toBe(22);
+      expect(s.news.some((n) => n.includes(`First Dibs for ${FIRE_SALE.days} days`))).toBe(true);
+      for (const day of [21, 22]) { // two full business days, yours alone
+        dawn(s);
+        expect(s.day).toBe(day);
+        for (const p of sale) expect(s.plots[p].owner ?? null).toBeNull();
+        for (const p of sale) expect(s.plots[p].dibs).toMatchObject({ who: 'player', until: 22 });
+        expect(canBuyPlot(s, sale[0]).ok).toBe(true);
+      }
+      dawn(s); // Day 23: unsold plots go to sealed bids
+      expect(atAuction(s, sale)).toBe(sale.length);
+      // The Evening counts the same way as the night: a buyout over dinner starts its 2 days at the next dawn.
+      const e = rich(seed);
+      openStand(e);
+      simulateRestOfDay(e);
+      expect(e.phase).toBe('report');
+      eliminate(e, 'blenders', 'buyout');
+      const lots = PLOTS.filter((p) => e.plots[p.id].dibs?.who === 'player');
+      expect(lots.length).toBeGreaterThan(0);
+      for (const p of lots) expect(e.plots[p.id].dibs!.until).toBe(e.day + FIRE_SALE.days);
+    }
+    // A dawn bankruptcy (counted at Morning Prep) is unchanged: Day 20 and Day 21, then auction at Day 22's dawn.
+    const b = newGame(3, { difficulty: 'laidback' });
+    b.day = 20;
+    b.rivals.blenders.cash = -1;
+    b.rivals.blenders.brokeDays = BANKRUPT_DAYS - 1;
+    expect(b.phase).toBe('prep');
+    rivalsBankrupt(b);
+    expect(b.rivals.blenders.alive).toBe(false);
+    const sale = PLOTS.filter((p) => b.plots[p.id].dibs?.who === 'player').map((p) => p.id);
+    expect(sale.length).toBeGreaterThan(0);
+    for (const p of sale) expect(b.plots[p].dibs!.until).toBe(21);
+    dawn(b);
+    expect(b.day).toBe(21);
+    expect(atAuction(b, sale)).toBe(0);
+    dawn(b);
+    expect(b.day).toBe(22);
+    expect(atAuction(b, sale)).toBe(sale.length);
   });
 
   it('the dawn inside the window leaves the Fire Sale to you (rivals buy before the old dibs clear)', () => {

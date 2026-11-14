@@ -80,16 +80,20 @@ export function auctionCloses(s: GameState, lot: string): number {
  * Elimination: every plot the rival held goes to a Fire Sale, cleared of its
  * buildings. Lottie has First Dibs at 75% of land value for 2 days; then each
  * unsold plot opens a 24-hour auction to the factions still in the game.
+ * A rival that falls in the Evening or at night (the night still belongs to its
+ * day) starts the count at the next dawn, so the 2 days are full business days.
  */
 export function startFireSale(s: GameState, id: RivalId): void {
   let sale = 0;
+  const late = s.phase === 'report' || s.phase === 'night';
+  const until = s.day + FIRE_SALE.days - (late ? 0 : 1);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
     if (ps.owner !== id) continue;
     if (p.type === 'hq') { s.plots[p.id] = { ...ps, owner: null, garrison: 0 }; continue; }
     s.plots[p.id] = {
       owner: null, stand: null, invested: 0, landValue: ps.landValue, defense: NO_DEFENSE(),
-      dibs: { who: 'player', until: s.day + FIRE_SALE.days - 1, price: Math.round(ps.landValue * FIRE_SALE.share) },
+      dibs: { who: 'player', until, price: Math.round(ps.landValue * FIRE_SALE.share) },
     };
     sale++;
   }

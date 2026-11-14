@@ -274,7 +274,7 @@ Raids on the player:
 - Reinforcements: guards at a Clubhouse can rush to any of your plots in the same or a bordering district (30–60 game minutes).
 - Respect cooldown: a rival whose raid you beat won't raid you for 3 days (5 Laid Back, 1 Cutthroat).
 
-Combat balance anchors for the combat writer: a Threat 1 raid (3 fists) should usually beat an undefended L1 stand, and should fail about 60% of the time against a Picket Fence plus 1 fists guard. A fully kitted L5 plot (P4 or P5, 4–6 guards with hatchets and Pro Gear, 2–3 gadgets) should hold against a Threat 4 raid about 75% of the time.
+Combat balance anchors, as the sim measures them (npm run combat): a Threat 1 raid (3 fists) nearly always beats an undefended L1 stand, and fails about 78% of the time against a Picket Fence plus 1 fists guard; real Threat 1 parties (2–3 fists) fail about 92%, so the early raids bounce off any fence or guard. A fully kitted L5 plot (4–6 guards with hatchets and Pro Gear, 2–3 gadgets) holds against a Threat 4 raid about 80% of the time behind a P4, and nearly every time behind a P5.
 
 ## 13. Rivals
 

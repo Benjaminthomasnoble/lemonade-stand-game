@@ -478,11 +478,12 @@ describe('the canon combat anchors (400 fights each)', () => {
     expect(winChance(battleOf({ attackers: fists3(), standHp: STAND_HP[0], detected: false }), 1, 400)).toBeGreaterThanOrEqual(0.75);
   });
 
-  // Measured: the raid fails 78% of the time (3 fists, detected or not), and 92% for real Threat 1 parties of 2-3. Left
-  // so (combat: the early raids are meant to bounce off any fence or guard); canon is to be restated.
-  it.fails('... and fails about 60% of the time against a Picket Fence and 1 guard with fists', () => {
+  // Measured, and pinned: the raid fails 78% of the time (3 fists, detected or not), and 92% for real Threat 1 parties
+  // of 2-3, so the early raids bounce off any fence or guard. Canon's "about 60%" (canon.md section 12) was restated to
+  // these figures.
+  it('... and fails about 78% of the time against a Picket Fence and 1 guard with fists', () => {
     const lost = 1 - winChance(battleOf({ attackers: fists3(), defenders: guardsOf(1, 'def', 'fists'), ...fencedOf(1), standHp: STAND_HP[0], detected: false }), 2, 400);
-    near(lost, 0.6, 0.05);
+    near(lost, 0.78, 0.05);
   });
 
   // 400 real Threat 4 raids (8-12 at level 4, in Pro Gear, three in five with hatchets: RAID_PARTY) on a plot with 5

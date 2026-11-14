@@ -377,7 +377,7 @@ describe('loan repossession', () => {
     const s = newGame(seed);
     s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the dawns' only bills are the loan's and the wages
     s.phase = 'report';
-    expect(borrow(s, 200)).toBe(true);
+    expect(borrow(s, 150)).toBe(true); // the bank's limit at the $525 start: half of $375 ($300 of land, 75% of the $100 table), in $50 steps
     return s;
   };
 
@@ -385,7 +385,7 @@ describe('loan repossession', () => {
     const s = loanGame(91);
     miss(s);
     expect(s.loan).toMatchObject({ missed: 1, weeksLeft: 3 });
-    expect(s.loan!.principal).toBeCloseTo(206, 2); // the missed week's interest is added
+    expect(s.loan!.principal).toBeCloseTo(154.5, 2); // the missed week's interest is added
     pay(s);
     expect(s.loan).toMatchObject({ missed: 1, weeksLeft: 2 }); // a payment doesn't wipe the miss
     expect(s.news.some((n) => n.startsWith('REPOSSESSED'))).toBe(false);

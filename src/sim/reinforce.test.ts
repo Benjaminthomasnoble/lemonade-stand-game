@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  AUTO_DEFEND, BORDERS, buildClubhouse, CAPTAIN, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, guardFighter, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
+  AUTO_DEFEND, availableRaiders, BORDERS, buildClubhouse, CAPTAIN, CLOSE, FIGHT_SECONDS_PER_GAME_MINUTE, fightRaid, guardFighter, hhmm, LOTTIES_CORNER, newGame, newStand, nightStep, openStands, ownedPlots,
   detectionChance, PERIMETERS, PLOT_BY_ID, PLOTS, postsFor, raidOdds, RANKS, RIVAL_HELP, simulateRestOfDay, startNight, threatLevel, travelMinutes, type BattleReport, type GameState, type Guard,
   hqStageInput, raidInput, type Raid, type SimEvent,
 } from './economy.ts';
@@ -8,7 +8,7 @@ import type { Fighter } from './combat.ts';
 import { fitGarrison } from './garrison.ts';
 import { AUTO_DEFEND_ID, autoDefendOn, canAutoDefend, cycleDefendPriority, defendLine, defendPriority, setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
 import { helperLines, helpers } from './automation.ts';
-import { reserveAt } from './clubhouse.ts';
+import { awayOnRaid, reserveAt, waitAt } from './clubhouse.ts';
 import { fightStatus, startFight, stepFight, watchFights } from './fight.ts';
 import { guardOf, henchmenOf } from './fighters.ts';
 import { bellEta, bellParty, canRingBell, reserveMinutes, ringTheBell, rivalHelpFor, sendHelp } from './reinforce.ts';
@@ -191,6 +191,26 @@ describe('Ring the Bell', () => {
     expect(ended.joins?.map((j) => j.t)).toEqual([31.5, 61.5]);
     expect(lou.xp).toBeGreaterThan(0);
     expect(arrived(ended, marnie) === undefined).toBe(marnie.xp === 0);
+  });
+
+  it('a guard in the fight is not in the reserve: sent off post mid-fight, they never answer the bell into it again', () => {
+    watchFights(true);
+    const { s, maple, dex, lou, pip, marnie } = bay(3);
+    const r = warned(s, 15);
+    while (!s.fight) nightStep(s);
+    stepFight(s, 5); // 1.5 s into the fight
+    // Dex, holding the Corner, is sent to wait at the Maple Row Clubhouse (the Crew tab's post button does the same).
+    expect(waitAt(s, dex.id, maple)).toBe(true);
+    expect(reserveAt(s, maple).map((g) => g.name)).toEqual(['Big Lou', 'Pip']); // he's still in the brawl
+    expect(availableRaiders(s).map((g) => g.name)).not.toContain('Dex'); // and can't set out on a raid from it either
+    expect(ringTheBell(s, r.id)).toBe(true);
+    expect(r.bell!.map((b) => b.id)).toEqual([lou.id, pip.id, marnie.id]);
+    expect(s.fight!.commands.flatMap((c) => (c.type === 'join' ? c.fighters.map((f) => f.id) : []))).toEqual([lou.id, pip.id, marnie.id]);
+    let ended: BattleReport | undefined;
+    while (!ended) ended = stepFight(s, 0.25).ended;
+    expect(ended.events.filter((e) => e.type === 'at' && e.a === dex.id)).toHaveLength(1);
+    expect(ended.events.filter((e) => e.type === 'ko' && e.a === dex.id).length).toBeLessThanOrEqual(1);
+    expect(awayOnRaid(s).has(dex.id)).toBe(false); // the fight over, he waits there like anyone
   });
 
   it('a Captain leads the reserve: one on post leads the guards who answer the bell, one in the reserve leads the guards on post', () => {

@@ -54,13 +54,22 @@ export function squadClub(s: GameState, guardIds: readonly string[], target: str
   return best;
 }
 
-/** Guards away fighting: on a raid of yours (planned or live), or on their way to one of your plots (Ring the Bell). */
-export function awayOnRaid(s: GameState): Set<string> {
-  const raids = [...s.raids, ...(s.fight ? [s.fight.raid] : [])];
-  return new Set(raids.flatMap((r) => [...(r.attacker === 'player' ? r.guards ?? [] : []), ...(r.bell ?? []).map((b) => b.id)]));
+/** Everyone in the fight playing live, either side: who it began with, and who has joined it or is on the way. */
+function inLiveFight(s: GameState): string[] {
+  const f = s.fight;
+  if (!f) return [];
+  const joined = [...(f.input.joins ?? []), ...f.commands.flatMap((c) => (c.type === 'join' ? [c] : []))].flatMap((j) => j.fighters);
+  return [...f.input.attackers, ...f.input.defenders, ...joined].map((x) => x.id);
 }
 
-/** The reserve at a Clubhouse: guards off post waiting there, fit to fight and not away on a raid. */
+/** Guards away fighting: on a raid of yours (planned or live), on their way to one of your plots (Ring the Bell), or in
+ * the fight playing live. A guard sent off post mid-fight is still in it: not in the reserve, nor free to raid, till it ends. */
+export function awayOnRaid(s: GameState): Set<string> {
+  const raids = [...s.raids, ...(s.fight ? [s.fight.raid] : [])];
+  return new Set([...raids.flatMap((r) => [...(r.attacker === 'player' ? r.guards ?? [] : []), ...(r.bell ?? []).map((b) => b.id)]), ...inLiveFight(s)]);
+}
+
+/** The reserve at a Clubhouse: guards off post waiting there, fit to fight and not away fighting. */
 export function reserveAt(s: GameState, plotId: string): Guard[] {
   const away = awayOnRaid(s);
   return s.guards.filter((g) => !g.post && g.outUntil <= s.day && !away.has(g.id) && clubOf(s, g) === plotId);

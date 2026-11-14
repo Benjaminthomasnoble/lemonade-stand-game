@@ -40,6 +40,7 @@ describe('the Raid Planner', () => {
     expect(blind).not.toContain('raid-foothold'); // setup's lot in its district
     expect(blind).toContain('data-testid="raid-unscouted"');
     expect(blind).toMatch(/data-testid="raid-odds-range">\d+–\d+%</);
+    expect(blind).toMatch(/class="cl-dial"[^>]*title="Not scouted: \d+–\d+% to win"/); // the dial's tip: the range, its least and most
     expect(blind).toMatch(/title="\d+–\d+% to win"/); // Tonight's tip reads the range too
     gullScout(s, target);
     const seen = p.panel(s, target);

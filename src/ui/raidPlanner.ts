@@ -47,10 +47,11 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
   const oddsWord = (p: number) => (p < 0.25 ? 'Long shot' : p < 0.45 ? 'Risky' : p < 0.6 ? 'Coin flip' : p < 0.85 ? 'Good odds' : 'Sure thing');
   const pct = (p: number) => Math.round(p * 100);
   const chance = ([lo, hi]: Odds) => (pct(lo) === pct(hi) ? `${pct(lo)}%` : `${pct(lo)}–${pct(hi)}%`);
-  // Unscouted, the needle sits at the worst case and the dial reads the range (spec: "40–85%").
+  // Unscouted, the needle sits at the worst case and the dial reads the range (spec: "40–85%"): its least and most,
+  // as its henchmen might be (crew.ts raidOddsRange).
   const dial = (r: Odds) => (pct(r[0]) === pct(r[1])
     ? `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="${pct(r[0])}% to win"><i></i></span><b class="cl-odds">${oddsWord(r[0])}</b>`
-    : `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="Not scouted: ${pct(r[0])}% if kitted a size up, ${pct(r[1])}% a size down"><i></i></span><b class="cl-odds" data-testid="raid-odds-range">${chance(r)}</b>`);
+    : `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="Not scouted: ${chance(r)} to win"><i></i></span><b class="cl-odds" data-testid="raid-odds-range">${chance(r)}</b>`);
 
   /** The squad is exactly these guards. */
   const holds = (ids: string[]) => ids.length === squad.size && ids.every((i) => squad.has(i));

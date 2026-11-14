@@ -893,18 +893,19 @@ export function raidOdds(s: GameState, plotId: string, guardIds: string[], objec
   }
 }
 
-/** The win chance on a plot nobody has scouted, as a range (spec: Raid Planner, "the win chance shows as a range"): its
- * rival's kit row one size up to one size down from the plot's own (the fence, the gadgets that fit and every post
- * filled, armed and padded as that row says), never bare: a rival plot always has at least its row's fence. The help a
- * spotted raid meets counts in each, and the real odds always fall inside, whatever the rival has done to the plot. */
+/** The win chance on a plot nobody has scouted, as a range (spec: Raid Planner, "the win chance shows as a range").
+ * Both ends stand behind the plot's own kit row's fence and the gadgets that fit, all a rival builds on a plot of its
+ * size (rivalDefenseSpend), with every post filled: only who holds the posts is a guess. At the soft end they are armed,
+ * padded and levelled as that row says; at the hard end as the next row up (the top row: a level up), as Act 5's elite
+ * Stewards are. The help a spotted raid meets counts in each, and the real odds always fall inside, whatever the
+ * rival has done to the plot. */
 export function raidOddsRange(s: GameState, plotId: string, guardIds: string[], objective: RaidObjective, night: boolean, runs = 80): [number, number] {
   const ps = s.plots[plotId];
-  const own = RIVAL_KIT.indexOf(rivalKit(ps));
-  const row = (i: number): DefenseGuess => {
-    const kit = RIVAL_KIT[Math.max(0, Math.min(RIVAL_KIT.length - 1, i))];
-    return { tier: kit.fence, gadgets: kit.gadgets.slice(0, GADGET_SLOTS(ps.stand?.level ?? 1)), garrison: postsFor(s, plotId), kit };
-  };
-  const odds = [raidOdds(s, plotId, guardIds, objective, night, runs), ...[row(own + 1), row(own - 1)].map((g) => raidOdds(s, plotId, guardIds, objective, night, runs, g))];
+  const own = rivalKit(ps);
+  const up: KitRow = RIVAL_KIT[RIVAL_KIT.indexOf(own) + 1] ?? { ...own, level: own.level + 1 };
+  const posted = (kit: KitRow): DefenseGuess =>
+    ({ tier: own.fence, gadgets: own.gadgets.slice(0, GADGET_SLOTS(ps.stand?.level ?? 1)), garrison: postsFor(s, plotId), kit });
+  const odds = [raidOdds(s, plotId, guardIds, objective, night, runs), ...[own, up].map((k) => raidOdds(s, plotId, guardIds, objective, night, runs, posted(k)))];
   return [Math.min(...odds), Math.max(...odds)];
 }
 

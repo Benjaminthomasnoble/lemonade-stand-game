@@ -366,38 +366,45 @@ describe('the Lookout', () => {
     expect(gullScout(s, target)).toBe(true);
   });
 
-  it("unscouted, the win chance is a range from its rival's kit a size up to a size down, never bare, with the real odds inside", () => {
+  it("unscouted, the win chance is a range over who holds the posts behind its own row's fence and gadgets, with the real odds inside", () => {
     const s = newGame(65);
     s.rank = 4;
-    s.guards = Array.from({ length: 3 }, (_, i) => guardOf('clubs', 'vest', 1, 'Hothead', { id: `r${i}`, name: `Raider ${i}` }));
+    s.guards = Array.from({ length: 5 }, (_, i) => guardOf('clubs', 'vest', 1, 'Hothead', { id: `r${i}`, name: `Raider ${i}` }));
     const ids = s.guards.map((g) => g.id);
     const target = raidTargets(s).find((p) => s.plots[p.id].stand)!.id;
     const ps = s.plots[target];
-    ps.stand!.level = 2; // a Wooden Stand: its rival builds toward a Picket Fence, a Tin-Can Alarm and 2 henchmen
-    ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm'] };
-    ps.garrison = 1;
+    ps.stand!.level = 3; // a Kiosk: its rival builds a Picket Fence, a Tin-Can Alarm, a Guard Goose and 3 henchmen there
+    ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm', 'goose'] };
+    ps.garrison = 2;
     const before = JSON.stringify(ps), id = s.nextId;
-    const kitted = (k: (typeof RIVAL_KIT)[number]) =>
-      raidOdds(s, target, ids, 'smash', true, undefined, { tier: k.fence, gadgets: k.gadgets.slice(0, 2), garrison: postsFor(s, target), kit: k });
-    const up = kitted(RIVAL_KIT[2]), down = kitted(RIVAL_KIT[0]); // a Kiosk's kit, and a Cart's
+    type Row = (typeof RIVAL_KIT)[number];
+    const own = RIVAL_KIT[2];
+    const posted = (k: Row, tier = own.fence) =>
+      raidOdds(s, target, ids, 'smash', true, undefined, { tier, gadgets: own.gadgets, garrison: postsFor(s, target), kit: k });
+    const soft = posted(own), hard = posted(RIVAL_KIT[3]); // 3 Kiosk henchmen, and 3 as a Shack's (a level up, in vests)
     const real = raidOdds(s, target, ids, 'smash', true);
-    const bare = raidOdds(s, target, ids, 'smash', true, undefined, { tier: 0, gadgets: [], garrison: 0 });
     expect(JSON.stringify(ps)).toBe(before); // a guess is a pure read
     expect(s.nextId).toBe(id);
-    expect(up).toBeLessThan(down);
+    expect(hard).toBeLessThan(soft);
     const [lo, hi] = raidOddsRange(s, target, ids, 'smash', true);
-    expect([lo, hi]).toEqual([Math.min(up, real), Math.max(down, real)]);
-    expect(lo).toBeLessThan(real);
-    expect(hi).toBeGreaterThan(real);
-    expect(hi).toBeLessThan(bare); // never bare: a rival stand has at least its row's fence
-    // A Cart has no size down: its own kit is the soft end.
-    ps.stand!.level = 1;
-    expect(raidOddsRange(s, target, ids, 'smash', true)[1]).toBe(Math.max(kitted(RIVAL_KIT[0]), raidOdds(s, target, ids, 'smash', true)));
+    expect([lo, hi]).toEqual([Math.min(hard, real), Math.max(soft, real)]);
+    expect(real).toBeGreaterThan(soft); // a post stands empty: the real odds top the range
+    // Never a defense its rival doesn't build on a Kiosk (a Shack's Chain-Link holds this squad off), and never bare.
+    expect(lo).toBeGreaterThan(posted(RIVAL_KIT[3], RIVAL_KIT[3].fence));
+    expect(hi).toBeLessThan(raidOdds(s, target, ids, 'smash', true, undefined, { tier: 0, gadgets: [], garrison: 0 }));
     // Whatever the rival did past its kit, the real odds stay inside the range.
-    ps.stand!.level = 2;
     ps.garrison = 9;
     ps.defense = { tier: 4, fenceHp: PERIMETERS[3].hp, gadgets: ['alarm', 'goose', 'slick'] };
     expect(raidOddsRange(s, target, ids, 'smash', true)[0]).toBe(raidOdds(s, target, ids, 'smash', true));
+    // The top row has no row above: its hard end is the same henchmen a level up, as Act 5's elite Stewards are.
+    s.guards = Array.from({ length: 8 }, (_, i) => guardOf('hatchets', 'pro', 5, 'Hothead', { id: `h${i}`, name: `Raider ${i}` }));
+    const big = s.guards.map((g) => g.id), top = RIVAL_KIT[4];
+    ps.stand!.level = 5;
+    Object.assign(ps, { defense: { tier: top.fence, fenceHp: PERIMETERS[top.fence - 1].hp, gadgets: [...top.gadgets] }, garrison: postsFor(s, target) });
+    const atTop = (k: Row) => raidOdds(s, target, big, 'smash', true, undefined, { tier: top.fence, gadgets: top.gadgets, garrison: postsFor(s, target), kit: k });
+    const elite = atTop({ ...top, level: top.level + 1 });
+    expect(elite).toBeLessThan(atTop(top));
+    expect(raidOddsRange(s, target, big, 'smash', true)).toEqual([elite, atTop(top)]);
   });
 
   it("scouts a target by day, then leads tonight's Sabotage on it: free for raids from the Evening", () => {

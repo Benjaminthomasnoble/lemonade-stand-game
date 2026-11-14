@@ -5,6 +5,7 @@ import {
   canSetPolicy, districtPolicy, landAtDawn, migrateSave, plotPrice, policiesAtDawn, POLICIES, POLICY, priceCeiling, setPolicy, togglePolicyPlot,
 } from './economy.ts';
 import { defendPriority } from './autodefend.ts';
+import { AUTO_RESTOCK } from './automation.ts';
 
 const streets = (s: GameState, d: DistrictId, n: number) => PLOTS.filter((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner).slice(0, n).map((p) => p.id);
 /** Hand the player a plot with a stand of this level on it (tests skip the buying and building). */
@@ -247,6 +248,30 @@ describe('district policies (Rank 7)', () => {
     landAtDawn(s); // land's dawn hook runs the policies
     expect(st.autoPrice).toBe(true);
     expect(districtPolicy(s, 'oldtown')?.ran).toBe(s.day);
+  });
+
+  it("set at Morning Prep, Profit's restock is on Auto-Restock's line once: the helpers' rows add up to the cash spent", () => {
+    const { s, ids } = tycoon(46);
+    s.day = 20; // the Market and Auto-Restock are open
+    for (const id of ids) {
+      const st = s.plots[id].stand!;
+      st.autoRestock = false;
+      st.stockTarget = 50;
+      st.inventory.lemons = [];
+      st.inventory.sugar = 0;
+      st.inventory.ice = 0;
+      st.pitcherCups = 0;
+    }
+    s.phase = 'prep';
+    delete s.today.auto;
+    const cash = s.cash;
+    setPolicy(s, 'oldtown', 'profit');
+    const spent = Math.round((cash - s.cash) * 100) / 100;
+    expect(spent).toBeGreaterThan(0); // Auto-Restock stocked the three stands at once
+    const rows = helperLines(s.today);
+    expect(rows.find((h) => h.id === AUTO_RESTOCK)?.spent).toBe(spent);
+    expect(rows.find((h) => h.id === POLICIES)?.spent).toBe(0);
+    expect(Math.round(rows.reduce((a, h) => a + h.spent, 0) * 100) / 100).toBe(spent);
   });
 
   it('keeps a saved policy and drops what an older or edited save got wrong', () => {

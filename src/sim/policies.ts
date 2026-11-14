@@ -227,7 +227,7 @@ interface Steered { steered: number; spent: number; line: string }
 /** Profit: Auto-Price and Auto-Restock take every stand there, the stock target back to the forecast's sales. At
  * dawn they then run as usual; set at Morning Prep, they set a stand now. */
 function profit(s: GameState, d: DistrictId, dawn: boolean): Steered {
-  let steered = 0, taken = 0;
+  let steered = 0, taken = 0, restocked = 0;
   const before = s.cash;
   for (const id of following(s, d)) {
     const st = s.plots[id].stand;
@@ -239,9 +239,10 @@ function profit(s: GameState, d: DistrictId, dawn: boolean): Steered {
     delete st.ownCard;
     st.autoRestock = true;
     st.stockTarget = null;
-    if (!dawn) { autoPrice(s, id); restockTopUp(s, id); }
+    if (!dawn) { autoPrice(s, id); restocked += restockTopUp(s, id); }
   }
-  return { steered, spent: round2(before - s.cash), line: taken ? `${plural(taken, 'stand')} on Auto-Price and Auto-Restock` : '' };
+  // The top-up is on Auto-Restock's line already: the policies' line keeps only what else it spent.
+  return { steered, spent: round2(before - s.cash - restocked), line: taken ? `${plural(taken, 'stand')} on Auto-Price and Auto-Restock` : '' };
 }
 
 /** Fortify: Auto-Repair on every plot there, Dex's priority at least POLICY.priority, and the next fences within the budget. */

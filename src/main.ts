@@ -9,7 +9,7 @@ import {
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, calmAudioOn, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
-  buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence, resetSlick,
+  buildClubhouse, buyGadget, buyPerimeter, callCrew, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence, resetSlick,
   battleHeadline, playerWon, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
   borrow, defaultSettings, keepSqueezing, repayLoan, type Settings,
@@ -579,7 +579,7 @@ async function main() {
     if (state.phase === 'report') waits.evening = 0; // the Evening is a moment after the last thing you did
     switch (a.type) {
       case 'buy': buySupply(state, a.id, a.packs); break;
-      case 'call': answerCall(state, a.pick, { postGuards: (p) => fillPosts(state, p) }); break;
+      case 'call': answerCall(state, a.pick, callCrew(state)); break; // the crew the card was drawn with (hud.ts callPicks)
       case 'recipe': if (pickRecipe(state, st, a.id)) setByHand(state, state.selected, 'card'); break;
       case 'sweet': setSweetness(st, a.value); setByHand(state, state.selected, 'card'); break;
       case 'price': setPrice(st, st.price + a.delta); setByHand(state, state.selected, 'price'); break;

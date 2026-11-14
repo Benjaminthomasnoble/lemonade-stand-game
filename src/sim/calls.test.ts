@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   BAY_RIVALS, budgetOf, callBigSqueeze, LOTTIES_CORNER, mayRaidYou, newGame, newStand, openStands, PLOTS, siegeTonight, simulateRestOfDay, sleepUntilDawn,
-  tickMinute, fillPosts, type GameState,
+  tickMinute, fillPosts, callCrew, type GameState,
 } from './economy.ts';
 import { answerCall, callChoices, callLine, CALLS, CALLS_PER_DAY, callTraffic, liveCall, planCalls, type DayCall } from './calls.ts';
+import { guardOf } from './fighters.ts';
 import { eventTraffic } from './events.ts';
 import { onYou } from './night.ts';
 
@@ -98,6 +99,27 @@ describe('day calls', () => {
     while (s.phase === 'open') tickMinute(s);
     const raid = s.raids.find((r) => onYou(s, r));
     expect(raid).toBeTruthy();
+  });
+
+  it('a rumor offers Post a guard only when a free guard would take a post there; a pick that moves nobody keeps the call', () => {
+    // Gus holds the Corner's one post and Lou waits off post: word comes that Brock's Bros hit the Corner tonight.
+    const s = newGame(5);
+    openStands(s);
+    const gus = guardOf('clubs', 'vest', 1, 'Loyal', { name: 'Gus', post: LOTTIES_CORNER });
+    const lou = guardOf('clubs', 'vest', 1, 'Loyal', { name: 'Lou' });
+    s.guards = [gus, lou];
+    s.calls = { day: s.day, list: [{ id: 11, kind: 'rumor', at: s.minute, plot: LOTTIES_CORNER, rival: 'blenders', live: true }], mods: {} };
+    const call = liveCall(s)!;
+    const labels = (c?: Parameters<typeof callChoices>[2]) => callChoices(s, call, c).map((x) => x.label);
+    expect(labels(callCrew(s))).toEqual(['Rush a Picket fence', 'Bring it on']); // the post is taken: Lou has nowhere to go
+    // A card drawn without the crew's count offers it to any free guard, but the pick moves nobody: the call waits on.
+    expect(labels()).toEqual(['Rush a Picket fence', 'Post a guard', 'Bring it on']);
+    expect(answerCall(s, 1, crew(s))).toBe(false);
+    expect([liveCall(s), s.calls.rumor, lou.post]).toEqual([call, undefined, null]);
+    s.plots[LOTTIES_CORNER].stand!.level = 2; // a Wooden Stand: two posts
+    expect(labels(callCrew(s))).toEqual(['Rush a Picket fence', 'Post a guard', 'Bring it on']);
+    expect(answerCall(s, 1, callCrew(s))).toBe(true);
+    expect([lou.post, s.calls.rumor, liveCall(s)]).toEqual([LOTTIES_CORNER, { day: s.day, rival: 'blenders', plot: LOTTIES_CORNER }, undefined]);
   });
 
   it('any answer brings that gang to that plot, out of four stands and five rivals, even with every Strike empty', () => {

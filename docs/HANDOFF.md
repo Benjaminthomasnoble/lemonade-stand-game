@@ -71,7 +71,7 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 - Options: "Fast raid nights (12×)" (`opt-quietNights`), Calm Audio (`opt-calmAudio`, on in Laid Back), raid-pause tips saying the last minutes run at fight speed (New Game too), the full-screen menus tip naming the Pause key, and the Delivery Raids pause tip.
 - Tooltips on the turn, speed and Gull Flight buttons show the player's current keys (keys.ts `withKey`).
 - Defend sheet (crew.ts): fence and sprung-Slick tips ("repair overnight" or "Auto-Repair skips this plot", never on a Fortify plot) and "Re-lay $25" (`reset-slick`).
-- A guard in the fight playing live stays put till it ends: his Crew tab post button, his face in another Clubhouse's room, and the plot card's + (`post-here`) and "All here" when the fight holds the guards they'd bring show disabled with "In the fight" (crew.ts `canPost`, clubhouse.ts `canWaitAt`).
+- A guard in the fight playing live stays put till it ends: his Crew tab post button, his face in another Clubhouse's room, the plot card's + (`post-here`) and "All here" when the fight holds the guards they'd bring, and a rumor call's "Post a guard" (`call-N`) when the fight holds every guard it would post show disabled with "In the fight" (crew.ts `canPost`, clubhouse.ts `canWaitAt`, calls.ts `callChoices`).
 - The Auto-Repair switch on a Fortify plot: pressed, disabled, "Fortify keeps this on" (damage.ts).
 - Raid Planner: scouted, the intel row shows the plot as it stands now and a sprung Slick as a plain slot; unscouted, the dial reads `Not scouted: X-Y% to win` and `raid-odds-range` shows one figure when its ends meet; odds refresh on a rank-up or Elbow Grease.
 - Fight bar: Nerve readouts (`fight-nerve-att`, `fight-nerve-def`) and "Next: <plot>" (`fight-next`); a defensive Fall Back reads as a loss in the tickets, stinger, Lottie's line and the 3D cheer.
@@ -89,8 +89,8 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 - Scenes: Morning Prep plays them in priority order; Mayor Fontaine's "freeze" scene on the first paid land freeze; the Strawberry and Lavender page scenes run 5 lines.
 - Land Registry: the campaign's Lavender lot auction shows from Act 5.
 - Bugle and 101.5: scheme leads (PRICE WAR!, AD BLITZ!, SMEAR POSTERS!), briefs without "Bugle:", yesterday's caller first, GUARDS FALL BACK and Cal's fall-back call, rival new-stand lines, Hurricane look-ahead lines, the Food Critic's pan line and the repossession line.
-- The rumor call card names only a gang that may come, and that gang comes to that plot.
-- hud.ts exports `ownStandActions` (the plot card's actions on your own stand).
+- The rumor call card names only a gang that may come, and that gang comes to that plot. Its "Post a guard" shows only when it would post someone (crew.ts `callCrew`); a pick that posts nobody leaves the call waiting.
+- hud.ts exports `ownStandActions` (the plot card's actions on your own stand) and `callPicks` (a day call's buttons, drawn with the crew main.ts answers with).
 
 **Audio** (`src/audio.ts`, the music thread):
 

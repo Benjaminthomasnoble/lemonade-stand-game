@@ -13,8 +13,9 @@ import {
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
   buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS, hqPlot,
   buildClubhouse, callBigSqueeze, newStand, planNight, playerWon, RESERVE_MINUTES, startNight, waitingRaids, type BattleReport, type SimEvent,
-  canPost, detectionChance, fillable, fillPosts, postAtFirstFree, postGuard, presentGuards, type Blocker,
+  canPost, detectionChance, fillable, fillPosts, postAtFirstFree, postGuard, presentGuards, type Blocker, callCrew,
 } from './economy.ts';
+import { answerCall, callChoices, CALLS, liveCall } from './calls.ts';
 import { ringTheBell } from './reinforce.ts';
 import { canWaitAt, IN_THE_FIGHT, waitAt } from './clubhouse.ts';
 import { setAutoDefend, setDefendPriority, stationByPriority } from './autodefend.ts';
@@ -518,6 +519,32 @@ describe('a guard in the fight playing live stays where he is till it ends', () 
     expect(s.fight).toBeUndefined();
     expect(presentGuards(s, kiosk)).toEqual([gus, pip]); // the fight over, he's at his post
     expect(detectionChance(s, kiosk, true)).toBeGreaterThan(seen);
+  });
+
+  it("a rumor's Post a guard waits for the fight that holds whoever it would post; a pick that moves nobody keeps the call", () => {
+    // Day 6, 14:00: Brock's daytime raid on the Corner plays live (a day call isn't held for it), and word comes that
+    // Hollis hits the Kiosk tonight.
+    const { s, kiosk, lou } = brawl(true);
+    const crew = callCrew(s);
+    s.calls = { day: s.day, list: [{ id: 61, kind: 'rumor', at: s.minute, plot: kiosk, rival: 'hollis', live: true }], mods: {} };
+    const call = liveCall(s)!;
+    const post = () => callChoices(s, call, crew).find((c) => c.label === 'Post a guard');
+    expect(post()).toEqual({ label: 'Post a guard', ok: true }); // Lou waits at the Clubhouse, free to go
+    expect(ringTheBell(s, 'ra')).toBe(true); // now he's in the fight with Gus: nobody else would come
+    expect(callChoices(s, call, crew)).toEqual([
+      { label: 'Rush a Picket fence', cost: Math.ceil(PERIMETERS[0].cost * CALLS.rumor.rush), ok: true, tone: 'go' },
+      { label: 'Post a guard', ok: false, why: IN_THE_FIGHT },
+      { label: 'Bring it on', ok: true, tone: 'ghost' },
+    ]);
+    expect(answerCall(s, 1, crew)).toBe(false);
+    // A card drawn without the crew's count still offers it (a free guard), but the pick moves nobody: the call waits.
+    expect(callChoices(s, call)[1]).toEqual({ label: 'Post a guard', ok: true });
+    expect(answerCall(s, 1, { postGuards: (p) => fillPosts(s, p) })).toBe(false);
+    expect([liveCall(s), s.calls.rumor, lou.post]).toEqual([call, undefined, null]); // Rush a fence is still there to pick
+    finishFight(s);
+    expect(post()).toEqual({ label: 'Post a guard', ok: true });
+    expect(answerCall(s, 1, crew)).toBe(true);
+    expect([lou.post, s.calls.rumor, liveCall(s)]).toEqual([kiosk, { day: 6, rival: 'hollis', plot: kiosk }, undefined]);
   });
 
   it('an HQ assault holds its squad at every door; a guard left at home moves, and they do once the last door is fought', () => {

@@ -450,6 +450,13 @@ export function fillPosts(s: GameState, plotId: string): number {
   return moved;
 }
 
+/** The crew's side of a day call (calls.ts CallCrew): a rumor's "Post a guard" fills the plot's posts, so the card offers
+ * it only when that would move someone. The card (callChoices) and its answer (answerCall) take the same one. */
+export const callCrew = (s: GameState) => ({
+  fillable: (plotId: string, fighting?: boolean) => fillable(s, plotId, fighting),
+  postGuards: (plotId: string) => fillPosts(s, plotId),
+});
+
 /** Guards on a plot you no longer hold, or past its posts, go back to the Clubhouse (roster order keeps the first ones). */
 export function tidyPosts(s: GameState): void {
   const held: Record<string, number> = {};

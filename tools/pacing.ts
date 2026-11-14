@@ -18,7 +18,7 @@ import {
   acceptOrder, approveRepair, auctionOf, auctionPlots, autoRepairReserve, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
   buyGadget, buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand, canBuyGadget,
   canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canPromote, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
-  costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
+  callCrew, costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
   GADGETS, gameOver, GEAR, guardFighter, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
   netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
   plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, promote, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
@@ -782,10 +782,10 @@ function dayLeft(s: GameState): number {
  * grudge brings raids). A rumor's raid comes whatever you answer: a rushed fence is bought from the security money
  * when its rush premium is less than a smash there would cost (the rebuild and a day's takings) and it's a fence the
  * player buys anyway (no more fence than stand); otherwise a free guard is posted, or Lottie brings it on. Returns
- * the choice's index on the card (callChoices); it changes nothing.
+ * the choice's index on the card (callChoices, with the crew answer() passes); it changes nothing.
  */
 export function pickAnswer(s: GameState, bot: Bot, call: DayCall): number {
-  const choices = callChoices(s, call);
+  const choices = callChoices(s, call, callCrew(s));
   const ps = s.plots[call.plot];
   const st = ps.stand!;
   let pick = -1;
@@ -794,7 +794,7 @@ export function pickAnswer(s: GameState, bot: Bot, call: DayCall): number {
     const next = PERIMETERS[ps.defense.tier];
     const risk = standProfit(s, call.plot, s.weather) + rebuildCost(ps);
     const pays = rush >= 0 && choices[rush].ok && next && next.tier <= st.level && choices[rush].cost! <= bot.sec && choices[rush].cost! - next.cost <= risk;
-    pick = pays ? rush : choices.findIndex((c) => c.label === 'Post a guard');
+    pick = pays ? rush : choices.findIndex((c) => c.label === 'Post a guard' && c.ok);
     return pick < 0 ? choices.length - 1 : pick;
   } else {
     const left = dayLeft(s);
@@ -830,10 +830,11 @@ export function pickAnswer(s: GameState, bot: Bot, call: DayCall): number {
 
 /** Answer the live call as pickAnswer says, through the card's own action; a rushed fence comes out of the security money. */
 function answer(s: GameState, bot: Bot, call: DayCall): void {
-  const choices = callChoices(s, call);
+  const crew = callCrew(s); // the card's crew, as main.ts answers with it
+  const choices = callChoices(s, call, crew);
   const pick = pickAnswer(s, bot, call);
   const before = s.cash;
-  if (!answerCall(s, pick, { postGuards: (p) => fillPosts(s, p) })) return;
+  if (!answerCall(s, pick, crew)) return;
   bot.played.calls++;
   if (call.kind === 'rumor' && choices[pick].label.endsWith('fence')) { bot.sec -= before - s.cash; bot.secSpent += before - s.cash; }
   bot.log?.(`        call: ${call.kind} at ${PLOT_BY_ID[call.plot].name}, ${choices[pick].label}`);

@@ -3,7 +3,7 @@
 // a day's-end card and picture-card sheets for Grow and Defend. Words are kept
 // to a few per line; exact numbers live in title tooltips (hover or long-press).
 // Buttons carry data-action and go through one listener.
-import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
+import { callChoices, callLine, choiceTip, liveCall, type DayCall } from '../sim/calls.ts';
 import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, facilityLand, canBuyBrand, canBuyPlot, ceilingFor, expressWindow, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, standCost, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
@@ -13,7 +13,7 @@ import {
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
   canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
   type FacilityKind, RANKS,
-  canAssault, hasBuilding, hqPlot, isWrecked, playerWon,
+  canAssault, hasBuilding, hqPlot, isWrecked, playerWon, callCrew,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
@@ -230,6 +230,12 @@ function upgradeHere(s: GameState) {
   const up = canUpgradeStand(s);
   const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
   return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top, expressWindow(s.plots[s.selected]))}"`, 'go') : '';
+}
+
+/** A day call's choices as its card's buttons, drawn with the crew main.ts answers with (crew's callCrew). One held for
+ * a reason other than the money shows that reason. */
+export function callPicks(s: GameState, call: DayCall): string {
+  return callChoices(s, call, callCrew(s)).map((c, i) => btn('call', `${esc(c.label)}${c.cost ? ` <i class="cl-cost-in">${whole(c.cost)}</i>` : ''}`, c.ok ? { ok: true } : { ok: false, why: c.why ?? (c.cost ? `Needs ${whole(c.cost)}` : "Can't now") }, `data-pick="${i}" data-testid="call-${i}" title="${esc(c.why ?? choiceTip(call, c.label))}"`, `tiny ${c.tone ?? ''}`)).join('');
 }
 
 /** The plot card's actions on a stand of yours. By day: Manage and its stand panel (`math`: with the sums shown), your
@@ -616,7 +622,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const call = liveCall(s); // a day call waits on top, the clock held till you pick (src/sim/calls.ts)
     if (call) {
       const art = call.kind === 'rush' ? ART.sky('hot') : call.kind === 'permit' ? ART.board() : call.kind === 'rumor' ? ART.raid() : call.kind === 'heckler' ? ART.megaphone() : ART.sour();
-      const picks = callChoices(s, call).map((c, i) => btn('call', `${esc(c.label)}${c.cost ? ` <i class="cl-cost-in">${whole(c.cost)}</i>` : ''}`, c.ok ? { ok: true } : { ok: false, why: c.cost ? `Needs ${whole(c.cost)}` : "Can't now" }, `data-pick="${i}" data-testid="call-${i}" title="${esc(choiceTip(call, c.label))}"`, `tiny ${c.tone ?? ''}`)).join('');
+      const picks = callPicks(s, call);
       t.unshift(`<div class="cl-ticket cl-call" data-testid="day-call" data-kind="${call.kind}">${art}<b>${esc(callLine(s, call))}</b><span class="cl-acts">${picks}</span></div>`);
     }
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)

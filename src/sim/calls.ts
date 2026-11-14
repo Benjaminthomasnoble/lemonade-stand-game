@@ -3,10 +3,10 @@
 // something: cash, customers, Reputation, or a rival's Grudge (which brings raids). Day 1's is Brock's Bros
 // undercutting you, so you meet the competition at once; Day 3's is the rumor of the first raid.
 //
-// The UI holds the clock while a call waits (src/main.ts), so a player always answers it. Run without a player (tests,
-// Finish the day, fast-forward), a call nobody answers lapses after CALL_LAPSE minutes and changes nothing, so the
-// sim's numbers stay what they were. Planning uses its own dice off the seed and never writes the seed back.
-// Pure, like the rest of the sim.
+// The UI holds the clock while a call waits (src/main.ts), so a player always answers it; a fight playing live runs
+// its clock on, call or no call. Run without a player (tests, Finish the day, fast-forward), a call nobody answers
+// lapses after CALL_LAPSE minutes and changes nothing, so the sim's numbers stay what they were. Planning uses its own
+// dice off the seed and never writes the seed back. Pure, like the rest of the sim.
 import { CLOSE, FACTIONS, OPEN, PERIMETERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { book, bookOther } from './ledger.ts';
@@ -14,6 +14,7 @@ import { nextRandom } from './rng.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { mayRaidYou } from './threat.ts';
 import { siegeTonight } from './squeeze.ts';
+import { IN_THE_FIGHT } from './clubhouse.ts';
 
 export type CallKind = 'undercut' | 'heckler' | 'rush' | 'permit' | 'rumor';
 
@@ -51,8 +52,20 @@ export const CALLS = {
 /** Calls a day: Day 1 has one (Brock's undercut), every later day two. */
 export const CALLS_PER_DAY = 2;
 
-/** A choice on a call's card: its label, what it costs up front (shown on the button), and whether you can take it. */
-export interface CallChoice { label: string; cost?: number; ok: boolean; tone?: 'go' | 'ghost' }
+/** A choice on a call's card: its label, what it costs up front (shown on the button), whether you can take it, and why
+ * not when it isn't the money. */
+export interface CallChoice { label: string; cost?: number; ok: boolean; why?: string; tone?: 'go' | 'ghost' }
+
+/**
+ * The crew's side of a call, passed in so this module stays clear of crew.ts (crew's callCrew builds it): how many
+ * guards "Post a guard" would move to a plot (crew's fillable; `fighting`: the ones the fight playing live holds counted
+ * in), and the move itself (fillPosts), which says how many moved. The card and its answer take the same one, so a
+ * choice's place on the card is the one answered.
+ */
+export interface CallCrew {
+  fillable?: (plot: string, fighting?: boolean) => number;
+  postGuards: (plot: string) => number;
+}
 
 const SHORT: Record<RivalId, string> = { sourwood: 'Sourwood', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: "Brock's Bros", snootwater: 'Snootwater' };
 const cents = (n: number) => (n < 1 ? `${Math.round(n * 100)}¢` : `$${n.toFixed(2)}`);
@@ -152,8 +165,8 @@ export function callLine(_s: GameState, call: DayCall): string {
   }
 }
 
-/** The choices on a call's card, in order. */
-export function callChoices(s: GameState, call: DayCall): CallChoice[] {
+/** The choices on a call's card, in order. `crew`: who "Post a guard" would move (CallCrew), else any free guard offers it. */
+export function callChoices(s: GameState, call: DayCall, crew?: Pick<CallCrew, 'fillable'>): CallChoice[] {
   const st = s.plots[call.plot].stand;
   const price = st?.price ?? 0;
   switch (call.kind) {
@@ -177,14 +190,23 @@ export function callChoices(s: GameState, call: DayCall): CallChoice[] {
     ];
     case 'rumor': {
       const next = rushFence(s, call.plot);
-      const guards = s.guards.some((g) => !g.post && (g.outUntil ?? 0) <= s.day);
+      const post = postChoice(s, call.plot, crew);
       return [
         ...(next ? [{ label: `Rush a ${next.name.split(' ')[0]} fence`, cost: next.cost, ok: s.cash >= next.cost, tone: 'go' as const }] : []),
-        ...(guards ? [{ label: 'Post a guard', ok: true }] : []),
+        ...(post ? [post] : []),
         { label: 'Bring it on', ok: true, tone: 'ghost' },
       ];
     }
   }
+}
+
+/** A rumor's "Post a guard": while a free guard waits off post, and only when it would move someone here (crew's
+ * fillable: none with the posts full or the free ones away on a raid). When the fight playing live holds the guards it
+ * would bring, it shows held, with why, till the fight ends (crew's canPost). */
+function postChoice(s: GameState, plot: string, crew?: Pick<CallCrew, 'fillable'>): CallChoice | null {
+  if (!s.guards.some((g) => !g.post && (g.outUntil ?? 0) <= s.day)) return null;
+  if (!crew?.fillable || crew.fillable(plot) > 0) return { label: 'Post a guard', ok: true };
+  return crew.fillable(plot, true) > 0 ? { label: 'Post a guard', ok: false, why: IN_THE_FIGHT } : null;
 }
 
 /** The next fence for a plot at its rush price (rank allowing), or null. */
@@ -204,13 +226,14 @@ export function choiceTip(call: DayCall, label: string): string {
 }
 
 /**
- * Answer the live call with choice `i`. Returns false if that choice can't be taken. `buyFence` and `postGuards` are
- * the crew's own action (passed in so this module stays clear of crew.ts).
+ * Answer the live call with choice `i` of callChoices(s, call, crew). Returns false if that choice can't be taken, and
+ * when "Post a guard" moves nobody: the call waits on. `crew` is the crew's own count and action (CallCrew, passed in
+ * so this module stays clear of crew.ts).
  */
-export function answerCall(s: GameState, i: number, crew: { postGuards: (plot: string) => number }): boolean {
+export function answerCall(s: GameState, i: number, crew: CallCrew): boolean {
   const call = liveCall(s);
   if (!call) return false;
-  const choices = callChoices(s, call);
+  const choices = callChoices(s, call, crew);
   const ch = choices[i];
   if (!ch || !ch.ok) return false;
   const c = callsOf(s);
@@ -252,7 +275,7 @@ export function answerCall(s: GameState, i: number, crew: { postGuards: (plot: s
         ps.defense.tier = next.tier;
         ps.defense.fenceHp = next.hp;
       }
-      else if (label === 'Post a guard') crew.postGuards(call.plot);
+      else if (label === 'Post a guard' && !crew.postGuards(call.plot)) return false; // nobody moved: the call is still yours
       if (call.rival) c.rumor = { day: s.day, rival: call.rival, plot: call.plot };
       break;
     }

@@ -102,7 +102,7 @@ Borders (districts that share an edge): Maple Row–The Groves, Maple Row–Old 
 
 ## 7. Running the business
 
-Supplies: Lemons, Sugar, Ice. Cups and napkins are a flat $0.05 per cup. Buy at the Citrine Bay Market each morning; prices move ±20% a day (tune). Ice melts every night. Lemons spoil after 3 days. Sugar keeps. Each stand holds limited stock (by level). **Auto-Restock** unlocks on Day 3 (keep each stand stocked to a target).
+Supplies: Lemons, Sugar, Ice. Cups and napkins are a flat $0.05 per cup. Buy at the Citrine Bay Market each morning; prices move ±20% a day (tune). Ice melts every night. Lemons spoil after 3 days. Sugar keeps. Each stand holds limited stock (by level). Lottie stocks your table on Day 1; from Day 2 you buy your own, and **Auto-Restock** unlocks (keep each stand stocked to a target).
 
 Starting ingredient costs per cup, Classic recipe (tune): lemons $0.10, sugar $0.03, ice $0.03, cup $0.05 → about $0.21 per cup.
 
@@ -370,8 +370,8 @@ Pacing targets (Classic, a competent player, about 8 real minutes per day includ
 
 | Milestone | Target day | About |
 |---|---|---|
-| First upgrade to L2 | Day 4 (the upgrade lesson) | 30 min |
-| Rank 2 | Day 4 | 30 min |
+| First upgrade to L2 | Day 5 (the upgrade lesson) | 40 min |
+| Rank 2 | Day 5 (the Rank lesson) | 40 min |
 | Rank 3 | About Day 10 | 1.3 h |
 | Rank 4 | About Day 22 | 2.9 h |
 | Rank 5 | About Day 37 | 4.9 h |
@@ -384,9 +384,11 @@ Pacing targets (Classic, a competent player, about 8 real minutes per day includ
 
 Laid Back runs about 14% faster (×0.86 of Classic's days); Cutthroat about 1% slower (×1.01), with 1.3–1.7× Classic's raids.
 
+These targets are under review: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+
 ## 17. Progression and automation
 
-Automation unlocks (calm play stays calm as the empire grows): Auto-Restock (Day 3); Marisol's Auto-Price, bulk actions such as "upgrade every Kiosk I can afford" and Auto-Repair (Rank 3); Dex's Auto-Defend (Rank 4: auto-dispatch reinforcements, station guards by priority); raid templates (Rank 6); district policies (Rank 7: Profit, Fortify or Expand presets per district). Auto-Price also picks each stand's recipe card and Sweetness from the forecast; any stand can still be set by hand.
+Automation unlocks (calm play stays calm as the empire grows): Auto-Restock (Day 2); Marisol's Auto-Price, bulk actions such as "upgrade every Kiosk I can afford" and Auto-Repair (Rank 3); Dex's Auto-Defend (Rank 4: auto-dispatch reinforcements, station guards by priority); raid templates (Rank 6); district policies (Rank 7: Profit, Fortify or Expand presets per district). Auto-Price also picks each stand's recipe card and Sweetness from the forecast; any stand can still be set by hand.
 
 Lottie's Goals: 3 goals always on screen (short, medium, long), each with a small cash or perk reward.
 

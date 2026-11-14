@@ -149,7 +149,7 @@ The game starts calm and turns up the heat as you grow. These levers hold the ba
 
 - **Difficulty presets.** Laid Back halves the raids, gives longer warnings and has no game over. Classic is the intended balance. Cutthroat brings more raids, short warnings and no bailouts. Sandbox adds Peaceful, with no combat at all.
 - **Pressure follows success.** Threat climbs with your rank, so tougher raids arrive once you have the tools to meet them.
-- **Automation before chores.** Auto-Restock arrives on Day 3, auto-pricing, bulk upgrades and Auto-Repair at Rank 3 and auto-defense at Rank 4, before a growing empire turns into busywork.
+- **Automation before chores.** Auto-Restock arrives on Day 2, auto-pricing, bulk upgrades and Auto-Repair at Rank 3 and auto-defense at Rank 4, before a growing empire turns into busywork.
 - **Optional depth.** Specializations, sit-downs, sabotage and seagull scouting reward curious players, but nobody has to touch them to win.
 - **Short, natural sessions.** A day takes about 5 minutes and ends at a clean stopping point.
 
@@ -168,7 +168,7 @@ The game starts calm and turns up the heat as you grow. These levers hold the ba
 
 ### Anti-frustration guarantees
 
-- No raids on the player until the night your first Kiosk opens or Day 15, whichever comes first, and that first raid is a tutorial raid that always bounces off your fence and Dex.
+- No raids on the player on Nights 1–2. The first comes on Night 3, a tutorial raid: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard, sends them home; an undefended stand loses its till. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat).
 - Every raid on the player comes with a warning, even an undetected one.
 - Major alerts auto-pause the game (a toggle, on by default; raid warnings start off on Cutthroat).
 - A rival whose raid you beat backs off for a few days (the Respect cooldown).
@@ -228,7 +228,7 @@ A toggle auto-continues Morning Prep for players who like a running clock. Dawn 
 
 Lottie always shows 3 goals, each paying a little cash or a perk. Short goals fit in a day, medium ones in a session, and long ones aim at the next rank or act.
 
-Early ranks come fast: Rank 2 on Day 4, Rank 3 on Day 10. Later ranks take several sessions, so goals carry the pacing between them. Every rank-up brings a Bugle headline, confetti and a pick of 1 of 3 Lottie's Tips perks.
+Early ranks come fast: Rank 2 on Day 5, Rank 3 on Day 10. Later ranks take several sessions, so goals carry the pacing between them. Every rank-up brings a Bugle headline, confetti and a pick of 1 of 3 Lottie's Tips perks.
 
 ### The long-term loop
 
@@ -361,7 +361,7 @@ A cup of Classic costs about $0.21: lemons $0.10, sugar $0.03, ice $0.03, plus a
 
 Stock ages three ways: ice melts every night, lemons spoil after 3 days, and sugar keeps. A stand holds only so many cups of stock (see Stands), and a sold-out stand turns customers away.
 
-Lottie stocks your table on Days 1–2. From Day 3 you buy your own, and **Auto-Restock** tops each stand up to a target you set, every dawn at that day's price. Its suggested target is the forecast day's expected sales.
+Lottie stocks your table on Day 1. From Day 2 you buy your own, and **Auto-Restock** tops each stand up to a target you set, every dawn at that day's price. Its suggested target is the forecast day's expected sales.
 
 Supplies stay a small bill all game, so nothing exists just to trim them: Lemon Groves bring customers instead of discounts (see Land and territory).
 
@@ -417,7 +417,7 @@ It's Day 3, Hot (88°F), at Lottie's Corner: an L1 Folding Table on a Maple Row 
 
 On a Scorcher the same table would draw 230 customers but pour only 200, so 30 would leave a long line. A Wooden Stand here sells about 280 cups at $2.10 and clears about $505, repaying its $400 in under 2 such days. On a Rainy day the table sells just 50 cups, and stocking 200 melts $4.50 of ice.
 
-**Fun check:** Every lever answers in seconds: a price nudge moves the queue, a recipe swap lights mood bubbles, and walk-aways say why. The guardrails are one demand chain you can read off the stand panel, Auto-Restock from Day 3 and Auto-Price at Rank 3.
+**Fun check:** Every lever answers in seconds: a price nudge moves the queue, a recipe swap lights mood bubbles, and walk-aways say why. The guardrails are one demand chain you can read off the stand panel, Auto-Restock from Day 2 and Auto-Price at Rank 3.
 
 ## Stands
 
@@ -444,7 +444,7 @@ Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passers
 | Level | How play changes |
 | --- | --- |
 | L1 The Folding Table | Lottie's own card table. At 20 cups an hour, a Scorcher's line outgrows it by mid-afternoon |
-| L2 The Wooden Stand | The Day 4 lesson: 1.5× the passersby and 2.5× the pour for $400, repaid in 2–4 days |
+| L2 The Wooden Stand | The Day 5 lesson: 1.5× the passersby and 2.5× the pour for $400, repaid in 2–4 days |
 | L3 The Kiosk | The workhorse: it pays back almost anywhere, opens the first specialization slot and takes Local Orders (see VIP clients) |
 | L4 The Lemon Shack | A plot decision: it wants a busy Prime or Landmark. Its ice machine makes ice as needed, so none melts overnight, and a third gadget slot opens (see Defenses) |
 | L5 The Citrus Palace | The showpiece: $1,500 a day in upkeep, so only the busiest plots carry it. It opens a second specialization slot, and Rank 10 gilds its dome |
@@ -490,7 +490,7 @@ Tiers are bought once, in order, and last forever. Each replaces the last, so it
 
 | Tier | Name | Rank | Cost | Traffic everywhere | Extra |
 | --- | --- | --- | --- | --- | --- |
-| M1 | Hand-Painted Signs | 1 | $100 | +5% | Benny paints your first sign (the Day 7 lesson) |
+| M1 | Hand-Painted Signs | 1 | $100 | +5% | Benny paints your first sign (the Day 6 lesson) |
 | M2 | Flyers & Sidewalk Chalk | 3 | $1,500 | +12% | — |
 | M3 | Radio Jingle | 4 | $12,000 | +22% | A 2-day weather forecast; your jingle airs on 101.5 The Squeeze |
 | M4 | Billboards & TV Spot | 7 | $90,000 | +35% | Unlocks the Billboard building |
@@ -680,7 +680,7 @@ Lottie's Corner with cans and a goose spots 80% of raids by day, 55% at night an
 
 ### Warnings and auto-pause
 
-No raid comes on Days 1–5, and every later raid is warned. An undetected raid still gives at least 15 game minutes of notice on Classic, 30 on Laid Back and 5 on Cutthroat.
+No raid comes on Nights 1–2, and every raid after is warned. An undetected raid still gives at least 15 game minutes of notice on Classic, 30 on Laid Back and 5 on Cutthroat.
 
 At 1×, 15 game minutes of night pass in about 2 real seconds, so the warning auto-pauses the game. It's a setting: on by default in Laid Back and Classic, off in Cutthroat. Without auto-pause, the clock drops to fight speed while the warning counts down, so Cutthroat's 5-minute notice lasts 5 real seconds.
 
@@ -738,7 +738,7 @@ From Rank 2 you hire at the Hiring Hall, a civic plot in Old Town. Its 6 recruit
 | 4 | Elite | 1,000 | 60 | +30% |
 | 5 | Legend | 2,500 | 90 | +40% |
 
-Guards gain about 1 level per 35 days of duty, faster with fights and a Training Yard, and wages rise with each level. Unpaid guards quit, except Loyal ones. Dex Moody joins free on Day 6, sleeps in the shed and becomes your crew chief.
+Guards gain about 1 level per 35 days of duty, faster with fights and a Training Yard, and wages rise with each level. Unpaid guards quit, except Loyal ones. Dex Moody joins free on Day 4, sleeps in the shed and becomes your crew chief.
 
 You can keep 2 guards before you own a Clubhouse, then 2 plus your Clubhouse beds.
 
@@ -968,7 +968,7 @@ Threat, 1 to 5 sour lemons, follows your rank and sets how often rivals raid you
 
 | Threat | Triggered by (Classic) | Raids on you per week | Typical raid | What changes |
 | --- | --- | --- | --- | --- |
-| 1 | Ranks 1–2 | 1 | 2–3 henchmen with fists; always a Shakedown | The first raid, on your first Kiosk night or Day 15, always bounces |
+| 1 | Ranks 1–2 | 1 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard |
 | 2 | Ranks 3–4 | 2 | 3–5, some clubs; 30% Smash | Smash attempts begin |
 | 3 | Ranks 5–6 | 3 | 5–8 with clubs and lookouts; 60% Smash | Delivery Raids on VIP pickups; the music's tension layer |
 | 4 | Ranks 7–8 | 4 | 8–12, hatchets appear; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
@@ -1132,8 +1132,8 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 
 | Milestone | Target day | Simulated Classic day (range on ten maps) |
 | --- | --- | --- |
-| First upgrade to L2 | 4 | 4 (4–5) |
-| Rank 2 | 4 | 4 (3–4) |
+| First upgrade to L2 | 5 (its lesson) | 4 (4–5) |
+| Rank 2 | 5 (its lesson) | 4 (3–4) |
 | Rank 3 | About 10 | 9 (8–12) |
 | Rank 4 | About 22 | 19 (15–34) |
 | Rank 5 | About 37 | 41 (26–48) |
@@ -1145,6 +1145,8 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 | Rank 10 (after victory) | About 150–160 | 157 (148–162) |
 
 Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
+
+These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
 
 ### Difficulty differences
 
@@ -1165,7 +1167,7 @@ Grind breakers:
 
 - Ranks, unlocks and stand levels are spaced so something new arrives about once a week, even in the slowest stretch.
 - Local Orders, Caterer Trucks and VIPs give cash spikes and goals between upgrades.
-- Automation arrives before the chores pile up: Auto-Restock (Day 3); Auto-Price, bulk upgrades and Auto-Repair (Rank 3); Auto-Defend (Rank 4).
+- Automation arrives before the chores pile up: Auto-Restock (Day 2); Auto-Price, bulk upgrades and Auto-Repair (Rank 3); Auto-Defend (Rank 4).
 - Fire Sales sell an eliminated rival's plots at 75% of value, so each victory speeds the next.
 
 ### How the numbers were checked
@@ -1196,8 +1198,8 @@ Each row lists a rank's unlocks with its Classic target day, then the simulated 
 
 | Rank | Classic day: target / simulated (hours) | Laid Back / Cutthroat day | Grow | Guard and strike | Contracts, deals and helpers |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Start | Start | Selling, recipes, weather, supplies; Wooden Stand (L2); Hand-Painted Signs (M1); Maple Row land | Picket Fence; fists | Auto-Restock (Day 3) |
-| 2 | 4 / 4 (0.5) | 4 / 4 | Old Town land; Sandwich-Board Kid; Free Sample Day | Guards, with Dex free on Day 6; Clubhouse; Chain-Link Fence; Tin-Can Alarm; Guard Goose | — |
+| 1 | Start | Start | Selling, recipes, weather, supplies; Wooden Stand (L2); Hand-Painted Signs (M1); Maple Row land | Picket Fence; fists | Auto-Restock (Day 2) |
+| 2 | 5 / 4 (0.5) | 5 / 5 | Old Town land; Sandwich-Board Kid; Free Sample Day | Guards, with Dex free on Day 4; Clubhouse; Chain-Link Fence; Tin-Can Alarm; Guard Goose | — |
 | 3 | 10 / 9 (1.2) | 9 / 9 | Kiosk (L3); Flyers & Sidewalk Chalk (M2); Sunny the Lemon; other districts through Footholds and borders | Clubs; Padded Vest; Smash and Shakedown raids; squad of 5 | Local Orders; Marisol's Auto-Price; bulk actions; Auto-Repair |
 | 4 | 22 / 19 (2.5) | 19 / 19 | Radio Jingle (M3); Coupon Blitz | Sharpened Stakes; Lemon-Peel Slick; Sprinkler Ambush; Lookouts; Wreckers; Sabotage | Warehouse; Sit-downs (Truce, Plot Buyout); Dex's Auto-Defend |
 | 5 | 37 / 41 (5.5) | 31 / 38 | Lemon Shack (L4); Event Sponsorship | Floodlights; squad of 8; Clubhouse L2; the Blend Shack (assault or buyout) | Bottling Works; Caterer Trucks; Lemon Grove |
@@ -1215,7 +1217,7 @@ Each helper arrives as its chore piles up; by Rank 7 the simulated player runs o
 
 | Helper | Arrives | Takes over | You still decide |
 | --- | --- | --- | --- |
-| Auto-Restock | Day 3 | Buying supplies | Each stand's stock target |
+| Auto-Restock | Day 2 | Buying supplies | Each stand's stock target |
 | Marisol's Auto-Price | Rank 3 | Prices, recipe cards and Sweetness for the weather and the crowd | Any stand you set by hand |
 | Bulk actions | Rank 3 | Group orders, such as "upgrade every Kiosk I can afford" | The group and the budget |
 | Auto-Repair | Rank 3 | Overnight repairs | Plots to skip |
@@ -1303,7 +1305,7 @@ Acts advance on their climax; days and ranks are targets. A boss who falls early
 
 Maple Row → Old Town · Days 1–15 · Ranks 1–3. **Goal:** learn the trade, one idea a day.
 
-1. **Day 1:** Lottie hands you the table, her pitcher and 3 pages, then pulls a spare from her cardigan. *Teaches pricing.*
+1. **Day 1:** Lottie hands you the table, her pitcher and 3 pages, then pulls a spare from her cardigan. Once the stand opens, Brock phones: "Bro. Your stand is in my sun. Summer Fair, Day 14. You lose, you leave." *Teaches pricing.*
 2. Day 3: Lottie sells you the side lot by the Corner for $300, card table included: "Two tables, twice the trouble. You'll love it." Teaches a second stand and Auto-Restock.
 3. **Day 3:** at dawn a Sourwood Steward kicks over your table "as a reminder." Lottie: "Well. Guess she remembers me." It's a scene, not a raid, and costs one spilled pitcher. Lottie: "And Brock's boys come for the till tonight." That night they do. *Teaches the Picket Fence.*
 4. **Day 4 and Day 6:** Dex volunteers and moves into the shed, and Benny Buzz paints your first sign. *Teaches guards and marketing.*
@@ -1311,13 +1313,13 @@ Maple Row → Old Town · Days 1–15 · Ranks 1–3. **Goal:** learn the trade,
 
 **Climax:** the Summer Fair taste-off. Brock stakes his Strawberry page against one of Lottie's pies; win, and he swears revenge live on 101.5.
 
-**Unlocks:** Strawberry and Brock's phone taunts.
+**Unlocks:** Strawberry. Brock has been taunting you on the phone since his Day 1 call.
 
 ### Act 2: Surf & Turf
 
 The Boardwalk · Days 15–40 · Ranks 3–5. **Goal:** survive Brock's revenge and take the Boardwalk.
 
-1. **First call:** on the day your first Kiosk opens, or the day after the Summer Fair if that comes first, the phone rings: "Bro. Your stand is in my sun." Smoothie Bros follow that night, fully announced, and bounce off your fence and Dex (the first raid always does). *Teaches raid warnings.*
+1. **Dex's push:** on the act's first morning Dex wants a Clubhouse: "The shed sleeps one, Miss Lottie. A Clubhouse sleeps six. Just saying." Build one, then hire a squad to fill it. *Teaches the Clubhouse and its reserve.*
 2. **Squawk's flight:** the one required Gull Flight, over the Pier. *Teaches scouting.*
 3. **Payback:** Dex trades fists for clubs; you Shakedown one Blenders stand and Smash another. *Teaches raids and First Dibs.*
 4. **Off-season:** winter empties the Boardwalk. Lottie: "Nobody buys a smoothie in sleet." *Teaches Weakened rivals.*
@@ -2142,7 +2144,7 @@ The MVP ships only if new players hit the five playtest signals in Fun first.
 | --- | --- | --- |
 | A third plot, unprompted, within the first hour | Maple Row For Sale signs, L1 profit | Cheaper Maple Row plots |
 | Most first sessions run past 30 minutes | The 5-minute day, Lottie's Goals, the first upgrade | Faster first ranks |
-| A laugh at a taunt or headline in the first hour | Brock's calls, the Day 5 Steward visit | More, shorter taunts |
+| A laugh at a taunt or headline in the first hour | Brock's calls, the Day 3 Steward visit | More, shorter taunts |
 | Losing a stand leads to a rebuild or revenge | The 24-hour rebuild, Smash, First Dibs | Cheaper rebuilds |
 | Laid Back stays relaxed through Act 1's 15 days; Cutthroat loses a stand once and comes back | Warnings, Busted versus Wrecked, the Cookie Jar | Raid frequency and notice |
 
@@ -2264,7 +2266,7 @@ Detection = 50% base plus gadgets and a stationed Lookout (+25%), capped at 95%,
 | 4 | Elite | 1,000 | 60 | +30% |
 | 5 | Legend | 2,500 | 90 | +40% |
 
-Guards gain about 1 level every 35 days of duty; fights and the Training Yard speed this up. Dex Moody joins free on Day 6. Unpaid guards quit.
+Guards gain about 1 level every 35 days of duty; fights and the Training Yard speed this up. Dex Moody joins free on Day 4. Unpaid guards quit.
 
 ### Clubhouse and squads
 
@@ -2403,7 +2405,7 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 | Rank | Title | Success Score threshold ($) | Target day | Simulated Classic day | Range on ten maps |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Sidewalk Squeezer | 0 | 1 | 1 | 1 |
-| 2 | Corner Hustler | 1,500 | 4 | 4 | 3–4 |
+| 2 | Corner Hustler | 1,500 | 5 | 4 | 3–4 |
 | 3 | Block Boss | 6,000 | 10 | 9 | 8–12 |
 | 4 | Neighborhood Name | 25,000 | 22 | 19 | 15–34 |
 | 5 | District Big Shot | 100,000 | 37 | 41 | 26–48 |
@@ -2413,7 +2415,7 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 | 9 | Bay Kingpin | 125,000,000 | 125–135 | 135 | 123–138 |
 | 10 | The Big Squeeze | 200,000,000 | About 150–160 (after victory) | 157 | 148–162 |
 
-The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
+The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
 ### Threat and raids on the player (Classic)
 
@@ -2425,7 +2427,7 @@ The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the referenc
 | 4 | 4 | 8–12 | Hatchets appear | 1–2 | 30% | 70% |
 | 5 (Syndicate) | 6 | 12–20, boss-led | Full kit | 2–3 | 0% | 100% |
 
-Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Days 1–5. The first raid on you, Brock's, comes the night your first Kiosk opens or the night after the Summer Fair (Day 15), whichever comes first (Days 14–15 in the simulation), and is scripted to bounce off your fence and Dex. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's, comes on Night 3: two Smoothie Bros with bare fists come for the till, and any fence or guard sends them home. After it, no more than 2 nights in a row pass without a raid on you (4 on Laid Back, 1 on Cutthroat). Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
 
 ### Difficulty
 
@@ -2511,7 +2513,7 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Stand | L1 Folding Table (counts as $100 invested) |
 | Recipes | Classic, Pink, Mint |
 | Reputation | 3.0 stars |
-| Crew and defenses | None (Dex joins on Day 6) |
+| Crew and defenses | None (Dex joins on Day 4) |
 | Starting Net Worth | About $525 |
 | Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
 

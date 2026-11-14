@@ -384,7 +384,7 @@ Pacing targets (Classic, a competent player, about 8 real minutes per day includ
 
 Laid Back runs about 14% faster (×0.86 of Classic's days); Cutthroat about 1% slower (×1.01), with 1.3–1.7× Classic's raids.
 
-These targets are under review. After the 2026-11-14 retune the pacing bot's sweep (/mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt) lands the ten-map medians of Classic's Ranks 2–6, Rank 9 and Domination on target and Ranks 7–8 and 10 early. Laid Back keeps Classic's pace, and Cutthroat runs about 3% behind it with 1.34× its raids, reaching Domination before Day 170 on 8 of 10 maps. The design spec's Pacing targets vs the simulation lists what else misses.
+These targets are under review. After the 2026-11-14 retune the pacing bot's sweep (/mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt) lands the ten-map medians of Classic's Ranks 2–6 and Rank 9 on target, Domination on Day 136 (the earliest its target allows) and Ranks 7–8 and 10 early. Laid Back keeps Classic's pace, and Cutthroat runs about 3% behind it with 1.34× its raids, reaching Domination before Day 170 on 8 of 10 maps. The design spec's Pacing targets vs the simulation lists what else misses.
 
 ## 17. Progression and automation
 

@@ -183,12 +183,15 @@ export function standPanel(s: GameState, plotId: string, math: boolean): string 
     .map(([r, e, label]) => `<span title="${label}: ${d.walkedPast[r]}">${emote(e)}${d.walkedPast[r]}</span>`).join('');
   const whyWhen = open ? 'Today' : 'Yesterday';
   const over = st.price > c.ceiling + 1e-9;
+  // The funnel (meters over numbers): everyone who walks by, the share who stop, then the cups the stand can pour and stock.
+  const w2 = Math.max(0.06, Math.min(1, c.stopChance * 2));
+  const w3 = Math.max(0.04, w2 * Math.min(1, c.cups / Math.max(1, c.demand)));
   return `<div class="cl-planner" data-testid="stand-panel">
     <b title="${open ? 'Live: so far today, with what the day should bring' : `Forecast for ${WEATHER[s.forecast.kind].label.toLowerCase()} weather`}">${open ? 'Today so far' : 'Today\'s odds'}</b>
-    <span class="cl-bars">
-      <span title="${esc(step1)}">${I.crowd}${open ? `${n0(d.passersby)} of ~${n0(c.passersby)} walked by` : `${n0(c.passersby)} walk by`}${c.visitors !== c.passersby ? ` · ${n0(c.visitors)} here` : ''}</span>
-      <span title="${esc(step2)}">${I.cup}${pct(c.stopChance)} stop${over ? ` · over the ${usd(c.ceiling)} top` : ''}</span>
-      <span title="${esc(step3)}">${I.crate}${open ? `${n0(d.customers)} sold · line ${peopleAhead(st)}` : `${n0(c.cups)} cups`}</span>
+    <span class="cl-bars cl-funnel">
+      <span style="--w:1" title="${esc(step1)}">${I.crowd}${open ? `${n0(d.passersby)} of ~${n0(c.passersby)} walked by` : `${n0(c.passersby)} walk by`}${c.visitors !== c.passersby ? ` · ${n0(c.visitors)} here` : ''}</span>
+      <span style="--w:${w2.toFixed(3)}" title="${esc(step2)}">${I.cup}${pct(c.stopChance)} stop${over ? ` · over the ${usd(c.ceiling)} top` : ''}</span>
+      <span style="--w:${w3.toFixed(3)}" title="${esc(step3)}">${I.crate}${open ? `${n0(d.customers)} sold · line ${peopleAhead(st)}` : `${n0(c.cups)} cups`}</span>
     </span>
     <span class="cl-note">${capRow}</span>
     ${why ? `<span class="cl-bars" title="${whyWhen}: why people walked past"><span>${why}</span></span>` : ''}

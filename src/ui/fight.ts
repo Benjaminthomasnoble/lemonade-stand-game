@@ -38,7 +38,13 @@ export function fightBar(k: FightKit, s: GameState): string {
   const next = st.next ? `<span class="cl-note" data-testid="fight-next">Next: ${PLOT_BY_ID[st.next].name}</span>` : ''; // the raid waiting its turn
   // Each side's standing count, and where its one Nerve roll comes (a Rally only helps if that lands inside its 10 s).
   const who = (side: Side) => (st.side ? (side === st.side ? 'Yours' : 'Theirs') : side === 'att' ? 'Raiders' : 'Guards');
-  const nerve = (side: Side) => `<span class="cl-note" data-testid="fight-nerve-${side}">${who(side)} ${st.up[side]}/${st.of[side]} standing${st.nerveAt[side] === null ? '' : `, breaks at ${st.nerveAt[side]}`}</span>`;
+  // A meter, not words: one clay head per fighter, lit while standing, with a crack where that side's Nerve breaks.
+  const nerve = (side: Side) => {
+    const line = `${who(side)} ${st.up[side]}/${st.of[side]} standing${st.nerveAt[side] === null ? '' : `, breaks at ${st.nerveAt[side]}`}`;
+    const n = Math.min(st.of[side], 12), at = st.nerveAt[side];
+    const heads = Array.from({ length: n }, (_, i) => `<i class="${i < st.up[side] ? 'up' : 'ko'}${at !== null && i === at - 1 ? ' brk' : ''}"></i>`).join('');
+    return `<span class="cl-nerve ${side === st.side || (!st.side && side === 'def') ? 'mine' : 'theirs'}" data-testid="fight-nerve-${side}" title="${line}"><b>${who(side)}</b><span class="cl-heads">${heads}${st.of[side] > n ? `<em>+${st.of[side] - n}</em>` : ''}</span><span class="cl-sr">${line}</span></span>`;
+  };
   const order: Side[] = st.side === 'def' ? ['def', 'att'] : ['att', 'def']; // yours first
   const sides = order.map(nerve).join('');
   return `<div class="cl-daybar" data-testid="fight" title="${st.up.att} vs ${st.up.def} standing">${st.side === 'def' ? k.ART.shield() : k.ART.raid()}${k.tape(`<b>${clock(st.clock)}</b>${st.hq ? ` ${STAGE[st.hq]}` : ''}${move}`)}${sides}${next}<span class="cl-acts">${acts}</span></div>`;

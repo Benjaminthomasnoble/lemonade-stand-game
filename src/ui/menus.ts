@@ -11,7 +11,7 @@
 // targets and mounts crew's planner (src/ui/raidPlanner.ts) for the one picked,
 // the same panel as on its plot card; Rank and Perks shows the rank ladder,
 // a rank-up's hand of Lottie's Tips to pick from and the tips you keep (src/ui/perks.ts).
-import { glyph, raidSVG } from './clay.ts';
+import { glyph, raidSVG, rankSVG } from './clay.ts';
 import {
   deliveryRaidRisk, FACTIONS, ORDER_TIERS, PLOT_BY_ID, RAID_RANK, RANKS, RECIPES,
   dayIncomeCosts, dayProfit, peaceful, raidTargets, successScore, DISTRICT_BY_ID, FESTIVALS, festivalsOn, siegeNight, siegeTargets,
@@ -95,11 +95,11 @@ function charts(s: GameState): string {
   const profit = days.map(profitOf), most = Math.max(1, ...profit.map(Math.abs));
   const bars = profit.map((p, i) => {
     const h = (Math.abs(p) / most) * (H / 2 - 2);
-    return `<rect x="${(i * bw + bw * 0.15).toFixed(1)}" y="${(p >= 0 ? H / 2 - h : H / 2).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="1.5" fill="${p >= 0 ? '#7CC47F' : '#E8704F'}"><title>Day ${days[i].day}: ${signed(p)}</title></rect>`;
+    return `<rect x="${(i * bw + bw * 0.15).toFixed(1)}" y="${(p >= 0 ? H / 2 - h : H / 2).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="1.5" class="cl-bar ${p >= 0 ? 'good' : 'bad'}"><title>Day ${days[i].day}: ${signed(p)}</title></rect>`;
   }).join('');
-  const svg = (inner: string, label: string) => `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${label}" style="max-width:${W * 1.6}px;background:#fffdf6;border-radius:8px">${inner}</svg>`;
+  const svg = (inner: string, label: string) => `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${label}" class="cl-chart">${inner}</svg>`;
   return `${row(`<span class="cl-label" title="Each day's profit in the Ledger: sales and orders less supplies used, upkeep, wages and the rest">Profit a day</span>`)}
-    ${svg(`<line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="#2E2A4F" stroke-opacity=".25"/>${bars}`, 'Profit each day')}
+    ${svg(`<line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" class="cl-axis"/>${bars}`, 'Profit each day')}
     ${row(`<span class="cl-label" title="Your Success Score at each day's close, from Day 1: gold where a rank came, green at the peak">Success Score</span>`)}
     ${scoreLine(s)}`;
 }
@@ -128,13 +128,16 @@ function orders(s: GameState): string {
   return sheet('orders', 'Order Book', body || row('<span class="cl-note">No offers yet. They come with the Bugle.</span>'));
 }
 
+let RANK_ART = '';
 function rank(s: GameState): string {
   const ss = successScore(s);
   const rows = RANKS.map((r) => {
     const now = r.rank === s.rank, next = r.rank === s.rank + 1;
-    return `<tr${now ? ' class="good"' : ''}><td>${now ? '<b>' : ''}R${r.rank} ${esc(r.title)}${now ? '</b>' : ''}</td><td>${whole(r.ss)}${next ? ` (${whole(r.ss - ss)} to go)` : ''}</td></tr>`;
+    const prev = RANKS[r.rank - 2]?.ss ?? 0;
+    const meter = next ? `<span class="cl-snake" style="--v:${Math.max(0, Math.min(1, (ss - prev) / Math.max(1, r.ss - prev))).toFixed(3)}"><i></i></span>` : '';
+    return `<tr class="${now ? 'good now' : r.rank < s.rank ? 'done' : next ? 'next' : 'later'}"><td>${now ? (RANK_ART ||= rankSVG()) : r.rank < s.rank ? glyph('check') : ''}${now ? '<b>' : ''}R${r.rank} ${esc(r.title)}${now ? '</b>' : ''}</td><td>${whole(r.ss)}${next ? ` (${whole(r.ss - ss)} to go)${meter}` : ''}</td></tr>`;
   }).join('');
-  return sheet('rank', 'Rank and Perks', `${row(`<span class="cl-note" title="Your best: ${whole(s.peakScore)}">Success Score ${whole(ss)}</span>`)}<table class="cl-books">${rows}</table>${perksSheet(s)}`);
+  return sheet('rank', 'Rank and Perks', `${row(`<span class="cl-note" title="Your best: ${whole(s.peakScore)}">Success Score ${whole(ss)}</span>`)}<table class="cl-books cl-ladder">${rows}</table>${perksSheet(s)}`);
 }
 
 /** The Morning Bugle: world's front page (headline, briefs, events, forecast, Market, the week ahead; celsius: the °C

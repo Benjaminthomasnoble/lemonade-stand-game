@@ -4,10 +4,11 @@
 // BAY' page in Sandbox. Continue brings up the victory screen (hud.ts outcomeScreen).
 import { ENDINGS, type GameState } from '../sim/economy.ts';
 import { victoryStage } from '../sim/victory.ts';
-import { lottieDoodle } from './clay.ts';
+import { lottieDoodle, rosetteSVG } from './clay.ts';
 import { esc, once, tape } from './recipes.ts';
 
 const lottieArt = once(lottieDoodle);
+const rosette = once(rosetteSVG);
 /** Sandbox's front page (spec: a generic 'OWNS THE BAY' page). */
 export const BAY_PAGE: [string, string] = ["LOTTIE'S OWNS THE BAY!", "Every district flies Lottie's colors."];
 
@@ -19,11 +20,12 @@ export function victoryShow(s: GameState): string | null {
   if (stage === 'paint') return '<div class="cl-modal-bg cl-paint" data-testid="victory-paint"></div>';
   const e = s.outcome!.ending ? ENDINGS[s.outcome!.ending] : null;
   const [head, sub] = e ? [e.bugle, ''] : BAY_PAGE;
-  return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="ending">
-    <span class="cl-label">The Citrine Bay Bugle</span>
+  return `<div class="cl-modal-bg"><div class="cl-card-big cl-end cl-frontpage" data-testid="ending">
+    <span class="cl-mast">The Citrine Bay Bugle</span>
+    <span class="cl-dateline">Extra! Extra! · ${s.day ? `Day ${s.day}` : ''} · 5¢</span>
     ${tape(esc(head), 'cl-big')}
     ${sub ? `<span class="cl-note">${esc(sub)}</span>` : ''}
     ${e ? `<div class="cl-lottie"><span class="cl-doodle">${lottieArt()}</span><span>"${esc(e.lottie)}"</span></div>` : ''}
-    <button class="cl-sleep" data-action="victoryNext" data-testid="ending-next"><span>Continue</span></button>
+    <button class="cl-sleep" data-action="victoryNext" data-testid="ending-next">${rosette()}<span>Continue</span></button>
   </div></div>`;
 }

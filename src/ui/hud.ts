@@ -907,7 +907,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   /** A rival's HQ: Dot's Diner sit-downs and the assault. */
   function hqPanel(s: GameState, id: RivalId) {
     const st = rivalStatus(s, id);
-    const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} · ${rivalStars(s, id).toFixed(1)} stars${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
+    const head = `<span class="cl-note" title="${st.plots} plots (peak ${st.peak}), worth about ${whole(st.worth)}; Reputation ${rivalStars(s, id).toFixed(2)} stars">${st.weakened ? 'Weakened!' : `${st.plots} plots`} ${A.starPips(rivalStars(s, id))}${st.truce ? ` · truce to day ${st.truce}` : ''}</span>`;
     if (s.rank < SITDOWN_RANK) return head;
     const sit = sitDown(clubs, s, id); // the Truce, the Faction Buyout and your negotiator (src/ui/sitdown.ts)
     // crew: HQ Assault is the Raid Planner's objective here: the squad, the odds, then Tonight or Now (src/ui/raidPlanner.ts)

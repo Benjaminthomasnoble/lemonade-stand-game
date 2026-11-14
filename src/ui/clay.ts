@@ -144,6 +144,8 @@ export const GLYPHS: Record<string, () => string> = {
   pin: () => gsvg(`<path d="M16 28s-8-8.5-8-14a8 8 0 0 1 16 0c0 5.5-8 14-8 14z" fill="#E8704F" ${G}/><circle cx="16" cy="13.5" r="3" fill="#FFF1D6" ${G}/>${sheenE(12, 10, 1.2, 2.4)}`),
 };
 const GCACHE: Record<string, string> = {};
+/** Reputation as five star pips (meters over numbers), the number kept for screen readers. */
+export const starPips = (stars: number): string => `<span class="cl-pips" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < Math.round(stars) ? 'on' : ''}">${glyph('star')}</i>`).join('')}</span><span class="cl-sr">${stars.toFixed(1)} stars</span>`;
 /** A small clay control icon by name (cached so HUD render strings stay equal). */
 export const glyph = (name: keyof typeof GLYPHS): string => (GCACHE[name] ??= GLYPHS[name]());
 

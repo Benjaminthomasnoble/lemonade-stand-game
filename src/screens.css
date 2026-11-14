@@ -493,3 +493,61 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
 .clay .cl-chips i.bad { background: #fbe2d6; border-color: #E8704F; color: #a33a22; }
 .clay .cl-chips i svg { width: calc(var(--u) * 2); height: calc(var(--u) * 2); }
 .clay .cl-chips .cl-sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* Ledger charts: a cream clay plate with clay-coloured bars and dots. */
+.clay .cl-chart { max-width: calc(var(--u) * 48); background: #fffdf6; border: calc(var(--u) * .2) solid rgba(46,42,79,.35); border-radius: calc(var(--u) * 1); box-shadow: inset 0 calc(var(--u) * -.3) 0 rgba(139,94,60,.12); }
+.clay .cl-chart .cl-bar.good { fill: #7CC47F; stroke: #2E2A4F; stroke-width: .6; }
+.clay .cl-chart .cl-bar.bad { fill: #E8704F; stroke: #2E2A4F; stroke-width: .6; }
+.clay .cl-chart .cl-axis { stroke: #2E2A4F; stroke-opacity: .25; stroke-dasharray: 3 3; }
+.clay .cl-chart .cl-line { fill: none; stroke: #2E2A4F; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.clay .cl-chart .cl-dot-rank { fill: #F7C948; stroke: #2E2A4F; stroke-width: 1.2; }
+.clay .cl-chart .cl-dot-peak { fill: #7CC47F; stroke: #2E2A4F; stroke-width: 1.2; }
+/* The rank ladder: done rungs ticked, your rung with its rosette, the next with a meter, later ones faded. */
+.clay .cl-ladder tr.now td { background: #fff3a6; }
+.clay .cl-ladder tr.later { opacity: .55; }
+.clay .cl-ladder td > svg { width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); vertical-align: middle; margin-right: calc(var(--u) * .4); }
+.clay .cl-ladder td > .cl-ico { width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); }
+.clay .cl-ladder .cl-snake { display: inline-block; vertical-align: middle; width: calc(var(--u) * 7); height: calc(var(--u) * 1.2); }
+/* Kept tips: little paper cards with the tip's name and words. */
+.clay .cl-tipcard { display: inline-flex; flex-direction: column; gap: calc(var(--u) * .2); max-width: calc(var(--u) * 20); padding: calc(var(--u) * .7) calc(var(--u) * .9); background: linear-gradient(170deg, #fffdf6, #f6ead0); border: calc(var(--u) * .18) solid #2E2A4F; border-radius: calc(var(--u) * .8); box-shadow: 0 calc(var(--u) * .3) calc(var(--u) * .4) rgba(46,42,79,.25); transform: rotate(-1.5deg); }
+.clay .cl-tipcard:nth-child(odd) { transform: rotate(1.5deg); }
+.clay .cl-tipcard b { font: 400 calc(var(--u) * 1.8)/1 'Chewy', cursive; color: #C8325A; }
+.clay .cl-tipcard i { font: 400 calc(var(--u) * 1.5)/1.15 'Gochi Hand', cursive; font-style: normal; }
+/* Star pips (Reputation as stars, not a number). */
+.clay .cl-pips { display: inline-flex; gap: calc(var(--u) * .1); vertical-align: middle; }
+.clay .cl-pips i { display: inline-block; width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); filter: grayscale(1) opacity(.35); }
+.clay .cl-pips i.on { filter: none; }
+.clay .cl-pips .cl-ico { width: 100%; height: 100%; vertical-align: top; }
+.clay .cl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Fight bar Nerve: a row of clay heads per side, lit while standing, a crack where the side breaks. */
+.clay .cl-nerve { display: inline-flex; align-items: center; gap: calc(var(--u) * .4); margin: 0 calc(var(--u) * .5); }
+.clay .cl-nerve b { font: 400 calc(var(--u) * 1.6)/1 'Chewy', cursive; }
+.clay .cl-heads { display: inline-flex; gap: calc(var(--u) * .2); align-items: center; }
+.clay .cl-heads i { position: relative; width: calc(var(--u) * 1.5); height: calc(var(--u) * 1.5); border-radius: 50%; border: calc(var(--u) * .15) solid #2E2A4F; background: radial-gradient(circle at 35% 30%, #fff 0 10%, #7CC47F 45%, #3f8f44); }
+.clay .cl-nerve.theirs .cl-heads i { background: radial-gradient(circle at 35% 30%, #fff 0 10%, #E8704F 45%, #a8462e); }
+.clay .cl-heads i.ko { background: #cfc5b3; opacity: .55; transform: rotate(90deg) scale(.85); }
+.clay .cl-heads i.brk::after { content: ''; position: absolute; right: calc(var(--u) * -.45); top: calc(var(--u) * -.4); bottom: calc(var(--u) * -.4); width: calc(var(--u) * .25); background: #C8325A; transform: rotate(14deg); border-radius: 2px; }
+.clay .cl-heads em { font: 600 calc(var(--u) * 1.3)/1 'Fredoka', sans-serif; font-style: normal; }
+/* The ending as the Bugle's front page: a paper masthead, a dateline rule and the headline on tape. */
+.clay .cl-frontpage { background: radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.7), transparent 60%), #f6efdb; }
+.clay .cl-frontpage .cl-mast { display: block; font: 400 calc(var(--u) * 4)/1 'Chewy', cursive; color: #C8325A; text-align: center; padding-bottom: calc(var(--u) * .6); border-bottom: calc(var(--u) * .35) double #2E2A4F; }
+.clay .cl-frontpage .cl-dateline { display: block; font: 400 calc(var(--u) * 1.5)/1.6 'Gochi Hand', cursive; text-align: center; border-bottom: calc(var(--u) * .12) solid #2E2A4F; margin-bottom: calc(var(--u) * 1); }
+/* Urgent cards stay on top of the feed: raid warnings and a VIP's Watch go ahead of scenes, offers and tip hands. */
+.clay .cl-feed > [data-testid="raid-warning"], .clay .cl-feed > .cl-ticket:has([data-testid="vip-watch"]) { order: -1; }
+/* Lottie's tips hand: three cards fanned out like a hand of play cards. */
+.clay [data-testid="tips"] .cl-acts { display: flex; flex-wrap: nowrap; justify-content: center; padding: calc(var(--u) * .6) 0 calc(var(--u) * .4); }
+.clay [data-testid="tips"] .cl-acts .cl-b { display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * .3); width: calc(var(--u) * 9); min-height: calc(var(--u) * 11); margin: 0 calc(var(--u) * -.6); padding: calc(var(--u) * .8); white-space: normal; text-align: left;
+  background: linear-gradient(170deg, #fffdf6, #f6ead0); color: #2E2A4F; border: calc(var(--u) * .2) solid #2E2A4F; border-radius: calc(var(--u) * .9); box-shadow: 0 calc(var(--u) * .4) calc(var(--u) * .5) rgba(46,42,79,.3); font: 400 calc(var(--u) * 1.7)/1 'Chewy', cursive; transition: transform .2s cubic-bezier(.3,1.5,.5,1); }
+.clay [data-testid="tips"] .cl-acts .cl-b:nth-child(1) { transform: rotate(-9deg) translateY(calc(var(--u) * .6)); }
+.clay [data-testid="tips"] .cl-acts .cl-b:nth-child(3) { transform: rotate(9deg) translateY(calc(var(--u) * .6)); }
+.clay [data-testid="tips"] .cl-acts .cl-b:hover, .clay [data-testid="tips"] .cl-acts .cl-b:focus-visible { transform: translateY(calc(var(--u) * -1)) scale(1.06); z-index: 1; }
+.clay [data-testid="tips"] .cl-acts .cl-b .cl-cost-in { font: 400 calc(var(--u) * 1.35)/1.15 'Gochi Hand', cursive; font-style: normal; opacity: 1; }
+/* The plot card docks on the right on wide screens, clear of the left feed. */
+@media (min-width: 641px) { .clay .cl-plot { left: auto; right: calc(var(--u) * 1.8); } }
+/* The stand panel's funnel: each step a clay bar, narrowing from walkers to stoppers to cups. */
+.clay .cl-funnel { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .4); }
+.clay .cl-funnel > span { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .4); min-width: calc(var(--u) * 14); width: calc(var(--w) * 100%); padding: calc(var(--u) * .4) calc(var(--u) * .8); white-space: nowrap; }
+.clay .cl-funnel > span::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: calc(var(--u) * 1); border: calc(var(--u) * .18) solid #2E2A4F; background: radial-gradient(ellipse at 30% 20%, #fff7cf 0 12%, #F7C948 50%, #d9ab35 100%); }
+.clay .cl-funnel > span:nth-child(2)::before { background: radial-gradient(ellipse at 30% 20%, #e2f6f8 0 12%, #3BB4C1 55%, #2b8d98 100%); }
+.clay .cl-funnel > span:nth-child(3)::before { background: radial-gradient(ellipse at 30% 20%, #eaf8e7 0 12%, #7CC47F 55%, #4f9a52 100%); }
+.clay .cl-funnel > span:nth-child(2), .clay .cl-funnel > span:nth-child(3) { color: #fffdf6; text-shadow: 0 1px 0 rgba(46,42,79,.6); }
+.clay .cl-funnel svg { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); flex: none; }

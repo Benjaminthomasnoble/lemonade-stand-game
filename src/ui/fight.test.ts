@@ -40,15 +40,15 @@ describe('the fight bar', () => {
   it("shows each side's standing count against the mark where its one Nerve roll comes, yours first", () => {
     const { s } = raidNight(false, { guards: 2, nerve: 100 });
     const bar = fightBar(kit, s);
-    expect(bar).toContain('<span class="cl-note" data-testid="fight-nerve-def">Yours 2/2 standing, breaks at 1</span>');
-    expect(bar).toContain('<span class="cl-note" data-testid="fight-nerve-att">Theirs 3/3 standing, breaks at 2</span>');
+    expect(bar).toMatch(/data-testid="fight-nerve-def" title="Yours 2\/2 standing, breaks at 1"/);
+    expect(bar).toMatch(/data-testid="fight-nerve-att" title="Theirs 3\/3 standing, breaks at 2"/);
     expect(bar.indexOf('fight-nerve-def')).toBeLessThan(bar.indexOf('fight-nerve-att'));
     // The first raider down brings their roll (Nerve 100: nobody runs), and their mark goes: no Rally can matter now.
     for (let i = 0; i < 400 && fightStatus(s)?.up.att === 3; i++) fightFrame(s, 0.25, false);
     const st = fightStatus(s)!;
     expect(st).toMatchObject({ up: { def: 2 }, nerveAt: { att: null, def: 1 } });
     expect(st.up.att).toBeGreaterThan(0);
-    expect(fightBar(kit, s)).toContain(`<span class="cl-note" data-testid="fight-nerve-att">Theirs ${st.up.att}/3 standing</span>`);
+    expect(fightBar(kit, s)).toContain(`data-testid="fight-nerve-att" title="Theirs ${st.up.att}/3 standing"`);
     expect(fightBar(kit, s)).toContain('Yours 2/2 standing, breaks at 1');
   });
 

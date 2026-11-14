@@ -23,6 +23,6 @@ export function perksTicket(s: GameState, art: string): string {
 export function perksSheet(s: GameState): string {
   const h = tipHand(s), held = tipsHeld(s);
   const hand = h ? `<div class="cl-row wrap"><span class="cl-label">Rank ${h.rank}: keep one</span>${h.cards.map(pick).join('')}</div>` : '';
-  const kept = held.length ? `<div class="cl-row wrap"><span class="cl-label">Lottie's tips</span>${held.map((id) => `<span class="cl-chip" title="${esc(TIPS[id].text)}">${esc(TIPS[id].name)}</span>`).join('')}</div>` : '';
+  const kept = held.length ? `<div class="cl-row wrap"><span class="cl-label">Lottie's tips</span>${held.map((id) => `<span class="cl-tipcard" title="${esc(TIPS[id].text)}"><b>${esc(TIPS[id].name)}</b><i>${esc(TIPS[id].text)}</i></span>`).join('')}</div>` : '';
   return hand + kept;
 }

@@ -31,9 +31,9 @@ export function scoreLine(s: GameState): string {
   const marks: string[] = [];
   for (const r of RANKS.slice(1)) {
     const hit = log.find((p) => p.v >= r.ss);
-    if (hit) marks.push(`<circle cx="${x(hit.day).toFixed(1)}" cy="${y(hit.v).toFixed(1)}" r="3.2" fill="#F7C948" stroke="#2E2A4F" stroke-width="1"><title>Day ${hit.day}: ${esc(r.title)}</title></circle>`);
+    if (hit) marks.push(`<circle cx="${x(hit.day).toFixed(1)}" cy="${y(hit.v).toFixed(1)}" r="3.2" class="cl-dot-rank"><title>Day ${hit.day}: ${esc(r.title)}</title></circle>`);
   }
   const peak = log.reduce((a, p) => (p.v > a.v ? p : a), log[0]);
-  marks.push(`<circle cx="${x(peak.day).toFixed(1)}" cy="${y(peak.v).toFixed(1)}" r="3.6" fill="#7CC47F" stroke="#2E2A4F" stroke-width="1"><title>Peak, day ${peak.day}: ${whole(peak.v)}</title></circle>`);
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Success Score each day" data-testid="score-chart" style="max-width:${W * 1.6}px;background:#fffdf6;border-radius:8px"><polyline points="${pts}" fill="none" stroke="#2E2A4F" stroke-width="2" stroke-linejoin="round"><title>Day ${first} to ${last}</title></polyline>${marks.join('')}</svg>`;
+  marks.push(`<circle cx="${x(peak.day).toFixed(1)}" cy="${y(peak.v).toFixed(1)}" r="3.6" class="cl-dot-peak"><title>Peak, day ${peak.day}: ${whole(peak.v)}</title></circle>`);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Success Score each day" data-testid="score-chart" class="cl-chart"><polyline points="${pts}" class="cl-line"><title>Day ${first} to ${last}</title></polyline>${marks.join('')}</svg>`;
 }

@@ -92,7 +92,7 @@ function pin(s: GameState, id: RivalId): string {
   const truce = inTruce(s, id) ? s.rivals[id].truceUntil : 0;
   const scheming = calm ? [...new Set(runningSchemes(s).filter((x) => x.by === id).map((x) => x.kind))] : [];
   const tags = [
-    `<span class="cl-note" data-testid="cork-stars" title="${esc(`Reputation ${rivalStars(s, id).toFixed(2)} stars: their stands' appeal, ×0.7 at 1 star to ×1.3 at 5`)}">${rivalStars(s, id).toFixed(1)} stars</span>`, // demand: rival Reputation
+    `<span class="cl-note" data-testid="cork-stars" title="${esc(`Reputation ${rivalStars(s, id).toFixed(2)} stars: their stands' appeal, ×0.7 at 1 star to ×1.3 at 5`)}">${A.starPips(rivalStars(s, id))}</span>`, // demand: rival Reputation
     isWeakened(s, id) ? '<span class="cl-note bad" data-testid="cork-weakened">WEAKENED</span>' : '',
     truce ? `<span class="cl-note">Truce to Day ${truce}</span>` : '',
     !calm && broke(s, id) ? '<span class="cl-note">Broke</span>' : '',

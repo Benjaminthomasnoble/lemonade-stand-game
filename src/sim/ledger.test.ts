@@ -97,7 +97,7 @@ describe('the Ledger', () => {
     expect(runCampaign(s, 'freeSamples', LOTTIES_CORNER)).toBe(true);
     const day = s.today;
     const cpc = costPerCup(s, st);
-    expect(rowAmount(day, 'marketing')).toBeCloseTo(-100 * (cpc - RECIPES[st.recipe].extraPerCup), 2);
+    expect(rowAmount(day, 'marketing')).toBeCloseTo(-100 * cpc, 2); // each free cup at the cost per cup, extras and all
     expect(rowAmount(day, 'supplies')).toBe(0); // nothing poured for sale yet
     openStands(s);
     simulateRestOfDay(s);
@@ -105,6 +105,27 @@ describe('the Ledger', () => {
     expect(line.label).toBe(`Supplies: ${day.customers} cups at $${cpc.toFixed(2)}`);
     expect(ledgerLines(day).pnl.find((l) => l.row === 'marketing')!.title).toBe('With 100 free samples: their cups and lemonade');
     expect(dayProfit(day)).toBeCloseTo(ledgerLines(day).pnl.reduce((a, l) => a + l.amount, 0), 6); // the rows still add up
+  });
+
+  it("a Free Sample Day pours the stand's own card: 100 Strawberry cups book $0.11 a cup more than Classic on Marketing", () => {
+    const sampleDay = (recipe: 'classic' | 'strawberry') => {
+      const s = newGame(25);
+      playTo(s, 3);
+      s.cash = 5000;
+      s.rank = 3;
+      const st = s.plots[LOTTIES_CORNER].stand!;
+      st.recipe = recipe;
+      st.inventory = { lemons: [{ qty: 200, day: s.day, unitCost: s.market.lemons }], sugar: 400, ice: 600, sugarCost: s.market.sugar, iceCost: s.market.ice };
+      st.pitcherCups = 0;
+      const cash = s.cash, booked = dayCash(s.today);
+      expect(runCampaign(s, 'freeSamples', LOTTIES_CORNER)).toBe(true);
+      return { s, st, cash, booked, marketing: rowAmount(s.today, 'marketing') };
+    };
+    const classic = sampleDay('classic'), straw = sampleDay('strawberry');
+    expect(straw.marketing).toBeCloseTo(-100 * costPerCup(straw.s, straw.st), 2); // the cup, the berries and the lemonade
+    expect(straw.marketing - classic.marketing).toBeCloseTo(-100 * RECIPES.strawberry.extraPerCup, 2); // $11 more
+    expect(straw.cash - straw.s.cash).toBeCloseTo(100 * (balance.CUP_COST + RECIPES.strawberry.extraPerCup), 2); // cups and berries leave as cash
+    expect(dayCash(straw.s.today) - straw.booked).toBeCloseTo(straw.s.cash - straw.cash, 6); // the rows still add up to the cash change
   });
 
   it('income less costs is profit: rewards and loot count as income, never as negative costs', () => {

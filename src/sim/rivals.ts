@@ -417,6 +417,7 @@ export function canPlotBuyout(s: GameState, plotId: string): Blocker {
   if (!ps.owner || ps.owner === 'player') return { ok: false, why: 'Pick a rival plot' };
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
   if (landFrozen(s, plotId)) return { ok: false, why: 'Town Hall froze this sale' };
+  if ([...s.raids, ...(s.fight ? [s.fight.raid] : [])].some((r) => r.attacker === 'player' && r.target === plotId && r.back === undefined)) return { ok: false, why: 'Your crew raids it tonight' }; // land: never buy the plot your own raid is aimed at
   if (s.phase === 'night') return { ok: false, why: 'Too late tonight: sit down tomorrow' }; // land: any hour of the day, the Evening too
   const price = plotBuyoutPrice(s, plotId);
   if (s.cash < price) return { ok: false, why: `They want ${money(price)}` };

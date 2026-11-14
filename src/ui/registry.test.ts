@@ -10,6 +10,7 @@ import { menuScreen, menuUnlocked } from './menus.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
 import { loadLeaderboard, recordScore, type ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
+import { bankTicket, SHORT_CASH } from './bank.ts';
 
 const give = (s: GameState, id: string) => { s.plots[id] = { ...s.plots[id], owner: 'player', stand: null, invested: 0, defense: NO_DEFENSE() }; };
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -285,5 +286,31 @@ describe('Sandbox maps on screen', () => {
     const board = loadLeaderboard();
     expect(board.find((e) => e.runId === 'm')).toMatchObject({ map: 'medium', rivals: MAP_SIZES.medium.picks, everyLastPlot: 9 });
     expect(board.find((e) => e.runId === 'p')).not.toHaveProperty('map');
+  });
+});
+
+describe("Marisol's bank after the morning", () => {
+  it('is a Borrow ticket in the feed whenever you run short, and Pay off in the Evening once cash covers the loan', () => {
+    const s = newGame(65);
+    expect(bankTicket(s)).toBe(''); // Morning Prep: her card is on the Grow sheet
+    s.phase = 'open';
+    s.cash = 20;
+    const t = bankTicket(s);
+    const amt = Number(/data-amount="(\d+)"/.exec(t)![1]);
+    expect(t).toContain('data-action="borrow"');
+    expect(t).toContain(`Borrow $${amt.toLocaleString('en-US')}`);
+    expect(t).not.toContain('disabled');
+    s.cash = SHORT_CASH + 1;
+    expect(bankTicket(s)).toBe(''); // not short
+    s.phase = 'night';
+    s.cash = 0;
+    expect(bankTicket(s)).toContain('data-action="borrow"'); // the bank lends at night too
+    s.loan = { principal: 500, weeksLeft: 4, nextDue: s.day + 7, missed: 0 };
+    expect(bankTicket(s)).toBe(''); // owing, nothing to pay it with
+    s.phase = 'report';
+    s.cash = 600;
+    expect(bankTicket(s)).toContain('data-action="repay"');
+    s.phase = 'open';
+    expect(bankTicket(s)).toBe(''); // pay off in the Evening, or at Morning Prep on the Grow sheet
   });
 });

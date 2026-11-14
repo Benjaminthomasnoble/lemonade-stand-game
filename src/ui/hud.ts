@@ -70,6 +70,7 @@ import {
 import { gullTicket } from './gull.ts';
 import { isScouted } from '../sim/scouting.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
+import { bankTicket } from './bank.ts'; // land: Marisol's bank after the morning
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -594,6 +595,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const radio = radioTicket(s, hud.options.captions, hud.options.celsius); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));
+      const bankAny = bankTicket(s); if (bankAny) t.push(bankAny); // land: Marisol lends at any hour
       for (const { b, i } of s.battles.map((b, i) => ({ b, i })).filter(({ b }) => b.day === s.day)) {
         const good = foughtWell(b);
         t.push(`<div class="cl-ticket ${good ? 'good' : 'red'}" title="${esc(fightLine(b))}">${b.attacker === 'player' ? ART.raid() : ART.shield()}<b>${esc(fightShort(b))}</b>${btn('replay', `${A.glyph('play')} Watch`, { ok: true }, `data-index="${i}" data-testid="replay"`)}</div>`);

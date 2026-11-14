@@ -536,6 +536,20 @@ describe("Skip's Old Town corner", () => {
   });
 });
 
+describe('Plot Buyouts and your own raids', () => {
+  it('refuse the plot your planned raid is aimed at, until the fight is over', () => {
+    const s = newGame(122);
+    Object.assign(s, { cash: 1e7, rank: 10 });
+    const theirs = PLOTS.find((p) => s.plots[p.id].owner === 'coldbrew' && p.type !== 'hq' && plotOnMap(s, p))!;
+    expect(canPlotBuyout(s, theirs.id)).toEqual({ ok: true });
+    s.raids.push({ id: 'r1', attacker: 'player', target: theirs.id, objective: 'smash', guards: [], detected: false, eta: '23:40' });
+    expect(canPlotBuyout(s, theirs.id)).toEqual({ ok: false, why: 'Your crew raids it tonight' });
+    expect(plotBuyout(s, theirs.id)).toBe(false);
+    s.raids[0].back = s.minute + 30; // fought: the squad walks home
+    expect(canPlotBuyout(s, theirs.id)).toEqual({ ok: true });
+  });
+});
+
 describe('land, Sit-downs and loans keep no hours', () => {
   it('sell land on the spot, meet at the Diner and see the bank in business hours and the Evening; the Diner shuts at night', () => {
     const s = newGame(121);

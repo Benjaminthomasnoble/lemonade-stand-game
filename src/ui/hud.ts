@@ -53,7 +53,7 @@ import { autoDefendSwitch, defendPriorityHere } from './autodefend.ts';
 import { captivesPanel } from './captives.ts';
 import type { CaptiveChoice } from '../sim/captives.ts';
 import { fitGarrison, henchmenOut } from '../sim/garrison.ts';
-import { plotBuyoutRow, sitDown, sitdownAction } from './sitdown.ts';
+import { keptNote, plotBuyoutRow, sitDown, sitdownAction } from './sitdown.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
 import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
@@ -832,7 +832,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good" title="Only you can buy it ${ps.dibs.until > s.day ? `through day ${ps.dibs.until}` : 'today'}">${ps.dibs.price !== undefined ? `${ps.dibs.table ? 'Side lot' : 'Fire Sale'} ${whole(plotPrice(s, id))}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
-      ${dibs}${schemeNote(s, id)}${wreckNote(s, id)}${landNotes(s, id)}
+      ${dibs}${keptNote(ps)}${schemeNote(s, id)}${wreckNote(s, id)}${landNotes(s, id)}
       <div class="cl-plot-acts">${actions}</div></div>`;
   }
 

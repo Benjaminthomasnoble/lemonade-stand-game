@@ -2,11 +2,11 @@
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
 import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
-import { creditGuards, guardReady, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard } from './crew.ts';
-import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
+import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard } from './crew.ts';
+import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { FACILITIES, type FacilityKind } from './vip.ts';
-import type { Blocker, GameState } from './economy.ts';
-import { netWorth, ownedPlots } from './economy.ts';
+import type { Blocker, GameState, KeptBuilding } from './economy.ts';
+import { netWorth, ownedPlots, rivalPrice } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
@@ -449,12 +449,45 @@ function signBuyout(s: GameState, id: RivalId, price: number): boolean {
 
 // ---------- elimination ----------
 
-/** The rival is out. Bought out: they already handed everything over. Otherwise a Fire Sale. */
+/**
+ * What the Fire Sale plots keep for their buyers. A Faction Buyout bought the business, its buildings among it: each
+ * intact building and its fence stays with its plot (rubble doesn't). Captured or bankrupt, the land goes bare.
+ */
+function keptBuildings(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'bankrupt'): [string, KeptBuilding][] {
+  if (how !== 'buyout') return [];
+  return ownedPlots(s, id).filter((p) => p.type !== 'hq' && hasBuilding(s.plots[p.id])).map((p) => {
+    const ps = s.plots[p.id];
+    return [p.id, { stand: ps.stand, ...(ps.facility ? { facility: ps.facility } : {}), invested: ps.invested, defense: ps.defense }];
+  });
+}
+
+/**
+ * Whoever buys a Fire Sale plot gets the building kept on it (the auction's winner, or a rival buying it off the shelf
+ * later); your First Dibs buy takes it in buyPlot. A rival's new stand prices at its own rate.
+ */
+export function handOverKept(s: GameState, plotId: string, buyer: FactionId): void {
+  const ps = s.plots[plotId];
+  if (!ps.kept) return;
+  Object.assign(ps, ps.kept);
+  delete ps.kept;
+  if (buyer !== 'player' && ps.stand) ps.stand.price = rivalPrice(buyer, ps.stand.level, PLOT_BY_ID[plotId]);
+}
+
+/**
+ * The rival is out: its HQ captured, its business bought, or bankrupt. Every plot it held goes to a Fire Sale. A
+ * Faction Buyout hands over the business it paid for: the rival's cash comes to you, and its buildings stay with their
+ * plots for whoever buys them (you first, on First Dibs).
+ */
 export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'bankrupt'): void {
   const r = s.rivals[id];
   if (!r.alive) return;
   r.alive = false;
+  const till = how === 'buyout' ? Math.max(0, r.cash) : 0;
   r.cash = 0;
+  if (till) {
+    book(s, 'invested', till); // the Ledger's Invested row shows what the business cost net of its cash
+    s.news.push(`${FACTIONS[id].name}'s till comes with the business: ${money(till)}.`);
+  }
   s.raids = s.raids.filter((x) => x.attacker !== id);
   const hq = hqPlot(id);
   if (how !== 'bankrupt') {
@@ -465,7 +498,10 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   recoverPage(s, id); // world: their recipe page comes home, on every route
   retireJingle(s, id, how); // world: 101.5 retires their jingle with a second of silence
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)
-  startFireSale(s, id);
+  const kept = keptBuildings(s, id, how); // read before the Fire Sale clears the plots
+  startFireSale(s, id); // land: First Dibs for you, then an auction (src/sim/auction.ts)
+  for (const [plot, building] of kept) s.plots[plot].kept = building;
+  if (kept.length) s.news.push(`${kept.length === 1 ? 'Its building stays' : `All ${kept.length} buildings stay`} put: buy the plot, get the building.`);
   checkVictory(s);
 }
 

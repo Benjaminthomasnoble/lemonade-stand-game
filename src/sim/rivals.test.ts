@@ -4,10 +4,13 @@ import {
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
   FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
-  canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS,
+  canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
+  budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice,
 } from './economy.ts';
 import { guardOf } from './fighters.ts';
-import { negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
+import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
+
+const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
 function rich(seed = 1): GameState {
   const s = newGame(seed);
@@ -105,9 +108,9 @@ describe('Faction Buyout haggling', () => {
     expect(haggling(s, 'coldbrew')).toBe(true);
     expect(s.news.at(-1)).toContain('in small bills, for authenticity');
     expect(haggle(s, 'coldbrew', 'offer')).toBe(false); // one counter a day
-    const cash = s.cash;
+    const cash = s.cash, till = s.rivals.coldbrew.cash;
     expect(factionBuyout(s, 'coldbrew')).toBe(true);
-    expect(s.cash).toBe(cash - ask);
+    expect(s.cash).toBe(cash - ask + till); // her till comes with the business
     expect(s.rivals.coldbrew.alive).toBe(false);
     expect(s.news.some((n) => n.includes(`for $${ask.toLocaleString('en-US')}, in small bills, for authenticity!`))).toBe(true);
     expect(haggle(s, 'blenders', 'offer')).toBe(false); // Brock doesn't haggle
@@ -118,9 +121,9 @@ describe('Faction Buyout haggling', () => {
       const s = juni(i + 1, grudge);
       s.seed = 1000 + i * 7919;
       haggle(s, 'coldbrew', 'offer');
-      const offer = haggleOffer(s, 'coldbrew'), cash = s.cash;
+      const offer = haggleOffer(s, 'coldbrew'), cash = s.cash, till = s.rivals.coldbrew.cash;
       const yes = haggle(s, 'coldbrew', 'firm');
-      if (yes) expect(s.cash).toBe(cash - offer);
+      if (yes) expect(s.cash).toBe(cash - offer + till);
       return yes;
     }).filter(Boolean).length;
     const calm = took(0);
@@ -177,6 +180,88 @@ describe('Faction Buyout haggling', () => {
   });
 });
 
+describe('what a Faction Buyout buys', () => {
+  /** The Blenders Weakened down to their HQ and one stand, a Kiosk with a fence, and $10,000 in the till. */
+  function shop(seed = 1) {
+    const s = rich(seed);
+    weaken(s, 'blenders');
+    const lot = ownedPlots(s, 'blenders').find((p) => p.type !== 'hq')!.id;
+    const ps = s.plots[lot];
+    ps.stand = newStand(3);
+    ps.invested = 3500 + 400 + 150 + 500;
+    ps.defense = { tier: 1, fenceHp: 100, gadgets: [] };
+    s.rivals.blenders.cash = 10_000;
+    return { s, lot };
+  }
+
+  it('the till comes to you, and each building stays with its Fire Sale plot for you to buy on First Dibs', () => {
+    const { s, lot } = shop();
+    const price = factionBuyoutPrice(s, 'blenders')!, cash = s.cash, invested = s.plots[lot].invested;
+    expect(factionBuyout(s, 'blenders')).toBe(true);
+    expect(s.cash).toBe(cash - price + 10_000);
+    expect(s.today.land).toBe(price - 10_000); // the business, net of its cash
+    const ps = s.plots[lot];
+    expect(ps.owner).toBeNull();
+    expect(ps.stand).toBeNull(); // bare land on the map until it sells
+    expect(ps.dibs).toMatchObject({ who: 'player', until: s.day + FIRE_SALE.days - 1, price: Math.round(ps.landValue * FIRE_SALE.share) });
+    expect(ps.kept).toMatchObject({ invested });
+    expect(ps.kept!.stand!.level).toBe(3);
+    expect(keptNote(ps)).toContain('>Kiosk included<');
+    expect(s.news).toContain('Its building stays put: buy the plot, get the building.');
+    const before = s.cash;
+    expect(buyPlot(s, lot)).toBe(true);
+    expect(s.cash).toBe(before - Math.round(ps.landValue * FIRE_SALE.share));
+    expect(s.plots[lot]).toMatchObject({ owner: 'player', invested, defense: { tier: 1, fenceHp: 100 } });
+    expect(s.plots[lot].stand!.level).toBe(3);
+    expect(s.plots[lot].dibs).toBeUndefined();
+    expect(s.plots[lot].kept).toBeUndefined();
+  });
+
+  it('a plot you let go to auction takes its building to the winner, and a rival buying it later gets it too', () => {
+    const { s, lot } = shop(4);
+    factionBuyout(s, 'blenders');
+    s.day += FIRE_SALE.days; // First Dibs ran out: the plot goes on the block
+    openAuction(s, lot, 'fire');
+    expect(s.plots[lot].kept).toBeDefined(); // waiting through the auction
+    for (const id of RIVALS) s.rivals[id].alive = id === 'coldbrew';
+    budgetOf(s, 'coldbrew').grow = s.rivals.coldbrew.cash = 5_000_000;
+    let won = false;
+    for (let tries = 0; tries < 40 && !won; tries++) {
+      s.plots[lot].auction = { kind: 'fire', closes: s.day, min: s.plots[lot].landValue };
+      closeAuctions(s);
+      won = s.plots[lot].owner === 'coldbrew';
+    }
+    expect(won).toBe(true);
+    expect(s.plots[lot].stand!.level).toBe(3);
+    expect(s.plots[lot].stand!.price).toBe(rivalPrice('coldbrew', 3, PLOT_BY_ID[lot]));
+    expect(s.plots[lot].kept).toBeUndefined();
+    const t = shop(5);
+    factionBuyout(t.s, 'blenders');
+    delete t.s.plots[t.lot].dibs; // unsold: back on the shelf
+    t.s.plots[t.lot].owner = 'hollis';
+    handOverKept(t.s, t.lot, 'hollis');
+    expect(t.s.plots[t.lot]).toMatchObject({ owner: 'hollis', invested: t.s.plots[t.lot].invested });
+    expect(t.s.plots[t.lot].stand!.level).toBe(3);
+  });
+
+  it('rubble isn\'t kept, and a captured or bankrupt rival\'s land goes bare with no till for you', () => {
+    const a = shop(2);
+    a.s.plots[a.lot].stand!.wrecked = true;
+    factionBuyout(a.s, 'blenders');
+    expect(a.s.plots[a.lot].kept).toBeUndefined();
+    expect(keptNote(a.s.plots[a.lot])).toBe('');
+    for (const how of ['hq', 'bankrupt'] as const) {
+      const { s, lot } = shop(3);
+      const cash = s.cash;
+      eliminate(s, 'blenders', how);
+      expect(s.cash).toBe(cash);
+      expect(s.plots[lot].kept).toBeUndefined();
+      buyPlot(s, lot);
+      expect(s.plots[lot].stand).toBeNull();
+    }
+  });
+});
+
 describe('the Sit-down negotiator', () => {
   /** A rich game with one Smooth Talker and one Gentle Giant on the crew, the Blenders Weakened. */
   function table(seed = 1) {
@@ -203,9 +288,9 @@ describe('the Sit-down negotiator', () => {
     expect(talked.truce).toBe(Math.round(Math.max(TRUCE_TRIBUTE.floor, Math.round(netWorth(s) * TRUCE_TRIBUTE.share / 100) * 100) * 1.4 * cut / 100) * 100);
     expect(talked.plot).toBeCloseTo(alone.plot * cut, -1);
     expect(talked.faction).toBeCloseTo(alone.faction * cut, -1);
-    const cash = s.cash;
+    const cash = s.cash, till = s.rivals.blenders.cash;
     expect(factionBuyout(s, 'blenders')).toBe(true);
-    expect(s.cash).toBe(cash - talked.faction);
+    expect(s.cash).toBe(cash - talked.faction + till);
     expect(setNegotiator(s, null)).toBe(true);
     expect(s.negotiator).toBeUndefined();
     expect(setNegotiator(s, 'nobody')).toBe(false);

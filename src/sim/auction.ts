@@ -10,7 +10,7 @@ import { BORDERS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId } from './ma
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { hasFoothold, rivalPrice } from './economy.ts';
-import { FIRE_SALE, familySilver, hqPlot } from './rivals.ts';
+import { FIRE_SALE, familySilver, handOverKept, hqPlot } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl } from './land.ts';
 import { checkVictory } from './modes.ts';
@@ -268,6 +268,7 @@ function settle(s: GameState, plotId: string, rng: Rng, res: Results): void {
   }
   const win = topBid(bids);
   if (!win) { res.unsold.push(name); return; } // no bids: back to the Registry, unowned, at land value
+  handOverKept(s, plotId, win.who); // rivals: a bought-out rival's building goes with its Fire Sale plot
   for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
   if (win.who === 'player') {
     const cost = bidCost(s, win.amount);

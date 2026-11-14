@@ -18,7 +18,7 @@ import { eventsOnTheClock, eventTraffic, eventWeather } from './events.ts';
 import { forecastAtDawn, seasonWeather, weatherAtOpen, type DayWeather } from './weather.ts';
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
-import { familySilver, FIZZCO_PLANT, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
+import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
 import { landFrozen, priceWarCut, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
@@ -138,6 +138,7 @@ export interface PlotState {
   repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
   noAutoRepair?: boolean; // Auto-Repair (Rank 3) skips this plot of yours (damage.ts)
   dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
+  kept?: KeptBuilding; // rivals: a bought-out rival's building, waiting on its Fire Sale plot for whoever buys it (rivals.ts eliminate)
   wreckedDay?: number; // day the stand or facility here was smashed
   smashedBy?: FactionId;
   smashes?: number[]; // days this plot was smashed (rebuild chance drops for each in the last 7 days)
@@ -153,6 +154,8 @@ export interface Defense {
   slickSprung?: boolean; // the Lemon-Peel Slick went off and waits for its nightly reset
   repairs?: number; // raids since the fence was last repaired: each costs the tier's flat repair overnight
 }
+/** A bought-out rival's building on a Fire Sale plot (rivals.ts eliminate): it comes with the plot to whoever buys it. */
+export interface KeptBuilding { stand: Stand | null; facility?: Facility; invested: number; defense: Defense }
 
 export interface RivalState {
   cash: number;
@@ -963,6 +966,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   book(s, 'invested', -price);
   ps.owner = 'player';
   if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
+  handOverKept(s, plotId, 'player'); // rivals: a bought-out rival's building comes with its Fire Sale plot
   delete ps.dibs;
   s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
   announceControl(s);

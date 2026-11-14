@@ -13,8 +13,8 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
-  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE, RIVAL_LAND_CHANCE,
-  RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
+  ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
+  RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS,
 } from './rivals.ts';
 import type { Fighter } from './combat.ts';
 import {
@@ -434,10 +434,12 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
     && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');
   const p = targets.sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
   if (!p) return;
-  const cost = s.plots[p.id].landValue + STAND_LEVELS[0].cost;
+  const kept = s.plots[p.id].kept; // a bought-out rival's building on an unsold Fire Sale plot comes with it
+  const cost = s.plots[p.id].landValue + (kept ? 0 : STAND_LEVELS[0].cost);
   if (!canSpend(s, id, 'grow', cost)) return;
   spend(s, id, 'grow', cost);
-  s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
+  if (kept) { s.plots[p.id].owner = id; handOverKept(s, p.id, id); }
+  else s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
   if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
 }
 

@@ -6,8 +6,9 @@
 // counter, and you shake on it or hold firm. Mounted from hud.ts, drawn with
 // its clay kit.
 import {
-  BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, factionBuyoutPrice, guardReady, haggleOffer, haggles, haggling,
-  plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard, type RivalId,
+  BOSS_NAME, canFactionBuyout, canHoldFirm, canPlotBuyout, canTruce, caveChance, FACILITIES, factionBuyoutPrice, guardReady, haggleOffer, haggles,
+  haggling, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, STAND_LEVELS, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard,
+  type PlotState, type RivalId,
 } from '../sim/economy.ts';
 import type { Action } from './hud.ts';
 
@@ -62,6 +63,13 @@ export function plotBuyoutRow(k: SitKit, s: GameState, plotId: string): string {
   const pb = canPlotBuyout(s, plotId);
   if (s.rank < SITDOWN_RANK || k.locked(pb)) return '';
   return k.btn('plotBuyout', `Buy it ${k.whole(plotBuyoutPrice(s, plotId))}`, pb, `data-plot="${plotId}" data-testid="plot-buyout"`) + negotiatorRow(k, s);
+}
+
+/** For a Fire Sale plot's card: the bought-out rival's building that comes with the plot. */
+export function keptNote(ps: PlotState): string {
+  const k = ps.owner ? undefined : ps.kept;
+  const name = k?.facility ? FACILITIES[k.facility.kind].names[k.facility.level - 1] : k?.stand ? STAND_LEVELS[k.stand.level - 1].name.replace(/^The /, '') : '';
+  return name ? `<span class="cl-note good">${name} included</span>` : '';
 }
 
 /** The Sit-down buttons' actions, read off the clicked element's data attributes. */

@@ -1,6 +1,6 @@
 # Handoff: where the build stands
 
-Snapshot as of 2026-11-06 (modes and winning added). Read this first, then `docs/spec/`.
+Snapshot as of 2026-11-14. Every lane is on main (stand HP and land, nights, combat, demand, the world and VIPs, crew, rivals, story), and so is the integration pass that tied them together. Read this first, then `docs/spec/`.
 
 ## The spec
 
@@ -9,55 +9,154 @@ Snapshot as of 2026-11-06 (modes and winning added). Read this first, then `docs
 | `docs/spec/design-spec.md` | The full design spec (exported from the Claude Doc, the source of truth). Six embedded diagrams/charts are placeholders in this export; their data is in the other files. |
 | `docs/spec/canon.md` | Design canon: every rule and starting value the build follows. Newest review changes land here first. |
 | `docs/spec/balance-tables.md` | Tuned numbers (costs, ranks, rivals, land, VIP, guards). Mirrors Appendix A of the spec. |
-| `docs/spec/pacing.csv` | Economy-model run: 170 days per difficulty, used to check ranks and story beats. |
+| `docs/spec/pacing.csv` | Economy-model run: 170 days per difficulty, used to check ranks and story beats. Its targets are under review (What's left, 2). |
+| `docs/spec/ui-plan.md` | The HUD plan: show it on the stand, not in the panel. Presentation only. |
 | `docs/spec/music-notes.md` | Music brief and notes for the files in `public/audio/`. |
 
-Where the spec and the code disagree, the spec wins. Tunable numbers live in `src/sim/balance.ts`, `src/sim/vip.ts` (facilities, orders) and `src/sim/rivals.ts` (HQs, buyouts, truces); keep them matching `balance-tables.md`.
+Where the spec and the code disagree, the spec wins.
 
-**Economy re-tune (spec rev 205) is in the code.** HQ assaults are tuned so the spec's model squads usually win at the guard levels they'd have by then (`HQS` in `src/sim/rivals.ts`: `tier` sets henchman strength, `yard` the Yard's size). Measured over 40 seeds: Blend Shack, 5 L2 guards with clubs, 83%; Grindhouse, 8 L2 with clubs and vests, 75%; Hollis Homestead, 8 L3 with hatchets and vests, 85%; FizzCo Tower, 12 L4 with hatchets and Pro Gear, 95%; Sourwood Manor, 12 with hatchets and Pro Gear, 35% at L4 and 80% at L5. Re-check these after any combat change.
+**Design calls:** the spec's appendix "Design calls settled on 2026-11-14" lists each call made for Ben (the rule now, and what the docs said before) and the calls still open for him; don't "fix" a settled call back to older text. One kept call to know: Maple Row's table tolerance of 1.0 sets its price ceiling, though its crowd can't blend that high (`src/sim/demand.test.ts` skips it).
 
 ## Built
 
-- **Stakes pass (2026-11-08, after Ben's playtest):** the first raid is on Night 3 (`TUTORIAL_RAID_DAY` in crew.ts, `NO_RAID_DAYS` 2); it bounces off any fence or guard and robs an undefended stand. `MAX_QUIET_NIGHTS` (balance.ts, per difficulty) caps raid-free nights in a row (`s.lastRaidOnYou`, threat.ts). Lessons moved up (`LESSON_DAY`: Market Day 2, fence and the Steward Day 3, Dex Day 4, upgrade Day 5, sign Day 6, land Day 7); Lottie stocks Day 1 only. Brock phones on Day 1 and taunts from then on. Sleep skips to dawn when `nothingTonight` (night.ts); raid nights run at `QUIET_NIGHT_SPEED` 12 until the warning. **Day calls** (`src/sim/calls.ts`, card in the feed, the clock waits for a pick; unanswered ones lapse with no effect so tests stay put). The **boss board** (`bossBoard` in src/ui/story.ts) and a five-beat story intro in coach.ts. Supply buttons show their price; the cash jar drops a red "−$X" on spends (hud.ts `spentPop`). The New Game screen shows each mode's and difficulty's one-line blurb.
+Each line names the main files (`src/sim/` unless a path says otherwise). Rank gates and lesson days are in `balance.ts`.
 
-- **Economy loop:** Lottie's Corner, Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, 3 recipes (Classic, Pink, Mint), sweetness, customer segments, "why people walked past", Ledger, Reputation, Success Score, Ranks 1–10 (never drop), Lottie's Goals, Auto-Restock, saves (`SAVE_VERSION` 8; `migrateSave` carries v7 saves forward as a Classic campaign).
-- **Modes and winning** (`src/sim/modes.ts`, numbers in `balance.ts` under "modes, difficulty"): a New Game screen (first visit, or "New game") picks Story Campaign / Sandbox: Turf War / Endless Summer, Laid Back / Classic / Cutthroat, Ironman, and for Sandbox the win condition (Domination, Economic with a rank-threshold target, none) and Peaceful. Difficulty sets raid frequency (×0.5/×1/×1.5), Threat −1 on Laid Back, Respect days (5/3/1), Busted-only on Laid Back (10% repair, never lapses), and the Cookie Jar (always / once per act / never; per season outside the campaign). In the Red counts dawns below $0: 3 days, then the Cookie Jar pays the shortfall plus a day of upkeep and wages, or the run is Squeezed Out. Run Out of Town: no stands and under $150 (never on Laid Back). Marisol's loans (up to 50% of non-cash Net Worth, 3% a week, 4 weekly dawns, two misses repossess the cheapest plot; Net Worth subtracts what's owed). Domination (all rivals out plus 51% of every district's purchasable plots) ends the campaign with the Beloved or Iron Pitcher ending, then "Keep squeezing" into Endless Summer. Peak Success Score goes on a local top-10 leaderboard (`save.ts`), and a lost run can reload the last dawn autosave unless it's Ironman. Sandbox opens the border rule at Rank 2. Acts follow `ACT_BY_RANK` until the story drives them.
-- **Stands and marketing:** L1–L5, brand tiers, Sandwich-Board Kid (L1–L3), Free Sample Day.
-- **Map:** Citrine Bay, 8 districts, 116 plots, 11 borders, Footholds, land prices by district and plot type, land appreciation with development, Day 3 $300 side lot with a table.
-- **Rivals:** 5 factions with home turf, stand levels by district (+1 Prime/Landmark, +1 every 30 days up to their cap), Grow and Guard spending, rival-vs-rival raids, seeded helipads/piers on their Fields and Docks.
-- **Defenses and crew:** P1–P5 fences, gadgets, guards (fists/clubs/hatchets, gear, traits, levels, wages, fees), Clubhouse, Threat 1–5, night raids with warnings (none Days 1–5; the first is a scripted Blenders bounce on the night your first Kiosk opens or the night of Day 15, whichever is first), player raids (Smash, Shakedown) with a Raid Planner (win odds, their rebuild chance), auto-battle and 3D replay.
-- **Knock it down, buy it up:** smash stands and VIP facilities; 15% rebuilds; rival rebuild chance by personality −30 points per Smash in 7 days; For Sale with First Dibs; your own smashed plot lapses if not rebuilt by the next dawn but one.
-- **Sit-downs and endgame:** Truce (7 days, tribute; breaking it costs a star, grudges, and a 14-day truce ban), Plot Buyout (2.5× home, 2× away), Faction Buyout (business only, 1.5×/1.8× cash plus buildings; Vera never sells), Weakened (40% of peak plots, 25% of your Net Worth, or 7 days outsold 2×), HQ assaults and Faction Buyouts opening at each rival's HQ rank (Blend Shack 5, Grindhouse 6, Hollis 7, FizzCo 8, Sourwood 9), HQ assaults in three stages (Gate, Yard, Boss Room with each boss move), elimination by HQ, buyout or 7 days bankrupt, Fire Sale (75%, 2 days of First Dibs), Trophies (Bottling Line, Family Silver and Hollis Orchards have effects).
-- **VIP clients:** Local Orders, Caterer Trucks, Bottling Works (Industrial plots), Helipads (Fields, $30 a bottle), Piers (Docks, $40 a bottle), Supply Deals (Rank 8 with a Cargo Terminal: 200,000 bottles in 4 weekly loads of 50,000 at $30 ($1.5M a load); several can run at once, and the offer says whether free bottling covers it), offers about 1 per 3/5/7 days and never more than 10 days apart once the facility stands, Lemon Groves on Fields (+5% traffic at every stand, up to 2), pickups with chopper/ship scenes (pause only on a client's first visit), Delivery Raids at Threat 3+.
-- **Lottie's tour** (`src/ui/coach.ts`, `src/coach.css`; spec "Onboarding: the first 30 minutes"): the first time you play, Lottie (a clay face in a speech bubble, Lemonese babble, no voice) opens with a four-beat intro that swings the camera (her corner, the bay, the nearest rival stand, the goal), then points a clay finger and a chalk ring at each thing to tap on Day 1 (lemons, sugar, ice, price, crowd meter, Open, walkers' bubbles, speed, goals, the evening card, Sleep) and waits for you to do it. Each later lesson (sky and recipes, Auto-Restock and the side lot, Grow and Rank, Threat, Defend and the fence, Dex, signs) and each bigger system the first time it shows up (raid warnings, fight replays, damage, In the Red, orders, buying land, hiring, the Raid Planner) gets one pointed line. Steps finish when you do the thing; seen steps and "Skip tour" are kept on the device (`lemonade-stand-wars/coach/v1`), Options has "Replay Lottie's tour", and the run's Lessons switch turns it off. A pinned `?seed=` leaves it off unless the URL adds `coach=1`. Add a step by appending to `STEPS` with a selector to point at; keep each line to about eight words.
-- **Presentation:** three.js (WebGL) scene of the bay, stands, pedestrians, fences, wreck looks, battle and VIP replays, HUD panels, Rank badge with the striped "invested" sliver, music theme and stingers.
-- **Clay foundation:** the clay kit in `src/world/clay/` (one material with a thumbprint smudge map and a matte/gloss/card finish per vertex, Baker and shape helpers, `bakeGroup`, the `Figure` rig with cast, crews and gaits on twos, tilt-shift and warm vignette; see its README). Also the plinth on Lottie's blue-gingham table with resin water, a lemon, a teacup and the desk lamp (`diorama.ts`), the four lighting scripts by game hour (`lighting.ts`), and the detail levels (Bay View merges each district into one block and draws people as specks). Phones get blob shadows and no blur. Day light is warm like the mockup, shadows are lifted with lilac (indigo at night) instead of going grey, and the post adds a little saturation. Models not yet rebuilt in clay (stands, buildings, fences, people) still use their old shapes on clay materials.
+- **A day at the stand:** Lottie's Corner, the Morning Bugle (forecast, market prices), lemons, sugar and ice with spoilage and storage, 10 recipe cards and the recipe page book, Sweetness, customer segments, price fit and "why people walked past", the Ledger, Reputation, Auto-Restock (Day 2) and Auto-Price (Rank 3). `economy.ts`, `demand.ts`, `recipes.ts`, `weather.ts`, `ledger.ts`, `automation.ts`.
+- **Day calls:** once or twice a business day a small decision breaks in (undercut, heckler, rush, permit, rumor), each choice with a cost. The UI holds the clock while one waits; with no player it lapses and changes nothing. `calls.ts`.
+- **Score and ranks:** Success Score, Ranks 1–10 (never drop) with the striped "invested" sliver, Lottie's Goals, Lottie's Tips perks at each rank-up, and a local Peak Success Score leaderboard. `score.ts`, `goals.ts`, `perks.ts`, `src/save.ts`.
+- **Lessons and Lottie's tour:** `LESSON_DAY` sets the days: the Market Day 2 (Lottie stocks Day 1 only), Threat and the fence Day 3, Dex Day 4, the upgrade and Rank Day 5, the sign Day 6, land Day 7. The tour points at each thing to tap and waits for it; seen steps stay on the device (`lemonade-stand-wars/coach/v1`), Options replays it, a pinned `?seed=` leaves it off unless the URL adds `coach=1`. Add a step to `STEPS` with a selector; keep each line to about eight words. `src/ui/coach.ts`, `src/coach.css`.
+- **Modes and winning:** Story Campaign, Sandbox (Small, Medium or Large maps cut from the bay, picked rivals, Domination, Economic or no win condition, Peaceful) and Endless Summer; Laid Back, Classic, Cutthroat and Custom sliders; Ironman. In the Red and the Cookie Jar, Run Out of Town, Marisol's loans, the endings and "Keep squeezing", and the bay turning lemon yellow at Domination. `modes.ts`, `victory.ts`, `map.ts` (`cutMap`), `src/ui/sandbox.ts`, `custom.ts`, `ending.ts`, `bank.ts`, `src/world/lemonWave.ts`.
+- **Saves:** 3 rotating dawn autosaves and 3 manual slots; Ironman keeps one save; a lost run can reload the last dawn unless it's Ironman. `legacy.ts` steps v1–v6 saves up to v7 and `migrateSave` (economy.ts) carries them on. `src/save.ts`, `src/ui/saves.ts`.
+- **Time and nights:** real-time nights with the alert feed, raid warnings by difficulty, auto-pause switches, pause anywhere, full-screen menus, remappable keys and captions. Sleep skips a night with nothing coming (`nothingTonight`); a raid night runs at `QUIET_NIGHT_SPEED` 12 until its warning. `night.ts`, `alerts.ts`, `src/settings.ts`, `src/ui/options.ts`, `menus.ts`, `keys.ts`.
+- **Stands and marketing:** L1–L5 stands and brand tiers, the Sandwich-Board Kid, Free Sample Day, the Sunny and Coupon Blitz campaigns, specializations, and Billboards (Rank 7). `marketing.ts`, `specializations.ts`.
+- **Damage and repairs:** stand and building HP, Damaged stands pour at their HP share, Busted and Wrecked, 15% rebuilds, overnight repairs, Auto-Repair (Rank 3; it keeps a reserve for wages and the loan), storms, the Hurricane (Rank 7) and the Health Inspection (Rank 2). `damage.ts`.
+- **Land and control:** Citrine Bay's 8 districts, 116 plots and 11 borders; control tiers (Foothold, Majority, Stronghold, Full Control) and district perks; For Sale with First Dibs, sealed-bid auctions, Fire Sales and selling plots; the Lavender lot; Warehouses (Rank 4); bulk actions (Rank 3) and district policies (Rank 7); the Land Registry. `map.ts`, `land.ts`, `auction.ts`, `warehouse.ts`, `policies.ts`, `src/ui/registry.ts`.
+- **Rivals:** 5 factions with home turf, Grow, Guard and Strike spending, rival-vs-rival raids, Strike schemes (price wars, smear posters, ad blitzes, auction snipes, Cease-and-Desist, fines and freezes), phone taunts from Day 1, the Rivals Corkboard, and Endless Summer's Out-of-Towner, Snootwater Springs. `rivalAi.ts`, `schemes.ts`, `phone.ts`, `src/ui/corkboard.ts`.
+- **Sit-downs and endgame:** Truces, Plot and Faction Buyouts (Vera never sells), haggling, Weakened rivals, HQ assaults in three stages (Gate, Yard, Boss Room with each boss's move) from each HQ's rank (Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9), Fire Sales, Trophies and boss exits. `rivals.ts`, `exits.ts`, `src/ui/sitdown.ts`.
+- **Defenses, crew and combat:** P1–P5 fences and gadgets; guards with fists, clubs and hatchets, gear, traits, levels and wages; Lookouts, Wreckers and Captains; Clubhouses; Threat 1–5; live fights with Rally, Fall Back and Ring the Bell; Dex's Auto-Defend (Rank 4); captives. `crew.ts`, `threat.ts`, `combat.ts`, `fight.ts`, `reinforce.ts`, `autodefend.ts`, `clubhouse.ts`, `captives.ts`.
+- **Raids on you:** none on Nights 1–2 (`NO_RAID_DAYS`). The first comes on Night 3 (`TUTORIAL_RAID_DAY`, crew.ts): any fence or guard bounces it, and it robs an undefended stand. After that a weekly rate by Threat and difficulty, with at least one raid once `MAX_QUIET_NIGHTS` pass without one. An answered rumor sends that gang to that plot. `threat.ts` (`raidsOnYou`).
+- **Your raids:** Smash, Shakedown and Sabotage from the Raid Planner (Rank 3), and HQ Assaults from each HQ's rank, with win odds, scouting and Gull Flight, unscouted ranges, raid templates (Rank 6) and Citations (Election Day each Spring can change the rules). `scouting.ts`, `templates.ts`, `citations.ts`, `src/ui/raidPlanner.ts`, `src/ui/gull.ts`.
+- **VIP clients:** Local Orders, Caterer Trucks (loading at a Warehouse), Bottling Works, Helipads ($30 a bottle), Piers ($40), Supply Deals and Mega Contracts, Lemon Groves, the Order Book, chopper and ship scenes, and Delivery Raids from Threat 3 (one roll per pickup trip). `vip.ts`, `warehouse.ts`, `src/ui/orders.ts`.
+- **Story:** five acts, scenes and beats (the Steward on Day 3, Dex, Benny, Skip Larkin, the first chopper and ship in Act 4), boss calls and the boss board, the Act 5 siege, the Syndicate and Call the Big Squeeze, the endings and epilogue, the grandkid, and cameos in Endless. `story.ts`, `scenes.ts`, `beats.ts`, `squeeze.ts`, `syndicate.ts`, `cameos.ts`, `grandkid.ts`, `src/ui/story.ts`.
+- **The living town:** the calendar and seasons, Taste-Offs, festivals and the County Fair, sponsorships, random events (Heat Wave, Tourist Bus, Celebrity Sighting, Food Critic, Captain Squawk, Kids' Lemonade Day and more), the Bugle front page and 101.5 The Squeeze. `calendar.ts`, `events.ts`, `happenings.ts`, `media.ts`, `radio.ts`, `src/ui/bugle.ts`, `src/ui/radio.ts`.
+- **Presentation:** the three.js bay in Kitchen-Table Clay (`src/world/`; the kit and its rules are in `src/world/clay/README.md`), the HUD (`src/ui/`, plan in `docs/spec/ui-plan.md`), and audio (`src/audio.ts`: Lottie's Theme, four stingers, the raid countdown's woodblock ticks, the ship horn, one mute button, and Calm Audio).
 
 ## Not built yet (from the spec)
 
-Roughly in the order the spec's Scope plan needs them:
-
-1. **Modes and winning, the rest:** Sandbox map sizes (Small/Medium/Large) and picking rivals; Custom difficulty sliders; minimum raid warnings and Cutthroat's auto-pause (they need real-time nights, item 10); the Syndicate's Threat trigger (Threat 4 on Cutthroat outside the campaign); the Out-of-Towner in Endless (item 9); 3 rotating dawn autosaves plus manual slots; selling plots (a 24-hour sealed-bid auction, item 4); the bay painting itself yellow on Domination (rendering: `s.outcome.result === 'won'`).
-2. **Story:** the 5 acts, Day 5 Steward incident, boss phone taunts and barks, Summer Fair taste-off, Act 5 siege and the Syndicate (all difficulties), Call the Big Squeeze, endings, boss exit scenes, County Fair (Fall week 1). The named townsfolk are built in clay but not yet placed: `makeTownsfolk('marisol' | 'skip' | 'benny' | 'budd' | 'fontaine')` plus `signaturePose` in `src/world/clay/cast.ts` (Marisol hugs her ledger, Benny's megaphone stays up, Budd holds his ticket book and a lemonade). Whoever builds their beats or buildings (the bank, Larkin Realty, 101.5 The Squeeze, the sheriff, City Hall) places them; build them at `heroDetail()` and pose them on twos.
-3. **Damage model:** damaged stands sell at their HP share, overnight repairs at 15% × HP lost, Auto-Repair (Rank 3).
-4. **Land and control:** district control tiers (Foothold → Majority → Stronghold → Full Control) and district perks, auctions (sealed bid after First Dibs and Fire Sales), Warehouses, Billboards. District perks should give +10% traffic.
-5. **Rivals:** Strike schemes (price wars, smear posters, Cease-and-Desist, auction snipes), the remaining Trophy perks (Blender Bar needs Frozen recipes, Juni's Grapevine needs earlier warnings, Hollis Orchards works through `groveTraffic`), recovering their recipe page.
-6. **Crew:** specialists (Lookouts, Wreckers), Sabotage objective, Dex's Auto-Defend, guard traits' Sit-down effects (Smooth Talker).
-7. **Recipes:** the 7 stolen recipe pages (Strawberry, Frozen, Lavender, ...).
-8. **Progression and automation:** Lottie's Tips perks on rank-up, bulk actions (Rank 3), Auto-Price (also sets recipe and Sweetness), other automation.
-9. **Living town:** citations, events and festivals, the Bugle and 101.5 The Squeeze radio, Gull Flight, one Out-of-Towner in Endless (Snootwater Springs).
-10. **Time:** quiet nights at 3× from close until an alert.
-11. **Art and music polish:** the Kitchen-Table Clay pass is in progress, and its foundation is built (see Built). Still to come: stands, buildings and fences rebuilt with the kit (cardstock and popsicle-stick props, faction patterns pressed into clay, pressed-clay logos), Bay View tiles with owner patterns, string lights and neon at night, clay brawl clouds, weather and seasons, faction leitmotifs, Lottie's Theme layers by rank.
+- **The rest of the music (Version 1):** day, night and raid scores, Lottie's Theme gaining a layer at each rank, the faction leitmotifs and the Syndicate medley, the Threat tension layers, and the six mix sliders. See Audio below.
+- **Stretch:** Huge generated maps, more Out-of-Towners in Endless, Challenges, online leaderboards, async "rival empire" multiplayer, bosses as advisors, Franchise prestige, photo mode, mod support.
 
 Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat's +1 for leading, Cutthroat's ×0.9/×1.1 traffic and costs.
 
-Spec conflicts settled in code: Laid Back's Busted repair is 10% (canon and the spec body) though Appendix A's difficulty table still says 15%; Wrecked rebuilds stay 15% (canon) against the table's 30%.
+## What's left
+
+### 1. Art and UI
+
+**3D world** (`src/world/`, the art threads):
+
+- Fighters who join mid-fight (Ring the Bell reserves, late rival help, Vera's Stewards) get no figure: add joins to the report (fight.ts) and spawn a unit when an `at` event names an unknown id (battle.ts).
+- Boss Room moves aren't staged: Hay Bale Wall's bales, Hostile Takeover's turned guards (flip side and tint), Brock's charge (drawn as a peel slip), Old Money's Stewards (battle.ts `handle`).
+- Sunny doesn't walk his district while his campaign runs (`districtCampaign`, marketing.ts; the `mascot` model, clay/stands.ts).
+- The lights hold at 21:30 all night, then snap to dawn: `hourOf` (lighting.ts) should follow the night's minutes so the 06:00 blend plays.
+- Raid arrows: none for your own raids; rival arrows start at the HQ instead of `raidStart` and roll over a fixed 12 s instead of the raid's ETA (markers.ts).
+- Rival schemes aren't drawn: Cold Brew's posters, Hollis's hay-bale barricades, FizzCo's blitz mascot (read `runningSchemes` and `hayBales`).
+- The night flight is captions only: stage Captain Squawk over your stand at 03:00, keyed off scene id `nightFlight`.
+- The Epilogue's L1 crayon sign still reads LEMONADE: use `opts.sign` on the player's L1 sign (clay/stands.ts).
+- The 3D stand knows 3 recipes: take the 10 colours from `src/ui/recipes.ts`, add garnishes, and build the chalk menu from the owned cards (clay/standKit.ts, standProps.ts).
+- Kids' Lemonade Day stands are invisible: a small table with a kid and a 50-cent sign on each kid plot (happenings.ts places them).
+- Captain Squawk's theft shows no gull at the robbed stand: send the ambient gull's dive there (ambient.ts).
+- No radio prop on L3+ stands, though 101.5 plays from them.
+- Snootwater Springs has a stand-in look (Brock's crew recoloured in clay/cast.ts, a "bubbles" stand dress, no top prop or boss figure); it needs its own clay look and Sterling's phone portrait.
+- Delete the unreachable fallback scene schedule in `src/world/scenes.ts` (the `hooks.driven` branch, `seen`/`markSeen` and the `driven` hook): main.ts always passes `driven: true`.
+
+**HUD restyle** (`src/ui/` and `src/screens.css`, the clay UI thread), still open:
+
+- The "bought" thought bubble is a heart; the spec says a cup (emotes.ts).
+- The Land Registry has no deeds look: `.cl-registry` has no style.
+- A 12× raid night lights no speed knob: show a lit fast-forward with a small "12×" while `shownSpeed()` is 12 (hud.ts).
+- The coach's Day 1 intro hides the goal card (`body.coach-intro #ui .cl-sticky` in coach.css); keep the card on screen, phones too, with a test.
+- Lottie's Tips is a plain ticket at the top of the feed: make it a three-card fan at rank-up, and keep raid and VIP cards above it (perks.ts).
+- The Tourist Bus card offers Go there and Restock, not "Pour Strawberry, price high" (events.ts `acts`; events.test.ts pins it).
+- The raid warning card could mark a rumored raid: `Raid.rumor` and `Raid.due` (the quiet-night cap's raid) aren't read yet.
+- `.cl-toggle` has no `:disabled` style, so a Fortify plot's locked Auto-Repair switch still shows a pointer.
+- The countdown ticks have no visual twin: a faint edge beat in the raid's red beside `PULSE` in twins.ts, skipped under Calm Audio and reduced motion (seam: `audio.tick()` in main.ts's frame loop).
+
+**HUD restyle, keep through the restyle** (added by the fix waves; keep their test ids):
+
+- Day's end: "Raiders on the way tonight" (`raiders-tonight`) with one fix button (`raiders-fix`) for the plot tonight's raid heads for (trips.ts).
+- Evening: a repair ticket for a sprung Slick on a plot Auto-Repair skips, and "Auto-Repair kept $X for wages and the loan" (evening.ts).
+- Morning Prep's Auto-Repair ticket (`auto-repair`) reads "+$X at closing" (damage.ts).
+- Options: "Fast raid nights (12×)" (`opt-quietNights`), Calm Audio (`opt-calmAudio`, on in Laid Back), raid-pause tips saying the last minutes run at fight speed (New Game too), the full-screen menus tip naming the Pause key, and the Delivery Raids pause tip.
+- Tooltips on the turn, speed and Gull Flight buttons show the player's current keys (keys.ts `withKey`).
+- Defend sheet (crew.ts): fence and sprung-Slick tips ("repair overnight" or "Auto-Repair skips this plot", never on a Fortify plot) and "Re-lay $25" (`reset-slick`).
+- The Auto-Repair switch on a Fortify plot: pressed, disabled, "Fortify keeps this on" (damage.ts).
+- Raid Planner: scouted, the intel row shows the plot as it stands now and a sprung Slick as a plain slot; unscouted, the dial reads `Not scouted: X-Y% to win` and `raid-odds-range` shows one figure when its ends meet; odds refresh on a rank-up or Elbow Grease.
+- Fight bar: Nerve readouts (`fight-nerve-att`, `fight-nerve-def`) and "Next: <plot>" (`fight-next`); a defensive Fall Back reads as a loss in the tickets, stinger, Lottie's line and the 3D cheer.
+- Hiring Hall plot card: "Hire" (`open-hiring-hall`) from Rank 2 after the crew lesson.
+- Price war: a "Coupon Blitz" button on the ticket (schemes.ts) and an alert card naming that answer.
+- Celebrity Sighting: "Send Sunny" at Morning Prep (events.ts `sendSunny`).
+- Feed cards: a skipped scene's recap, Lottie's first-winter sleet line, Dex's Day 15 Clubhouse push, the night-flight fallback line, and Juni's tip before later FizzCo Delivery Raids.
+- Feed: no plain `event` ticket for a Hurricane or an inspection (`eventFeed`); the Hurricane note ends "repairs never cost more than a 15% rebuild".
+- Delivery Raid warnings: one per pickup trip, every trip in the Act 5 Harbor Fest while the Syndicate stands, and they can point at a Warehouse.
+- Order Book: the Caterer Truck card's Warehouse lines and its Delivery Raid flag from Threat 3.
+- Readouts: HP tooltips (`hp`, `stand-hp`) and the upgrade card count the Express Window, a badly Damaged stand reads "pours 1 of N", and the Ledger's Other row (`row-other`) names what booked it.
+- Top bar: sour Threat lemons from Day 3 (meters.ts `threatLemons`), none in a Peaceful run.
+- Coach: the Market's first-morning steps `d2-lemons`, `d2-sugar`, `d2-ice` and `d2-auto`.
+- Goal card: the second stand (or Net Worth) on Days 1–4, the Wooden Stand from Day 5, Dex's Clubhouse goal before the Act 2 payback goals.
+- Scenes: Morning Prep plays them in priority order; Mayor Fontaine's "freeze" scene on the first paid land freeze; the Strawberry and Lavender page scenes run 5 lines.
+- Land Registry: the campaign's Lavender lot auction shows from Act 5.
+- Bugle and 101.5: scheme leads (PRICE WAR!, AD BLITZ!, SMEAR POSTERS!), briefs without "Bugle:", yesterday's caller first, GUARDS FALL BACK and Cal's fall-back call, rival new-stand lines, Hurricane look-ahead lines, the Food Critic's pan line and the repossession line.
+- The rumor call card names only a gang that may come, and that gang comes to that plot.
+- hud.ts exports `ownStandActions` (the plot card's actions on your own stand).
+
+**Audio** (`src/audio.ts`, the music thread):
+
+- The adaptive score: day, night and raid music, Lottie's Theme layers by rank, the faction leitmotifs (Snootwater's too) and the Syndicate medley.
+- Threat tension layers; Calm Audio must mute them through `createAudio`'s `calm()` (`calmAudioOn(state.settings)`).
+- The six mix sliders (Music, Radio, Voice, Effects, Alerts, Ambience) and their ducking; today there's one mute button.
+- The Regatta horn: `audio.horn()` plays only in a ship show (`onHorn`, `src/world/vip.ts`), not with `shipDocks`' "Just the wind" line (beats.ts).
+
+### 2. The pacing decision (pending)
+
+The pacing targets are under review. The pacing lane's full sweep (`nice -n 19 npm run sim -- pacing 170 10 all --jobs 2 --keep runs/`) is running and reports to `/mnt/project-files/gameplay-build/integration/pacing-sweep.txt`. Until Ben decides, don't retune the economy or restate `pacing.csv` and the spec's pacing tables. The first L2 and Rank 2 targets are settled at Day 5 (range 5–6, `tools/pacing.ts`).
+
+### 3. Fix-wave leftovers still open
+
+- `tools/raid-campaign.ts` `SPEC` still holds 46–79 / 75–124 / 115–148 campaign raids; align it once balance-tables restates the campaign raid totals.
+- `src/sim/beats.test.ts:339`: the describe still says "Week 2" for Skip Larkin's corner, which plays at the Day 7 to Day 8 dawn.
+- Pacing lane: the first chopper and ship now wait for Act 4, and the campaign's Lavender auction opens on Act 5's first morning; check `VIP_FIRSTS` (heli Day 72, 63–80) and the `LAVENDER_LOT` bids in `tools/pacing.ts` against the sweep.
+- Overnight fence and Slick repairs (`overnightRepairs`, crew.ts) still pay without Auto-Repair's wage and loan reserve (`autoRepairReserve`, damage.ts).
+- `src/sim/walkthrough.test.ts:483`, the Threat 1 anchor, is still `it.fails` until canon states the measured figure (Current numbers).
+- Ben's open calls (don't change these rules): (a) whether answered-rumor raid nights count against the week's raid rate (today a rumor adds a raid only on a night the count gave none); (b) whether early Threat 1 Shakedowns need softening, or the 0.8-day raid-loss line and `RAID_LOSS.worst` 0.6 (tools/pacing.ts) get restated; (c) the first Clubhouse on Days 15–19: the sim bot has $1,955–$2,092 at those dawns against the $2,306 it needs (Side Lot $306 plus `CLUBHOUSE[0].cost` $2,000; `npm run sim -- 20` prints the check); (d) the pacing economy and the late-game stand mix; (e) whether overnight repairs keep that reserve too.
+
+## Current numbers
+
+Measured on main on 2026-11-14 with `npm run combat` and `npm run sim -- 14`. Re-check them after any combat or economy change.
+
+HQ assaults (`HQS` in `src/sim/rivals.ts`: `tier` sets henchman strength, `yard` the Yard's size) are tuned so the spec's model squads usually win at the guard levels they'd have by then. The assault is fought at Morning Prep, a night fight where Night Owls hit 25% harder. Over 40 seeds:
+
+| HQ | Model squad | Win rate |
+| --- | --- | --- |
+| Blend Shack | 5 L2 guards with clubs | 83% |
+| Grindhouse | 8 L2 with clubs and vests | 80% |
+| Hollis Homestead | 8 L3 with hatchets and vests | 83% |
+| FizzCo Tower | 12 L4 with hatchets and Pro Gear | 98% |
+| Sourwood Manor | 12 L4 with hatchets and Pro Gear | 33% |
+| Sourwood Manor | 12 L5 with hatchets and Pro Gear | 85% |
+| Sourwood Manor after 7 good siege nights (Gate 1,500, Yard 3) | 12 L4 with hatchets and Pro Gear | 100% |
+
+Fight anchors: a Threat 1 raid of 3 fists wins 100% of the time against an undefended L1, and fails 78% of the time against a Picket Fence and one fists guard (92% for real Threat 1 parties of 2–3). Against a kitted L5 plot (5 L1 hatchet guards in Pro Gear, goose, Slick and sprinkler), the defense holds 80% of Threat 4 raids on P4 and 100% on P5. Weapons: 5 hatchets breach 2,500 HP in 18 s and 5 clubs in 73.5 s; 12 clubs leave a 5,000 HP Citrus Palace at 200 HP after 60 s, and 12 hatchets smash it in 15 s.
+
+The 14-day run: Day 14 ends with $1,886.01 and a Success Score of 2,269. Rank 2 (Corner Hustler) comes on Day 9, with Lottie's Tip at the next dawn. Raids hit on Nights 3, 6, 7, 10 and 13, each taking $148–$255 from the till.
 
 ## Working rules
 
-- Push straight to `main`; every push deploys to GitHub Pages (`.github/workflows/deploy.yml`). Live: https://benjaminthomasnoble.github.io/lemonade-stand-game/
+- Push straight to `main`; every push deploys to GitHub Pages (`.github/workflows/deploy.yml`). Live: https://benjaminthomasnoble.github.io/lemonade-stand-game/. Other agents push too, so `git fetch origin main && git rebase origin/main` first.
 - Before pushing: `npx tsc --noEmit`, `npm test`, `npm run build`, then `npm run smoke` (starts a preview server and plays through in headless Chromium; screenshots land in `test-results/`). `npm run sim -- 14` and `npm run combat` print balance checks.
-- The sim (`src/sim/`) is pure and seeded: every random draw goes through `{ seed: s.seed }` and writes the seed back. Keep it free of DOM and three.js so it runs in Node and tests.
-- Content guardrails (spec): no guns, explosives, fire, blood or deaths; E10+ cartoon violence; no real brands or people.
+- Saves: `SAVE_VERSION` stays 8 (`src/sim/economy.ts`). A new saved field is optional, and the owning lane's idempotent `migrate<Lane>(s)` fills it; `migrateSave` calls each one on every load. Don't bump `SAVE_VERSION`.
+- The sim (`src/sim/`) is pure and seeded: every random draw goes through `{ seed: s.seed }` and writes the seed back. No DOM, three.js, `Date` or `Math.random`, so it runs in Node and tests.
+- Tunable numbers live in `src/sim/balance.ts`, `src/sim/vip.ts` (facilities, orders) and `src/sim/rivals.ts` (HQs, buyouts, truces); keep them in step with `docs/spec/balance-tables.md`.
+- The stakes rules (Ben's playtest, 2026-11-08): Lottie stocks Day 1 only, the first raid comes on Night 3, and `MAX_QUIET_NIGHTS` caps raid-free nights after it. No free stock or raid-free weeks without Ben's say. A new daytime decision is a new `CallKind` in `src/sim/calls.ts`.
+- `src/world/` belongs to the art threads: list what the world should show under What's left rather than drawing it.
+- Content guardrails (spec): no guns, explosives, fire, blood or deaths; E10+ cartoon violence; no real brands or people. The story stays simple and fun.
 - Owl World (Ben's other game) is a source of code techniques only, never its world or layout.
-- Bump `SAVE_VERSION` in `src/sim/economy.ts` when the saved state shape changes.

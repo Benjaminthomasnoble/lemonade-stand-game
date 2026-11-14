@@ -10,8 +10,8 @@
 // functional controls on the HUD's ticket styles; clicks go through the HUD's
 // one listener (data-action).
 import {
-  AD_BLITZ, adBlitzIn, canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, OLD_MONEY, offerOn, PLOT_BY_ID, postersAt, runningSchemes,
-  SCHEMES, TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
+  AD_BLITZ, adBlitzIn, canRunCampaign, canSellToFizzco, CEASE, ceaseAndDesistIn, DISTRICT_BY_ID, freezeOn, isWrecked, nearbyPlots, OLD_MONEY, offerOn, PLOT_BY_ID, postersAt,
+  runningSchemes, SCHEMES, TAKEOVER, warAt, type GameState, type RivalId, type Scheme,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -29,12 +29,18 @@ const CUT = `−${Math.round(SCHEMES.priceWar.cut * 100)}%`;
 const place = (id: string) => PLOT_BY_ID[id].name;
 const whole = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
+/** A price war near your stands: who, the cut and days left, with its answer (spec: Rival marketing): a Coupon Blitz
+ * from a stand of yours it shares passers-by with, one tap away at Morning Prep (hidden before Rank 4), or wait it out. */
 function priceWar(s: GameState, war: Scheme): string {
   const left = war.until - s.day + 1;
   const tip = `${SHORT[war.by]} cut prices ${CUT.slice(1)} at ${war.plots.length} stand${war.plots.length === 1 ? '' : 's'} near yours, `
-    + `${left} day${left === 1 ? '' : 's'} left. It costs them too: their Strike money pays the gap.`;
+    + `${left} day${left === 1 ? '' : 's'} left. It costs them too: their Strike money pays the gap. Answer: a Coupon Blitz or wait it out.`;
+  const mine = war.plots.flatMap((p) => nearbyPlots(PLOT_BY_ID[p])).find((q) => s.plots[q.id].owner === 'player' && s.plots[q.id].stand && !isWrecked(s.plots[q.id]));
+  const b = mine ? canRunCampaign(s, 'couponBlitz', mine.id) : null;
+  const coupon = mine && b && s.phase === 'prep' && !/Rank \d/.test(b.ok ? '' : b.why)
+    ? btn('campaign', 'Coupon Blitz', `data-id="couponBlitz" data-plot="${mine.id}"`, 'tiny go', b.ok ? undefined : b.why) : '';
   return `<div class="cl-ticket red" data-testid="price-war" title="${esc(tip)}">${ICON.war()}<b>Price war! ${SHORT[war.by]} ${CUT}</b>
-    <span class="cl-acts">${pips(left, SCHEMES.priceWar.days)}${btn('goto', 'Go there', `data-plot="${war.plots[0]}"`)}</span></div>`;
+    <span class="cl-acts">${pips(left, SCHEMES.priceWar.days)}${coupon}${btn('goto', 'Go there', `data-plot="${war.plots[0]}"`)}</span></div>`;
 }
 
 function posters(s: GameState, job: Scheme): string {

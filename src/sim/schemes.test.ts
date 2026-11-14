@@ -57,7 +57,8 @@ describe('price wars', () => {
     expect(priceWarCut(s, 'blenders', theirs)).toBe(0.75);
     expect(priceWarCut(s, 'hollis', theirs)).toBe(1);
     expect(warAt(s, theirs)).toBe(war);
-    expect(s.news.at(-1)).toBe('Bugle: Price war! The Boardwalk Blenders cut prices near Lottie\'s');
+    expect(s.news.at(-1)).toBe('Bugle: Price war! The Boardwalk Blenders cut prices near Lottie\'s. Answer: a Coupon Blitz or wait it out.');
+    expect(s.alerts!.at(-1)).toMatchObject({ kind: 'note', text: s.news.at(-1), plot: war.plots[0] }); // a card in the feed, as the letter and the freeze post
     hush(s);
     const f = FACTIONS.blenders;
     for (let day = 11; day <= 13; day++) {
@@ -413,19 +414,27 @@ describe('when schemes come', () => {
 });
 
 describe('on the HUD', () => {
-  it('a price war near you: a red ticket naming the rival and the cut, days left and Go There; the stand card notes it', () => {
+  it('a price war near you: a red ticket naming the rival, the cut and its answer, days left, a Coupon Blitz and Go There; the stand card notes it', () => {
     const s = newGame(3);
     s.day = 10;
-    const { theirs } = nextTo(s, 'blenders');
+    const { theirs, mine } = nextTo(s, 'blenders');
     expect(schemeTickets(s)).toEqual([]);
     startScheme(s, 'blenders', 'priceWar');
     const [ticket] = schemeTickets(s);
     expect(ticket).toContain('data-testid="price-war"');
     expect(ticket).toContain('cl-ticket red');
     expect(ticket).toContain('Price war! Blenders −25%');
+    expect(ticket).toContain('Answer: a Coupon Blitz or wait it out.');
     expect(ticket).toContain('<i class="on"></i><i class="on"></i><i class="on"></i>');
     expect(ticket).toContain(`data-action="goto" data-plot="${theirs}"`);
+    expect(ticket).not.toContain('data-id="couponBlitz"'); // Rank 1: the Coupon Blitz is still locked
     expect(schemeNote(s, theirs)).toBe('<span class="cl-note bad">Price war −25%</span>');
+    s.rank = 4;
+    const blitz = `data-action="campaign" data-id="couponBlitz" data-plot="${mine}"`; // from your stand that shares its street
+    expect(schemeTickets(s)[0]).toContain(`${blitz} >Coupon Blitz</button>`);
+    expect(canRunCampaign(s, 'couponBlitz', mine).ok).toBe(true);
+    s.phase = 'open';
+    expect(schemeTickets(s)[0]).not.toContain(blitz); // planned at Morning Prep, as the posters' Free samples are
   });
 
   it('this morning\'s posters: Free samples one tap away from Rank 2 (hidden before), or a green ticket if the crew was caught', () => {

@@ -149,7 +149,7 @@ function startPriceWar(s: GameState, id: RivalId): Scheme | null {
   const war: Scheme = { kind: 'priceWar', by: id, day: s.day, until: s.day + SCHEMES.priceWar.days - 1, plots: front, cost: 0 };
   s.schemes!.push(war);
   for (const p of front) setPrice(s, id, p);
-  s.news.push(`Bugle: Price war! ${short(id)} cut prices near Lottie's`);
+  alert(s, { kind: 'note', text: `Bugle: Price war! ${short(id)} cut prices near Lottie's. Answer: a Coupon Blitz or wait it out.`, plot: front[0] });
   return war;
 }
 

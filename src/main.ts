@@ -1055,7 +1055,7 @@ async function main() {
     // while a warned raid is still coming for you and the clock runs, twice as often in its last 15 game minutes.
     const ticks = !state.fight && (state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume && performance.now() >= tickHold ? raidTicks(state) : 0;
     if (!ticks) tickIn = 0;
-    else if ((tickIn -= realDt) <= 0) { audio.tick(); tickIn = Math.max(tickIn, -0.05) + TICK_SECONDS / ticks; }
+    else if ((tickIn -= realDt) <= 0) { audio.tick(); if (!calmAudioOn(state.settings)) twins?.beat(); /* its faint edge beat (twins.ts) */ tickIn = Math.max(tickIn, -0.05) + TICK_SECONDS / ticks; }
     audioCues(realDt);
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it. The
     // Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.

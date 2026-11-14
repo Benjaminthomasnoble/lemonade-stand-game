@@ -24,10 +24,12 @@ export function pactPhoto(s: GameState): string {
     <span class="cl-txt"><b>You · Lottie's</b><i>Everyone but the kid: ${n} in the Pact</i></span></div>`;
 }
 
+/** A length of red yarn pinned from the photo, thicker the deeper the Grudge (k: 0 to 5 pips). */
+export const yarn = (k: number) => `<i class="cl-yarn" style="--k:${Math.max(1, Math.min(5, k))}" aria-hidden="true"></i>`;
 /** A member's one red string while the Pact stands, to your photo (null before it forms: the board draws its own). */
 export function pactStrings(s: GameState, id: RivalId, boss: string): string | null {
   if (!syndicateFormed(s)) return null;
   const g = grudgeToward(s, id, 'player');
   const n = Math.max(1, Math.min(5, Math.round(g / PIP)));
-  return `<span class="cl-row wrap" data-testid="cork-strings"><span class="cl-note" title="${esc(`${boss} is in the Pact against you. Grudge toward you: ${Math.round(g)}`)}">Lottie's</span>${pips(n, 5)}</span>`;
+  return `<span class="cl-row wrap" data-testid="cork-strings">${yarn(n)}<span class="cl-note" title="${esc(`${boss} is in the Pact against you. Grudge toward you: ${Math.round(g)}`)}">Lottie's</span>${pips(n, 5)}</span>`;
 }

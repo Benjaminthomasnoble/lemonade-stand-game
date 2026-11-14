@@ -565,3 +565,10 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
 /* A ticket with art keeps every line in the text column: a third line (a second note, the acts) never drops under the
  * art and widens it (the Kids' Lemonade Day ticket squeezed its title to a letter a line). */
 .clay .cl-ticket > :is(svg, .cl-face-img):first-child ~ * { grid-column: 2; }
+/* The Corkboard's red strings: a wavy length of yarn per Grudge, thicker the deeper it runs, to the other boss's face. */
+.clay [data-testid="cork-strings"] { align-items: center; column-gap: calc(var(--u) * .3); }
+.clay .cl-yarn { display: inline-block; width: calc(var(--u) * 3.4); height: calc(var(--u) * 1.4); margin-right: calc(var(--u) * -.2);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16'%3E%3Ccircle cx='3' cy='8' r='2.6' fill='%23c8325a' stroke='%232E2A4F' stroke-width='1.2'/%3E%3Cpath d='M4 8c6-6 9 6 15 0s9 6 15 0l4-1' fill='none' stroke='%23c8325a' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  transform: scaleY(calc(.55 + var(--k) * .12)); opacity: calc(.55 + var(--k) * .09); }
+#ui.clay .cl-face-img.cl-yarn-face { display: inline-block; width: calc(var(--u) * 1.9); height: calc(var(--u) * 1.9); border-radius: 50%; object-fit: cover; object-position: 50% 20%; background: #FFF1D6; border: calc(var(--u) * .14) solid #2E2A4F; vertical-align: middle; }
+.clay [data-testid="cork-strings"] .cl-pips i.on { background: #c8325a; }

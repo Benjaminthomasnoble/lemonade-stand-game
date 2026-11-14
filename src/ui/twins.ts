@@ -20,6 +20,8 @@ const CAPTION_MS = 4500;
 
 export interface Twins {
   pulse(kind: Stinger): void;
+  /** The raid countdown's tick, seen: a faint red beat at the screen's edge (none under Less motion). */
+  beat(): void;
   /** A caption line: who's speaking and what they said. */
   caption(who: string, line: string): void;
 }
@@ -39,6 +41,16 @@ export function createTwins(root: HTMLElement, calm: () => boolean, captions: ()
       const anim = el.animate(quiet ? [{ boxShadow: glow, opacity: 0 }, { boxShadow: glow, opacity: 0.7 }, { boxShadow: glow, opacity: 0 }] : [{ boxShadow: none }, { boxShadow: glow }, { boxShadow: none }],
         { duration: quiet ? 1200 : p.ms, iterations: quiet ? 1 : p.beats, easing: 'ease-in-out' });
       anim.onfinish = () => el.remove();
+    },
+    beat() {
+      if (calm()) return;
+      const el = document.createElement('div');
+      el.setAttribute('aria-hidden', 'true');
+      el.dataset.pulse = 'tick';
+      Object.assign(el.style, { position: 'absolute', inset: '0', pointerEvents: 'none', zIndex: '15' });
+      root.appendChild(el);
+      const faint = `inset 0 0 26px 4px ${PULSE['raid-incoming'].color}66`, none = `inset 0 0 0 0 ${PULSE['raid-incoming'].color}00`;
+      el.animate([{ boxShadow: none }, { boxShadow: faint, offset: 0.25 }, { boxShadow: none }], { duration: 360, easing: 'ease-out' }).onfinish = () => el.remove();
     },
     caption(who, text) {
       if (!captions() || !text) return;

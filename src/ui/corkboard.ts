@@ -20,7 +20,7 @@ import {
 } from '../sim/economy.ts';
 import { scoutedSnapshot } from '../sim/scouting.ts';
 import * as A from './clay.ts';
-import { pactPhoto, pactStrings } from './pactboard.ts';
+import { pactPhoto, pactStrings, yarn } from './pactboard.ts';
 import { scoutedPins } from './gull.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -58,7 +58,7 @@ function strings(s: GameState, id: RivalId): string {
   const pact = pactStrings(s, id, BOSS[id]); if (pact !== null) return pact; // nights: once the Pact stands, every string ties to your photo (pactboard.ts)
   const at: FactionId[] = ['player', ...RIVALS.filter((r) => r !== id && s.rivals[r].alive)];
   const out = at.map((f) => ({ f, g: grudgeToward(s, id, f) })).filter((x) => x.g >= PIP / 2)
-    .map(({ f, g }) => `<span class="cl-note" title="${esc(`${BOSS[id]}'s Grudge toward ${GANG[f]}: ${Math.round(g)}`)}">${esc(GANG[f])}</span>${pips(Math.min(5, Math.round(g / PIP)), 5)}`);
+    .map(({ f, g }) => `${yarn(Math.round(g / PIP))}${f === 'player' ? '' : faceImg(BOSS_PORTRAIT[f], 'cl-yarn-face')}<span class="cl-note" title="${esc(`${BOSS[id]}'s Grudge toward ${GANG[f]}: ${Math.round(g)}`)}">${esc(GANG[f])}</span>${pips(Math.min(5, Math.round(g / PIP)), 5)}`);
   return out.length ? `<span class="cl-row wrap" data-testid="cork-strings">${out.join('')}</span>` : '';
 }
 

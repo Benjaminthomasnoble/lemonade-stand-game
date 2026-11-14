@@ -24,7 +24,7 @@ import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, openBooks, outO
 import { AD_BLITZ, CEASE, HEDGES, inTruce, MYSTERY, NIGHT_SHIFT, OLD_MONEY, OUT_OF_TOWNER, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
 import { CALL_PRIORITY, phoneCall } from './phone.ts';
-import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row, and stock gone bad
 import { actOf, districtControl, isEndless, peaceful } from './modes.ts';
 import { playScene, queued } from './scenes.ts';
 import { hasStory } from './story.ts';
@@ -41,6 +41,7 @@ export interface Scheme {
   price?: number; // a buyout offer: what they'd pay you; a fine: what you paid
   caught?: boolean; // posters or a spoiled night: your night watch caught the crew
   spoiled?: number; // a spoiled night (Act 3's mystery): the lemons that went bad
+  value?: number; // a spoiled night: what those lemons cost, for the dawn's Ledger (bookNightShift)
   cost?: number; // what Strike has paid for it so far
   done?: boolean; // over: it ran its days, Strike ran dry, or the snipe went off
 }
@@ -239,6 +240,7 @@ export function mysteryOn(s: GameState): boolean {
 }
 
 const lemonsAt = (st: Stand) => st.inventory.lemons.reduce((a, b) => a + b.qty, 0);
+const lemonsCost = (st: Stand) => st.inventory.lemons.reduce((a, b) => a + b.qty * b.unitCost, 0);
 
 /** The Night Shift goes for your stocked stand nearest Cold Brew's turf (the one with the most lemons, on a tie). */
 function spoilTarget(s: GameState): string | null {
@@ -266,8 +268,8 @@ function mysteryAtDawn(s: GameState, rng: Rng): Scheme | null {
   spend(s, 'coldbrew', 'strike', cost);
   const caught = nextRandom(rng) < detectionChance(s, target, true) - NIGHT_SHIFT.stealth;
   const st = s.plots[target].stand!;
-  const spoiled = caught ? 0 : lemonsAt(st);
-  const job: Scheme = { kind: 'spoil', by: 'coldbrew', day: s.day, until: s.day, plots: [target], caught, spoiled, cost, done: true };
+  const spoiled = caught ? 0 : lemonsAt(st), value = caught ? 0 : lemonsCost(st);
+  const job: Scheme = { kind: 'spoil', by: 'coldbrew', day: s.day, until: s.day, plots: [target], caught, spoiled, value, cost, done: true };
   s.schemes!.push(job);
   r.mystery ??= { from: s.day };
   const where = PLOT_BY_ID[target].name;
@@ -284,6 +286,18 @@ function mysteryAtDawn(s: GameState, rng: Rng): Scheme | null {
     if (dex) s.news.push(`Dex: "${MYSTERY.dex}"`);
   }
   return job;
+}
+
+/**
+ * Dawn, once the day's books are open (sleepUntilDawn): the lemons the Night Shift spoiled go on the Ledger like stock
+ * gone bad by age, in the day's spoiled lemons and its Supplies (as waste).
+ */
+export function bookNightShift(s: GameState): void {
+  for (const x of s.schemes ?? []) {
+    if (x.kind !== 'spoil' || x.day !== s.day || x.caught || !x.spoiled) continue;
+    s.today.lemonsSpoiled += x.spoiled;
+    useStock(s, x.value ?? 0, true);
+  }
 }
 
 /**

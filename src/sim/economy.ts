@@ -20,7 +20,7 @@ import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
 import { migrateRivals, openBooks, outOfTownerState, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { historicHedges, landFrozen, outOfTownerAtDawn, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
+import { bookNightShift, historicHedges, landFrozen, outOfTownerAtDawn, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -904,6 +904,7 @@ export function sleepUntilDawn(s: GameState, stopAtAlerts = false, events?: SimE
   s.today = emptyStats(s);
   s.today.lemonsSpoiled = spoiled;
   useStock(s, spoiledValue, true); // the Ledger's Supplies count what spoiled
+  bookNightShift(s); // and what Act 3's Night Shift spoiled (schemes.ts)
   landAtDawn(s);
   crewAtDawn(s);
   rivalsBankrupt(s);

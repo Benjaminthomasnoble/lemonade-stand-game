@@ -19,6 +19,7 @@ import { plotBuyoutRow, type SitKit } from '../ui/sitdown.ts';
 import { phoneCheck } from './phone.ts';
 import { checkGoals, GOAL_PROVIDERS, goalsNow } from './goals.ts';
 import { playScene, SPEAKERS } from './scenes.ts';
+import { rowAmount } from './ledger.ts';
 
 const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -1010,7 +1011,7 @@ describe("Act 3's mystery: the Night Shift spoils your stock", () => {
     const s = act3(1);
     const before = s.news.length;
     schemesAtDawn(s); // the act's first night: it always comes, and costs Cold Brew nothing
-    expect(spoils(s)).toEqual([{ kind: 'spoil', by: 'coldbrew', day: 45, until: 45, plots: [LOTTIES_CORNER], caught: false, spoiled: 100, cost: 0, done: true }]);
+    expect(spoils(s)).toEqual([{ kind: 'spoil', by: 'coldbrew', day: 45, until: 45, plots: [LOTTIES_CORNER], caught: false, spoiled: 100, value: 20, cost: 0, done: true }]);
     expect(lemons(s)).toBe(0);
     expect(s.raids).toEqual([]); // not a raid: no warning and no fight
     const told = s.news.slice(before);
@@ -1141,6 +1142,23 @@ describe("Act 3's mystery: the Night Shift spoils your stock", () => {
     expect(s.goals!.done).toContain(`${MYSTERY_GOAL}:${MYSTERY.goal}`);
     atRank(s, 7); // Act 4: off the card for good
     expect(mysteryGoal(s)).toBeNull();
+  });
+
+  it("puts the spoiled lemons on the dawn's Ledger at cost, like lemons gone bad by age", () => {
+    const s = act3(8);
+    s.day = 44; // the night before Act 3's first spoiled dawn
+    openStand(s);
+    simulateRestOfDay(s);
+    stock(s); // 100 lemons on the shelf at $0.20 when the Corner shuts
+    const worth = s.plots[LOTTIES_CORNER].stand!.inventory.lemons.reduce((a, b) => a + b.qty * b.unitCost, 0);
+    expect(worth).toBeCloseTo(20, 6);
+    sleepUntilDawn(s);
+    expect(s.day).toBe(45);
+    expect(spoils(s)[0]).toMatchObject({ day: 45, caught: false, spoiled: 100, value: 20 });
+    expect(s.today.lemonsSpoiled).toBe(100);
+    expect(s.today.waste).toBeCloseTo(20, 6);
+    expect(s.today.stockUsed).toBeCloseTo(20, 6);
+    expect(rowAmount(s.today, 'supplies')).toBeCloseTo(-20, 6); // the Ledger's Supplies row
   });
 
   it('rides the save: the record loads, and the goal provider is there once', () => {

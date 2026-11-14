@@ -493,7 +493,7 @@ describe("Lottie's goals", () => {
       met = true;
       checkGoals(s);
       expect(s.cash).toBe(cash + goalReward(s, 'medium'));
-      expect(goalsNow(s)[1].text).toBe('Build the Wooden Stand'); // back to the lesson it stepped in front of
+      expect(goalsNow(s)[1].text).toBe('Open a second stand'); // back to the goal it stepped in front of
     } finally {
       GOAL_PROVIDERS.splice(GOAL_PROVIDERS.indexOf(kids), 1);
     }
@@ -501,15 +501,36 @@ describe("Lottie's goals", () => {
 
   it('a slot keeps its goal until done; only a lesson or story goal steps in ahead of it', () => {
     const s = newGame(36);
+    s.day = LESSON_DAY.upgrade; // the Grow tab is out
     s.plots[LOTTIES_CORNER].stand!.level = 2; // the Wooden Stand is up
+    checkGoals(s);
+    expect(goalsNow(s)[1].text).toBe('Fence the Corner'); // Day 3's lesson, still open
+    s.plots[LOTTIES_CORNER].defense.tier = 1;
     checkGoals(s);
     expect(goalsNow(s)[1].text).toBe('Open a second stand');
     s.rank = 5; // new unlocks rank ahead of it (the Kiosk first), but the card doesn't switch under you
     checkGoals(s);
     expect(goalsNow(s)[1].text).toBe('Open a second stand');
-    s.day = 5; // a lesson does: the fence's, from Day 3
+    s.day = LESSON_DAY.marketing; // a lesson does: the sign's, from Day 6
     checkGoals(s);
-    expect(goalsNow(s)[1].text).toBe('Fence the Corner');
+    expect(goalsNow(s)[1].text).toBe('Paint your first sign');
+  });
+
+  it("with the lessons on, the Wooden Stand is Day 5's goal: Days 1-4 show the second stand; lessons off, it follows rank", () => {
+    const s = newGame(37);
+    s.plots[LOTTIES_CORNER].defense.tier = 1; // Day 3's fence is up
+    for (let d = 1; d < LESSON_DAY.upgrade; d++) {
+      s.day = d;
+      checkGoals(s);
+      expect(goalsNow(s)[1].text, `Day ${d}`).toBe('Open a second stand');
+      expect(goalsNow(s).some((g) => g.text.includes('Wooden Stand')), `Day ${d}`).toBe(false); // the Grow tab is hidden till Day 5
+    }
+    s.day = LESSON_DAY.upgrade; // Day 5: the upgrade lesson steps in ahead of the second stand
+    checkGoals(s);
+    expect(goalsNow(s)[1].text).toBe('Build the Wooden Stand');
+    const off = newGame(37, { lessons: false }); // a Rank 1 build, from Day 1
+    checkGoals(off);
+    expect(goalsNow(off)[1].text).toBe('Build the Wooden Stand');
   });
 
   it("never forget a goal still on the card, so today's sales goal pays once", () => {

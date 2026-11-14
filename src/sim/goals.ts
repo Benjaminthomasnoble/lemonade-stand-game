@@ -164,8 +164,9 @@ function mediumGoals(s: GameState): Candidate[] {
   const towner = isEndless(s) ? outOfTownerGoal(s) : null; // Endless: the Out-of-Towner's date in town steps in ahead of the rest
   if (towner) out.push(towner);
   if (hasStory(s)) out.push(...act2Goals(s));
-  // Act 1's lessons, newest first; the Wooden Stand is the first session's goal from Day 1. Week 2's Old Town
-  // corner is a story beat in the campaign (page icon) and a lesson elsewhere.
+  // Act 1's lessons, newest first; the Wooden Stand is Day 5's (LESSON_DAY.upgrade, when the Grow tab comes), so Days
+  // 1-4 show the second stand or Net Worth. Week 2's Old Town corner is a story beat in the campaign (page icon) and a
+  // lesson elsewhere.
   if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown) && onMap(s, 'oldtown')) { // land: a Sandbox map may leave Old Town out
     const owns = mine.some((p) => p.district === 'oldtown');
     out.push({ id: 'beat-oldtown', text: 'Open a stand in Old Town', progress: oldtown ? 1 : owns ? 0.8 : Math.min(0.6, cash / cheapestPlot(s, 'oldtown')), done: oldtown, story: hasStory(s), urgent: true });
@@ -174,12 +175,12 @@ function mediumGoals(s: GameState): Candidate[] {
     if (s.day >= LESSON_DAY.marketing) out.push({ id: 'lesson-sign', text: 'Paint your first sign', progress: s.brandTier ? 1 : cash / BRAND_TIERS[0].cost, done: s.brandTier >= 1, urgent: true });
     const corner = s.plots[LOTTIES_CORNER];
     if (s.day >= LESSON_DAY.defense && corner.owner === 'player') out.push({ id: 'lesson-fence', text: 'Fence the Corner', progress: corner.defense.tier ? 1 : cash / PERIMETERS[0].cost, done: corner.defense.tier >= 1, urgent: true });
-    out.push({ id: 'lesson-wooden', text: 'Build the Wooden Stand', progress: lvl >= 2 ? 1 : cash / STAND_LEVELS[1].cost, done: lvl >= 2, urgent: true });
+    if (s.day >= LESSON_DAY.upgrade) out.push({ id: 'lesson-wooden', text: 'Build the Wooden Stand', progress: lvl >= 2 ? 1 : cash / STAND_LEVELS[1].cost, done: lvl >= 2, urgent: true });
   }
-  // Then the next unlock: a bigger stand, signs, the crew, new districts, VIP facilities.
+  // Then the next unlock: a bigger stand (once upgrades are taught), signs, the crew, new districts, VIP facilities.
   for (let L = 2; L <= STAND_LEVELS.length; L++) {
     const next = STAND_LEVELS[L - 1];
-    if (s.rank >= STAND_RANK_GATE[L - 1] || lvl >= L) out.push({ id: `level-${L}`, text: `Build ${lowerThe(next.name)}`, progress: lvl >= L ? 1 : cash / next.cost, done: lvl >= L });
+    if (taught(s, 'upgrade') && s.rank >= STAND_RANK_GATE[L - 1] || lvl >= L) out.push({ id: `level-${L}`, text: `Build ${lowerThe(next.name)}`, progress: lvl >= L ? 1 : cash / next.cost, done: lvl >= L });
   }
   for (const t of BRAND_TIERS) {
     if (taught(s, 'marketing') && s.rank >= t.rank || s.brandTier >= t.tier) out.push({ id: `brand-${t.tier}`, text: `Put up ${t.name}`, progress: s.brandTier >= t.tier ? 1 : cash / t.cost, done: s.brandTier >= t.tier });

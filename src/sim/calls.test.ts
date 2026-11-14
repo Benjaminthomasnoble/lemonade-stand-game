@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BAY_RIVALS, budgetOf, LOTTIES_CORNER, mayRaidYou, newGame, newStand, openStands, PLOTS, simulateRestOfDay, sleepUntilDawn, tickMinute, fillPosts,
-  type GameState,
+  BAY_RIVALS, budgetOf, callBigSqueeze, LOTTIES_CORNER, mayRaidYou, newGame, newStand, openStands, PLOTS, siegeTonight, simulateRestOfDay, sleepUntilDawn,
+  tickMinute, fillPosts, type GameState,
 } from './economy.ts';
-import { answerCall, callChoices, callLine, CALLS, callTraffic, liveCall, planCalls, type DayCall } from './calls.ts';
+import { answerCall, callChoices, callLine, CALLS, CALLS_PER_DAY, callTraffic, liveCall, planCalls, type DayCall } from './calls.ts';
 import { eventTraffic } from './events.ts';
 import { onYou } from './night.ts';
 
@@ -18,6 +18,16 @@ function day10(seed: number): GameState {
   const s = newGame(seed, { mode: 'sandbox' });
   Object.assign(s, { day: 10, tutorialRaidDone: true, lastRaidOnYou: 9, rank: 3, cash: 5000 });
   for (const p of PLOTS.filter((x) => x.district === 'maple' && x.type === 'street' && !s.plots[x.id].owner).slice(0, 3)) {
+    s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
+  }
+  return s;
+}
+/** Morning Prep on Day 136 of a Classic campaign at Rank 9, in Act 5: the Corner and five Maple Row stands, every rival flush. */
+function finale(seed: number): GameState {
+  const s = newGame(seed, { mode: 'campaign' });
+  Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, lastRaidOnYou: 135, story: { act: 5, since: 106 } });
+  for (const id of BAY_RIVALS) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
+  for (const p of PLOTS.filter((x) => x.district === 'maple' && x.type === 'street' && !s.plots[x.id].owner).slice(0, 5)) {
     s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
   }
   return s;
@@ -127,6 +137,35 @@ describe('day calls', () => {
       openStands(none);
       planCalls(none);
       expect(none.calls!.list.some((c) => c.kind === 'rumor')).toBe(false);
+    }
+    expect(rumors).toBeGreaterThan(5);
+  });
+
+  it('two calls on every business day after Day 1, and no rumor while every gang is backing off', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const s = day10(seed);
+      for (const id of BAY_RIVALS) s.rivals[id].respectUntil = s.day + 2; // you beat them all last night
+      openStands(s);
+      planCalls(s);
+      expect(s.calls!.list.map((c) => c.kind)).toHaveLength(CALLS_PER_DAY);
+      expect(s.calls!.list.some((c) => c.kind === 'rumor')).toBe(false);
+    }
+  });
+
+  it("no rumor on a Big Squeeze siege day: that dawn named the night's targets", () => {
+    let rumors = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const plain = finale(seed); // the same day with no siege called deals rumors on some seeds
+      openStands(plain);
+      planCalls(plain);
+      if (plain.calls!.list.some((c) => c.kind === 'rumor')) rumors++;
+      const s = finale(seed);
+      expect(callBigSqueeze(s)).toBe(true);
+      openStands(s);
+      planCalls(s);
+      expect(siegeTonight(s)).toBe(true);
+      expect(s.calls!.list).toHaveLength(CALLS_PER_DAY);
+      expect(s.calls!.list.some((c) => c.kind === 'rumor')).toBe(false);
     }
     expect(rumors).toBeGreaterThan(5);
   });

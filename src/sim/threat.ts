@@ -98,8 +98,8 @@ export function raidOnYou(s: GameState, rng: Rng, rival: RivalId, target: Plot, 
  * Night 3 (and nothing before it); on a Big Squeeze siege night, the one strike on its named targets; after that a
  * Poisson count for the week's rate, at least one once MAX_QUIET_NIGHTS have gone by without a raid, each from a rival
  * who may raid you, at the weakest valuable plot nobody else is hitting tonight. A rumor answered today (calls.ts)
- * brings its gang to its plot first. The bosses settle who actually sends each one (rivalAi signatureRaids) and the
- * multi-plot ones split after that (spreadRaids). */
+ * makes the night's first raid its gang at its plot: it adds a raid only on a night the count gave none. The bosses
+ * settle who actually sends each one (rivalAi signatureRaids) and the multi-plot ones split after that (spreadRaids). */
 export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const u = nextRandom(rng);
   const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));

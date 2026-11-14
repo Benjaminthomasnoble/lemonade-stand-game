@@ -13,6 +13,7 @@ import { book, bookOther } from './ledger.ts';
 import { nextRandom } from './rng.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { mayRaidYou } from './threat.ts';
+import { siegeTonight } from './squeeze.ts';
 
 export type CallKind = 'undercut' | 'heckler' | 'rush' | 'permit' | 'rumor';
 
@@ -97,7 +98,10 @@ export function planCalls(s: GameState): void {
   else if (s.day === 3) kinds.push(hot ? 'rush' : 'heckler', 'rumor');
   else {
     const pool: CallKind[] = ['undercut', 'heckler', 'permit', hot ? 'rush' : 'undercut'];
-    if (s.day > 3 && !s.settings.peaceful) pool.push('rumor');
+    // A rumor only when some gang may come for you tonight (else the draw takes another kind, so the day still has
+    // two calls), and never on a siege night: that dawn named its targets (squeeze.ts).
+    const gang = nearestRival(s, mine[0].id, (id) => mayRaidYou(s, id));
+    if (s.day > 3 && !s.settings.peaceful && !siegeTonight(s) && gang) pool.push('rumor');
     while (kinds.length < CALLS_PER_DAY) {
       const k = pool[Math.floor(nextRandom(rng) * pool.length)];
       if (!kinds.includes(k)) kinds.push(k);

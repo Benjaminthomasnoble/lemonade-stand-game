@@ -1170,7 +1170,7 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 
 Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
 
-These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons. So are the pacing economy behind them and the late-game stand mix in Income growth by stage: the new pacing sweep, with a player that uses every system, reports in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+These targets are under review, along with the pacing economy behind them and the late-game stand mix in Income growth by stage, and the simulated days above predate the first L2 and Rank 2 moving to their Day 5 lessons. The new pacing sweep, with a simulated player that uses every system, reports in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
 
 ### Difficulty differences
 
@@ -1389,7 +1389,7 @@ Hilltop Estates · Days 105–150 · Ranks 8–9. **Goal:** outlast the Syndicat
 5. **Harbor Fest:** choppers and ships queue for the Fall VIP rush while Syndicate crews go after every delivery. Every horn plays Lottie's Theme, and Lottie swears she isn't humming along.
 6. **The button:** at Rank 9, Lottie posts one goal with no timer: Call the Big Squeeze. "When you're ready, kid. Not a minute before."
 
-**Climax:** a 7-day siege, then the Manor: Gate, Yard, Boss Room. Each siege dawn the Corkboard names that night's 2–3 targets; every night you hold them all knocks 10% off the Manor Gate (down to 1,500 of its 5,000 HP) and benches one Yard elite, and every plot you lose adds a Steward to the Boss Room. When Vera's cane clatters down, Lottie walks in, and they face off across the tea table.
+**Climax:** a 7-day siege, then the Manor: Gate, Yard, Boss Room. Each siege dawn the Corkboard names that night's 2–3 targets; every night you hold them all knocks 10% off the Manor Gate (down to 1,500 of its 5,000 HP) and benches one of the Yard's henchmen, and every plot you lose adds a Steward to the Boss Room. When Vera's cane clatters down, Lottie walks in, and they face off across the tea table.
 
 Vera produces the last page, still sealed: "It said open together." Inside: a pinch of salt and "a friend to share it with." They make up over a glass.
 
@@ -2730,3 +2730,90 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Weakened | A rival far below its peak plots or your Net Worth, or outsold two to one by you for a week; needed for HQ Assault and Faction Buyout. |
 | Weapon tiers | Fists, Clubs, then Hatchets, bought per guard and reskinned for rivals; no guns, ever. |
 | Wrecked | Any building but an HQ at 0 HP; if its owner misses the rebuild window, the plot goes For Sale. |
+
+## Design calls settled on 2026-11-14
+
+These design calls were settled with the auditors' recommended defaults while Ben was away, and Ben can overrule any of them. Each line gives the rule main plays now, then what the docs said before. The sections above already follow the rule now.
+
+### Combat calls
+
+- **Fights in turn.** One fight plays at a time. A raid on you that reaches its plot during another fight waits at the plot's edge and goes in live as that fight ends, and your own raids that land meanwhile are fought at once and replayed. Before: the docs were silent on fights that overlap.
+- **Combat anchors.** A Threat 1 raid of 3 fists fails about 78% of the time against a Picket Fence and one fists guard, and real Threat 1 parties (2–3 fists) about 92%. A fully kitted L5 plot holds against a Threat 4 raid about 80% of the time behind a P4 and nearly always behind a P5. Threat 4 and 5 raiders both wear Pro Gear, 6 in 10 with hatchets and the rest with clubs. Before: about 60% and about 75%.
+- **Rally cue.** The fight bar shows each side's standing count against the mark where its one Nerve roll comes, so you can time a Rally to cover it. Before: no cue.
+- **Walkthrough figures (Days 24 and 26).** The unscouted Planner reads about 49–83% and the scouted one about 80%, counting the detection roll and the help a spotted raid meets. The Day 24 Shakedown takes about $1,555 and no guard is knocked out, and on Day 26 Brock's raid takes about $521 from a Kiosk with only a Picket Fence and Dex. Five clubs breach Barbed Wire in about 74 seconds. Before: 40–85%, 81%, $2,400 with Pip Out for 1 day, $800 and 75 seconds.
+- **Fall Back in the tutorial raid.** Any fence or guard sends Night 3's Bros home, unless your guards Fall Back and give the fight up. Before: any fence or guard sent them home.
+- **How rival help travels.** Help sets out when your raid does and walks at raid pace, about 1–2 game hours from a nearby plot, so it's nearly always there by contact. Your own reserves take Ring the Bell's 30 game minutes from the same district, 60 from a bordering one. Before: the defender "sends help", with no timing.
+- **HQ assaults as night fights.** An assault at Morning Prep, in the Evening or at night is a night fight (no Reputation, Night Owls hit 25% harder), and the HQ win rates are measured at Morning Prep. Each Yard's henchmen stand a level above the rest of their HQ's. Before: the docs didn't say when an assault counts as night, and called the Yard's henchmen elite.
+
+### Crew calls
+
+- **Daytime Sabotage.** A Sabotage by day costs 0.1 star, like every daytime raid. Before: canon and the glossary called Sabotage quiet.
+- **Sheriff Budd's ban.** It calls off your raids that haven't set out; a squad already on the road, and the raid that earned the Citation, still fight. Before: "a 2-day raid ban".
+- **Late Tonight raids.** A Tonight raid that would get there after 07:00 waits for the stands to open and is fought by day, with its star cost and, below 2.0 stars, a Citation; the Planner says so in red. Before: the docs were silent.
+- **Fence repairs on skipped plots.** Each night your chopped fences are mended and sprung Slicks re-laid from your cash. From Rank 3, a plot on Auto-Repair's skip list keeps them for you to fix by hand, unless a Fortify policy holds it. Before: the docs didn't say whether the skip list covers fences.
+
+### Demand calls
+
+- **The 40% hard stop.** Nobody buys at 40% over the ceiling, tourists and high rollers included; short of that, the thriftiest leave first. Before: one line said nobody buys at 40% over, another that tourists and high rollers keep buying.
+- **Power Lunch hours.** The lunch rush runs 12:00–14:00, ×1.5 at your stands in Downtown and Old Town. Before: "lunch rush", with no hours.
+- **Word of Mouth.** It halves a local campaign's cash, a Free Sample Day's cups (50, not 100) and a Coupon Blitz's price cut (−12.5% for the same +40% appeal). A Billboard is a building and still costs $25,000. Before: "halves every local campaign's cost".
+- **Maple Row's tolerance.** Its crowd blends to about 0.9, and the land table's 1.0 sets its ceiling. Before: 1.0, with no note.
+
+### Land calls
+
+- **First L2 and Rank 2 targets.** Day 5, their lessons (Days 5–6 across maps). Before: Day 4.
+- **Auctions.** Every sealed-bid auction closes at the next dawn. A tie goes to you, and your bid is paid only if it wins, from the cash you hold at dawn, or it bounces. Bids skip the rank and border rules and the Majority discount. Lottie's Corner and Trophies can't be listed. Before: "24-hour" auctions, with the rest unsaid.
+- **Land edge rules.** A Trophy alone isn't a Foothold. HQ land rises with its district, so a Trophy keeps adding to your Net Worth. A Sandbox plot retagged as a Field, Dock or Industrial lot keeps its street price. Before: the docs were silent.
+- **The simulated player's security.** About a quarter of income in the first two weeks, tapering to under a tenth after Day 80. Before: "a fifth of income" in one place and the taper in another.
+- **Rank-locked districts in the Registry.** A district still locked by rank stays hidden until that rank; one waiting on a Foothold next door shows why. Before: the docs were silent.
+- **The Warehouse.** It supplies your stands in its district and stores their sugar, and Caterer Trucks load at it (the one nearest your working stands). Bottles bank in one bay-wide store, with or without a Warehouse. Before: it stored bottles and banked them between pickups.
+- **Auto-Repair's reserve.** It keeps back tomorrow's wages and any loan payment due at dawn, and a fix the rest of your cash can't cover waits for you. Before: no reserve.
+- **Badly damaged stands.** A damaged stand pours at its HP share, and at least a cup an hour while it stands. Before: the HP share alone.
+- **The Hurricane's counter.** "Fortified Frames; repairs never cost more than a 15% rebuild", since it damages and never wrecks. Before: "rebuilds cost only 15%".
+- **Damaged facilities.** A Damaged facility, from a Clubhouse to a Pier, works at full output until it is Wrecked. Before: the docs were silent.
+- **Inspections and Storms.** The inspector never books a day forecast as a Storm, and a Storm the forecast missed calls the visit off for good. Before: the docs were silent.
+- **Borrowing at night.** With no loan, a ticket offers Borrow whenever your cash is $60 or less, nights included; with one, Pay off shows by day and in the Evening once your cash covers what you owe. Before: "a Borrow button appears where you're short".
+- **Repossession.** Two missed payments take your lowest-value plot as Net Worth counts it (land, 75% of the buildings and the stock at cost), never a Trophy, and Lottie's Corner only when no other plot is left. Value over the debt comes back to you. Before: "your lowest-value plot".
+
+### Nights calls
+
+- **Countdown speed.** On every difficulty, only the last stretch before a raid lands runs at fight speed: 30 game minutes on Laid Back, 15 on Classic and 5 on Cutthroat. A detected raid's longer warning runs at the speed you chose. Before: fight speed for the whole countdown, and only on Cutthroat, where warnings don't pause.
+- **The Day's end raiders line.** "Raiders on the way tonight" names no gang, makeup or time, and carries one fix at the plot of the first raid to set out: post a ready reserve guard there, or buy its next fence. Before: each raid's fighters against your guards and fence, as icons, with one fix button.
+- **Your own raids' speed.** Your raid's trip, fight and walk home play at the speed you chose, not at a raid night's 12×. Before: the docs were silent.
+- **The Day's end card waits.** Morning Prep and the Day's end card both wait for you, and auto-continue moves both on. Before: "only Morning Prep waits for you".
+- **Raid rates.** The Threat table gives the base raids a week (1, 2, 3, 4 and 6) beside the nights a week that bring a raid, as measured with the quiet-night cap: about 5, 4, 4–5 and 2.5–5, and about 2.5–7.5 Syndicate strikes. Before: 1, 2, 3, 4 and 6 raids a week.
+
+### Rivals calls
+
+- **Rival level-ups.** Every 30 days each rival stand is owed a level, up to L4 for the Blenders, Cold Brew and Hollis and L5 for FizzCo and Sourwood. Grow pays your build price, cheapest first, so the small families rarely get past L3 (an L4 costs $60,000, an L5 $650,000). Before: they "rise one level every 30 days".
+- **Juni and Preston's haggle.** You open at 1.5× and they counter at 2.1×. Holding firm brings them to 1.8× (a 50% chance, less half a point per point of Grudge) or sends them out until tomorrow, 5 Grudge sorer, and they never sign below 1.8×. Before: a flat 1.8×.
+- **Vera's elite Stewards.** From Act 5 they go on her raids and guard her plots, each a level up with a weapon one tier nearer hatchets. The Manor's own defenders are regular Stewards, with the Yard a level up as at every HQ. Before: "elite Stewards", with no word on the Manor.
+
+### Story calls
+
+- **The side lot's table.** Lottie's free side-lot table counts as $100 invested, like her Corner's. Before: "an L1 table included", which the build booked at $150.
+- **The Wooden Stand goal.** "Build the Wooden Stand" shows from Day 5, its lesson, though a curious player can still upgrade from Day 1 by tapping the stand. Before: the docs already said Day 5, but the goal showed from Day 1.
+- **The Lavender auction.** It opens at Rank 8, and in the campaign only once Act 5 opens; Rank 8 in Act 4 waits for FizzCo Tower to fall. Before: the docs said Act 5, but the build opened it at Rank 8 in any act.
+- **The night flight.** It comes the morning after Cold Brew's first Sabotage raid on you; with none a week into the act, Juni calls anyway. Before: "Squawk spots beanies at 03:00", with no trigger.
+- **The first chopper below Threat 3.** Below Threat 3 (Laid Back at Rank 6), or while FizzCo keeps a Truce or sits out its Respect cooldown, nobody hits the movie star's pad, and Lottie says only "Have every bottle ready when it lands." Before: Juni's warning on every difficulty.
+- **Lottie's Tips examples.** Canon's examples all come from the pool; "open at 07:00" is gone, since 07:00 is Morning Prep. Before: canon listed it.
+
+### World calls
+
+- **Taste-Off prize.** The winner takes $500, a rival included. Before: "fair prizes", with no figure.
+- **Tilly waits for the County Fair.** In the campaign she won't sell out, be stormed or go bust until Act 4's County Fair has run its Taste-Off; still broke then, she folds at the first dawn after it. Before: "Tilly can fall any time from Rank 7".
+- **Festivals.** A festival changes who walks by in its district, not how many. Before: an open question.
+- **Tilly's Fields.** Once won over, she sells every Field she owns at 1.5×. Before: "a Field".
+- **The Food Critic.** +0.1 star when the stand has a cup to taste, a short line, a fair price and a fitting recipe, and −0.1 otherwise, with no middle verdict. Before: the docs already said +0.1 or −0.1, but the build gave 0 for two checks of three.
+- **Delivery Raids per trip.** One roll, 30%, per pad or pier trip, however many orders load on it, and the raid goes after the trip's biggest load. A Caterer Truck at your Warehouse is a trip of its own. Before: "a Delivery Raid on the pad or pier during loading", which the build rolled per order.
+- **Harbor Fest.** While the Syndicate stands, its keenest member goes after every VIP trip, whatever its Strike money holds; a boss in a Truce or a Respect cooldown sits it out. Before: "Syndicate crews go after every delivery", which the build tied to Strike money.
+
+### Still open for Ben
+
+The docs keep these rules as they stand until Ben decides.
+
+- **(a) Rumors and the raid rate.** Should the raid nights that answered rumors bring count against the week's raid rate? Today a rumor sets the night's first raid's gang and plot, and adds a raid only on a night the draw gave none; that measures 3–5 raid nights a week at Threats 1–3.
+- **(b) The 0.8-day line.** Does "no raid costs more than 0.8 days of income" still hold against early Threat 1 Shakedowns? One cost 1.38 days on map 44, Day 7.
+- **(c) The first Clubhouse on Days 15–19.** The simulated player was about $250–350 short of one at dawns 15–19. The pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt, has the latest runs.
+- **(d) The pacing economy and the late-game stand mix.** Retune the economy toward the pacing targets, or restate them: see the pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt. It also shows the first Wooden Stand landing on Day 3 (tapping the stand upgrades it before the Day 5 lesson), Domination hinging on Vera's fall, and the VIP share of takings and the first Supply Deal off their targets.
+- **(e) Overnight repairs and the reserve.** Should overnight fence and Slick repairs keep Auto-Repair's wage and loan reserve? Today they're paid whenever the cash covers them.

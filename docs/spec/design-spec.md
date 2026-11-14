@@ -200,7 +200,7 @@ Four nested loops run on one clock, and a game day takes about 5 real minutes at
 
 The clock runs at 1×, 2× or 3× and pauses any time; each tick is one game minute, 1,440 a day. At 1×, business hours (08:00–20:00) take about 3.5 minutes and night (20:00–08:00) about 1.5 minutes. A game hour lasts about 18 real seconds by day and 8 at night.
 
-When a brawl starts, the clock slows to 1 game minute per real second, so most fights last 30–90 real seconds at any speed. Raid warnings auto-pause by default on Laid Back and Classic, because 15 game minutes of night pass in about 2 real seconds. On Cutthroat, where warnings don't pause, the clock drops to fight speed while a warning counts down, so its 5-minute notice lasts 5 real seconds. Quiet nights are skipped: when nothing is coming for you, Sleep goes straight to dawn. A raid night plays, at 12× until the warning (a setting).
+When a brawl starts, the clock slows to 1 game minute per real second, so most fights last 30–90 real seconds at any speed. Raid warnings auto-pause by default on Laid Back and Classic, because 15 game minutes of night pass in about 2 real seconds. On every difficulty, paused first or not, the last stretch before a raid lands runs at that fight speed: the final 30 game minutes on Laid Back, 15 on Classic and 5 on Cutthroat last that many real seconds. Before that stretch, a detected raid's longer warning runs at the speed you chose. Quiet nights are skipped: when nothing is coming for you, Sleep goes straight to dawn. A raid night plays at 12× until the warning comes in (a setting, on by default; picking a speed ends it until dawn). Your own raid's trip, fight and walk home play at the speed you chose.
 
 Seasons last 14 days, so a year is 56 days: Summer, Fall, Winter, Spring. Play opens on Summer Day 1, the first day of summer vacation, and the campaign spans about three years. Summer demand runs ×1.2 and Winter ×0.6, so each year breathes: grow in the sun, fortify in the cold.
 
@@ -212,17 +212,17 @@ Between taps, the alert feed offers the next small call: a sold-out stand, a Vir
 
 ### The daily loop
 
-Every day runs the same five beats, and only Morning Prep waits for you.
+Every day runs the same five beats. Morning Prep and the Day's end card wait for you.
 
 | Beat | Clock | Real time at 1× | What you do |
 | --- | --- | --- | --- |
 | Morning Prep | 07:00 | Paused until you're ready | Read the Citrine Bay Bugle: headlines, forecast, Market prices, offers. Buy supplies, set recipes and prices, take orders |
 | Business hours | 08:00–20:00 | About 3.5 minutes | Sell through the commute, lunch, afternoon-heat and evening-stroll rushes |
-| Evening | 20:00 | A moment | Stands close and the day's profit posts. Station guards, approve repairs, send tonight's raids |
+| Evening | 20:00 | The Day's end card waits; folded, a moment | Stands close and the day's profit posts. Station guards, approve repairs, send tonight's raids |
 | Night defense | 20:00–07:00 | About 1.5 minutes | Rival raids arrive, always warned; repairs run; ice melts |
 | Dawn autosave | 07:00 | Instant | The game saves, rivals spend their earnings, and the next Bugle lands |
 
-A toggle auto-continues Morning Prep for players who like a running clock. Dawn is the natural place to stop.
+A toggle auto-continues Morning Prep and the Day's end card for players who like a running clock. Dawn is the natural place to stop.
 
 ### The session loop
 
@@ -641,7 +641,7 @@ Every plot defends itself with one perimeter, 2 gadget slots (3 at L4 and up) an
 
 ### The perimeter ladder
 
-Each tier replaces the last at full price, and its HP is the chopping a breach takes. Every raid on the plot, won or lost, costs a 10% repair overnight.
+Each tier replaces the last at full price, and its HP is the chopping a breach takes. Every raid on the plot, won or lost, adds a repair of 10% of the fence's price. Each night the bill is paid from your cash and the fence is whole by dawn, and a Lemon-Peel Slick that went off is re-laid for $25. Short of cash, both wait (the news says where) until you Patch the fence or Re-lay the Slick by hand. From Rank 3, a plot on Auto-Repair's skip list keeps its chopped fence and sprung Slick for you to fix the same way.
 
 | Tier | Name | Unlock | Cost ($) | HP | Effect | Repair after a raid ($) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -682,7 +682,7 @@ Lottie's Corner with cans and a goose spots 80% of raids by day, 55% at night an
 
 No raid comes on Nights 1–2, and every raid after is warned. An undetected raid still gives at least 15 game minutes of notice on Classic, 30 on Laid Back and 5 on Cutthroat.
 
-At 1×, 15 game minutes of night pass in about 2 real seconds, so the warning auto-pauses the game. It's a setting: on by default in Laid Back and Classic, off in Cutthroat. Without auto-pause, the clock drops to fight speed while the warning counts down, so Cutthroat's 5-minute notice lasts 5 real seconds.
+At 1×, 15 game minutes of night pass in about 2 real seconds, so the warning auto-pauses the game. It's a setting: on by default in Laid Back and Classic, off in Cutthroat. Paused first or not, the clock drops to fight speed for the notice's last minutes before the raid lands: Classic's last 15 game minutes take 15 real seconds, and Cutthroat's 5-minute notice 5. A detected raid's earlier warning runs at the speed you chose.
 
 The card names the raider, target and ETA, plus the makeup if a Watchtower sees it, and offers Ring the Bell.
 
@@ -966,21 +966,23 @@ Thresholds climb 4 to 9 times a rank up to Rank 9, so early ranks come days apar
 
 Threat, 1 to 5 sour lemons, follows your rank and sets how often rivals raid you and how hard. Ranks 1–2 give Threat 1, 3–4 Threat 2, 5–6 Threat 3, 7–8 Threat 4 and 9–10 Threat 5. Laid Back takes 1 away (down to 1).
 
-| Threat | Triggered by (Classic) | Raids on you per week | Typical raid | What changes |
+| Threat | Triggered by (Classic) | Nights a week with a raid on you | Typical raid | What changes |
 | --- | --- | --- | --- | --- |
-| 1 | Ranks 1–2 | 1 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard |
-| 2 | Ranks 3–4 | 2 | 3–5, some clubs; 30% Smash | Smash attempts begin |
-| 3 | Ranks 5–6 | 3 | 5–8 with clubs and lookouts; 60% Smash | Delivery Raids on VIP pickups; the music's tension layer |
-| 4 | Ranks 7–8 | 4 | 8–12, hatchets appear; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
-| 5 | Ranks 9–10 | 6 | 12–20, boss-led, full kit; all Smash on 2–3 plots | The Syndicate forms on Laid Back and Classic in Sandbox and Endless; the campaign waits for Act 5 |
+| 1 | Ranks 1–2 | About 5 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard |
+| 2 | Ranks 3–4 | About 4 | 3–5, some clubs; 30% Smash | Smash attempts begin |
+| 3 | Ranks 5–6 | About 4–5 | 5–8 with clubs, vests and a lookout; 60% Smash | Delivery Raids on VIP pickups; the music's tension layer |
+| 4 | Ranks 7–8 | About 2.5–5 | 8–12 in Pro Gear, 6 in 10 with hatchets and the rest with clubs; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
+| 5 | Ranks 9–10 | The Syndicate's, below | 12–20 in the same kit, boss-led; all Smash on 2–3 plots | The Syndicate forms on Classic in Sandbox and Endless (on Laid Back at Rank 9); the campaign waits for Act 5 |
 
-Laid Back halves every raid count, and Cutthroat raises it by half. Schemes that aren't raids, such as price wars, auction snipes and smear posters, also come more often with each lemon. Each boss's Attention, which rises with Threat, decides who sends the raid (see Rivals).
+Each night's raids are drawn from a base of 1, 2, 3, 4 and 6 a week by Threat (Laid Back ×0.5, Cutthroat ×1.5). After the first raid, no more than 2 nights in a row pass without one on Classic (4 on Laid Back, 1 on Cutthroat), and a rumor you answer brings its gang on a night the draw gave none, so the early Threats see far more raids than their base. A rival whose raid you beat sits out its Respect cooldown, so beating raids thins them: the Threat 4 range runs from every raid beaten to none. The table's nights come from twelve simulated Classic campaigns with every rumor answered; Laid Back sees about 3–4 raid nights a week at Threats 1–2, and Cutthroat about 5.
+
+Schemes that aren't raids, such as price wars, auction snipes and smear posters, also come more often with each lemon. Each boss's Attention, which rises with Threat, decides who sends the raid (see Rivals).
 
 Threat never jumps by surprise: it moves only at a rank-up, and on hover the lemons name the rank that set it.
 
 ### The Syndicate
 
-At the top of the ladder, the surviving rivals stop raiding each other and form the Syndicate. In Sandbox and Endless, it forms at Threat 5 on Laid Back and Classic, and at Threat 4 on Cutthroat. Its boss-led raids hit 2–3 of your plots at once, 6 times a week on Classic, 3 on Laid Back and 9 on Cutthroat.
+At the top of the ladder, the surviving rivals stop raiding each other and form the Syndicate. In Sandbox and Endless, it forms at Threat 5 on Classic, at Threat 4 on Cutthroat, and at Rank 9 on Laid Back, whose Threat stops at 4. Its boss-led raids hit 2–3 of your plots at once, 6 times a week on Classic, 3 on Laid Back and 9 on Cutthroat. In the simulated Classic campaigns its weeks bring about 2.5 strikes a week when you beat every one, since each member sits out its Respect cooldown, and about 7.5 when you beat none.
 
 In the campaign, Vera forms it two weeks into Act 5 on every difficulty, around Day 120 on Classic, and its first strike comes under the Founders' Day fireworks. The Corkboard ties every string to your photo, the Bugle prints "PACT IS BACK" and a cane tap joins every downbeat.
 
@@ -1473,10 +1475,10 @@ Difficulty changes how often rivals come and how hard setbacks land, never the r
 
 | Preset | Raids on you | Notice; Respect cooldown | Worst setback | Cookie Jar |
 | --- | --- | --- | --- | --- |
-| Laid Back | ×0.5; Threat −1 (minimum 1) | 30 game minutes; 5 days | Busted: closed until a 10% repair | Always, so no game over |
-| Classic | ×1: about 1 a week at Threat 1, 6 at Threat 5 | 15 game minutes; 3 days | Wrecked: rebuild at 30% within 24 game hours, or the plot goes For Sale | Once per act |
-| Cutthroat | ×1.5; the Syndicate forms at Threat 4 in Sandbox and Endless | 5 game minutes; 1 day | Wrecked, as Classic | Never |
-| Custom | Any value from ×0.5 to ×1.5 | Any value from Laid Back's to Cutthroat's | Busted-only on or off | Always, once per act or never |
+| Laid Back | ×0.5; Threat −1 (minimum 1); up to 4 raid-free nights in a row | 30 game minutes; 5 days | Busted: closed until a 10% repair | Always, so no game over |
+| Classic | ×1: a base of 1 a week at Threat 1 to 6 at Threat 5, and never more than 2 raid-free nights in a row | 15 game minutes; 3 days | Wrecked: rebuild at 15% within 24 game hours, or the plot goes For Sale | Once per act |
+| Cutthroat | ×1.5; at most 1 raid-free night in a row; the Syndicate forms at Threat 4 in Sandbox and Endless | 5 game minutes; 1 day | Wrecked, as Classic | Never |
+| Custom | Any value from ×0.5 to ×1.5; up to 2 raid-free nights in a row | Any value from Laid Back's to Cutthroat's | Busted-only on or off | Always, once per act or never |
 | Peaceful (Sandbox, on any preset) | None; rivals scheme instead | No combat on either side | Outbid or out-priced | As the preset |
 
 Laid Back reaches Ranks 5–9 about 14% sooner than Classic, and Cutthroat keeps about Classic's pace under more raids (see Economy and balance). With no acts, Sandbox and Endless refill Classic's Cookie Jar once per season.
@@ -1588,7 +1590,7 @@ Lottie's goals collapse to one goal pill with a progress bar; tap it for the res
 
 **Morning dock.** One wooden strip along the bottom: three pitchers (Classic, Pink, Mint) with a three-cube Sweetness toggle, a chalkboard price with − and + and a crowd meter of five little people, three supply buttons (lemons, sugar, ice) that each buy a pack (long-press fills), and a big round Open button. How full each supply is shows on the stand itself (lemon crate, sugar sack, ice cooler), so the dock only buys and warns: a supply button pulses when it will run short; the price chalk turns red below cost.
 
-**Day's end.** One card: the profit as a big number that counts up, cups sold and people turned away, Reputation stars with an up or down tick, the Rank meter, one line from Lottie, any raid coming tonight (their fighters against your guards and fence, as icons, with one fix button) and Sleep. The full Ledger sits behind "See the books".
+**Day's end.** One card: the profit as a big number that counts up, cups sold and people turned away, Reputation stars with an up or down tick, the Rank meter, one line from Lottie, "Raiders on the way tonight" when a raid on you is planned, and Sleep. The raiders line names no gang, makeup or time (the warning card in the feed shows who, where and when as they set out), but it carries one fix, at the plot of the first raid to set out that still has one: post a ready guard from the reserve there, or else buy that plot's next fence, greyed out with the reason when cash is short. The card waits for you; "To the map" folds it for the Evening's moment, and the full Ledger sits behind "See the books".
 
 **Tabs.** The stand panel has three tabs, Today, Grow and Defend, and a tab appears only once something in it is unlocked. Grow shows picture cards (the next stand with three growth bars: faster, busier, holds more; local campaigns; brand marketing). Defend shows the crew as faces with level pips and a weapon icon, the Hiring Hall as faces, the next fence, and gadget slots; locked gadgets stay hidden. Marisol's bank is a building on the map, and a Borrow button appears where you're short.
 
@@ -2419,23 +2421,24 @@ The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Dom
 
 ### Threat and raids on the player (Classic)
 
-| Threat | Raids per week | Henchmen | Gear | Targets per raid | Shakedown share | Smash share |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 2–3 | Fists | 1 | 100% | 0% |
-| 2 | 2 | 3–5 | Some clubs | 1 | 70% | 30% |
-| 3 | 3 | 5–8 | Clubs, lookouts | 1 | 40% | 60% |
-| 4 | 4 | 8–12 | Hatchets appear | 1–2 | 30% | 70% |
-| 5 (Syndicate) | 6 | 12–20, boss-led | Full kit | 2–3 | 0% | 100% |
+| Threat | Base raids a week | Nights a week with a raid (measured) | Henchmen | Gear | Targets per raid | Shakedown share | Smash share |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | About 5 | 2–3 | Fists | 1 | 100% | 0% |
+| 2 | 2 | About 4 | 3–5 | 3 in 10 with clubs | 1 | 70% | 30% |
+| 3 | 3 | About 4–5 | 5–8 | Padded Vests; 7 in 10 with clubs; 1 lookout | 1 | 40% | 60% |
+| 4 | 4 | About 2.5–5 | 8–12 | Pro Gear; 6 in 10 with hatchets, the rest clubs; 1 lookout | 1–2 | 30% | 70% |
+| 5 (Syndicate) | 6 | About 2.5–7.5 strikes | 12–20, boss-led | As Threat 4; 2 lookouts | 2–3 | 0% | 100% |
 
-Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's, comes on Night 3: two Smoothie Bros with bare fists come for the till, and any fence or guard sends them home. After it, no more than 2 nights in a row pass without a raid on you (4 on Laid Back, 1 on Cutthroat). Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's, comes on Night 3: two Smoothie Bros with bare fists come for the till, and any fence or guard sends them home. After it, no more than 2 nights in a row pass without a raid on you (4 on Laid Back, 1 on Cutthroat). Each night's raids are drawn from the base rate, and a rumor you answer brings its gang on a night the draw gave none. The measured nights come from twelve simulated Classic campaigns with every rumor answered: the low end with every raid beaten (the raider sits out its Respect cooldown), the high end with none; the Syndicate's row counts its strikes in the weeks before the siege. Raiders fight at the Threat's level, Level 1 to 5. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
 
 ### Difficulty
 
 | Setting | Laid Back | Classic | Cutthroat |
 | --- | --- | --- | --- |
 | Raid frequency | ×0.5 | ×1 | ×1.5 |
+| Most raid-free nights in a row (after Night 3) | 4 | 2 | 1 |
 | Threat | −1 (min 1) | ±0 | ±0 |
-| Syndicate forms at | Threat 5 | Threat 5 | Threat 4 |
+| Syndicate forms at (Sandbox and Endless) | Rank 9 (its Threat stops at 4) | Threat 5 | Threat 4 |
 | Respect cooldown | 5 days | 3 days | 1 day |
 | Minimum raid warning | 30 game minutes | 15 game minutes | 5 game minutes (5 real seconds at fight speed) |
 | A lost raid leaves your stand | Busted (repair 10%) | Wrecked (rebuild 15%) | Wrecked (rebuild 15%) |
@@ -2444,7 +2447,7 @@ Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8
 | Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 |
 | Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 |
 | Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
-| Simulated raids on you in a campaign (ten maps) | 5–23 | 20–47 | 41–77 |
+| Simulated raids on you in a campaign (twelve runs; every raid beaten to none) | 46–79 | 76–119 | 115–166 |
 
 Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms in Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
 
@@ -2566,7 +2569,7 @@ You are a Block Boss (Rank 3) with a Success Score of about $7,900, $1,500 in ca
 | Profit | 2,392 |
 
 9. **Evening.** The Rivals Corkboard pins Park Lane, suddenly valuable and unfenced, as the likeliest raid target. You buy a Picket Fence there ($150) and station Dex on it.
-10. **Night and dawn.** No raid comes; at Threat 2 that's about 2 a week. The 07:00 autosave shows $3,742 in cash and a Success Score of about $10,250, under 3 days like this from the Old Town corner.
+10. **Night and dawn.** No raid comes, though at Threat 2 about 4 nights a week bring one. The 07:00 autosave shows $3,742 in cash and a Success Score of about $10,250, under 3 days like this from the Old Town corner.
 
 ### A night Shakedown (Day 24)
 

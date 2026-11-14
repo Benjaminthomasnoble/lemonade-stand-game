@@ -42,7 +42,7 @@ Design principles (every section must respect them):
 10. Challenge comes from smart rivals and big goals, not hidden rules or punishing randomness.
 
 Anti-frustration rules:
-- No raids on the player on Nights 1–2. The first raid on you comes on Night 3 (or the night your first Kiosk opens, if sooner): two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard (Dex once he's hired), sends them home; undefended, they take it. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat, 2 on Custom). (Changed 2026-11-08 at Ben's call: the old Day 15 first raid left the first hour without any stakes.)
+- No raids on the player on Nights 1–2. The first raid on you comes on Night 3: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard (Dex once he's hired), sends them home; undefended, they take it. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat, 2 on Custom). (Changed 2026-11-08 at Ben's call: the old Day 15 first raid left the first hour without any stakes.)
 - Every raid on the player gives warning (minimum notice in section 13).
 - Auto-pause on major alerts (toggle, on by default).
 - A rival that loses a raid to you backs off for a while (Respect cooldown).
@@ -53,10 +53,10 @@ Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game o
 
 ## 4. Time and structure
 
-- Real time with pause. Speeds: Pause, 1×, 2×, 3×. Nights with nothing coming are skipped: Sleep goes straight to dawn when no raid is coming for you and none of your squads is out. A raid night plays, at 12× until the warning (a setting, on by default).
+- Real time with pause. Speeds: Pause, 1×, 2×, 3×. Nights with nothing coming are skipped: Sleep goes straight to dawn when no raid is coming for you and none of your squads is out. A raid night plays, at 12× until the warning (a setting, on by default; picking a speed ends it until dawn). Your own raid's trip, fight and walk home play at the speed you chose.
 - The simulation runs on fixed ticks: 1 tick = 1 in-game minute, 1,440 ticks per day.
 - At 1×, one day takes about 5 real minutes: business hours 08:00–20:00 take about 3.5 minutes; night 20:00–08:00 takes about 1.5 minutes.
-- Dawn (07:00) opens **Morning Prep** with the morning paper (The Citrine Bay Bugle). The game waits there by default; a toggle auto-continues.
+- Dawn (07:00) opens **Morning Prep** with the morning paper (The Citrine Bay Bugle). The game waits there by default, and again at the Day's end card at 20:00; a toggle auto-continues both.
 - Night is when most raids happen. Stands are closed at night.
 - Seasons: 14 days each. Year = 56 days. The game starts on Summer Day 1 ("the first day of summer vacation"). Order: Summer, Fall, Winter, Spring.
 - Campaign length target: about 140–150 days to victory, 19–20 hours of play at about 8 real minutes per day including pauses. Rank 10 follows in Endless Summer, about Days 150–160.
@@ -269,7 +269,7 @@ How a fight resolves (auto-battle, watchable, about 30–90 seconds). While a fi
 Player tactics during a fight (simple buttons, cooldowns): Rally (+Nerve), Fall Back (retreat with fewer KOs), Ring the Bell (defense only: reinforcements leave now).
 
 Raids on the player:
-- Warnings: detected raids show the full ETA; undetected raids still give a minimum notice of 15 game minutes on Classic (30 Laid Back, 5 Cutthroat). A raid warning auto-pauses the game (on by default in Laid Back and Classic, off in Cutthroat; a setting), so the notice is real decision time. Without auto-pause, the clock drops to fight speed while a warning counts down, so Cutthroat's 5-minute notice lasts 5 real seconds.
+- Warnings: detected raids show the full ETA; undetected raids still give a minimum notice of 15 game minutes on Classic (30 Laid Back, 5 Cutthroat). A raid warning auto-pauses the game (on by default in Laid Back and Classic, off in Cutthroat; a setting), so the notice is real decision time. Paused first or not, on every difficulty, the notice's last minutes run at fight speed, so Classic's last 15 game minutes take 15 real seconds and Cutthroat's 5-minute notice lasts 5. A detected raid's earlier warning runs at the speed you chose.
 - Detection chance = 50% base + Tin-Can Alarm 15% + Guard Goose 15% + stationed Lookout 25% + Watchtower 30% (cap 95%), −25% at night without Floodlights.
 - Reinforcements: guards at a Clubhouse can rush to any of your plots in the same or a bordering district (30–60 game minutes).
 - Respect cooldown: a rival whose raid you beat won't raid you for 3 days (5 Laid Back, 1 Cutthroat).
@@ -325,15 +325,15 @@ Ranks are never lost: Success Score can fall, but your Rank and its unlocks stay
 
 Threat (1–5): Ranks 1–2 → 1, Ranks 3–4 → 2, Ranks 5–6 → 3, Ranks 7–8 → 4, Ranks 9–10 → 5. Laid Back −1 (min 1).
 
-| Threat | Rival raids on you per week (Classic, tune) | Typical raid |
+| Threat | Nights a week with a raid on you (Classic, measured) | Typical raid |
 |---|---|---|
-| 1 | about 1 | 2–3 henchmen, fists, scare-offs and shakedowns |
-| 2 | about 2 | 3–5, some clubs |
-| 3 | about 3 | 5–8, clubs, lookouts, real smash attempts |
-| 4 | about 4 | 8–12, hatchets appear, two raids at once |
-| 5 | about 6 | The Syndicate: 12–20 across 2–3 targets, boss-led |
+| 1 | about 5 | 2–3 henchmen, fists, scare-offs and shakedowns |
+| 2 | about 4 | 3–5, some clubs |
+| 3 | about 4–5 | 5–8, clubs, vests, a lookout, real smash attempts |
+| 4 | about 2.5–5 | 8–12 in Pro Gear, most with hatchets, sometimes on two plots at once |
+| 5 | about 2.5–7.5 strikes | The Syndicate: 12–20 across 2–3 targets, boss-led |
 
-Laid Back ×0.5, Cutthroat ×1.5. Rivals also run non-raid schemes (price wars, auction snipes, smear posters) more often as Threat rises.
+Each night's raids are drawn from a base of 1, 2, 3, 4 and 6 a week by Threat (Laid Back ×0.5, Cutthroat ×1.5). After the first raid on Night 3, no more than 2 nights in a row pass without one (4 on Laid Back, 1 on Cutthroat), and a rumor you answer brings its gang on a night the draw gave none. A rival whose raid you beat sits out its Respect cooldown, so the low end of each range is every raid beaten and the high end none. Rivals also run non-raid schemes (price wars, auction snipes, smear posters) more often as Threat rises.
 
 ## 15. VIP clients and big orders
 

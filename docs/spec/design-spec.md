@@ -168,7 +168,7 @@ The game starts calm and turns up the heat as you grow. These levers hold the ba
 
 ### Anti-frustration guarantees
 
-- No raids on the player on Nights 1–2. The first comes on Night 3, a tutorial raid: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard, sends them home; an undefended stand loses its till. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat).
+- No raids on the player on Nights 1–2. The first comes on Night 3, a tutorial raid: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard, sends them home, unless your guards Fall Back and give the fight up; an undefended stand loses its till. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat).
 - Every raid on the player comes with a warning, even an undetected one.
 - Major alerts auto-pause the game (a toggle, on by default; raid warnings start off on Cutthroat).
 - A rival whose raid you beat backs off for a few days (the Respect cooldown).
@@ -674,7 +674,7 @@ Gadgets trigger on their own, with no upkeep.
 
 Detection decides who strikes first and how much warning you get. It starts at 50%; a Tin-Can Alarm adds 15%, a Guard Goose 15%, a stationed Lookout 25% and a Watchtower 30%, up to 95%.
 
-An Eagle Eye guard on the plot adds 10%, and Maple Row's Neighborhood Watch adds 10% everywhere. At night (20:00–08:00) raiders get +25% stealth, which takes 25 points off unless the plot has Floodlights. A Sneaky raider takes off 25 more.
+An Eagle Eye guard on the plot adds 10%, Maple Row's Neighborhood Watch adds 10% everywhere, and a Stronghold district adds 10% on your plots there, all before the 95% cap. At night (20:00–08:00) raiders get +25% stealth, which takes 25 points off unless the plot has Floodlights. A Sneaky raider takes off 25 more, though the chance never drops below 0%.
 
 Lottie's Corner with cans and a goose spots 80% of raids by day, 55% at night and 80% under Floodlights. Detected raids show their full ETA, 1–3 game hours out. Undetected raids still warn you, but the attackers get a first strike: +25% damage for 5 seconds.
 
@@ -718,7 +718,7 @@ Day 26 on Classic, Threat 2. Lottie's Corner is a Kiosk with Chain-Link, a Tin-C
 5. **Nerve:** 2 of 5 down counts as half, so the other 3 roll Nerve. One runs; 2 keep chopping until they drop at 15 seconds, the fence still at 260 HP.
 6. **Aftermath:** the reserves jog in to 4 Bros seeing stars, each with a 10% chance to be Nabbed. The night costs $120 of fence repair, and Brock's Respect cooldown keeps him away for 3 days.
 
-With only a Picket Fence and Dex, the raid gets in and takes about $800, a day of the Kiosk's profit.
+With only a Picket Fence and Dex, the raid gets in and takes about $521, a day of the Kiosk's profit.
 
 **Fun check:** Defense is set up by day and pays off at night: the goose honks, the fence holds, the Bros wobble home. Pausing warnings, the Respect cooldown and losses near a day's profit keep it from becoming babysitting.
 
@@ -774,7 +774,7 @@ Each item unlocks once by Rank, then you buy it per guard. Rival henchmen carry 
 | Padded Vest | Rank 3 | 200 | — | — | +40 HP |
 | Pro Gear | Rank 6 | 1,500 | — | — | +100 HP; damage taken ×0.8 |
 
-Hatchets exist to chop. Five of them breach Barbed Wire (2,500 HP) in 19 seconds, where five clubs take 75. Twelve clubs can't Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; twelve hatchets do it in 16 seconds.
+Hatchets exist to chop. Five of them breach Barbed Wire (2,500 HP) in 19 seconds, where five clubs take about 74. Twelve clubs can't Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; twelve hatchets do it in 16 seconds.
 
 ### Specialists, squads and the Clubhouse
 
@@ -801,13 +801,17 @@ Plan each raid in the Raid Planner (see Player experience): target, objective, s
 | Sabotage | Rank 4 | A Lookout or Sneaky guard, then 10 game minutes with the stock | They can't sell tomorrow; the stand stays up |
 | HQ Assault | Rank 5 (Blend Shack) to Rank 9 (Sourwood Manor), one HQ per rank | A Weakened rival: a Gate of 2,000–5,000 HP, the Yard, the Boss Room | The rival is eliminated (see Rivals) |
 
-Customers see daytime raids (08:00–20:00): each costs 0.1 star, or 0.2 for a Smash, and night raids cost nothing. Below 2.0 stars, each daytime raid also earns Sheriff Budd's Citation: a fine of about 1 day of income and a 2-day raid ban.
+Customers see daytime raids (08:00–20:00): each costs 0.1 star, or 0.2 for a Smash, and night raids cost nothing. Below 2.0 stars, each daytime raid also earns Sheriff Budd's Citation: a fine of about 1 day of income (the last week's average daily sales, never more than your cash) and no raids or HQ assaults for the rest of that day and the next 2. The ban calls off your raids that haven't set out yet; a squad already on the road, and the raid that earned the Citation, still fight.
+
+A rival who spots your raid sends help: half the guards of each of its other plots and its HQ in the same or a bordering district, nearest first, up to 2 helpers at Threats 3–4 and 3 at Threat 5 (at Threats 1–2, one helper about one raid in three). They set out when your raid does and walk over at raid pace, about 1–2 game hours from a nearby plot, so they're nearly always there by contact. A raid nobody spots gets no help.
 
 Raids on you always come with a warning, which auto-pauses by default on Laid Back and Classic (see Defenses). Beat a rival's raid, and it backs off for a Respect cooldown: 3 days on Classic, 5 on Laid Back, 1 on Cutthroat.
 
 ### The fight clock and your buttons
 
-During a fight the clock slows to 1 game minute per real second at any speed, so a 60-second fight takes 1 game hour. You can pause mid-fight, and three buttons steer it.
+During a fight the clock slows to 1 game minute per real second at any speed, so a 60-second fight takes 1 game hour. You can pause mid-fight, and three buttons steer it. The fight bar shows each side's standing count against the mark where its one Nerve roll comes ("Yours 2/2 standing, breaks at 1"), so you can time a Rally to cover it.
+
+One fight plays at a time. A raid on you that reaches its plot while another fight is on waits at the plot's edge, and goes in live as that fight ends, first come first in; the fight bar names the plot that's next. Your own raids that land meanwhile are fought at once and replayed afterwards.
 
 | Button | Side | Effect | Limit |
 | --- | --- | --- | --- |
@@ -903,7 +907,7 @@ Hiring beaten bosses as advisors is a stretch goal.
 
 ### HQ Assault
 
-From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its own rank: the Blend Shack at Rank 5, the Grindhouse at 6, Hollis Homestead at 7 and FizzCo Tower at 8, with Sourwood Manor saved for the Big Squeeze at 9. A rival's Faction Buyout opens at the same rank. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (elite henchmen) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return.
+From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its own rank: the Blend Shack at Rank 5, the Grindhouse at 6, Hollis Homestead at 7 and FizzCo Tower at 8, with Sourwood Manor saved for the Big Squeeze at 9. A rival's Faction Buyout opens at the same rank. Three stages run back to back: the Gate (a wall of 2,000–5,000 HP), the Yard (elite henchmen) and the Boss Room (boss and bodyguards). Your squad carries its HP from stage to stage, and a failed assault leaves the rival Weakened, so you can regroup and return. Like any raid, an assault fought at Morning Prep, in the Evening or at night is a night fight: it costs no Reputation, and Night Owls hit 25% harder. By day it costs 0.2 star, as a Smash does.
 
 | HQ, easiest first | Boss move in the Boss Room |
 | --- | --- |
@@ -915,7 +919,7 @@ From Rank 5, the Raid Planner can target a Weakened rival's HQ, each from its ow
 
 ### The Syndicate
 
-At Threat 5, the surviving rivals stop raiding each other and form the Syndicate: boss-led raids on 2–3 of your plots at once. In Sandbox and Endless, it forms at Threat 4 on Cutthroat. In the campaign, Vera forms it in Act 5 on every difficulty; you choose when to Call the Big Squeeze, the finale (see Narrative).
+At Threat 5, the surviving rivals stop raiding each other and form the Syndicate: boss-led raids on 2–3 of your plots at once. In Sandbox and Endless, it forms at Threat 4 on Cutthroat, and at Rank 9 on Laid Back, whose Threat stops at 4. In the campaign, Vera forms it two weeks into Act 5 on every difficulty; you choose when to Call the Big Squeeze, the finale (see Narrative).
 
 **Fun check:** Rivals read like people: you see who is angry, who is broke and what each wants, then beat or buy them. One visible targeting rule, warned raids and Truces keep the pressure fair.
 
@@ -1607,10 +1611,10 @@ One sheet shows the odds before you commit:
 1. **Target**: tap a rival plot in Bay View or on the Corkboard.
 2. **Objective**: Smash, Shakedown, Sabotage or HQ Assault. A locked one says why, such as "Sabotage needs a Lookout or a Sneaky guard."
 3. **Squad**: guards show as faces; Dex fills it up to your cap (5, 8 or 12) with "Take all"; tap a face to swap.
-4. **Time**: now or tonight.
+4. **Time**: now or tonight. A Tonight raid that would get there after 07:00 waits for the stands to open and is fought by day, with its star cost and, below 2.0 stars, a Citation; the Planner says so in red.
 5. **Go**: check the win chance (a dial with words: long shot, coin flip, good odds, sure thing; the percentage on hover), travel time, expected loot, and any Reputation cost or Citation risk, shown in red.
 
-Unscouted defenses show "?", and the win chance shows as a range until a Lookout or Gull Flight fills them in. Raid templates (Rank 6) save a squad and objective for one-tap repeats.
+Unscouted defenses show "?", and the win chance shows as a range until a Lookout or Gull Flight fills them in. The range puts up the fence and gadgets a rival builds on a stand of that size, with every post filled: only who holds the posts is a guess, from that size's usual kit to the next one up, with help counted. The real chance always falls inside it. Raid templates (Rank 6) save a squad and objective for one-tap repeats.
 
 ### Onboarding: the first 30 minutes
 
@@ -2449,7 +2453,7 @@ Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8
 | Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
 | Simulated raids on you in a campaign (twelve runs; every raid beaten to none) | 46–79 | 76–119 | 115–166 |
 
-Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms in Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
+Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms two weeks into Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
 
 ### Contracts
 
@@ -2575,16 +2579,16 @@ You are a Block Boss (Rank 3) with a Success Score of about $7,900, $1,500 in ca
 
 You are a Neighborhood Name (Rank 4) at Threat 2 and 3.3 stars, with a Clubhouse in Maple Row. Your squad is the Rank 4 cap of 5: Dex (Loyal), Rosa (Hothead), Big Lou (Tough Cookie), Pip (Sprinter) and Marnie (Night Owl). Each carries clubs and a Padded Vest, $350 of kit.
 
-1. **20:00 Pick a target.** In the Raid Planner you tap the Blenders' Kiosk by the arcade, on a Boardwalk Prime plot. Its defenses show "?", so the win chance reads 40–85%.
-2. **Scout.** You fly Captain Squawk over it, and Gull Flight reveals its defenses for 3 days. It has a Picket Fence, a Tin-Can Alarm, a Guard Goose and 3 Smoothie Bros with paddleboards. The win chance settles at 81%.
-3. **Plan.** Objective: Shakedown, with expected loot of about $2,400, one day of the Kiosk's profit. Time: tonight, leaving at 01:00 for a trip of 1.5 game hours across the Maple Row–Boardwalk border. Nothing shows in red: a night raid costs no Reputation, and 3.3 stars is far above the Citation line. The Planner flags that Dex's and Rosa's posts at the Corner sit empty until about 04:20.
+1. **20:00 Pick a target.** In the Raid Planner you tap the Blenders' Kiosk by the arcade, on a Boardwalk Prime plot. Its defenses show "?", so the win chance reads about 49–83%: the Planner knows what a Kiosk's owner builds, but not who holds its posts.
+2. **Scout.** You fly Captain Squawk over it, and Gull Flight reveals its defenses for 3 days. It has a Picket Fence, a Tin-Can Alarm, a Guard Goose and 3 Smoothie Bros with paddleboards. The win chance settles at about 80%, counting the detection roll and the help a spotted raid can meet.
+3. **Plan.** Objective: Shakedown, with expected loot of about $1,555, one day of the Kiosk's profit. Time: tonight, leaving at 01:00 for a trip of 1.5 game hours across the Maple Row–Boardwalk border. Nothing shows in red: a night raid costs no Reputation, and 3.3 stars is far above the Citation line. The Planner flags that Dex's and Rosa's posts at the Corner sit empty until about 04:20.
 4. **01:00 Approach.** The raid arrow crosses the map in about 12 real seconds. Detection is 50% + 15% cans + 15% goose − 25% at night = 55%. The roll misses, so the Blenders get no warning or help, and your squad gets a first strike: +25% damage for 5 seconds.
-5. **02:30 Breach.** The clock slows to 1 game minute per real second. HONK: the goose stuns the first guard to the fence, Dex, for 3 seconds ("a tactical pause," he says later). The other 4 chop through the Picket Fence's 150 HP in 3 seconds. Meanwhile the Bros swing over it at 22.5 a hit (18 plus their 25% fence-line bonus), leaving Pip on 5 HP.
-6. **Brawl.** It's 5 against 3, and the Bros' bonus fell with the fence. The first Bro drops at 4.5 seconds: 1 of 3 is half, rounded down, so the other 2 roll Nerve. One bolts for the pier; the other KOs Pip and drops at 7.5 seconds.
-7. **Objective.** With no Bro standing, the squad spends 10 game minutes at the till and walks out at 02:48 with $2,400.
-8. **Aftermath.** Pip wobbles home with the squad, seeing stars, and is Out for 1 day; a hatchet would have made it 2. Nobody was left behind, so nobody can be Nabbed. The squad is home by 04:20, and the Corner's posts are filled again.
+5. **02:30 Breach.** The clock slows to 1 game minute per real second. HONK: the goose stuns the first guard to the fence, Dex, for 3 seconds ("a tactical pause," he says later). The other 4 chop through the Picket Fence's 150 HP in 3 seconds. Meanwhile the Bros swing over it at 22.5 a hit (18 plus their 25% fence-line bonus), each at the guard across the fence from it: Dex, Rosa and Big Lou take 67.5 each, and Pip and Marnie none.
+6. **Brawl.** It's 5 against 3, and the Bros' bonus fell with the fence. The squad spreads its swings the same way, so two Bros drop together at 7.5 seconds. With 2 of 3 down, the last one rolls Nerve and bolts for the pier. None of your guards is knocked out.
+7. **Objective.** With no Bro standing, the squad spends 10 game minutes at the till and walks out at 02:48 with about $1,555.
+8. **Aftermath.** Everyone walks home on their own feet, so nobody misses a day; a guard KO'd by a club would be Out for 1 day, and by a hatchet 2. Nobody was left behind, so nobody can be Nabbed. The squad is home by 04:20, and the Corner's posts are filled again.
 9. **Grudge and Reputation.** Reputation doesn't move because it was night; by day the same raid would cost 0.1 star. Brock's Grudge toward you jumps, and at dawn he calls: "Bro. That was my rent money." The Corkboard pins his likeliest target, and Defenses shows his reply on Day 26.
-10. **The money.** Cash and Success Score rise by $2,400, more than the $1,750 the squad's clubs and vests cost. Pip's day off is the only bill.
+10. **The money.** Cash and Success Score rise by about $1,555, most of the $1,750 the squad's clubs and vests cost, and the kit is still theirs for the next raid. With nobody hurt, there's no other bill.
 
 ## Glossary
 
@@ -2657,7 +2661,7 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Recipe page | One of Lottie's 10 recipe-book pages; each one recovered adds a recipe card. |
 | Reputation | Public opinion of Lottie's Lemonade, 1.0–5.0 stars; it lifts appeal and gates VIPs. |
 | Respect cooldown | Days a rival won't raid you after you beat its raid. |
-| Sabotage | A quiet raid objective that spoils a stand's stock; needs a Lookout or Sneaky guard. |
+| Sabotage | A raid objective that spoils a stand's stock so it can't sell tomorrow; needs a Lookout or Sneaky guard. |
 | Sandbox: Turf War | Custom games: you pick map size, rivals, difficulty and win condition. |
 | Screens | Ten paper menus: Morning Bugle, Ledger, Stand panel, Crew roster, Raid Planner, Rivals Corkboard, Order Book, Land Registry, Rank and Perks, Lottie's Goals. |
 | Shakedown | A raid objective that grabs about a day of a stand's profit. |
@@ -2674,7 +2678,7 @@ These 96 terms are the official game words, so the builder and Ben call each thi
 | Stronghold | At least three quarters of a district's plots: raids there are spotted more and help arrives faster. |
 | Success Score (SS) | Your score, equal to Net Worth; it sets Rank, and your best is Peak Success Score. |
 | Sweetness | A dial, Less, Classic or Extra, that shifts which customers like a recipe. |
-| Syndicate | The surviving rivals united against you, raiding several plots at once: Act 5 in the campaign, otherwise Threat 5 (4 on Cutthroat). |
+| Syndicate | The surviving rivals united against you, raiding several plots at once: Act 5 in the campaign, otherwise Threat 5 (4 on Cutthroat, Rank 9 on Laid Back). |
 | Taste-Off | A non-violent fair duel: match the judges' hints with a recipe, Sweetness and price. |
 | Taunt call | See Phone taunt. |
 | Threat | How hard rivals come for you, 1–5 sour lemons, set mostly by Rank. |

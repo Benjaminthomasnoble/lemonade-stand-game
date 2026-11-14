@@ -49,7 +49,7 @@ Anti-frustration rules:
 - Cheap rebuilds (15% of what was invested), rebuild windows and Lottie's Cookie Jar soften big losses.
 - Laid Back mode: the player's stands can be Busted (closed until repaired) but never Wrecked.
 
-Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game over), **Classic** (intended balance), **Cutthroat** (raids ×1.5, short warnings, the Syndicate forms at Threat 4 instead of 5 in Sandbox and Endless, no Cookie Jar). Plus Custom sliders and, in Sandbox only, a **Peaceful** toggle (no combat at all; rivals compete only with prices, marketing and land).
+Difficulty presets: **Laid Back** (calm: raids ×0.5, longer warnings, no game over, the Syndicate forms at Rank 9 in Sandbox and Endless since its Threat stops at 4), **Classic** (intended balance), **Cutthroat** (raids ×1.5, short warnings, the Syndicate forms at Threat 4 instead of 5 in Sandbox and Endless, no Cookie Jar). Plus Custom sliders and, in Sandbox only, a **Peaceful** toggle (no combat at all; rivals compete only with prices, marketing and land).
 
 ## 4. Time and structure
 
@@ -74,7 +74,7 @@ Net Worth = Cash + market value of all land you own + building value (75% of eve
 
 Reputation effects: appeal multiplier from 0.7× at 1 star to 1.3× at 5 stars (linear). VIP gates: helicopter clients need 3.5 stars, ship clients 4.0, mega contracts 4.5. Start at 3.0.
 
-Sheriff rule (the only "heat" in the game): if Reputation is below 2.0 stars, each daytime raid you launch earns a Citation from Sheriff Budd: a fine equal to about 1 day of income and a 2-day raid ban.
+Sheriff rule (the only "heat" in the game): if Reputation is below 2.0 stars, each daytime raid you launch earns a Citation from Sheriff Budd: a fine equal to about 1 day of income (the last week's average daily sales, never more than your cash) and no raids or HQ assaults for the rest of that day and the next 2. The ban calls off your raids that haven't set out; a squad already on the road, and the raid that earned it, still fight. A Tonight raid that would land after 07:00 waits for the stands to open and is fought by day, star cost and Citation included.
 
 ## 6. The map: Citrine Bay
 
@@ -256,7 +256,7 @@ No guns, ever. No other weapon types for the player. Rival factions use reskins 
 Raids (player on offense):
 - Unlock at Rank 3. Squad size cap: 5 at Rank 3, 8 at Rank 5, 12 at Rank 7.
 - Plan in the Raid Planner: pick a target plot, an objective, a squad, a time (now or tonight) and see the estimated win chance. Unscouted defenses show as "?" (scout with a Lookout or a Gull Flight; see section 25).
-- Objectives: **Smash** (bring the stand's HP to 0 → Wrecked), **Shakedown** (steal about 1 day of that stand's profit in cash), **Sabotage** (Rank 4, needs a Lookout or a Sneaky guard: spoil their stock so they can't sell tomorrow; quiet), **HQ Assault** (see Rivals).
+- Objectives: **Smash** (bring the stand's HP to 0 → Wrecked), **Shakedown** (steal about 1 day of that stand's profit in cash), **Sabotage** (Rank 4, needs a Lookout or a Sneaky guard: spoil their stock so they can't sell tomorrow; the stand stays up), **HQ Assault** (see Rivals).
 - Daytime raids cost Reputation (−0.1 star per raid, −0.2 if you Smash in daytime) because customers see it. Night raids cost no Reputation but defenders may have Floodlights.
 
 How a fight resolves (auto-battle, watchable, about 30–90 seconds). While a fight plays, the game clock slows to 1 game minute per real second at any speed, so a 60-second fight takes 1 game hour:
@@ -266,11 +266,11 @@ How a fight resolves (auto-battle, watchable, about 30–90 seconds). While a fi
 4. **Objective**: attackers left standing with no defenders up do the objective (chop the stand, grab the till, spoil the stock). A 60-game-minute timer: if time runs out, the stand is only Damaged.
 5. **Aftermath**: KO'd guards are Out for 1 day (2 if a hatchet did it). No one dies. Each KO'd attacker left behind has a 10% chance to be **Nabbed**: ransom them, release them (+Reputation), or try to recruit them (unless Loyal). Unpaid guards quit.
 
-Player tactics during a fight (simple buttons, cooldowns): Rally (+Nerve), Fall Back (retreat with fewer KOs), Ring the Bell (defense only: reinforcements leave now).
+Player tactics during a fight (simple buttons, cooldowns): Rally (+Nerve), Fall Back (retreat with fewer KOs), Ring the Bell (defense only: reinforcements leave now). One fight plays at a time: a raid on you that reaches its plot mid-fight waits at the plot's edge and goes in as that fight ends, and your own raids that land meanwhile are fought at once.
 
 Raids on the player:
 - Warnings: detected raids show the full ETA; undetected raids still give a minimum notice of 15 game minutes on Classic (30 Laid Back, 5 Cutthroat). A raid warning auto-pauses the game (on by default in Laid Back and Classic, off in Cutthroat; a setting), so the notice is real decision time. Paused first or not, on every difficulty, the notice's last minutes run at fight speed, so Classic's last 15 game minutes take 15 real seconds and Cutthroat's 5-minute notice lasts 5. A detected raid's earlier warning runs at the speed you chose.
-- Detection chance = 50% base + Tin-Can Alarm 15% + Guard Goose 15% + stationed Lookout 25% + Watchtower 30% (cap 95%), −25% at night without Floodlights.
+- Detection chance = 50% base + Tin-Can Alarm 15% + Guard Goose 15% + stationed Lookout 25% + Watchtower 30% (once, on its plot and your plots within 2) + Eagle Eye guard 10% + Neighborhood Watch 10% + Stronghold 10% (cap 95%), then −25% at night without Floodlights and −25% for a Sneaky raider (never below 0%).
 - Reinforcements: guards at a Clubhouse can rush to any of your plots in the same or a bordering district (30–60 game minutes).
 - Respect cooldown: a rival whose raid you beat won't raid you for 3 days (5 Laid Back, 1 Cutthroat).
 
@@ -302,7 +302,7 @@ Elimination (any of): HQ captured; Faction Buyout accepted; bankrupt for 7 days.
 
 HQ Assault (each HQ opens at its own rank: Blend Shack Rank 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 through the Big Squeeze; the rival must be Weakened): three stages — the Gate (a wall whose HP rises with HQ difficulty: Blend Shack 2,000, Grindhouse 2,750, Hollis Homestead 3,500, FizzCo Tower 4,250, Sourwood Manor 5,000), the Yard (elite henchmen), the Boss Room (the boss and bodyguards). Boss moves: Brock "Blender Rush" (charges and knocks 3 guards down), Juni "Espresso Shot" (her crew +50% speed for 10 seconds), Tilly "Hay Bale Wall" (spawns barricades), Preston "Hostile Takeover" (pays 2 of your guards to switch sides mid-fight unless they're Loyal), Vera "Old Money" (calls in Steward reinforcements; her cane disarms one guard). HQ difficulty order: Blend Shack < Grindhouse < Hollis Homestead < FizzCo Tower < Sourwood Manor.
 
-The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordinate multi-front raids (2–3 targets at once, boss-led). In the campaign, Vera forms the Syndicate 14 days into Act 5 on every difficulty (about Day 120 on Classic; on target pacing it lands on the Founders' Day fireworks), and Cutthroat's Threat 4 trigger applies only in Sandbox and Endless. From Rank 9 the player chooses when to **Call the Big Squeeze** (the finale).
+The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordinate multi-front raids (2–3 targets at once, boss-led). In the campaign, Vera forms the Syndicate 14 days into Act 5 on every difficulty (about Day 120 on Classic; on target pacing it lands on the Founders' Day fireworks), and Cutthroat's Threat 4 trigger applies only in Sandbox and Endless, as does Laid Back's Rank 9 trigger (its Threat stops at 4). From Rank 9 the player chooses when to **Call the Big Squeeze** (the finale).
 
 ## 14. Success Score, Ranks and Threat
 
@@ -331,7 +331,7 @@ Threat (1–5): Ranks 1–2 → 1, Ranks 3–4 → 2, Ranks 5–6 → 3, Ranks 7
 | 2 | about 4 | 3–5, some clubs |
 | 3 | about 4–5 | 5–8, clubs, vests, a lookout, real smash attempts |
 | 4 | about 2.5–5 | 8–12 in Pro Gear, most with hatchets, sometimes on two plots at once |
-| 5 | about 2.5–7.5 strikes | The Syndicate: 12–20 across 2–3 targets, boss-led |
+| 5 | about 2.5–7.5 strikes | The Syndicate: 12–20 in the same kit across 2–3 targets, boss-led |
 
 Each night's raids are drawn from a base of 1, 2, 3, 4 and 6 a week by Threat (Laid Back ×0.5, Cutthroat ×1.5). After the first raid on Night 3, no more than 2 nights in a row pass without one (4 on Laid Back, 1 on Cutthroat), and a rumor you answer brings its gang on a night the draw gave none. A rival whose raid you beat sits out its Respect cooldown, so the low end of each range is every raid beaten and the high end none. Rivals also run non-raid schemes (price wars, auction snipes, smear posters) more often as Threat rises.
 

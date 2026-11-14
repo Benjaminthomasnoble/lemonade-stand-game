@@ -582,7 +582,7 @@ describe('Taste-Offs', () => {
 
   it('with no rival stand in the district, Dot\'s Diner enters', () => {
     const s = game(7, { mode: 'sandbox' });
-    for (const p of PLOTS) if (p.district === 'groves' && s.plots[p.id].owner !== 'player') s.plots[p.id].stand = null;
+    for (const p of PLOTS) if (p.district === 'groves' && s.plots[p.id].stand && s.plots[p.id].owner !== 'player') s.plots[p.id] = { ...s.plots[p.id], owner: null, stand: null, invested: 0 }; // a rival keeping bare land there would open a stand on it at dawn
     dawn(s, 21);
     expect(tasteOffToday(s)!.vs).toEqual(['local']);
   });

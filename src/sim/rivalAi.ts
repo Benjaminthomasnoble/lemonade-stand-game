@@ -437,8 +437,36 @@ export function growUpgrades(s: GameState, id: RivalId): void {
   }
 }
 
+/** The Bugle notes a rival's new stand in Old Town or a district where you hold a Foothold. */
+function newStandNews(s: GameState, id: RivalId, p: Plot): void {
+  if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${FACTIONS[id].name} opens a new stand at ${p.name}`);
+}
+
+/** Land a rival holds bare (won at auction, or bought on First Dibs after a smash) where a stand can go: Street, Prime
+ * or Landmark, never an HQ or a Field, Dock or Industrial lot. */
+export const bareLots = (s: GameState, id: RivalId): Plot[] => ownedPlots(s, id).filter((p) => {
+  const ps = s.plots[p.id];
+  return !ps.stand && !ps.facility && !ps.kept && ['street', 'prime', 'landmark'].includes(plotType(s, p));
+});
+
+/**
+ * Before it buys new land, a rival with the Grow money opens an L1 stand on the busiest bare lot it holds, one a dawn,
+ * so land it won at auction or on a smash's First Dibs earns and can be raided like the rest.
+ */
+function buildOnBareLot(s: GameState, id: RivalId): void {
+  const p = bareLots(s, id).sort((a, b) => b.baseTraffic - a.baseTraffic || a.id.localeCompare(b.id))[0];
+  const cost = STAND_LEVELS[0].cost;
+  if (!p || !canSpend(s, id, 'grow', cost)) return;
+  spend(s, id, 'grow', cost);
+  const ps = s.plots[p.id];
+  ps.stand = newStand(1, rivalPrice(id, 1, p, s));
+  ps.invested += cost;
+  newStandNews(s, id, p);
+}
+
 /** Some dawns a rival with the Grow money buys the busiest open street or prime plot near its turf and opens a stand. Maple Row is left to the player; First Dibs and auctions are respected. */
 export function growLand(s: GameState, id: RivalId, rng: Rng): void {
+  buildOnBareLot(s, id); // a lot it already holds comes first
   if (s.day <= 3 || nextRandom(rng) >= RIVAL_LAND_CHANCE) return;
   const f = FACTIONS[id];
   const open = (plotId: string) => {
@@ -455,7 +483,7 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
   spend(s, id, 'grow', cost);
   if (kept) { s.plots[p.id].owner = id; handOverKept(s, p.id, id); }
   else s.plots[p.id] = { owner: id, stand: newStand(1, rivalPrice(id, 1, p)), invested: STAND_LEVELS[0].cost, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
-  if (p.district === 'oldtown' || hasFoothold(s, 'player', p.district)) s.news.push(`${f.name} opens a new stand at ${p.name}`);
+  newStandNews(s, id, p);
 }
 
 /**

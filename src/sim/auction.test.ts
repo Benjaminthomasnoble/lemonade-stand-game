@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerBuyout, auctionCloses, auctionPlots, bidGuess, bidSteps, budgetOf, canBid, canBuyPlot, canListPlot, closeAuctions, eliminate, FACTIONS, grantPage, hqPlot, LAVENDER,
   LAVENDER_LOT, listPlot, LOTTIES_CORNER, newGame, grudgeToward, newStand, NO_DEFENSE, offerSideLot, openAuction, openLavender, outbid, ownedPlots, ownsRecipe, pageHolder,
-  placeBid, PLOT_BY_ID, PLOTS, PRESTON_OUTBID, reserveOf, sleepUntilDawn, unlistPlot, withdrawBid,
+  placeBid, PLOT_BY_ID, PLOTS, PRESTON_OUTBID, reserveOf, sleepUntilDawn, STAND_LEVELS, unlistPlot, withdrawBid,
   type DistrictId, type GameState, type Guard, type Order, type RivalId, type Scheme,
 } from './economy.ts';
 import { takeCall } from './phone.ts';
@@ -327,6 +327,33 @@ describe('knock it down, buy it up: First Dibs, then the auction', () => {
     expect(s.news.some((n) => n.includes(`${plot.name} goes to sealed bids today`))).toBe(true);
     s.cash = 1e6;
     expect(placeBid(s, plot.id, s.plots[plot.id].auction!.min)).toBe(true); // you can bid on it too
+  });
+
+  it('a rival that wins a bare lot opens a stand there within a few dawns; its bare Fields stay Fields', () => {
+    const { s, id } = downtownAuction(43);
+    purse(s, { fizzco: 1e6 });
+    s.day++;
+    closeAuctions(s);
+    expect(s.plots[id]).toMatchObject({ owner: 'fizzco', stand: null, invested: 0 });
+    const fields = PLOTS.filter((p) => s.plots[p.id].owner === 'hollis' && p.type === 'field' && !s.plots[p.id].stand && !s.plots[p.id].facility);
+    for (let i = 0; i < 3 && !s.plots[id].stand; i++) dawn(s);
+    expect(s.plots[id].owner).toBe('fizzco');
+    expect(s.plots[id].stand?.level).toBe(1);
+    expect(s.plots[id].invested).toBe(STAND_LEVELS[0].cost);
+    for (const p of fields) expect(s.plots[p.id].stand).toBeNull(); // a Field is for Groves and Pads, never a stand
+    // A smasher's First Dibs buy is bare too, and gets its stand the same way.
+    const t = newGame(52);
+    const lot = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !t.plots[p.id].owner)!;
+    t.plots[lot.id] = { owner: 'player', stand: newStand(1), invested: 150, landValue: t.plots[lot.id].landValue, defense: NO_DEFENSE() };
+    Object.assign(t.plots[lot.id], { wreckedDay: t.day, smashedBy: 'blenders' });
+    t.plots[lot.id].stand!.wrecked = true;
+    purse(t, { blenders: 1e6 });
+    budgetOf(t, 'blenders').grow = 1e5;
+    for (let i = 0; i < 2; i++) dawn(t); // your day to rebuild runs out, and the Blenders buy it on First Dibs
+    expect(t.plots[lot.id]).toMatchObject({ owner: 'blenders', stand: null });
+    for (let i = 0; i < 3 && !t.plots[lot.id].stand; i++) dawn(t);
+    expect(t.plots[lot.id].stand?.level).toBe(1);
+    expect(t.plots[lot.id].stand!.wrecked).toBeFalsy();
   });
 
   it("rivals shopping at dawn leave First Dibs plots alone, and Lottie's side-lot offer just ends", () => {

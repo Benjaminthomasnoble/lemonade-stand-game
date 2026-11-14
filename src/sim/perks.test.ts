@@ -55,6 +55,34 @@ describe("Lottie's Tips: a hand at each rank-up", () => {
     expect(JSON.stringify(hands(s))).toBe(once);
   });
 
+  it('deals each rank once: a rank set back by hand and climbed again brings no second hand', () => {
+    const s = game(5);
+    lift(s, RANKS[2].ss);
+    scoreCheck(s);
+    expect(hands(s).map((h) => h.rank)).toEqual([2, 3]);
+    while (tipHand(s)) pickTip(s, tipHand(s)!.cards[0]);
+    s.rank = 1; // set back by hand (a sandbox, a test), then the score climbs again
+    scoreCheck(s);
+    expect(s.rank).toBe(3);
+    expect(hands(s)).toEqual([]);
+    expect(s.story!.tips!.held).toHaveLength(2);
+    lift(s, RANKS[3].ss);
+    scoreCheck(s);
+    expect(hands(s).map((h) => h.rank)).toEqual([4]); // a new rank still deals
+    // A save from before the mark: every rank up to the one it's at counts as dealt, and any waiting hand's.
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    delete old.story!.tips!.dealt;
+    old.rank = 3;
+    migrateTips(old);
+    expect(old.story!.tips!.dealt).toBe(4);
+    delete old.story!.tips!.dealt;
+    old.story!.tips!.hands = [];
+    migrateTips(old);
+    expect(old.story!.tips!.dealt).toBe(3);
+    migrateTips(old);
+    expect(old.story!.tips!.dealt).toBe(3); // idempotent
+  });
+
   it('never deals a fighting tip in Peaceful, and runs dry gracefully', () => {
     const s = game(3, { mode: 'sandbox', peaceful: true });
     lift(s, RANKS[8].ss);
@@ -157,7 +185,7 @@ describe("Lottie's Tips: keeping one", () => {
     expect(back.story!.tips).toEqual(s.story!.tips);
     const odd = JSON.parse(JSON.stringify(s));
     odd.story.tips = { held: ['sweetTalk', 'sweetTalk', 'nope'], hands: [{ rank: 4, cards: ['sweetTalk', 'longRun', 7] }, { rank: 'x', cards: ['goodDirt'] }, { rank: 5, cards: [] }] };
-    expect(migrateSave(odd)!.story!.tips).toEqual({ held: ['sweetTalk'], hands: [{ rank: 4, cards: ['longRun'] }] });
+    expect(migrateSave(odd)!.story!.tips).toEqual({ held: ['sweetTalk'], hands: [{ rank: 4, cards: ['longRun'] }], dealt: 4 });
     const old = JSON.parse(JSON.stringify(s));
     delete old.story.tips;
     expect(migrateSave(old)!.story!.tips).toBeUndefined();

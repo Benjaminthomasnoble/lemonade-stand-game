@@ -15,8 +15,9 @@ import type { FactionId } from './map.ts';
 
 /** A rank-up's hand: the rank it came with, its cards, and whether its alert has gone out. */
 export interface TipHand { rank: number; cards: TipId[]; told?: boolean }
-/** Saved with the story: the tips you keep, and the hands still waiting for a pick (oldest first). */
-export interface TipsState { held: TipId[]; hands: TipHand[] }
+/** Saved with the story: the tips you keep, the hands still waiting for a pick (oldest first), and the highest rank
+ * Lottie has dealt for (`dealt`: a rank set back by hand and climbed again deals nothing new). */
+export interface TipsState { held: TipId[]; hands: TipHand[]; dealt?: number }
 
 export const TIP_IDS = Object.keys(TIPS) as TipId[];
 
@@ -42,11 +43,13 @@ export const tipsKey = (s: GameState): string => { const h = tipHand(s); return 
 const dealDice = (s: GameState, rank: number) => ({ seed: (Math.imul(s.seed ^ 0x5bd1e995, 0x27d4eb2d) + Math.imul(rank, 0x9e3779b9)) | 0 });
 
 /** Deal this rank's hand: three tips you don't keep and no waiting hand holds, none that needs a higher rank, no
- * fighting tips in Peaceful. Fewer when the pool runs low; none once it's empty. Once a rank (a reload deals nothing new). */
+ * fighting tips in Peaceful. Fewer when the pool runs low; none once it's empty. Once a rank: a reload, or a rank set
+ * back by hand and climbed again, deals nothing new. */
 export function dealTips(s: GameState, rank: number): void {
   if (!s.story) return;
   const t = (s.story.tips ??= { held: [], hands: [] });
-  if (t.hands.some((h) => h.rank === rank)) return;
+  if (rank <= (t.dealt ?? 0) || t.hands.some((h) => h.rank === rank)) return;
+  t.dealt = rank;
   const taken = new Set<TipId>([...t.held, ...t.hands.flatMap((h) => h.cards)]);
   const pool = TIP_IDS.filter((id) => !taken.has(id) && (TIPS[id].rank ?? 1) <= rank && !(TIPS[id].fight && peaceful(s)));
   if (!pool.length) return;
@@ -79,7 +82,8 @@ export function pickTip(s: GameState, id: TipId): boolean {
 }
 
 /** Saves: tips that don't read right are dropped (an unknown tip, a repeat, a hand with no cards). An older save
- * starts with none, and its past rank-ups deal nothing: hands come with the ranks still to climb. */
+ * starts with none, and its past rank-ups deal nothing: hands come with the ranks still to climb. One from before
+ * the dealt mark counts every rank up to the one it's at, and any waiting hand's, as dealt. */
 export function migrateTips(s: GameState): void {
   const raw = s.story?.tips as Partial<TipsState> | undefined;
   if (raw === undefined) return;
@@ -94,7 +98,8 @@ export function migrateTips(s: GameState): void {
     cards.forEach((id) => seen.add(id));
     if (cards.length) hands.push({ rank: h.rank, cards, ...(h.told ? { told: true } : {}) });
   }
-  s.story!.tips = { held, hands };
+  const dealt = Math.max(Number.isInteger(raw.dealt) ? raw.dealt! : s.rank ?? 1, ...hands.map((h) => h.rank));
+  s.story!.tips = { held, hands, dealt };
 }
 
 // ---------- each tip's hook (1 when you don't keep it) ----------

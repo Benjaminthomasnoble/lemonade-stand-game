@@ -3,12 +3,14 @@
 // that runs out of time, any chopping short of 0, a Storm on an L1–L2 stand, or the late-game Hurricane (every
 // faction's buildings, bay-wide, forecast 2 days ahead) leaves the building Damaged. A Damaged stand stays open and
 // pours its HP share of its cups an hour until a repair, approved by the end of the Evening and paid on approval, puts
-// it back to full HP at dawn. Wrecked rebuilds and Busted fixes join the same overnight queue: the building stays
-// closed for the rest of the day and opens at dawn as good as new, so a stand smashed at night misses a day of sales.
-// An unrebuilt plot lapses: For Sale with First Dibs for whoever smashed it, then a 24-hour sealed-bid auction, then
-// back to the Registry. Rebuilds and repairs cost a share of what went into the building itself: a stand's level steps
-// and slot fittings or a facility's tiers, never the plot's fences and gadgets. Pure functions over GameState, like the
-// rest of the sim; the one roll (a rival's rebuild) takes the dawn's rng.
+// it back to full HP at dawn. The health inspector closes a stand of yours until dawn unless it is at full HP and
+// stocked (it is named the day before, so a repair can be done by the visit). Wrecked rebuilds and Busted fixes join
+// the same overnight queue: the building stays closed for the rest of the day and opens at dawn as good as new, so a
+// stand smashed at night misses a day of sales. An unrebuilt plot lapses: For Sale with First Dibs for whoever smashed
+// it, then a 24-hour sealed-bid auction, then back to the Registry. Rebuilds and repairs cost a share of what went into
+// the building itself: a stand's level steps and slot fittings or a facility's tiers, never the plot's fences and
+// gadgets. Pure functions over GameState, like the rest of the sim; the one roll (a rival's rebuild) takes the dawn's
+// rng.
 //
 // Reading HP: Stand.hp and Facility.hp hold the points left on a dented building that still stands. Missing means full
 // HP, and the field is cleared whenever the building falls or comes back full, so read HP through currentHp(ps) and
@@ -17,16 +19,18 @@
 // and daytime raids, Delivery Raids, your raids and rival-vs-rival ones; each fight starts from currentHp. HQ assaults
 // (rivals.ts) fight their own Gate and never touch a stand's HP.
 import {
-  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, SEASON_TEMP_SHIFT, STAND_HP,
-  STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
+  AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, INSPECTION, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, SEASON_TEMP_SHIFT,
+  STAND_HP, STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
 } from './balance.ts';
 import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState, Weather } from './economy.ts';
-import { seasonOf } from './economy.ts';
-import { registerEvent } from './eventTable.ts'; // world's events table: land's Hurricane registers there
-import { heatWaveDay, liveEvent, type WorldEvent } from './events.ts';
+import { cupsInStock, seasonOf } from './economy.ts';
+import { registerEvent } from './eventTable.ts'; // world's events table: land's Hurricane and Health Inspection register there
+import { heatWaveDay, liveEvent, type Placement, type WorldEvent } from './events.ts';
+import { pourRate } from './demand.ts';
+import { clockText } from './night.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bookHelper, registerHelper } from './automation.ts'; // Auto-Repair's line in the automation frame
 import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
@@ -260,6 +264,85 @@ registerEvent({
   dawn: hurricaneSkies,
   bugle: () => ['HURRICANE!', 'It hits the bay at the open'],
   headline: () => `HURRICANE! It hits at the open: ${HURRICANE_HITS}`,
+});
+
+// ---------- the Health Inspection (spec: Random events, "Health Inspection") ----------
+
+/** The Health Inspection in the events table: world's scheduler rolls it, and land registers it below. */
+export const INSPECTION_ID = 'inspection';
+const INSPECTION_COUNTER = 'Repair and restock it, or it closes until dawn';
+
+/** What failed a health inspection: the stand was Damaged, or held less than an hour's pour. */
+export type InspectionFault = 'damaged' | 'stock';
+/** The inspector's visit to your stand on a plot: the day, and what failed it, if anything (it closes until dawn). */
+export interface Inspection { day: number; fault?: InspectionFault }
+
+/** The inspector's visit on the calendar: from the day before, when the stand is named, until the dawn after it. */
+export function inspectionOn(s: GameState): WorldEvent | undefined {
+  return s.world?.events?.on.find((e) => e.id === INSPECTION_ID && e.to >= s.day);
+}
+
+/** The cups an inspection wants on hand: an hour of the stand's pour. */
+export const inspectionStock = (s: GameState, plotId: string) => Math.ceil(pourRate(s, plotId) * INSPECTION.stockHours);
+
+/** What would fail your stand's inspection right now, or null when it would pass: full HP, and an hour's pour in stock. */
+export function inspectionFault(s: GameState, plotId: string): InspectionFault | null {
+  const ps = s.plots[plotId];
+  if (!ps?.stand || isWrecked(ps)) return null;
+  if (isDamaged(ps)) return 'damaged';
+  return cupsInStock(s, plotId) < inspectionStock(s, plotId) ? 'stock' : null;
+}
+
+/** Closed until dawn by the health inspector: your stand sells nothing for the rest of the day. */
+export const inspectorClosed = (s: GameState, ps: PlotState) => ps.owner === 'player' && ps.inspected?.day === s.day && !!ps.inspected.fault;
+
+const stall = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
+const yourOpenStands = (s: GameState) => PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].stand && !isWrecked(s.plots[p.id])).map((p) => p.id);
+const FAULT_TEXT: Record<InspectionFault, string> = { damaged: 'not at full HP', stock: 'short of stock' };
+
+/** The scheduler names the stand the day before (its place hook): one of yours, and the warning goes out, so a repair
+ * approved by the end of that Evening is done by the visit. */
+function nameStand(s: GameState, rng: Rng): Placement | null {
+  const ids = yourOpenStands(s);
+  if (!ids.length) return null;
+  const id = ids[Math.min(ids.length - 1, Math.floor(nextRandom(rng) * ids.length))];
+  warn(s, `INSPECTOR COMING! A health inspector visits ${stall(id)} tomorrow. ${INSPECTION_COUNTER}.`);
+  return { district: PLOT_BY_ID[id].district, plots: [id] };
+}
+
+/** Dawn on the day (damageAtDawn, ahead of the paper): the Bugle names the stand and the hour. */
+function inspectionToday(s: GameState): void {
+  const e = inspectionOn(s);
+  const id = e?.plots?.[0];
+  if (e && id && e.from === s.day && !e.live && e.at !== undefined) {
+    s.news.push(`INSPECTION TODAY! The health inspector visits ${stall(id)} at ${clockText(e.at)}. ${INSPECTION_COUNTER}.`);
+  }
+}
+
+/** The inspector arrives (its start hook, mid-day): your stand passes at full HP with an hour's pour in stock, or closes
+ * until dawn. A stand that fell or changed hands since gets no visit. */
+function inspect(s: GameState, e: WorldEvent): boolean {
+  const id = e.plots?.[0];
+  if (!id || !yourOpenStands(s).includes(id)) return false;
+  const fault = inspectionFault(s, id);
+  s.plots[id].inspected = { day: s.day, ...(fault ? { fault } : {}) };
+  return true;
+}
+
+function inspectionHeadline(s: GameState, e: WorldEvent): string {
+  const id = e.plots![0];
+  const v = s.plots[id]?.inspected;
+  if (v?.day !== s.day) return `HEALTH INSPECTION! The inspector visits ${stall(id)} today. ${INSPECTION_COUNTER}.`;
+  return v.fault ? `HEALTH INSPECTION! ${stall(id)} fails, ${FAULT_TEXT[v.fault]}: closed until dawn.` : `HEALTH INSPECTION: ${stall(id)} passes. Spotless!`;
+}
+
+registerEvent({
+  id: INSPECTION_ID, name: 'Health Inspection', kind: 'harmful', scope: 'stand', when: 'midday', days: 1,
+  weight: INSPECTION.weight, lead: INSPECTION.lead, counter: INSPECTION_COUNTER,
+  can: (s) => s.rank >= INSPECTION.rank && yourOpenStands(s).length > 0,
+  place: nameStand,
+  start: inspect,
+  headline: inspectionHeadline,
 });
 
 /** The battle headline's last words: what a raid that didn't flatten the building took off it. */
@@ -500,8 +583,8 @@ export function damageAtClose(s: GameState): void {
 
 /** Dawn, before anything lapses: the night's work is done. A rebuild puts the building back up at full HP (the work goes
  * with the plot, like the building). A repair puts back the HP it was paid for, so a building the night left alone is good
- * as new; one a raid dented again after the approval keeps the fresh damage. Then tomorrow's Hurricane, if one is due,
- * gets its warning. */
+ * as new; one a raid dented again after the approval keeps the fresh damage. Then tomorrow's Hurricane and today's
+ * health inspection, if one is due, get their lines in the paper. */
 export function damageAtDawn(s: GameState): void {
   const fixed: string[] = [], dented: string[] = [];
   for (const p of PLOTS) {
@@ -524,6 +607,7 @@ export function damageAtDawn(s: GameState): void {
   if (fixed.length) s.news.push(`Fixed overnight: ${fixed.length <= 2 ? fixed.join(' and ') : `${fixed.length} buildings`} ${fixed.length === 1 ? 'is' : 'are'} good as new.`);
   for (const name of dented) s.news.push(`${name} is patched up, but it took fresh damage after the booking.`);
   hurricaneTomorrow(s); // ahead of the paper, so the Bugle leads with it
+  inspectionToday(s);
 }
 
 /** Saves from before building HP (and any odd values) load clean. Safe to run on every load. */
@@ -541,6 +625,8 @@ export function migrateDamage(s: GameState): void {
     if (r !== undefined && (!r || typeof r !== 'object' || typeof r.by !== 'string' || typeof r.cost !== 'number' || typeof r.hp !== 'number' || !b
       || (r.rebuild !== undefined && r.rebuild !== true) || isWrecked(ps) !== !!r.rebuild)) delete ps.repair; // a rebuild waits on a wreck, a repair on a standing building
     if (ps.noAutoRepair !== undefined && (ps.noAutoRepair !== true || ps.owner !== 'player')) delete ps.noAutoRepair;
+    const v = ps.inspected as Partial<Inspection> | undefined;
+    if (v !== undefined && (!v || typeof v !== 'object' || typeof v.day !== 'number' || (v.fault !== undefined && v.fault !== 'damaged' && v.fault !== 'stock'))) delete ps.inspected;
     // Saves from before the starting table's own figure keep the $150 every table had then.
     if (ps.stand && ps.stand.startTable !== undefined && ps.stand.startTable !== true) delete ps.stand.startTable;
   }

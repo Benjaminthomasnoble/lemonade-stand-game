@@ -25,7 +25,7 @@ import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
 import { DEFAULT_OPTIONS, tempText, type KeyAction, type Options } from '../settings.ts';
 import * as A from './clay.ts';
 import { alertCards } from './alerts.ts';
-import { damageHere, damageTickets, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
+import { damageHere, damageTickets, inspectionTicket, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
 import { eveningBar, fenceHere, guardsHere, repairCards } from './evening.ts';
 import { schemeNote, schemeTickets } from './schemes.ts';
 import { optionsScreen } from './options.ts';
@@ -592,6 +592,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     t.push(...schemeTickets(s)); // rival schemes: price wars near you, smear posters (src/ui/schemes.ts)
     t.push(...eventTickets(s)); // world: today's random events, each with its counter-play (src/ui/events.ts)
     t.push(...stormTicket(s)); // a Storm: the forecast at Morning Prep, then the counter-play and the repair all day (src/ui/damage.ts)
+    t.push(...inspectionTicket(s)); // land: the health inspector's visit, from the day before (src/ui/damage.ts)
     const radio = radioTicket(s, hud.options.captions, hud.options.celsius); if (radio) t.push(radio); // world: 101.5 The Squeeze, Cal Clementine on the air, with captions on (src/ui/radio.ts)
     if (s.phase !== 'prep') { // after the morning: repairs to approve, then today's (and tonight's) fights, each with a replay
       if (s.phase === 'report' || s.phase === 'night') t.push(...repairCards(s));

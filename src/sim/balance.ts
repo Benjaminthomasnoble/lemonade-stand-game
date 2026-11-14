@@ -554,6 +554,12 @@ export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };
  * below 1 HP: Damaged, never Wrecked. Fences are not buildings and take none.
  * placeholder: spec gap (the rank, seasons and odds, the shares, the Storm sky, no wrecks, fences left alone) */
 export const HURRICANE = { rank: 7, lead: 2, weight: 1, seasons: ['fall', 'winter'] as Season[], stand: [0.6, 0.5, 0.4, 0.35, 0.3], facility: 0.3 };
+/** The Health Inspection (spec: Random events, "An inspector checks one named stand | 1 day | Repair and restock it, or it
+ * closes until dawn"): from `rank`, at `weight` against the other events. The scheduler names one of your stands `lead`
+ * day ahead, so a repair approved that day is done by the visit (repairs run overnight), and the inspector comes mid-day.
+ * The stand passes at full HP with at least `stockHours` of its pour in stock; otherwise it closes until dawn.
+ * placeholder: spec gap (the rank, odds and lead, what counts as stocked) */
+export const INSPECTION = { rank: 2, weight: 1, lead: 1, stockHours: 1 };
 /** Repair a wrecked stand for this share of what was invested in it. */
 export const REBUILD_SHARE = 0.15;
 export const NO_RAID_DAYS = 2;

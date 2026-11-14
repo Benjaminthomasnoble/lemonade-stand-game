@@ -5,14 +5,14 @@
 // Morning Prep and with the Evening's repairs. A Storm in the forecast gets a stock-light ticket at Morning Prep, and a
 // Storm day keeps one up while the stands are open: the counter-play, Go There and the repair. A Hurricane gets its own
 // ticket from 2 days ahead: when it hits, the counter-play, and the HP your hardest-hit building keeps; on its day, the
-// repair.
+// repair. The health inspector's visit gets one from the day before: when, what would fail the stand, and the fixes.
 // From Rank 3 each of your plots has an Auto-Repair switch (on unless you skip the plot). Plain controls on the HUD's
 // existing classes; clicks go through the HUD's one listener (data-action="repair" and "rebuild" approve,
 // "autoRepair" flips the switch, "goto" flies there).
 import {
-  autoRepairOn, buildingHp, canRebuild, canRepair, currentHp, eventDef, FACILITIES, hpCapacity, hpShare, hurricaneLoss, hurricaneOn,
-  hurricaneToday, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, rebuildCost, rebuilding, repairCost, standLevel, STORM_DAMAGE,
-  type GameState,
+  autoRepairOn, buildingHp, canRebuild, canRepair, clockText, cupsInStock, currentHp, eventDef, FACILITIES, hpCapacity, hpShare, hurricaneLoss,
+  hurricaneOn, hurricaneToday, inspectionFault, inspectionOn, inspectionStock, isDamaged, isWrecked, lastRebuildDay, PLOT_BY_ID, PLOTS, rebuildCost,
+  rebuilding, repairCost, standLevel, STORM_DAMAGE, type GameState,
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
@@ -157,6 +157,38 @@ export function hurricaneTicket(s: GameState): string[] {
   const tip = `${when}: every building in the bay takes damage.${keeps} Fortified Frames at Morning Prep add 50% HP; repairs cost 15% of what went in`;
   const acts = worst ? `<span class="cl-acts">${meter(after(worst))}${go(worst)}</span>` : '';
   return [`<div class="cl-ticket red" data-testid="hurricane" title="${esc(tip)}">${pic}<b>${when}</b><span class="cl-note">${esc(counter)}</span>${acts}</div>`];
+}
+
+/**
+ * The feed's Health Inspection ticket, from the morning the stand is named (the day before) to the visit: when the
+ * inspector comes, the stand, what would fail it now (HP or stock, on the meter) and the fixes in reach: Go There, the
+ * repair the day before (it is done by dawn) and, while the stands are open, Restock now. Once the inspector has been,
+ * the event's own ticket takes over (src/ui/events.ts), and a stand that failed gets Closed until dawn, with its repair.
+ */
+export function inspectionTicket(s: GameState): string[] {
+  const e = inspectionOn(s);
+  const id = e?.plots?.[0];
+  const ps = id ? s.plots[id] : undefined;
+  if (!e || !id || !ps || ps.owner !== 'player' || !ps.stand || s.phase === 'night') return [];
+  const go = `<button class="cl-b tiny" data-action="goto" data-plot="${id}">Go there</button>`;
+  const name = esc(place(id));
+  const visit = ps.inspected?.day === s.day ? ps.inspected : undefined;
+  if (visit) {
+    if (!visit.fault) return [];
+    const tip = `The health inspector closed ${PLOT_BY_ID[id].name}: ${visit.fault === 'damaged' ? 'not at full HP' : 'short of stock'}. It opens again at dawn`;
+    return [`<div class="cl-ticket red" data-testid="inspection" title="${esc(tip)}">${art('notice', A.boardSVG)}<b>Closed until dawn</b><span class="cl-note">${name}</span><span class="cl-acts">${go}${repairButton(s, id)}</span></div>`];
+  }
+  if (e.live || ps.stand.wrecked) return [];
+  const today = e.from === s.day;
+  const when = today ? `Inspector at ${clockText(e.at ?? 0)}` : 'Inspector tomorrow';
+  const fault = inspectionFault(s, id);
+  const need = inspectionStock(s, id);
+  const note = fault === 'damaged' ? (today ? 'Damaged: it fails' : 'Repair it today') : fault === 'stock' ? `Stock ${n0(need)} cups` : 'Ready';
+  const gauge = fault === 'damaged' ? hpShare(ps) : Math.min(1, cupsInStock(s, id) / Math.max(1, need));
+  const fix = fault === 'damaged' && !today ? repairButton(s, id)
+    : fault === 'stock' && s.phase === 'open' ? `<button class="cl-b tiny go" data-action="restockNow" data-plot="${id}">Restock now</button>` : '';
+  const tip = `A health inspector visits ${PLOT_BY_ID[id].name} ${today ? `at ${clockText(e.at ?? 0)}` : 'tomorrow'}. It passes at full HP with ${n0(need)} cups in stock (an hour's pour); otherwise it closes until dawn. Repairs run overnight`;
+  return [`<div class="cl-ticket${fault ? ' red' : ''}" data-testid="inspection" title="${esc(tip)}">${art('notice', A.boardSVG)}<b>${when}</b><span class="cl-note">${name}: ${esc(note)}</span><span class="cl-acts">${meter(gauge)}${go}${fix}</span></div>`];
 }
 
 /** The feed's Storm ticket. Morning Prep with a Storm in the forecast: stock light, and your L1–L2 stands will want a

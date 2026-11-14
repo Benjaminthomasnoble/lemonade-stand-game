@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approveRebuild, approveRepair, damageAtClose, eventsOf, HURRICANE_ID, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS, stormAtOpen,
-  toggleAutoRepair, upgradeStand, type GameState,
+  approveRebuild, approveRepair, damageAtClose, eventsOf, HURRICANE_ID, INSPECTION_ID, LESSON_DAY, LOTTIES_CORNER, newGame, newStand, PLOTS,
+  stormAtOpen, toggleAutoRepair, upgradeStand, type GameState,
 } from '../sim/economy.ts';
 import { helperRows } from './automation.ts';
-import { damageCard, damageHere, damageTickets, hurricaneTicket, rebuildButton, rebuildTickets, stormTicket, wreckNote } from './damage.ts';
+import {
+  damageCard, damageHere, damageTickets, hurricaneTicket, inspectionTicket, rebuildButton, rebuildTickets, stormTicket, wreckNote,
+} from './damage.ts';
 import { repairCards } from './evening.ts';
 
 /** Lottie's Corner as the spec's Kiosk ($4,050 from a table built new, 800 HP, 120 cups an hour) at Morning Prep. */
@@ -257,6 +259,56 @@ describe('the Hurricane', () => {
     expect(tickets[0]).toContain('Repair $9'); // 60% of Lottie's $100 table at 15%
     approveRepair(s, LOTTIES_CORNER);
     expect(stormTicket(s)[0]).toContain('Fixing tonight');
+  });
+});
+
+describe('the Health Inspection', () => {
+  /** The inspector booked for Lottie's Corner on `day`, at 12:30. */
+  function inspector(s: GameState, day: number): void {
+    eventsOf(s).on.push({ id: INSPECTION_ID, from: day, to: day, at: 12 * 60 + 30, district: 'maple', plots: [LOTTIES_CORNER] });
+  }
+
+  it('the day before: the stand, what would fail it, and the repair that is done by dawn', () => {
+    const s = newGame(27);
+    s.phase = 'prep';
+    s.cash = 500;
+    expect(inspectionTicket(s)).toEqual([]);
+    inspector(s, s.day + 1);
+    s.plots[LOTTIES_CORNER].stand!.hp = 50;
+    let [ticket] = inspectionTicket(s);
+    expect(ticket).toContain('data-testid="inspection"');
+    expect(ticket).toContain('<b>Inspector tomorrow</b>');
+    expect(ticket).toContain('Repair it today');
+    expect(ticket).toContain('--v:0.500');
+    expect(ticket).toContain(`data-action="repair" data-plot="${LOTTIES_CORNER}"`);
+    approveRepair(s, LOTTIES_CORNER);
+    expect(inspectionTicket(s)[0]).toContain('Fixing tonight');
+    s.phase = 'report'; // the Evening: still up, while the repair can be approved
+    expect(inspectionTicket(s)).toHaveLength(1);
+    s.phase = 'night';
+    expect(inspectionTicket(s)).toEqual([]);
+  });
+
+  it('on the day: the hour and the stock it wants, with Restock now while open; then Closed until dawn if it failed', () => {
+    const s = newGame(28);
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    st.inventory.lemons = [];
+    st.pitcherCups = 0;
+    inspector(s, s.day);
+    s.phase = 'prep';
+    let [ticket] = inspectionTicket(s);
+    expect(ticket).toContain('<b>Inspector at 12:30pm</b>');
+    expect(ticket).toContain('Stock 20 cups'); // an hour of a Folding Table's pour
+    expect(ticket).not.toContain('data-action="restockNow"'); // the Market sells at Morning Prep
+    s.phase = 'open';
+    expect(inspectionTicket(s)[0]).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    s.plots[LOTTIES_CORNER].inspected = { day: s.day, fault: 'stock' };
+    eventsOf(s).on[eventsOf(s).on.length - 1].live = true;
+    [ticket] = inspectionTicket(s);
+    expect(ticket).toContain('<b>Closed until dawn</b>');
+    expect(ticket).toContain('short of stock');
+    s.plots[LOTTIES_CORNER].inspected = { day: s.day };
+    expect(inspectionTicket(s)).toEqual([]); // passed: the event's own ticket is up (src/ui/events.ts)
   });
 });
 

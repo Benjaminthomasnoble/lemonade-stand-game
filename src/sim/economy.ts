@@ -27,7 +27,7 @@ import type { Scouted } from './scouting.ts';
 import { LOTTIES_CORNER, mapDistricts, nearbyPlots, onMap, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
-import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
+import { damageAtClose, damageAtDawn, inspectorClosed, migrateDamage, restoreHp, stormAtOpen, type Inspection, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
 import { migrateNights, nightsAtDawn, nightStep, onTheClock, runNight } from './night.ts';
 import { stationByPriority } from './autodefend.ts';
 import { migrateLegacy } from './legacy.ts';
@@ -139,6 +139,7 @@ export interface PlotState {
   facility?: Facility; // Bottling Works, Helipad or Pier
   repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
   noAutoRepair?: boolean; // Auto-Repair (Rank 3) skips this plot of yours (damage.ts)
+  inspected?: Inspection; // land: the health inspector's visit to your stand here, and what failed it (closed until dawn: damage.ts)
   dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
   kept?: KeptBuilding; // rivals: a bought-out rival's building, waiting on its Fire Sale plot for whoever buys it (rivals.ts eliminate)
   wreckedDay?: number; // day the stand or facility here was smashed
@@ -589,7 +590,7 @@ export function averageStopChance(s: GameState, plotId: string, w: Weather = s.w
 
 export function expectedPassersby(s: GameState, plotId: string, w: Weather = s.weather): number {
   const ps = s.plots[plotId];
-  if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps)) return 0;
+  if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps) || inspectorClosed(s, ps)) return 0; // land: closed until dawn by the health inspector
   return PLOT_BY_ID[plotId].baseTraffic * standLevel(ps.stand).draw * marketingMultiplier(s, ps.owner!, ps.stand, plotId)
     * seasonDemand(s, plotId) * WEATHER[w.kind].traffic * eventTraffic(s, plotId); // world: Viral Video, Parade, Roadworks...
 }
@@ -773,7 +774,7 @@ export function tickMinute(s: GameState): SimEvent[] {
   holdStreets(s);
   for (const p of PLOTS) {
     const ps = s.plots[p.id];
-    if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps)) continue;
+    if (!ps.stand || ps.stand.wrecked || isSpoiled(s, ps) || inspectorClosed(s, ps)) continue; // land: the health inspector's closure
     const perMinute = (expectedPassersby(s, p.id) * HOURLY_TRAFFIC[hourIdx] * lunchRush(s, p.id, 8 + hourIdx)) / HOURLY_SUM / 60;
     let carry = (s.spawnCarry[p.id] ?? 0) + perMinute * randomRange(rng, 0.2, 1.8);
     while (carry >= 1) {

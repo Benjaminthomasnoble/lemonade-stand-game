@@ -12,7 +12,7 @@ import {
 } from './balance.ts';
 import { DISTRICT_BY_ID, nearbyPlots, PLOT_BY_ID, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { controlTier, perkActive, tierAtLeast } from './land.ts'; // land: control tiers and the Full Control perks
-import { hpCapacity } from './damage.ts';
+import { hpCapacity, inspectorClosed } from './damage.ts';
 import type { Appeal, DayStats, GameState, Stand, Weather } from './economy.ts';
 import { appealFor, cupsInStock, expectedPassersby, rivalPrice } from './economy.ts';
 import { migrateLedger } from './ledger.ts';
@@ -293,7 +293,7 @@ function standsNear(s: GameState, p: Plot, appealOf: (plotId: string) => Appeal)
   const own: Option[] = [], rivals: Option[] = [];
   for (const q of nearbyPlots(p)) {
     const st = s.plots[q.id].stand;
-    if (!st || st.wrecked || isSpoiled(s, s.plots[q.id])) continue; // crew: a Sabotaged stand sells nothing today
+    if (!st || st.wrecked || isSpoiled(s, s.plots[q.id]) || inspectorClosed(s, s.plots[q.id])) continue; // crew: a Sabotaged stand sells nothing today; land: nor one the inspector closed
     (s.plots[q.id].owner === owner ? own : rivals).push({ id: q.id, a: appealOf(q.id) });
   }
   return { own, rivals };
@@ -427,7 +427,7 @@ export interface DemandForecast {
 export function expectedDemand(s: GameState, plotId: string, w: Weather = s.forecast): DemandForecast {
   const out: DemandForecast = { visitors: 0, demand: 0, kept: 1, toOwn: 0, inflow: 0, recipe: 1, sweet: 1, priceFit: 1 };
   const st = s.plots[plotId]?.stand;
-  if (!st || st.wrecked || isSpoiled(s, s.plots[plotId])) return out; // crew: a Sabotaged stand sells nothing today
+  if (!st || st.wrecked || isSpoiled(s, s.plots[plotId]) || inspectorClosed(s, s.plots[plotId])) return out; // crew: a Sabotaged stand sells nothing today; land: nor one the inspector closed
   const memo = appealMemo(s, w);
   const p = PLOT_BY_ID[plotId];
   let recipe = 0, sweet = 0, fit = 0, ownPeople = 0, ownKept = 0, ownStay = 0;

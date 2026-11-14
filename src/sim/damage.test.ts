@@ -10,8 +10,8 @@ import {
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
 import {
-  EVENT_DEFS, eventsOf, fitSpec, harmfulOn, HEAT_WAVE, HURRICANE, HURRICANE_ID, hurricaneLoss, hurricaneOn, hurricaneToday, KIDS_DAY, SEASONS, STAND_HP,
-  type EventDef, type Season,
+  clockText, EVENT_DEFS, eventsOf, expectedPassersby, fitSpec, harmfulOn, HEAT_WAVE, HURRICANE, HURRICANE_ID, hurricaneLoss, hurricaneOn, hurricaneToday,
+  INSPECTION, INSPECTION_ID, inspectionFault, inspectionOn, inspectorClosed, KIDS_DAY, SEASONS, STAND_HP, type EventDef, type Season,
 } from './economy.ts';
 
 /** The spec's Kiosk on Lottie's Corner: a Folding Table built new ($150, not Lottie's own $100 one), a Lemonade Cart
@@ -779,36 +779,42 @@ describe('Storms', () => {
   });
 });
 
+// ---------- the damage model's random events ----------
+
+const kept: EventDef[] = [];
+const heat = { ...HEAT_WAVE.chance }, kids = KIDS_DAY.chance;
+/** Only this event can roll (the rest of the pool, Heat Waves and Kids' Day are set aside for the test). */
+function onlyEvent(id: string): void {
+  for (const d of Object.values(EVENT_DEFS)) if (d.id !== id && !d.plan) { kept.push({ ...d }); d.weight = 0; }
+  for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
+  KIDS_DAY.chance = 0;
+}
+function restoreEvents(): void {
+  for (const d of kept.splice(0).reverse()) EVENT_DEFS[d.id] = d; // the first copy kept wins: a test may set them aside twice
+  Object.assign(HEAT_WAVE.chance, heat);
+  KIDS_DAY.chance = kids;
+}
+/** The next day's Morning Prep through the real dawn (these tests skip the business days). */
+function dawn(s: GameState): void {
+  s.cash = Math.max(s.cash, 1000);
+  s.phase = 'report';
+  s.raids = [];
+  expect(sleepUntilDawn(s)).toBe(true);
+}
+/** A run on the evening before a dawn the scheduler rolls on, with only one event in the pool. */
+function rollsTomorrow(id: string, seed: number, rank: number, day: number): GameState {
+  onlyEvent(id);
+  const s = newGame(seed);
+  s.rank = rank;
+  s.day = day;
+  eventsOf(s).next = day + 1;
+  return s;
+}
+
 describe('the Hurricane', () => {
-  const kept: EventDef[] = [];
-  const heat = { ...HEAT_WAVE.chance }, kids = KIDS_DAY.chance;
-  /** Only the Hurricane can roll (the rest of the pool, Heat Waves and Kids' Day are set aside for the test). */
-  function onlyHurricane(): void {
-    for (const d of Object.values(EVENT_DEFS)) if (d.id !== HURRICANE_ID && !d.plan) { kept.push({ ...d }); d.weight = 0; }
-    for (const k of SEASONS as Season[]) HEAT_WAVE.chance[k] = 0;
-    KIDS_DAY.chance = 0;
-  }
-  afterEach(() => {
-    for (const d of kept.splice(0)) EVENT_DEFS[d.id] = d;
-    Object.assign(HEAT_WAVE.chance, heat);
-    KIDS_DAY.chance = kids;
-  });
-  /** The next day's Morning Prep through the real dawn (these tests skip the business days). */
-  function dawn(s: GameState): void {
-    s.cash = Math.max(s.cash, 1000);
-    s.phase = 'report';
-    s.raids = [];
-    expect(sleepUntilDawn(s)).toBe(true);
-  }
+  afterEach(restoreEvents);
   /** A late-game run on the evening before a Fall dawn the scheduler rolls on. */
-  function lateGame(seed: number, rank = HURRICANE.rank, day = 16): GameState {
-    onlyHurricane();
-    const s = newGame(seed);
-    s.rank = rank;
-    s.day = day;
-    eventsOf(s).next = day + 1;
-    return s;
-  }
+  const lateGame = (seed: number, rank = HURRICANE.rank, day = 16) => rollsTomorrow(HURRICANE_ID, seed, rank, day);
   const standing = (s: GameState) => PLOTS.filter((p) => (s.plots[p.id].stand || s.plots[p.id].facility) && !isWrecked(s.plots[p.id])).map((p) => p.id);
 
   it('goes on the calendar 2 days ahead: the day turns Storm, the Bugle and the news warn, and it holds other harm back', () => {
@@ -890,6 +896,120 @@ describe('the Hurricane', () => {
     stormAtOpen(s);
     expect(currentHp(s.plots[LOTTIES_CORNER])).toBe(75);
     expect(s.news).toContain(`Storm! ${PLOT_BY_ID[LOTTIES_CORNER].name} takes a beating. Stock light; repair L1–L2 stands.`);
+  });
+});
+
+describe('the Health Inspection', () => {
+  afterEach(restoreEvents);
+  /** Day 8's dawn names one of your stands for Day 9's visit. */
+  function named(seed: number): { s: GameState; id: string } {
+    const s = rollsTomorrow(INSPECTION_ID, seed, INSPECTION.rank, 7);
+    dawn(s); // Day 8
+    const id = inspectionOn(s)?.plots?.[0];
+    expect(id).toBe(LOTTIES_CORNER); // your one stand
+    return { s, id: id! };
+  }
+  /** Open the stands and run the clock to the inspector's minute. */
+  function toTheVisit(s: GameState): void {
+    const e = inspectionOn(s)!;
+    expect(openStand(s)).toBe(true);
+    while (s.phase === 'open' && s.minute < e.at!) tickMinute(s);
+  }
+
+  it('names one of your stands the day before, in the news and the Bugle, and the paper names the hour on the day', () => {
+    const { s, id } = named(70);
+    const e = inspectionOn(s)!;
+    expect(e).toMatchObject({ id: INSPECTION_ID, from: 9, to: 9, plots: [id] });
+    expect(e.at).toBeGreaterThanOrEqual(10 * 60);
+    expect(harmfulOn(s)).toBe(true); // one harmful event at a time
+    const warning = `INSPECTOR COMING! A health inspector visits ${PLOT_BY_ID[id].name.replace(/ lot /, ' ')} tomorrow. Repair and restock it, or it closes until dawn.`;
+    expect(s.news).toContain(warning);
+    expect(s.world!.paper!.wire).toContain(warning);
+    dawn(s); // Day 9
+    expect(s.news.some((n) => n.startsWith('INSPECTION TODAY!') && n.includes(` at ${clockText(e.at!)}.`))).toBe(true);
+    expect(s.world!.paper!.wire.some((l) => l.startsWith('INSPECTION TODAY!'))).toBe(true);
+  });
+
+  it('a stand at full HP with an hour of stock passes and keeps selling', () => {
+    const { s, id } = named(71);
+    dawn(s);
+    s.cash = 5000;
+    stockUp(s);
+    expect(inspectionFault(s, id)).toBeNull();
+    toTheVisit(s);
+    expect(s.plots[id].inspected).toEqual({ day: 9 });
+    expect(s.news.some((n) => n.startsWith('HEALTH INSPECTION:') && n.includes('passes'))).toBe(true);
+    expect(inspectorClosed(s, s.plots[id])).toBe(false);
+    expect(expectedPassersby(s, id)).toBeGreaterThan(0);
+  });
+
+  it('a stand short of stock closes until dawn and sells nothing more; it opens again at dawn', () => {
+    const { s, id } = named(72);
+    dawn(s);
+    const st = s.plots[id].stand!;
+    st.autoRestock = false;
+    st.inventory.lemons = [];
+    st.pitcherCups = 0;
+    expect(inspectionFault(s, id)).toBe('stock');
+    toTheVisit(s);
+    expect(s.plots[id].inspected).toEqual({ day: 9, fault: 'stock' });
+    expect(inspectorClosed(s, s.plots[id])).toBe(true);
+    expect(s.news.some((n) => n.startsWith('HEALTH INSPECTION!') && n.endsWith('fails, short of stock: closed until dawn.'))).toBe(true);
+    s.cash = 5000;
+    stockUp(s); // restocking now doesn't reopen it
+    const sold = st.day.customers;
+    expect(expectedPassersby(s, id)).toBe(0);
+    simulateRestOfDay(s);
+    expect(st.day.customers).toBe(sold);
+    dawn(s);
+    expect(inspectorClosed(s, s.plots[id])).toBe(false);
+    expect(expectedPassersby(s, id)).toBeGreaterThan(0);
+  });
+
+  it('a Damaged stand fails; a repair approved the day before is done by the visit', () => {
+    const { s, id } = named(73);
+    const ps = s.plots[id];
+    ps.stand!.hp = 50;
+    expect(inspectionFault(s, id)).toBe('damaged');
+    const fails = JSON.parse(JSON.stringify(s)) as GameState;
+    s.cash = 500;
+    expect(approveRepair(s, id)).toBe(true); // the day before: done by dawn
+    dawn(s);
+    s.cash = 5000;
+    stockUp(s);
+    toTheVisit(s);
+    expect(ps.inspected).toEqual({ day: 9 });
+    dawn(fails);
+    fails.cash = 5000;
+    stockUp(fails);
+    toTheVisit(fails);
+    expect(fails.plots[id].inspected).toEqual({ day: 9, fault: 'damaged' });
+  });
+
+  it('no visit to a stand that has fallen since it was named', () => {
+    const { s, id } = named(74);
+    dawn(s);
+    s.plots[id].stand!.wrecked = true;
+    s.plots[id].wreckedDay = s.day;
+    expect(openStand(s)).toBe(true);
+    simulateRestOfDay(s);
+    expect(s.plots[id].inspected).toBeUndefined();
+    expect(s.news.some((n) => n.startsWith('HEALTH INSPECTION'))).toBe(false);
+  });
+
+  it('saves keep the visit; odd values are dropped, and the second migration changes nothing', () => {
+    const s = newGame(75);
+    s.plots[LOTTIES_CORNER].inspected = { day: 1, fault: 'stock' };
+    expect(migrateSave(JSON.parse(JSON.stringify(s)))!.plots[LOTTIES_CORNER].inspected).toEqual({ day: 1, fault: 'stock' });
+    s.plots[LOTTIES_CORNER].inspected = { day: 1, fault: 'toString' } as never;
+    migrateDamage(s);
+    expect(s.plots[LOTTIES_CORNER].inspected).toBeUndefined();
+    s.plots[LOTTIES_CORNER].inspected = 'yes' as never;
+    migrateDamage(s);
+    expect(s.plots[LOTTIES_CORNER].inspected).toBeUndefined();
+    const once = JSON.stringify(s);
+    migrateDamage(s);
+    expect(JSON.stringify(s)).toBe(once);
   });
 });
 

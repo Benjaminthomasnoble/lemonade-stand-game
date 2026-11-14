@@ -30,7 +30,13 @@ import { radioOn } from '../sim/radio.ts';
 import { ownedRecipes } from '../sim/recipes.ts';
 import { soundtrack } from '../ui/radio.ts';
 import { kidLook } from '../sim/grandkid.ts';
-import { BOSS_OF, makeBoss, makeCrew, makeDex, type BossId, type CrewLook, type Side } from './clay/cast.ts';
+import { BOSS_OF, makeBoss, makeCrew, makeCustomer, makeDex, type BossId, type CrewLook, type Side } from './clay/cast.ts';
+import { hayBaleWall, kidTable, scaffolding } from './clay/plotExtras.ts';
+import { createBlitz } from './blitz.ts';
+import { plotSchemes, schemesKey } from './plotSchemes.ts';
+import { OWNER } from './clay/palette.ts';
+import { hayBales } from '../sim/rivalAi.ts';
+import { kidsDay } from '../sim/happenings.ts';
 import { createFigureBatch } from './clay/figureBatch.ts';
 import { crowdDetail, type Figure } from './clay/figure.ts';
 import { GLOSS, PAPER, Baker, canvasTex, cap, cone, hash, lcg, lumpy, outline, prep, rbox, slab, sph, tor } from './clay/core.ts';
@@ -329,6 +335,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
   // The town around the plots: backdrop buildings, landmarks, props and eye music.
   const townLife = createTown(scene);
   const lemon = createLemonWave(scene);
+  const blitz = createBlitz(scene);
 
   // Blob shadows: one instanced draw of soft plum discs, shown only when the sun casts no shadows.
   const blobTex = canvasTex(64, 64, (c) => {
@@ -448,6 +455,11 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     v.root.add(forSaleLabel());
   }
 
+  /** A kid stand is up on this lot today: Kids' Lemonade Day, not raided, and not yet packed up at dusk. */
+  const kidUp = (s: GameState, id: string) => {
+    const e = kidsDay(s);
+    return !!e?.kids?.includes(id) && !e.raided?.includes(id) && s.phase !== 'report' && s.phase !== 'night';
+  };
   /** A stand's HP share as the damage step it shows: torn at 75%, sign down at 50%, slumped at 25%. */
   const hpStep = (ps: GameState['plots'][string]) => { const h = hpShare(ps); return h > 0.75 ? 1 : h > 0.5 ? 0.75 : h > 0.25 ? 0.5 : 0.25; };
   let synced = false;
@@ -539,6 +551,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       m.setBusted(!!ps.busted);
       m.setDamage(hpStep(ps));
       m.setSpecs(fittedOn(ps.stand));
+      m.setSchemes?.(plotSchemes(s, p.id)); // posters, the fruit basket (plotSchemes.ts)
       v.root.add(m.group);
       v.stand = m;
       v.standLottie = lottie;
@@ -548,7 +561,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       if ((fresh || (shown && ps.stand.level > shown)) && !ps.stand.wrecked) { m.reveal(); v.refar = -1; }
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) {
-      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps), s.weather.kind === 'storm');
+      building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps), s.weather.kind === 'storm', plotSchemes(s, p.id));
     } else if (!ps.owner) forSale(v, s);
     if (keepStand && v.stand !== keepStand) keepStand.dispose();
     if (building) {
@@ -558,7 +571,32 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     if (p.type !== 'civic') {
       // Fences and gadgets are one clay draw each, kept apart so battle.ts can hide the fence.
       if (ps.defense.tier && ps.defense.fenceHp > 0) { const f = fenceModel(ps.defense.tier, fenceShare(ps), (ps.owner ?? 'player') as Owner); v.root.add(f); v.root.updateMatrixWorld(true); bakeGroup(f); }
+      // Hollis digs in: hay-bale barricades stacked inside the fence (sim/rivalAi.ts hayBales).
+      if (hayBales(s, p.id)) v.root.add(hayBaleWall());
       if (ps.defense.gadgets.length) { const g = gadgetModels(ps.defense.gadgets, (ps.owner ?? 'player') as Owner); v.root.add(g); v.root.updateMatrixWorld(true); bakeGroup(g); }
+    }
+    // A wreck booked for a rebuild tonight wears scaffolding and a tarp in the owner's colour (sim/damage.ts rebuilding).
+    if (ps.repair?.rebuild && ps.stand?.wrecked) {
+      const o = OWNER[(ps.owner ?? 'player') as keyof typeof OWNER] ?? OWNER.player;
+      v.root.add(scaffolding(o.main));
+    }
+    // Kids' Lemonade Day: a kid's card table on the lot, the kid behind it, until dusk or a raid (sim/happenings.ts).
+    if (kidUp(s, p.id)) {
+      const table = kidTable();
+      table.position.set(-3, 0.12, 0.4); // beside the FOR SALE sign, not behind it
+      v.root.add(table);
+      const { fig } = makeCustomer('kids', v.tile, K.fig, { scale: 0.95, detail: crowdDetail() });
+      fig.root.position.set(-3, 0.52, 0.32); // standing on the milk crate behind the table
+      fig.pose({}, v.tile);
+      const stall = new THREE.Group();
+      stall.name = 'kid';
+      stall.add(fig.root);
+      v.root.add(stall);
+      const list = watches.get(v) ?? [];
+      list.push({ fig, i: v.tile % 7, dex: false, goose: false, crossed: true, x: 0 });
+      sentries.track(fig.root);
+      watches.set(v, list);
+      fullSyncF = -1e9;
     }
     // Whoever stands guard here waits by the gate (battle.ts hides the watch by name during a fight).
     const guards = Math.min(guardsAt(s, p.id), ps.owner === 'player' ? 6 : 2);
@@ -658,9 +696,10 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}${v.plot.id === LOTTIES_CORNER ? cornerSign(s) ?? '' : ''}${ps.owner === 'player' && ps.stand ? `|${kid}` : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}${bayPainted(s) ? '|y' : ''}${v.plot.id === LOTTIES_CORNER ? cornerSign(s) ?? '' : ''}${ps.owner === 'player' && ps.stand ? `|${kid}` : ''}|${schemesKey(plotSchemes(s, v.plot.id))}${ps.repair?.rebuild ? 'r' : ''}${kidUp(s, v.plot.id) ? 'k' : ''}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
+      blitz.sync(s);
       synced = true;
       borders.computeBoundingSphere();
       if (salesDirty) {
@@ -774,6 +813,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
           if (m) m.visible = lite;
         }
       }
+      blitz.update(time, level);
       townLife.update(time, level, Math.min(1, K.glow.value / 2.4), seasonOf(s.day), s.weather.kind === 'storm', awayTown);
       // 101.5 on the counter radios, and the recipes chalked on the L3 menu (src/sim/radio.ts, recipes.ts).
       const radioPlaying = radioOn(s, soundtrack()), owned = ownedRecipes(s);

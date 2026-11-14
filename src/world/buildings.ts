@@ -1,6 +1,7 @@
 // The clay builders bay.ts places on plots: rival stands, fences, gadgets and
 // wrecks (the models live in clay/). Landmarks, HQs, fields, piers, facilities
 // and FOR SALE signs are in landmarks.ts.
+import type { PlotSchemes } from './plotSchemes.ts';
 import type * as THREE from 'three';
 import type { RivalId } from '../sim/economy.ts';
 import type { GadgetId } from '../sim/balance.ts';
@@ -12,8 +13,8 @@ import type { Owner } from './clay/standKit.ts';
 const own = <T extends THREE.Object3D>(g: T): T => { g.userData.ownTree = true; return g; };
 
 /** A rival stand: the same five clay silhouettes as ours, in the faction's dress (clay/rivalStands.ts). */
-export function rivalStand(id: RivalId, level: number, hp = 1, storm = false): THREE.Group {
-  return own(clayRivalStand(id, level, hp, storm));
+export function rivalStand(id: RivalId, level: number, hp = 1, storm = false, schemes?: PlotSchemes): THREE.Group {
+  return own(clayRivalStand(id, level, hp, storm, schemes));
 }
 
 /** Perimeter around a plot (P1 picket … P5 wall), with a gap at the front for the gate (clay/defenses.ts). */

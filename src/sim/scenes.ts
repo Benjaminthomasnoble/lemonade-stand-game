@@ -88,7 +88,7 @@ export const SCENES: Record<string, SceneDef> = {
     replies: ['Welcome aboard!', 'Paid in lemonade?'],
     recap: 'Dex Moody joins the crew, paid in lemonade. Station him for the night.',
   },
-  // Buying the first brand tier (the Day 7 lesson): Benny Buzz paints your first sign.
+  // Buying the first brand tier (the Day 6 lesson): Benny Buzz paints your first sign.
   benny: {
     speaker: 'benny', seconds: 17,
     lines: [

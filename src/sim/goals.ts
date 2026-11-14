@@ -61,7 +61,7 @@ export const nice = (n: number) => {
 };
 const lowerThe = (name: string) => name.replace(/^The /, 'the ');
 const DEX = 'Dex Moody';
-/** Day 6's lesson: station Dex for the night (story.ts posts him itself, unpaid, if nobody does). */
+/** Day 4's lesson: station Dex for the night (story.ts posts him itself, unpaid, if nobody does). */
 export const DEX_LESSON = 'lesson-dex';
 /** Plot types a stand can go up on. */
 const STAND_PLOTS: string[] = ['street', 'prime', 'landmark'];

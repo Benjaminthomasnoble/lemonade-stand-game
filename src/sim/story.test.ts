@@ -507,7 +507,7 @@ describe("Lottie's goals", () => {
     s.rank = 5; // new unlocks rank ahead of it (the Kiosk first), but the card doesn't switch under you
     checkGoals(s);
     expect(goalsNow(s)[1].text).toBe('Open a second stand');
-    s.day = 5; // Day 5's lesson does
+    s.day = 5; // a lesson does: the fence's, from Day 3
     checkGoals(s);
     expect(goalsNow(s)[1].text).toBe('Fence the Corner');
   });
@@ -612,7 +612,7 @@ describe('lessons and Dex', () => {
     expect(t.guards.find((g) => g.name === 'Dex Moody')?.post).toBe(t.selected);
   });
 
-  it("Day 3's land lesson lands as a card whose Go There opens the side lot", () => {
+  it("Day 3's side lot lands as a card whose Go There opens it", () => {
     const s = newGame(31);
     s.day = 2;
     nextDawn(s);

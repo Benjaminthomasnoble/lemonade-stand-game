@@ -219,7 +219,7 @@ export function leanLine(s: GameState): string {
 }
 
 /**
- * Lessons: Dex arrives unposted on Day 6 for the "station Dex" lesson; if nobody does by closing, he takes the Corner
+ * Lessons: Dex arrives unposted on Day 4 for the "station Dex" lesson; if nobody does by closing, he takes the Corner
  * himself, so the night is covered. That ticks the lesson off without Lottie's reward: nobody stationed him.
  */
 function dexOnDuty(s: GameState): void {

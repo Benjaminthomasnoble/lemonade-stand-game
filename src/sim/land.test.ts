@@ -879,6 +879,25 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(s.guards.map((g) => [g.weapon, g.gear])).toEqual(s.guards.map(() => ['hatchets', 'pro'])); // Rank 6's
   });
 
+  it("fills each stand's gadget slots from the security money, the cheapest first", () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 10; // past the defense lesson
+    s.rank = 2;
+    const bot = newBot();
+    bot.takings = [1e4];
+    bot.sec = 1e4;
+    s.cash = 1e5;
+    morning(s, bot);
+    expect(s.plots[LOTTIES_CORNER].defense.gadgets).toEqual(['alarm', 'goose']); // two slots; the Slick waits for Rank 4
+    const gadgets = bot.played.gadgets;
+    expect(gadgets).toBeGreaterThanOrEqual(2);
+    s.rank = 4;
+    s.plots[LOTTIES_CORNER].stand!.level = 4; // a third slot
+    morning(s, bot);
+    expect(s.plots[LOTTIES_CORNER].defense.gadgets).toEqual(['alarm', 'goose', 'slick']);
+    expect(bot.played.gadgets).toBeGreaterThan(gadgets);
+  });
+
   it("mans the plots a siege night names, the most seasoned first, and sends nobody out", () => {
     const s = newGame(REFERENCE_SEED);
     s.day = 130;

@@ -16,15 +16,15 @@
 // --keep DIR keeps the played runs for a sweep to pick up). Pure: no DOM, no clock, no files.
 import {
   acceptOrder, approveRepair, auctionOf, auctionPlots, autoRepairReserve, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
-  buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
+  buyGadget, buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand, canBuyGadget,
   canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canPromote, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
   costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
-  gameOver, GEAR, guardFighter, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
+  GADGETS, gameOver, GEAR, guardFighter, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
   netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
   plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, promote, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
   repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, siegeTargets, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
   SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, WEAPONS, yourDays,
-  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type GearId, type Guard, type Order, type OrderTier,
+  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GadgetId, type GameState, type GearId, type Guard, type Order, type OrderTier,
   type RivalId, type SpecId, type Specialty, type Stand, type TipId, type WeaponId, type Weather,
 } from '../src/sim/economy.ts';
 import { AUTO_DEFEND_ID, autoDefendOn, setAutoDefend } from '../src/sim/autodefend.ts';
@@ -155,6 +155,10 @@ const BILLBOARD_LAND = ['street', 'prime', 'landmark'];
  * from Rank 6. */
 const KIT_WEAPONS: WeaponId[] = ['hatchets', 'clubs'];
 const KIT_GEAR: GearId[] = ['pro', 'vest'];
+/** A stand's gadgets (balance.ts GADGETS), a slot at a time, the cheapest first: the Tin-Can Alarm (Rank 2), the
+ * Lemon-Peel Slick (Rank 4), the Guard Goose (Rank 2) and the Sprinkler Ambush (Rank 4). Floodlights and the Watchtower,
+ * dear and for a whole corner of the map, are left out. */
+const KIT_GADGETS: GadgetId[] = ['alarm', 'slick', 'goose', 'sprinkler'];
 
 /** Lottie's Tips, best for growth first: the price and the crowd, cheaper land and buyouts, the bottles, the goals and
  * campaigns, savings, and the guards' tips last. A hand's pick is its first card in this order. */
@@ -170,9 +174,10 @@ export function bestTip(cards: readonly TipId[]): TipId {
 }
 
 /** What the player did with each system, all run: the report prints it. `lapsed`: day calls nobody answered (a call on a
- * stand knocked down mid-day lapses on its own). `kits`: weapons and padding bought; `promoted`: guards given a specialty;
+ * stand knocked down mid-day lapses on its own). `kits`: weapons and padding bought; `gadgets`: gadgets put in stands'
+ * slots; `promoted`: guards given a specialty;
  * `assaults`: HQ Assaults planned; `bells`: bells Dex's Auto-Defend rang; `siege`: siege days it manned the named plots. */
-export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk', 'kits', 'promoted', 'assaults', 'bells', 'siege'] as const;
+export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk', 'kits', 'gadgets', 'promoted', 'assaults', 'bells', 'siege'] as const;
 export type Played = Record<(typeof PLAYED)[number], number>;
 const nonePlayed = (): Played => Object.fromEntries(PLAYED.map((k) => [k, 0])) as Played;
 
@@ -506,8 +511,9 @@ function reserve(s: GameState): number {
 }
 
 /** Spend the security money: guards up to the beds, their weapons and padding, and a Clubhouse when they're full (from
- * Dex's lesson, Day 4), fences (from the defense lesson, Day 3: a bulk order round every bare plot from Rank 3, then
- * each stand's next by hand), and the posts filled, a siege's named plots last. From Rank 4 Dex's Auto-Defend is on,
+ * Dex's lesson, Day 4), fences and gadgets (from the defense lesson, Day 3: a bulk order of fences round every bare plot
+ * from Rank 3, then each stand's next fence and its free gadget slots by hand), and the posts filled, a siege's named
+ * plots last. From Rank 4 Dex's Auto-Defend is on,
  * so he rings the bell at a raid's warning, and Level 3 guards are promoted (promotions). */
 function security(s: GameState, bot: Bot): void {
   const w = typical();
@@ -547,6 +553,9 @@ function security(s: GameState, bot: Bot): void {
     for (const p of best) { // a fence to match the stand: a Picket Fence round a Table, a Fortress Wall round a Palace
       const next = PERIMETERS[s.plots[p.id].defense.tier];
       if (next && next.tier <= s.plots[p.id].stand!.level && next.cost <= bot.sec && canBuyPerimeter(s, p.id).ok) spend(`${next.name} at ${p.name}`, () => buyPerimeter(s, p.id));
+    }
+    for (const p of best) { // then its free gadget slots
+      for (const g of KIT_GADGETS) if (GADGETS[g].cost <= bot.sec && canBuyGadget(s, p.id, g).ok && spend(`${GADGETS[g].name} at ${p.name}`, () => buyGadget(s, p.id, g))) bot.played.gadgets++;
     }
   }
   for (const p of best) fillPosts(s, p.id);

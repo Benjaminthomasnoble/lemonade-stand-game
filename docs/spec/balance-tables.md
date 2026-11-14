@@ -74,7 +74,7 @@ Defenders get +25% damage while any perimeter stands. Repairs run overnight and 
 | Floodlights | 5 | 1,500 | Cancels the night stealth bonus |
 | Watchtower | 6 | 5,000 | +30% detection; sees 2 plots out; reveals raid makeup |
 
-Detection = 50% base plus gadgets and a stationed Lookout (+25%), capped at 95%, then −25% at night without Floodlights.
+Detection = 50% base, plus the plot's own gadgets and a Watchtower on it or on one of the owner's plots within 2 (+30%, once however many reach it). On your plots add a Lookout posted there (+25%, once), an Eagle Eye guard there (+10%), Neighborhood Watch (+10%, with a free Tin-Can Alarm on each Maple Row plot of yours that has none, taking no slot), a Stronghold in the district (+10%, placeholder) and Lottie's Nosy Neighbors tip (+10%). Cap it at 95%, then take off 25% at night without Floodlights and 25% for a Sneaky raider (once per raid); it never goes below 0% (placeholder). A rival raid's lookouts take 10% each off that, though never below 5% on their own (see Raids), and Cold Brew's Night Shift takes 25% more off at night, Floodlights or not.
 
 ### Weapons and padding (bought per guard)
 
@@ -96,7 +96,7 @@ Detection = 50% base plus gadgets and a stationed Lookout (+25%), capped at 95%,
 | 4 | Elite | 1,000 | 60 | +30% |
 | 5 | Legend | 2,500 | 90 | +40% |
 
-Guards gain about 1 level every 35 days of duty; fights and the Training Yard speed this up. Dex Moody joins free on Day 6. Unpaid guards quit.
+Guards gain about 1 level every 35 days of duty; fights and the Training Yard speed this up. Dex Moody joins free on Day 4. Unpaid guards quit. More crew rules are in Crew.
 
 ### Clubhouse and squads
 
@@ -116,6 +116,68 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 7 | 12 |
 
 A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19.
+
+### Crew
+
+#### Hiring, pay and levels
+
+| Rule | Value |
+|---|---|
+| Hiring Hall | From Rank 2: 6 recruits to pick from, a fresh list every 7 days (Lottie's Help Wanted tip adds 1) |
+| Roster | 2 beds without a Clubhouse, plus every Clubhouse's beds |
+| Payday | Each dawn, guard by guard in roster order, the Loyal paid last. Wages never take cash below $0: an unpaid guard quits, and a Loyal one stays on unpaid |
+| Duty | Each dawn on post, a guard earns 1/35 of the XP to their next level: about 1 level every 35 days |
+| Fight XP | 2 for a win, 1 for a loss (×1.5 with Lottie's Quick Study tip) |
+| XP to reach L2 / L3 / L4 / L5 | 3 / 8 / 15 / 25 in all (placeholder) |
+| Guard posts | A stand's by its level (see Stands); 3 on a facility, a Clubhouse or an HQ; none on a bare lot |
+
+A recruit's level by your Rank (placeholder; the Hall opens at Rank 2):
+
+| Your Rank | L1 | L2 | L3 | L4 | L5 |
+|---|---|---|---|---|---|
+| 2 | 75% | 25% | — | — | — |
+| 3 | 55% | 30% | 15% | — | — |
+| 4 | 40% | 30% | 20% | 10% | — |
+| 5 | 30% | 30% | 25% | 10% | 5% |
+| 6 | 20% | 30% | 25% | 15% | 10% |
+| 7 | 15% | 25% | 30% | 20% | 10% |
+| 8 | 10% | 20% | 30% | 25% | 15% |
+| 9 | 10% | 15% | 30% | 25% | 20% |
+| 10 | 5% | 15% | 30% | 25% | 25% |
+
+#### Specialists and traits
+
+From Level 3 a guard can take one specialty, for good. Promotion is free (placeholder).
+
+| Specialist | Rank | Effect |
+|---|---|---|
+| Lookout | 4 | +25% detection on the plot where posted (several don't stack). Scouts a rival plot by day, off post through the business day; what they saw stays good for 3 days. Can lead a Sabotage |
+| Wrecker | 4 | +50% Chop, on top of a Lumberjack's (×2 for both) (placeholder) |
+| Captain | 6 | The whole side gets +20 Nerve and +10% Hit, once however many Captains |
+
+| Trait | Outside the brawl |
+|---|---|
+| Eagle Eye | +10% detection on the plot while they're there |
+| Sneaky | −25% to the target's detection on your raid (once per raid, after the 95% cap); can lead a Sabotage |
+| Loyal | Paid last and stays on unpaid; a Loyal guard a rival holds walks home, and a Loyal henchman you nab won't switch sides |
+| Smooth Talker | Brought to a Sit-down as your negotiator: 15% off a Truce, a Plot Buyout or a Faction Buyout (placeholder) |
+| Gentle Giant | A daytime raid by Gentle Giants alone costs no stars |
+
+The traits' fight numbers are in Combat.
+
+#### Your raids
+
+| Rule | Value |
+|---|---|
+| Raids | From Rank 3, on a rival stand or facility in a district where you hold a Foothold (a plot of yours); the squad cap is in Clubhouse and squads |
+| Sabotage | From Rank 4, led by a Lookout or a Sneaky guard: the stand's stock spoils and it can't sell its next day |
+| A raid tonight | Sets out at 01:00 (placeholder) and travels by distance (see Raids); the Planner guesses a 20-minute fight for the trip home (placeholder) |
+| Raid Planner odds | The raid fought 80 times (an HQ Assault 24 times), each with its own detection roll (a raid that's seen loses its first strike and meets the rival's help). On a plot nobody has scouted they show a range: the plot's own kit row's fence and gadgets with every post filled, from that row's henchmen to the next row's (a level up on the top row) |
+| Raid templates | From Rank 6: up to 3 saved squads and objectives for one-tap repeats (placeholder) |
+| Grudge | A raid of yours adds 20 Grudge with that rival when it wins, 8 when it fails |
+| Daytime raids | A raid fought 08:00–20:00 (Morning Prep and the Evening count as night) costs 0.1 star, 0.2 for a Smash or an HQ Assault; nothing when the squad is all Gentle Giants. A raid tonight that gets there after 07:00 waits for the stands to open and is fought by day |
+| Sheriff Budd's Citation | A daytime raid you launch below 2.0 stars: a fine of the last 7 days' average daily sales (never more than your cash), and no raids or HQ assaults for the rest of the day and 2 days more. It calls off your raids that haven't set out; a squad already on its way carries on (placeholder) |
+| Election Day | Spring Day 12 (placeholder). Mayor Fontaine wins on one of three platforms, drawn by weight: the same rules (weight 2, Citations below 2.0 stars), "Order in the Bay" (weight 1, below 2.5) or "Let Kids Be Kids" (weight 1, below 1.5), for a year (56 days). Each Citation in the last year adds 1 to "Order in the Bay"'s weight (placeholder) |
 
 ### Combat
 
@@ -445,7 +507,7 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Start | 3.0 stars |
 | Daily drift | 5% of the gap toward 3.0 + 0.4 per average stand level above L1 (cap 4.6) |
 | Helicopter VIP delivered | +0.2 star |
-| Daytime raid | −0.1 star (−0.2 for a daytime Smash) |
+| Daytime raid | −0.1 star (−0.2 for a daytime Smash or HQ Assault; nothing for a squad of Gentle Giants alone) |
 | VIP gates | Helicopter 3.5, Ship 4.0, Mega 4.5 stars |
 
 ### Starting conditions
@@ -457,7 +519,7 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Stand | L1 Folding Table (counts as $100 invested) |
 | Recipes | Classic, Pink, Mint |
 | Reputation | 3.0 stars |
-| Crew and defenses | None (Dex joins on Day 6) |
+| Crew and defenses | None (Dex joins on Day 4) |
 | Starting Net Worth | About $525 |
 | Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
 

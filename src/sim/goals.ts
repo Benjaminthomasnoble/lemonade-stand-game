@@ -212,11 +212,11 @@ function mediumGoals(s: GameState): Candidate[] {
 }
 
 /**
- * Act 2's story goals (campaign). After Brock's first raid on you, the payback takes the card that morning: clubs for
- * Dex, a Shakedown on one Blenders stand and a Smash on another (then First Dibs on the lot if Brock can't rebuild).
- * From Act 2's first day (Day 15) Dex pushes for a first Clubhouse, then a squad to fill it (the Rank 3 squad cap):
- * that one waits its turn and never pushes a story beat off the card. From the first winter dawn (the Boardwalk's
- * off-season), get the Blenders Weakened, the way to the Blend Shack.
+ * Act 2's story goals (campaign), newest trigger first as Act 1's lessons are, so a beat takes the card the morning it
+ * comes. From the first winter dawn (the Boardwalk's off-season), get the Blenders Weakened, the way to the Blend Shack.
+ * After Brock's first raid on you, the payback: clubs for Dex, a Shakedown on one Blenders stand and a Smash on another
+ * (then First Dibs on the lot if Brock can't rebuild). From Act 2's first day (Day 15) Dex pushes for a first Clubhouse,
+ * then a squad to fill it (the Rank 3 squad cap): that one waits its turn and never pushes a story beat off the card.
  */
 function act2Goals(s: GameState): Candidate[] {
   const out: Candidate[] = [];
@@ -224,6 +224,14 @@ function act2Goals(s: GameState): Candidate[] {
   if (act < 2) return out;
   const beat = (id: string, text: string, progress: number, done: boolean, urgent = true) => out.push({ id, text, progress: done ? 1 : progress, done, story: true, urgent });
   const brock = act === 2 && s.rivals.blenders.alive;
+  if (brock && s.day > 2 * SEASON_DAYS) { // from year 1's first winter dawn (Day 29), the Boardwalk's off-season
+    const r = s.rivals.blenders;
+    const plots = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders').length;
+    const peak = Math.max(1, r.peakPlots);
+    const worth = netWorth(s, 'blenders') / Math.max(1, netWorth(s));
+    const progress = Math.max((peak - plots) / (peak * 0.6), (1 - worth) / 0.75, (r.outsoldDays ?? 0) / OUTSELL.days);
+    beat('beat-weakened', 'Get the Blenders Weakened', Math.min(0.95, progress), isWeakened(s, 'blenders'));
+  }
   if (brock && (s.battles.some((b) => b.defender === 'player') || s.story?.payback)) {
     const dex = s.guards.find((g) => g.name === DEX);
     const armed = dex ? dex.weapon !== 'fists' : s.guards.some((g) => g.weapon !== 'fists');
@@ -236,14 +244,6 @@ function act2Goals(s: GameState): Candidate[] {
   beat('beat-clubhouse', 'Build Dex a Clubhouse', Math.min(0.95, s.cash / CLUBHOUSE[0].cost), built);
   const squad = SQUAD_CAP(RAID_RANK);
   if (built) beat('beat-squad', `Hire a squad of ${squad}`, s.guards.length / squad, s.guards.length >= squad, false);
-  if (brock && s.day > 2 * SEASON_DAYS) { // from year 1's first winter dawn (Day 29), the Boardwalk's off-season
-    const r = s.rivals.blenders;
-    const plots = PLOTS.filter((p) => s.plots[p.id].owner === 'blenders').length;
-    const peak = Math.max(1, r.peakPlots);
-    const worth = netWorth(s, 'blenders') / Math.max(1, netWorth(s));
-    const progress = Math.max((peak - plots) / (peak * 0.6), (1 - worth) / 0.75, (r.outsoldDays ?? 0) / OUTSELL.days);
-    beat('beat-weakened', 'Get the Blenders Weakened', Math.min(0.95, progress), isWeakened(s, 'blenders'));
-  }
   return out;
 }
 

@@ -431,6 +431,19 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
     }
   });
 
+  it("winter's goal comes the first winter dawn, ahead of an unbuilt Clubhouse, a short squad or an unfinished payback", () => {
+    const s = act2(86);
+    s.guards = crew(3);
+    s.battles = [tutorialRaid(s)];
+    expect(medium(s).text).toBe('Buy clubs for Dex');
+    s.day = 28;
+    nextDawn(s);
+    expect(seasonOf(s.day)).toBe('winter');
+    expect(medium(s)).toMatchObject({ text: 'Get the Blenders Weakened', story: true, done: false });
+    s.rivals.blenders.outsoldDays = 7;
+    expect(medium(s).text).toBe('Buy clubs for Dex'); // the rest follow
+  });
+
   it('winter empties the Boardwalk: Lottie says so, and getting the Blenders Weakened is the goal', () => {
     const s = act2(84);
     s.clubhouse = 1;

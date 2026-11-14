@@ -290,11 +290,11 @@ describe('Day 5: Lottie nudges the Wooden Stand', () => {
 });
 
 describe('Benny Buzz and the first sign (Day 6)', () => {
-  const day7 = (s: GameState) => { s.day = 5; nextDawn(s); expect(s.day).toBe(6); };
+  const day6 = (s: GameState) => { s.day = 5; nextDawn(s); expect(s.day).toBe(6); };
   it('pitches it at dawn, and buying it brings him to paint it (his scene, staged by speaker)', () => {
     const s = newGame(63);
     s.scenes!.seen.push('opening', 'steward', 'dex');
-    day7(s);
+    day6(s);
     expect(s.news).toContain(`Benny Buzz: "You're not selling lemonade. You're selling sunshine in a cup! One sign, $100!"`);
     expect(goalsNow(s).map((g) => g.text)).toContain('Paint your first sign');
     s.cash = 500;
@@ -316,7 +316,7 @@ describe('Benny Buzz and the first sign (Day 6)', () => {
     for (const t of BRAND_TIERS) expect(bennyPitch(t.tier)).toMatch(/!$/);
     for (const id of Object.keys(CAMPAIGNS) as CampaignId[]) expect(bennyPitch(id)).toMatch(/!$/);
     const sb = newGame(64, { mode: 'sandbox' });
-    day7(sb);
+    day6(sb);
     expect(sb.news.some((n) => n.startsWith('Benny Buzz:'))).toBe(true); // the lesson still comes
     sb.cash = 500;
     buyBrand(sb);
@@ -336,13 +336,17 @@ describe('Benny Buzz and the first sign (Day 6)', () => {
   });
 });
 
-describe("Week 2: Skip Larkin's Old Town corner", () => {
-  const week2 = (s: GameState, rank = 2) => { s.rank = rank; s.day = 7; nextDawn(s); expect(s.day).toBe(8); };
+describe("Day 7: Skip Larkin's Old Town corner", () => {
+  const day7 = (s: GameState, rank = 2) => { s.rank = rank; s.day = 6; nextDawn(s); expect(s.day).toBe(7); };
   const skipQueued = (s: GameState) => s.scenes!.queue.find((q) => q.id === 'skip');
   it('stands Skip on the cheapest open Old Town street plot, with its price, and points the feed there', () => {
     const s = newGame(66);
     s.scenes!.seen.push('opening', 'steward', 'dex', 'benny');
-    week2(s);
+    s.rank = 2;
+    s.day = 5;
+    nextDawn(s);
+    expect(skipQueued(s)).toBeUndefined(); // not on Day 6
+    day7(s);
     const q = skipQueued(s)!;
     const lot = PLOT_BY_ID[q.data!.plot!];
     expect(lot).toMatchObject({ district: 'oldtown', type: 'street' });
@@ -361,7 +365,7 @@ describe("Week 2: Skip Larkin's Old Town corner", () => {
 
   it('waits for Rank 2, and never comes for a player already in Old Town, after Act 1 or outside the campaign', () => {
     const early = newGame(67);
-    week2(early, 1);
+    day7(early, 1);
     expect(skipQueued(early)).toBeUndefined();
     early.rank = 2;
     nextDawn(early);
@@ -369,14 +373,14 @@ describe("Week 2: Skip Larkin's Old Town corner", () => {
     const owner = newGame(68);
     const ot = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !owner.plots[p.id].owner)!;
     owner.plots[ot.id].owner = 'player';
-    week2(owner);
+    day7(owner);
     expect(skipQueued(owner)).toBeUndefined();
     const late = newGame(69);
     late.story!.act = 2;
-    week2(late);
+    day7(late);
     expect(skipQueued(late)).toBeUndefined();
     const sb = newGame(70, { mode: 'sandbox' });
-    week2(sb);
+    day7(sb);
     expect(sb.scenes!.queue).toHaveLength(0);
   });
 });

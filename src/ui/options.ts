@@ -15,7 +15,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
   // Each major alert has its own switch, a rank-up's hand of Lottie's Tips too.
   const each = o.autoPause ? `<div class="cl-row wrap">
       ${toggle('raidPause', raidPauses(s.settings), 'Raids on you', 'Raid warnings pause the game (this run). The last minutes before a raid run at fight speed.')}
-      ${toggle('pause.delivery', o.pause.delivery, 'Delivery Raids', 'A raid on a VIP pickup pauses the game')}
+      ${toggle('pause.delivery', o.pause.delivery, 'Delivery Raids', 'A raid on a pickup pauses the game')}
       ${toggle('pause.vip', o.pause.vip, 'VIP first visits', "Each client's first chopper or ship stops the clock for the show")}
       ${toggle('pause.red', o.pause.red, 'In the Red', 'Morning Prep waits for you while you are In the Red')}
       ${toggle('pause.perk', o.pause.perk, "Lottie's tips", "A rank-up's three tips pause the game for your pick")}

@@ -7,8 +7,9 @@
 // - The sugar store ("Sugar keeps: a stocked Warehouse rides it out"): on a dawn the Market's sugar is at or under its
 //   normal price, the Warehouse fills up for WAREHOUSE.sugarDays days of its stands' sugar; on a dearer dawn (a Sugar
 //   Shortage) those stands take the stored sugar first, at what it cost, before Auto-Restock buys the rest.
-// Each stand's Auto-Restock switch is its opt-out. Caterer Trucks need a standing Warehouse (vip.ts tierOpen). Bottles
-// bank in the one pool between pickups already (vip.ts s.bottles), so the Warehouse adds nothing to them yet.
+// Each stand's Auto-Restock switch is its opt-out. Caterer Trucks need a standing Warehouse (vip.ts tierOpen) and load
+// at one (truckWarehouse: the order's plot), so a raid there can stop the pickup as at a pad or pier. Bottles bank in
+// the bay's one pool between pickups (vip.ts s.bottles): the Warehouse holds no bottles of its own and loses none.
 import { CUPS_PER_PITCHER, OPEN, SUPPLIES, WAREHOUSE } from './balance.ts';
 import type { DistrictId } from './map.ts';
 import type { GameState } from './economy.ts';
@@ -29,6 +30,19 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
 
 /** Your standing Warehouses (not Wrecked). */
 export const warehouses = (s: GameState) => facilityPlots(s, WAREHOUSE_ID);
+
+/** Where a Caterer Truck loads: the standing Warehouse nearest your working stands (the least road to them all), or
+ * the first with no stand to go by. None while no Warehouse stands. */
+export function truckWarehouse(s: GameState): string | undefined {
+  const sheds = warehouses(s);
+  const stands = playerStands(s).filter((p) => !s.plots[p.id].stand!.wrecked);
+  let best = sheds[0], far = Infinity;
+  if (stands.length) for (const w of sheds) {
+    const d = stands.reduce((a, p) => a + Math.hypot(p.x - w.x, p.z - w.z), 0);
+    if (d < far - 1e-9) { best = w; far = d; }
+  }
+  return best?.id;
+}
 
 /** The stands a Warehouse supplies: yours in a district with one of your standing Warehouses (or in `d`), Auto-Restock
  * on, not Wrecked. */

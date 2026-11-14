@@ -17,7 +17,7 @@ import { rivalStars } from './demand.ts';
 import { perkActive } from './land.ts'; // land: the Full Control perks
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 import { steadyPour } from './perks.ts';
-import { warehouseAtDawn } from './warehouse.ts'; // land: the Warehouse's sugar store
+import { truckWarehouse, warehouseAtDawn } from './warehouse.ts'; // land: the Warehouse's sugar store, and where Caterer Trucks load
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard' | 'warehouse';
 export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal' | 'mega';
@@ -25,6 +25,11 @@ export type OrderTier = 'local' | 'caterer' | 'heli' | 'ship' | 'deal' | 'mega';
 export const bySea = (t: OrderTier) => t === 'ship' || t === 'deal' || t === 'mega';
 /** VIP tiers: a chopper or a ship comes to your facility. */
 export const isVip = (t: OrderTier) => t === 'heli' || bySea(t);
+/** A pickup that loads at a facility of yours, so a Delivery Raid can hit it: a pad or a pier, or a Caterer Truck's
+ * Warehouse (a truck taken before they loaded at one names no plot and loads from the bay's bottles as it did). */
+export const loadsAtFacility = (o: Order) => isVip(o.tier) || (o.tier === 'caterer' && !!o.plot);
+/** The pickup's place in the news: the helipad, the pier or the Warehouse. */
+export const pickupPlace = (o: Order) => (o.tier === 'heli' ? 'helipad' : o.tier === 'caterer' ? 'Warehouse' : 'pier');
 /** The tiers whose clients call at least every 10 days once their facility stands (a Mega client calls about 1 in 20). */
 export const hasFloor = (t: OrderTier): t is FloorTier => t === 'heli' || t === 'ship' || t === 'deal';
 type FloorTier = 'heli' | 'ship' | 'deal';
@@ -278,7 +283,7 @@ function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const local = ks.length ? ks[Math.floor(nextRandom(rng) * ks.length)] : undefined;
   const stand = local ? s.plots[local].stand! : undefined;
   const unit = stand ? stand.price * t.pay : t.pay;
-  const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : local;
+  const plot = tier === 'heli' ? bestFacility(s, 'helipad') : bySea(tier) ? bestFacility(s, 'pier') : tier === 'caterer' ? truckWarehouse(s) : local;
   const clients = CLIENTS[tier];
   const o: Order = {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
@@ -634,6 +639,9 @@ export function migrateOrders(s: GameState): void {
     o.due = Math.max(o.due, lastLoadDay(s, f, rate, ahead[o.plot]));
   }
   for (const o of [...legacy, ...s.offers.filter((x) => isVip(x.tier) && !x.recipe)]) o.recipe = 'classic';
+  // A Caterer Truck taken before trucks loaded at a Warehouse names no plot and loads from the bay's bottles as it did;
+  // one naming a plot that isn't on the map does the same.
+  for (const o of [...s.orders, ...s.offers]) if (o.tier === 'caterer' && o.plot && !PLOT_BY_ID[o.plot]) delete o.plot;
 }
 
 /** Delivery Raid overran the trip (night.ts): the raiders make off with the bottles being loaded (out of stock since the
@@ -647,7 +655,7 @@ export function loseLoad(s: GameState, o: Order): void {
 /** Why a VIP order fell short at closing. */
 function shortWhy(s: GameState, o: Order, owed: number): string {
   const ps = o.plot ? s.plots[o.plot] : undefined;
-  const where = o.tier === 'heli' ? 'helipad' : 'pier';
+  const where = pickupPlace(o);
   if (!ps?.facility || ps.owner !== 'player') return `The ${where} is gone.`;
   if (ps.facility.wrecked) return `The ${where} was smashed.`;
   return `Only ${(o.loaded ?? 0).toLocaleString('en-US')} of ${owed.toLocaleString('en-US')} bottles were loaded in time.`;
@@ -715,12 +723,36 @@ function cupsWhy(s: GameState, o: Order): string {
   return `Only ${(o.loaded ?? 0).toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} cups were made in time.`;
 }
 
-/** Caterer Trucks: the whole order in one go, at closing. */
+/** Why a Caterer Truck can't load at its Warehouse: it's gone (sold, bought out) or smashed. A truck that names no
+ * Warehouse (taken before they loaded at one) loads from the bay's bottles as it did. */
+function warehouseWhy(s: GameState, o: Order): string {
+  if (o.tier !== 'caterer' || !o.plot) return '';
+  const ps = s.plots[o.plot];
+  if (ps?.owner !== 'player' || ps.facility?.kind !== 'warehouse') return 'The Warehouse is gone.';
+  return ps.facility.wrecked ? 'The Warehouse was smashed.' : '';
+}
+
+/** Caterer Trucks: the whole order in one go, at closing, loaded at its Warehouse from the bay's bottles. A Delivery
+ * Raid rolled on the pickup (as at a pad or pier) holds it until the raid is fought: its bottles come out of stock as
+ * the hold starts, and go out, or go with the raiders, when it's over. */
 function handOver(s: GameState, o: Order): Pickup {
-  const ready = bottlesOf(s, orderRecipe(o));
-  if (ready < o.qty) return failOrder(s, o, `Only ${ready.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
+  if (o.loading === undefined) { // a held pickup settling (night.ts) had its checks when it began
+    const why = warehouseWhy(s, o);
+    if (why) return failOrder(s, o, why);
+    const ready = bottlesOf(s, orderRecipe(o));
+    if (ready < o.qty) return failOrder(s, o, `Only ${ready.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
+    o.loading = o.qty;
+  }
+  const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: warned and fought on the clock
+  if (held) {
+    if (!o.reserved && s.heldPickups?.includes(o.id)) { stockBottles(s, orderRecipe(o), -o.qty); o.reserved = true; }
+    return held;
+  }
+  const reserved = o.reserved;
+  delete o.loading;
+  delete o.reserved;
   s.orders = s.orders.filter((x) => x !== o);
-  stockBottles(s, orderRecipe(o), -o.qty);
+  if (!reserved) stockBottles(s, orderRecipe(o), -o.qty);
   o.loaded = o.qty;
   book(s, 'orders', o.pay);
   s.today.revenue = round2(s.today.revenue + o.pay);

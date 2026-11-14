@@ -21,15 +21,17 @@ export function recipeOf(s: GameState, o: Order): RecipeId {
 /** "4,000 bottles of Pink"; a Local Order's "600 cups of Mint". */
 export const orderGoods = (s: GameState, o: Order) => `${n(o.qty)} ${o.tier === 'local' ? 'cups' : 'bottles'} of ${RECIPES[recipeOf(s, o)].label}`;
 
-/** Where a Local Order is poured: " at Main Street" (its stand's plot). */
-const standAt = (o: Order) => (o.tier === 'local' && o.plot && PLOT_BY_ID[o.plot] ? ` at ${PLOT_BY_ID[o.plot].name}` : '');
+/** Where a Local Order is poured or a Caterer Truck loads: " at Main Street" (its stand's plot, the truck's Warehouse). */
+const standAt = (o: Order) => ((o.tier === 'local' || o.tier === 'caterer') && o.plot && PLOT_BY_ID[o.plot] ? ` at ${PLOT_BY_ID[o.plot].name}` : '');
+/** A Caterer Truck's bottles ready, counting the ones a Delivery Raid is holding on the way out. */
+const truckReady = (s: GameState, o: Order) => bottlesOf(s, recipeOf(s, o)) + (o.reserved ? o.loading ?? 0 : 0);
 
 /** When it's due: an offer's deadline ("day 12", a Supply Deal's "4 weekly loads"), or for a job you took how far it has
  * loaded (a Local Order: made) and when the next bottles are due. */
 export function orderWhen(s: GameState, o: Order, waiting: boolean): string {
   if (waiting) return o.tier === 'deal' ? `${DEAL_LOADS} weekly loads to day ${o.due}` : `day ${o.due}${standAt(o)}`;
   if (o.tier === 'local') return `${n(o.loaded ?? 0)} of ${n(o.qty)} made${standAt(o)} · due day ${o.due}`;
-  if (!isVip(o.tier)) return `day ${o.due}`;
+  if (!isVip(o.tier)) return `day ${o.due}${standAt(o)}`;
   return `${n(o.loaded ?? 0)} of ${n(o.qty)} loaded · next due day ${nextDue(o, s.day)}`;
 }
 
@@ -67,9 +69,9 @@ export function bottleStock(s: GameState): string {
  * bottles ready). */
 export function orderTicket(s: GameState, o: Order): string {
   const due = isVip(o.tier) ? nextDue(o, s.day) : o.due;
-  const done = isVip(o.tier) || o.tier === 'local' ? (o.loaded ?? 0) / o.qty : Math.min(o.qty, bottlesOf(s, recipeOf(s, o))) / o.qty;
+  const done = isVip(o.tier) || o.tier === 'local' ? (o.loaded ?? 0) / o.qty : Math.min(o.qty, truckReady(s, o)) / o.qty;
   const note = isVip(o.tier) ? `${n(bottlesLeft(o))} to load, ${n(bottlesOf(s, recipeOf(s, o)))} ready`
-    : o.tier === 'local' ? `${n(bottlesLeft(o))} cups to make${standAt(o)}, an hour before closing` : `${n(bottlesOf(s, recipeOf(s, o)))} ready`;
+    : o.tier === 'local' ? `${n(bottlesLeft(o))} cups to make${standAt(o)}, an hour before closing` : `${n(truckReady(s, o))} ready, loads${standAt(o)} at closing`;
   return `<div class="cl-ticket order" data-testid="order" title="${esc(`${o.client}: ${orderGoods(s, o)} for ${whole(o.pay)}; ${note}`)}">${crate()}`
     + `<b>${due === s.day ? 'Due today!' : `Due day ${due}`}</b>${done >= 0 ? meter(done) : ''}</div>`;
 }

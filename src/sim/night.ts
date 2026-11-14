@@ -27,7 +27,7 @@ import { alert, isMajor, onFeed, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
 import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
 import { siegeFought, squeezeAtDawn } from './squeeze.ts';
-import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loseLoad, syndicateFestRaid, type Order, type Pickup } from './vip.ts';
+import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loadsAtFacility, loseLoad, pickupPlace, syndicateFestRaid, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
 import { deliveryRaider, nightShiftStealth } from './rivalAi.ts';
@@ -443,7 +443,7 @@ function settle(s: GameState, id: string, report: BattleReport | null): void {
 /** vip.ts deliver() hands its Delivery Raid roll here. A raid is warned and fought on the clock like any raid on
  * you, and the order waits (loading) until it's over. Returns the pickup to report now, or null to deliver. */
 export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string) => Pickup): Pickup | null {
-  const where = o.tier === 'heli' ? 'helipad' : 'pier';
+  const where = pickupPlace(o); // land: a Caterer Truck's Warehouse too
   if (settling?.order === o.id) {
     const { report } = settling;
     if (report?.outcome !== 'robbed') return null; // held off, or called off: the load goes out
@@ -456,7 +456,7 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
     return { order: o, ok: true };
   };
   if (s.heldPickups?.includes(o.id)) return held(); // still loading: the raid hasn't hit yet (one roll per pickup)
-  if (!isVip(o.tier) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
+  if (!loadsAtFacility(o) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
   s.seed = rng.seed;
@@ -477,8 +477,8 @@ export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string)
  * go after every delivery: world's syndicateFestRaid, vip.ts). */
 export const deliveryRaidChance = (s: GameState, o: Order) => (syndicateFestRaid(s, o, syndicateFormed(s)) ? 1 : DELIVERY_RAID_CHANCE);
 
-/** Could a Delivery Raid hit this pickup? (Order Book cards flag it.) */
-export const deliveryRaidRisk = (s: GameState, o: Order) => isVip(o.tier) && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s);
+/** Could a Delivery Raid hit this pickup, at a pad, a pier or a Caterer Truck's Warehouse? (Order Book cards flag it.) */
+export const deliveryRaidRisk = (s: GameState, o: Order) => loadsAtFacility(o) && threatLevel(s) >= DELIVERY_RAID_THREAT && !peaceful(s);
 
 // ---------- saves ----------
 

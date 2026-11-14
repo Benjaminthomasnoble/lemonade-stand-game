@@ -180,7 +180,8 @@ function chopperTip(s: GameState): void {
 /**
  * Juni's tip before each later FizzCo Delivery Raid (spec: a warning before a FizzCo raid or Delivery Raid). One is rolled
  * as a trip starts loading, by day, so her closing-time tips (phone.ts juniTips) can't come first: she rings on the clock,
- * once a raid, while its warning isn't out. The movie star's first trip has its own tip at dawn (chopperTip).
+ * once a raid, while its warning isn't out. The movie star's first trip has its own tip at dawn (chopperTip). She names
+ * the pickup's place: the pad, the pier, or a Caterer Truck's Warehouse, which loads at closing (tonight).
  */
 function deliveryTips(s: GameState): void {
   const v = s.story?.vip;
@@ -191,7 +192,8 @@ function deliveryTips(s: GameState): void {
     const o = s.orders.find((x) => x.id === r.order);
     if (o && v.heli === o.id && !o.loaded) continue; // the first trip: chopperTip's
     tipped.push(r.id);
-    phoneCall(s, 'coldbrew', `FizzCo's crew hits the ${o?.tier === 'ship' ? 'pier' : 'pad'} today. You didn't hear it from me.`, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
+    const truck = o?.tier === 'caterer';
+    phoneCall(s, 'coldbrew', `FizzCo's crew hits the ${o?.tier === 'ship' ? 'pier' : truck ? 'Warehouse' : 'pad'} ${truck ? 'tonight' : 'today'}. You didn't hear it from me.`, { tip: true, priority: CALL_PRIORITY.story, until: s.day });
   }
   if (tipped.length) v.tipped = tipped;
   else delete v.tipped;

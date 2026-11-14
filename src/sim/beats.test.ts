@@ -1014,6 +1014,21 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     beatsOnTheClock(s);
     expect(s.story!.vip!.tipped).toBeUndefined(); // raids over, nothing kept
   });
+
+  it("names a Caterer Truck's Warehouse when FizzCo goes after the truck as it loads at closing", () => {
+    const s = act4(123);
+    s.story!.vip = { heli: '', ship: '' };
+    const shed = PLOTS.find((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner)!.id;
+    s.plots[shed] = { ...s.plots[shed], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    s.cash = 100_000;
+    expect(buildFacility(s, shed, 'warehouse')).toBe(true);
+    const truck: Order = { id: `o${s.nextId++}`, tier: 'caterer', client: 'a Caterer Truck', qty: 1000, pay: 6000, due: s.day, expires: s.day, accepted: true, recipe: 'classic', plot: shed };
+    s.orders.push(truck);
+    s.phase = 'report'; // the Evening: the truck loaded at closing, and the raid set out then
+    s.raids.push({ id: 'r9', attacker: 'fizzco', target: shed, objective: 'shakedown', detected: false, eta: '21:05', delivery: true, order: truck.id });
+    storyAfterAct(s);
+    expect(s.phone!.queue.filter((c) => c.who === 'coldbrew' && c.tip).map((c) => c.text)).toEqual(["FizzCo's crew hits the Warehouse tonight. You didn't hear it from me."]);
+  });
 });
 
 describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {

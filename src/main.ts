@@ -28,6 +28,7 @@ import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
 import { bySea, clockText, frontPage, isVip, KIDS_RAID_LINE, raidKidStand, seasonOf } from './sim/economy.ts';
 import { approveRepair, toggleAutoRepair, type PlotState } from './sim/economy.ts'; // Damaged buildings and Auto-Repair (src/sim/damage.ts)
+import { runBulk } from './sim/economy.ts'; // land: bulk orders (src/sim/policies.ts)
 import { gullScout, pierTarget, scoutWithLookout } from './sim/scouting.ts';
 import { raidTemplate } from './sim/templates.ts';
 import { aimGull, trackGull } from './ui/gull.ts';
@@ -670,6 +671,7 @@ async function main() {
       case 'rebuild': rebuildStand(state, a.plot); break;
       case 'repair': approveRepair(state, a.plot); break;
       case 'autoRepair': toggleAutoRepair(state, a.plot); break;
+      case 'bulk': runBulk(state, a.order); break; // land: a bulk order from the Grow tab
       case 'hire': hireGuard(state, a.id); break;
       case 'fire': fireGuard(state, a.id); break;
       case 'post': postGuard(state, a.id, a.plot); break;

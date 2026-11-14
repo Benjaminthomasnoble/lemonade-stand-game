@@ -83,6 +83,7 @@ export * from './ledger.ts';
 export * from './marketing.ts';
 export * from './specializations.ts';
 export * from './weather.ts';
+export * from './policies.ts';
 export type { BattleEvent, Fighter, Objective } from './combat.ts';
 
 export const SAVE_VERSION = 8;
@@ -1095,7 +1096,8 @@ export function canUpgradeStand(s: GameState, plotId = s.selected): Blocker {
   return { ok: true };
 }
 
-export function upgradeStand(s: GameState, plotId = s.selected): boolean {
+/** Up a level. `quiet`: a bulk order's upgrade, which gets one headline for the lot (policies.ts). */
+export function upgradeStand(s: GameState, plotId = s.selected, quiet = false): boolean {
   if (!canUpgradeStand(s, plotId).ok) return false;
   const ps = s.plots[plotId];
   const next = STAND_LEVELS[ps.stand!.level];
@@ -1104,7 +1106,7 @@ export function upgradeStand(s: GameState, plotId = s.selected): boolean {
   ps.stand!.level = next.level;
   repostPrice(s, plotId); // Auto-Price follows the new level's ceiling (automation.ts)
   restoreHp(s, plotId); // the new level comes up at full HP (damage.ts)
-  s.news.push(`${PLOT_BY_ID[plotId].name} gets a makeover: say hello to ${next.name}!`);
+  if (!quiet) s.news.push(`${PLOT_BY_ID[plotId].name} gets a makeover: say hello to ${next.name}!`);
   scoreCheck(s); // the makeover's invested dip (score.ts)
   return true;
 }

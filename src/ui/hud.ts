@@ -18,7 +18,7 @@ import {
   actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
-  type Blocker, type LocalCampaignId, type SpecId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
+  type Blocker, type BulkOrder, type LocalCampaignId, type SpecId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
   tasteOffToday, type FestivalId, bugleHeadline, iceMachineOn, hayBales, type TipId,
 } from '../sim/economy.ts';
 import type { ScoreEntry, SlotInfo, Slots } from '../save.ts';
@@ -71,6 +71,7 @@ import { gullTicket } from './gull.ts';
 import { isScouted } from '../sim/scouting.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
 import { bankTicket } from './bank.ts'; // land: Marisol's bank after the morning
+import { bulkAction, bulkCards, pickBulk } from './bulk.ts'; // land: bulk orders on the Grow tab (Rank 3)
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -145,6 +146,7 @@ export type Action =
   | { type: 'evening' } // fold the Ledger: the Evening goes on, on the live map
   | { type: 'ledger' } // unfold the Ledger again
   | { type: 'goto'; plot: string } // an alert card's Go There
+  | { type: 'bulk'; order: BulkOrder } // land: a bulk order's Go (src/ui/bulk.ts)
   | { type: 'dismiss'; id: string } // put an alert card away
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
   | { type: 'watch'; id: string } // a VIP card's Watch: fly there and play the arrival
@@ -470,6 +472,8 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'truce': case 'factionBuyout': onAction({ type: d.action, rival: d.rival as RivalId }); break;
       case 'plotBuyout': onAction({ type: 'plotBuyout', plot: d.plot! }); break;
       case 'negotiator': case 'haggle': onAction(sitdownAction(d)); break;
+      case 'bulkPick': pickBulk(d); redraw(); break; // land: a bulk order's job, group or budget (src/ui/bulk.ts)
+      case 'bulk': onAction(bulkAction(d)); break;
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;
@@ -728,6 +732,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (!next) out.push(card(ART.stand(cur.level), cur.name, 'Top of the line!', ''));
     out.push(...specCards(kit, s)); // specializations: a card for each open slot at this stand (src/ui/specializations.ts)
     out.push(...campaignCards(kit, s)); // local campaigns: this stand's and its district's (src/ui/marketing.ts)
+    out.push(...bulkCards(kit, s)); // land: bulk orders from Rank 3, such as every Kiosk you can afford (src/ui/bulk.ts)
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
     if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever${nb.unlocks ? `\nUnlocks ${nb.unlocks}` : ''}`));
     out.push(bank(s));

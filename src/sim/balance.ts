@@ -544,6 +544,9 @@ export const RIVAL_REPAIR_RESERVE = 500;
 /** Auto-Repair (spec: Helpers that keep a big empire calm): from this rank it books the fixes your plots need at closing,
  * except on the plots you skip. */
 export const AUTO_REPAIR_RANK = 3;
+/** Bulk actions (spec: Helpers that keep a big empire calm, "Group orders, such as 'upgrade every Kiosk I can afford'"):
+ * from this rank you pick a group and a budget, and one order upgrades or fences every member it can (policies.ts). */
+export const BULK_RANK = 3;
 /** A Storm day (the real weather, not the forecast) takes this share of max HP off every faction's stand up to
  * `maxLevel`, never below 1 HP, so it stays open at its HP share until repaired (spec: Damage, repairs and rebuilds). */
 export const STORM_DAMAGE = { share: 0.25, maxLevel: 2 };

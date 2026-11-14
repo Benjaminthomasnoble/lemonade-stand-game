@@ -12,13 +12,13 @@ import { CLOSE, LAVENDER, LESSON_DAY } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
 import { clubhouseSite } from './clubhouse.ts';
-import { buildClubhouse, canBuildClubhouse, postGuard, welcomeDex } from './crew.ts';
+import { buildClubhouse, canBuildClubhouse, postedAt, postGuard, welcomeDex } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
 import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
-  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, growthCandidates, hits, longestLull, morning, newBot, pacingPlan, pacingReport,
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, morning, newBot, pacingPlan, pacingReport,
   pickAnswer, playRun, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
@@ -850,6 +850,58 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     morning(s, bot);
     expect(s.policies?.maple?.kind).toBe('profit');
     expect(bot.played.policies).toBe(1);
+  });
+
+  it('kits its guards out as the rank opens the gear, from the security money', () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 10; // past Dex's lesson
+    s.rank = 3;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    const bot = newBot();
+    bot.takings = [1e4]; // a week of takings to set the security money against
+    bot.sec = 1e4;
+    s.cash = 1e5;
+    morning(s, bot);
+    expect(s.guards.map((g) => [g.weapon, g.gear])).toEqual(s.guards.map(() => ['clubs', 'vest'])); // Rank 3's kit, Dex's and the hires'
+    expect(bot.played.kits).toBe(2 * s.guards.length);
+    s.rank = 6;
+    s.cash = 1e5;
+    bot.sec = 1e3; // short of Hatchets ($1,200) and Pro Gear ($1,500)
+    morning(s, bot);
+    expect([dex.weapon, dex.gear]).toEqual(['clubs', 'vest']);
+    bot.takings = [1e5];
+    bot.sec = 1e5;
+    s.cash = 1e6;
+    morning(s, bot);
+    expect(s.guards.map((g) => [g.weapon, g.gear])).toEqual(s.guards.map(() => ['hatchets', 'pro'])); // Rank 6's
+  });
+
+  it("mans the plots a siege night names, the most seasoned first, and sends nobody out", () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 130;
+    s.rank = 9;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    dex.level = 1;
+    postGuard(s, dex.id, null); // in the reserve
+    const [named, far] = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).slice(0, 2).map((p) => p.id);
+    for (const id of [named, far]) { give(s, id); s.plots[id].stand = newStand(3); } // Kiosks: 3 posts each
+    s.plots[LOTTIES_CORNER].stand!.level = 4; // a Lemon Shack: 4 posts
+    const hire = (level: number, post: string | null) => { s.guards.push({ ...dex, id: `g${s.nextId++}`, name: `Guard ${s.nextId}`, level, post }); };
+    [1, 1, 1].forEach((l) => hire(l, named)); // already on a named plot: they stay
+    [5, 4, 2].forEach((l) => hire(l, far));
+    hire(3, null);
+    expect(holdTheSiege(s)).toBe(0); // no siege, nobody moves
+    s.squeeze = { posted: 129, called: 130, nights: 0, held: 0, lost: 0, targets: [LOTTIES_CORNER, named] };
+    expect(holdTheSiege(s)).toBe(4);
+    expect(postedAt(s, LOTTIES_CORNER).map((g) => g.level).sort().reverse()).toEqual([5, 4, 3, 2]);
+    expect(postedAt(s, named).map((g) => g.level)).toEqual([1, 1, 1]);
+    expect(postedAt(s, far)).toEqual([]);
+    expect(dex.post).toBeNull(); // the least seasoned stays in the reserve
+    const bot = newBot();
+    evening(s, bot);
+    expect(s.raids.filter((r) => r.attacker === 'player')).toEqual([]);
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {

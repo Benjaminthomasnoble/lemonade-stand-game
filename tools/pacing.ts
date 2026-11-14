@@ -4,8 +4,9 @@
 // lesson shows it: it takes Lottie's Tip at each rank, answers the day calls, pours the best card, buys whatever pays back
 // fastest (land, stands, upgrades, fit-outs, Billboards, the VIP engine, buyouts, marketing, campaigns), borrows for a
 // buy that pays back inside the loan's term, keeps a share of its takings for security (a quarter at first, tapering as
-// the spec's does: guards, Clubhouses, fences by bulk order and by hand), sets district policies, haggles, and raids rival
-// stands at night after Squawk has circled them. The run is then read against the spec's targets: rank days and
+// the spec's does: guards and their weapons and padding, Clubhouses, fences by bulk order and by hand), sets district
+// policies, haggles, raids rival stands at night after Squawk has circled them, and on the Big Squeeze's siege nights
+// mans the plots the Corkboard names and stays home. The run is then read against the spec's targets: rank days and
 // Domination, income by stage, security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the
 // pacing chart.
 //   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N] [--keep DIR]
@@ -14,15 +15,15 @@
 import {
   acceptOrder, approveRepair, auctionOf, auctionPlots, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
   buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
-  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
-  costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
-  gameOver, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
-  netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout,
+  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
+  costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
+  gameOver, GEAR, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
+  netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
   plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
-  repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
-  SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, yourDays,
-  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type Order, type OrderTier,
-  type RivalId, type SpecId, type Stand, type TipId, type Weather,
+  repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, siegeTargets, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
+  SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, WEAPONS, yourDays,
+  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type GearId, type Order, type OrderTier,
+  type RivalId, type SpecId, type Stand, type TipId, type WeaponId, type Weather,
 } from '../src/sim/economy.ts';
 import { answerCall, callChoices, CALLS, liveCall, type DayCall } from '../src/sim/calls.ts';
 import { clubhouseSite } from '../src/sim/clubhouse.ts';
@@ -146,6 +147,10 @@ const BILLBOARD_SITES = 8;
 const GROWTH_SPECS: SpecId[] = ['express', 'fancy', 'roof'];
 /** Plots a Billboard stands on (FACILITIES.billboard.on). */
 const BILLBOARD_LAND = ['street', 'prime', 'landmark'];
+/** A guard's kit, best first (balance.ts WEAPONS and GEAR): Clubs and a Padded Vest from Rank 3, Hatchets and Pro Gear
+ * from Rank 6. */
+const KIT_WEAPONS: WeaponId[] = ['hatchets', 'clubs'];
+const KIT_GEAR: GearId[] = ['pro', 'vest'];
 
 /** Lottie's Tips, best for growth first: the price and the crowd, cheaper land and buyouts, the bottles, the goals and
  * campaigns, savings, and the guards' tips last. A hand's pick is its first card in this order. */
@@ -161,8 +166,9 @@ export function bestTip(cards: readonly TipId[]): TipId {
 }
 
 /** What the player did with each system, all run: the report prints it. `lapsed`: day calls nobody answered (a call on a
- * stand knocked down mid-day lapses on its own). */
-export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk'] as const;
+ * stand knocked down mid-day lapses on its own). `kits`: weapons and padding bought; `siege`: siege days it manned the
+ * named plots. */
+export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk', 'kits', 'siege'] as const;
 export type Played = Record<(typeof PLAYED)[number], number>;
 const nonePlayed = (): Played => Object.fromEntries(PLAYED.map((k) => [k, 0])) as Played;
 
@@ -185,7 +191,7 @@ export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: numb
 /** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs. */
 export interface Buy { what: string; cost: number; gain: number; plot: string; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
 export interface Bot {
-  sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, fences and Clubhouses come off it
+  sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, kits, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
   takings: number[]; // the last week's takings
   paybacks: Record<number, number[]>;
@@ -495,9 +501,9 @@ function reserve(s: GameState): number {
   return 100 + loanPayment(s) + ownStands(s).reduce((a, p) => a + expectedCups(s, p.id, w) * costPerCup(s, s.plots[p.id].stand!) * 1.3, 0);
 }
 
-/** Spend the security money: guards up to the beds and a Clubhouse when they're full (from Dex's lesson, Day 4), fences
- * (from the defense lesson, Day 3: a bulk order round every bare plot from Rank 3, then each stand's next by hand), and
- * the posts filled. */
+/** Spend the security money: guards up to the beds, their weapons and padding, and a Clubhouse when they're full (from
+ * Dex's lesson, Day 4), fences (from the defense lesson, Day 3: a bulk order round every bare plot from Rank 3, then
+ * each stand's next by hand), and the posts filled, a siege's named plots last. */
 function security(s: GameState, bot: Bot): void {
   const w = typical();
   const spend = (what: string, f: () => boolean) => {
@@ -512,6 +518,13 @@ function security(s: GameState, bot: Bot): void {
     // As many guards as there are stands to post them at, and a full raiding squad on top.
     const want = ownStands(s).length + SQUAD_CAP(s.rank);
     for (const r of [...s.recruits].sort((a, b) => a.fee - b.fee)) if (s.guards.length < want && r.fee <= bot.sec && canHire(s, r.id).ok) spend(`hire ${r.name}`, () => hireGuard(s, r.id));
+    // Each guard's kit, the most seasoned first: the best weapon and padding the rank allows that the money covers.
+    for (const g of [...s.guards].sort((a, b) => b.level - a.level)) {
+      const weapon = KIT_WEAPONS.find((k) => WEAPONS[k].hit > WEAPONS[g.weapon].hit && WEAPONS[k].cost <= bot.sec && canEquip(s, g.id, k).ok);
+      if (weapon && spend(`${WEAPONS[weapon].name} for ${g.name}`, () => equip(s, g.id, weapon))) bot.played.kits++;
+      const gear = KIT_GEAR.find((k) => GEAR[k].hp > GEAR[g.gear].hp && GEAR[k].cost <= bot.sec && canEquip(s, g.id, k).ok);
+      if (gear && spend(`${GEAR[gear].name} for ${g.name}`, () => equip(s, g.id, gear))) bot.played.kits++;
+    }
     // Beds when the roster is full: a Clubhouse on an empty street plot of yours (bought for it if need be), or the next
     // level of one. It may run the security money into the red once half its price is saved; the next days' fifths pay it back.
     const beds = CLUBHOUSE[0];
@@ -532,6 +545,18 @@ function security(s: GameState, bot: Bot): void {
     }
   }
   for (const p of best) fillPosts(s, p.id);
+  if (holdTheSiege(s)) bot.played.siege++;
+}
+
+/** A Big Squeeze siege day (squeeze.ts): every post on the plots the Corkboard names for tonight filled, the most seasoned
+ * guards first, from the reserve and the plots it didn't name. Returns how many guards moved. */
+export function holdTheSiege(s: GameState): number {
+  const targets = siegeTargets(s).filter((id) => s.plots[id]?.owner === 'player');
+  const named = new Set(targets);
+  const free = s.guards.filter((g) => guardReady(s, g) && !(g.post && named.has(g.post))).sort((a, b) => b.level - a.level);
+  let moved = 0;
+  for (const id of targets) while (postedAt(s, id).length < postsFor(s, id) && free.length) if (postGuard(s, free.shift()!.id, id)) moved++;
+  return moved;
 }
 
 /** Rebuild what fell and book a repair for what's dented, as a player with the Repair button would. */
@@ -773,12 +798,12 @@ function playDay(s: GameState, bot: Bot): void {
 
 /** The Evening: fix up, set the security money aside, and send a squad out tonight: at a Weakened rival's HQ, or at the
  * rival stand it's likeliest to beat once Squawk has circled it (Gull Flight). From Rank 6 the squad is saved as a raid
- * template, and a template whose guards are all ready goes out again. */
-function evening(s: GameState, bot: Bot): void {
+ * template, and a template whose guards are all ready goes out again. On a siege night nobody goes out. */
+export function evening(s: GameState, bot: Bot): void {
   fixUp(s);
   const b = s.today.books ?? {};
-  bot.sec += securityCut(s.day) * ((b.sales ?? 0) + (b.orders ?? 0)) + (b.wages ?? 0) + (b.repairs ?? 0) + (b.gear ?? 0); // rows: − out
-  if (s.rank < RAID_RANK) return;
+  bot.sec += securityCut(s.day) * ((b.sales ?? 0) + (b.orders ?? 0)) + (b.wages ?? 0) + (b.repairs ?? 0); // rows: − out (hires and kits came off as bought)
+  if (s.rank < RAID_RANK || siegeTargets(s).length) return;
   const ready = s.guards.filter((g) => guardReady(s, g)).sort((x, y) => Number(!!x.post) - Number(!!y.post)); // the reserve first
   // A Weakened rival's HQ: an HQ Assault from the Raid Planner tonight, with a full squad, when its odds are good.
   const full = ready.slice(0, SQUAD_CAP(s.rank)).map((g) => g.id);
@@ -836,7 +861,7 @@ export function playRun(opts: PacingOpts): RunResult {
     const levels = stands.map((p) => s.plots[p.id].stand!.level);
     r.days.push({
       day: s.day, rank: s.rank, netWorth: netWorth(s), score: successScore(s), cash: s.cash, income, orders: b.orders ?? 0, vip: 0,
-      security: -((b.wages ?? 0) + (b.repairs ?? 0) + (b.gear ?? 0)) + (bot.secSpent - sec0), stands: stands.length, levels, raidsOnYou: 0,
+      security: -((b.wages ?? 0) + (b.repairs ?? 0)) + (bot.secSpent - sec0), stands: stands.length, levels, raidsOnYou: 0, // hires and kits in secSpent
     });
     const top = Math.max(0, ...levels);
     if (top >= 2) r.firstL2 ??= s.day;

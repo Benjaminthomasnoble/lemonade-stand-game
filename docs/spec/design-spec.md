@@ -224,6 +224,8 @@ Every day runs the same five beats. Morning Prep and the Day's end card wait for
 
 A toggle auto-continues Morning Prep and the Day's end card for players who like a running clock. Dawn is the natural place to stop.
 
+The night is for defense. Once the Evening ends, you can't open or upgrade a stand, approve a repair or rebuild, or hold a Sit-down until morning, and the Market and scouting close with the stands at 20:00. Facilities and fences go up any time outside business hours, nights included.
+
 ### The session loop
 
 Lottie always shows 3 goals, each paying a little cash or a perk. Short goals fit in a day, medium ones in a session, and long ones aim at the next rank or act.
@@ -468,15 +470,15 @@ A Kiosk opens one slot for $2,000, and a Citrus Palace opens a second for $40,00
 
 ### Damage, repairs and rebuilds
 
-A damaged stand sells at its HP share of capacity: at 60% HP it pours 60% of its cups an hour. Damage comes from raids, Storms and the late-game Hurricane, and it shows in steps (see Visual style and art direction).
+A damaged stand sells at its HP share of capacity: at 60% HP it pours 60% of its cups an hour, and at least a cup an hour while it stands. A Damaged facility, from a Clubhouse to a Pier, keeps working at full output until it is Wrecked. Damage comes from raids, Storms and the late-game Hurricane, and it shows in steps (see Visual style and art direction).
 
 | State | How it happens | What it means | The fix |
 | --- | --- | --- | --- |
 | Damaged | Any hit short of 0 HP: a raid that runs out of time, a Storm (L1–L2 stands lose 25% HP), a Hurricane | Open, selling at its HP share | Repair: 15% of what was invested, scaled by the HP lost (half HP costs 7.5%) |
 | Busted | Laid Back only: a raid that would have Wrecked your stand | Closed | Repair: 10% of what was invested |
-| Wrecked | A Smash takes HP to 0 (Classic and Cutthroat) | Closed: a neat plank pile | Rebuild within 24 game hours: 15% of what was invested. Otherwise the plot goes For Sale |
+| Wrecked | A Smash takes HP to 0 (Classic and Cutthroat) | Closed: a neat plank pile | Rebuild: 15% of what was invested, booked by the end of the day after the smash. Otherwise the plot goes For Sale at the second dawn |
 
-Repairs and rebuilds happen overnight: approve one by closing time, and the stand opens at dawn as good as new. A stand smashed at night therefore misses a day of sales on top of the bill. Auto-Repair (Rank 3) approves them for you.
+Repairs and rebuilds happen overnight: approve one by the end of the Evening, and the stand opens at dawn as good as new. A stand smashed at night therefore misses a day of sales on top of the bill. Auto-Repair (Rank 3) books them for you at closing, most urgent first, and Morning Prep previews the bill. It keeps back tomorrow's wages and any loan payment due at dawn, so a fix the rest of your cash can't cover waits on the Day's end card for you.
 
 A Kiosk ($4,050 invested) at half HP costs $304 to repair; Wrecked, it costs $608 to rebuild.
 
@@ -554,6 +556,8 @@ In the campaign, Rank 3 opens The Boardwalk, The Groves, Campus & Arts and Downt
 
 Unowned plots sell at land value, on the spot: tap a For Sale sign or open the Land Registry. Rival plots change hands only through Plot Buyouts, First Dibs, Fire Sales and auctions.
 
+The Registry's For Sale list shows every open plot you can buy. A district that waits on a Foothold next door shows how many plots it holds and why, and a district still locked by rank stays hidden until that rank.
+
 ### Prices, growth and tax
 
 | District | Street plot | Special plots |
@@ -573,7 +577,9 @@ Land value grows as a district develops, up to ×2. Development = every faction'
 
 Maple Row has 12 plots, so twelve Kiosks (36 levels) lift its land ×1.75, and Lottie's $300 corner becomes $525.
 
-Land carries no tax or upkeep. To sell a plot, put it up for a 24-hour sealed-bid auction with bids opening at land value; if nobody bids, it stays yours.
+Land carries no tax or upkeep. To sell a plot, list it for a sealed-bid auction that closes at the next dawn, with bids opening at land value. It keeps working until it sells, and if nobody bids, it stays yours. Lottie's Corner stays in the family and a Trophy is never sold, so neither can be listed.
+
+HQ land rises with its district like any plot, so a Trophy's land keeps adding to your Net Worth, though HQs stay out of the development count.
 
 ### District control
 
@@ -581,7 +587,7 @@ Control is your share of a district's purchasable plots; civic and HQ plots don'
 
 | Tier | Share | Effect |
 | --- | --- | --- |
-| Foothold | At least 1 plot | You can buy and raid here; from Rank 3, bordering districts open for buying |
+| Foothold | At least 1 plot (a Trophy alone isn't one) | You can buy and raid here; from Rank 3, bordering districts open for buying |
 | Majority | 51%+ | Your stands here +10% sales; rival stands here −10% appeal; unowned land here 10% cheaper for you |
 | Stronghold | 75%+ | Raids into the district are detected more often, and your reinforcements arrive faster (see Defenses) |
 | Full Control | 100% | The district's perk, below |
@@ -610,13 +616,15 @@ With nothing to smash, a Vacant Lot can't be Wrecked, so it changes hands only b
 Knock it down, buy it up is how land changes hands by force.
 
 1. A Smash leaves any rival building but an HQ Wrecked, from a stand to a Pad or a Lemon Grove.
-2. Its owner has 24 game hours to rebuild, at 15% of what was invested. Rivals who can afford it rebuild by personality: the Blenders 40% of the time, Cold Brew 50%, Hollis 60%, FizzCo 70%, the Sourwoods 80%. Each Smash on that plot in the last 7 days cuts the chance by 30 points, and the Raid Planner shows it before you raid ("they rebuild: 70%").
-3. If it isn't rebuilt, the plot goes For Sale. Whoever smashed it gets First Dibs: 24 game hours to buy it at 100% of land value.
-4. Then a 24-hour sealed-bid Auction opens to every faction, with bids starting at land value. If nobody bids, the plot returns to the Registry, unowned.
+2. Its owner can rebuild, at 15% of what was invested. You have until the end of the day after the smash to book yours. A rival decides the morning after the smash, if its Grow money covers the bill, and rebuilds by personality: the Blenders 40% of the time, Cold Brew 50%, Hollis 60%, FizzCo 70%, the Sourwoods 80%. Each earlier Smash on that plot in the last 7 days cuts the chance by 30 points, and the Raid Planner shows it before you raid ("they rebuild: 70%").
+3. If it isn't rebuilt, the plot goes For Sale at that dawn. Whoever smashed it gets First Dibs until the next dawn, at 100% of land value. A rival that smashed it buys at once if its Grow money covers the price; if not, the plot goes straight to auction.
+4. Unused First Dibs opens a sealed-bid Auction to every faction still in the game. Bids start at land value and close at the next dawn. The highest bid wins and pays what it bid, and a tie goes to you. Your bid is paid only if it wins, from the cash you hold at dawn: short, and it bounces. If nobody bids, the plot returns to the Registry, unowned, at land value.
+
+Auction bids skip the rank and border rules and the Majority discount, though Family Silver and the Sharp Pencil tip each take 10% off a bid you win. A rival with the Grow money opens a Folding Table on a bare lot it holds, one a dawn, so the land it wins earns and can be raided like the rest.
 
 The same rules hold for your plots, so guard the ones you love. On Laid Back your stands are only ever Busted, so no raid can cost you a plot.
 
-An eliminated rival's plots go to a Fire Sale: First Dibs for you at 75% of land value for 2 days (see Rivals). The bank repossesses your lowest-value plot after 2 missed loan payments (see Economy and balance). Vera's Old Money can freeze one of your land deals.
+An eliminated rival's plots go to a Fire Sale: First Dibs for you at 75% of land value for 2 days (see Rivals). The bank repossesses a plot after 2 missed loan payments (see Economy and balance). Vera's Old Money can freeze one of your land deals.
 
 ### Plot Buyouts
 
@@ -707,7 +715,7 @@ A lost defense costs what the raid came for, plus the fence repair and a day off
 | Smash | The stand: Wrecked on Classic and Cutthroat, Busted on Laid Back |
 | A Smash that runs out of time | Less: the stand is only Damaged and sells at its HP share until repaired |
 
-A Wrecked stand closes, and you have 24 game hours to rebuild it for 15% of what you invested. Otherwise the plot goes For Sale, and the raider gets First Dibs (see Land and territory).
+A Wrecked stand closes, and you have until the end of the next day to book its rebuild, for 15% of what you invested. Otherwise the plot goes For Sale at the dawn after, and the raider gets First Dibs (see Land and territory).
 
 On Laid Back, your stands are only ever Busted: closed until a 10% repair, never Wrecked or For Sale.
 
@@ -1128,7 +1136,7 @@ Defense costs scale with what you protect. A Picket Fence costs $150 and a Citru
 
 - **Upkeep** runs from $5 a day for a Folding Table to $1,500 for a Citrus Palace.
 - **Wages** run $15 a day for a Rookie up to $90 for a Legend. Guards level up about once every 35 days of duty.
-- **Loans** from Marisol cover up to 50% of non-cash Net Worth at 3% interest per week over 4 weeks. Two missed payments let the bank repossess your lowest-value plot.
+- **Loans** from Marisol cover up to 50% of non-cash Net Worth at 3% interest per week over 4 weeks. Two missed payments let the bank repossess your lowest-value plot, valued as Net Worth counts it (land, 75% of the buildings and the stock on hand at cost). It never takes a Trophy, and it takes Lottie's Corner only when no other plot is left. The plot's value pays down the loan, and anything over what you owe comes back to you.
 
 Security spend (guards, defenses and repairs) is meant to sit at 15–25% of income through Acts 1–3. In the simulation it runs about a quarter of income in the first weeks, while the first fences, Dex and the first squad go in, then 20–22% to Day 55 and 15% to Day 80. Later it falls under 10% of a much bigger income, and the pressure comes from Delivery Raids, the Syndicate and the siege.
 
@@ -1156,7 +1164,7 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 
 Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
 
-These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons. So are the pacing economy behind them and the late-game stand mix in Income growth by stage: the new pacing sweep, with a player that uses every system, reports in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
 
 ### Difficulty differences
 
@@ -1182,7 +1190,7 @@ Grind breakers:
 
 ### How the numbers were checked
 
-A simulation played the full 170 days on all three difficulties across ten versions of the map, and 60 for the key checks. Its player bought what paid back fastest, kept a fifth of income for security and raided rival stands at night. Every number in Appendix A came from tuning that player toward the targets above.
+A simulation played the full 170 days on all three difficulties across ten versions of the map, and 60 for the key checks. Its player bought what paid back fastest, kept back about a quarter of income for security in the first two weeks, tapering to under a tenth after Day 80, and raided rival stands at night. Every number in Appendix A came from tuning that player toward the targets above.
 
 ### Pacing chart
 
@@ -1471,7 +1479,7 @@ Endless Summer follows any victory ("keep squeezing") or starts as its own mode.
 | Large | 8 | 5 |
 | Huge (stretch) | 10 | 5 |
 
-Small to Large are cut from Citrine Bay; Huge is generated. You start in Maple Row, and each chosen rival brings its home district. Every map keeps at least 1 Field and 1 Dock plot, so VIP clients stay reachable.
+Small to Large are cut from Citrine Bay; Huge is generated. You start in Maple Row, and each chosen rival brings its home district. Every map keeps at least 1 Field, 1 Dock and 1 Industrial plot, so VIP clients stay reachable. A map short of one retags a plain street plot as it: a Dock goes on the plot nearest the water, and a Field or Industrial lot on the cheapest plain plot outside Maple Row. A retagged lot starts neutral and empty, at its street price.
 
 You win by Domination, by Economic (a Success Score target picked from the rank thresholds) or never.
 
@@ -1484,7 +1492,7 @@ Difficulty changes how often rivals come and how hard setbacks land, never the r
 | Preset | Raids on you | Notice; Respect cooldown | Worst setback | Cookie Jar |
 | --- | --- | --- | --- | --- |
 | Laid Back | ×0.5; Threat −1 (minimum 1); up to 4 raid-free nights in a row | 30 game minutes; 5 days | Busted: closed until a 10% repair | Always, so no game over |
-| Classic | ×1: a base of 1 a week at Threat 1 to 6 at Threat 5, and never more than 2 raid-free nights in a row | 15 game minutes; 3 days | Wrecked: rebuild at 15% within 24 game hours, or the plot goes For Sale | Once per act |
+| Classic | ×1: a base of 1 a week at Threat 1 to 6 at Threat 5, and never more than 2 raid-free nights in a row | 15 game minutes; 3 days | Wrecked: rebuild at 15% by the end of the next day, or the plot goes For Sale | Once per act |
 | Cutthroat | ×1.5; at most 1 raid-free night in a row; the Syndicate forms at Threat 4 in Sandbox and Endless | 5 game minutes; 1 day | Wrecked, as Classic | Never |
 | Custom | Any value from ×0.5 to ×1.5; up to 2 raid-free nights in a row | Any value from Laid Back's to Cutthroat's | Busted-only on or off | Always, once per act or never |
 | Peaceful (Sandbox, on any preset) | None; rivals scheme instead | No combat on either side | Outbid or out-priced | As the preset |
@@ -1536,15 +1544,17 @@ Random events are announced as they start, and each alert card names its counter
 | Sugar Shortage | Sugar ×2 | 5 days | Sugar keeps: a stocked Warehouse rides it out |
 | Viral Video | One stand draws ×2 traffic | 2 days | Stock deep; raise the price |
 | Food Critic | A critic tastes at one named stand | 1 day | Short line, fair price, fitting recipe: +0.1 star (or −0.1) |
-| Health Inspection | An inspector checks one named stand | 1 day | Repair and restock it, or it closes until dawn |
+| Health Inspection | An inspector checks one stand, named a day ahead | 1 day | Repair and restock it, or it closes until dawn |
 | Power Outage | Ice machines stop in one district | 1 day | Buy Market ice for those stands |
 | Storm | Thirst ×0.2, traffic ×0.4 | 1 day | Stock light; repair L1–L2 stands |
-| Hurricane (late game) | Damage to buildings bay-wide | 1 day, forecast 2 days ahead | Fortified Frames; rebuilds cost only 15% |
+| Hurricane (late game) | Damage to buildings bay-wide, though nothing is Wrecked | 1 day, forecast 2 days ahead | Fortified Frames; repairs never cost more than a 15% rebuild |
 | Celebrity Sighting | ×2 traffic in one district | 1 day | Send Sunny the Lemon |
 | Parade Route | ×2 traffic on one street | 1 day | Restock the route's stands at noon |
 | Roadworks | −50% traffic on one street | 3 days | Run campaigns elsewhere |
 | Tourist Bus | Tourists fill one district | 1 day | Pour Strawberry, price high |
 | Captain Squawk | The gull steals one stand's lemon delivery | Until restocked | Restock; forgive him |
+
+The inspector's stand is named the day before, so a repair approved that Evening is done by the visit. The inspector never books a day forecast as a Storm, and a Storm the forecast missed calls the visit off.
 
 ### Taste-Offs
 
@@ -1600,7 +1610,7 @@ Lottie's goals collapse to one goal pill with a progress bar; tap it for the res
 
 **Day's end.** One card: the profit as a big number that counts up, cups sold and people turned away, Reputation stars with an up or down tick, the Rank meter, one line from Lottie, "Raiders on the way tonight" when a raid on you is planned, and Sleep. The raiders line names no gang, makeup or time (the warning card in the feed shows who, where and when as they set out), but it carries one fix, at the plot of the first raid to set out that still has one: post a ready guard from the reserve there, or else buy that plot's next fence, greyed out with the reason when cash is short. The card waits for you; "To the map" folds it for the Evening's moment, and the full Ledger sits behind "See the books".
 
-**Tabs.** The stand panel has three tabs, Today, Grow and Defend, and a tab appears only once something in it is unlocked. Grow shows picture cards (the next stand with three growth bars: faster, busier, holds more; local campaigns; brand marketing). Defend shows the crew as faces with level pips and a weapon icon, the Hiring Hall as faces, the next fence, and gadget slots; locked gadgets stay hidden. Marisol's bank is a building on the map, and a Borrow button appears where you're short.
+**Tabs.** The stand panel has three tabs, Today, Grow and Defend, and a tab appears only once something in it is unlocked. Grow shows picture cards (the next stand with three growth bars: faster, busier, holds more; local campaigns; brand marketing). Defend shows the crew as faces with level pips and a weapon icon, the Hiring Hall as faces, the next fence, and gadget slots; locked gadgets stay hidden. Marisol's bank is a building on the map, and a Borrow button appears where you're short. At Morning Prep her card sits on the Grow sheet. The rest of the day the bank keeps no hours: with no loan, a ticket in the feed offers Borrow whenever your cash is $60 or less, nights included; with one, it offers Pay off by day and in the Evening once your cash covers what you owe.
 
 **Plot card.** Name, owner colour and one action; land value, traffic and district share on hover or long-press.
 
@@ -2155,7 +2165,7 @@ The MVP ships only if new players hit the five playtest signals in Fun first.
 | A third plot, unprompted, within the first hour | Maple Row For Sale signs, L1 profit | Cheaper Maple Row plots |
 | Most first sessions run past 30 minutes | The 5-minute day, Lottie's Goals, the first upgrade | Faster first ranks |
 | A laugh at a taunt or headline in the first hour | Brock's calls, the Day 3 Steward visit | More, shorter taunts |
-| Losing a stand leads to a rebuild or revenge | The 24-hour rebuild, Smash, First Dibs | Cheaper rebuilds |
+| Losing a stand leads to a rebuild or revenge | The next-day rebuild, Smash, First Dibs | Cheaper rebuilds |
 | Laid Back stays relaxed through Act 1's 15 days; Cutthroat loses a stand once and comes back | Warnings, Busted versus Wrecked, the Cookie Jar | Raid frequency and notice |
 
 ### MVP calls to settle
@@ -2324,16 +2334,19 @@ Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's sid
 | Land appreciation | Value × (1 + development); development = district stand levels ÷ (4 × purchasable plots), capped at 1 (so up to ×2) |
 | Facility development | Each facility tier counts as 2 stand levels |
 | Majority land discount | −10% |
-| First Dibs (after your Smash) | 100% of land value, 24 game hours |
-| Fire Sale (rival eliminated, by capture or buyout) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days, then auction |
+| First Dibs (after a Smash) | 100% of land value, until the next dawn; a rival smasher buys at once if it can |
+| Fire Sale (rival eliminated, by capture, buyout or 7 days bankrupt) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days, then auction |
+| Sealed-bid auction | Opens at land value and closes at the next dawn; the highest bid pays what it bid; a tie goes to you; your bid is paid only if it wins, from the cash on hand at dawn |
+| Selling your plot | A sealed-bid auction among the rivals, as above; Lottie's Corner and Trophies can't be listed |
 | Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere |
 | HQ Assault (rival Weakened) | Each HQ from its own rank: Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 (the Big Squeeze). The same rank opens that rival's Faction Buyout |
 | Weakened (needed for HQ Assault and Faction Buyout) | Any one of: the rival holds 40% or less of its peak plots; its Net Worth is under 25% of yours; your daily sales (cups and bottles, in dollars) were at least 2× theirs for 7 days in a row |
 | Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
-| Rebuild a Wrecked building | 15% of what was invested in it, within 24 game hours (you and rivals alike) |
+| Rebuild a Wrecked building | 15% of what was invested in it (you and rivals alike). Yours: booked by the end of the day after the smash, or it goes For Sale at the second dawn. A rival's: decided the morning after |
 | Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild) |
 | Busted repair (Laid Back) | 10% of what was invested |
 | Loans (First Bank of Citrine Bay) | Up to 50% of non-cash Net Worth; 3% interest per week; 4-week terms |
+| Repossession (2 missed loan payments) | Your lowest-value plot as Net Worth counts it, never a Trophy, and the Corner only when no other plot is left; value over the debt comes back to you |
 
 There is no property tax and no insurance: cheap rebuilds take their place.
 

@@ -797,7 +797,7 @@ export const DIFFICULTY: Record<Difficulty, {
 /** Custom's sliders (spec: Custom: raids ×0.5 to ×1.5; notice and Respect cooldown anywhere from Laid Back's to
  * Cutthroat's): [lowest, highest, step]. */
 export const CUSTOM_RANGE = { raids: [0.5, 1.5, 0.1], notice: [5, 30, 5], respectDays: [1, 5, 1] } as const;
-/** Laid Back: repair a Busted stand for this share of what was invested (canon; Appendix A's 15% is older). */
+/** Laid Back: repair a Busted stand for this share of what was invested (canon and Appendix A: 10%). */
 export const BUSTED_REPAIR_SHARE = 0.1;
 /** Cash below $0 at dawn this many days running, and the Cookie Jar is the last chance. */
 export const IN_THE_RED_DAYS = 3;

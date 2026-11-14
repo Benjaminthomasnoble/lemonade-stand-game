@@ -162,7 +162,7 @@ Visual identity per level: L1 card table, crayon sign, glass pitcher, a cooler. 
 
 Specialization: at L3 a stand gets 1 specialization slot, at L5 a second. Options: **Express Window** (+30% service), **Fancy Menu** (+20% top price), **Fortified Frame** (+50% HP), **Billboard Roof** (+15% traffic to your stands within 2 plots).
 
-Damage: a damaged stand sells at a share of capacity equal to its HP share. Repairs cost 15% of what was invested × the share of HP lost, so a repair never costs more than a rebuild, and happen overnight (Auto-Repair unlocks at Rank 3).
+Damage: a damaged stand sells at a share of capacity equal to its HP share, and at least a cup an hour while it stands; a Damaged facility keeps working at full output until it is Wrecked. Repairs cost 15% of what was invested × the share of HP lost, so a repair never costs more than a rebuild, and happen overnight (Auto-Repair unlocks at Rank 3; it books the fixes at closing but keeps back tomorrow's wages and any loan payment due at dawn).
 
 ## 9. Marketing
 
@@ -201,9 +201,9 @@ District perks at Full Control: Maple Row "Neighborhood Watch" (free Tin-Can Ala
 
 **Knock it down, buy it up** (how land changes hands by force):
 1. Smash any rival building except an HQ: a stand, a VIP facility (Pad to Cargo Terminal), a Lemon Grove, a Warehouse or a Bottling Works. Its plot becomes **Wrecked**. (Hollis's 6 starting Fields hold Lemon Groves.)
-2. The owner has 24 game hours to rebuild (cost: 15% of what was invested in that building). AI rivals rebuild if they can afford it and their personality says so: a 40–80% chance by personality, cut by 30 points for each Smash on that plot in the last 7 days. The Raid Planner shows the chance before you raid ("they rebuild: 70%").
-3. If not rebuilt, the plot goes **For Sale**. Whoever smashed it gets **First Dibs** for 24 game hours at 100% land value.
-4. Then it goes to a 24-hour sealed-bid **Auction** open to every faction.
+2. The owner can rebuild (cost: 15% of what was invested in that building). The player has until the end of the day after the smash to book it, or the plot goes For Sale at the second dawn. AI rivals decide the morning after: they rebuild if they can afford it and their personality says so, a 40–80% chance by personality, cut by 30 points for each earlier Smash on that plot in the last 7 days. The Raid Planner shows the chance before you raid ("they rebuild: 70%").
+3. If not rebuilt, the plot goes **For Sale**. Whoever smashed it gets **First Dibs** until the next dawn at 100% land value (a rival smasher buys at once if it can afford it).
+4. Then it goes to a sealed-bid **Auction**, open to every faction, that closes at the next dawn. Bids open at land value; the highest pays what it bid, and a tie goes to the player. With no bids, the plot returns to the Registry, unowned.
 The same rules apply to the player's own plots (so defend them). On Laid Back, the player's stands are only ever Busted (closed until repaired at 10% cost), never Wrecked.
 
 Peaceful routes: **Plot Buyout** offers (Rank 4+; the rival asks 2.5× land value in their home district and 2× elsewhere; grudge and personality can nudge it) and **Faction Buyout** (from that rival's HQ rank, at Dot's Diner; see Rivals).
@@ -361,7 +361,7 @@ Pickup moments: a chopper lands or a ship docks in a 2-hour pickup window. The g
 - Start: $150 cash, Lottie's Corner (land value about $300) with an L1 stand, Classic, Pink and Mint recipes, no guards, no defenses. Starting Net Worth about $525.
 - Sources: cup sales, contracts, Shakedown loot, Supply Deals, land appreciation (counts toward SS), selling plots, fair prizes.
 - Sinks: supplies, stand upgrades, upkeep, wages, land, defenses, gear, marketing, repairs and rebuilds, loan interest, citations. (No insurance and no property tax: bills with no decision in them were cut, and rebuilds are cheap instead.)
-- Loans (Marisol, via the First Bank of Citrine Bay): up to 50% of your non-cash Net Worth, 3% interest per week, 4-week terms. Two missed payments → the bank repossesses your lowest-value plot.
+- Loans (Marisol, via the First Bank of Citrine Bay): up to 50% of your non-cash Net Worth, 3% interest per week, 4-week terms. Two missed payments → the bank repossesses your lowest-value plot as Net Worth counts it (never a Trophy, and Lottie's Corner only when no other plot is left), and pays back anything it's worth over the debt.
 - Security spend (guards, defenses, repairs) should land around 15–25% of daily income through Acts 1–3 on Classic (a little more in the first weeks, while the first fences and guards go in). Later it falls under 10% of a much bigger income, and the pressure comes from Delivery Raids, the Syndicate and the siege instead.
 - **Lottie's Cookie Jar**: if you'd go bankrupt, Lottie bails you out (Laid Back: always; Classic: once per act, or once per season in Sandbox and Endless; Cutthroat: never).
 - Bankruptcy: cash below $0 at end of day → "In the Red" with 3 days to fix it (sell, borrow). Otherwise: Game Over ("Squeezed Out"); the campaign reloads the last dawn autosave.

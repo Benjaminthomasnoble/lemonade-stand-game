@@ -115,7 +115,7 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,955–$2,092 at those dawns against the $2,306 for a Street plot and the Clubhouse. Whether to retune Act 2's cash or move the window is an open call for Ben.
 
 ### Crew
 

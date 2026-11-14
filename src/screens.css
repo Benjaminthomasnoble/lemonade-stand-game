@@ -542,7 +542,7 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
 .clay [data-testid="tips"] .cl-acts .cl-b:hover, .clay [data-testid="tips"] .cl-acts .cl-b:focus-visible { transform: translateY(calc(var(--u) * -1)) scale(1.06); z-index: 1; }
 .clay [data-testid="tips"] .cl-acts .cl-b .cl-cost-in { font: 400 calc(var(--u) * 1.35)/1.15 'Gochi Hand', cursive; font-style: normal; opacity: 1; }
 /* The plot card docks on the right on wide screens, clear of the left feed. */
-@media (min-width: 641px) { .clay .cl-plot { left: auto; right: calc(var(--u) * 1.8); } }
+@media (min-width: 641px) { #ui.clay:not(:has([data-testid="stand-panel"])) .cl-plot { left: auto; right: calc(var(--u) * 1.8); } } /* docked right, unless a tab's planner already holds that side */
 /* The stand panel's funnel: each step a clay bar, narrowing from walkers to stoppers to cups. */
 .clay .cl-funnel { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .4); }
 .clay .cl-funnel > span { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .4); min-width: calc(var(--u) * 14); width: calc(var(--w) * 100%); padding: calc(var(--u) * .4) calc(var(--u) * .8); white-space: nowrap; }
@@ -551,3 +551,17 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
 .clay .cl-funnel > span:nth-child(3)::before { background: radial-gradient(ellipse at 30% 20%, #eaf8e7 0 12%, #7CC47F 55%, #4f9a52 100%); }
 .clay .cl-funnel > span:nth-child(2), .clay .cl-funnel > span:nth-child(3) { color: #fffdf6; text-shadow: 0 1px 0 rgba(46,42,79,.6); }
 .clay .cl-funnel svg { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); flex: none; }
+
+/* Baked clay portraits (src/ui/portraits.ts): the phone polaroid, Corkboard pins, boss board, Sandbox picks, scene ticket. */
+#ui.clay .cl-face-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
+#ui.clay .phonecall .polaroid img { object-fit: cover; object-position: 50% 20%;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 8%, transparent 8% 20%), var(--side); }
+#ui.clay .cl-pinphoto { background: repeating-linear-gradient(90deg, rgba(255,255,255,.2) 0 8%, transparent 8% 20%), var(--side);
+  border: calc(var(--u) * .3) solid #fffdf6; box-shadow: 0 calc(var(--u) * .2) 0 rgba(46,42,79,.25); border-radius: calc(var(--u) * .3); overflow: hidden; transform: rotate(-3deg); }
+#ui.clay .cl-boss .cl-face-img { border-radius: 50%; background: var(--side); box-shadow: inset 0 0 0 calc(var(--u) * .2) rgba(46,42,79,.6); }
+#ui.clay .cl-boss.out .cl-face-img { filter: grayscale(.85); opacity: .7; }
+#ui.clay .cl-ticket > .cl-face-img { grid-row: span 2; width: calc(var(--u) * 4.2); height: calc(var(--u) * 4.2); border-radius: 50%; background: #FFF1D6; border: calc(var(--u) * .2) solid #2E2A4F; }
+#ui.clay .cl-diff .cl-face-img { width: calc(var(--u) * 2.8); height: calc(var(--u) * 2.8); margin-right: calc(var(--u) * -.4); border-radius: 50%; }
+/* A ticket with art keeps every line in the text column: a third line (a second note, the acts) never drops under the
+ * art and widens it (the Kids' Lemonade Day ticket squeezed its title to a letter a line). */
+.clay .cl-ticket > :is(svg, .cl-face-img):first-child ~ * { grid-column: 2; }

@@ -3,6 +3,7 @@
 // the ticket of a playing scene, first in the left feed (its caption, the
 // Grandkid's quick replies and Skip). Lessons gate the other panels' buttons:
 // see taught() in src/sim/story.ts.
+import { BOSS_PORTRAIT, faceImg, speakerPortrait } from './portraits.ts';
 import type { GameState, Goal } from '../sim/economy.ts';
 import { storyOffer } from '../sim/beats.ts';
 import { FACTIONS, type RivalId } from '../sim/balance.ts';
@@ -11,7 +12,7 @@ import { ACT_CLIMAX, hasStory, storyAct } from '../sim/story.ts';
 import { goalsNow } from '../sim/goals.ts';
 import { inPlay } from '../sim/land.ts';
 import { playingScene, sceneLine } from '../sim/scenes.ts';
-import { glyph, handshakeSVG, headBlob, INK, S, svg } from './clay.ts';
+import { glyph, handshakeSVG, INK, S, svg } from './clay.ts';
 let HANDSHAKE = '';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -42,6 +43,8 @@ export function sceneTicket(s: GameState, t: number, doodle: string): string {
   const replied = s.scenes?.playing?.reply;
   const replies = replied ? '' : (sc.replies ?? []).map((r) => `<button class="cl-b ghost tiny" data-action="sceneReply" data-text="${esc(r)}">${esc(r)}</button>`).join('');
   const said = line ? `${esc(line.who)}: “${esc(line.text)}”` : '…';
+  const who = line ? speakerPortrait(line.who) : undefined;
+  if (who) doodle = faceImg(who); // the speaker's own clay face (src/ui/portraits.ts); Lottie's doodle otherwise
   return `<div class="cl-ticket" data-testid="scene">${doodle}<b>${said}</b>
     <span class="cl-acts">${replies}<button class="cl-b ghost tiny" data-action="skipScene" data-testid="skip-scene">Skip</button></span></div>`;
 }
@@ -93,7 +96,7 @@ export function bossBoard(s: GameState, opens: string): string {
   const heads = board.map((r) => {
     const out = !s.rivals[r].alive;
     const col = '#' + FACTIONS[r].color.toString(16).padStart(6, '0');
-    return `<span class="cl-boss${out ? ' out' : ''}${r === next ? ' next' : ''}" data-boss="${r}">${svg(headBlob(32, 30, 17, '#F6C9A0', col))}${out ? '<i class="x"></i>' : ''}</span>`;
+    return `<span class="cl-boss${out ? ' out' : ''}${r === next ? ' next' : ''}" data-boss="${r}" style="--side:${col}">${faceImg(BOSS_PORTRAIT[r], 'cl-boss-face')}${out ? '<i class="x"></i>' : ''}</span>`;
   }).join('');
   const who = next ? `${FACTIONS[next].boss} (${FACTIONS[next].name})` : '';
   const tip = `Beat all ${['', 'one', 'two', 'three', 'four', 'five'][board.length]} drink gangs and win back Grandma's stolen recipes. ${left} of ${board.length} still standing.${next ? `\nNext: ${who}${fair !== null ? `, at the Summer Fair Taste-Off ${fair ? `in ${fair} day${fair > 1 ? 's' : ''}` : 'today'}` : ''}.` : ''}`;

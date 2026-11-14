@@ -2,17 +2,16 @@
 // the rivals that play, on the New Game screen. Small and Medium are cut from Citrine Bay around Maple Row and each
 // picked rival's home district (src/sim/map.ts cutMap); Large is the whole bay with all five. hud.ts draws it inside
 // the setup screen, and its clicks go through hud's one listener (data-action="pick", data-key "map" or "rival").
+import { BOSS_PORTRAIT, faceImg } from './portraits.ts';
 import { DISTRICT_BY_ID, DISTRICTS, FACTIONS, MAP_SIZES, cutMap, picksFit, type DistrictId, type MapSize, type RivalId, type Settings } from '../sim/economy.ts';
 import { BOSS_ORDER } from './story.ts';
-import { glyph, headBlob, svg } from './clay.ts';
+import { glyph } from './clay.ts';
 import type { ScoreEntry } from '../save.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const SIZES = Object.keys(MAP_SIZES) as MapSize[];
 const SHORT: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera', snootwater: 'Sterling' };
 /** Each boss's clay head in the gang colour, drawn once so redraws compare equal. */
-const FACE = new Map<RivalId, string>();
-const face = (r: RivalId) => FACE.get(r) ?? FACE.set(r, svg(headBlob(32, 30, 17, '#F6C9A0', '#' + FACTIONS[r].color.toString(16).padStart(6, '0')))).get(r)!;
 
 /** The size a New Game will play (unset: Large, the whole bay). */
 export const setupSize = (st: Settings): MapSize => (st.map && st.map in MAP_SIZES ? st.map : 'large');
@@ -63,7 +62,7 @@ export function sandboxPanel(st: Settings): string {
   const bosses = size === 'large' ? '' : `<div class="cl-row wrap" data-testid="rival-picks">${BOSS_ORDER.map((r) => {
     const on = picks.includes(r), can = on || !!swapIn(st, r);
     const tip = `${FACTIONS[r].name}, from ${DISTRICT_BY_ID[FACTIONS[r].home as DistrictId].name}${can ? '' : `\nWon't fit a ${MAP_SIZES[size].label} map with these rivals`}`;
-    return `<button class="cl-diff${on ? ' on' : ''}" data-action="pick" data-key="rival" data-value="${r}" data-testid="rival-${r}" aria-pressed="${on}" title="${esc(tip)}"${can ? '' : ' disabled'}><span>${face(r)}</span>${SHORT[r]}</button>`;
+    return `<button class="cl-diff${on ? ' on' : ''}" data-action="pick" data-key="rival" data-value="${r}" data-testid="rival-${r}" aria-pressed="${on}" title="${esc(tip)}"${can ? '' : ' disabled'}><span>${faceImg(BOSS_PORTRAIT[r])}</span>${SHORT[r]}</button>`;
   }).join('')}</div>`;
   return `<div class="cl-row wrap" data-testid="map-size"><span class="cl-label">Map</span>${sizes}</div>${bosses}`;
 }

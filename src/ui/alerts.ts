@@ -3,6 +3,7 @@
 // raider, the target and the ETA, with the party only when a Watchtower on the
 // plot sees it. Plain functional controls on the HUD's ticket styles; clicks go
 // through the HUD's one listener (data-action).
+import { faceImg } from './portraits.ts';
 import {
   awayAt, canBuyPerimeter, clockText, DEX, fenceRepairCost, guardReady, HQS, minutesLeft, onFeed, PERIMETERS, PLOT_BY_ID, siegeNight, towerCovers,
   type Alert, type GameState, type Raid, type RivalId,
@@ -31,7 +32,7 @@ const NOTE_ART: [RegExp, string, () => string][] = [
   [/OUT-OF-TOWNERS|Snootwater/i, 'bus', A.busSVG],
   [/nabbed|Ransom/i, 'fist', A.fistSVG],
   [/Squawk|horn|ship|the wind/i, 'gull', A.gullSVG],
-  [/\bDex\b/, 'dex', () => A.faceSVG('Dex Moody')],
+  [/\bDex\b/, 'dex', () => faceImg('dex')],
   [/\bSkip\b|lot by|side lot|Snap it up/i, 'clipboard', A.clipboardSVG],
   [/Benny|sign/i, 'board', A.boardSVG],
   [/Wooden Stand/i, 'stand2', () => A.standSVG(2)],

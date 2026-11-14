@@ -36,3 +36,7 @@ export function speakerPortrait(who: string): PortraitId | undefined {
   if (w.includes('lottie') || w.includes('grandma')) return 'lottie';
   return undefined;
 }
+
+/** A baked face as an <img> for the HUD's clay frames (decorative: the name is always beside it). */
+export const faceImg = (id: PortraitId, cls = ''): string =>
+  `<img class="cl-face-img${cls ? ` ${cls}` : ''}" src="${portraitUrl(id)}" alt="" draggable="false" loading="lazy">`;

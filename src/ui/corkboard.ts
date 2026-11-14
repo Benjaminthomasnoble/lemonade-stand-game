@@ -13,6 +13,7 @@
 // has no raids or HQ assaults, so its board pins no targets or snapshots: it
 // notes each boss's running scheme instead (their marketing stands in for
 // their raids).
+import { BOSS_PORTRAIT, faceImg } from './portraits.ts';
 import {
   budgetOf, FACTIONS, GADGETS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, peaceful, PERIMETERS, PLOTS, RAID_PARTY, RAID_RANK, raidCost,
   rivalStars, runningSchemes, softSpot, successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId, type SchemeKind,
@@ -106,7 +107,7 @@ function pin(s: GameState, id: RivalId): string {
     table ? btn('Sit down', `data-plot="${table.id}"`, `No HQ in the Bay: the Truce and the Faction Buyout are at ${table.name}`) : '',
   ].join('');
   return `<div class="cl-card" data-big data-testid="cork-${id}" title="${esc(`${HQS[id].boss}, ${FACTIONS[id].name}`)}">
-    <span class="cl-pic">${A.faceSVG(HQS[id].boss)}</span>
+    <span class="cl-pic cl-pinphoto" style="--side:#${FACTIONS[id].color.toString(16).padStart(6, '0')}">${faceImg(BOSS_PORTRAIT[id])}</span>
     <span class="cl-txt"><b>${esc(BOSS[id])} · ${esc(GANG[id])}</b><i>Score ${short$(successScore(s, id))} · ${esc(WANTS[id])}</i>
       ${tags ? `<span class="cl-row wrap">${tags}</span>` : ''}${strings(s, id)}${scoutedPins(s, id) /* crew: scouted snapshots (src/ui/gull.ts) */}</span>
     <span class="cl-acts">${acts}</span></div>`;

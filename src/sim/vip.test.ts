@@ -829,7 +829,7 @@ describe('VIP clients', () => {
     expect(successScore(s)).toBe(Math.floor(netWorth(s)));
   });
 
-  it('helicopter VIPs pay $30 a bottle and ships $40 (the VIP table; design-spec line 632 says $12 and $15)', () => {
+  it('helicopter VIPs pay $30 a bottle and ships $40 (balance-tables.md, Contracts)', () => {
     expect([ORDER_TIERS.heli.pay, ORDER_TIERS.ship.pay]).toEqual([30, 40]);
     const { s, field, dock } = vipGame(38);
     buildFacility(s, field.id, 'helipad');

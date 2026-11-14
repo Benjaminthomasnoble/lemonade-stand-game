@@ -1,7 +1,7 @@
 // The raids-on-you rules (spec: Threat; Raids on the player; Anti-frustration guarantees), called from crew.ts's
 // planNight and fightRaid: how many raids come tonight and who may send them (Respect, truces), what each is after
 // and how many plots it hits, its makeup (lookouts from Threat 3, a boss at Threat 5), the rivals' raids on each other,
-// and the scripted tutorial raid that always bounces.
+// and the scripted tutorial raid on Night 3: any fence or guard bounces it; undefended it takes the till.
 // Pure and seeded, like the rest of the sim.
 import {
   FACTIONS, GUARD_BASE, MAX_QUIET_NIGHTS, NO_RAID_DAYS, RAID_BOSS, RAID_LEAVE, RAID_TARGETS, RAIDS_PER_WEEK, RIVAL_LOOKOUTS, RIVAL_RAID_AT, RIVAL_VS_RIVAL,
@@ -48,7 +48,7 @@ export function raidCount(mean: number, u: number): number {
 /** The tutorial raid has been fought: a saved flag, so it never comes back once the six-fight log rolls over (a raid
  * on you still on record counts too, for hand-built and old states). */
 export const tutorialDone = (s: GameState) => !!s.tutorialRaidDone || s.battles.some((b) => b.defender === 'player');
-/** The first raid's night: the night your first Kiosk (Level 3) opens, or Day 15's (after the Summer Fair). */
+/** The first raid's night: Night 3 (the Day 3 rumor's), or the night your first Kiosk (Level 3) opens if that's sooner. */
 export const tutorialNight = (s: GameState) => s.day >= TUTORIAL_RAID_DAY || ownedPlots(s, 'player').some((p) => (s.plots[p.id].stand?.level ?? 0) >= 3);
 
 // ---------- raids on you ----------
@@ -65,8 +65,9 @@ function weakest(s: GameState, rival: RivalId, mine: Plot[], taken: Set<string>)
   return [...(near.length ? near : pool)].sort((a, b) => targetScore(s, rival, b.id) - targetScore(s, rival, a.id) || a.id.localeCompare(b.id))[0];
 }
 
-/** The scripted first raid on you: two Smoothie Bros with bare fists, announced, for a Shakedown, straight at Dex.
- * It always bounces (withDex, tutorialBounce). Brock calls first: his scripted first call rings the same day (phone.ts). */
+/** The scripted first raid on you, on Night 3: two Smoothie Bros with bare fists, announced, for a Shakedown, at the
+ * plot the Day 3 rumor named (`told`: the Corner), else Dex's post or your weakest plot. Any fence or guard bounces
+ * it; undefended it takes the till (tutorialBounce). Brock has phoned since Day 1 (phone.ts). */
 function tutorialRaid(s: GameState, rng: Rng, mine: Plot[], rival: RivalId, told?: Plot): Raid {
   const dex = s.guards.find((g) => g.name === DEX && g.post && s.plots[g.post]?.owner === 'player' && hasBuilding(s.plots[g.post]));
   const target = told ?? (dex ? PLOT_BY_ID[dex.post!] : weakest(s, rival, mine, new Set()));
@@ -93,11 +94,12 @@ export function raidOnYou(s: GameState, rng: Rng, rival: RivalId, target: Plot, 
   };
 }
 
-/** Tonight's raids on you (planNight, at closing): none in the first five days; the scripted tutorial raid on its
- * night (and nothing before it); on a Big Squeeze siege night, the one strike on its named targets; after that a
- * Poisson count for the week's rate, each from a rival who may raid you, at the weakest valuable plot nobody else is
- * hitting tonight. The bosses settle who actually sends each one (rivalAi signatureRaids) and the multi-plot ones
- * split after that (spreadRaids). */
+/** Tonight's raids on you (planNight, at closing): none on Nights 1-2 (NO_RAID_DAYS); the scripted tutorial raid on
+ * Night 3 (and nothing before it); on a Big Squeeze siege night, the one strike on its named targets; after that a
+ * Poisson count for the week's rate, at least one once MAX_QUIET_NIGHTS have gone by without a raid, each from a rival
+ * who may raid you, at the weakest valuable plot nobody else is hitting tonight. A rumor answered today (calls.ts)
+ * brings its gang to its plot first. The bosses settle who actually sends each one (rivalAi signatureRaids) and the
+ * multi-plot ones split after that (spreadRaids). */
 export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const u = nextRandom(rng);
   const mine = ownedPlots(s, 'player').filter((p) => hasBuilding(s.plots[p.id]));

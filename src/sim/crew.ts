@@ -79,7 +79,7 @@ export interface Raid {
   order?: string; // a Delivery Raid: the VIP order it's after
   bell?: { id: string; at: number }[]; // Ring the Bell (reinforce.ts): the reserve on its way, and the minute each gets there
   sabotage?: boolean; // fought as a Shakedown, but the 10 minutes go on spoiling the stock instead of the till
-  tutorial?: boolean; // the scripted first raid on you: Dex is always there, and it always bounces (threat.ts)
+  tutorial?: boolean; // the scripted first raid on you (Night 3): any fence or guard bounces it; undefended it takes the till (threat.ts)
   rumor?: true; // a day call's rumored raid (calls.ts): that gang comes for that plot, paid or not (rivalAi signatureRaids)
   due?: true; // the quiet-night cap's raid (threat.ts): it comes even when no boss can pay for it
   group?: string; // one raid on several of your plots: each part's fight, all sharing the raid's id (threat.ts spreadRaids)
@@ -1008,7 +1008,7 @@ export function fightRaid(s: GameState, raid: Raid, night: boolean, fought?: { i
   const res = fought?.res ?? runBattle(input, rng);
   s.seed = rng.seed;
   let loot = 0;
-  if (raid.tutorial) tutorialBounce(s, input, res); // the first raid on you always bounces off the fence and Dex (threat.ts)
+  if (raid.tutorial) tutorialBounce(s, input, res); // the first raid on you bounces off any fence or guard; undefended it takes the till (threat.ts)
 
   ps.defense.fenceHp = res.fenceHpLeft;
   if (input.attackers.length) defensesAfterRaid(ps); // won or lost: the fence needs its overnight repair, a Slick its reset

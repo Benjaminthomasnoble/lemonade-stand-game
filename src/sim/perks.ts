@@ -154,7 +154,7 @@ export const elbowGrease = (s: GameState, fighters: Fighter[]): Fighter[] =>
 /**
  * The fighting tips, on one raid's fight as it's set up (crew.ts battleInput): Elbow Grease on your raiders; on a plot
  * of yours, Porch Light (+20% HP to its defenders at night), Pep Talk (+10 Nerve to the guards on post) and the Goose
- * Whistle (your goose stuns twice). Guards who come later to the Bell fight as they are.
+ * Whistle (your goose stuns twice). The guards the Bell brings get their Porch Light as they come (porchLit).
  */
 export function tipsInFight(s: GameState, raid: { attacker: FactionId; target: string }, night: boolean, input: BattleInput): BattleInput {
   if (raid.attacker === 'player') return { ...input, attackers: elbowGrease(s, input.attackers) };
@@ -162,4 +162,11 @@ export function tipsInFight(s: GameState, raid: { attacker: FactionId; target: s
   const hp = night ? up(s, 'porchLight') : 1, nerve = plus(s, 'pepTalk');
   const defenders = hp === 1 && !nerve ? input.defenders : input.defenders.map((f) => ({ ...f, hp: f.hp * hp, nerve: f.nerve + nerve }));
   return { ...input, defenders, ...(tipOn(s, 'gooseWhistle') ? { gooseStuns: TIPS.gooseWhistle.value } : {}) };
+}
+
+/** Porch Light on the guards Ring the Bell brings (reinforce.ts): they defend your plot, so at night they get its +20%
+ * HP like the guards on post there. Pep Talk stays with the guards on post. */
+export function porchLit(s: GameState, fighters: Fighter[], night: boolean): Fighter[] {
+  const hp = night ? up(s, 'porchLight') : 1;
+  return hp === 1 ? fighters : fighters.map((f) => ({ ...f, hp: f.hp * hp }));
 }

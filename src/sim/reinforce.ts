@@ -22,6 +22,7 @@ import { garrisonHenchman, guardFighter, guardReady, henchmanFor, strongholdTrav
 import { HQS } from './rivals.ts';
 import { backOnGuard, fitGarrison, knockOut } from './garrison.ts';
 import { joinFight } from './fight.ts';
+import { porchLit } from './perks.ts'; // Porch Light on the guards who answer the bell
 import { travelMinutes } from './night.ts';
 import type { Rng } from './rng.ts';
 import type { GameState } from './economy.ts';
@@ -69,7 +70,7 @@ export function ringTheBell(s: GameState, raidId: string, dex = false): boolean 
   const party = bellParty(s, r.target);
   r.bell = party.flatMap(({ minutes, guards }) => guards.map((g) => ({ id: g.id, at: s.minute + minutes })));
   const f = s.fight;
-  if (f?.raid === r) for (const { minutes, guards } of party) joinFight(s, guards.map((g) => guardFighter(g, 'def', f.night, r.attacker)), minutes * FIGHT_SECONDS_PER_GAME_MINUTE);
+  if (f?.raid === r) for (const { minutes, guards } of party) joinFight(s, porchLit(s, guards.map((g) => guardFighter(g, 'def', f.night, r.attacker)), f.night), minutes * FIGHT_SECONDS_PER_GAME_MINUTE);
   s.news.push(`Ding-ding!${dex ? ' Dex rings the bell.' : ''} ${party.map((p) => `${names(p.guards)} leave${p.guards.length === 1 ? 's' : ''} ${PLOT_BY_ID[p.club].name}, ${p.minutes} min out`).join('; ')}.`);
   return true;
 }
@@ -95,7 +96,7 @@ export function withBell(s: GameState, raid: Raid, input: BattleInput, night: bo
   for (const b of raid.bell) {
     const g = s.guards.find((x) => x.id === b.id);
     if (!g || g.post || !guardReady(s, g) || raiding.has(g.id) || input.defenders.some((d) => d.id === g.id)) continue;
-    const f = guardFighter(g, 'def', night, raid.attacker);
+    const [f] = porchLit(s, [guardFighter(g, 'def', night, raid.attacker)], night);
     if (b.at <= s.minute) there.push(f);
     else { const t = (b.at - s.minute) * FIGHT_SECONDS_PER_GAME_MINUTE; later.set(t, [...(later.get(t) ?? []), f]); }
   }

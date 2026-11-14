@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   attentionOf, bidCost, bottlingCapacity, canHire, CLOSE, curbAppeal, detectionChance, expectedPassersby, factionBuyoutPrice,
-  hhmm, hireGuard, LOTTIES_CORNER, marketingTerms, migrateSave, newGame, nightStep, openStands, plotBuyoutPrice, plotPrice,
+  buildClubhouse, hhmm, hireGuard, LOTTIES_CORNER, marketingTerms, migrateSave, newGame, nightStep, openStands, plotBuyoutPrice, plotPrice,
   PLOTS, priceCeiling, raidInput, raidPartyFor, RANKS, RECRUIT_POOL, refreshRecruits, repairCost, rivalDawn, simulateRestOfDay,
   sleepUntilDawn, startCampaign, startNight, successScore, tickMinute, TIP_CARDS, TIPS, upgradeStand, lemonsExpiringTomorrow,
   type GameState, type Guard, type Raid, type RivalId, type Settings, type TipId,
 } from './economy.ts';
-import { creditGuards } from './crew.ts';
+import { creditGuards, guardFighter } from './crew.ts';
+import { startFight, watchFights } from './fight.ts';
+import { ringTheBell } from './reinforce.ts';
 import { koDays } from './clubhouse.ts';
 import { shakedownLoot } from './loot.ts';
 import { goalReward } from './goals.ts';
@@ -292,6 +294,40 @@ describe("Lottie's Tips: what each one does", () => {
     const dark = raidInput(s, r, true, { seed: 1 }).defenders.find((f) => f.id === 'g1')!;
     expect(lit.hp).toBeCloseTo(dark.hp * 1.2, 6);
     expect(lit.nerve).toBe(dark.nerve + 10);
+  });
+
+  it('Porch Light: the guards who answer the Bell get it too, at night, coming before the fight or during it', () => {
+    const at = (tips: TipId[], night: boolean) => {
+      const s = game(19);
+      s.rank = 7; s.cash = 1e6;
+      const club = PLOTS.find((p) => p.type === 'street' && p.district === 'maple' && !s.plots[p.id].owner)!.id;
+      s.plots[club].owner = 'player';
+      expect(buildClubhouse(s, club)).toBe(true);
+      s.guards = [guard('g1', LOTTIES_CORNER), guard('b1', null, { club }), guard('b2', null, { club })];
+      hold(s, ...tips);
+      const r: Raid = { id: 'r1', attacker: 'blenders', target: LOTTIES_CORNER, objective: 'smash', party: raidPartyFor(s, 'blenders'), detected: true, eta: hhmm(23 * 60) };
+      // Rung in time: one there at contact, one 30 minutes out.
+      r.bell = [{ id: 'b1', at: s.minute }, { id: 'b2', at: s.minute + 30 }];
+      const input = raidInput(s, r, night, { seed: 1 });
+      const there = input.defenders.find((f) => f.id === 'b1')!, later = input.joins![0].fighters.find((f) => f.id === 'b2')!;
+      // Rung while the fight is on: they join as they come.
+      delete r.bell;
+      watchFights(true);
+      try {
+        expect(startFight(s, r, night)).toBe(true);
+        expect(ringTheBell(s, r.id)).toBe(true);
+        const live = s.fight!.commands.flatMap((c) => (c.type === 'join' ? c.fighters : []));
+        return { there, later, live: live.map((f) => f.hp), base: guardFighter(s.guards[1], 'def', night, 'blenders') };
+      } finally { watchFights(false); }
+    };
+    const lit = at(['porchLight', 'pepTalk'], true), dark = at([], true), day = at(['porchLight', 'pepTalk'], false);
+    expect(lit.there.hp).toBeCloseTo(dark.there.hp * 1.2, 6);
+    expect(lit.later.hp).toBeCloseTo(dark.later.hp * 1.2, 6);
+    expect(lit.live).toEqual(dark.live.map((hp) => expect.closeTo(hp * 1.2, 6)));
+    expect(dark.live).toEqual([dark.base.hp, dark.base.hp]);
+    expect(lit.there.nerve).toBe(dark.there.nerve); // Pep Talk is for the guards on post
+    expect(day.there.hp).toBe(day.base.hp); // the porch light is for the night
+    expect(day.live).toEqual([day.base.hp, day.base.hp]);
   });
 
   it('Light Sleeper: word of a raid on you comes half an hour sooner', () => {

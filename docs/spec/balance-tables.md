@@ -6,15 +6,17 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 
 ### Stands
 
-| Level | Name | Rank | Cost ($) | Draw (traffic ×) | Service (cups/hour) | Top price ($/cup) | Upkeep ($/day) | HP | Guard posts | Typical payback (days) |
-|---|---|---|---|---|---|---|---|---|---|---|
-| L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 5 | 100 | 1 | — |
-| L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 15 | 300 | 2 | 2–4 |
-| L3 | The Kiosk | 3 | 3,500 | 2.3 | 120 | 3.00 | 60 | 800 | 3 | 4–7 |
-| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 300 | 2,000 | 4 | 4–11 |
-| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 1,500 | 5,000 | 6 | 11–15 |
+| Level | Name | Rank | Cost ($) | Draw (traffic ×) | Service (cups/hour) | Top price ($/cup) | Stock (cups) | Upkeep ($/day) | HP | Guard posts | Typical payback (days) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 300 | 5 | 100 | 1 | — |
+| L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 750 | 15 | 300 | 2 | 2–4 |
+| L3 | The Kiosk | 3 | 3,500 | 2.3 | 120 | 3.00 | 1,800 | 60 | 800 | 3 | 4–7 |
+| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 300 | 2,000 | 4 | 4–11 |
+| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 1,500 | 5,000 | 6 | 11–15 |
 
 Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower (an L4 on the Maple Row Landmark takes about 14 days).
+
+Stock is the cups of lemons, sugar and ice a stand holds: a day and a half at full pour (10 selling hours). A restock never fills it past that. From L3 your stands' radios play 101.5 The Squeeze through business hours. From L4 your stands have an ice machine: it makes their ice as they pour, at the Market price, so none melts overnight and Auto-Restock buys none (a Power Outage stops it for the day).
 
 ### Stand specializations
 
@@ -45,11 +47,13 @@ Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for
 | Campaign | Rank | Cost | Effect | Lasts |
 |---|---|---|---|---|
 | Sandwich-Board Kid | 2 | $40/day | +20% traffic at one L1–L3 stand | 1 day, renewable |
-| Free Sample Day | 2 | 100 free cups | +0.1 star; +15% traffic at that stand | 3 days |
+| Free Sample Day | 2 | 100 free cups, out of the stand's stock | +0.1 star; +15% traffic at that stand | 3 days |
 | Sunny the Lemon mascot walk | 3 | $300/day | +25% traffic for your stands in one district | 1 day, renewable |
-| Coupon Blitz | 4 | Prices −25% | +40% customers in one district | 1 day |
-| Event Sponsorship | 5 | $2,000 per festival day | +50% traffic for your stands in the festival district | The festival |
-| Billboard building | 7 | $25,000 to build | Your stands within 2 plots +20% traffic; rival stands there −10% appeal | Permanent |
+| Coupon Blitz | 4 | Prices −25% | ×1.4 appeal at your stands in one district, in place of what the cut would win on the price curve; it counts in the split with rival stands nearby | 1 day |
+| Event Sponsorship | 5 | $2,000 per festival day left, today included | +50% traffic for your stands in the festival district | The festival |
+| Billboard building | 7, once M4 stands | $25,000 to build, on a Street, Prime or Landmark plot of its own; 800 HP (placeholder) | Your stands within 2 plots +20% traffic for each Billboard; other owners' stands there −10% curb appeal, once however many Billboards reach them (placeholder) | Permanent |
+
+A campaign planned at Morning Prep runs today; one planned while the stands are open is booked for tomorrow and paid now, and a booking that can't start (the stand was lost, smashed or grew past L3 for the Sandwich-Board Kid, no stock for the samples, a Cease-and-Desist landed) is called off and its money comes back. There is one Sunny, so the mascot walks one district a day, and one Free Sample Day runs at a time across your stands. A Sandwich-Board Kid already at work on a stand that grows to L4 runs out its day but adds nothing (no refund). A Free Sample Day's cups go on the Ledger's Marketing row at their cost. A Wrecked Billboard counts for nothing until it's rebuilt. Word of Mouth (Campus & Arts at Full Control) halves every local campaign: see Demand constants.
 
 ### Perimeter tiers (per plot; each replaces the last)
 
@@ -343,7 +347,7 @@ There is no property tax and no insurance: cheap rebuilds take their place.
 | Cup and napkin | 0.05 | Flat |
 | Bottle and cap | 0.15 | For contracts; replaces the cup |
 
-Lemon, sugar and ice prices move ±20% a day at the Citrine Bay Market.
+Lemon, sugar and ice prices move ±20% a day at the Citrine Bay Market. The Market and Auto-Restock open on Day 2; Lottie stocks your table on Day 1 only. A pitcher is 10 cups (Day 1's lesson is to sell out your first). Every card pours the same stock, half a lemon, a scoop of sugar and 3 ice cubes a cup, plus its own extra at a flat cost per cup, so switching cards wastes nothing.
 
 | Recipe | Cost per cup ($) | Price bonus | Shines with (×1.2 appeal) |
 |---|---|---|---|
@@ -352,11 +356,13 @@ Lemon, sugar and ice prices move ±20% a day at the Citrine Bay Market.
 | Mint Lemonade | 0.25 | +5% | Joggers, students; Campus & Arts, The Boardwalk |
 | Strawberry Lemonade | 0.32 | +10% | Kids, tourists; Maple Row, The Boardwalk |
 | Frozen Lemonade | 0.30 | +15% | The Boardwalk; Summer and heat waves |
-| Honey-Ginger Hot Lemonade | 0.30 | +10% | Seniors; Maple Row, Old Town; ignores the Winter penalty |
+| Honey-Ginger Hot Lemonade | 0.30 | +10% | Seniors; Maple Row, Old Town; Winter (and it ignores the Winter penalty) |
 | Sparkling Lemonade | 0.32 | +15% | Office workers; Downtown |
 | Lavender Lemonade | 0.40 | +25% | High rollers; Hilltop Estates |
 | Hollis Half-and-Half | 0.25 | +10% | Workers; The Groves, The Harbor; Summer |
 | Lottie's Secret Reserve | 0.45 | +30% | Everyone, everywhere (×1.3 appeal) |
+
+A card shines in its districts, everywhere through its season (Frozen and Half-and-Half in Summer, Honey-Ginger in Winter), everywhere during a Heat Wave (Frozen), and for a festival or Tourist Bus crowd of its fans. Matches never stack. Honey-Ginger takes no Winter penalty: Winter demand at its stands is ×1, on the Boardwalk too.
 
 The Sweetness dial shifts appeal by 10% for a segment: kids like Extra, seniors and office workers like Less.
 
@@ -373,13 +379,17 @@ The Sweetness dial shifts appeal by 10% for a segment: kids like Extra, seniors 
 | Workers | 0.9 | 5 | 12:00–13:00 and 17:00–18:00 | Half-and-Half |
 | High Rollers | 2.0 | 2 | 14:00–19:00 | Lavender, Secret Reserve |
 
-A district's price tolerance in the land table is the blend of its usual crowd.
+A district's price tolerance in the land table is the blend of its usual crowd. Maple Row's crowd blends to about 0.9 (0.893), and its table value of 1.0 sets the ceiling; Hilltop Estates' crowd is all high rollers. In its peak hours a segment makes up ×1.8 more of the crowd (placeholder), the rest sharing what's left. Patience is the most people ahead a buyer will wait behind.
 
 ### Demand constants
 
 | Constant | Value |
 |---|---|
-| Base stop chance | 25% |
+| Base stop chance | 25%, × thirst × appeal, never above 95% (the cap is a placeholder) |
+| Price ceiling | The level's top price × the district's price tolerance × (1 + the recipe's price bonus), down to the cent. At your stands the Fancy Menu (+20%), the Blender Bar (Frozen +20%) and Lottie's Sweet Talk tip (+10%) multiply in |
+| Priced under the ceiling | +1% appeal per 1% under, up to +25% |
+| Priced over the ceiling | A quarter of buyers lost per 10% over, scaled by the district's tolerance ÷ the segment's, so the thriftiest leave first (the scaling is a placeholder); nobody buys at 40% over, tourists and high rollers too |
+| Traffic through the day | The day's passersby spread over the business hours by weight, 08:00 to 19:00: 0.9, 0.7, 0.7, 0.9, 1.3, 1.2, 1.1, 1.3, 1.3, 1.0, 1.1, 1.0, out of 12.5 (placeholder) |
 | Effective selling hours | 10 of 12 (peaks, lulls and queues) |
 | Reputation multiplier | 0.7 at 1 star to 1.3 at 5 stars |
 | Rival stands within 2 plots | Split customers by appeal (up to −35% for a stand in a crowded rival block) |
@@ -387,17 +397,24 @@ A district's price tolerance in the land table is the blend of its usual crowd.
 | Lemon Grove | +5% traffic at all your stands per Grove (up to 2); +10% per Grove with the Hollis Orchards trophy |
 | Town Favorite (Old Town at Full Control) | +10% traffic at your stands in Old Town and Maple Row |
 | Orchard Fresh (The Groves at Full Control) | +10% traffic at all your stands |
+| Power Lunch (Downtown at Full Control) | Traffic ×1.5 at your stands in Downtown and Old Town from 12:00 to 14:00 (the window is a placeholder): about ×1.1 over the day |
+| Tourist Trap (The Boardwalk at Full Control) | Tourists pay +20% for every cup at your stands, everywhere |
+| Word of Mouth (Campus & Arts at Full Control) | Local campaigns half price everywhere: the Sandwich-Board Kid $20 a day, Sunny $150 a day, Event Sponsorship $1,000 a festival day. A Free Sample Day hands out 50 cups, and a Coupon Blitz cuts 12.5% for the same ×1.4 appeal (both placeholders). The $25,000 Billboard isn't halved |
+
+The other district perks are Neighborhood Watch (Maple Row; see Gadgets), Shipping Lane and Old Money (The Harbor and Hilltop Estates; see Contracts).
 
 ### Weather and seasons
 
-| Weather | Thirst (×) | Foot traffic (×) | Summer odds (%) | Fall odds (%) | Winter odds (%) | Spring odds (%) |
-|---|---|---|---|---|---|---|
-| Scorcher | 1.6 | 1.0 | 15 | 3 | 0 | 2 |
-| Hot | 1.3 | 1.0 | 35 | 15 | 5 | 13 |
-| Warm | 1.0 | 1.0 | 30 | 37 | 25 | 40 |
-| Cloudy | 0.8 | 0.9 | 12 | 25 | 40 | 25 |
-| Rainy | 0.5 | 0.7 | 6 | 15 | 22 | 15 |
-| Storm | 0.2 | 0.4 | 2 | 5 | 8 | 5 |
+| Weather | Temperature (°F) | Thirst (×) | Foot traffic (×) | Summer odds (%) | Fall odds (%) | Winter odds (%) | Spring odds (%) |
+|---|---|---|---|---|---|---|---|
+| Scorcher | 95–104 | 1.6 | 1.0 | 15 | 3 | 0 | 2 |
+| Hot | 85–94 | 1.3 | 1.0 | 35 | 15 | 5 | 13 |
+| Warm | 72–84 | 1.0 | 1.0 | 30 | 37 | 25 | 40 |
+| Cloudy | 62–74 (placeholder) | 0.8 | 0.9 | 12 | 25 | 40 | 25 |
+| Rainy | 56–68 (placeholder) | 0.5 | 0.7 | 6 | 15 | 22 | 15 |
+| Storm | 55–66 (placeholder) | 0.2 | 0.4 | 2 | 5 | 8 | 5 |
+
+Scorcher, Hot and Warm keep their bands in every season. Cloudy, Rainy and Storm run cooler outside Summer: Fall −8°F, Winter −22°F, Spring −5°F (placeholder). The dawn forecast is right 80% of the time, within ±2°F (placeholder) and inside the kind's band; a miss is one step off along Scorcher, Hot, Warm, Cloudy, Rainy, Storm, to a kind the season has. The Radio Jingle (M3) adds the next 2 days' forecasts. A Storm day (the real weather, not the forecast) takes 25% of max HP off every faction's L1 and L2 stands at the open, never below 1 HP; each sells at its HP share until it's repaired.
 
 | Season (14 days each) | Demand (×) | The Boardwalk (×) |
 |---|---|---|
@@ -647,11 +664,22 @@ In Endless Summer, Snootwater Springs comes to town 14 days after victory (in a 
 
 | Rule | Value |
 |---|---|
-| Start | 3.0 stars |
-| Daily drift | 5% of the gap toward 3.0 + 0.4 per average stand level above L1 (cap 4.6) |
-| Helicopter VIP delivered | +0.2 star |
+| Start | 3.0 stars, kept within 1–5 |
+| Daily drift | At closing, 5% of the gap toward a target: 3.0 + 0.4 per average stand level above L1 (every stand counts, a wrecked one too), capped at 4.6, less 0.1 star per 10% of the day's would-be buyers who left empty-handed (too pricey, line too long or sold out) |
+| Free Sample Day | +0.1 star |
+| Taste-Off win | +0.1 star (the winner, rivals included) |
+| Food Critic | +0.1 star if the stand passes all three checks for the district's main crowd (a short line, a fair price, a card they love or that shines there); −0.1 if any fails or it sold no cup. The line is short while under 5% of the stand's walkers leave over it (placeholder) |
+| Helicopter VIP delivered | +0.2 star (ships, Supply Deals and Mega Contracts add none) |
+| A failed or overrun delivery | −0.3 star, once per order |
+| Cold Brew's smear posters | −0.1 star (placeholder; see Schemes) |
 | Daytime raid | −0.1 star (−0.2 for a daytime Smash or HQ Assault; nothing for a squad of Gentle Giants alone) |
+| Raiding a kid stand on Kids' Lemonade Day | −0.5 star |
+| Releasing a captive | +0.05 star |
+| Breaking a Truce | −1 star |
 | VIP gates | Helicopter 3.5, Ship 4.0, Mega 4.5 stars |
+| The Beloved ending | 4.0 stars or more at victory, and more buyouts than Smashes and HQ captures; otherwise the Iron Pitcher |
+
+Rivals keep stars by the same rules: their own drift from their stands, and the Taste-Off's +0.1.
 
 ### Starting conditions
 

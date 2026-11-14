@@ -1,12 +1,43 @@
 // Land and territory (spec: Land and territory; canon section 9): where you may
 // buy, what lifts land prices, district control tiers and the Full Control
 // perks. Pure functions over GameState, like the rest of the sim.
-import { DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, RANKS, STRONGHOLD } from './balance.ts';
-import { BORDERS, DISTRICTS, PLOTS, type DistrictId, type Plot } from './map.ts';
+import {
+  DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STRONGHOLD, type MapSize, type RivalId,
+} from './balance.ts';
+import { BORDERS, cutMap, mapDistricts, onMap, picksFit, PLOTS, type DistrictId, type Plot } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
+import type { Settings } from './modes.ts';
 import { hasFoothold } from './economy.ts';
 import { districtControl } from './modes.ts';
 import { closeAuctions, openLavender } from './auction.ts';
+
+// ---------- the map (spec: Sandbox: Turf War) ----------
+
+/**
+ * New Game: a Sandbox run keeps its size (Large unless picked) and its rivals (the size's picks unless the ones given
+ * fit it), and Small and Medium get the districts and retags cut for them (map.ts cutMap). The campaign and Endless
+ * play the whole bay with all five rivals. Whatever an earlier run's settings carried over is worked out again.
+ */
+export function settleMap(st: Settings): Settings {
+  delete st.districts;
+  delete st.retag;
+  if (st.mode !== 'sandbox') { delete st.map; delete st.rivals; return st; }
+  const size: MapSize = st.map && st.map in MAP_SIZES ? st.map : 'large';
+  st.map = size;
+  if (!st.rivals || !picksFit(size, st.rivals)) st.rivals = [...MAP_SIZES[size].picks];
+  if (size === 'large') return st;
+  const cut = cutMap(size, st.rivals)!;
+  st.districts = cut.districts;
+  if (Object.keys(cut.retag).length) st.retag = cut.retag;
+  return st;
+}
+
+const EVERY_RIVAL = MAP_SIZES.large.picks;
+/** The rivals that play this run: a Sandbox's picks, else all five. The rest never exist in play. */
+export const rivalsInPlay = (s: { settings: Settings }): RivalId[] => s.settings.rivals ?? EVERY_RIVAL;
+export const inPlay = (s: { settings: Settings }, id: RivalId) => rivalsInPlay(s).includes(id);
+/** The run's map size: a Sandbox's pick, else Large (the whole bay: the campaign, Endless and older saves). */
+export const mapSize = (s: { settings: Settings }): MapSize => s.settings.map ?? 'large';
 
 /** Civic buildings and HQs are never bought, so they count toward neither control nor development. */
 export const isPurchasable = (p: Plot) => p.type !== 'civic' && p.type !== 'hq';
@@ -38,11 +69,12 @@ export function development(s: GameState, d: DistrictId): number {
  * everywhere else from Rank 2.
  */
 export function reachBlocker(s: GameState, d: DistrictId): Blocker {
+  if (!onMap(s, d)) return { ok: false, why: 'Off this map' }; // a Sandbox map cut from the bay
   const sandbox = s.settings.mode === 'sandbox';
   const gate = sandbox ? (d === 'maple' ? 1 : 2) : DISTRICT_RANK[d] ?? 3;
   if (s.rank < gate) return { ok: false, why: `Needs Rank ${gate}, ${RANKS[gate - 1].title}` };
   if (d === 'maple' || (!sandbox && d === 'oldtown')) return { ok: true };
-  if (hasFoothold(s, 'player', d) || BORDERS[d].some((b) => hasFoothold(s, 'player', b))) return { ok: true };
+  if (hasFoothold(s, 'player', d) || BORDERS[d].some((b) => onMap(s, b) && hasFoothold(s, 'player', b))) return { ok: true }; // on-map neighbours only
   return { ok: false, why: 'Get a Foothold in a bordering district first' };
 }
 
@@ -113,13 +145,13 @@ const PERK_HOME = Object.fromEntries(Object.entries(DISTRICT_PERKS).map(([d, p])
 
 /** A perk is on exactly while its district is at Full Control: no latch, so losing any plot there switches it off. */
 export const perkActive = (s: GameState, id: PerkId) => controlTier(s, PERK_HOME[id]) === 'full';
-export const perksOn = (s: GameState): PerkId[] => DISTRICTS.filter((d) => controlTier(s, d.id) === 'full').map((d) => DISTRICT_PERKS[d.id].id);
+export const perksOn = (s: GameState): PerkId[] => mapDistricts(s).filter((d) => controlTier(s, d.id) === 'full').map((d) => DISTRICT_PERKS[d.id].id);
 /** The plots you'd need to (re)take for Full Control in a district. */
 export const missingPlots = (s: GameState, d: DistrictId) => purchasablePlots(d).filter((p) => s.plots[p.id].owner !== 'player');
 
 function controlSnapshot(s: GameState): Partial<Record<DistrictId, ControlTier>> {
   const out: Partial<Record<DistrictId, ControlTier>> = {};
-  for (const d of DISTRICTS) { const t = controlTier(s, d.id); if (t !== 'none') out[d.id] = t; }
+  for (const d of mapDistricts(s)) { const t = controlTier(s, d.id); if (t !== 'none') out[d.id] = t; }
   return out;
 }
 
@@ -128,7 +160,7 @@ const names = (list: Plot[]) => list.length <= 2 ? list.map((p) => p.name).join(
 /** Headlines when a district's tier crosses Majority or Full Control (call after land changes hands; it remembers the last tiers). */
 export function announceControl(s: GameState): void {
   const was = s.control ?? {};
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) {
     const before = was[d.id] ?? 'none', now = controlTier(s, d.id);
     if (now === before) continue;
     const perk = DISTRICT_PERKS[d.id];

@@ -19,6 +19,7 @@ import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
 import { mediaAtClose, mediaAtDawn } from './media.ts';
 import { ceaseAndDesistIn } from './schemes.ts';
 import { addRivalStars } from './demand.ts'; // a rival's own Reputation: its Taste-Off star
+import { inPlay } from './land.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -286,7 +287,7 @@ function rivalScore(rng: { seed: number }, c: Contestant, judges: Judge[]): numb
 /** Sandbox and Endless: a missing page a fair win brings home: Strawberry, or one whose holder isn't on the map (the harp teacher's Lavender). */
 export function fairWinPage(s: GameState, id: RecipeId): boolean {
   const h = pageHolder(s, id);
-  return !!h && !storyFairs(s) && (id === 'strawberry' || h === 'harpTeacher' || !(h in s.rivals));
+  return !!h && !storyFairs(s) && (id === 'strawberry' || h === 'harpTeacher' || !inPlay(s, h)); // land: a rival a Sandbox left out
 }
 
 /** One page per fair win, Strawberry first. */

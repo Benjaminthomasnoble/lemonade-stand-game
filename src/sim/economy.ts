@@ -24,7 +24,7 @@ import { historicHedges, landFrozen, priceWarCut, provideMysteryGoal, schemesAtD
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, refreshRecruits, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
-import { DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { LOTTIES_CORNER, mapDistricts, nearbyPlots, onMap, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { checkVictory, defaultSettings, fortunesAtDawn, gameOver, type Loan, type Outcome, type Settings, type Tally } from './modes.ts';
 import { COMBAT_RULES, migrateCombat } from './combat.ts';
 import { damageAtClose, damageAtDawn, migrateDamage, restoreHp, stormAtOpen, type Repair } from './damage.ts'; // hpCapacity: demand's pourRate
@@ -47,7 +47,7 @@ import type { LiveFight } from './fight.ts';
 import type { Captive } from './captives.ts';
 import { closeTills } from './loot.ts';
 import {
-  announceControl, development, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, type ControlTier, type PerkId,
+  announceControl, development, inPlay, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, settleMap, type ControlTier, type PerkId,
 } from './land.ts';
 import type { Auction, Lavender } from './auction.ts';
 import type { SyndicateState } from './syndicate.ts';
@@ -344,19 +344,20 @@ function investedFor(level: number): number {
   return STAND_LEVELS.slice(0, level).reduce((a, l) => a + l.cost, 0);
 }
 
-/** Rivals start with their home turf and a foothold in Old Town. */
+/** Rivals start with their home turf and a foothold in Old Town (a Sandbox seeds only its picks, on its own map). */
 function seedRivals(s: GameState, rng: Rng): void {
   for (const id of RIVAL_IDS) {
     const f = FACTIONS[id];
     s.rivals[id] = { cash: f.startCash, brandTier: id === 'fizzco' ? 2 : 1, grudge: 0, attention: 0, peakPlots: 0, alive: true, respectUntil: 0 };
+    if (!inPlay(s, id)) { Object.assign(s.rivals[id], { cash: 0, alive: false }); continue; } // land: left out of this Sandbox, never in play
     const home = PLOTS.filter((p) => p.district === f.home);
     const hq = home.find((p) => p.type === 'hq');
     if (hq) s.plots[hq.id] = { owner: id, stand: null, invested: 0, landValue: hq.baseLand, defense: NO_DEFENSE() };
-    const street = home.filter((p) => ['street', 'prime', 'landmark', 'field'].includes(p.type));
+    const street = home.filter((p) => ['street', 'prime', 'landmark', 'field'].includes(plotType(s, p))); // a plot the map retagged stays neutral
     const take = Math.round(street.length * f.homeShare);
     const order = street.map((p) => ({ p, k: nextRandom(rng) })).sort((a, b) => a.k - b.k).map((x) => x.p);
     for (const p of order.slice(0, take)) placeRivalStand(s, id, p, rng);
-    const oldTown = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner);
+    const oldTown = PLOTS.filter((p) => p.district === 'oldtown' && onMap(s, 'oldtown') && plotType(s, p) === 'street' && !s.plots[p.id].owner);
     for (let i = 0; i < f.oldTownStands; i++) {
       const p = oldTown.splice(Math.floor(nextRandom(rng) * oldTown.length), 1)[0];
       if (p) placeRivalStand(s, id, p, rng);
@@ -367,7 +368,7 @@ function seedRivals(s: GameState, rng: Rng): void {
   const holder: Partial<Record<string, RivalId>> = { groves: 'hollis', harbor: 'fizzco', hilltop: 'sourwood' };
   for (const p of PLOTS) {
     const owner = holder[p.district];
-    if (owner && (p.type === 'field' || p.type === 'dock' || p.id === FIZZCO_PLANT) && !s.plots[p.id].owner) {
+    if (owner && inPlay(s, owner) && onMap(s, p.district) && (p.type === 'field' || p.type === 'dock' || p.id === FIZZCO_PLANT) && !s.plots[p.id].owner) { // an absent holder's land starts neutral; land off the map stays nobody's
       s.plots[p.id] = { owner, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
     }
   }
@@ -405,7 +406,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
     plots: {}, rivals: {} as Record<RivalId, RivalState>, spawnCarry: {}, selected: LOTTIES_CORNER,
     today: undefined as unknown as DayStats, history: [], peakScore: 0, lifetimeCups: 0, news: [],
     guards: [], recruits: [], nextId: 1, raids: [], battles: [], respectFromPlayer: {},
-    bottles: 0, offers: [], orders: [], settings: defaultSettings(settings), peakDay: 1,
+    bottles: 0, offers: [], orders: [], settings: settleMap(defaultSettings(settings)), peakDay: 1, // land: a Sandbox's map and rivals
     combatRules: COMBAT_RULES,
     tutorialRaidDone: false, // nights: a fresh run's own flag, so a load never guesses it from the day (threat.ts migrateThreat)
   };
@@ -925,7 +926,7 @@ export function lemonsExpiringTomorrow(s: GameState, st: Stand): number {
 
 /** Land rises with development (more and bigger stands in a district), up to ×2 base. HQ land rises with its district too. */
 function updateLandValues(s: GameState): void {
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) {
     const dev = development(s, d.id);
     for (const p of PLOTS) if (p.district === d.id && p.type !== 'civic') s.plots[p.id].landValue = Math.round(p.baseLand * (1 + (LAND_DEVELOPMENT_MAX - 1) * dev));
   }
@@ -942,6 +943,7 @@ export function hasFoothold(s: GameState, owner: FactionId, d: DistrictId): bool
 export function canBuyPlot(s: GameState, plotId: string): Blocker {
   const p = PLOT_BY_ID[plotId];
   const ps = s.plots[plotId];
+  if (!plotOnMap(s, p)) return { ok: false, why: 'Off this map' };
   if (p.type === 'civic') return { ok: false, why: 'Civic land is not for sale' };
   if (p.type === 'hq') return { ok: false, why: 'HQs are captured, never bought' };
   if (ps.owner === 'player') return { ok: false, why: 'You own it' };
@@ -982,11 +984,11 @@ export function buyPlot(s: GameState, plotId: string): boolean {
 }
 
 export function canBuildStand(s: GameState, plotId: string): Blocker {
-  const p = PLOT_BY_ID[plotId];
+  const type = plotType(s, PLOT_BY_ID[plotId]); // a Sandbox map may have retagged it
   const ps = s.plots[plotId];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
   if (ps.stand) return { ok: false, why: 'There is already a stand here' };
-  if (p.type === 'field' || p.type === 'dock') return { ok: false, why: `${p.type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
+  if (type === 'field' || type === 'dock') return { ok: false, why: `${type === 'field' ? 'Fields hold helipads' : 'Docks hold piers'}, not stands` };
   if (ps.facility) return { ok: false, why: 'A facility is built here' };
   if (s.phase !== 'prep') return { ok: false, why: 'Build during Morning Prep' };
   if (s.cash < STAND_LEVELS[0].cost) return { ok: false, why: `Needs $${STAND_LEVELS[0].cost}` };

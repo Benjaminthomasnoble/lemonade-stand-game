@@ -2,20 +2,19 @@
 // Economy and balance: Lottie's Cookie Jar and bankruptcy; loans). Pure
 // functions over GameState, like the rest of the sim.
 import {
-  ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, FACTIONS, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
-  SEASON_DAYS, STAND_LEVELS, type Difficulty, type Mode, type RivalId, type WinCondition,
+  ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
+  SEASON_DAYS, STAND_LEVELS, type Difficulty, type MapSize, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
-import { DISTRICTS, PLOTS, type DistrictId } from './map.ts';
+import { mapDistricts, plotOnMap, PLOTS, type DistrictId, type PlotType } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
-import { announceControl } from './land.ts';
+import { announceControl, rivalsInPlay } from './land.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
 
 export interface Settings {
   mode: Mode;
@@ -27,6 +26,11 @@ export interface Settings {
   raidPause?: boolean; // raid warnings on you auto-pause (unset: the difficulty's default, on except Cutthroat)
   custom?: CustomDifficulty; // Custom difficulty's sliders
   lessons?: boolean; // Lottie teaches one system a day (off: buttons follow rank alone); unset is on
+  // land: a Sandbox map (land.ts settleMap fills these in at New Game; the campaign and Endless play the whole bay)
+  map?: MapSize; // Small, Medium or Large (unset: Large)
+  rivals?: RivalId[]; // the rivals that play (unset: all five)
+  districts?: DistrictId[]; // the districts cut from Citrine Bay for this map (unset: all eight)
+  retag?: Record<string, PlotType>; // plain plots the cut made a Dock, Field or Industrial lot, so VIP clients stay reachable
 }
 
 /** Custom difficulty: each slider anywhere from Laid Back's value to Cutthroat's. */
@@ -100,13 +104,15 @@ export function districtControl(s: GameState, d: DistrictId): { mine: number; to
   return { mine, total: plots.length, share: plots.length ? mine / plots.length : 0 };
 }
 
+/** Domination: every rival in play gone, and a Majority in every district on the map (land: a Sandbox map's own). */
 export function dominationProgress(s: GameState) {
-  const rivalsLeft = RIVALS.filter((r) => s.rivals[r].alive);
-  const majority = DISTRICTS.filter((d) => districtControl(s, d.id).share >= MAJORITY);
-  return { rivalsLeft, majority: majority.length, districts: DISTRICTS.length, done: !rivalsLeft.length && majority.length === DISTRICTS.length };
+  const rivalsLeft = rivalsInPlay(s).filter((r) => s.rivals[r].alive);
+  const districts = mapDistricts(s);
+  const majority = districts.filter((d) => districtControl(s, d.id).share >= MAJORITY);
+  return { rivalsLeft, majority: majority.length, districts: districts.length, done: !rivalsLeft.length && majority.length === districts.length };
 }
 
-export const everyLastPlot = (s: GameState) => PLOTS.every((p) => p.type === 'civic' || s.plots[p.id].owner === 'player');
+export const everyLastPlot = (s: GameState) => PLOTS.every((p) => p.type === 'civic' || !plotOnMap(s, p) || s.plots[p.id].owner === 'player');
 
 /** Called whenever land or rivals change hands, and at dawn. Returns true on the day the run is won. */
 export function checkVictory(s: GameState): boolean {

@@ -9,6 +9,7 @@ import { PLOT_BY_ID, type DistrictId } from './map.ts';
 import type { GameState, Stand } from './economy.ts';
 import { seasonOf } from './economy.ts';
 import { hasTrophy } from './rivals.ts';
+import { inPlay } from './land.ts';
 import { crowdAt, setupTasteOff, type Boost, type Sponsorship, type TasteOff, type TasteOffResult } from './calendar.ts';
 import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
@@ -65,7 +66,7 @@ export function migrateWorld(s: GameState): GameState {
   // Older saves: a rival already out of the game has handed its pages back.
   for (const id of RECIPE_IDS) {
     const h = w.holders[id];
-    if (h && h !== 'harpTeacher' && s.rivals[h] && !s.rivals[h].alive) grantPage(s, id, true);
+    if (h && h !== 'harpTeacher' && s.rivals[h] && !s.rivals[h].alive && inPlay(s, h)) grantPage(s, id, true); // land: a rival a Sandbox left out never fell: its page comes from a fair
   }
   if (!w.tasteOff && s.phase !== 'report') setupTasteOff(s); // loaded on a Taste-Off morning
   provideKidsGoal(); // Kids' Lemonade Day's goal on Lottie's card (happenings.ts)
@@ -200,7 +201,7 @@ export function sweetnessFit(seg: SegmentId, v: Sweetness): number {
 /** The Blend Shack Trophy: Frozen Lemonade's top price rises 20% once the Blenders are out, on every route (HQ captured,
  * Faction Buyout, 7 days bankrupt: canon, Elimination), so a bust whose HQ stands empty still lifts it. */
 export const blenderBar = (s: GameState, id: RecipeId) =>
-  (id === 'frozen' && (hasTrophy(s, 'blenders') || s.rivals.blenders?.alive === false) ? BLENDER_BAR_TOP_PRICE : 1);
+  (id === 'frozen' && (hasTrophy(s, 'blenders') || (s.rivals.blenders?.alive === false && inPlay(s, 'blenders'))) ? BLENDER_BAR_TOP_PRICE : 1); // land: never from a rival a Sandbox left out
 
 const NEUTRAL = Object.freeze({ match: 1, sweet: 1, top: 1 });
 /** appealFor's one call: the card's match, the Sweetness factor for this segment and the top-price perk (rivals: all 1). */

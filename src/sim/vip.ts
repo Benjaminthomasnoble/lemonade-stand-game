@@ -4,7 +4,7 @@
 import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { scheduleDeliveryRaid } from './night.ts';
-import { PLOT_BY_ID, PLOTS, type PlotType } from './map.ts';
+import { PLOT_BY_ID, plotType, PLOTS, type PlotType } from './map.ts';
 import { FIZZCO_PLANT, hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -198,7 +198,7 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
   const ps = s.plots[plotId];
   const f = FACILITIES[kind];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
-  if (!f.on.includes(p.type)) return { ok: false, why: `Needs a ${f.on.join(' or ')} plot` };
+  if (!f.on.includes(plotType(s, p))) return { ok: false, why: `Needs a ${f.on.join(' or ')} plot` }; // land: as a Sandbox map tagged it
   if (ps.stand) return { ok: false, why: 'A stand is here' };
   if (ps.facility && ps.facility.kind !== kind && !replacesGrove(s, plotId, kind)) return { ok: false, why: 'Something else is built here' };
   if (ps.facility?.wrecked) return { ok: false, why: 'Rebuild it first' };

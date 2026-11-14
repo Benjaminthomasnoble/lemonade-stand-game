@@ -8,7 +8,7 @@ import {
   BOARDWALK_SEASON, BRAND_TIERS, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND,
   SEASON_WEATHER, SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
-import { BORDERS, PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
+import { BORDERS, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
@@ -431,7 +431,7 @@ export function growLand(s: GameState, id: RivalId, rng: Rng): void {
     const ps = s.plots[plotId];
     return !ps.owner && !ps.auction && !ps.dibs && !landFrozen(s, plotId); // land: First Dibs, then a sealed-bid auction (auction.ts); never off the shelf meanwhile
   };
-  const targets = PLOTS.filter((p) => open(p.id) && (p.type === 'street' || p.type === 'prime')
+  const targets = PLOTS.filter((p) => open(p.id) && plotOnMap(s, p) && (plotType(s, p) === 'street' || plotType(s, p) === 'prime') // land: a Sandbox map's own plots, as it tagged them
     && (p.district === f.home || hasFoothold(s, id, p.district)) && p.district !== 'maple');
   const p = targets.sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
   if (!p) return;

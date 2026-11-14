@@ -10,13 +10,14 @@ import {
   BRAND_TIERS, CLUBHOUSE, CUPS_PER_PITCHER, DISTRICT_RANK, GOAL_REWARD, HIRE_RANK, LESSON_DAY, PERIMETERS, RAID_RANK, RANKS, SALES_GOAL_SHARE,
   SEASON_DAYS, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, WEAPONS, type RivalId, type Sweetness,
 } from './balance.ts';
-import { DISTRICTS, LOTTIES_CORNER, PLOTS, type DistrictId } from './map.ts';
+import { DISTRICTS, LOTTIES_CORNER, onMap, plotOnMap, PLOTS, type DistrictId } from './map.ts';
 import type { GameState, Goal } from './economy.ts';
 import { averageStopChance, canBuyPlot, expectedCups, netWorth, playerStands, plotPrice, restockOn, servingsAvailable, successScore } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { FACILITIES, type FacilityKind } from './vip.ts';
 import { HQS, isWeakened, OUTSELL } from './rivals.ts';
 import { districtControl, dominationProgress, gameOver, isEndless, winCondition } from './modes.ts';
+import { rivalsInPlay } from './land.ts';
 import { hasClubhouse, hasStory, lessonsOn, storyAct, taught } from './story.ts';
 import { festivalDays, tasteOffResult } from './calendar.ts';
 import { ownedRecipes } from './recipes.ts';
@@ -77,7 +78,7 @@ const ownStand = (s: GameState) => {
 /** Is there a plot left for one more stand (not yours yet, or yours and empty)? With none, "one more" goals would never be met. */
 const roomToGrow = (s: GameState) => PLOTS.some((p) => {
   const ps = s.plots[p.id];
-  return STAND_PLOTS.includes(p.type) && (ps.owner !== 'player' || (!ps.stand && !ps.facility));
+  return STAND_PLOTS.includes(p.type) && plotOnMap(s, p) && (ps.owner !== 'player' || (!ps.stand && !ps.facility)); // land: on this map
 });
 
 /** The cheapest free plot for a stand in this district (Infinity when there's none). */
@@ -162,7 +163,7 @@ function mediumGoals(s: GameState): Candidate[] {
   if (hasStory(s)) out.push(...act2Goals(s));
   // Act 1's lessons, newest first; the Wooden Stand is the first session's goal from Day 1. Week 2's Old Town
   // corner is a story beat in the campaign (page icon) and a lesson elsewhere.
-  if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown)) {
+  if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown) && onMap(s, 'oldtown')) { // land: a Sandbox map may leave Old Town out
     const owns = mine.some((p) => p.district === 'oldtown');
     out.push({ id: 'beat-oldtown', text: 'Open a stand in Old Town', progress: oldtown ? 1 : owns ? 0.8 : Math.min(0.6, cash / cheapestPlot(s, 'oldtown')), done: oldtown, story: hasStory(s), urgent: true });
   }
@@ -267,8 +268,9 @@ function rankGoals(s: GameState): Candidate[] {
 
 function bayGoal(s: GameState): Candidate {
   const d = dominationProgress(s);
-  const out = 5 - d.rivalsLeft.length;
-  return { id: 'bay', text: `Own the Bay: ${out}/5 rivals out`, progress: (out / 5 + d.majority / d.districts) / 2, done: d.done };
+  const all = rivalsInPlay(s).length; // land: a Sandbox map's 2, 3 or 5
+  const out = all - d.rivalsLeft.length;
+  return { id: 'bay', text: `Own the Bay: ${out}/${all} rivals out`, progress: (out / all + d.majority / d.districts) / 2, done: d.done };
 }
 
 function peakGoal(s: GameState): Candidate {

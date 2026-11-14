@@ -1,7 +1,7 @@
 // Citrine Bay (spec section 6): 8 districts, 116 plots, laid out for this
 // game. Pure data: positions are world units (1 = 1 m) used by both the
 // sim (neighbors, travel) and the renderer.
-import { SIDE_LOT, type SegmentId } from './balance.ts';
+import { FACTIONS, MAP_SIZES, SIDE_LOT, type MapSize, type RivalId, type SegmentId } from './balance.ts';
 
 export type FactionId = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
 export type DistrictId = 'maple' | 'oldtown' | 'campus' | 'downtown' | 'boardwalk' | 'harbor' | 'groves' | 'hilltop';
@@ -225,4 +225,110 @@ export function withinTwo(a: Plot, b: Plot): boolean {
 const NEARBY: Record<string, Plot[]> = Object.fromEntries(PLOTS.map((p) => [p.id, PLOTS.filter((q) => withinTwo(p, q))]));
 export function nearbyPlots(p: Plot): Plot[] {
   return NEARBY[p.id];
+}
+
+// ---------- Sandbox maps (spec: Sandbox: Turf War) ----------
+
+/**
+ * What a game knows about its map, on its Settings: the districts cut from the bay for a Sandbox Small or Medium map
+ * (unset: all eight) and the plots retagged so the cut keeps its VIP land. Plots off the map stay in the state as
+ * scenery: nobody owns, buys, builds on or counts them.
+ */
+export interface MapPicks { districts?: DistrictId[]; retag?: Record<string, PlotType> }
+type Mapped = { settings: MapPicks };
+const ALL: DistrictId[] = DISTRICTS.map((d) => d.id);
+
+/** Is this district on the game's map? */
+export const onMap = (s: Mapped, d: DistrictId): boolean => !s.settings.districts || s.settings.districts.includes(d);
+/** Is this plot on the game's map? */
+export const plotOnMap = (s: Mapped, p: Plot | string): boolean => onMap(s, (typeof p === 'string' ? PLOT_BY_ID[p] : p).district);
+/** The game's districts, in bay order. */
+export const mapDistricts = (s: Mapped): District[] => (s.settings.districts ? DISTRICTS.filter((d) => onMap(s, d.id)) : DISTRICTS);
+/** A plot's type on this map: its own, or what a cut retagged it as (a Field, Dock or Industrial lot). */
+export const plotType = (s: Mapped, p: Plot): PlotType => s.settings.retag?.[p.id] ?? p.type;
+
+/** Do these districts make one map, every one reachable from the others over the canon borders? */
+export function connected(ds: readonly DistrictId[]): boolean {
+  if (!ds.length) return false;
+  const seen = new Set<DistrictId>([ds[0]]);
+  const todo = [ds[0]];
+  while (todo.length) for (const b of BORDERS[todo.pop()!]) if (ds.includes(b) && !seen.has(b)) { seen.add(b); todo.push(b); }
+  return seen.size === ds.length;
+}
+
+/**
+ * The VIP land every map keeps (spec: "Every map keeps at least 1 Field and 1 Dock plot, so VIP clients stay
+ * reachable"): a Dock for ships, a Field for helicopters, and Industrial land for the Bottling Works their bottles
+ * come from (placeholder: spec gap, the spec names Fields and Docks only). The Dock comes first: it has to be on the water.
+ */
+export const VIP_LAND = ['dock', 'field', 'industrial'] as const;
+/** Fillers after Maple Row and the rivals' homes, best first when the VIP land is equal: Old Town, the Harbor's docks
+ * and plant, then the cheaper land. */
+const FILL_ORDER: DistrictId[] = ['oldtown', 'harbor', 'groves', 'campus', 'boardwalk', 'downtown', 'hilltop']; // placeholder: spec gap
+
+/** Lexicographic: does key a rank ahead of key b? */
+const before = (a: number[], b: number[]) => { const i = a.findIndex((k, j) => k !== b[j]); return i >= 0 && a[i] < b[i]; };
+const holds = (ds: readonly DistrictId[], t: PlotType) => PLOTS.some((p) => ds.includes(p.district) && p.type === t);
+/** How far a plot's back is from the water: the south shore behind the beach row, or the east shore. */
+const shoreGap = (p: Plot) => Math.min(p.side === 1 ? SEA_Z - p.z : Infinity, SEA_X - p.x);
+const SHORE = 30;
+/** Plain street plots a cut may retag (never Lottie's Corner or its side lot). */
+const plainIn = (ds: readonly DistrictId[]) => PLOTS.filter((p) => ds.includes(p.district) && p.type === 'street' && p.id !== LOTTIES_CORNER && p.id !== LOTTIES_SIDE_LOT);
+/** Can a ship reach this map: a Dock, or a plain plot on the water to make one? */
+const wet = (ds: readonly DistrictId[]) => holds(ds, 'dock') || plainIn(ds).some((p) => shoreGap(p) < SHORE);
+
+export interface MapCut { districts: DistrictId[]; retag: Record<string, PlotType> }
+
+/**
+ * Cut a Sandbox map from Citrine Bay (spec: "Small to Large are cut from Citrine Bay ... You start in Maple Row, and
+ * each chosen rival brings its home district"). The rest are fillers that keep the map in one piece over the 11
+ * borders. Of every way to do that, the cut takes one on the water (ships need a Dock), then one with Old Town (the
+ * hub: its civic plots and every rival's Old Town stands), then the one that keeps the most real VIP land (so the
+ * fewest plots need retagging), then the fillers in FILL_ORDER. Null when the picks can't make a map of that size:
+ * Sourwood and the Blenders on Small (Hilltop is 3 borders from the Boardwalk).
+ */
+export function cutMap(size: MapSize, rivals: readonly RivalId[]): MapCut | null {
+  const n = MAP_SIZES[size].districts;
+  const must = [...new Set<DistrictId>(['maple', ...rivals.map((r) => FACTIONS[r].home as DistrictId)])];
+  if (must.length > n) return null;
+  if (n >= ALL.length) return { districts: [...ALL], retag: {} };
+  const rest = FILL_ORDER.filter((d) => !must.includes(d));
+  let best: { ds: DistrictId[]; key: number[] } | null = null;
+  for (let mask = 0; mask < 1 << rest.length; mask++) {
+    const fill = rest.filter((_, i) => mask & (1 << i));
+    if (must.length + fill.length !== n) continue;
+    const ds = [...must, ...fill];
+    if (!connected(ds)) continue;
+    const key = [wet(ds) ? 0 : 1, ds.includes('oldtown') ? 0 : 1, VIP_LAND.filter((t) => !holds(ds, t)).length, ...rest.map((d) => (fill.includes(d) ? 0 : 1))];
+    if (!best || before(key, best.key)) best = { ds, key };
+  }
+  if (!best) return null;
+  const districts = ALL.filter((d) => best!.ds.includes(d));
+  return { districts, retag: retagFor(districts) };
+}
+
+/**
+ * A map short of a Dock, Field or Industrial lot retags one plain street plot as it (spec gap: the spec doesn't say
+ * which). A Dock goes on the plain plot nearest the water, so its pier reaches the bay; a Field or Industrial lot on
+ * the cheapest plain plot outside Maple Row (Lottie's own street stays as it is), at its own land price. Retagged plots
+ * start neutral and empty.
+ */
+function retagFor(ds: readonly DistrictId[]): Record<string, PlotType> {
+  const retag: Record<string, PlotType> = {};
+  const plain = plainIn(ds);
+  for (const t of VIP_LAND) {
+    if (holds(ds, t)) continue;
+    const free = plain.filter((p) => !retag[p.id]);
+    const order = t === 'dock'
+      ? free.filter((p) => shoreGap(p) < SHORE).sort((a, b) => shoreGap(a) - shoreGap(b) || a.id.localeCompare(b.id))
+      : free.filter((p) => p.district !== 'maple').sort((a, b) => a.baseLand - b.baseLand || a.id.localeCompare(b.id));
+    const p = order[0] ?? free[0];
+    if (p) retag[p.id] = t;
+  }
+  return retag;
+}
+
+/** Can these rivals play a map of this size: the right number, no repeats, and a map that holds together? */
+export function picksFit(size: MapSize, rivals: readonly RivalId[]): boolean {
+  return rivals.length === MAP_SIZES[size].rivals && new Set(rivals).size === rivals.length && rivals.every((r) => r in FACTIONS) && !!cutMap(size, rivals);
 }

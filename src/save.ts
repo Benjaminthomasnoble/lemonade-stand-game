@@ -6,7 +6,7 @@
 // slot holds, and the local Peak Success Score leaderboard. The spec's bigger
 // maps can move this to IndexedDB behind the same API. A save that won't read is
 // kept aside and reported, never dropped; a full store is reported too.
-import { customDefaults, migrateSave, successScore, type CustomDifficulty, type GameState, type Settings } from './sim/economy.ts';
+import { customDefaults, migrateSave, successScore, type CustomDifficulty, type GameState, type MapSize, type RivalId, type Settings } from './sim/economy.ts';
 
 const KEY = 'lemonade-stand-wars/save/v1';
 const OLD_DAWN_KEY = 'lemonade-stand-wars/dawn/v1'; // the single dawn copy from before the rotating three
@@ -197,6 +197,8 @@ export interface ScoreEntry {
   mode: Settings['mode'];
   difficulty: Settings['difficulty'];
   custom?: CustomDifficulty; // a Custom run's sliders, for its tag
+  map?: MapSize; // land: a Sandbox run's map size (unset: Large, the whole bay)
+  rivals?: RivalId[]; // land: the rivals a Sandbox run picked (unset: all five)
   peaceful: boolean;
   ironman: boolean;
   result?: 'won' | 'lost';
@@ -220,6 +222,7 @@ export function recordScore(s: GameState): void {
     runId: s.runId, peak: s.peakScore, peakDay: s.peakDay ?? s.day, day: s.day, mode: s.settings.mode,
     difficulty: s.settings.difficulty, peaceful: s.settings.peaceful, ironman: s.settings.ironman, result: s.outcome?.result,
     ...(s.settings.difficulty === 'custom' ? { custom: { ...customDefaults(), ...s.settings.custom } } : {}),
+    ...(s.settings.map ? { map: s.settings.map, rivals: [...(s.settings.rivals ?? [])] } : {}), // land: a Sandbox's map and rivals
     date: new Date().toISOString().slice(0, 10),
   };
   const list = loadLeaderboard().filter((e) => e.runId !== s.runId);

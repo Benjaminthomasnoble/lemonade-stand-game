@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  grantPage, LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice,
+  defaultSettings, MAP_SIZES, grantPage, LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice,
   PLOTS, purchasablePlots, recipeCost, type DistrictId, type GameState,
 } from '../sim/economy.ts';
 import {
-  controlNote, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, vacantNote,
+  controlNote, landNotes, landTickets, listingControls, registryButton, registryOpen, registryScreen, registryTabs, sellPlotButton, TOWN_HALL, vacantNote,
 } from './registry.ts';
 import { menuScreen, menuUnlocked } from './menus.ts';
+import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
+import type { ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 
 const give = (s: GameState, id: string) => { s.plots[id] = { ...s.plots[id], owner: 'player', stand: null, invested: 0, defense: NO_DEFENSE() }; };
@@ -200,5 +202,60 @@ describe('the Land Registry', () => {
     const theirs = PLOTS.filter((p) => p.type !== 'hq' && s.plots[p.id].owner && s.plots[p.id].owner !== 'player');
     expect(tags.map(plotOf).sort()).toEqual(theirs.map((p) => p.id).sort());
     for (const tag of tags) expect(tag).toContain(`Buy it $${plotBuyoutPrice(s, plotOf(tag)).toLocaleString('en-US')}`);
+  });
+});
+
+describe('Sandbox maps on screen', () => {
+  const pressed = (html: string) => [...html.matchAll(/data-value="(\w+)" data-testid="rival-\w+" aria-pressed="true"/g)].map((m) => m[1]).sort();
+
+  it('the New Game screen picks a map size, then rivals that fit it', () => {
+    const st = defaultSettings({ mode: 'sandbox' });
+    let html = sandboxPanel(st);
+    expect(html).toMatch(/class="cl-b tiny go"[^>]*data-value="large"/);
+    expect(html).not.toContain('rival-picks'); // Large: all five play, nothing to pick
+    pickSandbox(st, 'map', 'small');
+    expect(st.map).toBe('small');
+    expect([...st.rivals!].sort()).toEqual([...MAP_SIZES.small.picks].sort());
+    html = sandboxPanel(st);
+    expect(pressed(html)).toEqual([...MAP_SIZES.small.picks].sort());
+    expect(html).toContain('title="4 districts, 2 rivals');
+    pickSandbox(st, 'rival', 'sourwood'); // swaps out the oldest pick it can share the map with
+    expect(st.rivals).toEqual(['hollis', 'sourwood']);
+    pickSandbox(st, 'rival', 'blenders'); // Vera and Brock can't share a Small map, so Vera makes way
+    expect(st.rivals).toEqual(['hollis', 'blenders']);
+    pickSandbox(st, 'rival', 'blenders'); // already in: no change
+    expect(st.rivals).toEqual(['hollis', 'blenders']);
+    pickSandbox(st, 'map', 'medium'); // keeps both and adds one
+    expect([...st.rivals!].sort()).toEqual(['blenders', 'coldbrew', 'hollis']);
+    pickSandbox(st, 'map', 'large');
+    expect(st.rivals).toHaveLength(5);
+  });
+
+  it("never changes the running game's picks while the New Game screen is open", () => {
+    const s = newGame(61, { mode: 'sandbox', map: 'small' });
+    const st = { ...s.settings }; // as main.ts opens the screen
+    pickSandbox(st, 'rival', 'fizzco');
+    pickSandbox(st, 'map', 'medium');
+    expect(s.settings.rivals).toEqual(MAP_SIZES.small.picks);
+    expect(s.settings.map).toBe('small');
+  });
+
+  it('the Land Registry and plot cards keep to the map', () => {
+    const s = newGame(62, { mode: 'sandbox', map: 'small' }); // Maple Row, Old Town, the Boardwalk and the Groves
+    s.day = 8;
+    s.rank = 3;
+    s.cash = 1e6;
+    const html = text(registryScreen(s, 'buy'));
+    for (const name of ['Old Town', 'The Boardwalk', 'The Groves']) expect(html).toContain(name);
+    for (const name of ['Downtown', 'The Harbor', 'Hilltop Estates', 'Campus']) expect(html).not.toContain(name);
+    const off = PLOTS.find((p) => p.district === 'harbor' && p.type === 'street')!;
+    expect(text(landNotes(s, off.id))).toBe('Off this map');
+    expect(text(landNotes(s, LOTTIES_CORNER))).toContain('1/12');
+  });
+
+  it('a leaderboard row names a Sandbox map smaller than the bay', () => {
+    expect(scoreTag({ map: 'small', rivals: ['blenders', 'hollis'] } as ScoreEntry)).toBe(' · <span title="Versus Brock, Tilly">Small</span>');
+    expect(scoreTag({ map: 'large' } as ScoreEntry)).toBe('');
+    expect(scoreTag({} as ScoreEntry)).toBe('');
   });
 });

@@ -7,7 +7,7 @@ import { callChoices, callLine, choiceTip, liveCall } from '../sim/calls.ts';
 import {
   averageStopChance, restockOn, BRAND_TIERS, canBuildStand, canBuyBrand, canBuyPlot, ceilingFor, priceCeiling, topPriceMods,
   canUpgradeStand, CLOSE, costPerCup, DISTRICT_BY_ID, expectedCups, expectedPassersby, FACTIONS, lemonsExpiringTomorrow,
-  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, playerStands, RECIPES, peaceful, customDefaults,
+  lottieGoals, maxPacks, OPEN, PLOT_BY_ID, plotOnMap, plotType, playerStands, RECIPES, peaceful, customDefaults,
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS, threatLevel,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
@@ -63,6 +63,7 @@ import {
 } from './registry.ts';
 import { gullTicket } from './gull.ts';
 import { isScouted } from '../sim/scouting.ts';
+import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -478,6 +479,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         if (d.key === 'mode') st.mode = d.value as Mode;
         if (d.key === 'difficulty') st.difficulty = d.value as Difficulty;
         if (d.key?.startsWith('custom.')) pickCustom(st, d.key.slice(7), d.value); // Custom's sliders (src/ui/custom.ts)
+        if (d.key === 'map' || d.key === 'rival') pickSandbox(st, d.key, d.value); // Sandbox's map and rivals (src/ui/sandbox.ts)
         if (d.key === 'win') st.win = d.value as WinCondition;
         if (d.key === 'target') st.target = Number(d.value);
         if (d.key === 'peaceful') st.peaceful = !st.peaceful;
@@ -801,22 +803,22 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const ps = s.plots[id];
     const d = DISTRICT_BY_ID[p.district];
     const st = ps.stand;
-    const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field', dock: 'Dock', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[p.type];
+    const typeLabel = { street: 'Street plot', prime: 'Prime plot (traffic ×3)', landmark: 'Landmark (traffic ×5)', field: 'Field', dock: 'Dock', industrial: 'Industrial', hq: 'Headquarters', civic: 'Civic building' }[plotType(s, p)]; // land: as a Sandbox map tagged it
     const tip = [`${d.name} · ${typeLabel}`, `Owner: ${ownerName(ps.owner)}${ps.owner && ps.owner !== 'player' ? ` · ${rivalStars(s, ps.owner as RivalId).toFixed(1)} stars` : ''}`, p.type !== 'civic' ? `~${p.baseTraffic} passersby a day · land ${whole(ps.landValue)}` : d.feel,
       st ? `Stand: L${st.level} ${standLevel(st).name} · ${cents(st.price)} a cup` : '', ps.facility ? `Built: ${FACILITIES[ps.facility.kind].names[ps.facility.level - 1]}` : '',
       ps.owner && ps.owner !== 'player' && p.type !== 'civic' ? `Defenses: ${!isScouted(s, id) ? '?' /* crew: unscouted */ : `${ps.defense.tier ? PERIMETERS[ps.defense.tier - 1].name : 'none'}${hayBales(s, id) ? ' and hay bales' : ''}${ps.garrison ? `, ${fitGarrison(s, id)} henchmen${henchmenOut(ps, s.day) ? ` (${henchmenOut(ps, s.day)} seeing stars)` : ''}` : ''}`}` : '',
       st && s.phase !== 'prep' ? `Today: ${st.day.customers} cups of ${st.day.passersby} walking by` : '', standRepTip(s, id)].filter(Boolean).join('\n');
     let actions = '';
     if (!ps.owner && ps.auction && (p.district === 'maple' || taught(s, 'land'))) actions = auctionControls(s, id); // bids follow Week 2's land lesson, like Buy
-    else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq') { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
+    else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq' && plotOnMap(s, p)) { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
     else if (ps.owner === 'player' && isWrecked(ps)) actions = rebuildButton(s, id, 'cl-b go'); // overnight, or tonight's booking (src/ui/damage.ts)
     else if (ps.owner === 'player' && !st) {
       const lvl = (kind: FacilityKind) => (ps.facility?.kind === kind ? ps.facility.level : 0);
       // A Lemon Grove of yours (Hollis's Fields come with them) can make way for the helipad line.
-      const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(p.type).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(p.type);
+      const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(plotType(s, p));
       const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
         .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
-      const stand = p.type === 'field' || p.type === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
+      const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || ps.facility ? '' : btn('build', `Table ${whole(STAND_LEVELS[0].cost)}`, canBuildStand(s, id), `data-plot="${id}" data-testid="build"`, 'go');
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
@@ -865,11 +867,11 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     const modes = (Object.keys(MODES) as Mode[]).map((m) => `<button class="cl-mode${st.mode === m ? ' on' : ''}" data-action="pick" data-key="mode" data-value="${m}" data-testid="mode-${m}" title="${esc(MODES[m].blurb)}"><span class="cl-art">${modeArt[m]}</span>${tape(MODES[m].label.replace('Story Campaign', 'Story').replace('Sandbox: ', ''))}</button>`).join('');
     const diffs = (Object.keys(DIFFICULTY) as Difficulty[]).map((d, i) => `<button class="cl-diff${st.difficulty === d ? ' on' : ''}" data-action="pick" data-key="difficulty" data-value="${d}" data-testid="difficulty-${d}" title="${esc(DIFFICULTY[d].blurb)}"><span>${d === 'custom' ? '<b>±</b>' : Array.from({ length: i + 1 }, () => ART.sour()).join('')}</span>${DIFFICULTY[d].label}</button>`).join('');
     const toggle = (key: string, on: boolean, label: string, tip: string) => `<button class="cl-toggle${on ? ' on' : ''}" data-action="pick" data-key="${key}" title="${esc(tip)}"><i></i>${label}</button>`;
-    const sandbox = st.mode === 'sandbox' ? `<div class="cl-row wrap">
+    const sandbox = st.mode === 'sandbox' ? `${sandboxPanel(st)}<div class="cl-row wrap">
         ${([['domination', 'Domination', 'Every rival out, a Majority in every district'], ['economic', 'Score target', 'Reach a Success Score'], ['none', 'No end', 'Just build']] as const).map(([v, l, t]) => `<button class="cl-b ${st.win === v ? 'go' : 'ghost'}" data-action="pick" data-key="win" data-value="${v}" title="${t}">${l}</button>`).join('')}</div>
       ${st.win === 'economic' ? `<div class="cl-row wrap">${RANKS.slice(3).map((r) => `<button class="cl-b tiny ${st.target === r.ss ? 'go' : 'ghost'}" data-action="pick" data-key="target" data-value="${r.ss}" title="${r.title}">${whole(r.ss)}</button>`).join('')}</div>` : ''}
       ${toggle('peaceful', st.peaceful, 'Peaceful', 'No raids, Sabotage or HQ assaults for anyone. Rivals fall to buyouts or bankruptcy, and even Vera sells.')}` : '';
-    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${esc(difficultyLabel(e.difficulty, e.custom))}${e.result === 'won' ? ` ${A.glyph('trophy')}` : ''}</td></tr>`).join('')}</table>` : '';
+    const scores = hud.leaderboard.length ? `<table class="cl-books">${hud.leaderboard.map((e, i) => `<tr><td>${i + 1}. ${whole(e.peak)}</td><td>${MODES[e.mode].label.split(':')[0]} · ${esc(difficultyLabel(e.difficulty, e.custom))}${scoreTag(e)}${e.result === 'won' ? ` ${A.glyph('trophy')}` : ''}</td></tr>`).join('')}</table>` : '';
     return `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="setup">
       <h1 class="cl-title">Lemonade Stand Wars</h1>
       <div class="cl-modes">${modes}</div>

@@ -9,6 +9,7 @@ import { FACTIONS, type RivalId } from '../sim/balance.ts';
 import { festivalDays, yearOf } from '../sim/calendar.ts';
 import { ACT_CLIMAX, hasStory, storyAct } from '../sim/story.ts';
 import { goalsNow } from '../sim/goals.ts';
+import { inPlay } from '../sim/land.ts';
 import { playingScene, sceneLine } from '../sim/scenes.ts';
 import { glyph, headBlob, INK, S, svg } from './clay.ts';
 
@@ -85,15 +86,16 @@ export function fairIn(s: GameState): number | null {
  * the days to the Summer Fair. The whole goal of the run at a glance; the words live in the tooltip. */
 export function bossBoard(s: GameState, opens: string): string {
   const next = nextBoss(s);
-  const left = BOSS_ORDER.filter((r) => s.rivals[r].alive).length;
+  const board = BOSS_ORDER.filter((r) => inPlay(s, r)); // land: a Sandbox map's picks only
+  const left = board.filter((r) => s.rivals[r].alive).length;
   const fair = fairIn(s);
-  const heads = BOSS_ORDER.map((r) => {
+  const heads = board.map((r) => {
     const out = !s.rivals[r].alive;
     const col = '#' + FACTIONS[r].color.toString(16).padStart(6, '0');
     return `<span class="cl-boss${out ? ' out' : ''}${r === next ? ' next' : ''}" data-boss="${r}">${svg(headBlob(32, 30, 17, '#F6C9A0', col))}${out ? '<i class="x"></i>' : ''}</span>`;
   }).join('');
   const who = next ? `${FACTIONS[next].boss} (${FACTIONS[next].name})` : '';
-  const tip = `Beat all five drink gangs and win back Grandma's stolen recipes. ${left} of 5 still standing.${next ? `\nNext: ${who}${fair !== null ? `, at the Summer Fair Taste-Off ${fair ? `in ${fair} day${fair > 1 ? 's' : ''}` : 'today'}` : ''}.` : ''}`;
+  const tip = `Beat all ${['', 'one', 'two', 'three', 'four', 'five'][board.length]} drink gangs and win back Grandma's stolen recipes. ${left} of ${board.length} still standing.${next ? `\nNext: ${who}${fair !== null ? `, at the Summer Fair Taste-Off ${fair ? `in ${fair} day${fair > 1 ? 's' : ''}` : 'today'}` : ''}.` : ''}`;
   const tag = fair !== null ? `<span class="cl-fairtag">${fair ? `Fair ${fair}d` : 'Fair today!'}</span>` : next ? `<span class="cl-fairtag">${BOSS_SHORT[next]}</span>` : '';
   return `<div class="cl-chip cl-bosses" data-testid="bosses" title="${esc(tip)}"${opens}>${heads}${tag}</div>`;
 }

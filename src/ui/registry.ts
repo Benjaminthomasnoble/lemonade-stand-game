@@ -5,8 +5,9 @@
 // plots you could buy out. Plain markup with the shared clay classes; hud.ts
 // mounts it and every button goes through hud's one click listener.
 import {
-  auctionCloses, auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS, DISTRICTS,
-  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
+  auctionCloses, auctionOf, auctionPlots, bidCost, bidGuess, bidSteps, canBid, canBuyPlot, canListPlot, canPlotBuyout, controlTier, DISTRICT_BY_ID, DISTRICT_PERKS,
+  districtControl, FACILITIES, FACTIONS, familySilver, isWrecked, LAVENDER_LOT, lavenderLot, LOTTIES_CORNER, majorityDiscount, mapDistricts, missingPlots, nextTier, PLOT_BY_ID, plotBuyoutPrice,
+  plotOnMap, plotType,
   plotPrice, PLOTS, purchasablePlots, reachBlocker, RECIPES, recipeCost, SITDOWN_RANK, standLevel, TIER_EFFECTS, TIER_NAMES, tierAtLeast,
   type Blocker, type DistrictId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
@@ -63,7 +64,8 @@ export function vacantNote(s: GameState, plotId: string): string {
 }
 
 /** Everything land adds to a plot card under its name. */
-export const landNotes = (s: GameState, plotId: string) => vacantNote(s, plotId) + controlNote(s, plotId);
+export const landNotes = (s: GameState, plotId: string) => (plotOnMap(s, plotId) || PLOT_BY_ID[plotId].type === 'civic' ? vacantNote(s, plotId) + controlNote(s, plotId)
+  : '<span class="cl-note" title="This Sandbox map leaves the district out: nobody buys or builds here">Off this map</span>');
 
 /** The Buy button's tooltip when a discount applies: "Land $1,000, −10% for your Majority". Empty when you pay the plain price. */
 export function priceTip(s: GameState, plotId: string): string {
@@ -147,7 +149,7 @@ const TYPE_LABEL: Partial<Record<Plot['type'], string>> = { street: 'Street plot
 /** A plot's name as a link: like any menu's list, it puts the Registry away, flies there and opens the plot's card. */
 const goTo = (s: GameState, id: string) => {
   const p = PLOT_BY_ID[id];
-  const tip = ['Show on the map', TYPE_LABEL[p.type], `~${p.baseTraffic} passersby a day`, `land ${whole(s.plots[id].landValue)}`].filter(Boolean).join(', ');
+  const tip = ['Show on the map', TYPE_LABEL[plotType(s, p)], `~${p.baseTraffic} passersby a day`, `land ${whole(s.plots[id].landValue)}`].filter(Boolean).join(', ');
   return `<button class="cl-link" data-action="inspect" data-plot="${id}" title="${esc(tip)}">${esc(p.name)}</button>`;
 };
 const row = (left: string, right: string, cls = '') => `<tr${cls ? ` class="${cls}"` : ''}><td>${left}</td><td>${right}</td></tr>`;
@@ -182,7 +184,7 @@ function buyRow(s: GameState, id: string): string {
  */
 function buyTab(s: GameState): string {
   const rows: string[] = [];
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) { // land: a Sandbox map's districts
     const open = purchasablePlots(d.id).filter((p) => !s.plots[p.id].owner && !s.plots[p.id].auction);
     const reach = reachBlocker(s, d.id);
     const list = reach.ok ? open : open.filter((p) => playerDibs(s, p.id));
@@ -237,7 +239,7 @@ function sellCell(s: GameState, id: string): string {
 function mineTab(s: GameState): string {
   const rows: string[] = [];
   let count = 0, land = 0;
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) {
     const mine = PLOTS.filter((p) => p.district === d.id && p.type !== 'civic' && s.plots[p.id].owner === 'player');
     if (!mine.length) continue;
     rows.push(districtRow(s, d.id));

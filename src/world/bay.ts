@@ -12,7 +12,7 @@ import {
   type DistrictId, type GameState, type Plot, type RivalId,
 } from '../sim/economy.ts';
 import { SEA_X, SEA_Z, treeInto } from './scene.ts';
-import { CROSS_STREETS_Z, WEST_AVENUE_X } from '../sim/map.ts';
+import { CROSS_STREETS_Z, plotOnMap, WEST_AVENUE_X } from '../sim/map.ts';
 import { createStand, disposeTree, type Stand as StandModel } from './stand.ts';
 import { fenceModel, gadgetModels, rivalStand, wreckLook, wreckPile } from './buildings.ts';
 import type { Owner } from './clay/standKit.ts';
@@ -419,7 +419,8 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
   const sales = new THREE.InstancedMesh(forSaleGeometry(), K.world, PLOTS.length);
   sales.name = 'sale-signs'; sales.castShadow = true; sales.receiveShadow = true; sales.count = 0;
   scene.add(sales);
-  function forSale(v: PlotView) {
+  function forSale(v: PlotView, s: GameState) {
+    if (!plotOnMap(s, v.plot)) return; // land: no sign off a Sandbox map
     saleAt[v.tile] = true;
     salesDirty = true;
     v.root.add(forSaleLabel());
@@ -506,8 +507,8 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       building = facilityModel(ps.facility.kind, ps.facility.level, ps.owner, east ?? reachOf(v));
       if (east) turnEast(building, v, Math.max(12 + ps.facility.level * 6, east));
     }
-    else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v); }
-    else if (p.type === 'dock') { const east = eastReach(v), pm = pierModel(east ?? reachOf(v)); if (east) turnEast(pm, v, east); v.root.add(bakeGroup(pm)); if (!ps.owner) forSale(v); }
+    else if (p.type === 'field') { v.root.add(bakeGroup(fieldRows(p.name))); if (!ps.owner) forSale(v, s); }
+    else if (p.type === 'dock') { const east = eastReach(v), pm = pierModel(east ?? reachOf(v)); if (east) turnEast(pm, v, east); v.root.add(bakeGroup(pm)); if (!ps.owner) forSale(v, s); }
     else if (ps.stand && ps.owner === 'player') {
       const m = keepStand ?? createStand({ lottie, level: ps.stand.level, gilded: gilded(s, ps.stand.level) });
       m.setLevel(ps.stand.level, gilded(s, ps.stand.level));
@@ -525,7 +526,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       v.shownLevel = ps.stand.level;
     } else if (ps.stand) {
       building = ps.stand.wrecked ? wreckPile(ps.stand.level, ps.owner as RivalId) : rivalStand(ps.owner as RivalId, ps.stand.level, hpStep(ps), s.weather.kind === 'storm');
-    } else if (!ps.owner) forSale(v);
+    } else if (!ps.owner) forSale(v, s);
     if (keepStand && v.stand !== keepStand) keepStand.dispose();
     if (building) {
       if (ps.facility?.wrecked) v.root.add(wreckLook(building, (ps.owner ?? 'player') as Owner));
@@ -606,7 +607,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
     // Owned tiles take their owner's main colour (the pattern carries the accent); unowned land stays bare Clay cream.
     // Owners' tiles take their main colour outright; Sourwood's plum is lifted so it never reads as road.
     if (ps.owner) tint.set(ps.owner === 'sourwood' ? '#4E1F63' : TILE_PATTERN[ps.owner as keyof typeof TILE_PATTERN].main);
-    else tint.copy(ground).lerp(new THREE.Color(P.cream), 0.7);
+    else tint.copy(ground).lerp(new THREE.Color(P.cream), plotOnMap(s, p) ? 0.7 : 0); // land: off a Sandbox map, bare ground
     tiles.setColorAt(v.tile, tint);
     ownerAt[v.tile] = ps.owner;
     patternsDirty = true;
@@ -632,7 +633,7 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       for (const v of viewList) {
         if (held.has(v.plot.id)) continue; // staged for a fight on screen
         const ps = s.plots[v.plot.id];
-        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}`;
+        const key = `${ps.owner}|${ps.facility ? ps.facility.kind + ps.facility.level + (ps.facility.wrecked ? 'x' : '') : ''}|${guardsAt(s, v.plot.id)}${ps.owner === 'player' ? s.guards.filter((g) => g.post === v.plot.id).map((g) => g.weapon[0] + g.gear[0] + g.level + (g.specialty?.[0] ?? '')).join('') : ''}|${ps.stand?.level ?? 0}|${ps.stand?.wrecked ? 1 : 0}${ps.busted ? 'b' : ''}${ps.stand ? hpStep(ps) : ''}|${ps.defense.fenceHp > 0 ? ps.defense.tier : 0}|${fenceShare(ps)}|${ps.defense.gadgets.join(',')}|${ps.stand && gilded(s, ps.stand.level) ? 'g' : ''}${ps.owner === 'player' ? fittedOn(ps.stand).join(',') : ''}${ps.stand && ps.owner !== 'player' && ps.stand.level <= 2 && s.weather.kind === 'storm' ? 's' : ''}${plotOnMap(s, v.plot) ? '' : '|off'}`;
         if (key !== v.key) { v.key = key; v.root.updateMatrixWorld(true); rebuild(v, s); }
       }
       synced = true;

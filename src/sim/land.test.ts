@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  announceControl, buyPlot, canBuyPlot, controlTier, development, hasFoothold, hqPlot, LOTTIES_CORNER, migrateSave, newGame, newStand,
-  nextTier, NO_DEFENSE, perkActive, plotBuyoutPrice, plotPrice, PLOTS, plotsForTier, purchasablePlots, sleepUntilDawn,
-  type DistrictId, type GameState,
+  announceControl, blenderBar, buyPlot, canBuildStand, fairWinPage, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
+  LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
+  plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -198,5 +198,120 @@ describe('Majority land discount', () => {
     const plain = plotBuyoutPrice(s, rival.id);
     for (const p of maple.slice(7, 10)) give(s, p.id);
     expect(plotBuyoutPrice(s, rival.id)).toBe(plain); // Majority doesn't touch buyouts
+  });
+});
+
+describe('Sandbox maps', () => {
+  const ALL: RivalId[] = ['sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders'];
+  const combos = (k: number, from = 0, acc: RivalId[] = []): RivalId[][] => (acc.length === k ? [acc] : ALL.slice(from).flatMap((r, i) => combos(k, from + i + 1, [...acc, r])));
+  const sandbox = (seed: number, map: 'small' | 'medium' | 'large', rivals?: RivalId[]) => newGame(seed, { mode: 'sandbox', map, ...(rivals ? { rivals } : {}) });
+
+  it('cuts Small and Medium from the bay: Maple Row and every rival home, in one piece, with a Dock and a Field', () => {
+    for (const [size, k] of [['small', 2], ['medium', 3]] as const) {
+      for (const picks of combos(k)) {
+        const cut = cutMap(size, picks);
+        if (size === 'small' && picks.includes('sourwood') && picks.includes('blenders')) { // Hilltop is 3 borders from the Boardwalk
+          expect(cut).toBeNull();
+          expect(picksFit(size, picks)).toBe(false);
+          continue;
+        }
+        expect(cut, picks.join('+')).not.toBeNull();
+        expect(cut!.districts).toHaveLength(MAP_SIZES[size].districts);
+        expect(cut!.districts).toContain('maple');
+        for (const r of picks) expect(cut!.districts).toContain(FACTIONS[r].home);
+        expect(connected(cut!.districts)).toBe(true);
+        const map = { settings: { districts: cut!.districts, retag: cut!.retag } };
+        for (const t of ['dock', 'field'] as const) expect(PLOTS.some((p) => plotOnMap(map, p) && plotType(map, p) === t), `${picks.join('+')} keeps a ${t}`).toBe(true);
+        for (const id of Object.keys(cut!.retag)) expect(PLOTS.find((p) => p.id === id)!.type).toBe('street'); // only plain street plots change
+      }
+    }
+    expect(cutMap('large', ['hollis'])!.districts).toHaveLength(8);
+  });
+
+  it('New Game plays Large with all five unless Small or Medium picks fit; other modes play the whole bay', () => {
+    expect(newGame(41, { mode: 'sandbox' }).settings).toMatchObject({ map: 'large', rivals: MAP_SIZES.large.picks });
+    expect(newGame(41, { mode: 'sandbox' }).settings.districts).toBeUndefined();
+    const small = sandbox(41, 'small');
+    expect(small.settings.rivals).toEqual(MAP_SIZES.small.picks);
+    expect(small.settings.districts).toEqual(cutMap('small', MAP_SIZES.small.picks)!.districts);
+    expect(sandbox(41, 'small', ['sourwood', 'blenders']).settings.rivals).toEqual(MAP_SIZES.small.picks); // can't share a Small map
+    expect(sandbox(41, 'medium', ['hollis', 'hollis', 'fizzco']).settings.rivals).toEqual(MAP_SIZES.medium.picks); // no repeats
+    const campaign = newGame(41, { ...small.settings, mode: 'campaign' }).settings;
+    expect([campaign.map, campaign.rivals, campaign.districts, campaign.retag]).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('seeds only the picked rivals, on their own map; the rest never play and the land off the map is never for sale', () => {
+    const s = sandbox(42, 'small', ['hollis', 'fizzco']);
+    expect(mapDistricts(s).map((d) => d.id)).toEqual(['maple', 'oldtown', 'downtown', 'groves']);
+    expect(rivalsInPlay(s)).toEqual(['hollis', 'fizzco']);
+    for (const r of ['sourwood', 'coldbrew', 'blenders'] as const) {
+      expect(s.rivals[r]).toMatchObject({ alive: false, cash: 0 });
+      expect(inPlay(s, r)).toBe(false);
+      expect(PLOTS.some((p) => s.plots[p.id].owner === r)).toBe(false);
+    }
+    for (const p of PLOTS) if (s.plots[p.id].owner) expect(plotOnMap(s, p), p.name).toBe(true);
+    expect(s.plots[hqPlot('hollis').id].owner).toBe('hollis');
+    expect(PLOTS.some((p) => p.district === 'oldtown' && s.plots[p.id].owner === 'fizzco')).toBe(true); // FizzCo's Old Town stand
+    // The Dock the cut made in Downtown starts neutral and holds a pier, never a stand.
+    const [dock] = Object.keys(s.settings.retag!);
+    expect(s.settings.retag![dock]).toBe('dock');
+    expect(s.plots[dock].owner).toBeNull();
+    s.plots[dock].owner = 'player';
+    s.phase = 'prep';
+    s.cash = 1e6;
+    expect(canBuildStand(s, dock)).toEqual({ ok: false, why: 'Docks hold piers, not stands' });
+    s.cash = 1e9;
+    s.rank = 10;
+    expect(canBuyPlot(s, PLOTS.find((p) => p.district === 'harbor' && p.type === 'dock')!.id)).toEqual({ ok: false, why: 'Off this map' });
+  });
+
+  it("an absent rival's home on the map starts neutral: its Field and Dock land can be bought", () => {
+    const s = sandbox(43, 'medium', ['fizzco', 'coldbrew', 'blenders']); // Hilltop fills in, with no Sourwoods
+    expect(onMap(s, 'hilltop')).toBe(true);
+    const hill = PLOTS.filter((p) => p.district === 'hilltop');
+    for (const p of hill) expect(s.plots[p.id].owner, p.name).toBeNull();
+    expect(hill.some((p) => p.type === 'field') && hill.some((p) => p.type === 'dock')).toBe(true);
+    expect(s.rivals.sourwood.alive).toBe(false);
+  });
+
+  it('the Sandbox border rule counts neighbours on the map only', () => {
+    const s = sandbox(45, 'small', ['hollis', 'coldbrew']); // Maple Row, Campus, the Groves and Hilltop: no Old Town
+    expect(mapDistricts(s).map((d) => d.id)).toEqual(['maple', 'campus', 'groves', 'hilltop']);
+    s.cash = 1e9;
+    s.rank = 2;
+    const campus = PLOTS.find((p) => p.district === 'campus' && p.type === 'street' && !s.plots[p.id].owner)!;
+    expect(canBuyPlot(s, campus.id)).toEqual({ ok: false, why: 'Get a Foothold in a bordering district first' });
+    give(s, PLOTS.find((p) => p.district === 'groves' && p.type === 'street' && !s.plots[p.id].owner)!.id);
+    expect(canBuyPlot(s, campus.id).ok).toBe(true);
+    expect(canBuyPlot(s, street(s, 'oldtown').id)).toEqual({ ok: false, why: 'Off this map' });
+  });
+
+  it('Domination needs the picked rivals out and a Majority in every district on the map', () => {
+    const s = sandbox(44, 'small'); // Brock and Tilly: Maple Row, Old Town, the Boardwalk and the Groves
+    expect(dominationProgress(s)).toMatchObject({ districts: 4, done: false });
+    expect([...dominationProgress(s).rivalsLeft].sort()).toEqual(['blenders', 'hollis']);
+    for (const r of rivalsInPlay(s)) s.rivals[r].alive = false;
+    for (const d of mapDistricts(s)) for (const p of purchasablePlots(d.id)) give(s, p.id);
+    expect(dominationProgress(s).done).toBe(true); // Downtown, the Harbor and the rest never count
+  });
+
+  it("a page whose holder isn't on the map comes from a fair win, and only beaten rivals pay out", () => {
+    const s = sandbox(48, 'small', ['hollis', 'fizzco']);
+    expect(['strawberry', 'frozen', 'honeyGinger', 'secretReserve'].map((id) => fairWinPage(s, id as 'frozen'))).toEqual([true, true, true, true]);
+    expect(fairWinPage(s, 'halfAndHalf')).toBe(false); // Tilly plays: beat her for it
+    expect(fairWinPage(s, 'sparkling')).toBe(false);
+    expect(blenderBar(s, 'frozen')).toBe(1); // no Blend Shack Trophy from a gang that never played
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(ownedRecipes(back)).not.toContain('frozen'); // an absent rival never fell, so no page comes home on load
+  });
+
+  it('rivals grow only on the map, and a save keeps its map', () => {
+    const s = sandbox(46, 'medium');
+    for (let i = 0; i < 12; i++) dawn(s);
+    for (const p of PLOTS) if (s.plots[p.id].owner) expect(plotOnMap(s, p), p.name).toBe(true);
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.settings).toMatchObject({ map: 'medium', rivals: s.settings.rivals, districts: s.settings.districts });
+    const old = migrateSave(JSON.parse(JSON.stringify(newGame(47))))!;
+    expect(mapDistricts(old)).toHaveLength(8); // older saves play the whole bay
   });
 });

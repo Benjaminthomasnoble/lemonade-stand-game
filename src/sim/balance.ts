@@ -705,6 +705,17 @@ export const STRONGHOLD = 0.75;
 export const MAJORITY_LAND_DISCOUNT = 0.9;
 /** Sandbox's Economic win: a Success Score target picked from the rank thresholds (default Rank 8). */
 export const ECONOMIC_DEFAULT_RANK = 8;
+/**
+ * Sandbox map sizes (spec: Sandbox: Turf War): the districts cut from Citrine Bay and the rivals that play. Large is
+ * the whole bay; Huge (10 and 5, generated) is a stretch goal. `picks` are the rivals a New Game starts with (the spec
+ * gives no defaults): Brock and Tilly on Small, the campaign's first three bosses on Medium.
+ */
+export type MapSize = 'small' | 'medium' | 'large';
+export const MAP_SIZES: Record<MapSize, { label: string; districts: number; rivals: number; picks: RivalId[] }> = {
+  small: { label: 'Small', districts: 4, rivals: 2, picks: ['blenders', 'hollis'] }, // picks: placeholder: spec gap
+  medium: { label: 'Medium', districts: 6, rivals: 3, picks: ['blenders', 'coldbrew', 'hollis'] }, // picks: placeholder: spec gap
+  large: { label: 'Large', districts: 8, rivals: 5, picks: ['sourwood', 'hollis', 'fizzco', 'coldbrew', 'blenders'] },
+};
 /** Peaceful (Sandbox): Vera finally sells, at this multiple of her cash and buildings, once Weakened. */
 export const PEACEFUL_VERA_BUYOUT = 3;
 /** The Beloved ending needs this Reputation or better (and more buyouts than Smashes and HQ captures). */

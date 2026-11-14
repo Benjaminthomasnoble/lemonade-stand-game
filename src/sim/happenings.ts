@@ -4,7 +4,7 @@
 // Kids' Lemonade Day. Each names its counter-play, and the Bugle (or 101.5, mid-day) announces it with its district and
 // length. Pure and seeded: every placement draws from the scheduler's rng.
 import { nextRandom } from './rng.ts';
-import { DISTRICT_BY_ID, DISTRICTS, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type Plot } from './map.ts';
+import { DISTRICT_BY_ID, DISTRICTS, mapDistricts, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type Plot } from './map.ts';
 import {
   CLOSE, EVENT_NEAR_YOU, EVENT_TRAFFIC, FOOD_CRITIC, ICE_MACHINE_LEVEL, KIDS_DAY, OPEN, RAID_RANK, RANDOM_EVENTS, RIVAL_SHARE_CAP, SEGMENTS,
   SUPPLY_SHOCK, TOURIST_BUS_SHARE, type SegmentId,
@@ -295,7 +295,7 @@ function kidPlots(s: GameState, rng: Rng): Placement {
   const kids: string[] = [];
   const at = working(s);
   const free = (p: Plot) => SIDEWALKS.has(p.type) && !s.plots[p.id].stand && !s.plots[p.id].facility && !kids.includes(p.id);
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) { // land: a Sandbox map's districts
     const mine = at.filter((id) => PLOT_BY_ID[id].district === d.id);
     for (let i = 0; i < KIDS_DAY.perDistrict; i++) {
       const near = i === 0 && mine.length ? nearbyPlots(PLOT_BY_ID[pick(rng, mine)]).filter(free) : [];

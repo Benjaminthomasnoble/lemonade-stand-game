@@ -5,7 +5,7 @@ import './coach.css';
 import { createCoach } from './ui/coach.ts';
 import * as THREE from 'three';
 import {
-  buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
+  buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, onMap, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
   alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, nothingTonight, quietNight, raidPauses, secondsPerMinute, startNight, type Alert,
@@ -816,7 +816,7 @@ async function main() {
     el.className = 'district-label';
     el.textContent = d.name;
     document.getElementById('ui')!.prepend(el); // under the HUD, so cards and paper cover it
-    return { el, pos: new THREE.Vector3(d.origin[0] + (d.cols * PLOT_SPACING) / 2, 2, d.origin[1]) };
+    return { el, id: d.id, pos: new THREE.Vector3(d.origin[0] + (d.cols * PLOT_SPACING) / 2, 2, d.origin[1]) };
   });
 
   // Gull Flight: G (or the button) takes Captain Squawk up; G or Esc lands.
@@ -1024,7 +1024,7 @@ async function main() {
     const far = flight.active() ? world.camera.position.y > 40 : dist > 90;
     document.body.classList.toggle('bay-view', far);
     for (const l of labels) {
-      const show = far;
+      const show = far && onMap(state, l.id); // land: a Sandbox map names only its own districts
       l.el.style.display = show ? '' : 'none';
       if (show) { const [x, y] = toScreen(l.pos); l.el.style.left = `${x}px`; l.el.style.top = `${y}px`; }
     }

@@ -13,6 +13,7 @@ import type { GameState } from '../sim/economy.ts';
 import { FACTIONS, LESSON_DAY, type RivalId } from '../sim/balance.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from '../sim/map.ts';
 import { lessonsOn } from '../sim/story.ts';
+import { rivalsInPlay } from '../sim/land.ts';
 import { restockOn } from '../sim/automation.ts';
 import { INK, S, gr, sheenE, svg, uid } from './clay.ts';
 
@@ -41,7 +42,7 @@ export interface Step {
   /** A tap on something matching this finishes the step. */
   doneOnClick?: string;
   /** Show a button to go on (its label); steps without one wait for the player to do the thing. */
-  tap?: string;
+  tap?: string | ((s: GameState) => string);
   /** Move the camera when the step shows. */
   camera?: CoachCamera;
   /** The opening tour: a bigger card in the middle, the HUD tucked away. */
@@ -76,6 +77,9 @@ export function rivalNear(s: GameState): { plot: string; rival: RivalId } | null
   return best && { plot: best.plot, rival: best.rival };
 }
 const rivalName = (s: GameState) => { const r = rivalNear(s); return r ? FACTIONS[r.rival].name : 'Rival gangs'; };
+/** How many gangs play: five on the whole bay, two or three on a Sandbox map cut from it. */
+const gangs = (s: GameState) => ['no', 'one', 'two', 'three', 'four', 'five'][rivalsInPlay(s).length] ?? 'five';
+const Gangs = (s: GameState) => gangs(s)[0].toUpperCase() + gangs(s).slice(1);
 
 /** Day 3's side lot, while it's yours to take. */
 const sideLot = (s: GameState) => PLOTS.find((p) => s.plots[p.id]?.dibs?.who === 'player' && s.plots[p.id].dibs?.table && !s.plots[p.id].owner)?.id ?? null;
@@ -88,12 +92,12 @@ export const STEPS: Step[] = [
   // the deadline, the goal. Story Campaign only for the recipe beats; every mode meets the rivals and the board.
   { id: 'intro-hello', intro: true, when: (s) => prep(s, 1), camera: 'home', say: "Summer's here, kid! This is my corner.", tap: 'Hi, Grandma!', mood: 'happy' },
   { id: 'intro-vera', intro: true, when: (s) => prep(s, 1) && s.settings.mode === 'campaign', camera: 'bay', say: 'Forty years ago, Vera Sourwood stole my recipes.', tap: 'She what?!', mood: 'grumpy' },
-  { id: 'intro-bay', intro: true, when: (s) => prep(s, 1), camera: 'bay', say: 'Now five drink gangs run Citrine Bay.', tap: 'Five?!' },
+  { id: 'intro-bay', intro: true, when: (s) => prep(s, 1), camera: 'bay', say: (s) => `Now ${gangs(s)} drink gangs run Citrine Bay.`, tap: (s) => `${Gangs(s)}?!` },
   { id: 'intro-rivals', intro: true, when: (s) => prep(s, 1) && !!rivalNear(s), camera: 'plot', plot: (s) => rivalNear(s)?.plot ?? null, say: (s) => `${rivalName(s)}. They want this corner.`, tap: 'No way', mood: 'grumpy' },
   { id: 'intro-fair', intro: true, when: (s) => prep(s, 1) && s.settings.mode === 'campaign', camera: 'home', say: 'Beat Brock at the Summer Fair, Day 14!', tap: 'Then what?' },
-  { id: 'intro-goal', intro: true, when: (s) => prep(s, 1), camera: 'home', say: (s) => (s.settings.mode === 'campaign' ? 'Then all five. And my recipes come home.' : 'Knock out all five. Own the bay!'), tap: "Let's go!", mood: 'happy' },
+  { id: 'intro-goal', intro: true, when: (s) => prep(s, 1), camera: 'home', say: (s) => (s.settings.mode === 'campaign' ? 'Then all five. And my recipes come home.' : `Knock out all ${gangs(s)}. Own the bay!`), tap: "Let's go!", mood: 'happy' },
 
-  { id: 'd1-bosses', when: (s) => prep(s, 1), at: '[data-testid="bosses"]', say: 'The five gang bosses. Cross them all out!', tap: 'Got it', mood: 'grumpy' },
+  { id: 'd1-bosses', when: (s) => prep(s, 1), at: '[data-testid="bosses"]', say: (s) => `The ${gangs(s)} gang bosses. Cross them all out!`, tap: 'Got it', mood: 'grumpy' },
 
   // Day 1, the morning: stock, price, open.
   // The supply buttons wear a "!" while today's stock runs short: tap until it pops off (or you can't afford more).
@@ -277,7 +281,7 @@ export function createCoach(ui: HTMLElement, deps: CoachDeps, enabled = true): C
     const intro = !!st.intro;
     card.innerHTML = `<span class="coach-face">${face}</span>
       <div class="coach-bubble"><b class="coach-line">${esc(line)}</b>
-        <span class="coach-acts">${st.tap ? `<button class="coach-next" data-coach="next" data-testid="coach-next">${esc(st.tap)}${arrowSVG()}</button>` : ''}
+        <span class="coach-acts">${st.tap ? `<button class="coach-next" data-coach="next" data-testid="coach-next">${esc(typeof st.tap === 'function' ? st.tap(s) : st.tap)}${arrowSVG()}</button>` : ''}
         <button class="coach-skip" data-coach="skip" data-testid="coach-skip" title="Switch Lottie's tour off (Options can replay it)">Skip tour</button></span></div>`;
     layer.classList.add('on');
     layer.classList.toggle('intro', intro);

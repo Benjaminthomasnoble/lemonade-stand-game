@@ -3,8 +3,9 @@
 // Radio Jingle's 2-day look-ahead), the Market's prices against normal with any shock and its days left, each
 // stand's cost per cup, the week's calendar, today's events with their district and length, and one headline with
 // 2-3 briefs. Headlines go story beat, then rank-up, then last night's raid or the biggest rival move, then today's
-// events, then the weather. Mid-day events break in on 101.5 instead (radio.ts). s.news stays the headline source
-// for other lanes: what it holds at dawn prints as a brief. Pure: the paper is read off the state.
+// events, then the weather. The boss who phoned yesterday gets the first brief: their moves since the call (spec "Phone
+// taunts"). Mid-day events break in on 101.5 instead (radio.ts). s.news stays the headline source for other lanes:
+// what it holds at dawn prints as a brief. Pure: the paper is read off the state.
 import { BRAND_TIERS, FACTIONS, FESTIVALS, RANKS, RECIPES, SEASON_WEATHER, SEGMENTS, SUPPLIES, WEATHER, YEAR_DAYS, type FestivalId, type RivalId, type SupplyId, type WeatherKind } from './balance.ts';
 import { DISTRICT_BY_ID, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import type { GameState, Weather } from './economy.ts';
@@ -19,6 +20,7 @@ import { storyHeadline } from './story.ts';
 import { pactNews } from './squeeze.ts';
 import { cameoStories } from './cameos.ts';
 import { crewName, grandkid } from './grandkid.ts';
+import { bossBrief } from './phone.ts'; // story: the boss who phoned yesterday, and their moves since the call
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** Rivals as the paper names them in a headline. */
@@ -47,6 +49,7 @@ export interface Newsroom {
   moves: { rival: RivalId; gained: string[]; lost: string[] }[]; // since the last paper
   fell: RivalId[]; // rivals out of the game since the last paper
   wire: string[]; // what s.news took in overnight and at dawn (other lanes' lines: a rival's move, an Out-of-Towner)
+  call?: string; // the moves of the boss who phoned yesterday (phone.ts bossBrief): the first brief
   scandal?: number; // the day you raided a kid's stand (Kids' Lemonade Day): the next morning's front page
 }
 
@@ -82,7 +85,8 @@ export function newsroomNow(s: GameState): Newsroom {
   return { day: s.day, rank: s.rank, owners, alive: RIVALS.filter((r) => s.rivals[r]?.alive), moves: [], fell: [], wire: [] };
 }
 
-/** Dawn (calendar's worldAtDawn, before the day's events start): the newsroom takes its notes for this morning's paper. */
+/** Dawn (calendar's worldAtDawn, before the day's events start): the newsroom takes its notes for this morning's paper,
+ * the moves of the boss who phoned yesterday among them (the phone's own dawn check, later on, only makes it a toast). */
 export function mediaAtDawn(s: GameState): void {
   const w = worldOf(s);
   const prev = w.paper;
@@ -93,8 +97,9 @@ export function mediaAtDawn(s: GameState): void {
     lost: Object.keys(prev.owners).filter((id) => prev.owners[id] === rival && now.owners[id] !== rival),
   })).filter((m) => m.gained.length || m.lost.length) : [];
   const fought = new Set(s.battles.filter((b) => b.day >= s.day - 1).map(battleHeadline)); // the fights have their own stories
+  const call = bossBrief(s)?.replace(/^Bugle:\s*/, '');
   w.paper = {
-    ...now, ...(prev && s.rank > prev.rank ? { rankUp: s.rank } : {}),
+    ...now, ...(prev && s.rank > prev.rank ? { rankUp: s.rank } : {}), ...(call ? { call } : {}),
     moves, fell: prev ? prev.alive.filter((r) => !s.rivals[r].alive) : [], wire: sinceClose(s).filter((l) => onTheWire(l) && !fought.has(l)).slice(-4),
     ...(prev?.scandal !== undefined ? { scandal: prev.scandal } : {}),
   };
@@ -251,8 +256,9 @@ function fillers(s: GameState): string[] {
   return out;
 }
 
-/** The raids, the rival moves, the countdowns and the event notes the paper has room for. */
-function stories(s: GameState): { lead: Story[]; briefs: string[] } {
+/** The raids, the rival moves, the countdowns and the event notes the paper has room for; `call`, the moves of the boss
+ * who phoned yesterday. */
+function stories(s: GameState): { lead: Story[]; briefs: string[]; call?: string } {
   const paper = s.world?.paper?.day === s.day ? s.world.paper : undefined;
   const lead = storyBeats(s, paper);
   const briefs: string[] = [];
@@ -304,18 +310,19 @@ function stories(s: GameState): { lead: Story[]; briefs: string[] } {
     const story = wireStory(line);
     if (story) lead.push(story); else briefs.push(line);
   }
-  return { lead, briefs };
+  return { lead, briefs, ...(paper?.call ? { call: paper.call } : {}) };
 }
 
-/** The headline and 2-3 briefs: the top story leads (the weather when nothing else does), the rest print as briefs. */
+/** The headline and 2-3 briefs: the top story leads (the weather when nothing else does), the rest print as briefs. The
+ * boss who phoned yesterday is the first brief (spec: "The next Bugle reports their moves"). */
 function news(s: GameState): Pick<FrontPage, 'headline' | 'briefs'> {
-  const { lead, briefs } = stories(s);
+  const { lead, briefs, call } = stories(s);
   lead.sort((a, b) => a.rank - b.rank);
   const pool = WEATHER_HEADS[s.forecast.kind];
   const [big, small] = pool[s.day % pool.length];
   const weather: Story = { big, small, brief: `${weatherText(s.forecast)} today.`, rank: 5 };
   const top = lead[0] ?? weather;
-  const all = [...lead.slice(1).map((x) => x.brief), ...briefs, ...(top === weather ? [] : [weather.brief]), ...fillers(s)];
+  const all = [...(call ? [call] : []), ...lead.slice(1).map((x) => x.brief), ...briefs, ...(top === weather ? [] : [weather.brief]), ...fillers(s)];
   const seen = new Set<string>();
   return { headline: [top.big, top.small], briefs: all.filter((b) => !seen.has(b) && seen.add(b)).slice(0, 3) };
 }

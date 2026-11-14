@@ -145,7 +145,8 @@ export function takeCall(s: GameState): Call | null {
 
 /**
  * The next Bugle reports the moves of the boss who called (spec "Phone taunts"): one brief on their plots and mood
- * since the call. Null when nobody rang yesterday, or when last night's fight with them already made the news.
+ * since the call. Null when nobody rang yesterday, or when last night's fight with them already made the news. The
+ * newsroom takes it at dawn for the paper's first brief (media.ts mediaAtDawn); phoneCheck's dawn makes it a toast.
  */
 export function bossBrief(s: GameState): string | null {
   const c = s.phone?.log.find((l) => l.day === s.day - 1);

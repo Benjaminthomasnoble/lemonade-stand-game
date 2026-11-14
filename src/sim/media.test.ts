@@ -6,6 +6,7 @@ import {
 } from './economy.ts';
 import { bugleSheet } from '../ui/bugle.ts';
 import { calendarTickets, worldTabs } from '../ui/calendar.ts';
+import { LINES, phoneCall, takeCall } from './phone.ts';
 
 /** Jump to a day's Morning Prep through the real dawn (with cash to spare: these tests skip the business days). */
 function dawn(s: GameState, day: number): void {
@@ -209,6 +210,26 @@ describe('the Morning Bugle', () => {
     expect(bugleHeadline(s)).toEqual(['OUT-OF-TOWNER!', 'A food truck rolls into Downtown']);
     expect(frontPage(s).briefs).toContain('Dot says the pie case is empty again.');
     expect(frontPage(s).briefs.join(' ')).not.toContain('Daytime gossip');
+  });
+
+  it('the next Bugle reports the moves of the boss who phoned yesterday, as its first brief', () => {
+    const s = newGame(34, { mode: 'sandbox' });
+    dawn(s, 9);
+    s.phone!.queue = [];
+    phoneCall(s, 'blenders', LINES.brockFence);
+    expect(takeCall(s)).toMatchObject({ who: 'blenders', text: LINES.brockFence }); // Brock rings the Corner on Day 9
+    const lot = PLOTS.find((p) => p.type === 'street' && !s.plots[p.id].owner)!;
+    s.plots[lot.id].owner = 'blenders'; // and grabs a plot after the call
+    closeUp(s);
+    s.news = []; // the HUD shows the day's news as it comes (main.ts flushNews)
+    sleepUntilDawn(s);
+    const brief = frontPage(s).briefs[0];
+    expect(brief).toMatch(/^The Boardwalk Blenders grab \d+ plots? after the call\.$/);
+    expect(s.news).toContain(`Bugle: ${brief}`); // the dawn's toast says the same
+    s.news = [];
+    closeUp(s);
+    sleepUntilDawn(s);
+    expect(frontPage(s).briefs.join(' ')).not.toContain('after the call'); // only the morning after the call
   });
 
   it('the Market against normal, any shock with its days left, and each stand\'s cost per cup', () => {

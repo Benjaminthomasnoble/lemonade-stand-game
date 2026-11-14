@@ -1060,14 +1060,17 @@ export function playRun(opts: PacingOpts): RunResult {
       const daily = weekTakings(bot);
       r.raids.push({ day: today, cost, days: daily > 0 ? cost / daily : 0 });
     }
-    // Loads that left your Pad or Pier (paid as they load), by tier: the VIP share and the firsts.
+    // Loads that left your Pad or Pier (paid as they load), by tier: the VIP share and the firsts. The log names each order
+    // that fell through (short at closing, or overrun by a Delivery Raid).
     for (const [o, was] of bot.orders) {
       const now = o.loaded ?? 0;
       if (now > was && isVip(o.tier)) {
         row.vip += ((now - was) / o.qty) * o.pay;
         if (r.firstLoad[o.tier] === undefined) { r.firstLoad[o.tier] = today; first(`load-${o.tier}`, `first ${o.tier} load`, today); }
       }
-      if (s.orders.includes(o)) bot.orders.set(o, now); else bot.orders.delete(o);
+      if (s.orders.includes(o)) { bot.orders.set(o, now); continue; }
+      bot.orders.delete(o);
+      if (now < o.qty) opts.log?.(`        fell through: ${o.tier} for ${o.client}, ${now} of ${o.qty} loaded`);
     }
     for (const id of rivalsInPlay(s)) if (!s.rivals[id].alive) first(`out-${id}`, `${id} out`);
     owned();

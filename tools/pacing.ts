@@ -23,7 +23,7 @@ import {
   netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
   plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, promote, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
   repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, siegeTargets, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
-  SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, WEAPONS, yourDays,
+  MAX_GROVES, SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, WEAPONS, yourDays,
   type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GadgetId, type GameState, type GearId, type Guard, type Order, type OrderTier,
   type RivalId, type SpecId, type Specialty, type Stand, type TipId, type WeaponId, type Weather,
 } from '../src/sim/economy.ts';
@@ -201,8 +201,9 @@ export interface RunResult {
 export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: number; log?: (line: string) => void }
 
 /** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs.
- * `also`: a second plot the buy takes (the VIP engine's first Bottling Works and the line bought with it). */
-export interface Buy { what: string; cost: number; gain: number; plot: string; also?: string; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
+ * `also`: a second plot the buy takes (the VIP engine's first Bottling Works and the line bought with it). `firsts`: the
+ * facility kinds it brings you a first of, weighed against the morning's engine (firstsLeft). */
+export interface Buy { what: string; cost: number; gain: number; plot: string; also?: string; firsts?: FacilityKind[]; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
 export interface Bot {
   sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, kits, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
@@ -468,6 +469,8 @@ function vipDay(s: GameState, bottles: number, heli: number, ship: number, ware 
  * weighed with it (and no second one is bought the morning the first is rebuilt). */
 const yours = (s: GameState, kind: FacilityKind) => PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind);
 const lineLevel = (s: GameState, kind: FacilityKind) => Math.max(0, ...yours(s, kind).map((p) => s.plots[p.id].facility!.level));
+/** How many more of a kind the engine has room for: one of each, and two Lemon Groves (only two count: MAX_GROVES). */
+const firstsLeft = (s: GameState, kind: FacilityKind) => (kind === 'grove' ? MAX_GROVES : 1) - yours(s, kind).length;
 /** Your bottling a dawn (bottlingCapacity), a smashed Bottling Works counted as rebuilt. */
 function ownBottling(s: GameState): number {
   const down = yours(s, 'bottling').map((p) => s.plots[p.id].facility!).filter((f) => f.wrecked);
@@ -532,7 +535,7 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
         out.push({ what: `grow ${p.name} to ${f.names[lvl]}`, cost: f.costs[lvl], gain: adds(kind, lvl, lvl + 1), plot: p.id, run: () => buildFacility(s, p.id, kind) });
       }
     }
-    if ((kind === 'grove' ? 2 : 1) <= have.length || s.rank < f.ranks[0]) continue;
+    if (firstsLeft(s, kind) <= 0 || s.rank < f.ranks[0]) continue;
     const ways: Way[] = (firsts[kind] = []);
     for (const p of PLOTS) { // a rival's, standing: a Plot Buyout brings it over at its level
       const fac = s.plots[p.id].facility;
@@ -540,10 +543,10 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
       const cost = plotBuyoutPrice(s, p.id);
       if (cost > budget) continue;
       ways.push({ what: `Plot Buyout of ${p.name} and its ${f.names[fac.level - 1]}`, cost, plot: p.id, level: fac.level, extra: 0, run: () => plotBuyout(s, p.id) });
-      out.push({ what: ways[ways.length - 1].what, cost, gain: adds(kind, 0, fac.level), plot: p.id, run: () => plotBuyout(s, p.id) });
+      out.push({ what: ways[ways.length - 1].what, cost, gain: adds(kind, 0, fac.level), plot: p.id, firsts: [kind], run: () => plotBuyout(s, p.id) });
     }
     const own = site(kind, adds(kind, 0, 1), budget);
-    if (own) out.push({ what: own.what, cost: own.cost, gain: adds(kind, 0, 1) + own.extra, plot: own.plot, run: own.run });
+    if (own) out.push({ what: own.what, cost: own.cost, gain: adds(kind, 0, 1) + own.extra, plot: own.plot, firsts: [kind], run: own.run });
   }
   if (!now.bottles && firsts.bottling) { // the engine as a whole: a first Bottling Works with each line it lacks, bought at once
     for (const kind of ['warehouse', 'helipad', 'pier'] as FacilityKind[]) {
@@ -554,7 +557,7 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
         if (!works) continue;
         const room = budget - works.cost;
         for (const w of [...lines.filter((x) => x.cost <= room && x.plot !== works.plot), site(kind, line(1), room, works.plot)]) {
-          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, made(works.level), w.level) + w.extra, plot: works.plot, also: w.plot, run: () => works.run() && w.run() });
+          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, made(works.level), w.level) + w.extra, plot: works.plot, also: w.plot, firsts: ['bottling', kind], run: () => works.run() && w.run() });
         }
       }
     }
@@ -817,7 +820,8 @@ export function morning(s: GameState, bot: Bot): void {
   for (const b of buys) {
     if (n >= MAX_BUYS || pays(b) > bar) break;
     const plots = [b.plot, b.also].filter((p): p is string => !!p);
-    if (b.cost > budget || plots.some((p) => used.has(p))) continue;
+    // A first one of a kind is weighed against the morning's engine: once the kind has no room, the rest add nothing.
+    if (b.cost > budget || plots.some((p) => used.has(p)) || b.firsts?.some((k) => firstsLeft(s, k) <= 0)) continue;
     const before = s.cash;
     if (!b.run()) continue;
     n++;

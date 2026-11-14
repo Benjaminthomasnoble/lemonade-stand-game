@@ -995,6 +995,23 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(buys.some((b) => /Pad/.test(b.what) && b.gain > 0)).toBe(true); // a Pad is weighed with the Works' bottles, back at dawn
   });
 
+  it('buys no more first facilities of a kind in a morning than the engine has room for: one Pad, not each it weighed', () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 60, rank: 6, cash: 1e7, reputation: 4 });
+    give(s, street(s, 'oldtown').id);
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    give(s, works.id);
+    s.plots[works.id].facility = { kind: 'bottling', level: 1 };
+    const [field, theirs] = PLOTS.filter((p) => p.type === 'field' && s.plots[p.id].facility?.kind === 'grove');
+    give(s, field.id);
+    delete s.plots[field.id].facility; // a bare Field of yours
+    s.plots[theirs.id].facility = { kind: 'helipad', level: 1 }; // and a Pad of Hollis's, for a Plot Buyout
+    const pads = facilityCandidates(s, 1e7).filter((b) => b.firsts?.includes('helipad') && !b.also);
+    expect(pads.map((b) => b.plot)).toEqual(expect.arrayContaining([field.id, theirs.id])); // each weighed with the whole chopper line
+    morning(s, newBot());
+    expect(PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === 'helipad').length).toBe(1);
+  });
+
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
     const s = newGame(REFERENCE_SEED);
     const lot = street(s, 'maple').id;

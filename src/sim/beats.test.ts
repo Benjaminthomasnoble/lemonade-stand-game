@@ -1097,8 +1097,10 @@ describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {
     nextDawn(s);
     expect(tea(s)).toBe(false); // once a run
     // Land's Lavender auction (Rank 8): it opens on the act's first morning, the gavel falls the next, and tea is that morning.
-    const t = lateAct(112, 5);
+    const t = lateAct(112, 4);
+    eliminate(t, 'fizzco', 'buyout'); // the Tower falls: the act turns at the next dawn
     nextDawn(t);
+    expect(t.story).toMatchObject({ act: 5, since: t.day });
     expect(t.lavender?.auction).toBeDefined();
     expect(tea(t)).toBe(false);
     nextDawn(t);

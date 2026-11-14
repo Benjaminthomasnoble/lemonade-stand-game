@@ -521,9 +521,13 @@ describe('the Lavender page auction', () => {
     dawn(c);
     expect(c.story!.act).toBe(4);
     expect(c.lavender).toBeUndefined();
-    c.story!.act = 5; // the Tower fell: Act 5 opens with the auction
+    c.rivals.fizzco.alive = false; // the Tower fell: Act 5 opens with the auction, that same morning
     dawn(c);
+    expect(c.story).toMatchObject({ act: 5, since: c.day });
     expect(c.lavender?.auction).toEqual({ kind: 'page', closes: c.day + 1, min: LAVENDER.open });
+    const act = c.news.findIndex((n) => n.startsWith('ACT 5'));
+    expect(act).toBeGreaterThanOrEqual(0);
+    expect(c.news.findIndex((n) => n.includes('auctioning the Lavender page'))).toBeGreaterThan(act); // the act's opening beat
     for (const mode of ['sandbox', 'endless'] as const) {
       const s = newGame(77, { mode });
       s.rank = LAVENDER.rank - 1;

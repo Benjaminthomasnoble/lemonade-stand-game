@@ -21,6 +21,7 @@ import { checkGoals, DEX_LESSON, goalsAtDawn, migrateGoals, skipGoal } from './g
 import { migratePhone, phoneAtAct, phoneAtClose, phoneCheck } from './phone.ts';
 import { migrateScenes, playScene, SCENES, scenesAtDawn } from './scenes.ts';
 import { beatsAtDawn, beatsOnTheClock } from './beats.ts';
+import { openLavender } from './auction.ts';
 import { endingFor } from './modes.ts';
 import { crewCall } from './grandkid.ts';
 import { cameosAtClose, cameosAtDawn } from './cameos.ts';
@@ -357,12 +358,14 @@ export function storyAtStart(s: GameState): void {
 
 /**
  * Dawn, before the Cookie Jar is read (one line in sleepUntilDawn, ahead of fortunesAtDawn): the act may turn, so a new
- * act's first morning has a full jar. One act a dawn.
+ * act's first morning has a full jar. One act a dawn. Act 5 opens with the Lavender auction that same morning (land's
+ * dawn ran before the act turned).
  */
 export function actAtDawn(s: GameState): void {
   migrateStory(s);
   scoreCheck(s); // land values, VIP pickups, loans, Fire Sales and dawn events have moved the score: the peak first, then the win check (score.ts)
   advanceAct(s);
+  openLavender(s); // auction.ts: from Rank 8, in the campaign once Act 5 is under way
 }
 
 /** Dawn (one line in sleepUntilDawn, after actAtDawn): the day's goals and scenes arrive, bosses' moods are read. */

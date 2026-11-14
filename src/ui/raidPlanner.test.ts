@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hqPlot, newGame, planRaid, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { hqPlot, newGame, PERIMETERS, planRaid, postsFor, raidOdds, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
 import { footholdFor, guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
@@ -46,6 +46,28 @@ describe('the Raid Planner', () => {
     expect(seen).not.toContain('raid-odds-range');
     expect(seen).toMatch(/<b class="cl-odds">(Long shot|Risky|Coin flip|Good odds|Sure thing)<\/b>/);
     expect(seen).toContain(`<tape>×${s.scouting![target].garrison}</tape>`);
+  });
+
+  it('scouted, the defenses row reads the plot as it stands now, as its odds do; the Corkboard keeps the snapshot', () => {
+    const { s, target } = setup(88);
+    const { p } = planner();
+    for (const g of s.guards) p.squad.add(g.id);
+    const ps = s.plots[target];
+    Object.assign(ps, { defense: { tier: 0, fenceHp: 0, gadgets: [] }, garrison: 0, garrisonOut: undefined });
+    gullScout(s, target);
+    const snap = structuredClone(s.scouting![target]);
+    const bare = raidOdds(s, target, [...p.squad], 'smash', true);
+    const row = (html: string) => /<div class="cl-slots" title="([^"]*)">(.*?)<\/div>/.exec(html)!;
+    expect(row(p.panel(s, target))[2]).not.toContain('data-art="fence"');
+    // Days later the rival buys a Chain-Link, a Tin-Can Alarm and a full garrison.
+    Object.assign(ps, { defense: { tier: 2, fenceHp: PERIMETERS[1].hp, gadgets: ['alarm'] }, garrison: postsFor(s, target) });
+    const [, tip, slots] = row(p.panel(s, target));
+    expect(slots).toContain('data-art="fence"');
+    expect(slots).toContain('data-art="alarm"');
+    expect(slots).toContain(`<tape>×${postsFor(s, target)}</tape>`);
+    expect(tip).toContain(`Chain-Link Fence, Tin-Can Alarm, ${postsFor(s, target)} henchm`);
+    expect(raidOdds(s, target, [...p.squad], 'smash', true)).toBeLessThan(bare); // the dial reads the same plot
+    expect(s.scouting![target]).toEqual(snap); // what Squawk saw stays pinned on the Corkboard
   });
 
   it('opening on a plot, Dex fills the squad; a swap sticks until it opens on another plot', () => {

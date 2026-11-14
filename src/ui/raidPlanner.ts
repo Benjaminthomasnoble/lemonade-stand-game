@@ -3,9 +3,10 @@
 // rival HQ's card for its one objective, HQ Assault (the Gate, the Yard, the
 // Boss Room). Mounted from hud.ts, drawn with its clay kit.
 import {
-  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, foughtByDay, hqOdds, hqPlot, HQS, inTruce, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
+  availableRaiders, canAssault, canRaid, canSabotage, dexSquad, foughtByDay, hqOdds, hqPlot, HQS, inTruce, postsFor, raidOdds, raidOddsRange, RAID_RANK, raidRepCost, rebuildChance,
   SABOTAGE_NEEDS, squadTrip, WEAPONS, type Blocker, type GameState, type RaidObjective, type RivalId,
 } from '../sim/economy.ts';
+import { fitGarrison } from '../sim/garrison.ts';
 import { canScout, freeLookout, isScouted, scoutedSnapshot } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
 import { guardFace } from './crew.ts';
@@ -61,11 +62,14 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${crew.length > 1 && fill.length ? `<button class="cl-b ghost tiny" data-action="squadAll" data-ids="${fill.join(',')}">${holds(fill) ? 'None' : 'Take all'}</button>` : ''}</div>`;
   }
 
-  /** What a Lookout saw (fence, gadgets, henchmen), or the button to send one. */
+  /** What a Lookout saw (fence, gadgets, henchmen), or the button to send one. While it's fresh the row shows the plot as
+   * it stands now, as its odds and the plot card read it (the Corkboard keeps the snapshot). */
   function intel(s: GameState, id: string) {
     const sc = scoutedSnapshot(s, id);
     if (sc) {
-      return `<div class="cl-slots" title="${k.esc(snapshotTip(s, sc))}">${sc.tier ? `<span class="cl-slot full">${k.ART.fence(sc.tier)}</span>` : ''}${sc.gadgets.map((g) => `<span class="cl-slot full">${k.GADGET_ART[g]()}</span>`).join('')}<span class="cl-slot full">${k.ART.head(2)}</span>${k.tape(`×${sc.garrison}`)}</div>`;
+      const ps = s.plots[id];
+      const now = { ...sc, tier: ps.defense.tier, gadgets: ps.defense.gadgets, garrison: Math.min(fitGarrison(s, id), postsFor(s, id)) };
+      return `<div class="cl-slots" title="${k.esc(snapshotTip(s, now))}">${now.tier ? `<span class="cl-slot full">${k.ART.fence(now.tier)}</span>` : ''}${now.gadgets.map((g) => `<span class="cl-slot full">${k.GADGET_ART[g]()}</span>`).join('')}<span class="cl-slot full">${k.ART.head(2)}</span>${k.tape(`×${now.garrison}`)}</div>`;
     }
     const fly = flyOver(k, s, id); // Gull Flight: Captain Squawk circles it, any hour
     const unknown = `<div class="cl-slots" data-testid="raid-unscouted" title="Not scouted: its fence, gadgets and henchmen are a guess"><span class="cl-slot">?</span><span class="cl-slot">?</span><span class="cl-slot full">${k.ART.head(2)}</span>${k.tape('×?')}</div>`;

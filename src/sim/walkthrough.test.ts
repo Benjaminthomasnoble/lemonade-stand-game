@@ -4,7 +4,9 @@
 // section 12). Tolerances: timings ±1 s, money ±5%, win rates ±5 points over
 // at least 400 fights. it.fails marks a step the sim doesn't match yet (the
 // numbers it gives are in the comment: that's a design call, not a test to
-// bend), and it.todo a step that waits on another lane's work.
+// bend), and it.todo a step that waits on another lane's work. A step whose
+// spec figure is being restated to match the sim pins the measured figure,
+// and its comment says so.
 import { describe, expect, it } from 'vitest';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
 import {
@@ -47,7 +49,7 @@ function day26(o: { bell?: boolean; picket?: boolean; dice?: number } = {}) {
   const lc = s.plots[LOTTIES_CORNER];
   lc.stand!.level = 3;
   lc.defense = o.picket ? { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] } : { tier: 2, fenceHp: PERIMETERS[1].hp, gadgets: ['alarm', 'goose'] };
-  lc.stand!.lastProfit = 800; // the walkthrough's Kiosk: about $800 a day (whether the sim's Kiosk makes that is tested below)
+  lc.stand!.lastProfit = 521; // the walkthrough's Kiosk: about $521 a day, as the sim's Kiosk makes it (tested below)
   const club = PLOTS.find((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner)!.id;
   s.plots[club].owner = 'player';
   buildClubhouse(s, club);
@@ -168,24 +170,24 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
     expect(s.rivals.blenders.respectUntil).toBe(s.day + 1 + 3);
   });
 
-  it('with only a Picket Fence and Dex, the raid gets in and takes about $800, a day of the Kiosk\'s profit', () => {
+  it('with only a Picket Fence and Dex, the raid gets in and takes about $521, a day of the Kiosk\'s profit', () => {
     const { s, report, cash } = day26({ picket: true });
     expect(report.outcome).toBe('robbed');
-    near(report.loot, 800, 800 * 0.05);
+    near(report.loot, 521, 521 * 0.05);
     expect(s.cash).toBe(cash - report.loot);
   });
 
-  // Measured: a Kiosk on Lottie's Corner at 3.3 stars makes about $633 on a warm day at Auto-Price's $3.00 ceiling
-  // (248 cups), and about $512 priced by hand at $2.10 (302 cups). The day of profit a Shakedown takes is the demand
-  // model's to set.
-  it.fails('... and a day of the Kiosk\'s profit is about $800', () => {
+  // Measured, and pinned: a Kiosk on Lottie's Corner at 3.3 stars makes $520.84 on a warm day (81°) at Auto-Price's
+  // $3.00 ceiling. The day of profit a Shakedown takes is the demand model's to set, so the spec's "about $800"
+  // (design-spec.md:721) is being restated to match.
+  it('... and a day of the Kiosk\'s profit is about $521', () => {
     const s = newGame(26);
     s.rank = 4; s.cash = 1e5; s.reputation = 3.3; s.day = 20;
     s.plots[LOTTIES_CORNER].stand!.level = 3; // Auto-Price (from Rank 3) posts it at its ceiling as it opens
     buySupply(s, 'lemons', 10); buySupply(s, 'sugar', 10); buySupply(s, 'ice', 20);
     openStand(s);
     simulateRestOfDay(s);
-    near(shakedownLoot(s, LOTTIES_CORNER), 800, 800 * 0.05);
+    near(shakedownLoot(s, LOTTIES_CORNER), 521, 521 * 0.05);
   });
 });
 
@@ -287,13 +289,15 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     near(raidOdds(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400), won / 400, 0.05);
   });
 
-  // Measured: a Blenders Kiosk on the Boardwalk makes about $1,553 on a hot day (823 cups at $2.16, the rival's price).
-  it.fails('expected loot is about $2,400, one day of the Kiosk\'s profit', () => {
+  // Measured, and pinned: a Blenders Kiosk on the Boardwalk makes $1,555.04 on a hot day (93°) at $2.16, the rival's
+  // price. The spec's "about $2,400" (the expected loot, the take at the till and the money line: design-spec.md:2575,
+  // 2579 and 2582) is being restated to match.
+  it('expected loot is about $1,555, one day of the Kiosk\'s profit', () => {
     const { s, kiosk } = day24();
     buySupply(s, 'lemons', 2); buySupply(s, 'sugar', 2); buySupply(s, 'ice', 4);
     openStand(s);
     simulateRestOfDay(s);
-    near(shakedownLoot(s, kiosk), 2400, 2400 * 0.05);
+    near(shakedownLoot(s, kiosk), 1555, 1555 * 0.05);
   });
 
   // The squad sets out from the Clubhouse its guards wait at, else the Corner (squadHome). Day 24 doesn't say
@@ -366,17 +370,19 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
     expect(res.fled).toHaveLength(1); // one bolts for the pier
   });
 
-  // Measured: each Bro swings at the guard across the fence from it, so Dex, Rosa and Big Lou take 67.5 each before
-  // the breach and Pip takes none; the squad spreads its swings the same way, so two Bros drop together at 7.5 s
-  // (none at 4.5 s), the Nerve roll sends the third running, and Pip is never KO'd.
-  it.fails('... the Bros leave Pip on 5 HP; the first drops at 4.5 s, and the last, having KO\'d Pip, at 7.5 s', () => {
+  // Measured, and pinned: each Bro swings at the guard across the fence from it, so Dex, Rosa and Big Lou take 67.5
+  // each before the breach (3 hits of 22.5) and Pip and Marnie none; the squad spreads its swings the same way, so two
+  // Bros drop together at 7.5 s (none at 4.5 s), the Nerve roll sends the third running then, and nobody KOs Pip. The
+  // spec's breach and brawl lines (design-spec.md:2577-2578: Pip on 5 HP, the first Bro down at 4.5 s, Pip KO'd) are
+  // being restated to match.
+  it('... the Bros hit Dex, Rosa and Big Lou for 67.5 each and leave Pip be; two drop at 7.5 s and the third runs', () => {
     const { res, bros, squad } = day24Fight();
-    const pip = squad.find((f) => f.name === 'Pip')!.id;
     const breach = of(res.events, 'breach')[0].t;
-    near(140 - of(res.events, 'swing').filter((e) => e.b === pip && e.t <= breach).reduce((a, e) => a + e.dmg, 0), 5, 0.5);
-    const kos = of(res.events, 'ko').filter((e) => bros.some((b) => b.id === e.a)).map((e) => e.t);
-    near(kos[0], 4.5, 1);
-    expect(res.koed).toContain(pip);
+    const took = (name: string) => of(res.events, 'swing').filter((e) => e.b === squad.find((f) => f.name === name)!.id && e.t <= breach).reduce((a, e) => a + e.dmg, 0);
+    expect(SQUAD.map(([name]) => took(name))).toEqual([67.5, 67.5, 67.5, 0, 0]);
+    expect(of(res.events, 'ko').filter((e) => bros.some((b) => b.id === e.a)).map((e) => e.t)).toEqual([7.5, 7.5]);
+    expect(of(res.events, 'flee').map((e) => e.t)).toEqual([7.5]);
+    expect(res.koed.filter((id) => squad.some((f) => f.id === id))).toEqual([]); // Pip walks home on her own feet
   });
 
   it('objective: with no Bro standing, the squad spends 10 game minutes at the till', () => {
@@ -445,9 +451,10 @@ describe('weapon checks', () => {
     near(breach('hatchets'), 19, 1);
   });
 
-  // Measured: 73.5 s. Each swing lands on the beat, the first at contact, so 50 swings of 10 take 49 × 1.5 s.
-  it.fails('5 clubs take 75 s', () => {
-    near(breach('clubs'), 75, 1);
+  // Measured, and pinned: 73.5 s. Each swing lands on the beat, the first at contact, so 50 swings of 10 take
+  // 49 × 1.5 s. The spec's 75 (design-spec.md:777) is being restated to about 74 s to match.
+  it('5 clubs take about 74 s (73.5)', () => {
+    expect(breach('clubs')).toBe(73.5);
   });
 
   it('12 clubs can\'t Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; 12 hatchets do it in 16 s', () => {

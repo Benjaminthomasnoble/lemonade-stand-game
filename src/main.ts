@@ -8,7 +8,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, onMap, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, EVENING_REAL_SECONDS, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, sleepPlan, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, sleepPlan, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
@@ -37,11 +37,12 @@ import {
   saveUnreadable, slotList,
 } from './save.ts';
 import {
-  actionFor, AUTO_CONTINUE_SECONDS, autoPauses, bindKey, defaultKeys, loadOptions, MENU_IDS, saveOptions, TEXT_SIZES, type KeyAction, type MenuId,
+  actionFor, autoPauses, bindKey, defaultKeys, loadOptions, MENU_IDS, saveOptions, TEXT_SIZES, type KeyAction, type MenuId,
   type Options, type PauseKind,
 } from './settings.ts';
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './ui/knob.ts';
+import { newWaits, waitStep } from './ui/waits.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
 import { createWorld, dirOf, headingOf, STREET_LOOK } from './world/scene.ts';
@@ -130,8 +131,7 @@ async function main() {
   let liveFight = false; // the brawl on screen is happening now: the clock runs at fight speed
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
   let onScreen: GameState['fight'] = undefined; // the live fight the 3D view is playing (its clock runs only then)
-  let prepWait = 0; // auto-continue: real seconds Morning Prep has waited
-  let eveningWait = 0; // the Evening's moment, off the Ledger
+  const waits = newWaits(); // Morning Prep's auto-continue and the Evening's moment (src/ui/waits.ts)
   let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
   const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined) && victoryStage(state) !== 'scenes'; // as the HUD's outcome screen (the Domination show's fight and exits play first)
   const pause = () => pauseKnob(knob); // a load, an alert or a key: it outlasts the paper (src/ui/knob.ts)
@@ -214,7 +214,7 @@ async function main() {
     recordScore(state);
     crowd.clear();
     morningLine();
-    prepWait = 0;
+    waits.prep = 0;
     tipsCheck(); // the Rank lesson's morning brings up a hand dealt before it
     const shot = bugle.best(state.day - 1);
     if (shot) bugle.show({ ...shot, edition: storyDateline(state) }, frontPage(state), options.celsius); // world: this morning's headline (a new act's too) and briefs under yesterday's photo
@@ -558,7 +558,7 @@ async function main() {
 
   const act = (a: Action) => {
     const st = selectedStand(state);
-    if (state.phase === 'report') eveningWait = 0; // the Evening is a moment after the last thing you did
+    if (state.phase === 'report') waits.evening = 0; // the Evening is a moment after the last thing you did
     switch (a.type) {
       case 'buy': buySupply(state, a.id, a.packs); break;
       case 'call': answerCall(state, a.pick, { postGuards: (p) => fillPosts(state, p) }); break;
@@ -569,7 +569,7 @@ async function main() {
       case 'restock': toggleAutoRestock(state, state.selected); break;
       case 'autoPrice': toggleAutoPrice(state, state.selected); break;
       case 'stockTarget': if (a.delta) nudgeStockTarget(state, state.selected, a.delta > 0 ? 1 : -1); else setStockTarget(state, state.selected, null); break;
-      case 'open': if (openStands(state)) { acc = 0; prepWait = 0; resume(); } break;
+      case 'open': if (openStands(state)) { acc = 0; waits.prep = 0; resume(); } break;
       case 'speed': setSpeed(a.value); break;
       // The skips run the clock flat out and stop at the next major alert (then the live clock takes over).
       case 'skip': { resume(); settleFight(); const ev = atOnce(() => simulateRestOfDay(state, true)); crowd.clear(); drawEvents(ev, false); break; }
@@ -577,10 +577,10 @@ async function main() {
         hud.ledger = false;
         const plan = sleepPlan(state);
         if (plan === 'dawn') act({ type: 'sleep' });
-        else if (plan === 'night' && startNight(state)) { acc = 0; eveningWait = 0; resume(); }
+        else if (plan === 'night' && startNight(state)) { acc = 0; waits.evening = 0; resume(); }
         break;
       }
-      case 'evening': hud.ledger = false; eveningWait = 0; break;
+      case 'evening': hud.ledger = false; waits.evening = 0; break;
       case 'ledger': hud.ledger = true; break;
       case 'sleep': {
         cutScene();
@@ -760,7 +760,7 @@ async function main() {
     saveOptions(options);
     hud.options = options;
     setReducedMotion(options.reducedMotion);
-    prepWait = 0;
+    waits.prep = 0;
   };
   const uiRoot = document.getElementById('ui')!;
   const hud = createHud(uiRoot, act);
@@ -998,16 +998,10 @@ async function main() {
       const hour = Math.floor(state.minute / 60);
       if (midDay(state) && hour !== savedHour) { savedHour = hour; saveGame(state); }
     } else acc = 0;
-    // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it.
-    if (state.phase === 'prep' && options.autoContinue && !frozen && !paper && !state.outcome && !playingScene(state) && !sceneReady(state) && !(state.redDays && autoPauses(options, state, 'red'))) {
-      prepWait += realDt;
-      if (prepWait >= AUTO_CONTINUE_SECONDS) act({ type: 'open' });
-    } else if (state.phase !== 'prep') prepWait = 0;
-    // The Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
-    if (state.phase === 'report' && !frozen && !paper && !state.outcome && (!hud.ledger || options.autoContinue)) {
-      eveningWait += dt * Math.max(knob.speed, 1);
-      if (eveningWait >= EVENING_REAL_SECONDS) act({ type: 'night' });
-    } else if (state.phase !== 'report') eveningWait = 0;
+    // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it. The
+    // Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
+    const due = waitStep(state, options, { ledger: hud.ledger, frozen, paper, speed: knob.speed }, waits, realDt, dt);
+    if (due) act({ type: due });
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
     world.setClock(state.phase, state.minute);

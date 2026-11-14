@@ -98,7 +98,10 @@ try {
   await page.screenshot({ path: 'test-results/8-crew.png' });
   const target = await page.evaluate(() => {
     const st = window.__game.state;
-    return Object.keys(st.plots).find((id) => { const p = st.plots[id]; return p.owner && p.owner !== 'player' && p.stand && id.startsWith('oldtown'); });
+    const theirs = Object.keys(st.plots).filter((id) => { const p = st.plots[id]; return p.owner && p.owner !== 'player' && p.stand && id.startsWith('oldtown'); });
+    // Raids need a Foothold in the target's district: the next Old Town stand's lot becomes a bare lot of yours.
+    Object.assign(st.plots[theirs[1]], { owner: 'player', stand: null, garrison: 0, garrisonOut: undefined });
+    return theirs[0];
   });
   await page.evaluate((t) => { window.__game.act({ type: 'inspect', plot: t }); window.__game.focus(t); }, target);
   await page.waitForSelector('[data-testid="raid-planner"]');

@@ -11,6 +11,7 @@ import { canSettle, captivesAtDawn, leftBehind, nabLeftBehind, settleCaptive } f
 import { nextRandom } from './rng.ts';
 import { startFight, watchFights } from './fight.ts';
 import { manorStewards } from './squeeze.ts';
+import { footholdFor } from './fighters.ts';
 
 let n = 0;
 const fighter = (side: Side, weapon: WeaponId = 'fists', o: Partial<Fighter> = {}): Fighter => ({
@@ -446,6 +447,7 @@ describe('the Raid Planner\'s odds', () => {
     ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm'] };
     ps.garrison = 3;
     s.guards = [guard({ weapon: 'clubs' }), guard({ weapon: 'clubs' }), guard(), guard()];
+    footholdFor(s, id); // crew: raids need a Foothold in the target's district
     return { s, id, ids: s.guards.map((g) => g.id) };
   }
 

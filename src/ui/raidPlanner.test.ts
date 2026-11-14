@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hqPlot, newGame, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
-import { guardOf } from '../sim/fighters.ts';
+import { footholdFor, guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
 import { createRaidPlanner, templatesSwitch } from './raidPlanner.ts';
@@ -26,6 +26,7 @@ function setup(seed: number): { s: GameState; target: string } {
   s.rank = 4;
   s.guards = Array.from({ length: 3 }, (_, i) => guardOf('clubs', 'vest', 1, 'Hothead', { id: `r${i}`, name: `Raider ${i}` }));
   const target = raidTargets(s).find((t) => s.plots[t.id].stand)!.id;
+  footholdFor(s, target); // raids need a Foothold in its district
   return { s, target };
 }
 
@@ -35,6 +36,7 @@ describe('the Raid Planner', () => {
     const { p } = planner();
     for (const g of s.guards) p.squad.add(g.id);
     const blind = p.panel(s, target);
+    expect(blind).not.toContain('raid-foothold'); // setup's lot in its district
     expect(blind).toContain('data-testid="raid-unscouted"');
     expect(blind).toMatch(/data-testid="raid-odds-range">\d+–\d+%</);
     expect(blind).toMatch(/title="\d+–\d+% to win"/); // Tonight's tip reads the range too
@@ -63,6 +65,7 @@ describe('the Raid Planner', () => {
   it('lists Smash, Shakedown, Sabotage and HQ Assault: a rank lock hides one, any other lock says why', () => {
     const { s } = setup(83); // three Hotheads: no Lookout, nobody Sneaky
     const target = raidTargets(s).find((t) => s.plots[t.id].owner === 'blenders' && s.plots[t.id].stand)!.id;
+    footholdFor(s, target);
     const { p } = planner();
     s.rank = 3;
     let html = p.panel(s, target);
@@ -113,5 +116,15 @@ describe('the Raid Planner', () => {
     expect(p.panel(s, target)).toMatch(/class="cl-b go" data-action="objective" data-value="shakedown"/);
     p.click({ action: 'tplSwitch' });
     expect(acts.at(-1)).toEqual({ type: 'template', op: 'switch' });
+  });
+
+  it('a target where you hold no plot says so: Get a Foothold first', () => {
+    const s = newGame(85);
+    s.rank = 3;
+    s.guards = [guardOf('clubs', 'vest', 1, 'Loyal', { id: 'r0', name: 'Raider' })];
+    const target = raidTargets(s).find((t) => t.district !== 'maple' && s.plots[t.id].stand)!;
+    const html = planner().p.panel(s, target.id);
+    expect(html).toMatch(/data-testid="raid-foothold"[^>]*>Get a Foothold in [^<]+ first</);
+    expect(html).toMatch(/data-testid="raid-tonight"\s+disabled title="Get a Foothold in/);
   });
 });

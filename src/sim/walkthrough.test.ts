@@ -14,7 +14,7 @@ import {
   type GameState, type GadgetId, type Guard, type Raid, type SimEvent, type Trait,
 } from './economy.ts';
 import { DEFAULT_OPTIONS, autoPauses } from '../settings.ts';
-import { battleOf, fencedOf, guardOf, guardsOf, henchmenOf, partyOf } from './fighters.ts';
+import { battleOf, fencedOf, footholdFor, guardOf, guardsOf, henchmenOf, partyOf } from './fighters.ts';
 import { shakedownLoot } from './loot.ts';
 import { ringTheBell } from './reinforce.ts';
 import { leftBehind, nabLeftBehind } from './captives.ts';
@@ -216,6 +216,7 @@ function day24(): { s: GameState; kiosk: string } {
   ps.defense = { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: ['alarm', 'goose'] };
   ps.garrison = 3;
   s.guards = SQUAD.map(([name, trait]) => kit(name, trait));
+  footholdFor(s, kiosk); // crew: raids need a Foothold, a lot of yours on the Boardwalk
   return { s, kiosk };
 }
 

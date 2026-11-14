@@ -4,7 +4,7 @@ import {
   atOnce, BOSS_MOVE_SHOWN, canFallBack, canRally, fightCommand, fightFrame, fightStatus, finishFight, FIGHT_BREAK, FIGHT_LEAD_IN, joinFight, liveReport,
   startAssault, startFight, stepFight, watchFights,
 } from './fight.ts';
-import { battleOf, fencedOf, fighterOf, guardOf, guardsOf, henchmenOf } from './fighters.ts';
+import { battleOf, fencedOf, fighterOf, footholdFor, guardOf, guardsOf, henchmenOf } from './fighters.ts';
 import { leftBehind } from './captives.ts';
 import { FACTIONS, PERIMETERS } from './balance.ts';
 import { PLOT_BY_ID } from './map.ts';
@@ -160,6 +160,7 @@ describe('a live fight', () => {
   it('your raid sent now walks there, plays live as it arrives, and the squad walks home after', () => {
     const s = crew(29);
     const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!.id;
+    footholdFor(s, target); // crew: raids need a Foothold in the target's district
     expect(planRaid(s, target, s.guards.map((g) => g.id), 'smash', 'now')).toBe(true); // nothing fought yet: they set out
     expect(s.fight).toBeUndefined();
     openStand(s);

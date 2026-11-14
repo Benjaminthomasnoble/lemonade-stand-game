@@ -7,6 +7,7 @@ import { DEFAULT_OPTIONS } from '../settings.ts';
 import { alertCards } from './alerts.ts';
 import * as A from './clay.ts';
 import { span, tripLines, tripNote } from './trips.ts';
+import { footholdFor } from '../sim/fighters.ts';
 import { fenceHere } from './evening.ts';
 import { optionsScreen } from './options.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
@@ -478,6 +479,7 @@ describe('your raids on the Planner and the Evening', () => {
     s.minute = CLOSE;
     s.guards = crew(2, LOTTIES_CORNER);
     const target = raidTargets(s)[0].id;
+    footholdFor(s, target); // crew: raids need a Foothold in the target's district
     planRaid(s, target, ['g0'], 'smash', 'tonight');
     const [out] = tripLines(s);
     expect(out).toContain(clockText(s.raids[0].at!));

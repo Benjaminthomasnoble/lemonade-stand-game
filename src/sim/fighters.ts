@@ -5,7 +5,8 @@
 import { GEAR, GUARD_BASE, HENCHMEN, PERIMETERS, WEAPONS, type GearId, type Trait, type WeaponId } from './balance.ts';
 import type { BattleInput, Fighter, Side } from './combat.ts';
 import { guardFighter, raidPartyFor, type Guard } from './crew.ts';
-import { newGame } from './economy.ts';
+import { newGame, type GameState } from './economy.ts';
+import { PLOT_BY_ID, PLOTS } from './map.ts';
 
 let n = 0;
 
@@ -41,3 +42,14 @@ export const battleOf = (o: Partial<BattleInput> & Pick<BattleInput, 'attackers'
 
 /** A perimeter of this tier at full HP. */
 export const fencedOf = (tier: number) => ({ perimeter: tier, fenceHp: PERIMETERS[tier - 1].hp });
+
+/** Raids need a Foothold in the target's district (crew's canRaid): a bare lot of yours there, if you hold none. */
+export function footholdFor(s: GameState, target: string): string {
+  const d = PLOT_BY_ID[target].district;
+  const lots = PLOTS.filter((p) => p.district === d && p.type !== 'civic' && p.type !== 'hq');
+  const mine = lots.find((p) => s.plots[p.id].owner === 'player');
+  if (mine) return mine.id;
+  const lot = lots.find((p) => !s.plots[p.id].owner && !s.plots[p.id].stand && !s.plots[p.id].facility)!;
+  s.plots[lot.id].owner = 'player';
+  return lot.id;
+}

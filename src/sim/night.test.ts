@@ -12,6 +12,7 @@ import {
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
 import { stepFight, watchFights } from './fight.ts';
+import { footholdFor } from './fighters.ts';
 
 /** The Evening at 20:00 of Day 1, with nothing planned for tonight. */
 function evening(seed: number, settings: Partial<Settings> = {}): GameState {
@@ -107,6 +108,7 @@ describe('the night on the clock', () => {
     s.rank = 6;
     s.guards = crew(3, null);
     const target = raidTargets(s)[0];
+    footholdFor(s, target.id); // crew: raids need a Foothold in the target's district
     expect(planRaid(s, target.id, ['g0', 'g1'], 'smash', 'tonight')).toBe(true);
     const r = s.raids[0];
     const trip = travelMinutes(s, LOTTIES_CORNER, target.id);
@@ -605,6 +607,7 @@ describe('your raids travel', () => {
     s.rank = 6;
     s.guards = crew(3, LOTTIES_CORNER);
     const target = raidTargets(s)[0].id;
+    footholdFor(s, target); // crew: raids need a Foothold in the target's district
     return { s, target, trip: travelMinutes(s, LOTTIES_CORNER, target) };
   }
   /** Run the clock through the night (from the Evening): each fight's minute and report, by raid. */
@@ -787,6 +790,7 @@ describe("Juni's Grapevine", () => {
     s.rank = 6;
     s.guards = crew(1, null);
     const rival = raidOn(s, 23 * 60, 24 * 60, { attacker: 'hollis', target: raidTargets(s).find((p) => s.plots[p.id].owner === 'blenders')!.id });
+    footholdFor(s, raidTargets(s)[0].id); // crew: raids need a Foothold in the target's district
     planRaid(s, raidTargets(s)[0].id, ['g0'], 'smash', 'tonight');
     const mine = s.raids.find((r) => r.attacker === 'player')!;
     const late = raidOn(s, CLOSE + 10, CLOSE + 70);

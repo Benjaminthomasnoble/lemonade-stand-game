@@ -14,8 +14,8 @@ import { CLOSE, GADGETS, GUARD_BASE, PERIMETERS, RIVAL_SABOTAGE, STAND_LEVELS, t
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { reserveMinutes } from './reinforce.ts';
-import { guardOf } from './fighters.ts';
-import { BORDERS, PLOT_BY_ID } from './map.ts';
+import { footholdFor, guardOf } from './fighters.ts';
+import { BORDERS, DISTRICT_BY_ID } from './map.ts';
 import { rowAmount } from './ledger.ts';
 import { citationRisk, citationRules, holdElection, raidBanEnds, type Platform } from './citations.ts';
 import { canAssault, makeTruce } from './rivals.ts';
@@ -106,6 +106,7 @@ describe('crew and raids', () => {
     for (const r of [...s.recruits]) hireGuard(s, r.id);
     for (const g of s.guards) { equip(s, g.id, 'hatchets'); equip(s, g.id, 'pro'); }
     const target = raidTargets(s).find((p) => s.plots[p.id].stand?.level === 1)!;
+    footholdFor(s, target.id); // raids need a Foothold in the target's district
     const ids = s.guards.map((g) => g.id);
     expect(raidOdds(s, target.id, ids, 'smash', false)).toBeGreaterThan(0.8);
     expect(planRaid(s, target.id, ids, 'smash', 'now')).toBe(true); // the squad travels (nights): it fights on arrival
@@ -438,6 +439,7 @@ describe('Wreckers and Captains', () => {
     promote(s, dex.id, 'captain');
     s.guards.push(guard({ id: 'gb', name: 'Bea B', trait: 'Sprinter' }));
     const target = raidTargets(s)[0].id;
+    footholdFor(s, target);
     expect(planRaid(s, target, [dex.id, 'gb'], 'shakedown', 'now')).toBe(true); // the squad travels (nights): it fights on arrival
     openStand(s);
     let report: BattleReport | undefined;
@@ -472,6 +474,8 @@ describe('day and night raids', () => {
     s.minute = 12 * 60;
     expect(raidIsNight(s)).toBe(false);
     const [a, b] = raidTargets(s).map((p) => p.id);
+    footholdFor(s, a);
+    footholdFor(s, b);
     expect(raidRepCost(s, [s.guards[0].id], 'shakedown')).toBe(0.1);
     expect(raidRepCost(s, [s.guards[0].id, 'gb'], 'smash')).toBe(0.2);
     expect(raidRepCost(s, ['gb'], 'smash')).toBe(0);
@@ -489,6 +493,7 @@ describe('day and night raids', () => {
     s.guards[0].trait = 'Sneaky';
     const sneak = s.guards[0].id;
     const target = raidTargets(s).find((p) => !s.plots[p.id].defense.gadgets.length)!.id;
+    footholdFor(s, target);
     expect(detectionChance(s, target, false, true)).toBe(0.25);
     expect(detectionChance(s, target, true, true)).toBe(0);
     s.plots[target].defense.gadgets = ['alarm', 'goose'];
@@ -836,6 +841,7 @@ describe('Sabotage', () => {
     const target = PLOTS.find((p) => s.plots[p.id].owner === 'blenders' && s.plots[p.id].stand && p.type !== 'hq')!.id;
     s.plots[target].defense = { tier: 0, fenceHp: 0, gadgets: [] };
     s.plots[target].garrison = 0;
+    footholdFor(s, target);
     return { s, target, muscle: ['m0', 'm1', 'm2'] };
   };
 
@@ -959,7 +965,7 @@ describe('Sabotage', () => {
 
 describe("Sheriff Budd's Citation", () => {
   /** Rank 5, under the line, a week of sales averaging $500 and $2,000 in the till; the targets are rival stands, and
-   * the player holds a lot in the first one's district (raids need a Foothold). */
+   * the player holds a lot in each one's district (raids need a Foothold). */
   const cited = (seed: number, stars = 1.8) => {
     const s = newGame(seed);
     s.rank = 5;
@@ -969,8 +975,8 @@ describe("Sheriff Budd's Citation", () => {
     s.history = [400, 500, 600, 500, 450, 550, 500].map((revenue, i) => ({ ...s.today, day: i + 1, revenue }));
     s.cash = 2000;
     const [a, b] = raidTargets(s).map((p) => p.id);
-    const lot = PLOTS.find((p) => p.district === PLOT_BY_ID[a].district && !s.plots[p.id].owner)!;
-    s.plots[lot.id].owner = 'player';
+    footholdFor(s, a);
+    footholdFor(s, b);
     return { s, a, b };
   };
 
@@ -1092,7 +1098,7 @@ describe('raid templates (Rank 6)', () => {
     s.rank = 6;
     s.guards = ['Rosa Reyes', 'Bo Banks', 'Kit Kim'].map((name, i) => guardOf('clubs', 'vest', 2, 'Loyal', { id: `g${i}`, name }));
     const [a, b] = raidTargets(s).filter((p) => s.plots[p.id].stand).map((p) => p.id);
-    for (const t of [a, b]) { const lot = PLOTS.find((p) => p.district === PLOT_BY_ID[t].district && !s.plots[p.id].owner)!; s.plots[lot.id].owner = 'player'; }
+    for (const t of [a, b]) footholdFor(s, t);
     return { s, a, b };
   };
   const line = (s: GameState) => helperLines(s.today).find((l) => l.id === TEMPLATES_ID)?.line;
@@ -1139,5 +1145,21 @@ describe('raid templates (Rank 6)', () => {
     expect(back.raidTemplates!.list).toEqual(s.raidTemplates!.list);
     migrateSave(back);
     expect(back.raidTemplates!.list).toEqual(s.raidTemplates!.list);
+  });
+});
+
+describe('raids need a Foothold', () => {
+  it("only on a rival plot in a district where you hold a plot; the Planner's reason names it", () => {
+    const s = newGame(131);
+    s.rank = 3;
+    welcomeDex(s);
+    const target = raidTargets(s).find((p) => p.district !== 'maple' && s.plots[p.id].stand)!;
+    const dex = [s.guards[0].id];
+    expect(canRaid(s, target.id, dex)).toEqual({ ok: false, why: `Get a Foothold in ${DISTRICT_BY_ID[target.district].name} first` });
+    expect(planRaid(s, target.id, dex, 'smash', 'tonight')).toBe(false);
+    const lot = footholdFor(s, target.id); // a bare lot of yours there is enough
+    expect(canRaid(s, target.id, dex)).toEqual({ ok: true });
+    s.plots[lot].owner = null;
+    expect(canRaid(s, target.id, dex).ok).toBe(false);
   });
 });

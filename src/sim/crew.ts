@@ -12,10 +12,10 @@ import {
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective, type Side } from './combat.ts';
-import { LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
+import { DISTRICT_BY_ID, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
-import { newStand, ownedPlots, priceCeiling } from './economy.ts';
+import { hasFoothold, newStand, ownedPlots, priceCeiling } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
@@ -780,6 +780,8 @@ export function canRaid(s: GameState, plotId: string, guardIds: string[], object
   const ban = raidBan(s); if (ban) return ban; // Sheriff Budd's Citation
   if (PLOT_BY_ID[plotId].type === 'hq') return { ok: false, why: 'Storm an HQ from the Rivals board' };
   if (!ps.owner || ps.owner === 'player' || !hasBuilding(ps)) return { ok: false, why: 'Pick a rival stand or facility' };
+  const d = PLOT_BY_ID[plotId].district; // Land and territory: a Foothold (a plot of yours there) lets you raid there
+  if (!hasFoothold(s, 'player', d)) return { ok: false, why: `Get a Foothold in ${DISTRICT_BY_ID[d].name} first` };
   if (!guardIds.length) return { ok: false, why: 'Pick at least one guard' };
   if (guardIds.length > SQUAD_CAP(s.rank)) return { ok: false, why: `Squad cap is ${SQUAD_CAP(s.rank)}` };
   if ([...s.raids, ...(s.fight ? [s.fight.raid] : [])].some((r) => r.attacker === 'player' && r.target === plotId)) return { ok: false, why: 'Already planned' }; // a raid there playing live counts too

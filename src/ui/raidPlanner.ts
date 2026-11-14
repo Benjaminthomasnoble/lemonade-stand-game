@@ -160,6 +160,7 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
       ${ids.length ? `<div class="cl-oddsrow">${dial(night)}</div>` : ''}
       ${tripNote(s, id, ids)}
       ${inTruce(s, s.plots[id].owner as RivalId) ? '<span class="cl-note bad" title="Raiding breaks it: −1 star, and every rival holds a grudge">Breaks your truce!</span>' : ''}
+      ${!can.ok && /^Get a Foothold/.test(can.why) ? `<span class="cl-note bad" data-testid="raid-foothold" title="Raids go only where you hold a plot: buy one in its district">${k.esc(can.why)}</span>` : ''}
       ${ban ? `<span class="cl-note bad" data-testid="raid-ban" title="Sheriff Budd's Citation: no raids or HQ assaults till then">${k.esc(ban.why)}</span>` : ''}
       ${risk && !ban ? `<span class="cl-note bad" data-testid="raid-citation" title="${k.esc(`Under ${risk.stars} stars, Sheriff Budd cites every daytime raid: about a day's sales, and no raids or HQ assaults for ${risk.banDays} days. Tonight's raids are never cited.`)}">Now earns a Citation: ${k.whole(risk.fine)}, ${risk.banDays}-day ban</span>` : ''}
       <div class="cl-acts">${k.btn('raid', `${k.ART.moon()} Tonight`, can, `data-plot="${id}" data-when="tonight" data-testid="raid-tonight"${tip(`${chance(night)} to win`)}`, 'go')}

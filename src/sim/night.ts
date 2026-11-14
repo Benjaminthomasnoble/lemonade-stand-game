@@ -440,37 +440,48 @@ function settle(s: GameState, id: string, report: BattleReport | null): void {
   try { deliver(s, o); } finally { settling = null; }
 }
 
-/** vip.ts deliver() hands its Delivery Raid roll here. A raid is warned and fought on the clock like any raid on
- * you, and the order waits (loading) until it's over. Returns the pickup to report now, or null to deliver. */
-export function scheduleDeliveryRaid(s: GameState, o: Order, fail: (why: string) => Pickup): Pickup | null {
-  const where = pickupPlace(o); // land: a Caterer Truck's Warehouse too
-  if (settling?.order === o.id) {
-    const { report } = settling;
-    if (report?.outcome !== 'robbed') return null; // held off, or called off: the load goes out
-    loseLoad(s, o); // world: the raiders make off with the bottles on this trip
-    return { ...fail(`${FACTIONS[report.attacker as RivalId].name} overran the ${where} during loading.`), raid: report };
-  }
-  const held = (): Pickup => {
-    if (!s.orders.includes(o)) s.orders.push(o);
-    if (!(s.heldPickups ??= []).includes(o.id)) s.heldPickups.push(o.id);
-    return { order: o, ok: true };
-  };
-  if (s.heldPickups?.includes(o.id)) return held(); // still loading: the raid hasn't hit yet (one roll per pickup)
-  if (!loadsAtFacility(o) || !o.plot || threatLevel(s) < DELIVERY_RAID_THREAT || peaceful(s)) return null;
+/**
+ * vip.ts asks once per pad or pier trip, before its clients load (spec: "a raid on the pad or pier"; a Caterer Truck
+ * loading at its Warehouse is a trip of its own): one Delivery Raid roll for the whole trip, so a busy Cargo Terminal is
+ * no likelier to be hit than a lone Jetty. On a hit the raid goes after the trip's biggest load, which waits (loading)
+ * until the raid is warned and fought on the clock like any raid on you (raidHold); the other orders aboard load in
+ * peace. `loads`: each order aboard and the bottles it is about to load, oldest first. A trip being settled, or still
+ * held, had its roll.
+ */
+export function scheduleDeliveryRaid(s: GameState, loads: [Order, number][]): void {
+  if (!loads.length || loads.some(([o]) => settling?.order === o.id || s.heldPickups?.includes(o.id))) return;
+  const plot = loads[0][0].plot;
+  if (!plot || !deliveryRaidRisk(s, loads[0][0])) return;
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
   s.seed = rng.seed;
   // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
   // Otherwise the keenest boss whose Strike can pay sends the crew (rivals' deliveryRaider), and nobody able to pay means no raid.
-  const scripted = scriptedRaider(s, o);
-  const crew = scripted ? deliveryRaider(s, scripted) : roll < deliveryRaidChance(s, o) ? deliveryRaider(s) : null;
-  if (!crew) return null;
+  const scripted = loads.find(([o]) => scriptedRaider(s, o));
+  const [o] = scripted ?? loads.reduce((a, b) => (b[1] > a[1] ? b : a)); // the biggest load (the oldest of equals)
+  const sender = scriptedRaider(s, o);
+  const crew = sender ? deliveryRaider(s, sender) : roll < deliveryRaidChance(s, o) ? deliveryRaider(s) : null;
+  if (!crew) return;
   const { rival, party } = crew;
-  // They set out as the trip's loading window opens (world's tripMinutes: deliver() runs then) and hit inside its 2 hours.
+  // They set out as the trip's loading window opens (world's tripMinutes: the trip loads then) and hit inside its 2 hours.
   const leave = s.minute;
-  const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, o.plot), o.plot));
-  s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: o.plot, objective: 'shakedown', party, detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });
-  return held();
+  const at = leave + Math.min(DELIVERY_WINDOW - 5, travelMinutes(s, raidStart(s, rival, plot), plot));
+  s.raids.push({ id: `r${s.nextId++}`, attacker: rival, target: plot, objective: 'shakedown', party, detected: false, eta: hhmm(at), delivery: true, order: o.id, leave, at });
+  (s.heldPickups ??= []).push(o.id);
+}
+
+/** vip.ts trip() asks as each order aboard loads: the load the trip's Delivery Raid holds waits until the raid is over,
+ * then goes out, or fails if the raiders overran it. Returns the pickup to report now, or null to deliver. */
+export function raidHold(s: GameState, o: Order, fail: (why: string) => Pickup): Pickup | null {
+  if (settling?.order === o.id) {
+    const { report } = settling;
+    if (report?.outcome !== 'robbed') return null; // held off, or called off: the load goes out
+    loseLoad(s, o); // world: the raiders make off with the bottles on this trip
+    return { ...fail(`${FACTIONS[report.attacker as RivalId].name} overran the ${pickupPlace(o)} during loading.`), raid: report }; // land: a truck's Warehouse too
+  }
+  if (!s.heldPickups?.includes(o.id)) return null;
+  if (!s.orders.includes(o)) s.orders.push(o);
+  return { order: o, ok: true }; // still loading: the raid hasn't hit yet
 }
 
 /** A VIP pickup's chance of a Delivery Raid: 30%, or every one while the Syndicate stands during Harbor Fest (its crews

@@ -3,7 +3,7 @@
 // Contracts at a Dock pier, with Bottling Works making the bottles.
 import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, WAREHOUSE, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
-import { scheduleDeliveryRaid } from './night.ts';
+import { raidHold, scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, plotType, PLOTS, type PlotType } from './map.ts';
 import { FIZZCO_PLANT, hasTrophy } from './rivals.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -404,7 +404,7 @@ export const oldMoney = (s: GameState) => perkActive(s, 'oldMoneyVip');
 export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harborFest');
 /** Act 5's Harbor Fest (spec: "choppers and ships queue for the Fall VIP rush while Syndicate crews go after every
  * delivery"): once the Syndicate has formed, a Syndicate crew tries a Delivery Raid on every VIP pickup during the Fest,
- * with the usual warning, in place of the usual 30% at Threat 3+. Seam for nights: the Delivery Raid roll (night.ts
+ * with the usual warning, in place of the usual 30% at Threat 3+. Seam for nights: each trip's Delivery Raid roll (night.ts
  * scheduleDeliveryRaid) passes syndicateFormed(s) and sends the crew; until the Syndicate exists nothing passes true. */
 export const syndicateFestRaid = (s: GameState, o: Order, syndicateFormed: boolean) => syndicateFormed && isVip(o.tier) && harborFestOn(s);
 /** Harbor Fest: every ship's horn plays Lottie's Theme, and Lottie swears she isn't humming along (spec: Act 5, Harbor
@@ -534,21 +534,15 @@ export function nextDue(o: Order, day: number): number {
 const payFor = (o: Order, n: number) => Math.round((o.pay * n) / o.qty);
 
 /** Called every game minute while open: at each facility's trip minutes its clients load, oldest order first, up to the
- * trip's load; a Local Order's stand pours its cups an hour before closing, each day until it's due. */
+ * trip's load, after the trip's one Delivery Raid roll; a Local Order's stand pours its cups an hour before closing, each
+ * day until it's due. */
 export function pickupsAt(s: GameState): Pickup[] {
   const out: Pickup[] = [];
   for (const line of ['pier', 'helipad'] as const) {
     for (const p of facilityPlots(s, line)) {
       const f = s.plots[p.id].facility!;
       if (!tripMinutes(f).includes(s.minute)) continue;
-      let room = tripLoad(f);
-      for (const o of s.orders.filter((x) => x.plot === p.id && isVip(x.tier) && x.due >= s.day && !s.heldPickups?.includes(x.id))) {
-        if (room <= 0) break;
-        const t = trip(s, o, room);
-        if (!t) continue;
-        out.push(t.pickup);
-        room -= t.load;
-      }
+      out.push(...loadTrip(s, s.orders.filter((x) => x.plot === p.id && isVip(x.tier) && x.due >= s.day && !s.heldPickups?.includes(x.id)), tripLoad(f)));
     }
   }
   for (const o of [...s.orders]) {
@@ -577,20 +571,45 @@ export function deliver(s: GameState, o: Order): Pickup | null {
   if (o.tier === 'local') return pour(s, o);
   if (!isVip(o.tier)) return handOver(s, o);
   const f = o.plot ? s.plots[o.plot].facility : undefined;
-  return trip(s, o, f && !f.wrecked ? tripLoad(f) : 0)?.pickup ?? null;
+  return loadTrip(s, [o], f && !f.wrecked ? tripLoad(f) : 0)[0] ?? null;
+}
+
+/** What each order aboard a trip loads, oldest first, as trip() loads them: up to the trip's room, the order's cap and
+ * the bottles ready, the orders ahead taking theirs first. An order a Delivery Raid holds keeps its held load. */
+function tripLoads(s: GameState, orders: Order[], room: number): [Order, number][] {
+  const out: [Order, number][] = [];
+  const taken: Partial<Record<RecipeId, number>> = {};
+  for (const o of orders) {
+    const r = orderRecipe(o);
+    const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), bottlesOf(s, r) - (taken[r] ?? 0));
+    if (n <= 0) continue;
+    out.push([o, n]);
+    room -= n;
+    if (!o.reserved) taken[r] = (taken[r] ?? 0) + n;
+  }
+  return out;
+}
+
+/** One trip at a pad or pier: its one Delivery Raid roll (night.ts scheduleDeliveryRaid: on a hit the raid holds the
+ * trip's biggest load until it's fought), then each order aboard loads in turn. */
+function loadTrip(s: GameState, orders: Order[], room: number): Pickup[] {
+  const loads = tripLoads(s, orders, room);
+  scheduleDeliveryRaid(s, loads);
+  return loads.flatMap(([o, n]) => trip(s, o, n) ?? []);
 }
 
 /** The client loads up to `room` bottles, as many as are ready, and pays for them; the last load completes the order (a
- * helicopter order adds 0.2 star). A Delivery Raid rolled on the trip holds it until the raid is fought: its bottles come
- * out of stock as the hold starts (nobody else loads them meanwhile), and go out, or go with the raiders, when it's over. */
-function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: number } | null {
+ * helicopter order adds 0.2 star). The load the trip's Delivery Raid holds (night.ts raidHold) waits until the raid is
+ * fought: its bottles come out of stock as the hold starts (nobody else loads them meanwhile), and go out, or go with the
+ * raiders, when it's over. */
+function trip(s: GameState, o: Order, room: number): Pickup | null {
   const n = o.loading ?? Math.min(room, loadCap(o, s.day) - (o.loaded ?? 0), bottlesOf(s, orderRecipe(o)));
   if (n <= 0) return null;
   o.loading = n;
-  const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: a Delivery Raid is warned and fought on the clock
+  const held = raidHold(s, o, (why) => failOrder(s, o, why)); // nights: a Delivery Raid is warned and fought on the clock
   if (held) {
     if (!o.reserved && s.heldPickups?.includes(o.id)) { stockBottles(s, orderRecipe(o), -n); o.reserved = true; }
-    return { pickup: held, load: n };
+    return held;
   }
   const reserved = o.reserved; // taken out of stock when the hold began (an older save's hold takes them now)
   delete o.loading;
@@ -610,7 +629,7 @@ function trip(s: GameState, o: Order, room: number): { pickup: Pickup; load: num
   const tally = done ? (before ? ' Order complete!' : '') : ` ${o.loaded.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} loaded.`;
   s.news.push(`${o.client} picks up ${n.toLocaleString('en-US')} bottles: ${money(pay)}!${tally}`);
   if (o.tier !== 'heli') festHum(s); // the ship sails in tooting Lottie's Theme
-  return { pickup: { order: o, ok: true }, load: n };
+  return { order: o, ok: true };
 }
 
 /** The last day a facility's trips can have `bottles` loaded: today's trips still to come first (all of them at Morning
@@ -743,7 +762,8 @@ function handOver(s: GameState, o: Order): Pickup {
     if (ready < o.qty) return failOrder(s, o, `Only ${ready.toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} bottles were ready.`);
     o.loading = o.qty;
   }
-  const held = scheduleDeliveryRaid(s, o, (why) => failOrder(s, o, why)); // nights: warned and fought on the clock
+  scheduleDeliveryRaid(s, [[o, o.qty]]); // the truck is a trip of its own: its one roll
+  const held = raidHold(s, o, (why) => failOrder(s, o, why)); // nights: warned and fought on the clock
   if (held) {
     if (!o.reserved && s.heldPickups?.includes(o.id)) { stockBottles(s, orderRecipe(o), -o.qty); o.reserved = true; }
     return held;

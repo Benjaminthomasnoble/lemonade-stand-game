@@ -216,6 +216,40 @@ describe('VIP clients', () => {
     expect(Object.values(s.bottleStock ?? {}).reduce((x, n) => x + (n ?? 0), 0)).toBeLessThanOrEqual(s.bottles);
   });
 
+  it("one Delivery Raid roll per trip: three ships aboard are raided as often as a lone one, and the raid holds the trip's biggest load", () => {
+    /** A Cargo Terminal (25,000 bottles a trip) with Classic ships of `qtys` bottles loading today, on dice from `seed`. */
+    const terminal = (seed: number, qtys: number[]) => {
+      const { s, dock } = vipGame(16);
+      s.rank = 8;
+      s.cash = 10_000_000;
+      for (let i = 0; i < 3; i++) buildFacility(s, dock.id, 'pier');
+      s.bottles = 25000;
+      const os = qtys.map((qty, i) => order(s, { id: `ship${i}`, tier: 'ship', qty, pay: qty * 40, due: s.day, plot: dock.id }));
+      s.seed = seed;
+      s.phase = 'open';
+      s.minute = PICKUP_MINUTE.ship;
+      pickupsAt(s);
+      return { s, os, raids: s.raids.filter((r) => r.delivery) };
+    };
+    let raided = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const lone = terminal(seed, [9000]);
+      const busy = terminal(seed, [4000, 9000, 6000]);
+      expect(busy.raids).toHaveLength(lone.raids.length); // one roll for the trip, as for a lone ship: at most one raid
+      expect(busy.s.seed).toBe(lone.s.seed); // the same dice: one roll, one crew
+      if (!busy.raids.length) { expect(busy.s.orders).toEqual([]); continue; } // all three load
+      raided++;
+      const [a, b, c] = busy.os;
+      expect(busy.raids[0]).toMatchObject({ order: b.id, target: b.plot }); // the biggest load
+      expect(busy.s.heldPickups).toEqual([b.id]);
+      expect([b.loading, b.reserved]).toEqual([9000, true]);
+      expect(busy.s.orders).toEqual([b]); // the others load in peace
+      expect([a.loaded, c.loaded]).toEqual([4000, 6000]);
+    }
+    expect(raided).toBeGreaterThan(0);
+    expect(raided).toBeLessThan(40 * 0.5); // about 30% (DELIVERY_RAID_CHANCE), not the 66% of a roll per order
+  });
+
   it('a smashed helipad loads nothing, and the order falls through at its deadline', () => {
     const { s, field } = vipGame(8);
     noRaids(s);

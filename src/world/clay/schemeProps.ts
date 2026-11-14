@@ -92,8 +92,17 @@ export function fruitBasket(a: Anchors): THREE.BufferGeometry {
   for (let k = 0; k < 6; k++) B.add(sph(0.028, 6, 5), '#7a4f9a', { p: [0.13 + (k % 2) * 0.03, 0.2 + Math.floor(k / 2) * 0.03, -0.01], fx: GLOSS });
   for (let k = 0; k < 4; k++) B.add(cone(0.02, 0.12, 4), P.green, { p: [-0.02, 0.3, 0], r: [0.3 * (k - 1.5), k, 0.2 * (k - 1.5)] });
   // The letter tucked in the front: a white envelope with a red wax seal.
-  B.add(box(0.18, 0.12, 0.01), P.white, { p: [0, 0.2, 0.17], r: [-0.3, 0, 0.12], fx: PAPER });
-  B.add(cyl(0.025, 0.025, 0.012, 10), '#C8102E', { p: [0, 0.2, 0.18], r: [Math.PI / 2 - 0.3, 0, 0], fx: GLOSS });
+  // The letter tucked in the front: a cream envelope with its V flap creased in ink, a lumpy wax seal
+  // dripping off-centre on the flap, and a rolled legal scroll tied with a red ribbon behind it.
+  const E = new Baker();
+  E.add(box(0.2, 0.13, 0.01), '#fbf3e1', { fx: PAPER });
+  for (const d of [-1, 1]) E.add(box(0.115, 0.008, 0.012), INK, { p: [d * 0.05, 0.03, 0.007], r: [0, 0, d * 0.62] });
+  E.add(lumpy(sph(0.026, 8, 6), 0.006, 30, 7), '#C8102E', { p: [0.035, 0.0, 0.012], s: [1.1, 1, 0.45], fx: GLOSS });
+  E.add(sph(0.011, 5, 4), '#C8102E', { p: [0.044, -0.03, 0.012], s: [0.8, 1.6, 0.5], fx: GLOSS });
+  B.raw(E.build(), at([-0.02, 0.21, 0.17], [-0.3, 0, 0.12]));
+  B.add(cyl(0.02, 0.02, 0.22, 8), '#f3e7c8', { p: [0.06, 0.27, 0.11], r: [0.2, 0, Math.PI / 2 - 0.5], fx: PAPER });
+  B.add(tor(0.023, 0.007, 4, 10), '#C8102E', { p: [0.06, 0.27, 0.11], r: [0.2, Math.PI / 2, -0.5] });
+  B.add(box(0.012, 0.06, 0.004), '#C8102E', { p: [0.07, 0.235, 0.13], r: [0.2, 0, 0.3] });
   const [px, py, pz] = a.pitcher;
   return new Baker().raw(B.build(), at([px - 0.55, py, pz - 0.05], [0, 0.4, 0])).build();
 }

@@ -14,7 +14,7 @@ import { optionsScreen } from './options.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import type { SlotInfo } from '../save.ts';
 import { isFullMenu, menuScreen, menuUnlocked, plannerTargets } from './menus.ts';
-import { keyName, keysPanel } from './keys.ts';
+import { keyName, keysPanel, withKey } from './keys.ts';
 import { defaultKeys } from '../settings.ts';
 import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
 import { repTip, scoreParts, scoreTip, standRepTip, threatTip } from './meters.ts';
@@ -393,6 +393,13 @@ describe('the ten menus', () => {
     o.keys.ledger = 'KeyX';
     expect(keysPanel(o, null)).toContain('data-action="resetKeys"');
     expect(keyName('Digit2')).toBe('2');
+    // The corner's tooltips and the gull button name the keys as they are now.
+    expect(withKey('Turn the view left', o, 'turnLeft')).toBe('Turn the view left (Q)');
+    expect(withKey('Speed 2×', o, 'pause', 'speed1', 'speed2', 'speed3')).toBe('Speed 2× (Space, 1, 2, 3)');
+    o.keys.turnLeft = 'KeyZ';
+    o.keys.gull = 'ArrowUp';
+    expect(withKey('Turn the view left', o, 'turnLeft')).toBe('Turn the view left (Z)');
+    expect(withKey('Fly Captain Squawk over the bay', o, 'gull')).toBe('Fly Captain Squawk over the bay (↑)');
     const html = optionsScreen(o, newGame(1), '', keys);
     for (const key of ['pause.screens', 'captions', 'celsius']) expect(html).toContain(`data-key="${key}"`);
     expect(html).toContain('Voices, the radio and phone calls, written out'); // the story scenes' voices are captioned too (main.ts)

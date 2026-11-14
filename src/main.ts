@@ -42,6 +42,7 @@ import {
 } from './settings.ts';
 import { isFullMenu, menuUnlocked } from './ui/menus.ts';
 import { newKnob, paperKnob, pauseKnob, resumeKnob, setKnob } from './ui/knob.ts';
+import { withKey } from './ui/keys.ts';
 import { newWaits, waitStep } from './ui/waits.ts';
 import { createHud, type Action } from './ui/hud.ts';
 import { walkerInfo, type WalkerInfo } from './ui/stand.ts';
@@ -618,7 +619,7 @@ async function main() {
         break;
       }
       case 'remap': hud.remap = hud.remap === a.key ? null : a.key; break;
-      case 'resetKeys': options.keys = defaultKeys(); saveOptions(options); hud.remap = null; break;
+      case 'resetKeys': options.keys = defaultKeys(); saveOptions(options); hud.remap = null; gullTip(); break;
       case 'turn': world.turnStep(a.dir); break;
       case 'option': setOption(a.key, a.value); break;
       case 'mute': hud.muted = audio.toggle(); break;
@@ -859,7 +860,8 @@ async function main() {
   };
   const gullBtn = document.createElement('button');
   gullBtn.className = 'gullbtn';
-  gullBtn.title = 'Fly Captain Squawk over the bay (G)';
+  const gullTip = () => { gullBtn.title = withKey('Fly Captain Squawk over the bay', options, 'gull'); }; // its key as remapped
+  gullTip();
   gullBtn.innerHTML = '<span class="gull-ico" aria-hidden="true"></span><span class="lbl">Fly Squawk</span>';
   gullBtn.addEventListener('click', () => { if (flight.active()) flight.stop(); else takeOff(); gullBtn.classList.toggle('on', flight.active()); });
   document.getElementById('ui')!.appendChild(gullBtn);
@@ -895,7 +897,7 @@ async function main() {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (hud.remap) { // Options is waiting for a key: this one (Esc keeps the old)
       e.preventDefault();
-      if (e.code !== 'Escape') { bindKey(options, hud.remap, e.code); saveOptions(options); }
+      if (e.code !== 'Escape') { bindKey(options, hud.remap, e.code); saveOptions(options); gullTip(); }
       hud.remap = null;
       act({ type: 'refresh' });
       return;

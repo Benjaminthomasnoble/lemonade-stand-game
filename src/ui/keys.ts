@@ -22,6 +22,9 @@ export function keyName(code: string): string {
 
 export const keyLabel = (a: KeyAction) => LABEL[a];
 
+/** A button's tooltip with its keys as the player has them now: "Turn the view left (Q)". */
+export const withKey = (title: string, o: Options, ...actions: KeyAction[]) => `${title} (${actions.map((a) => keyName(o.keys[a])).join(', ')})`;
+
 /** The Keys section: `waiting` is the action whose next key press is being caught. */
 export function keysPanel(o: Options, waiting: KeyAction | null): string {
   const row = (a: KeyAction) => `<button class="cl-b tiny ${waiting === a ? 'go' : 'ghost'}" data-action="remap" data-key="${a}" data-testid="key-${a}" title="${LABEL[a]}: click, then press a key (Esc keeps it)">${LABEL[a]} <b>${waiting === a ? '…' : keyName(o.keys[a])}</b></button>`;

@@ -34,7 +34,7 @@ import { calendarTickets, tasteOffLine, worldAction, worldSheet, worldTabs, type
 import { raidersLine, tripLines } from './trips.ts';
 import { dawnPicks, savesPanel } from './saves.ts';
 import { isFullMenu, menuScreen, menuUnlocked, type MenuView } from './menus.ts';
-import { keysPanel } from './keys.ts';
+import { keysPanel, withKey } from './keys.ts';
 import { squeezePanel } from './squeeze.ts';
 import { attachTips } from './tips.ts';
 import { cashTip, dayTip, scoreTip, standRepTip, threatTip } from './meters.ts';
@@ -578,14 +578,14 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   function corner(s: GameState, speed: number) {
     const k = (action: string, inner: string, title: string, extra = '', on = false) => `<button class="cl-knob-s${on ? ' on' : ''}" data-action="${action}" ${extra} title="${title}" aria-label="${title}">${inner}</button>`;
     const views = k('view', A.glyph('home'), 'Back to your stand', 'data-target="home"') + k('view', A.glyph('bay'), 'Bay View', 'data-target="bay"')
-      + k('turn', A.glyph('turnL'), 'Turn the view left (Q)', 'data-dir="-1"') + k('turn', A.glyph('turnR'), 'Turn the view right (E)', 'data-dir="1"')
+      + k('turn', A.glyph('turnL'), withKey('Turn the view left', hud.options, 'turnLeft'), 'data-dir="-1"') + k('turn', A.glyph('turnR'), withKey('Turn the view right', hud.options, 'turnRight'), 'data-dir="1"')
       + k('menu', A.glyph('menu'), 'Menus', 'data-menu="index" data-testid="menus"') + k('mute', A.glyph(hud.muted ? 'musicOff' : 'music'), 'Music on/off') + k('options', A.glyph('gear'), 'Options', 'data-testid="options-open"') + k('setup', A.glyph('plus'), 'New game');
     // Pause anywhere the clock (or a show) runs: business hours, the night, the Evening's moment on the map, Morning
     // Prep when it starts the day by itself, and any brawl or VIP scene on screen.
     const counting = !s.outcome && (s.phase === 'prep' ? hud.options.autoContinue : s.phase === 'report' && (!hud.ledger || hud.options.autoContinue));
     const running = s.phase === 'open' || s.phase === 'night' || counting || hud.playing;
     if (!running) return `<div class="cl-corner">${views}</div>`;
-    const sb = (v: number, label: string) => k('speed', label, `Speed ${v ? v + '×' : 'pause'} (keys: space, 1, 2, 3)`, `data-value="${v}"`, speed === v);
+    const sb = (v: number, label: string) => k('speed', label, withKey(`Speed ${v ? v + '×' : 'pause'}`, hud.options, 'pause', 'speed1', 'speed2', 'speed3'), `data-value="${v}"`, speed === v);
     const skip = s.phase === 'open' ? k('skip', A.glyph('skip'), 'Finish the day (stops at big alerts)') : s.phase === 'night' ? k('sleep', A.glyph('skip'), 'Skip to dawn (stops at big alerts)', 'data-testid="next"') : '';
     return `<div class="cl-corner">${views}<span class="cl-gap"></span>${sb(0, A.glyph('pause'))}${sb(1, A.glyph('play'))}${sb(2, A.glyph('play2'))}${sb(3, A.glyph('play3'))}${skip}</div>`;
   }

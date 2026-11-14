@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  announceControl, blenderBar, buyPlot, canBuildStand, fairWinPage, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
+  announceControl, blenderBar, bugleHeadline, buyPlot, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
@@ -313,5 +313,50 @@ describe('Sandbox maps', () => {
     expect(back.settings).toMatchObject({ map: 'medium', rivals: s.settings.rivals, districts: s.settings.districts });
     const old = migrateSave(JSON.parse(JSON.stringify(newGame(47))))!;
     expect(mapDistricts(old)).toHaveLength(8); // older saves play the whole bay
+  });
+});
+
+describe('Every Last Plot', () => {
+  /** Everything on the map that can be bought, yours, but for one plot left to buy. */
+  const allButOne = (s: GameState) => {
+    const left = PLOTS.filter((p) => isPurchasable(p) && plotOnMap(s, p));
+    for (const p of left.slice(1)) give(s, p.id);
+    const last = left[0];
+    drop(s, last.id);
+    return last;
+  };
+
+  it("counts every purchasable plot on the map: never HQs, civic plots or land off a Sandbox map", () => {
+    const s = newGame(81, { mode: 'sandbox', map: 'small' });
+    allButOne(s);
+    expect(everyLastPlot(s)).toBe(false);
+    for (const p of PLOTS) if (isPurchasable(p) && plotOnMap(s, p)) give(s, p.id);
+    s.plots[hqPlot('hollis').id].owner = null; // gone bust: an HQ nobody can buy never blocks it
+    expect(everyLastPlot(s)).toBe(true);
+  });
+
+  it('is earned the moment the last plot is bought, in Endless after the win too, and the Bugle leads with it at dawn', () => {
+    const s = newGame(82, { mode: 'sandbox', map: 'small', peaceful: true });
+    s.outcome = { result: 'won', how: 'domination', day: s.day };
+    s.endlessSince = s.day; // kept squeezing: the victory card is long gone
+    const last = allButOne(s);
+    s.cash = 1e9;
+    dawn(s); // the rank and the paper catch up with all that land first
+    dawn(s);
+    s.news = [];
+    expect(buyPlot(s, last.id)).toBe(true);
+    expect(s.everyLastPlotEarned).toEqual({ day: s.day });
+    expect(s.news.some((l) => l.startsWith('Lottie: "Every last plot'))).toBe(true);
+    const day = s.day;
+    dawn(s);
+    expect(s.news.filter((l) => l === EVERY_LAST_PLOT_HEADLINE)).toHaveLength(1);
+    expect(bugleHeadline(s)).toEqual(['EVERY LAST PLOT!', "Every lot in town flies Lottie's colors"]);
+    // Once a run: losing a plot keeps it, winning it back says nothing new.
+    drop(s, last.id);
+    give(s, last.id);
+    s.news = [];
+    dawn(s);
+    expect(s.news.some((l) => /every last plot/i.test(l))).toBe(false);
+    expect(s.everyLastPlotEarned!.day).toBe(day);
   });
 });

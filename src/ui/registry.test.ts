@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   defaultSettings, MAP_SIZES, grantPage, LAVENDER_LOT, LESSON_DAY, listPlot, LOTTIES_CORNER, newGame, NO_DEFENSE, openAuction, openLavender, placeBid, PLOT_BY_ID, plotBuyoutPrice, plotPrice,
   PLOTS, purchasablePlots, recipeCost, type DistrictId, type GameState,
@@ -8,7 +8,7 @@ import {
 } from './registry.ts';
 import { menuScreen, menuUnlocked } from './menus.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
-import type { ScoreEntry } from '../save.ts';
+import { loadLeaderboard, recordScore, type ScoreEntry } from '../save.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 
 const give = (s: GameState, id: string) => { s.plots[id] = { ...s.plots[id], owner: 'player', stand: null, invested: 0, defense: NO_DEFENSE() }; };
@@ -253,9 +253,26 @@ describe('Sandbox maps on screen', () => {
     expect(text(landNotes(s, LOTTIES_CORNER))).toContain('1/12');
   });
 
-  it('a leaderboard row names a Sandbox map smaller than the bay', () => {
+  it('a leaderboard row names a Sandbox map smaller than the bay, and stars Every Last Plot', () => {
     expect(scoreTag({ map: 'small', rivals: ['blenders', 'hollis'] } as ScoreEntry)).toBe(' · <span title="Versus Brock, Tilly">Small</span>');
     expect(scoreTag({ map: 'large' } as ScoreEntry)).toBe('');
     expect(scoreTag({} as ScoreEntry)).toBe('');
+    expect(scoreTag({ everyLastPlot: 140 } as ScoreEntry)).toContain('title="Every Last Plot, Day 140"');
+  });
+
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it('the leaderboard records the map, the picks and Every Last Plot', () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); }, removeItem: (k: string) => { store.delete(k); } });
+    const s = newGame(63, { mode: 'sandbox', map: 'medium' });
+    s.runId = 'm';
+    s.everyLastPlotEarned = { day: 9 };
+    recordScore(s);
+    const plain = newGame(64);
+    plain.runId = 'p';
+    recordScore(plain);
+    const board = loadLeaderboard();
+    expect(board.find((e) => e.runId === 'm')).toMatchObject({ map: 'medium', rivals: MAP_SIZES.medium.picks, everyLastPlot: 9 });
+    expect(board.find((e) => e.runId === 'p')).not.toHaveProperty('map');
   });
 });

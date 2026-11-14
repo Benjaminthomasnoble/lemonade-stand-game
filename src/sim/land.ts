@@ -4,7 +4,7 @@
 import {
   DISTRICT_RANK, FACILITY_DEVELOPMENT, MAJORITY, MAJORITY_LAND_DISCOUNT, MAP_SIZES, RANKS, STRONGHOLD, type MapSize, type RivalId,
 } from './balance.ts';
-import { BORDERS, cutMap, mapDistricts, onMap, picksFit, PLOTS, type DistrictId, type Plot } from './map.ts';
+import { BORDERS, cutMap, mapDistricts, onMap, picksFit, plotOnMap, PLOTS, type DistrictId, type Plot } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import type { Settings } from './modes.ts';
 import { hasFoothold } from './economy.ts';
@@ -177,13 +177,39 @@ export function announceControl(s: GameState): void {
   s.control = controlSnapshot(s);
 }
 
+// ---------- Every Last Plot ----------
+
+/**
+ * Every Last Plot (spec: "Owning every purchasable plot earns Every Last Plot"; canon: "for completionists"): every
+ * plot on the map that can be bought is yours. HQs don't count (captured, never bought: a bankrupt rival's empty HQ
+ * can't block it), nor do civic plots or land off a Sandbox map.
+ */
+export const everyLastPlot = (s: GameState) => PLOTS.every((p) => !isPurchasable(p) || !plotOnMap(s, p) || s.plots[p.id].owner === 'player');
+
+/** The morning paper's line for it ("EVERY LAST PLOT! ..." leads the Bugle: media.ts reads s.news overnight and at dawn). */
+export const EVERY_LAST_PLOT_HEADLINE = "EVERY LAST PLOT! Every lot in town flies Lottie's colors.";
+
+/**
+ * The achievement, the moment it comes true, once a run, in every mode (Endless after the win too; checkVictory calls
+ * it whenever land changes hands, and dawn does). Lottie's toast now; the Bugle leads with it at the next dawn.
+ */
+export function awardEveryLastPlot(s: GameState): void {
+  if (s.everyLastPlotEarned || !everyLastPlot(s)) return;
+  s.everyLastPlotEarned = { day: s.day };
+  s.news.push('Lottie: "Every last plot in town is ours, kid! Every single one!"');
+}
+
 // ---------- dawn and saves ----------
 
-/** At dawn, after the day's stats reset: auctions due close, then any control change gets its headline. */
+/** At dawn, after the day's stats reset: auctions due close, then any control change gets its headline, and Every
+ * Last Plot its front page. */
 export function landAtDawn(s: GameState): void {
   closeAuctions(s);
   openLavender(s);
   announceControl(s);
+  awardEveryLastPlot(s);
+  const e = s.everyLastPlotEarned;
+  if (e && !e.bugled) { e.bugled = true; s.news.push(EVERY_LAST_PLOT_HEADLINE); }
 }
 
 /** Fill in what older saves lack (idempotent; migrateSave calls it on every load). */

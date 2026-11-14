@@ -5,13 +5,13 @@ import {
   ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
   SEASON_DAYS, STAND_LEVELS, type Difficulty, type MapSize, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
-import { mapDistricts, plotOnMap, PLOTS, type DistrictId, type PlotType } from './map.ts';
+import { mapDistricts, PLOTS, type DistrictId, type PlotType } from './map.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { assetValue, playerStands, successScore } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { guardWage, NO_DEFENSE } from './crew.ts';
 import { beginEpilogue, storyAct } from './story.ts';
-import { announceControl, rivalsInPlay } from './land.ts';
+import { announceControl, awardEveryLastPlot, rivalsInPlay } from './land.ts';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
@@ -112,10 +112,9 @@ export function dominationProgress(s: GameState) {
   return { rivalsLeft, majority: majority.length, districts: districts.length, done: !rivalsLeft.length && majority.length === districts.length };
 }
 
-export const everyLastPlot = (s: GameState) => PLOTS.every((p) => p.type === 'civic' || !plotOnMap(s, p) || s.plots[p.id].owner === 'player');
-
 /** Called whenever land or rivals change hands, and at dawn. Returns true on the day the run is won. */
 export function checkVictory(s: GameState): boolean {
+  awardEveryLastPlot(s); // land: earned the moment it's true, in any mode, Endless after the win too
   if (s.outcome) return false;
   const win = winCondition(s);
   if (win === 'none') return false;

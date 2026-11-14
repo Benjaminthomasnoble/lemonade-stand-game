@@ -15,7 +15,7 @@ import {
   type FacilityKind, RANKS,
   canAssault, hasBuilding, hqPlot, isWrecked,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
-  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS, everyLastPlot,
+  actName, actOf, canBorrow, cookieJarReady, DIFFICULTY, difficulty, ENDINGS,
   isEndless, loanLimit, loanPayment, MODES, redDaysLeft, deliveryRaidRisk, raidPauses,
   type Difficulty, type Mode, type Settings, type WinCondition,
   type Blocker, type LocalCampaignId, type SpecId, type GameState, type RecipeId, type RivalId, type StandLevel, type SupplyId, type Sweetness,
@@ -896,7 +896,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       return `<div class="cl-modal-bg"><div class="cl-card-big cl-end" data-testid="victory">
         ${tape(esc(bugle), 'cl-big')}
         ${e ? `<div class="cl-lottie"><span class="cl-doodle">${ART.lottie()}</span><span>"${esc(e.lottie)}"</span></div>` : ''}
-        ${everyLastPlot(s) ? `<span class="cl-note good">Every Last Plot!</span>` : ''}
+        ${s.everyLastPlotEarned ? `<span class="cl-note good" title="Every plot on the map, Day ${s.everyLastPlotEarned.day}">Every Last Plot!</span>` : ''}
         ${stats}
         <button class="cl-sleep" data-action="keepSqueezing" data-testid="keep-squeezing">${ART.sky('hot')}<span>Keep squeezing</span></button>
         <button class="cl-link" data-action="setup">New game</button>

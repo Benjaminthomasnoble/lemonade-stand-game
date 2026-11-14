@@ -199,6 +199,7 @@ export interface ScoreEntry {
   custom?: CustomDifficulty; // a Custom run's sliders, for its tag
   map?: MapSize; // land: a Sandbox run's map size (unset: Large, the whole bay)
   rivals?: RivalId[]; // land: the rivals a Sandbox run picked (unset: all five)
+  everyLastPlot?: number; // land: the day the run earned Every Last Plot
   peaceful: boolean;
   ironman: boolean;
   result?: 'won' | 'lost';
@@ -223,6 +224,7 @@ export function recordScore(s: GameState): void {
     difficulty: s.settings.difficulty, peaceful: s.settings.peaceful, ironman: s.settings.ironman, result: s.outcome?.result,
     ...(s.settings.difficulty === 'custom' ? { custom: { ...customDefaults(), ...s.settings.custom } } : {}),
     ...(s.settings.map ? { map: s.settings.map, rivals: [...(s.settings.rivals ?? [])] } : {}), // land: a Sandbox's map and rivals
+    ...(s.everyLastPlotEarned ? { everyLastPlot: s.everyLastPlotEarned.day } : {}), // land: the achievement
     date: new Date().toISOString().slice(0, 10),
   };
   const list = loadLeaderboard().filter((e) => e.runId !== s.runId);

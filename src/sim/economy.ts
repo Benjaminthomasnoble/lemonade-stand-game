@@ -282,6 +282,7 @@ export interface GameState {
   fight?: LiveFight; // the fight playing live right now (fight.ts)
   control?: Partial<Record<DistrictId, ControlTier>>; // each district's control tier at the last check (for the headlines)
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
+  everyLastPlotEarned?: { day: number; bugled?: true }; // land: the day Every Last Plot was earned (bugled: the Bugle has led with it)
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
   calls?: CallsState; // today's day calls (calls.ts)
   lastRaidOnYou?: number; // the last night a raid on you was planned (threat.ts caps the quiet nights in a row)

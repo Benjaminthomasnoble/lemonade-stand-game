@@ -4,7 +4,7 @@
 // the setup screen, and its clicks go through hud's one listener (data-action="pick", data-key "map" or "rival").
 import { DISTRICT_BY_ID, DISTRICTS, FACTIONS, MAP_SIZES, cutMap, picksFit, type DistrictId, type MapSize, type RivalId, type Settings } from '../sim/economy.ts';
 import { BOSS_ORDER } from './story.ts';
-import { headBlob, svg } from './clay.ts';
+import { glyph, headBlob, svg } from './clay.ts';
 import type { ScoreEntry } from '../save.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -68,9 +68,11 @@ export function sandboxPanel(st: Settings): string {
   return `<div class="cl-row wrap" data-testid="map-size"><span class="cl-label">Map</span>${sizes}</div>${bosses}`;
 }
 
-/** A leaderboard row's map: " · Small", its rivals in the tooltip. Nothing for the whole bay. */
+/** A leaderboard row's land tags: a Sandbox map smaller than the bay (" · Small", its rivals in the tooltip) and the
+ * Every Last Plot star. Nothing for a plain run. */
 export function scoreTag(e: ScoreEntry): string {
-  if (!e.map || e.map === 'large' || !(e.map in MAP_SIZES)) return '';
   const who = (e.rivals ?? []).filter((r) => r in FACTIONS).map((r) => SHORT[r]).join(', ');
-  return ` · <span${who ? ` title="${esc(`Versus ${who}`)}"` : ''}>${MAP_SIZES[e.map].label}</span>`;
+  const map = e.map && e.map !== 'large' && e.map in MAP_SIZES ? ` · <span${who ? ` title="${esc(`Versus ${who}`)}"` : ''}>${MAP_SIZES[e.map].label}</span>` : '';
+  const all = e.everyLastPlot !== undefined ? ` <span title="Every Last Plot, Day ${e.everyLastPlot}" aria-label="Every Last Plot">${glyph('star')}</span>` : '';
+  return map + all;
 }

@@ -464,8 +464,16 @@ function vipDay(s: GameState, bottles: number, heli: number, ship: number, ware 
   }
   return day;
 }
-const lineLevel = (s: GameState, kind: FacilityKind) =>
-  Math.max(0, ...PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked).map((p) => s.plots[p.id].facility!.level));
+/** Your facilities of a kind, a smashed one too: fixUp books its rebuild and it stands again at dawn, so the engine is
+ * weighed with it (and no second one is bought the morning the first is rebuilt). */
+const yours = (s: GameState, kind: FacilityKind) => PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind);
+const lineLevel = (s: GameState, kind: FacilityKind) => Math.max(0, ...yours(s, kind).map((p) => s.plots[p.id].facility!.level));
+/** Your bottling a dawn (bottlingCapacity), a smashed Bottling Works counted as rebuilt. */
+function ownBottling(s: GameState): number {
+  const down = yours(s, 'bottling').map((p) => s.plots[p.id].facility!).filter((f) => f.wrecked);
+  for (const f of down) f.wrecked = false;
+  try { return bottlingCapacity(s); } finally { for (const f of down) f.wrecked = true; }
+}
 
 /** A way to a kind's first facility: a rival's standing one bought out at its level, or a new one on a site. `extra`:
  * what its site adds or takes besides the engine (a Warehouse's market runs; your Grove's 5% when a Pad replaces it). */
@@ -483,7 +491,7 @@ interface Way { what: string; cost: number; plot: string; level: number; extra: 
 export function facilityCandidates(s: GameState, budget: number): Buy[] {
   const out: Buy[] = [];
   const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && able(s, () => canPlotBuyout(s, id));
-  const now = { bottles: bottlingCapacity(s), heli: lineLevel(s, 'helipad'), ship: lineLevel(s, 'pier') };
+  const now = { bottles: ownBottling(s), heli: lineLevel(s, 'helipad'), ship: lineLevel(s, 'pier') };
   const base = vipDay(s, now.bottles, now.heli, now.ship);
   const runs = (id: string) => WAREHOUSE_RUNS * ownStands(s).filter((p) => p.district === PLOT_BY_ID[id].district).reduce((a, p) => a + standProfit(s, p.id, typical()), 0);
   const made = (l: number) => (l ? BOTTLES_PER_DAY[l - 1] : 0);
@@ -517,7 +525,7 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
   const firsts: Partial<Record<FacilityKind, Way[]>> = {}; // the rivals' standing ones a Plot Buyout brings over
   for (const kind of ['bottling', 'helipad', 'pier', 'grove', 'warehouse'] as FacilityKind[]) {
     const f = FACILITIES[kind];
-    const have = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked);
+    const have = yours(s, kind); // a smashed one grows once it's rebuilt (canBuildFacility)
     for (const p of have) {
       const lvl = s.plots[p.id].facility!.level;
       if (lvl < f.names.length && f.costs[lvl] <= budget && able(s, () => canBuildFacility(s, p.id, kind))) {

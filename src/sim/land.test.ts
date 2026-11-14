@@ -978,6 +978,23 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(helipad(buys)).toBe(true);
   });
 
+  it('counts a smashed facility of yours as standing: it is rebuilt overnight, never bought a second time', () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 40, rank: 6, cash: 1e7, reputation: 4 });
+    give(s, street(s, 'oldtown').id);
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    give(s, works.id);
+    s.plots[works.id].facility = { kind: 'bottling', level: 1, wrecked: true };
+    const shed = street(s, 'oldtown');
+    give(s, shed.id);
+    s.plots[shed.id].facility = { kind: 'warehouse', level: 1, wrecked: true };
+    const was = JSON.stringify(s);
+    const buys = facilityCandidates(s, 1e7);
+    expect(JSON.stringify(s)).toBe(was);
+    expect(buys.filter((b) => /Bottling Works|Warehouse/.test(b.what)).map((b) => b.what)).toEqual([]); // no second one, no growing it smashed
+    expect(buys.some((b) => /Pad/.test(b.what) && b.gain > 0)).toBe(true); // a Pad is weighed with the Works' bottles, back at dawn
+  });
+
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
     const s = newGame(REFERENCE_SEED);
     const lot = street(s, 'maple').id;

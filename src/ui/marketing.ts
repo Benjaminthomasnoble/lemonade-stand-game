@@ -7,6 +7,7 @@ import {
   type Blocker, type GameState, type LocalCampaignId,
 } from '../sim/economy.ts';
 import { bennyPitch, taught } from '../sim/story.ts';
+import { campaignDays } from '../sim/perks.ts';
 import * as A from './clay.ts';
 
 /** The parts of the HUD's clay kit the Grow tab's campaign cards draw with. */
@@ -27,6 +28,18 @@ const PITCH: Record<'sunny' | 'couponBlitz', string> = {
 };
 const pitch = (id: LocalCampaignId) => (id === 'sunny' || id === 'couponBlitz' ? PITCH[id] : bennyPitch(id));
 const blurb = (id: LocalCampaignId) => (id === 'sunny' || id === 'couponBlitz' ? DISTRICT_CAMPAIGNS[id].blurb : CAMPAIGNS[id].blurb);
+/** A stand campaign's days when Lottie's Long Run stretches them (perks.ts campaignDays), else null. */
+function longRun(s: GameState, id: LocalCampaignId): number | null {
+  if (id === 'sunny' || id === 'couponBlitz') return null; // one district, one day
+  const n = campaignDays(s, CAMPAIGNS[id].days);
+  return n === CAMPAIGNS[id].days ? null : n;
+}
+/** The blurb with the days it really runs: with Long Run, "today" and "for 3 days" become 2 days and 5. */
+function blurbNow(s: GameState, id: LocalCampaignId): string {
+  const n = longRun(s, id);
+  if (n === null || id === 'sunny' || id === 'couponBlitz') return blurb(id);
+  return blurb(id).replace(CAMPAIGNS[id].days === 1 ? /\btoday\b/ : /for \d+ days/, `for ${n} days`);
+}
 /** A campaign the player can't reach from this stand stays hidden: locked by Rank, or a Sign kid at an L4+. */
 const hidden = (b: Blocker, locked: (b: Blocker) => boolean) => locked(b) || (!b.ok && /Only for|Pick a stand/.test(b.why));
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -47,8 +60,9 @@ export function campaignCards(k: CampaignKit, s: GameState): string[] {
     if (hidden(b, k.locked)) continue;
     const cost = campaignCost(s, id);
     const district = id === 'sunny' || id === 'couponBlitz' ? DISTRICT_BY_ID[PLOT_BY_ID[s.selected].district].name : '';
-    const sub = `${costLabel(s, id, k.whole)}${id === 'sandwichBoard' || id === 'sunny' ? ' a day' : ''}${district ? ` · ${district}` : ''}${cost.half ? ' · half off' : ''}`;
-    const tip = `Benny: "${pitch(id)}"\n${blurb(id)}${district ? ` (${district})` : ''}${cost.half ? '. Word of Mouth: half price' : ''}`;
+    const days = longRun(s, id);
+    const sub = `${costLabel(s, id, k.whole)}${days ? ` · ${days} days` : id === 'sandwichBoard' || id === 'sunny' ? ' a day' : ''}${district ? ` · ${district}` : ''}${cost.half ? ' · half off' : ''}`;
+    const tip = `Benny: "${pitch(id)}"\n${blurbNow(s, id)}${district ? ` (${district})` : ''}${cost.half ? '. Word of Mouth: half price' : ''}${days ? '. Long Run: 50% longer' : ''}`;
     out.push(k.card(art[id](), TITLE[id], sub, k.btn('campaign', 'Run', b, `data-id="${id}" data-testid="campaign-${id}"`), tip));
   }
   return out;
@@ -66,7 +80,7 @@ export function bookingRow(s: GameState, plotId: string): string {
     if (hidden(b, locked)) return '';
     const booked = !b.ok && /^Booked for tomorrow$/.test(b.why);
     const label = `${icon(id)}${TITLE[id]}${booked ? A.glyph('check') : ''}`;
-    const tip = b.ok ? `Book for tomorrow: ${costLabel(s, id, (n) => `$${n.toLocaleString('en-US')}`)}. ${blurb(id)}` : b.why;
+    const tip = b.ok ? `Book for tomorrow: ${costLabel(s, id, (n) => `$${n.toLocaleString('en-US')}`)}. ${blurbNow(s, id)}` : b.why;
     return `<button class="cl-b tiny" data-action="campaign" data-id="${id}" data-plot="${plotId}" aria-pressed="${booked}" title="${esc(tip)}"${b.ok ? '' : ' disabled'}>${label}</button>`;
   }).filter(Boolean);
   return cells.length ? `<div class="cl-sec cl-book" data-testid="book-tomorrow"><span class="cl-note">Tomorrow</span><span class="cl-acts">${cells.join('')}</span></div>` : '';

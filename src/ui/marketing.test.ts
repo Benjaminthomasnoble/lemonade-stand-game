@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LOTTIES_CORNER, newGame, newStand, priceCeiling, runCampaign, type Blocker, type GameState } from '../sim/economy.ts';
-import { campaignCards, type CampaignKit } from './marketing.ts';
+import { bookingRow, campaignCards, type CampaignKit } from './marketing.ts';
 
 /** A bare clay kit: each card is its title, subtitle and button. */
 const kit: CampaignKit = {
@@ -39,6 +39,24 @@ describe("the Grow tab's campaign cards", () => {
     expect(cards).not.toContain('Sign kid');
     expect(cards).toContain('Sunny');
     expect(campaignCards(kit, { ...prep(4), day: 5 })).toEqual([]); // before Day 6's lesson
+  });
+
+  it("with Lottie's Long Run, a stand campaign's card and booking say the days it really runs", () => {
+    const s = prep(4);
+    const tips = { ...kit, card: (_art: string, title: string, sub: string, _action: string, tip = '') => `<div><b>${title}</b><i>${sub}</i><q>${tip}</q></div>` };
+    const before = campaignCards(tips, s).join('');
+    expect(before).toMatch(/<b>Sign kid<\/b><i>\$40 a day<\/i><q>[^<]*\+20% foot traffic today \(L1–L3 stands\)<\/q>/);
+    expect(before).toMatch(/<b>Free samples<\/b><i>100 cups<\/i><q>[^<]*\+15% traffic for 3 days<\/q>/);
+    s.story!.tips = { held: ['longRun'], hands: [] };
+    const cards = campaignCards(tips, s).join('');
+    expect(cards).toMatch(/<b>Sign kid<\/b><i>\$40 · 2 days<\/i><q>[^<]*\+20% foot traffic for 2 days \(L1–L3 stands\)\. Long Run: 50% longer<\/q>/);
+    expect(cards).toMatch(/<b>Free samples<\/b><i>100 cups · 5 days<\/i><q>[^<]*\+15% traffic for 5 days\. Long Run: 50% longer<\/q>/);
+    expect(cards).toContain('<b>Sunny</b><i>$300 a day · Maple Row</i>'); // one district, one day: Long Run leaves it be
+    s.phase = 'open';
+    expect(bookingRow(s, LOTTIES_CORNER)).toContain('title="Book for tomorrow: $40. +20% foot traffic for 2 days (L1–L3 stands)"');
+    s.phase = 'prep';
+    expect(runCampaign(s, 'sandwichBoard')).toBe(true);
+    expect(s.plots[LOTTIES_CORNER].stand!.campaigns.sandwichBoard).toBe(2); // as the card said
   });
 
   it('shows a running campaign as done for the day', () => {

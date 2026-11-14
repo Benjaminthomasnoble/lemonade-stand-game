@@ -396,6 +396,9 @@ describe('VIP clients', () => {
     buildFacility(s, field.id, 'helipad');
     buildFacility(s, dock.id, 'pier');
     buildFacility(s, lot.id, 'bottling');
+    const shed = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!; // land: Caterer Trucks need a Warehouse too
+    s.plots[shed.id] = { ...s.plots[shed.id], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    buildFacility(s, shed.id, 'warehouse');
     const days = 3000;
     const caterers = new Set<string>();
     const c = cadence(s, days, () => { // nobody answers: the offers sit there until they lapse

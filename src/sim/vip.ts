@@ -251,6 +251,7 @@ export function tierOpen(s: GameState, tier: OrderTier): Blocker {
   if (s.reputation < t.stars) return { ok: false, why: `${t.stars.toFixed(1)} stars` };
   if (tier === 'local' && !kiosks(s).length) return { ok: false, why: 'an L3 Kiosk' };
   if (tier === 'caterer' && !facilityPlots(s, 'bottling').length) return { ok: false, why: 'a Bottling Works' };
+  if (tier === 'caterer' && !facilityPlots(s, 'warehouse').length) return { ok: false, why: 'a Warehouse' }; // land: both standing
   if (tier === 'heli' && !facilityPlots(s, 'helipad').length) return { ok: false, why: 'a Helipad on a Field plot' };
   if (tier === 'ship' && !facilityPlots(s, 'pier').length) return { ok: false, why: 'a Pier on a Dock plot' };
   if ((tier === 'deal' || tier === 'mega') && bestLevel(s, 'pier') < 3) return { ok: false, why: 'a Cargo Terminal' };

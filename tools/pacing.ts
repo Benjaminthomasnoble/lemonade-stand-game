@@ -222,7 +222,7 @@ function vipDay(s: GameState, bottles: number, heli: number, ship: number): numb
   const lines: [number, OrderTier][] = [
     [ship ? Math.min(asked('ship', SHIP_SIZES[ship - 1]) + deal, LOADING_PER_DAY.pier[ship - 1]) : 0, 'ship'],
     [heli ? Math.min(asked('heli', HELI_SIZES[heli - 1]), LOADING_PER_DAY.helipad[heli - 1]) : 0, 'heli'],
-    [asked('caterer', ORDER_TIERS.caterer.size), 'caterer'],
+    [lineLevel(s, 'warehouse') ? asked('caterer', ORDER_TIERS.caterer.size) : 0, 'caterer'], // Caterer Trucks need a Warehouse, which the bot doesn't build yet
   ];
   let left = bottles, day = 0;
   for (const [want, t] of lines.sort((a, b) => ORDER_TIERS[b[1]].pay - ORDER_TIERS[a[1]].pay)) {

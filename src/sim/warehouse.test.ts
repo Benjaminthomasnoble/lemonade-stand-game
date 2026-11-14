@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildFacility, canBuildFacility, cupsInStock, FACILITIES, helperLines, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, NO_DEFENSE, OPEN, PLOTS, postsFor,
-  restockPlan, standCost, SUPPLIES, sugarRoom, suppliedStands, WAREHOUSE, WAREHOUSE_ID, warehouseAtDawn, warehouseRuns, warehouseValue, type GameState,
+  restockPlan, standCost, SUPPLIES, sugarRoom, suppliedStands, tierOpen, WAREHOUSE, WAREHOUSE_ID, warehouseAtDawn, warehouseRuns, warehouseValue, type GameState,
 } from './economy.ts';
 import { warehouseNote } from '../ui/warehouse.ts';
 
@@ -35,6 +35,19 @@ describe('the Warehouse (Rank 4)', () => {
     expect(postsFor(s, shed)).toBe(3);
     expect(s.news[s.news.length - 1]).toContain('Warehouse opens at');
     expect(canBuildFacility(s, shed, 'warehouse')).toEqual({ ok: false, why: 'Top level' });
+  });
+
+  it('Caterer Trucks call only while a Warehouse and a Bottling Works both stand', () => {
+    const { s, shed } = depot(52);
+    s.rank = 5;
+    const lot = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    s.plots[lot.id] = { ...s.plots[lot.id], owner: 'player', stand: null, facility: undefined, invested: 0 };
+    buildFacility(s, lot.id, 'bottling');
+    expect(tierOpen(s, 'caterer')).toEqual({ ok: false, why: 'a Warehouse' });
+    buildFacility(s, shed, 'warehouse');
+    expect(tierOpen(s, 'caterer')).toEqual({ ok: true });
+    s.plots[shed].facility!.wrecked = true; // smashed: no Caterer calls till it's rebuilt
+    expect(tierOpen(s, 'caterer')).toEqual({ ok: false, why: 'a Warehouse' });
   });
 
   it("makes market runs while open for the stands in its district; one elsewhere, or with Auto-Restock off, waits", () => {

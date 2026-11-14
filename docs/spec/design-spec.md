@@ -511,7 +511,7 @@ Campaigns are targeted and temporary, and you can run several at once.
 | Sandwich-Board Kid | 2 | $40/day | +20% traffic at one L1–L3 stand | 1 day, renewable |
 | Free Sample Day | 2 | 100 free cups | +0.1 star; +15% traffic at that stand | 3 days |
 | Sunny the Lemon mascot walk | 3 | $300/day | +25% traffic for your stands in one district | 1 day, renewable |
-| Coupon Blitz | 4 | Your prices −25% | +40% customers in one district | 1 day |
+| Coupon Blitz | 4 | Your prices −25% | ×1.4 appeal at your stands in one district, in place of what the cut would win | 1 day |
 | Event Sponsorship | 5 | $2,000 per festival day | +50% traffic for your stands in the festival's district | The festival |
 | Billboard building | 7 (needs M4) | $25,000 to build | Your stands within 2 plots +20% traffic; rival stands there −10% appeal | Permanent |
 
@@ -786,7 +786,7 @@ Each item unlocks once by Rank, then you buy it per guard. Rival henchmen carry 
 | Padded Vest | Rank 3 | 200 | — | — | +40 HP |
 | Pro Gear | Rank 6 | 1,500 | — | — | +100 HP; damage taken ×0.8 |
 
-Hatchets exist to chop. Five of them breach Barbed Wire (2,500 HP) in 19 seconds, where five clubs take about 74. Twelve clubs can't Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; twelve hatchets do it in 16 seconds.
+Hatchets exist to chop. Five of them breach Barbed Wire (2,500 HP) in about 18 seconds. Five clubs would need about 74 seconds to chop through that much fence, but Barbed Wire's sting (4 HP a second) knocks all five out at about 25 seconds, so they never get through. Twelve clubs can't Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; twelve hatchets do it in about 15 seconds.
 
 ### Specialists, squads and the Clubhouse
 
@@ -988,7 +988,7 @@ Threat, 1 to 5 sour lemons, follows your rank and sets how often rivals raid you
 
 | Threat | Triggered by (Classic) | Nights a week with a raid on you | Typical raid | What changes |
 | --- | --- | --- | --- | --- |
-| 1 | Ranks 1–2 | About 5 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard |
+| 1 | Ranks 1–2 | About 5 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard, unless your guards Fall Back |
 | 2 | Ranks 3–4 | About 4 | 3–5, some clubs; 30% Smash | Smash attempts begin |
 | 3 | Ranks 5–6 | About 4–5 | 5–8 with clubs, vests and a lookout; 60% Smash | Delivery Raids on VIP pickups and on Caterer Trucks at your Warehouse; the music's tension layer |
 | 4 | Ranks 7–8 | About 2.5–5 | 8–12 in Pro Gear, 6 in 10 with hatchets and the rest with clubs; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
@@ -1150,7 +1150,7 @@ Security spend (guards, defenses and repairs) is meant to sit at 15–25% of inc
 
 Cash below $0 at the end of a day puts you "In the Red" with 3 days to fix it. If you'd still go under, Lottie's Cookie Jar pays the shortfall plus one day of upkeep and wages. Laid Back has it always, Classic once per act (once per season in Sandbox and Endless), and Cutthroat never.
 
-Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads the last dawn autosave. Losses should sting, not ruin. In the simulation, the worst Classic raid after Day 6 cost about a third of a day's income (never more than 0.6 days on 60 maps), and the average cost about 0.1 day.
+Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads the last dawn autosave. Losses should sting, not ruin. The pacing check (`RAID_LOSS` in tools/pacing.ts) wants the worst Classic raid after Day 6 to cost about a third of a day's takings and no more than 0.6 days, and the average raid about 0.1 day. In the pacing runs on maps 42–44 the worst cost 0.43, 0.83 and 0.54 days of the last week's takings, each on Days 9–12, and the average 0.03 days; in the pacing sweep 6 of 10 Classic maps went over 0.6. Whether to soften the early raids or restate the line is open call (b) in Design calls settled on 2026-11-14.
 
 ### Pacing targets vs the simulation
 
@@ -1170,7 +1170,7 @@ Without the Cookie Jar the game ends ("Squeezed Out") and the campaign reloads t
 
 Every milestone lands within 15% of its target on the reference map, and Ranks 6–10 and Domination land inside their target windows. The range in brackets covers ten simulated maps. The simulated player is tireless and efficient, so a real player should land a few days later, closer to the targets. The longest stretch without a new rank, unlock or stand level is 7 days, and it is the siege of Sourwood Manor.
 
-These targets are under review, along with the pacing economy behind them and the late-game stand mix in Income growth by stage, and the simulated days above predate the first L2 and Rank 2 moving to their Day 5 lessons. The new pacing sweep, with a simulated player that uses every system, reports in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+These targets are under review, along with the pacing economy behind them and the late-game stand mix in Income growth by stage, and the simulated days above predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing sweep, with a simulated player that uses every system, is in /mnt/project-files/gameplay-build/integration/pacing-sweep.txt; it played main 9e57e5e, so re-sweep current main before quoting its days. Whether to retune the economy or restate these targets is open call (d) in Design calls settled on 2026-11-14.
 
 ### Difficulty differences
 
@@ -1212,7 +1212,7 @@ Every rank opens new toys, and on Classic something new arrives about once a wee
 
 ### The first week
 
-Act 1 adds one system a day, each with its own button (see Player experience). Prices come on Day 1 (Lottie stocks that first table free), and on Day 2 recipes, weather and the Market: from then on every lemon costs you. On Day 3 the Steward's visit brings the Picket Fence and Lottie's $300 side lot, and that night Brock's Bros come for the till: any fence or guard sends them home, and an undefended stand loses a day's takings. Dex joins on Day 4, the Wooden Stand and Rank 2 land on Day 5, the first sign goes up on Day 6, and Day 7 opens the Land Registry.
+Act 1 adds one system a day, each with its own button (see Player experience). Prices come on Day 1 (Lottie stocks that first table free), and on Day 2 recipes, weather and the Market: from then on every lemon costs you. On Day 3 the Steward's visit brings the Picket Fence and Lottie's $300 side lot, and that night Brock's Bros come for the till: any fence or guard sends them home unless your guards Fall Back, and an undefended stand loses a day's takings. Dex joins on Day 4, the Wooden Stand and Rank 2 land on Day 5, the first sign goes up on Day 6, and Day 7 opens the Land Registry.
 
 After the first raid, nights stay dangerous: on Classic no more than two nights in a row pass without one. Every business day also brings one or two day calls, small decisions with a price (see Running the business), and Lottie's opening tour tells the story and shows the boss board before the first cup is poured. (Revised 2026-11-08: the earlier plan kept the first hour raid-free, and players found it had no stakes.)
 
@@ -2189,14 +2189,14 @@ These calls shape the game and are Ben's to make. Each one says what the spec as
 2. **Is E10+ the right rating?** Brawls happen inside cartoon dust clouds and hatchets mostly chop fences, but the mob theme and hatchets put the game at the E10+ line. An E rating would likely mean clubs as the top weapon and softer raid names. Recommendation: keep E10+, as written.
 3. **Is about 20 hours the right campaign length?** The campaign aims for about 140–150 game days to victory, about 19–20 hours at 8 real minutes a day; the economy model's efficient player wins on Day 143 on Classic and on Day 126, about 17 hours, on Laid Back. A laid-back player may want a shorter arc. Recommendation: keep the full campaign and point shorter games to Sandbox's Small map (4 districts, 2 rivals), which already exists.
 4. **Should Rank 10 arrive before or after victory?** In the economy model, Domination lands on Day 143 and Rank 10 on Day 157 (148–162 across ten maps, after victory on every map), so the title rank becomes the first goal of Endless Summer. Landing it at victory would take a threshold of about $150M, barely above Rank 9's $125M, so the two ranks would arrive almost together. Recommendation: keep it after victory, and have Lottie name it as the next goal in the epilogue. Human players will run slower than the model's efficient player, so the builder should check Domination against its Day 140–150 target in playtests.
-5. **Do the story beats land on time?** Mostly, after the re-tune. Acts advance on their climax, and each rival's HQ opens at its own rank, from the Blend Shack at Rank 5 to FizzCo Tower at Rank 8. Dex pushes a Clubhouse early in Act 2, so the economy model's efficient player builds one by Day 19. On the reference map the Blend Shack falls on Day 42 and the Grindhouse on Day 61, closing Acts 2 and 3; Hollis Homestead falls on Day 79 and FizzCo Tower on Day 105, closing Act 4. The first chopper lands on Day 72 and the first ship docks on Day 87, both in Act 4, so the Jetty keeps its $250,000 price. The risk was a fast map: Hollis fell the day after Rank 7, so when Rank 7 came by Day 69 she fell before the County Fair (Days 71–77), on 2 of 10 Classic maps and on most Laid Back maps. Settled: Tilly now waits for the Act 4 County Fair (see Act 4), and the rank gates stay; check the beats in playtests.
+5. **Do the story beats land on time?** Mostly, after the re-tune. Acts advance on their climax, and each rival's HQ opens at its own rank, from the Blend Shack at Rank 5 to FizzCo Tower at Rank 8. Dex pushes a Clubhouse early in Act 2, aiming for one by Day 19; the simple sim player (`npm run sim -- 20`) is still $214–351 short of one at dawns 15–19 (open call (c) in Design calls settled on 2026-11-14). On the reference map the Blend Shack falls on Day 42 and the Grindhouse on Day 61, closing Acts 2 and 3; Hollis Homestead falls on Day 79 and FizzCo Tower on Day 105, closing Act 4. The first chopper lands on Day 72 and the first ship docks on Day 87, both in Act 4, so the Jetty keeps its $250,000 price. The risk was a fast map: Hollis fell the day after Rank 7, so when Rank 7 came by Day 69 she fell before the County Fair (Days 71–77), on 2 of 10 Classic maps and on most Laid Back maps. Settled: Tilly now waits for the Act 4 County Fair (see Act 4), and the rank gates stay; check the beats in playtests.
 6. **Barks or full voice acting?** The spec gives Lottie, Dex and the five bosses about 20 short barks each, with longer lines as text and Lemonese gibberish for crowds. Full voice acting for story scenes would add warmth but costs more and makes translation harder. Recommendation: barks and text, as written.
 7. **Online leaderboards in version 1?** High scores are local, and online boards are a stretch goal. They need a small server, which Ben's planned game platform could host, plus cheat checks. Recommendation: local only for version 1.
 8. **The four MVP calls in the Scope plan.** Recommendation: yes to all four. Add the Blend Shack assault so the small map can be won, show rival defenses openly until scouting arrives, count cups for MVP orders, and keep Cutthroat as a test setting.
 
 ## Appendix A: Balance tables
 
-Every number below is final for version 1, checked by a 170-day simulation that takes a competent Classic player to Rank 9 on Day 135 and Domination on Day 143 on the reference map (Domination on Days 131–146 across ten shuffled maps).
+This appendix is a shorter, older copy of `docs/spec/balance-tables.md`, which is checked against main's code: where the two differ, balance-tables holds the number. Numbers marked (placeholder) there are stand-ins still to be tuned, and the pacing targets are under review (open call (d) in Design calls settled on 2026-11-14). The simulated days come from the economy model's 170-day run (`docs/spec/pacing.csv`), which takes a competent Classic player to Rank 9 on Day 135 and Domination on Day 143 on the reference map (Domination on Days 131–146 across ten shuffled maps).
 
 Dollars are game dollars, days are game days, and "×" multiplies a base value.
 
@@ -2243,7 +2243,7 @@ Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for
 | Sandwich-Board Kid | 2 | $40/day | +20% traffic at one L1–L3 stand | 1 day, renewable |
 | Free Sample Day | 2 | 100 free cups | +0.1 star; +15% traffic at that stand | 3 days |
 | Sunny the Lemon mascot walk | 3 | $300/day | +25% traffic for your stands in one district | 1 day, renewable |
-| Coupon Blitz | 4 | Prices −25% | +40% customers in one district | 1 day |
+| Coupon Blitz | 4 | Prices −25% | ×1.4 appeal at your stands in one district, in place of what the cut would win | 1 day |
 | Event Sponsorship | 5 | $2,000 per festival day | +50% traffic for your stands in the festival district | The festival |
 | Billboard building | 7 | $25,000 to build | Your stands within 2 plots +20% traffic; rival stands there −10% appeal | Permanent |
 
@@ -2309,7 +2309,7 @@ Guards gain about 1 level every 35 days of duty; fights and the Training Yard sp
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the target is to build it on Days 15–19. The simple sim player (`npm run sim -- 20`) has $1,955–$2,092 at those dawns against the $2,306 for a Street plot and the Clubhouse, while the pacing bot builds its first on Days 12–20 on Classic: open call (c) in Design calls settled on 2026-11-14.
 
 ### Land prices and traffic by district
 
@@ -2459,7 +2459,7 @@ The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Dom
 | 4 | 4 | About 2.5–5 | 8–12 | Pro Gear; 6 in 10 with hatchets, the rest clubs; 1 lookout | 1–2 | 30% | 70% |
 | 5 (Syndicate) | 6 | About 2.5–7.5 strikes | 12–20, boss-led | As Threat 4; 2 lookouts | 2–3 | 0% | 100% |
 
-Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's, comes on Night 3: two Smoothie Bros with bare fists come for the till, and any fence or guard sends them home. After it, no more than 2 nights in a row pass without a raid on you (4 on Laid Back, 1 on Cutthroat). Each night's raids are drawn from the base rate, and a rumor you answer brings its gang on a night the draw gave none. The measured nights come from twelve simulated Classic campaigns with every rumor answered: the low end with every raid beaten (the raider sits out its Respect cooldown), the high end with none; the Syndicate's row counts its strikes in the weeks before the siege. Raiders fight at the Threat's level, Level 1 to 5. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's, comes on Night 3: two Smoothie Bros with bare fists come for the till, and any fence or guard sends them home unless your guards Fall Back. After it, no more than 2 nights in a row pass without a raid on you (4 on Laid Back, 1 on Cutthroat). Each night's raids are drawn from the base rate, and a rumor you answer brings its gang on a night the draw gave none. The measured nights come from twelve simulated Classic campaigns with every rumor answered: the low end with every raid beaten (the raider sits out its Respect cooldown), the high end with none; the Syndicate's row counts its strikes in the weeks before the siege. Raiders fight at the Threat's level, Level 1 to 5. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. The target is that no raid costs more than 0.8 days of income. In the pacing runs on maps 42–44 the worst raid after Day 6 cost 0.43, 0.83 and 0.54 days, and an earlier bot saw 1.38 days on map 44, Day 7. Whether the line holds is open call (b) in Design calls settled on 2026-11-14.
 
 ### Difficulty
 
@@ -2740,7 +2740,7 @@ These design calls were settled with the auditors' recommended defaults while Be
 - **Fights in turn.** One fight plays at a time. A raid on you that reaches its plot during another fight waits at the plot's edge and goes in live as that fight ends, and your own raids that land meanwhile are fought at once and replayed. Before: the docs were silent on fights that overlap.
 - **Combat anchors.** A Threat 1 raid of 3 fists fails about 78% of the time against a Picket Fence and one fists guard, and real Threat 1 parties (2–3 fists) about 92%. A fully kitted L5 plot holds against a Threat 4 raid about 80% of the time behind a P4 and nearly always behind a P5. Threat 4 and 5 raiders both wear Pro Gear, 6 in 10 with hatchets and the rest with clubs. Before: about 60% and about 75%.
 - **Rally cue.** The fight bar shows each side's standing count against the mark where its one Nerve roll comes, so you can time a Rally to cover it. Before: no cue.
-- **Walkthrough figures (Days 24 and 26).** The unscouted Planner reads about 49–83% and the scouted one about 80%, counting the detection roll and the help a spotted raid meets. The Day 24 Shakedown takes about $1,555 and no guard is knocked out, and on Day 26 Brock's raid takes about $521 from a Kiosk with only a Picket Fence and Dex. Five clubs breach Barbed Wire in about 74 seconds. Before: 40–85%, 81%, $2,400 with Pip Out for 1 day, $800 and 75 seconds.
+- **Walkthrough figures (Days 24 and 26).** The unscouted Planner reads about 49–83% and the scouted one about 80%, counting the detection roll and the help a spotted raid meets. The Day 24 Shakedown takes about $1,555 and no guard is knocked out, and on Day 26 Brock's raid takes about $521 from a Kiosk with only a Picket Fence and Dex. Five clubs need about 74 seconds to chop through 2,500 HP of fence; real Barbed Wire's sting knocks them out first. Before: 40–85%, 81%, $2,400 with Pip Out for 1 day, $800 and 75 seconds.
 - **Fall Back in the tutorial raid.** Any fence or guard sends Night 3's Bros home, unless your guards Fall Back and give the fight up. Before: any fence or guard sent them home.
 - **How rival help travels.** Help sets out when your raid does and walks at raid pace, about 1–2 game hours from a nearby plot, so it's nearly always there by contact. Your own reserves take Ring the Bell's 30 game minutes from the same district, 60 from a bordering one. Before: the defender "sends help", with no timing.
 - **HQ assaults as night fights.** An assault at Morning Prep, in the Evening or at night is a night fight (no Reputation, Night Owls hit 25% harder), and the HQ win rates are measured at Morning Prep. Each Yard's henchmen stand a level above the rest of their HQ's. Before: the docs didn't say when an assault counts as night, and called the Yard's henchmen elite.
@@ -2813,7 +2813,7 @@ These design calls were settled with the auditors' recommended defaults while Be
 The docs keep these rules as they stand until Ben decides.
 
 - **(a) Rumors and the raid rate.** Should the raid nights that answered rumors bring count against the week's raid rate? Today a rumor sets the night's first raid's gang and plot, and adds a raid only on a night the draw gave none; that measures 3–5 raid nights a week at Threats 1–3.
-- **(b) The 0.8-day line.** Does "no raid costs more than 0.8 days of income" still hold against early Threat 1 Shakedowns? One cost 1.38 days on map 44, Day 7.
-- **(c) The first Clubhouse on Days 15–19.** The simulated player was about $250–350 short of one at dawns 15–19. The pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt, has the latest runs.
-- **(d) The pacing economy and the late-game stand mix.** Retune the economy toward the pacing targets, or restate them: see the pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt. It also shows the first Wooden Stand landing on Day 3 (tapping the stand upgrades it before the Day 5 lesson), Domination hinging on Vera's fall, and the VIP share of takings and the first Supply Deal off their targets.
+- **(b) The 0.8-day line.** Does "no raid costs more than 0.8 days of income", and the pacing check's 0.6 (`RAID_LOSS` in tools/pacing.ts), still hold against the early raids? On main the worst raid after Day 6 cost 0.43, 0.83 and 0.54 days on maps 42–44, each on Days 9–12, and 6 of 10 Classic maps in the pacing sweep went over 0.6; an earlier bot saw 1.38 days on map 44, Day 7. Soften the early raids, or restate both lines.
+- **(c) The first Clubhouse on Days 15–19.** The simple sim player (`npm run sim -- 20`) has $1,955–$2,092 at dawns 15–19 against the $2,306 for a Street plot and the Clubhouse, so it builds later; the pacing bot builds its first on Days 12–20 on Classic, mostly before Dex's push (the pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt). Retune Act 2's cash, or move the window.
+- **(d) The pacing economy and the late-game stand mix.** Retune the economy toward the pacing targets, or restate them: see the pacing sweep, /mnt/project-files/gameplay-build/integration/pacing-sweep.txt (played on main 9e57e5e; re-sweep current main before quoting its days). It also shows the first Wooden Stand landing on Day 3 (tapping the stand upgrades it before the Day 5 lesson), Domination hinging on Vera's fall, and the VIP share of takings and the first Supply Deal off their targets.
 - **(e) Overnight repairs and the reserve.** Should overnight fence and Slick repairs keep Auto-Repair's wage and loan reserve? Today they're paid whenever the cash covers them.

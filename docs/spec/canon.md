@@ -42,7 +42,7 @@ Design principles (every section must respect them):
 10. Challenge comes from smart rivals and big goals, not hidden rules or punishing randomness.
 
 Anti-frustration rules:
-- No raids on the player on Nights 1–2. The first raid on you comes on Night 3: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard (Dex once he's hired), sends them home; undefended, they take it. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat, 2 on Custom). (Changed 2026-11-08 at Ben's call: the old Day 15 first raid left the first hour without any stakes.)
+- No raids on the player on Nights 1–2. The first raid on you comes on Night 3: two of Brock's Smoothie Bros come for the till. Any fence, or anyone on guard (Dex once he's hired), sends them home, unless your guards Fall Back and give the fight up; undefended, they take it. After that, no more than 2 nights in a row pass without a raid on you on Classic (4 on Laid Back, 1 on Cutthroat, 2 on Custom). (Changed 2026-11-08 at Ben's call: the old Day 15 first raid left the first hour without any stakes.)
 - Every raid on the player gives warning (minimum notice in section 13).
 - Auto-pause on major alerts (toggle, on by default).
 - A rival that loses a raid to you backs off for a while (Respect cooldown).
@@ -180,7 +180,7 @@ Local campaigns (temporary, targeted):
 - Sandwich-Board Kid (Rank 2): about $40/day, +20% traffic at one stand.
 - Free Sample Day (Rank 2): costs cups; +0.1 star Reputation and +15% traffic at that stand for 3 days.
 - Sunny the Lemon mascot walk (Rank 3): about $300/day, +25% traffic for your stands in one district.
-- Coupon Blitz (Rank 4): a day at −25% price for +40% customers in one district.
+- Coupon Blitz (Rank 4): a day at −25% price for +40% appeal at your stands in one district, in place of what the cut would win.
 - Event Sponsorship (Rank 5): big boost in the district hosting a festival.
 - Billboard building (Rank 7): your stands within 2 plots get +20% traffic; rival stands in that radius −10% appeal.
 
@@ -319,7 +319,7 @@ The Syndicate: at Threat 5, remaining rivals stop fighting each other and coordi
 | 9 | Bay Kingpin | $125,000,000 | Mega contracts; in the campaign, Call the Big Squeeze |
 | 10 | The Big Squeeze | $200,000,000 | Title rank, golden Citrus Palace skin, endless leaderboards |
 
-Every rank-up: a Bugle headline, confetti, and a choice of 1 of 3 **Lottie's Tips** perks (a pool of about 24 small boosts, e.g. +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun twice, campaigns last 50% longer, lemons keep 2 days longer, +20% defense at night, buyouts 15% cheaper).
+Every rank-up: a Bugle headline, confetti, and a choice of 1 of 3 **Lottie's Tips** perks (a pool of about 24 small boosts, e.g. +10% price tolerance, guards heal a day faster, land 10% cheaper, geese stun twice, campaigns last 50% longer, +20% defense at night, buyouts 15% cheaper).
 
 Ranks are never lost: Success Score can fall, but your Rank and its unlocks stay.
 

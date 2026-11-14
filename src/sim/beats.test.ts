@@ -414,6 +414,23 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
     expect(goalsNow(s).some((g) => /Blenders stand/.test(g.text))).toBe(false);
   });
 
+  it('the payback takes the card the morning after Brock hits you, Clubhouse or not, full squad or not', () => {
+    for (const club of [false, true]) {
+      const s = act2(85);
+      if (club) s.clubhouse = 1;
+      s.guards = crew(3);
+      s.battles = [];
+      const push = club ? 'Hire a squad of 5' : 'Build Dex a Clubhouse';
+      expect(medium(s).text).toBe(push);
+      s.battles.unshift(tutorialRaid(s));
+      expect(medium(s)).toMatchObject({ text: 'Buy clubs for Dex', story: true });
+      s.guards[0].weapon = 'clubs';
+      expect(medium(s).text).toBe('Shake down a Blenders stand');
+      s.story!.payback = { shakedown: 'x', smash: 'y' };
+      expect(medium(s).text).toBe(push); // Dex's push comes back once the payback's done
+    }
+  });
+
   it('winter empties the Boardwalk: Lottie says so, and getting the Blenders Weakened is the goal', () => {
     const s = act2(84);
     s.clubhouse = 1;

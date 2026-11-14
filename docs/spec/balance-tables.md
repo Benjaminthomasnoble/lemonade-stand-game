@@ -423,6 +423,70 @@ Scorcher, Hot and Warm keep their bands in every season. Cloudy, Rainy and Storm
 | Winter | 0.6 | 0.4 |
 | Spring | 1.0 | 1.0 |
 
+### World and events
+
+A year is 56 days: four seasons of 14 days from Summer Day 1, so Fall starts on Day 15, Winter on Day 29 and Spring on Day 43. Values marked (placeholder) are the build's own where the spec gives none.
+
+#### Festivals
+
+| Festival | Season days (year 1) | District | Crowd | Also |
+|---|---|---|---|---|
+| Surf Contest | Summer 4–6 (Days 4–6) (placeholder) | The Boardwalk | Tourists (placeholder) | — |
+| Summer Fair | Summer 8–14 (Days 8–14) | Old Town | Families (placeholder) | A Taste-Off on its last day |
+| Founders' Day | Summer 8 (Day 8) (placeholder) | Downtown (placeholder) | Families (placeholder) | — |
+| County Fair | Fall 1–7 (Days 15–21) | The Groves (the Fairgrounds) | Families (placeholder) | A Taste-Off on its last day |
+| Campus Homecoming | Fall 10–11 (Days 24–25) (placeholder) | Campus & Arts | Students | — |
+| Harbor Fest | Fall 12–14 (Days 26–28) (placeholder) | The Harbor | Workers (placeholder) | The Fall VIP rush (see Contracts) |
+| Winter Lights Market | Winter 8–14 (Days 36–42) (placeholder) | Old Town | Seniors (placeholder) | — |
+| Spring Marathon | Spring 7 (Day 49) (placeholder) | The Boardwalk (placeholder) | Students: the joggers run with them (placeholder) | — |
+| Election Day | Spring 12 (Day 54) (placeholder) | Old Town (placeholder) | None | Can change the Citation rules for a year (see Your raids) |
+
+A festival changes who walks by, not how many: half of its district's passersby are its crowd (placeholder), and a card shines for a crowd of its fans. Event Sponsorship (Rank 5, see Local campaigns) is booked at Morning Prep while a festival runs, needs a stand of yours in its district and pays for every day left.
+
+#### Taste-Offs
+
+Each fair ends in a Taste-Off on its last day. Three judges post their hints at dawn and taste at closing. You enter whatever you set at the fair, else the selected stand's card, Sweetness and price.
+
+| Rule | Value |
+|---|---|
+| The hints | One names a crowd (the fair's, or one of the district's, with a favorite you own), one a Sweetness, one a price band: a bargain (up to 60% of the booth's top price), fair (up to 85%) or worth a little extra (up to 100%) |
+| The booth's top price | Your best stand level's top price × the card's price bonus × the district's price tolerance (× the Blender Bar's +20% for Frozen) |
+| Marks (they multiply) | A card the crowd loves ×1.2, any other ×1. Sweetness or price band right ×1.1, one step off ×1, two off ×0.85; over the top price ×0.85 (all placeholders) |
+| Rivals | Every rival with a stand in the district enters, else Dot's Diner. Each reads each hint right this often, taking the full mark: Brock 60%, Tilly 65%, Vera 50%, Preston 45%, Juni 45%, Sterling (Snootwater) 60%, Dot 40%. Of the rest, 70% land near it (×1) and the others miss (×0.85) (placeholders). Ties go to you |
+| The winner | +0.1 star and +20% traffic for its stands in that district for the next 7 days, rivals included, and a $500 prize (placeholder). Dot's Diner takes neither |
+| Act 1 (year 1's Summer Fair) | Brock stakes the Strawberry page, and the judges give the spec's three hints: for the kids, not too sweet, worth a little extra |
+| From Act 4 (the County Fair) | Tilly duels you at each County Fair until she's won over. Win, and she sells her Fields at 1.5× land value instead of 2.5×. She neither sells out, falls to an HQ Assault nor goes bust before year 2's County Fair (Days 71–77) has run its Taste-Off; still broke then, she folds the first dawn after it |
+| Sandbox and Endless | Open fairs: a win brings home one missing page, Strawberry first, else one whose holder isn't on the map. Beating Tilly at any County Fair wins her over |
+
+#### Random events
+
+| Rule | Value |
+|---|---|
+| The first | None before Day 6. The first rolls on Days 6–8 (placeholder) |
+| How often | About one every 5–7 days after that (placeholder): a pick, by weight, of the events that can happen that day. If none can, the scheduler tries again the next day |
+| Weights | Viral Video 1.2, every other rolled event 1 (placeholders). The Heat Wave and Kids' Lemonade Day are planned instead, at each season's first dawn, never before Day 6 and at least 2 days ahead, so the forecast sees them |
+| One harmful at a time | A harmful event running, or on its way, holds back the next. None is rolled on a day forecast Storm, except the two that come with notice: the Hurricane, and the Health Inspection, which is never set for a day forecast Storm |
+| When it starts | At dawn, in the Bugle; or breaking in mid-day on 101.5 The Squeeze, between 10:00 and 15:00 (placeholder) |
+| Where it lands | A district or street event lands in a district where you sell 70% of the time (placeholder), else in any district with stands. A street is 4–6 adjacent columns of one district, both sides (placeholder), through one of your stands when the district has one |
+| Traffic surges | Multiply on top of marketing, and with each other |
+
+| Event | Lasts | Where and when | Effect | How to play it |
+|---|---|---|---|---|
+| Heat Wave (good) | 3 days | The bay. A season has one 40% of the time in Summer, 10% in Fall, 6% in Spring and never in Winter, starting on season days 3–12, 1–4 and 9–12 (placeholders) | 3 Scorchers in a row (thirst ×1.6), and Frozen shines everywhere. The season's other Scorchers are thinned, so the weather table's Scorcher odds hold on average | Extra ice, higher prices, Frozen |
+| Lemon Blight (harmful) | 5 days | The bay, at dawn | Lemons cost ×2 at the Market, on top of the day's ±20% | Buy daily (lemons spoil in 3 days) and nudge prices up |
+| Sugar Shortage (harmful) | 5 days | The bay, at dawn | Sugar costs ×2 at the Market | Sugar keeps: a stocked Warehouse rides it out |
+| Viral Video (good) | 2 days | One of your stands, mid-day | ×2 traffic at that stand | Stock deep, raise the price |
+| Celebrity Sighting (good) | 1 day | A district, at dawn | ×2 traffic at every stand there, rivals' too | Send Sunny the Lemon (at Morning Prep; once the stands open, the card offers Restock now) |
+| Parade Route (good) | 1 day | A street, at dawn | ×2 traffic on the route | Restock the route's stands at noon |
+| Roadworks (harmful) | 3 days | A street, at dawn | Half the traffic on the street | Run campaigns elsewhere |
+| Tourist Bus (good) | 1 day | A district, at dawn | ×1.5 traffic there, and tourists are 70% of its walkers (both placeholders) | Pour Strawberry, price high |
+| Food Critic (mixed) | 1 day | One of your stands, named at dawn | At closing, +0.1 star if the stand passes all three checks, −0.1 if not (see Reputation) | Short line, fair price, fitting recipe |
+| Power Outage (harmful) | 1 day | The district of one of your L4+ stands, at dawn (it needs one) | The ice machines there stop for the day | Buy Market ice for those stands |
+| Captain Squawk (harmful) | Until the stand is restocked or you forgive him, 3 days at most (placeholder) | One of your stands, mid-day | The gull takes the stand's newest lemon delivery (nothing, if it holds no lemons) | Restock; forgive him |
+| Kids' Lemonade Day (mixed) | 1 day | The bay, in 75% of Summers, on a weekday between season days 3 and 12 (placeholders). Day 1 is a Monday, so the 6th and 7th days of each week are the weekend | One kid stand per district (placeholder) on a free Street, Prime or Landmark lot: within 2 plots of one of your stands where you sell, else anywhere in the district. Each pulls like a Folding Table pouring Classic at $0.50 (placeholder) and splits walkers like a rival stand, inside the 35% cap. Lottie's medium goal for the day is to leave them alone. Raiding one (from Rank 3, with a free guard, before dusk) costs 0.5 star, tomorrow's front page and Lottie's respect. Rivals never raid one | Leave them alone until dusk |
+| Hurricane (harmful) | 1 day | The bay, from Rank 7 in Fall and Winter (placeholders), never on a Heat Wave day; forecast 2 days ahead | Its day is a Storm. At the open every faction's standing building loses a share of its own HP, before any Fortified Frame: L1 60%, L2 50%, L3 40%, L4 35%, L5 30%, facilities 30%, never below 1 HP (placeholders). Damaged, never Wrecked; fences and HQs take none, and it takes the place of the Storm's own damage | Fortified Frames; repairs never cost more than a 15% rebuild |
+| Health Inspection (harmful) | 1 day | One of your stands, from Rank 2, named the day before, the visit mid-day (placeholders) | The stand passes at full HP with at least an hour's pour in stock (placeholder); otherwise it closes until dawn. A repair approved the day before is done by the visit, and a Storm the forecast missed calls the visit off | Repair and restock it, or it closes until dawn |
+
 ### Ranks
 
 | Rank | Title | Success Score threshold ($) | Target day | Simulated Classic day | Range on ten maps |

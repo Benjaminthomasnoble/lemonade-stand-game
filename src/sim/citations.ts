@@ -10,6 +10,7 @@ import { isEventDay } from './calendar.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { peaceful } from './modes.ts';
 import { book } from './ledger.ts';
+import { PLOT_BY_ID } from './map.ts';
 
 export type Platform = keyof typeof ELECTION;
 
@@ -59,9 +60,10 @@ export function raidBan(s: GameState): Extract<Blocker, { ok: false }> | null {
   return ends === null ? null : { ok: false, why: `Citation: no raids till Day ${ends}` };
 }
 
-/** planRaid calls this for a daytime raid it just sent, when citationRisk said so before launch: the fine comes out
- * of the till, the ban starts, and Sheriff Budd brings the first one to the Corner herself. */
-export function cite(s: GameState, target: string): Citation {
+/** planRaid calls this for a daytime raid it just sent (`sent`, its id), when citationRisk said so before launch: the
+ * fine comes out of the till, the ban starts, and Sheriff Budd brings the first one to the Corner herself. The ban calls
+ * off your other raids and HQ assaults that haven't set out yet (tonight's, say); a squad already on its way carries on. */
+export function cite(s: GameState, target: string, sent?: string): Citation {
   const r = citationRules(s);
   const fine = citationFine(s);
   book(s, 'citations', -fine);
@@ -71,6 +73,9 @@ export function cite(s: GameState, target: string): Citation {
   (c.written ??= []).push(ticket);
   if (c.written.length > 20) c.written.splice(0, c.written.length - 20);
   const ends = c.banUntil + 1;
+  const waiting = s.raids.filter((r) => r.attacker === 'player' && r.id !== sent && r.back === undefined && (r.leave ?? 0) > s.minute);
+  s.raids = s.raids.filter((r) => !waiting.includes(r));
+  for (const r of waiting) s.news.push(`Sheriff Budd's ban: the ${r.assault ? 'HQ Assault' : 'raid'} on ${PLOT_BY_ID[r.target]?.name ?? r.target} is called off.`);
   alert(s, { kind: 'note', text: `Sheriff Budd's Citation: ${money(fine)}, no raids till Day ${ends}.`, plot: target });
   playScene(s, 'budd', { recap: `Sheriff Budd wrote you a Citation for a daytime raid: ${money(fine)}, and no raids till Day ${ends}.` });
   return ticket;

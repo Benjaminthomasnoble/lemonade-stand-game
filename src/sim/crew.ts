@@ -930,7 +930,7 @@ export function planRaid(s: GameState, plotId: string, guardIds: string[], objec
   const cited = !!citationRisk(s, foughtByDay(squadTrip(s, plotId, when, guardIds).at));
   breakTruce(s, s.plots[plotId].owner as RivalId);
   const sent = sendRaid(s, raid, when); // nights: the squad travels; the fight's minute decides day or night, and the stars it costs
-  if (cited) cite(s, plotId);
+  if (cited) cite(s, plotId, raid.id); // the ban calls off your raids still waiting to set out
   noteTemplateRaid(s, guardIds, objective, plotId); // a template's raid: it's aimed here now, and the Ledger counts it
   return sent;
 }

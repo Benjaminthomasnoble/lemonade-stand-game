@@ -1018,6 +1018,21 @@ describe("Sheriff Budd's Citation", () => {
     expect(t.cash).toBe(2000);
   });
 
+  it("the ban calls off your raids still waiting to set out: tonight's raid stays home", () => {
+    const { s, a, b } = cited(91);
+    openStand(s);
+    s.minute = 9 * 60;
+    expect(planRaid(s, b, ['gb'], 'shakedown', 'tonight')).toBe(true); // a night raid is never cited
+    expect(s.citations).toBeUndefined();
+    expect(planRaid(s, a, [s.guards[0].id], 'shakedown', 'now')).toBe(true); // by day, under the line: cited
+    expect(s.raids.filter((r) => r.attacker === 'player').map((r) => r.target)).toEqual([a]);
+    expect(s.news).toContain(`Sheriff Budd's ban: the raid on ${PLOT_BY_ID[b].name} is called off.`);
+    const events = simulateRestOfDay(s);
+    expect(sleepUntilDawn(s, false, events)).toBe(true);
+    const ours = events.flatMap((e) => (e.type === 'fight' && e.report.attacker === 'player' ? [e.report] : []));
+    expect(ours.map((r) => [r.target, !!r.night])).toEqual([[a, false]]); // today's raid, and no fight of yours tonight
+  });
+
   it('a raid sent so late tonight that it gets there after 07:00 waits for the stands: a daytime raid, star and Citation', () => {
     const { s, a } = cited(91);
     s.phase = 'night' as GameState['phase']; // late in the night, as startNight leaves it

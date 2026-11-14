@@ -6,7 +6,7 @@ import {
   SEASON_DAYS, SEASON_WEATHER, SEASONS, SEGMENTS, shineReason, simulateRestOfDay, sleepUntilDawn, SUPPLY_SHOCK, tickMinute, TOURIST_BUS_SHARE,
   forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn, ICE_MACHINE_LEVEL, priceCeiling,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
-  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, KIDS_GOAL, expectedDemand, kidsShare,
+  RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, KIDS_GOAL, expectedDemand, kidsShare, DISTRICT_CAMPAIGNS, districtCampaign, runCampaign,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -399,13 +399,42 @@ describe('event tickets in the feed', () => {
       expect(plays[id].length, id).toBeGreaterThanOrEqual(2);
     }
     expect(plays.roadworks).toEqual(['goto', 'campaign']); // an ad at the Old Town stand
+    expect(plays.celebrity).toEqual(['goto', 'campaign']); // Send Sunny the Lemon
     expect(plays.captainSquawk).toEqual(['goto', 'restockNow', 'forgive']);
-    for (const id of ['heatWave', 'lemonBlight', 'sugarShortage', 'celebrity', 'touristBus', 'parade', 'powerOutage', 'foodCritic']) expect(plays[id], id).toEqual(['goto', 'restockNow']);
+    for (const id of ['heatWave', 'lemonBlight', 'sugarShortage', 'touristBus', 'parade', 'powerOutage', 'foodCritic']) expect(plays[id], id).toEqual(['goto', 'restockNow']);
     // The critic's stand over its ceiling: Fair price brings it back.
     eventsOf(s).on = [];
     force(s, 'foodCritic', { district, plots: [corner] });
     s.plots[corner].stand!.price = priceCeiling(s, corner) + 1;
     expect(eventTickets(s).join('')).toContain('data-action="priceCeiling"');
+  });
+
+  it("the Celebrity card sends Sunny from your stand in the star's district at Morning Prep, so he walks there today", () => {
+    const s = quietGame(50);
+    s.rank = DISTRICT_CAMPAIGNS.sunny.rank;
+    force(s, 'celebrity', { district: 'maple' });
+    const card = () => eventTickets(s).find((t) => t.includes('data-event="celebrity"'))!;
+    expect(card()).toContain(`<button class="cl-b go" data-action="campaign" data-id="sunny" data-plot="${LOTTIES_CORNER}" >Send Sunny</button>`);
+    expect(card()).not.toContain('restockNow'); // Go there and one action
+    expect(runCampaign(s, 'sunny', LOTTIES_CORNER)).toBe(true); // what the button does (main.ts)
+    expect(districtCampaign(s, 'sunny', s.day, 'maple')).toBeTruthy(); // today, while the star is in town
+    expect(card()).toMatch(/data-id="sunny"[^>]*disabled title="Running today">Send Sunny/);
+    // Short of his $300: there, but greyed with the reason.
+    eventsOf(s).on = [];
+    s.marketing = { districts: [], booked: [] };
+    force(s, 'celebrity', { district: 'maple' });
+    s.cash = 100;
+    expect(card()).toMatch(/data-id="sunny"[^>]*disabled title="Needs \$300">Send Sunny/);
+    // Under Sunny's rank he stays hidden: Restock instead.
+    s.rank = DISTRICT_CAMPAIGNS.sunny.rank - 1;
+    expect(card()).not.toContain('data-id="sunny"');
+    expect(card()).toContain(`data-action="restockNow" data-plot="${LOTTIES_CORNER}"`);
+    // Once the stands open he'd only come tomorrow, after the star has gone: Restock for the crowd.
+    s.rank = DISTRICT_CAMPAIGNS.sunny.rank;
+    s.cash = 1000;
+    openStand(s);
+    expect(card()).not.toContain('data-id="sunny"');
+    expect(card()).toContain('data-action="restockNow"');
   });
 });
 

@@ -1,6 +1,6 @@
 // The random events in the clay HUD's feed (spec: Random events, "each alert card names its counter-play"): a ticket
 // as each one starts, its counter-play under its name, and the buttons that play it: Go there, and the move that answers
-// it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks). A mid-day
+// it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks, Send Sunny). A mid-day
 // event's ticket stays for as long as it runs; a dawn event's for its first day (the Bugle keeps count after that).
 // Kids' Lemonade Day adds a kid stand's Raid Planner to the plot card, its cost in red first.
 import {
@@ -51,6 +51,15 @@ function adElsewhere(s: GameState, e: WorldEvent): string {
   return locked(b) ? '' : btn('campaign', `Ad at ${short(plot)}`, b, `data-id="${id}" data-plot="${plot}"`, 'go');
 }
 
+/** Celebrity Sighting: Sunny the Lemon walks the star's district, sent from your first stand there. Only in Morning Prep,
+ * when he walks today: booked during business hours he'd come tomorrow, after the star has gone. */
+function sendSunny(s: GameState, at: string[]): string {
+  const plot = at[0];
+  if (!plot || s.phase !== 'prep') return '';
+  const b = canRunCampaign(s, 'sunny', plot);
+  return locked(b) ? '' : btn('campaign', 'Send Sunny', b, `data-id="sunny" data-plot="${plot}"`, 'go');
+}
+
 /** The buttons that play an event: Go there, and the move that answers it at your stand. */
 function acts(s: GameState, e: WorldEvent): string {
   const at = yourStandsIn(s, e);
@@ -60,6 +69,7 @@ function acts(s: GameState, e: WorldEvent): string {
   switch (e.id) {
     case 'parade': return go + at.slice(0, 2).map((id) => restock(id, at.length > 1 ? `Restock ${short(id)}` : 'Restock now')).join('');
     case 'roadworks': return go + adElsewhere(s, e);
+    case 'celebrity': return go + (sendSunny(s, at) || fix); // "Send Sunny the Lemon"; once the day's begun, stock up for the crowd
     case 'foodCritic': { // "fair price": the critic's stand, selected and over its ceiling, goes back to it; else stock it to taste
       const p = at[0];
       if (!p) return go;
@@ -76,7 +86,7 @@ function acts(s: GameState, e: WorldEvent): string {
       const yours = k ? nearbyPlots(PLOT_BY_ID[k]).find((q) => mine(s, q.id))?.id : undefined;
       return k && yours ? goTo(k) + restock(yours) : go + fix;
     }
-    default: return go + fix; // Heat Wave, Lemon Blight, Sugar Shortage, Viral Video, Celebrity Sighting, Tourist Bus
+    default: return go + fix; // Heat Wave, Lemon Blight, Sugar Shortage, Viral Video, Tourist Bus
   }
 }
 

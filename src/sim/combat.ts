@@ -126,6 +126,8 @@ export interface FightStatus {
   t: number; // fight-seconds played
   done: boolean;
   up: Record<Side, number>; // fighters still standing (arrived or walking in)
+  of: Record<Side, number>; // everyone on each side so far (a late arrival counts once it's in)
+  nerveAt: Record<Side, number | null>; // its one Nerve roll comes when this few stand; null once rolled (or a side of one)
   rallyUntil: Record<Side, number>; // a Rally lifts Nerve until this fight-second
   fellBack?: Side;
 }
@@ -500,6 +502,12 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     n++;
   };
 
+  /** How few of a side are left standing when its one Nerve roll comes (half of it down, rounded down, as above). */
+  const nerveAt = (side: Side): number | null => {
+    const all = side === 'att' ? att : def, need = Math.floor(all.length / 2);
+    return checked[side] || need < 1 ? null : all.length - need;
+  };
+
   const result = (): BattleResult => {
     const attackersUp = isUp(att);
     let outcome: BattleResult['outcome'] = 'repelled';
@@ -530,6 +538,8 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
     status: () => ({
       t: over ? duration : n * STEP, done: over,
       up: { att: att.filter(up).length, def: def.filter(up).length },
+      of: { att: att.length, def: def.length },
+      nerveAt: { att: nerveAt('att'), def: nerveAt('def') },
       rallyUntil: { ...rallyUntil }, ...(fellBack ? { fellBack } : {}),
     }),
     result,

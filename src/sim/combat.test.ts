@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMBAT_RULES, runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
+import { COMBAT_RULES, createFight, runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Side } from './combat.ts';
 import {
   BOSS_MOVES, canRaid, COMBAT, creditGuards, crewAtDawn, FACTIONS, fightRaid, GUARD_BASE, GUARD_FEE, guardFighter, guardReady, hhmm, hqPlot, HQS, hqSquad,
   hqStageInput, hqStageOver, hqSurvivors, LOTTIES_CORNER, migrateSave, NABBED, newGame, ownedPlots, PERIMETERS, raidInput, raidOdds, raidPartyFor, raidTargets,
@@ -98,6 +98,18 @@ describe('Nerve', () => {
     // Each one left rolls once, and Nerve 100 always stands firm.
     const firm = runBattle(fight({ attackers: [fighter('att', 'fists', { ...tough, hit: 1000 })], defenders: many(5, 'def', 'fists', { nerve: 100, hit: 0 }) }), { seed: 1 });
     expect(firm.fled).toEqual([]);
+  });
+
+  it("a running fight tells the HUD where each side's one roll comes: half of it down, a late arrival moving the mark", () => {
+    const f = createFight(fight({ attackers: many(6, 'att', 'fists', tough), defenders: [fighter('def', 'fists', tough)], joins: [{ t: 2, fighters: many(2, 'att', 'fists', tough) }] }), { seed: 1 });
+    expect(f.status()).toMatchObject({ up: { att: 6, def: 1 }, of: { att: 6, def: 1 }, nerveAt: { att: 3, def: null } }); // a lone fighter never rolls
+    f.advance(2);
+    expect(f.status()).toMatchObject({ of: { att: 8, def: 1 }, nerveAt: { att: 4, def: null } });
+    // Once a side has rolled, it never rolls again: no mark.
+    const g = createFight(fight({ attackers: many(4, 'att', 'fists', { nerve: 100, hit: 0 }), defenders: [fighter('def', 'fists', { ...tough, hit: 1000 })] }), { seed: 1 });
+    expect(g.status().nerveAt.att).toBe(2);
+    while (!g.done() && g.status().up.att > 2) g.advance(g.time());
+    expect(g.status()).toMatchObject({ up: { att: 2 }, of: { att: 4 }, nerveAt: { att: null } }); // Nerve 100 stood firm
   });
 
   it('the attackers roll the same way', () => {

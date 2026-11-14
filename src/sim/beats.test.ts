@@ -5,7 +5,7 @@ import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
-  LAVENDER, newStand, pageHolder, type GameState, type Guard, type RivalId,
+  LAVENDER, LESSON_DAY, newStand, pageHolder, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, FINALE, INVOICE } from './exits.ts';
@@ -17,7 +17,7 @@ import { juniTips, LINES, takeCall } from './phone.ts';
 import { eliminate, hqPlot, inTruce, makeTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, replyScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
 import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
-import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, storyHeadline, taught } from './story.ts';
+import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtClose, storyAtDawn, storyHeadline, taught } from './story.ts';
 import { restockControl } from '../ui/automation.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
@@ -191,6 +191,60 @@ describe('the Day 3 Steward', () => {
     day5(sb);
     expect(stock(corner(sb), 'lemons')).toBe(40);
     expect(sb.scenes!.queue).toHaveLength(0);
+  });
+});
+
+describe('scenes take turns: the day’s beat, then the story, then visits', () => {
+  /** The day closes on a record (Marisol's visit waits for the next Morning Prep), then the next dawn. */
+  const recordClose = (s: GameState) => {
+    s.story!.bestDay = 100;
+    s.history.push({ ...structuredClone(s.today), day: s.day, revenue: 500, supplies: 0, cupCosts: 0, upkeep: 0, books: { sales: 500 }, stockUsed: 0, stockOn: {} });
+    storyAtClose(s);
+    nextDawn(s);
+  };
+  const waiting = (s: GameState) => s.scenes!.queue.map((q) => q.id);
+
+  it('with Day 2 a record day the Steward still warns on Day 3, before the raid; Marisol waits, and comes with a later record', () => {
+    const s = newGame(48);
+    expect(beginScene(s)?.id).toBe('opening');
+    endScene(s, true);
+    nextDawn(s);
+    recordClose(s); // Day 2's record: Marisol queues first...
+    expect(s.day).toBe(3);
+    expect(waiting(s)).toEqual(['marisol', 'steward']);
+    expect(beginScene(s)?.id).toBe('steward'); // ...but Day 3 is the Steward's: Brock's boys come tonight
+    endScene(s, false);
+    expect(beginScene(s)).toBeNull(); // one scene a day
+    nextDawn(s);
+    expect(beginScene(s)?.id).toBe('dex'); // Day 4: Dex, the day he joins
+    endScene(s, false);
+    expect(waiting(s)).not.toContain('marisol'); // her day passed: she left unplayed, with no recap...
+    expect(s.scenes!.seen).not.toContain('marisol'); // ...and isn't counted seen
+    recordClose(s); // so the next record brings her round
+    expect(beginScene(s)).toMatchObject({ id: 'marisol', speaker: 'marisol' });
+  });
+
+  it('Dex arrives on his day ahead of a waiting visit; a boss exit goes ahead of everything, a visit last', () => {
+    const s = newGame(49);
+    s.scenes!.queue = [];
+    s.scenes!.seen.push('opening', 'steward', 'skip'); // past Days 1 and 3; Skip's Old Town corner (Day 7) is a beat too
+    s.day = LESSON_DAY.crew - 1;
+    recordClose(s); // Day 3's record, then Day 4's dawn: Dex joins
+    expect(waiting(s)).toEqual(['marisol', 'dex']);
+    expect(beginScene(s)?.id).toBe('dex');
+    endScene(s, true);
+    nextDawn(s); // Marisol's day passed
+    playScene(s, 'budd', { recap: 'Sheriff Budd wrote you a Citation.' }); // a visit with no day of its own
+    playScene(s, 'benny'); // a story beat
+    eliminate(s, 'hollis', 'buyout'); // and a boss's exit
+    expect(beginScene(s)?.id).toBe('exit-hollis');
+    endScene(s, true);
+    nextDawn(s);
+    expect(beginScene(s)?.id).toBe('benny');
+    endScene(s, true);
+    nextDawn(s);
+    expect(beginScene(s)?.id).toBe('budd'); // a visit waits its turn, however long
+    expect(waiting(s)).toEqual([]);
   });
 });
 

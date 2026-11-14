@@ -1,9 +1,10 @@
 // Story scenes (spec "How the story is told"): about 20 short, skippable
 // campaign scenes. A story beat queues a scene, and the game plays it at the
 // next lull: Morning Prep, never during a fight replay, a VIP pickup or a raid
-// warning, and at most one a game day (extra scenes roll to later days).
-// Skipping posts the one-line recap. Boss exit scenes also play in Sandbox and
-// Endless. Pure state, saved with the run so a reload never replays a scene.
+// warning, and at most one a game day (extra scenes roll to later days, the
+// most important first: SCENE_PRIORITY). Skipping posts the one-line recap.
+// Boss exit scenes also play in Sandbox and Endless. Pure state, saved with the
+// run so a reload never replays a scene.
 import { BRAND_TIERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
 import { gameOver, isEndless } from './modes.ts';
@@ -18,6 +19,13 @@ import { isExitScene, victoryStage } from './victory.ts';
 export const SPEAKERS = { marisol: 'Marisol', skip: 'Skip Larkin', benny: 'Benny Buzz', budd: 'Sheriff Budd', fontaine: 'Mayor Fontaine' } as const;
 export type Speaker = keyof typeof SPEAKERS;
 
+/**
+ * Which waiting scene plays first, the highest (first come, first served within one): a boss's exit, then the beats
+ * that belong to their day (Day 1's opening, the Steward's warning before Night 3's raid, Dex the day he joins), then
+ * the other story beats (the default: Benny's sign, Skip's corner, the pages...), then townsfolk visits.
+ */
+export const SCENE_PRIORITY = { exit: 4, dated: 3, beat: 2, visit: 1 } as const;
+
 export interface SceneLine { who: string; text: string; at: number }
 export interface SceneDef {
   /** Acted out in the world under this id (src/world/scenes.ts); otherwise it plays as captions. */
@@ -25,7 +33,12 @@ export interface SceneDef {
   /** A townsperson who acts it out in the world (see SPEAKERS), at `plot`: Lottie's Corner if not given. */
   speaker?: Speaker;
   plot?: string;
-  /** The last game day it may start: a scene still queued after that leaves unplayed, with no recap (Day 1's opening). */
+  /** Its place in the queue (SCENE_PRIORITY): a story beat if not given. */
+  priority?: number;
+  /**
+   * The last game day it may start: a scene still queued after that leaves unplayed, with no recap (Day 1's opening).
+   * A visit that missed its day doesn't count as seen, so whatever brought it can bring it again (Marisol's next record).
+   */
   until?: number;
   /** How long the captions run when there's no world scene to wait for (never over SCENE_MAX_SECONDS). */
   seconds: number;
@@ -55,7 +68,7 @@ export const SCENE_MAX_SECONDS = 60;
 export const SCENES: Record<string, SceneDef> = {
   // Day 1, the first Morning Prep: Lottie hands over the table, her pitcher and her 3 pages (spec Act 1, Day 1).
   opening: {
-    seconds: 21, until: 1,
+    seconds: 21, until: 1, priority: SCENE_PRIORITY.dated,
     lines: [
       { who: 'Lottie', text: '{kid}! My folding table. My pitcher. And three pages.', at: 0.5 },
       { who: 'Lottie', text: "Classic, Pink and Mint: all Vera didn't steal.", at: 4.6 },
@@ -67,7 +80,7 @@ export const SCENES: Record<string, SceneDef> = {
     recap: 'Lottie handed you her folding table, her pitcher and her 3 recipe pages: Classic, Pink and Mint.',
   },
   steward: {
-    world: 'steward', seconds: 14,
+    world: 'steward', seconds: 14, priority: SCENE_PRIORITY.dated,
     lines: [
       { who: 'Steward', text: 'A reminder. From Mrs. Sourwood.', at: 4.2 },
       { who: 'Lottie', text: 'Well. Guess she remembers me.', at: 6.6 },
@@ -79,7 +92,7 @@ export const SCENES: Record<string, SceneDef> = {
     call: { who: 'sourwood', line: 'veraSteward' }, // Vera follows up: the light Sourwood presence of Act 1
   },
   dex: {
-    world: 'dex', seconds: 14,
+    world: 'dex', seconds: 14, priority: SCENE_PRIORITY.dated,
     lines: [
       { who: 'Dex', text: 'Heard you could use some muscle, Miss Lottie.', at: 4.2 },
       { who: 'Lottie', text: "You're hired. Pay's in lemonade.", at: 7.4 },
@@ -112,7 +125,7 @@ export const SCENES: Record<string, SceneDef> = {
   },
   // For other lanes' moments, keyed by speaker (play with { plot } to stand them somewhere else): a Citation...
   budd: {
-    speaker: 'budd', seconds: 15,
+    speaker: 'budd', seconds: 15, priority: SCENE_PRIORITY.visit,
     lines: [
       { who: SPEAKERS.budd, text: "I'm not mad. I'm writing you a Citation.", at: 3.6 },
       { who: SPEAKERS.budd, text: 'Is that Mint?', at: 7 },
@@ -123,7 +136,7 @@ export const SCENES: Record<string, SceneDef> = {
   },
   // ...and one of Vera's fines from Town Hall.
   fontaine: {
-    speaker: 'fontaine', seconds: 15,
+    speaker: 'fontaine', seconds: 15, priority: SCENE_PRIORITY.visit,
     lines: [
       { who: SPEAKERS.fontaine, text: 'I represent all of Citrine Bay.', at: 3.6 },
       { who: SPEAKERS.fontaine, text: "Some of it more than others. Here's your fine.", at: 6.8 },
@@ -158,7 +171,7 @@ export const SCENES: Record<string, SceneDef> = {
   },
   // A record day's closing (story.ts recordDay): Marisol Vega brings the Ledger round. story.ts puts in the real percentage.
   marisol: {
-    speaker: 'marisol', seconds: 14,
+    speaker: 'marisol', seconds: 14, priority: SCENE_PRIORITY.visit,
     lines: [
       { who: SPEAKERS.marisol, text: "Profit's up 40 percent.", at: 3.6 },
       { who: SPEAKERS.marisol, text: "Please don't celebrate by buying another goose.", at: 6.8 },
@@ -200,14 +213,17 @@ export function migrateScenes(s: GameState): void {
 
 /** Has this scene played, or is it playing or waiting to? (Each plays once a run.) */
 export const queued = (s: GameState, id: string) => !!s.scenes && (s.scenes.seen.includes(id) || s.scenes.playing?.id === id || s.scenes.queue.some((q) => q.id === id));
-const stale = (s: GameState, q: { id: string; data?: SceneData }) => {
+type Queued = { id: string; data?: SceneData };
+const stale = (s: GameState, q: Queued) => {
   const def = sceneDef(q.id, q.data);
   return !def || (def.until !== undefined && s.day > def.until);
 };
-/** A scene whose day has passed leaves the queue unplayed (marked seen, no recap). */
+/** A waiting scene's place in line (SCENE_PRIORITY). */
+const priorityOf = (q: Queued) => (isExitScene(q) ? SCENE_PRIORITY.exit : sceneDef(q.id, q.data)?.priority ?? SCENE_PRIORITY.beat);
+/** A scene whose day has passed leaves the queue unplayed (no recap; marked seen, unless it's a visit: it may come again). */
 function dropStale(s: GameState): void {
   const sc = s.scenes!;
-  for (const q of sc.queue.filter((e) => stale(s, e))) if (!sc.seen.includes(q.id)) sc.seen.push(q.id);
+  for (const q of sc.queue.filter((e) => stale(s, e))) if (!sc.seen.includes(q.id) && priorityOf(q) !== SCENE_PRIORITY.visit) sc.seen.push(q.id);
   sc.queue = sc.queue.filter((e) => !stale(s, e));
 }
 
@@ -258,14 +274,15 @@ export function sceneReady(s: GameState): boolean {
   return !!sc && !sc.playing && sc.queue.some((q) => !stale(s, q)) && s.phase === 'prep' && sc.lastDay !== s.day && !over;
 }
 
-/** Start the next queued scene (the UI calls this once the screen is quiet too). */
+/** Start the next queued scene, the most important first (the UI calls this once the screen is quiet too). */
 export function beginScene(s: GameState): Scene | null {
   if (!sceneReady(s)) return null;
   const sc = s.scenes!;
   dropStale(s);
   const show = victoryStage(s) === 'scenes'; // the show plays only the exits
   while (sc.queue.length) {
-    const at = show ? sc.queue.findIndex(isExitScene) : 0;
+    let at = -1; // the first of the highest priority
+    sc.queue.forEach((q, i) => { if ((!show || isExitScene(q)) && (at < 0 || priorityOf(q) > priorityOf(sc.queue[at]))) at = i; });
     if (at < 0) break;
     const [next] = sc.queue.splice(at, 1);
     const def = sceneDef(next.id, next.data);

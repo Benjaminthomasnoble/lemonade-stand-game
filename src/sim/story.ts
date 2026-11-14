@@ -417,7 +417,8 @@ export const marisolLine = (pct: number) => `Profit's up ${pct} percent. Please 
 /**
  * Closing on a record day (spec tone guide, "Marisol, record day", with the real percentage): Marisol says it. Her first
  * in the campaign is a visit the next Morning Prep (she walks over with the Ledger: src/world/scenes.ts stages her by
- * speaker); every other is her line in the day's news.
+ * speaker); a story beat that morning goes first, and if it takes her day she comes with the next record. Every other
+ * record is her line in the day's news.
  */
 function recordDay(s: GameState): void {
   const st = s.story!;

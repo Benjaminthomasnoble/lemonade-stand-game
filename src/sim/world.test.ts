@@ -504,6 +504,7 @@ describe('Taste-Offs', () => {
     ace(s);
     const rep = s.reputation, cash = s.cash;
     s.scenes!.queue = []; // past Dex's arrival (the jump to Day 14 queued it)
+    s.scenes!.seen.push('dex');
     close(s);
     const r = tasteOffResult(s, 'summerFair', 1)!;
     expect(r.winner).toBe('player');

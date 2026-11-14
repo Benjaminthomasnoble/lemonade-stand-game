@@ -710,10 +710,16 @@ describe('Act 3: the handshake and the night flight', () => {
     expect(SABOTAGE_NEEDS).toMatch(/Lookout or a Sneaky guard/);
     endScene(s, false);
     expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniAct3)).toBe(true);
+    expect(s.alerts?.some((a) => /Lookout or a Sneaky/.test(a.text)) ?? false).toBe(false); // the scene taught it
     const quiet = act3(106, JUNI_CALLS_BY - 1); // no raid of hers a week in: she calls anyway
     nextDawn(quiet);
     expect(queuedCall(quiet, LINES.juniAct3)).toBe(true);
     expect(quiet.scenes!.queue.some((q) => q.id === 'nightFlight')).toBe(false);
+    // ...and Lottie still teaches your own Sabotage, on the feed: once (the card is gone by the next dawn, not posted again).
+    const taught = () => (quiet.alerts ?? []).filter((a) => a.kind === 'note' && a.text === 'Lottie: "Two can play, kid. Send a Lookout or a Sneaky one to spoil theirs."').length;
+    expect(taught()).toBe(1);
+    nextDawn(quiet);
+    expect(taught()).toBe(0);
   });
 });
 

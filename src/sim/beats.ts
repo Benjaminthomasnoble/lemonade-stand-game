@@ -17,7 +17,7 @@ import { deliveryRaidRisk, onYou } from './night.ts';
 import { CALL_PRIORITY, juniInforms, LINES, phoneCall } from './phone.ts';
 import { ownsRecipe, pageHolder } from './recipes.ts';
 import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.ts';
-import { playScene, queued } from './scenes.ts';
+import { playScene, queued, SCENES } from './scenes.ts';
 import { ceaseAndDesist, ceaseIn } from './schemes.ts';
 import { hasStory } from './story.ts';
 import { bottlesOf, ORDER_TIERS, orderRecipe, PICKUP_MINUTE, type Order } from './vip.ts';
@@ -74,7 +74,7 @@ function handshake(s: GameState): void {
 /**
  * The morning after Juni's first Night Shift on you in Act 3 (a Cold Brew Sabotage raid: crew.ts maybeSabotage),
  * Squawk's night flight unmasks the baristas, Lottie teaches your own Sabotage, and Juni calls (the scene's
- * follow-up). If Cold Brew hasn't sabotaged you a week in, Juni calls anyway.
+ * follow-up). If Cold Brew hasn't sabotaged you a week in, Juni calls anyway, and Lottie's lesson comes as a note.
  */
 function nightFlight(s: GameState): void {
   const st = s.story!;
@@ -83,6 +83,8 @@ function nightFlight(s: GameState): void {
   else if (s.day >= st.since + JUNI_CALLS_BY) {
     s.scenes!.seen.push('nightFlight');
     phoneCall(s, 'coldbrew', LINES.juniAct3, { priority: CALL_PRIORITY.story });
+    const lesson = SCENES.nightFlight.lines.at(-1)!; // "Two can play, kid...": your own Sabotage
+    alert(s, { kind: 'note', text: `${lesson.who}: "${lesson.text}"` });
   }
 }
 

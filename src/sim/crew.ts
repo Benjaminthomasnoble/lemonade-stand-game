@@ -15,7 +15,7 @@ import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleRe
 import { DISTRICT_BY_ID, LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState } from './economy.ts';
-import { hasFoothold, newStand, ownedPlots, priceCeiling } from './economy.ts';
+import { hasFoothold, lottiesTable, ownedPlots } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildFacility, canBuildFacility, FACILITIES } from './vip.ts';
 import { applyRaidDamage, approveRebuild, autoRepairOn, buildingInvested, currentHp, dollarsUp, hpLostNote, plotsAtDawn } from './damage.ts';
@@ -1207,15 +1207,14 @@ export function seedRivalDefenses(s: GameState, rng: Rng): void {
 /**
  * Day 3: Lottie sells you her side lot next to the Corner for $300, table included. The lot is fixed like the Corner
  * ($300 land, 300 passersby: src/sim/map.ts), so the sale turns $300 of cash into $300 of land. Bought already on
- * Days 1-2 and still empty, it gets her table anyway.
+ * Days 1-2 and still empty, it gets her table anyway. Her table counts as $100 invested, like the Corner's
+ * (economy.ts lottiesTable).
  */
 export function offerSideLot(s: GameState): void {
   const ps = s.plots[LOTTIES_SIDE_LOT];
   if (ps.owner === 'player') {
     if (ps.stand || ps.facility) return;
-    ps.stand = newStand(1);
-    ps.stand.price = priceCeiling(s, LOTTIES_SIDE_LOT);
-    ps.invested += STAND_LEVELS[0].cost;
+    lottiesTable(s, LOTTIES_SIDE_LOT); // $100 invested, like the Corner's
     builtFree(s, LOTTIES_SIDE_LOT); // her gift: no invested dip (score.ts)
     alert(s, { kind: 'note', text: "Lottie's table goes up on your side lot", plot: LOTTIES_SIDE_LOT });
   } else if (!ps.owner) {

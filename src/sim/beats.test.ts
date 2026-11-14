@@ -2,7 +2,7 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
+  BRAND_TIERS, buildClubhouse, buildingInvested, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, rebuildCost, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   LAVENDER, LESSON_DAY, newStand, pageHolder, RAID_RANK, type GameState, type Guard, type RivalId,
@@ -124,6 +124,12 @@ describe("Lottie's side lot (Day 3)", () => {
     const ps = s.plots[LOTTIES_SIDE_LOT];
     expect(ps.landValue - SIDE_LOT.price).toBeLessThan(SIDE_LOT.price * 0.05);
     expect(netWorth(s) - before).toBeCloseTo(ps.landValue - SIDE_LOT.price + BUILDING_VALUE_SHARE * ps.invested, 2);
+    // Her table counts like the Corner's: $100 invested (Net Worth $75), not a new table's $150, and it rebuilds for $15.
+    expect(ps.invested).toBe(START.tableInvested);
+    expect(ps.stand?.startTable).toBe(true);
+    expect(buildingInvested(ps)).toBe(START.tableInvested);
+    ps.stand!.wrecked = true;
+    expect(rebuildCost(ps)).toBe(15);
   });
 
   it("grows with Maple Row like any plot, and a lot you bought early gets Lottie's table anyway", () => {
@@ -143,6 +149,9 @@ describe("Lottie's side lot (Day 3)", () => {
     expect(ps.landValue).toBeLessThanOrEqual(SIDE_LOT.land * 2);
     expect(ps.stand?.level).toBe(1); // her table goes up on it
     expect(ps.dibs).toBeUndefined();
+    expect(ps.invested).toBe(START.tableInvested); // $100, like the Corner's
+    expect(ps.stand?.startTable).toBe(true);
+    expect(buildingInvested(ps)).toBe(START.tableInvested);
   });
 });
 

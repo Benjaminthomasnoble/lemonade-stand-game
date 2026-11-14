@@ -126,7 +126,7 @@ export interface Stand {
   day: StandDay;
   hp?: number; // HP left on a standing stand a raid or a Storm dented (damage.ts). Missing means full; it is cleared when the stand falls, so read HP through currentHp or hpShare, which give 0 for a Wrecked or Busted stand
   wrecked?: boolean; // smashed in a raid: closed until rebuilt
-  startTable?: true; // Lottie's own Folding Table, the run's first stand: its L1 counts as START.tableInvested ($100) in rebuilds and repairs (damage.ts)
+  startTable?: true; // one of Lottie's own Folding Tables (the Corner's, the run's first stand, and her side lot's): its L1 counts as START.tableInvested ($100) in rebuilds and repairs (damage.ts)
   lastProfit?: number; // its last full business day's profit: what a Shakedown takes (loot.ts)
   spoiledDay?: number; // a Sabotage spoiled the stock: no sales this day
   specs?: (SpecId | null)[]; // what each specialization slot holds, slot 1 first (specializations.ts); missing means empty
@@ -997,6 +997,16 @@ export function plotPrice(s: GameState, plotId: string): number {
   return Math.round(base * majorityDiscount(s, PLOT_BY_ID[plotId].district) * familySilver(s) * goodDirt(s)); // Good Dirt: 10% off (perks.ts)
 }
 
+/** Lottie's Folding Table goes up on a plot of yours (her side lot, crew.ts offerSideLot). Like the Corner's, it counts
+ * as START.tableInvested ($100), not a new table's $150: in Net Worth, and in its rebuilds and repairs (startTable). */
+export function lottiesTable(s: GameState, plotId: string): void {
+  const ps = s.plots[plotId];
+  ps.stand = newStand(1);
+  ps.stand.price = priceCeiling(s, plotId);
+  ps.stand.startTable = true;
+  ps.invested += START.tableInvested;
+}
+
 /** `quiet`: a district policy's purchase, which gets one headline for the district (policies.ts). */
 export function buyPlot(s: GameState, plotId: string, quiet = false): boolean {
   if (!canBuyPlot(s, plotId).ok) return false;
@@ -1005,7 +1015,7 @@ export function buyPlot(s: GameState, plotId: string, quiet = false): boolean {
   const price = plotPrice(s, plotId);
   book(s, 'invested', -price);
   ps.owner = 'player';
-  if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
+  if (ps.dibs?.table && !ps.stand) lottiesTable(s, plotId);
   handOverKept(s, plotId, 'player'); // rivals: a bought-out rival's building comes with its Fire Sale plot
   delete ps.dibs;
   if (!quiet) s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);

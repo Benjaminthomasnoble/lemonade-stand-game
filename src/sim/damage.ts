@@ -57,8 +57,9 @@ const building = (ps: PlotState) => ps.stand ?? ps.facility ?? null;
 
 /**
  * What was invested in the building on a plot: the base for its rebuild and repair costs. A stand counts its level
- * steps (a Kiosk built on an empty plot: $150 + $400 + $3,500 = $4,050), and Lottie's own Folding Table, the one the run
- * starts with, counts as $100 (Appendix A), so it rebuilds for $15 and the Corner grown into a Kiosk has $4,000 in it.
+ * steps (a Kiosk built on an empty plot: $150 + $400 + $3,500 = $4,050), and Lottie's own Folding Tables, the one the
+ * run starts with and the one on her side lot, count as $100 (Appendix A), so one rebuilds for $15 and the Corner grown
+ * into a Kiosk has $4,000 in it.
  * Its filled specialization slots count too (specializations.ts specsInvested: a Fortified Kiosk, $6,050). A
  * facility counts its tiers. Fences and gadgets have their own repair rule (Defenses), and the plot's `invested` (Net
  * Worth's figure, which counts them) is untouched.

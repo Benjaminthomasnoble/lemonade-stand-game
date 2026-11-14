@@ -124,15 +124,15 @@ describe('loans', () => {
     const s = newGame(9);
     s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the dawns' only bills are the loan's and the wages
     s.phase = 'report';
-    borrow(s, 200);
+    expect(borrow(s, 100)).toBe(true); // half of $375: the Corner's $300 and 75% of Lottie's $100 table, in $50 steps
     s.cash = 10_000;
     for (let i = 0; i < 6; i++) { s.phase = 'report'; sleepUntilDawn(s); }
     const before = s.cash;
     s.phase = 'report';
     sleepUntilDawn(s); // a week after borrowing
     expect(s.loan!.weeksLeft).toBe(3);
-    expect(s.loan!.principal).toBeCloseTo(150, 2);
-    expect(before - s.cash).toBeCloseTo(50 + 6 + 15, 2); // a quarter of the loan, 3% interest, Dex's wage
+    expect(s.loan!.principal).toBeCloseTo(75, 2);
+    expect(before - s.cash).toBeCloseTo(25 + 3 + 15, 2); // a quarter of the loan, 3% interest, Dex's wage
     for (let i = 0; i < 14; i++) { s.cash = 20; s.phase = 'report'; sleepUntilDawn(s); } // enough for wages, not the loan
     expect(s.news.some((n) => n.startsWith('REPOSSESSED'))).toBe(true);
     expect(s.plots[LOTTIES_CORNER].owner).toBe(null);

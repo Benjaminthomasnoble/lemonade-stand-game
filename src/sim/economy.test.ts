@@ -36,7 +36,7 @@ describe('economy', () => {
     expect(s.cash).toBe(START.cash);
     expect(s.reputation).toBe(3);
     expect(rankFor(netWorth(s)).title).toBe('Sidewalk Squeezer');
-    expect(netWorth(s)).toBeGreaterThan(450);
+    expect(netWorth(s)).toBe(525); // $150 cash, the $300 Corner and 75% of Lottie's $100 table (Appendix A)
   });
 
   it('buying supplies costs cash and respects storage', () => {

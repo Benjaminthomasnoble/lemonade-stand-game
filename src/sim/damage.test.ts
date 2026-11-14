@@ -18,6 +18,7 @@ function kiosk(seed = 1): GameState {
   s.cash = 100000;
   s.phase = 'prep';
   delete s.plots[LOTTIES_CORNER].stand!.startTable;
+  s.plots[LOTTIES_CORNER].invested = 150; // and in Net Worth's figure too
   expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
   expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true);
   return s;
@@ -73,7 +74,7 @@ describe('rebuild and repair cost basis', () => {
     const s = newGame(3);
     const ps = s.plots[LOTTIES_CORNER];
     expect(buildingInvested(ps)).toBe(100);
-    expect(ps.invested).toBe(150); // Net Worth's figure is not this lane's (Appendix A's starting conditions)
+    expect(ps.invested).toBe(100); // Net Worth counts it at $100 too: $525 to start (Appendix A)
     ps.stand!.wrecked = true;
     expect(rebuildCost(ps)).toBe(15);
     ps.busted = true;

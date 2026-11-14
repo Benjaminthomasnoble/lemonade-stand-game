@@ -415,7 +415,7 @@ export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settin
     tutorialRaidDone: false, // nights: a fresh run's own flag, so a load never guesses it from the day (threat.ts migrateThreat)
   };
   for (const p of PLOTS) s.plots[p.id] = { owner: null, stand: null, invested: 0, landValue: p.baseLand, defense: NO_DEFENSE() };
-  s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: STAND_LEVELS[0].cost, landValue: START.landValue, defense: NO_DEFENSE() };
+  s.plots[LOTTIES_CORNER] = { owner: 'player', stand: newStand(START.standLevel), invested: START.tableInvested, landValue: START.landValue, defense: NO_DEFENSE() }; // $525 to start: $150 + $300 + 75% of $100
   s.plots[LOTTIES_CORNER].stand!.price = priceCeiling(s, LOTTIES_CORNER); // the sweet spot (spec: Pricing)
   s.plots[LOTTIES_CORNER].stand!.startTable = true; // counts as $100 invested in its rebuilds and repairs (damage.ts buildingInvested)
   seedRivals(s, rng);

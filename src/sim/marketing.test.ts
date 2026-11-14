@@ -4,7 +4,7 @@ import {
   couponCut, cupsInStock, curbAppeal, demandChain, EVENT_TRAFFIC, eventsOf, expectedDemand, facilitiesFor, netWorth, postsFor,
   expectedPassersby, LOTTIES_CORNER, MARKETING_BLOCKS, MARKETING_TERMS, marketingMultiplier, marketingTerms, migrateSave, nearbyPlots, newGame, newStand,
   openStands, PERKS, PLOT_BY_ID, PLOTS, priceCeiling, RANKS, rivalPrice, runCampaign, salePrice, segmentPriceFit, simulateRestOfDay, sleepUntilDawn,
-  TASTE_OFF, tickMinute, type DistrictId, type GameState, type MarketingSource, type RivalId, type SimEvent, type Stand,
+  TASTE_OFF, tickMinute, upgradeStand, type DistrictId, type GameState, type MarketingSource, type RivalId, type SimEvent, type Stand,
 } from './economy.ts';
 
 /** A player stand on plotId (the plot changes hands for the test). */
@@ -320,6 +320,24 @@ describe('booking campaigns for tomorrow', () => {
     expect(corner.campaigns.sandwichBoard).toBeUndefined();
     expect(s.today.books?.marketing).toBe(40); // the $40 came back
     expect(s.news.some((n) => /Sandwich-Board Kid at Lottie's Corner is off .*\$40 back/.test(n))).toBe(true);
+  });
+
+  it('a Sign kid out at an L3 stops when the stand grows past L3 the same morning', () => {
+    const s = newGame(75);
+    s.rank = 10;
+    s.cash = 1e6;
+    const corner = s.plots[LOTTIES_CORNER].stand!;
+    corner.level = 3;
+    expect(s.phase).toBe('prep');
+    expect(runCampaign(s, 'sandwichBoard')).toBe(true); // out today at the L3
+    expect(corner.campaigns.sandwichBoard).toBe(1);
+    const withKid = marketingMultiplier(s, 'player', corner, LOTTIES_CORNER);
+    expect(marketingTerms(s, 'player', corner, LOTTIES_CORNER).map((t) => t.id)).toContain('sandwichBoard');
+    expect(upgradeStand(s, LOTTIES_CORNER)).toBe(true); // an L4 now: no Sign kid works there
+    expect(corner.level).toBe(4);
+    expect(marketingTerms(s, 'player', corner, LOTTIES_CORNER).map((t) => t.id)).not.toContain('sandwichBoard');
+    expect(marketingMultiplier(s, 'player', corner, LOTTIES_CORNER)).toBeCloseTo(withKid - CAMPAIGNS.sandwichBoard.traffic, 9);
+    expect(demandChain(s, LOTTIES_CORNER)!.terms.map((t) => t.id)).not.toContain('sandwichBoard'); // the stand panel drops him too
   });
 
   it('a booked Free Sample Day hands out its cups at the open, and Auto-Restock buys them', () => {

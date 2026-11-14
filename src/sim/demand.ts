@@ -152,11 +152,11 @@ export const MARKETING_TERMS: MarketingSource[] = [
     if (c) add('calendar', c === TASTE_OFF.traffic ? 'Taste-Off win' : c === SPONSORSHIP.traffic ? 'Event Sponsorship' : 'Taste-Off win and sponsorship', c);
   },
   (s, owner, add, _st, plotId) => perkTerms(s, owner, add, plotId), // Orchard Fresh, Town Favorite
-  (s, owner, add, st, plotId) => { // the stand's own campaigns
+  (s, owner, add, st, plotId) => { // the stand's own campaigns (a Sign kid works L1–L3: grown past that, he stops, as a booking does)
     if (!st) return;
     for (const id in st.campaigns) {
       const c = CAMPAIGNS[id as CampaignId];
-      if (c && (st.campaigns[id as CampaignId] ?? 0) > 0) add(id, c.name, c.traffic, adsBlocked(s, owner, plotId));
+      if (c && (st.campaigns[id as CampaignId] ?? 0) > 0 && !(c.maxLevel && st.level > c.maxLevel)) add(id, c.name, c.traffic, adsBlocked(s, owner, plotId));
     }
   },
   (s, owner, add, st, plotId) => campaignTerms(s, owner, add, st, plotId), // Sunny's walk, and a campaign booked for today (marketing.ts)

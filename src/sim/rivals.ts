@@ -421,8 +421,13 @@ export function plotBuyout(s: GameState, plotId: string): boolean {
 
 // ---------- Faction Buyout ----------
 
-/** What a Faction Buyout buys: the rival's cash plus what's invested in their buildings (the land goes to the Fire Sale). */
-const businessOf = (s: GameState, id: RivalId) => Math.max(0, s.rivals[id].cash) + ownedPlots(s, id).reduce((a, p) => a + s.plots[p.id].invested, 0);
+/**
+ * What a Faction Buyout buys: the rival's cash plus what's invested in their standing buildings, the ones that come
+ * to you (keptBuildings). Rubble, and any rebuild booked on it, isn't handed over, so it isn't charged for; the land
+ * goes to the Fire Sale.
+ */
+const businessOf = (s: GameState, id: RivalId) =>
+  Math.max(0, s.rivals[id].cash) + ownedPlots(s, id).filter((p) => hasBuilding(s.plots[p.id])).reduce((a, p) => a + s.plots[p.id].invested, 0);
 
 /** Their price for the business: its multiple (HQS) times cash and buildings, your negotiator's terms applied. */
 export function factionBuyoutPrice(s: GameState, id: RivalId): number | null {

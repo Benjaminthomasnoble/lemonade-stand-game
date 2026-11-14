@@ -299,6 +299,16 @@ describe('what a Faction Buyout buys', () => {
     expect(t.s.plots[t.lot].stand!.level).toBe(3);
   });
 
+  it('you pay only for what comes to you: a Wrecked stand, rebuild booked or not, adds nothing to the price', () => {
+    const { s, lot } = shop(6);
+    const standing = factionBuyoutPrice(s, 'blenders')!;
+    expect(standing).toBe(Math.round((10_000 + s.plots[lot].invested) * HQS.blenders.buyout!));
+    s.plots[lot].stand!.wrecked = true;
+    expect(factionBuyoutPrice(s, 'blenders')).toBe(Math.round(10_000 * HQS.blenders.buyout!)); // the till alone
+    s.plots[lot].repair = { by: 'blenders', cost: 1000, hp: 0, rebuild: true }; // a rebuild booked for tonight
+    expect(factionBuyoutPrice(s, 'blenders')).toBe(Math.round(10_000 * HQS.blenders.buyout!));
+  });
+
   it('rubble isn\'t kept, and a captured or bankrupt rival\'s land goes bare with no till for you', () => {
     const a = shop(2);
     a.s.plots[a.lot].stand!.wrecked = true;

@@ -132,11 +132,11 @@ async function main() {
   const fightQueue: BattleReport[] = []; // tonight's brawls wait their turn on screen
   let onScreen: GameState['fight'] = undefined; // the live fight the 3D view is playing (its clock runs only then)
   const waits = newWaits(); // Morning Prep's auto-continue and the Evening's moment (src/ui/waits.ts)
-  let quietOff = false; // a speed picked during a quiet night: the quiet 3× gives way to it until dawn
+  let quietOff = false; // a speed picked during a quiet night: the quiet 12× gives way to it until dawn
   const outcomeUp = () => !!state.outcome && !(state.outcome.result === 'won' && state.endlessSince !== undefined) && victoryStage(state) !== 'scenes'; // as the HUD's outcome screen (the Domination show's fight and exits play first)
   const pause = () => pauseKnob(knob); // a load, an alert or a key: it outlasts the paper (src/ui/knob.ts)
   const resume = () => { vipPaused = ''; resumeKnob(knob); };
-  /** Quiet nights run at 3× by themselves (Options) until an alert comes in, or until you pick a speed. */
+  /** Fast raid nights (Options): a quiet night runs at 12× by itself until an alert comes in, or until you pick a speed. */
   const quiet = () => options.quietNights && !quietOff;
   const setSpeed = (v: number) => {
     if (v <= 0) { pause(); return; }
@@ -144,7 +144,7 @@ async function main() {
     if (quiet() && quietNight(state)) quietOff = true;
     setKnob(knob, v);
   };
-  /** The speed the clock actually runs at, for the knobs: a quiet night shows its 3×. */
+  /** The speed the clock actually runs at, for the knobs: a quiet night shows its 12×. */
   const shownSpeed = () => (knob.speed && !liveFight && quiet() && quietNight(state) ? QUIET_NIGHT_SPEED : knob.speed);
 
   const audio = createAudio();
@@ -981,7 +981,7 @@ async function main() {
     if (state.fight && onScreen !== state.fight && !battle.active()) playLive();
     if (state.fight) { runFight(dt, frozen || onScreen !== state.fight); acc = 0; }
     else if ((state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume && victoryStage(state) !== 'scenes') { // the Domination show holds the clock
-      // Business hours at ~18 real s a game hour, nights at ~8 (quiet nights 3×), fights and warnings at fight speed.
+      // Business hours at ~18 real s a game hour, nights at ~8 (quiet stretches 12×), fights and warnings at fight speed.
       const from = state.phase;
       const rate = () => secondsPerMinute(state, knob.speed, { fighting: liveFight, quiet: quiet() });
       acc += dt;

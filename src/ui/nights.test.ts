@@ -260,7 +260,7 @@ describe('the Evening on the map', () => {
 });
 
 describe('the Options screen', () => {
-  it('has the master switch, one switch per major alert (the raid one per run), quiet nights, auto-continue and text size', () => {
+  it('has the master switch, one switch per major alert (the raid one per run), fast raid nights, auto-continue and text size', () => {
     const s = newGame(1, { difficulty: 'cutthroat' });
     const html = optionsScreen({ ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     for (const key of ['autoPause', 'raidPause', 'pause.delivery', 'pause.vip', 'pause.red', 'quietNights', 'autoContinue', 'reducedMotion']) {
@@ -269,6 +269,7 @@ describe('the Options screen', () => {
     expect(html).toMatch(/data-key="raidPause" data-testid="opt-raidPause" aria-pressed="false"/); // Cutthroat: off by default
     expect(html).toMatch(/data-key="autoContinue" data-testid="opt-autoContinue" aria-pressed="false"/);
     expect(html).toMatch(/data-key="quietNights" data-testid="opt-quietNights" aria-pressed="true"/);
+    expect(html).toMatch(/title="A raid night runs at 12× until the warning. A quiet night skips to dawn."><i><\/i>Fast raid nights \(12×\)/);
     expect(html).toContain('data-value="150"');
     const off = optionsScreen({ ...DEFAULT_OPTIONS, autoPause: false, pause: { ...DEFAULT_OPTIONS.pause } }, s);
     expect(off).not.toContain('data-key="pause.vip"'); // the master switch off: the rest have nothing to do

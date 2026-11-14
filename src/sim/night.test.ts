@@ -160,7 +160,7 @@ describe('the night on the clock', () => {
     expect(hi).toBeGreaterThanOrEqual(150);
   });
 
-  it("the clock: about 18 real seconds a game hour by day and 8 at night, quiet nights 3×, fight speed for a warning's last minutes", () => {
+  it("the clock: about 18 real seconds a game hour by day and 8 at night, quiet stretches 12×, fight speed for a warning's last minutes", () => {
     const s = newGame(2);
     expect(secondsPerMinute(s, 1)).toBe(Infinity); // only Morning Prep waits
     openStand(s);
@@ -235,7 +235,7 @@ describe('the night on the clock', () => {
     expect(quietNight(s)).toBe(false);
     expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the warning: your speed, not the quiet one
     while (s.raids.includes(r)) nightStep(s);
-    expect(quietNight(s)).toBe(true); // fought: the 3× comes back
+    expect(quietNight(s)).toBe(true); // fought: the 12× comes back
     expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / QUIET_NIGHT_SPEED);
     expect(secondsPerMinute(s, 1, { quiet: false })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the setting off
     const note = alert(s, { kind: 'note', text: 'Something stirs on Maple Row' });

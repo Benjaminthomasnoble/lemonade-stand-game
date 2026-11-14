@@ -1,7 +1,8 @@
 // The night on the clock (spec: Core loops and time; Defenses: warnings and
 // auto-pause). Closing at 20:00 is the Evening, a moment; then 20:00 to 07:00
-// runs minute by minute, about 8 real seconds a game hour at 1× (quiet nights
-// at 3× until an alert). Rival raids set out at their own minute and travel
+// runs minute by minute, about 8 real seconds a game hour at 1× (a raid night
+// at 12× until an alert, with Fast raid nights on; Sleep skips a night with
+// nothing coming). Rival raids set out at their own minute and travel
 // 1–3 game hours by distance. A detected raid warns as it sets out, with its
 // full ETA; an undetected one warns at the difficulty's minimum notice (30, 15
 // or 5 game minutes). Raids are fought one by one at their arrival minute, in
@@ -57,7 +58,8 @@ export const raidNotice = (s: GameState) => difficulty(s).notice;
 /** Real seconds per game minute right now; Infinity while the clock stands still.
  * Business hours run at about 18 real seconds a game hour and the night at 8, both divided by the speed. A brawl
  * on screen, or the last minutes of a raid warning (countingDown), slows the clock to fight speed (1 game minute per
- * real second) at any speed. Quiet nights (a setting) run at 3× until a warning comes in. */
+ * real second) at any speed. With Fast raid nights on (a setting), a quiet stretch of the night runs at
+ * QUIET_NIGHT_SPEED (12×) until an alert comes in. */
 export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: boolean; quiet?: boolean } = {}): number {
   if (speed <= 0 || (s.phase !== 'open' && s.phase !== 'night')) return Infinity;
   if (o.fighting || countingDown(s)) return FIGHT_SECONDS_PER_GAME_MINUTE;
@@ -72,7 +74,7 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
  * auto-pause on, the warning waits for you first. */
 export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r) && minutesLeft(s, r) <= raidNotice(s));
 /** Nothing has come in tonight: no warning is out, no card from the night is still on the feed (a note melts off it
- * after ALERT_LIFE: alerts.ts onFeed) and no squad of yours is on the road, so a quiet night runs at 3×. Your own
+ * after ALERT_LIFE: alerts.ts onFeed) and no squad of yours is on the road, so the night runs at QUIET_NIGHT_SPEED (12×). Your own
  * raid's trip, fight and walk home play at the speed you chose (the walkthrough's 90-minute trip, about 12 real
  * seconds at 1×). Once the raid is fought (its card goes) or the squad is home, the night is quiet again. */
 export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some((r) => (r.warned && onYou(s, r)) || setOut(s, r))

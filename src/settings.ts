@@ -27,7 +27,7 @@ export const defaultKeys = (): Record<KeyAction, string> => ({ ...KEYS });
 export interface Options {
   autoPause: boolean; // master switch: major alerts auto-pause
   pause: Record<PauseKind, boolean>; // one switch per major alert type
-  quietNights: boolean; // quiet nights run at 3× until an alert
+  quietNights: boolean; // Fast raid nights: a raid night runs at 12× (QUIET_NIGHT_SPEED) until an alert
   autoContinue: boolean; // Morning Prep opens the stands by itself
   textSize: 100 | 125 | 150; // percent
   reducedMotion: boolean;

@@ -22,7 +22,7 @@ export const BUSINESS_MINUTES = CLOSE - OPEN;
 export const NIGHT_END = MINUTES_PER_DAY + DAWN;
 /** At night a game hour lasts about 8 real seconds at 1×: 20:00 to 07:00 takes about 1.5 real minutes. */
 export const NIGHT_REAL_SECONDS_PER_MINUTE = 8 / 60;
-/** Quiet nights: from closing until an alert, the night runs at 3× by itself (a setting, on by default). */
+/** Fast raid nights: from closing until an alert, a raid night runs at 12× by itself (a setting, on by default). */
 export const QUIET_NIGHT_SPEED = 12; // a raid night races to its warning (a night with nothing coming is skipped outright)
 /** The Evening is a moment: off the Ledger, on the live map, the night starts by itself after this many real seconds at 1×. */
 export const EVENING_REAL_SECONDS = 6; // placeholder: spec gap ("a moment")

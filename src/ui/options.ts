@@ -1,8 +1,8 @@
 // The Options screen: plain switches for the spec's toggles (auto-pause and one
-// switch per major alert, quiet nights, auto-continue Morning Prep, text size,
+// switch per major alert, fast raid nights, auto-continue Morning Prep, text size,
 // less motion). Full-screen paper, so the game holds while it's open. Clicks
 // go through the HUD's one listener (data-action="option").
-import { raidPauses, type GameState } from '../sim/economy.ts';
+import { QUIET_NIGHT_SPEED, raidPauses, type GameState } from '../sim/economy.ts';
 import { TEXT_SIZES, type Options } from '../settings.ts';
 import { lessonsOn } from '../sim/story.ts';
 
@@ -27,7 +27,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
     <div class="cl-more">
       ${toggle('autoPause', o.autoPause, 'Auto-pause on big alerts', 'Major alerts stop the clock. Each kind has its own switch.')}
       ${each}
-      ${toggle('quietNights', o.quietNights, 'Quiet nights at 3×', 'From closing until an alert, the night runs at 3× by itself')}
+      ${toggle('quietNights', o.quietNights, `Fast raid nights (${QUIET_NIGHT_SPEED}×)`, `A raid night runs at ${QUIET_NIGHT_SPEED}× until the warning. A quiet night skips to dawn.`)}
       ${toggle('autoContinue', o.autoContinue, 'Start each day by itself', 'Morning Prep opens the stands after a moment. Big alerts still stop it.')}
       <div class="cl-row wrap"><span class="cl-label">Text</span>${sizes}</div>
       ${toggle('reducedMotion', o.reducedMotion, 'Less motion', 'Calmer HUD; no clay boil, shakes or lightning flashes')}

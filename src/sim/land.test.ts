@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  announceControl, blenderBar, bugleHeadline, buyPlot, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
+  announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   LOTTIES_CORNER, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, onMap, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
@@ -358,5 +358,55 @@ describe('Every Last Plot', () => {
     dawn(s);
     expect(s.news.some((l) => /every last plot/i.test(l))).toBe(false);
     expect(s.everyLastPlotEarned!.day).toBe(day);
+  });
+});
+
+describe('loan repossession', () => {
+  /** Play dawns with plenty of cash up to the morning before the loan's next payment. */
+  const upToDue = (s: GameState) => { while (s.day < s.loan!.nextDue - 1) { s.cash = 1e4; dawn(s); } };
+  /** The payment dawn, with cash for the wages but not the loan. */
+  const miss = (s: GameState) => { upToDue(s); s.cash = 20; dawn(s); };
+  const pay = (s: GameState) => { upToDue(s); s.cash = 1e4; dawn(s); };
+  const loanGame = (seed: number) => {
+    const s = newGame(seed);
+    s.plots[LOTTIES_CORNER].stand!.autoRestock = false; // the dawns' only bills are the loan's and the wages
+    s.phase = 'report';
+    expect(borrow(s, 200)).toBe(true);
+    return s;
+  };
+
+  it('counts two missed payments, in a row or not, and a miss still counts the week down', () => {
+    const s = loanGame(91);
+    miss(s);
+    expect(s.loan).toMatchObject({ missed: 1, weeksLeft: 3 });
+    expect(s.loan!.principal).toBeCloseTo(206, 2); // the missed week's interest is added
+    pay(s);
+    expect(s.loan).toMatchObject({ missed: 1, weeksLeft: 2 }); // a payment doesn't wipe the miss
+    expect(s.news.some((n) => n.startsWith('REPOSSESSED'))).toBe(false);
+    miss(s);
+    expect(s.news.some((n) => n.startsWith('REPOSSESSED'))).toBe(true);
+    expect(s.plots[LOTTIES_CORNER].owner).toBeNull();
+  });
+
+  it('takes the lowest-value plot as Net Worth counts it, land plus buildings, credits that, and never a Trophy', () => {
+    const s = loanGame(92);
+    s.plots[LOTTIES_CORNER].invested = 4050; // a Kiosk on $300 of land: worth more than a bare $1,000 lot
+    const lot = purchasablePlots('maple').find((p) => p.id !== LOTTIES_CORNER && !s.plots[p.id].owner)!;
+    give(s, lot.id);
+    s.plots[lot.id].landValue = 1000;
+    give(s, hqPlot('hollis').id);
+    s.plots[hqPlot('hollis').id].landValue = 1; // cheapest of all, but a Trophy is never lost
+    expect(plotWorth(s, LOTTIES_CORNER)).toBe(300 + 0.75 * 4050);
+    miss(s);
+    // Land values move with development each dawn: the bank pays what the lot is worth that morning.
+    const worth = plotWorth(s, lot.id);
+    const owed = s.loan!.principal;
+    miss(s);
+    expect(s.plots[lot.id].owner).toBeNull();
+    expect(s.plots[LOTTIES_CORNER].owner).toBe('player');
+    expect(s.plots[hqPlot('hollis').id].owner).toBe('player');
+    expect(s.news).toContain(`REPOSSESSED! The First Bank of Citrine Bay takes ${lot.name} to cover $${Math.round(worth).toLocaleString('en-US')} of the loan.`);
+    expect(s.loan).toBeUndefined(); // $1,000 of land more than covers what was owed
+    expect(worth).toBeGreaterThan(owed);
   });
 });

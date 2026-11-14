@@ -2,7 +2,7 @@
 // Economy and balance: Lottie's Cookie Jar and bankruptcy; loans). Pure
 // functions over GameState, like the rest of the sim.
 import {
-  ACTS, BELOVED_STARS, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
+  ACTS, BELOVED_STARS, BUILDING_VALUE_SHARE, CUSTOM_RANGE, DIFFICULTY, ECONOMIC_DEFAULT_RANK, IN_THE_RED_DAYS, LOAN, MAJORITY, RANKS,
   SEASON_DAYS, STAND_LEVELS, type Difficulty, type MapSize, type Mode, type RivalId, type WinCondition,
 } from './balance.ts';
 import { mapDistricts, PLOTS, type DistrictId, type PlotType } from './map.ts';
@@ -204,6 +204,15 @@ export function repayLoan(s: GameState): boolean {
   return true;
 }
 
+/** A plot as Net Worth counts it: its land plus 75% of what's built on it (the bank's price when it repossesses). */
+export const plotWorth = (s: GameState, plotId: string) => round2(s.plots[plotId].landValue + BUILDING_VALUE_SHARE * s.plots[plotId].invested);
+
+/**
+ * The weekly payment at dawn: principal ÷ weeks left, plus 3% interest. A miss adds the interest to what you owe and
+ * still counts the week down, so the loan keeps its 4-week term and the missed share rolls into the payments left.
+ * The second missed payment (in a row or not: the spec counts misses) repossesses your lowest-value plot as Net Worth
+ * counts it, land plus buildings, never a Trophy, and that value comes off the loan; the count then starts over.
+ */
 function loanAtDawn(s: GameState): void {
   const l = s.loan;
   if (!l || s.day < l.nextDue) return;
@@ -215,23 +224,24 @@ function loanAtDawn(s: GameState): void {
     book(s, 'loan', -round2(due - interest));
     l.principal = round2(l.principal - (due - interest));
     l.weeksLeft--;
-    l.missed = 0;
     if (l.weeksLeft <= 0 || l.principal < 0.01) { delete s.loan; s.news.push('Marisol: "Last loan payment made. We\'re debt-free."'); }
     return;
   }
-  // Missed: the interest is added to what you owe, and two misses in a row cost a plot.
   l.principal = round2(l.principal + interest);
+  l.weeksLeft = Math.max(1, l.weeksLeft - 1);
   l.missed++;
   if (l.missed < LOAN.missesToRepossess) {
-    s.news.push(`Marisol: "We missed a loan payment of ${money(due)}. One more and the bank takes a plot."`);
+    s.news.push(`Marisol: "We missed a loan payment of ${money(due)}. One more miss and the bank takes a plot."`);
     return;
   }
-  const mine = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && p.type !== 'hq');
-  const plot = mine.sort((a, b) => s.plots[a.id].landValue - s.plots[b.id].landValue)[0];
+  const mine = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && p.type !== 'hq'); // a Trophy is never lost
+  const plot = mine.sort((a, b) => plotWorth(s, a.id) - plotWorth(s, b.id) || a.id.localeCompare(b.id))[0];
   l.missed = 0;
   if (!plot) return;
-  const value = s.plots[plot.id].landValue;
-  s.plots[plot.id] = { owner: null, stand: null, invested: 0, landValue: value, defense: NO_DEFENSE() };
+  const value = plotWorth(s, plot.id);
+  for (const g of s.guards) if (g.post === plot.id) g.post = null; // posted guards go back to the Clubhouse
+  s.offers = s.offers.filter((o) => o.plot !== plot.id); // a VIP offer for its pad or pier lapses with it
+  s.plots[plot.id] = { owner: null, stand: null, invested: 0, landValue: s.plots[plot.id].landValue, defense: NO_DEFENSE() };
   l.principal = round2(Math.max(0, l.principal - value));
   s.news.push(`REPOSSESSED! The First Bank of Citrine Bay takes ${plot.name} to cover ${money(value)} of the loan.`);
   announceControl(s);

@@ -5,13 +5,13 @@
 // Pure functions over GameState, like the rest of the sim; every random draw
 // goes through a seeded rng that is written back to s.seed.
 import {
-  BOARDWALK_SEASON, BRAND_TIERS, CUPS_PER_PITCHER, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND,
+  BOARDWALK_SEASON, BRAND_TIERS, FACTIONS, GEAR, GUARD_BASE, GUARD_WAGE, HENCHMEN, PERIMETERS, RAID_PARTY, RIVAL_RAID_AT, SEASON_DEMAND,
   SEASON_WEATHER, SEASONS, STAND_LEVELS, WEAPONS, WEATHER, type RivalId, type Season, type WeaponId, type WeatherKind,
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, PlotState, RivalState, Stand } from './economy.ts';
-import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
+import { hasFoothold, newStand, ownedPlots, rivalPrice, seasonOf, stockCapCups } from './economy.ts';
 import {
   ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, hqPlot, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE, settleFence, wholeFence,
   RIVAL_LAND_CHANCE, RIVAL_RESERVE_DAYS, RIVAL_TRADE, RIVAL_UPGRADE_DAYS, TARGET_TAKINGS_DAYS,
@@ -529,13 +529,9 @@ export function payWages(s: GameState, id: RivalId): number {
   return left;
 }
 
-/** Cups a rival stand can sell in a day: one full stock of lemons and sugar, as its storage holds (it restocks each morning). */
-export function stockCups(st: Stand): number {
-  const n = pitcherNeeds(st);
-  const room = STAND_LEVELS[st.level - 1].storage;
-  const pitchers = Math.min(Math.floor(room.lemons / n.lemons), n.sugar > 0 ? Math.floor(room.sugar / n.sugar) : Infinity);
-  return pitchers * CUPS_PER_PITCHER;
-}
+/** Cups a rival stand can sell in a day: one full stock, the cups a stand of its level holds, as yours (demand's
+ * stockCapCups: 300 / 750 / 1,800 / 4,500 / 10,500). It restocks each morning. */
+export const stockCups = (st: Stand): number => stockCapCups(st.level);
 
 // ---------- Guard: defenses and crew ----------
 

@@ -22,7 +22,7 @@ import {
   AUTO_REPAIR_RANK, BUSTED_REPAIR_SHARE, DAMAGE_REPAIR_SHARE, FACTIONS, HURRICANE, INSPECTION, REBUILD_SHARE, RIVAL_REPAIR_RESERVE, SEASON_TEMP_SHIFT,
   STAND_HP, STAND_LEVELS, START, STORM_DAMAGE, WEATHER, type RivalId,
 } from './balance.ts';
-import { difficulty } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
+import { difficulty, loanPayment } from './modes.ts'; // Custom's Busted-only switch too (nights: modes.ts difficultyOf)
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState, PlotState, Weather } from './economy.ts';
@@ -33,7 +33,7 @@ import { pourRate } from './demand.ts';
 import { clockText } from './night.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bookHelper, registerHelper } from './automation.ts'; // Auto-Repair's line in the automation frame
-import { buildingHp, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
+import { buildingHp, guardWage, isWrecked, NO_DEFENSE, PLAYER_REBUILD_DAYS, rebuildChance, rebuildCost, type BattleReport } from './crew.ts';
 import { FACILITIES } from './vip.ts';
 import { openAuction } from './auction.ts';
 import { announceControl } from './land.ts';
@@ -542,6 +542,17 @@ export function toggleAutoRepair(s: GameState, plotId: string): boolean {
 /** Which fix Auto-Repair books first: Wrecked plots (they lapse), then Busted ones, then the worst Damaged. */
 const urgency = (ps: PlotState) => (isWrecked(ps) ? (ps.busted ? 1 : 0) : 2 + hpShare(ps));
 
+/** What Auto-Repair keeps in hand at closing: tomorrow's wages (dawn's payday), and the loan payment when the next
+ * dawn is its due day, so a fix never costs you a guard or a missed payment. */
+function reserveParts(s: GameState): { wages: number; loan: number } {
+  const l = s.loan;
+  return { wages: s.guards.reduce((a, g) => a + guardWage(g), 0), loan: l && l.nextDue <= s.day + 1 ? loanPayment(s) : 0 };
+}
+export function autoRepairReserve(s: GameState): number {
+  const r = reserveParts(s);
+  return Math.round((r.wages + r.loan) * 100) / 100;
+}
+
 /** A plot Auto-Repair looks after with a fix still to book: Wrecked with no rebuild booked, or HP lost that no repair
  * booked for tonight puts back. */
 const fixDue = (s: GameState, plotId: string) => autoRepairs(s, plotId) && (isWrecked(s.plots[plotId]) ? !s.plots[plotId].repair : unbookedLoss(s.plots[plotId]) > 0);
@@ -550,12 +561,12 @@ const fixCost = (s: GameState, plotId: string) => (isWrecked(s.plots[plotId]) ? 
 /** One fix Auto-Repair would book: the plot, its price and whether it's a rebuild (a Busted fix counts as one). */
 export interface AutoFix { plotId: string; cost: number; rebuild: boolean }
 
-/** The fixes Auto-Repair would book now, the most urgent first, each as far as the cash goes. A fix it can't fit waits
- * for you (the Evening's repair cards), and a cheaper one after it can still go. */
+/** The fixes Auto-Repair would book now, the most urgent first, each as far as the cash goes once the reserve is kept
+ * back. A fix it can't fit waits for you (the Evening's repair cards), and a cheaper one after it can still go. */
 export function autoRepairPlan(s: GameState): AutoFix[] {
   if (!autoRepairOn(s)) return [];
   const due = PLOTS.filter((p) => fixDue(s, p.id)).sort((a, b) => urgency(s.plots[a.id]) - urgency(s.plots[b.id]));
-  let left = s.cash;
+  let left = s.cash - autoRepairReserve(s);
   const out: AutoFix[] = [];
   for (const p of due) {
     const cost = fixCost(s, p.id);
@@ -567,7 +578,8 @@ export function autoRepairPlan(s: GameState): AutoFix[] {
 }
 
 /** Closing time: Auto-Repair books the rebuilds and repairs your plots need, the most urgent first, as far as the cash
- * goes. Plots you skip, and fixes the cash can't cover, wait for you. */
+ * goes with tomorrow's wages and loan payment kept back. Plots you skip, and fixes the cash can't cover, wait for you;
+ * a fix the cash on hand covers but the reserve held back gets a line saying so. */
 function autoRepair(s: GameState): void {
   if (!autoRepairOn(s)) return;
   let n = 0, paid = 0;
@@ -575,6 +587,12 @@ function autoRepair(s: GameState): void {
     if (!(fix.rebuild ? approveRebuild(s, fix.plotId) : approveRepair(s, fix.plotId))) continue;
     n++;
     paid += fix.cost;
+  }
+  const held = autoRepairReserve(s) > 0 && PLOTS.some((p) => fixDue(s, p.id) && fixCost(s, p.id) <= s.cash);
+  if (held) {
+    const r = reserveParts(s);
+    const what = [r.wages ? 'wages' : '', r.loan ? 'the loan' : ''].filter(Boolean).join(' and ');
+    s.news.push(`Auto-Repair kept ${money(r.wages + r.loan)} for ${what}. The rest waits for you.`);
   }
   if (!n) return;
   s.news.push(`Auto-Repair: ${n} fix${n === 1 ? '' : 'es'} booked for tonight, ${money(paid)}. Good as new at dawn.`);

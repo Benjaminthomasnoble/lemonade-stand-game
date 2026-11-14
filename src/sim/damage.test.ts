@@ -5,11 +5,12 @@ import {
   fightRaid, FORECAST_ACCURACY, growUpgrades, helperLines, helpers, hpCapacity, hpShare, isDamaged, isWrecked, LOTTIES_CORNER, maxPacks,
   migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, prepPreview, applyRaidDamage,
   raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute,
-  toggleAutoRepair, upgradeStand, type GameState, type Raid, type RivalId, type SupplyId,
+  toggleAutoRepair, upgradeStand, type GameState, type Raid, type RivalId, type SupplyId, autoRepairReserve, loanPayment,
   FAILED_ORDER_STARS, PICKUP_MINUTE, pickupsAt, pickupsAtClose, stock, type Order,
 } from './economy.ts';
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
+import { repairCards } from '../ui/evening.ts';
 import {
   clockText, EVENT_DEFS, eventsOf, expectedPassersby, fitSpec, harmfulOn, HEAT_WAVE, HURRICANE, HURRICANE_ID, hurricaneLoss, hurricaneOn, hurricaneToday,
   INSPECTION, INSPECTION_ID, inspectionFault, inspectionOn, inspectorClosed, KIDS_DAY, SEASONS, STAND_HP, type EventDef, type Season,
@@ -531,6 +532,53 @@ describe('Auto-Repair (Rank 3)', () => {
     const { s: two } = twoDamaged();
     two.cash = 100; // only the cheap one fits: the preview is what closing would book
     expect(prepPreview(two).find((p) => p.id === AUTO_REPAIR)?.pending).toBe(21);
+  });
+
+  it("keeps back tomorrow's wages and a loan payment due at dawn; the skipped fix waits on the Evening's cards", () => {
+    const rookie = () => ({ id: 'g1', name: 'Tess Moody', trait: 'Eagle Eye' as const, level: 1, xp: 0, weapon: 'fists' as const, gear: 'none' as const, post: null, outUntil: 0, fee: 0 });
+    const wrecked = (seed: number) => {
+      const g = newGame(seed);
+      g.rank = 3;
+      const ps = g.plots[LOTTIES_CORNER];
+      ps.stand!.wrecked = true;
+      ps.wreckedDay = g.day;
+      expect(rebuildCost(ps)).toBe(15);
+      return g;
+    };
+    // A $15 Rookie and $20 in hand: the $15 rebuild would leave $5 for a $15 payday.
+    const s = wrecked(32);
+    s.guards.push(rookie());
+    expect(autoRepairReserve(s)).toBe(15);
+    s.cash = 20;
+    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR);
+    closeShop(s);
+    expect(s.plots[LOTTIES_CORNER].repair).toBeUndefined();
+    expect(s.cash).toBeGreaterThanOrEqual(15); // the day's upkeep came off, the wages stayed
+    expect(s.news).toContain('Auto-Repair kept $15 for wages. The rest waits for you.');
+    expect(repairCards(s).join('')).toContain(`data-action="rebuild" data-plot="${LOTTIES_CORNER}"`); // yours to approve
+    s.raids = [];
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(s.guards.map((g) => g.name)).toEqual(['Tess Moody']); // paid, and still on the crew
+    expect(s.news.some((n) => n.includes('quits'))).toBe(false);
+    // With the wages covered too, it books the fix as before.
+    const covered = wrecked(32);
+    covered.guards.push(rookie());
+    covered.cash = 30;
+    damageAtClose(covered);
+    expect(covered.plots[LOTTIES_CORNER].repair).toMatchObject({ cost: 15, rebuild: true });
+    // A loan payment due at the next dawn is kept back too; one due later isn't.
+    const loan = wrecked(33);
+    loan.loan = { principal: 400, weeksLeft: 4, nextDue: loan.day + 1, missed: 0 };
+    const due = loanPayment(loan);
+    expect(autoRepairReserve(loan)).toBe(due);
+    loan.cash = due + 10; // short of the $15 rebuild once the payment is kept
+    damageAtClose(loan);
+    expect(loan.plots[LOTTIES_CORNER].repair).toBeUndefined();
+    expect(loan.news).toContain(`Auto-Repair kept ${'$' + Math.round(due)} for the loan. The rest waits for you.`);
+    loan.loan.nextDue = loan.day + 3;
+    expect(autoRepairReserve(loan)).toBe(0);
+    damageAtClose(loan);
+    expect(loan.plots[LOTTIES_CORNER].repair).toMatchObject({ cost: 15, rebuild: true });
   });
 
   it('books your rebuilds too, before any repair, and they are up again at dawn', () => {

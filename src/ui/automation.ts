@@ -2,7 +2,7 @@
 // the Morning Prep dock, a ticket per helper with the day's automatic spending (what they bought at dawn and will
 // buy at Open) or what they set, and each helper's one-line report in the Ledger. Mounted from hud.ts.
 import {
-  AUTO_PRICE, AUTO_PRICE_RANK, currentHp, helperLines, isWrecked, owedCups, playerStands, PLOTS, prepPreview, priceNote, pricingOn,
+  AUTO_PRICE, AUTO_PRICE_RANK, autoRepairReserve, currentHp, helperLines, isWrecked, owedCups, playerStands, PLOTS, prepPreview, priceNote, pricingOn,
   restockOpen, stock, stockCapCups, stockTarget, suggestedTarget, type DayStats, type GameState,
 } from '../sim/economy.ts';
 import { btn, esc, tape } from './recipes.ts';
@@ -54,6 +54,7 @@ function previewKey(s: GameState): string {
     const ps = s.plots[p.id];
     if (ps.owner === 'player' && (ps.stand || ps.facility)) k.push(p.id, currentHp(ps), isWrecked(ps) ? 1 : 0, ps.repair?.cost ?? 0, ps.noAutoRepair ? 1 : 0);
   }
+  k.push(autoRepairReserve(s)); // and the wages and loan payment it keeps back
   return k.join('|');
 }
 

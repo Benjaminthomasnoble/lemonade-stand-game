@@ -523,6 +523,29 @@ A rival's rebuild chance drops 30 points for each Smash on that same plot in the
 | Starting Net Worth | About $525 |
 | Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
 
+### Other rule numbers
+
+The design spec's Appendix A collects these from its sections so every number has one home; each is checked against the code.
+
+| System | Rule | Number |
+|---|---|---|
+| Stands | Stock each level holds, L1 to L5 | 300 / 750 / 1,800 / 4,500 / 10,500 cups |
+| Pricing | Appeal when priced under the ceiling | +10% per 10% under, up to +25% |
+| Pricing | Buyers lost when priced over the ceiling | A quarter per 10% over; nobody buys at 40% over |
+| Reputation | Buyers who leave without a cup | Target drops 0.1 star per 10% of buyers |
+| Weather | Storm damage to L1 and L2 stands | 25% of HP |
+| Repairs | A Damaged stand | 15% of what was invested × the share of HP lost |
+| Crew | Recruit pool and starting Nerve | 6 recruits; Nerve 50 |
+| Crew | Trait numbers | Eagle Eye +10% detection; Sprinter +25% speed; Gentle Giant +50% HP and −30% Hit; Hothead +15% Hit and −20 Nerve; Butterfingers 10% drop chance; Lumberjack +50% Chop (the rest are in Combat) |
+| Crew | Guard posts on buildings other than stands | 3 |
+| Combat | Commands | Rally +20 Nerve for 10 s, every 30 s; Fall Back once per fight; Ring the Bell once per raid |
+| Combat | Time on target for a Shakedown or Sabotage | 10 game minutes |
+| Combat | Nabbed guards | Ransom equals their hire fee; releasing a captive gives +0.05 star |
+| Events | Raiding a kid stand on Kids' Lemonade Day | −0.5 star |
+| Rivals | Breaking a Truce | −1 star; no rival accepts a Truce for 14 days |
+| Rivals | Trophy perks | Blender Bar +20% top price; Juni's Grapevine 1 game hour; Hollis Orchards +10% traffic per Grove; Bottling Line 25%; Family Silver 10% |
+| Rivals | Grow / Guard / Strike splits | See the Rivals table |
+
 ### Day calls (src/sim/calls.ts `CALLS`)
 
 One call on Day 1 (a rival undercut), two on every later business day (Day 3: a rush or a heckler, then the rumor of Night 3's raid). Unanswered calls lapse after 60 game minutes with no effect (only without a player: the game waits for a pick).

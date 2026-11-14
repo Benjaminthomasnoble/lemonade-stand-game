@@ -25,7 +25,8 @@ import { fitGarrison, knockOut } from './garrison.ts';
 import { captivesAtDawn, leftBehind, nabLeftBehind, recruitTrait } from './captives.ts';
 import { shakedownLoot } from './loot.ts';
 import { breakTruce, canAssault, HQ_STAGES, hqOpen, hqPlot, hqStageInput, hqSurvivors, NOT_WEAKENED } from './rivals.ts';
-import { bump, difficulty, districtControl, peaceful } from './modes.ts';
+import { bump, difficulty, peaceful } from './modes.ts';
+import { controlTier, perkActive, tierAtLeast } from './land.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
 import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexHoldsTheLine, dexLesson, hasStory } from './story.ts';
@@ -668,12 +669,10 @@ export function presentGuards(s: GameState, plotId: string): Guard[] {
   return s.guards.filter((g) => g.post === plotId && guardReady(s, g) && !away.has(g.id) && !scoutingToday(s, g));
 }
 
-// District control, until land's controlTier(s, d) and perkActive(s, perkId) take over: Stronghold at 75%+, Full Control at 100%.
-const controlShare = (s: GameState, d: DistrictId) => districtControl(s, d);
-/** Do you hold a Stronghold (75%+ of the purchasable plots) in this district? */
-export const holdsStronghold = (s: GameState, d: DistrictId) => { const c = controlShare(s, d); return c.total > 0 && c.share >= 0.75; };
+/** Do you hold a Stronghold (75%+ of the purchasable plots) in this district? Full Control holds one too (land's tiers). */
+export const holdsStronghold = (s: GameState, d: DistrictId) => tierAtLeast(controlTier(s, d), 'stronghold');
 /** Maple Row's Full Control perk, Neighborhood Watch: free Tin-Can Alarms there, +10% detection everywhere. */
-export const neighborhoodWatch = (s: GameState) => { const c = controlShare(s, 'maple'); return c.total > 0 && c.mine === c.total; };
+export const neighborhoodWatch = (s: GameState) => perkActive(s, 'neighborhoodWatch');
 /** Reinforcements sent into a Stronghold travel this much of their usual time (Ring the Bell multiplies by it). */
 export const strongholdTravelMult = (s: GameState, d: DistrictId) => (holdsStronghold(s, d) ? STRONGHOLD_TRAVEL : 1);
 /** Neighborhood Watch's free Tin-Can Alarm on a Maple Row plot of yours that has none of its own (it takes no gadget slot). */

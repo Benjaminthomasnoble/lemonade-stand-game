@@ -56,8 +56,8 @@ export const raidNotice = (s: GameState) => difficulty(s).notice;
 
 /** Real seconds per game minute right now; Infinity while the clock stands still.
  * Business hours run at about 18 real seconds a game hour and the night at 8, both divided by the speed. A brawl
- * on screen, or a raid warning counting down to its fight, slows the clock to fight speed (1 game minute per real
- * second) at any speed. Quiet nights (a setting) run at 3× until a warning comes in. */
+ * on screen, or the last minutes of a raid warning (countingDown), slows the clock to fight speed (1 game minute per
+ * real second) at any speed. Quiet nights (a setting) run at 3× until a warning comes in. */
 export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: boolean; quiet?: boolean } = {}): number {
   if (speed <= 0 || (s.phase !== 'open' && s.phase !== 'night')) return Infinity;
   if (o.fighting || countingDown(s)) return FIGHT_SECONDS_PER_GAME_MINUTE;
@@ -65,10 +65,12 @@ export function secondsPerMinute(s: GameState, speed: number, o: { fighting?: bo
   return NIGHT_REAL_SECONDS_PER_MINUTE / (o.quiet && quietNight(s) ? QUIET_NIGHT_SPEED : speed);
 }
 
-/** A raid on you is warned and not fought yet: the clock runs at fight speed from the warning until the fight starts
- * (a detected raid's whole ETA; Cutthroat's 5-minute notice lasts 5 real seconds). With auto-pause on, the notice
- * waits for you first. */
-export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r));
+/** A raid on you is warned, not fought yet, and inside the difficulty's notice of landing (raidNotice: 30, 15 or 5
+ * game minutes): the clock runs at fight speed till the fight starts, so the last stretch lasts that many real
+ * seconds on every difficulty (Cutthroat's 5-minute notice, 5). Before it, a detected raid's longer warning runs at
+ * the speed you chose; an undetected one warns at the notice, so its whole countdown is at fight speed. With
+ * auto-pause on, the warning waits for you first. */
+export const countingDown = (s: GameState) => s.raids.some((r) => r.warned && onYou(s, r) && minutesLeft(s, r) <= raidNotice(s));
 /** Nothing has come in tonight: no warning is out and no card from the night is still on the feed (a note melts off
  * it after ALERT_LIFE: alerts.ts onFeed), so a quiet night runs at 3×. Once the raid is fought (its card goes) the
  * night is quiet again. */

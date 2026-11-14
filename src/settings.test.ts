@@ -33,7 +33,7 @@ describe('options', () => {
     const o: Options = { ...DEFAULT_OPTIONS, pause: { ...DEFAULT_OPTIONS.pause } };
     const classic = newGame(1), cutthroat = newGame(1, { difficulty: 'cutthroat' });
     expect(autoPauses(o, classic, 'raid')).toBe(true);
-    expect(autoPauses(o, cutthroat, 'raid')).toBe(false); // Cutthroat counts down at fight speed instead
+    expect(autoPauses(o, cutthroat, 'raid')).toBe(false); // Cutthroat doesn't pause: its warning's last 5 minutes run at fight speed
     cutthroat.settings.raidPause = true;
     expect(autoPauses(o, cutthroat, 'raid')).toBe(true);
     for (const kind of ['delivery', 'vip', 'red', 'perk'] as const) {

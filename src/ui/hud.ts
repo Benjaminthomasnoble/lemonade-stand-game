@@ -929,7 +929,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <p class="cl-blurb" data-testid="setup-blurb"><b>${esc(MODES[st.mode].label.replace('Sandbox: ', ''))}:</b> ${esc(MODES[st.mode].blurb)}<br><b>${esc(DIFFICULTY[st.difficulty].label)}:</b> ${esc(DIFFICULTY[st.difficulty].blurb)}</p>
       ${st.difficulty === 'custom' ? customPanel(st) : ''}
       ${kidPanel(st)}
-      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'Off: the clock drops to fight speed while a warning counts down')}${toggle('lessons', st.lessons !== false, 'Lessons', 'Lottie teaches one system a day. Off: buttons follow rank alone.')}${scores}</div>` : ''}
+      ${moreOpts || st.mode === 'sandbox' ? `<div class="cl-more">${sandbox}${toggle('ironman', st.ironman, 'Ironman', "One save: a lost run can't reload its last dawn")}${toggle('raidPause', raidPauses(st), 'Raid warnings pause', 'The last minutes before a raid run at fight speed either way')}${toggle('lessons', st.lessons !== false, 'Lessons', 'Lottie teaches one system a day. Off: buttons follow rank alone.')}${scores}</div>` : ''}
       <div class="cl-setup-foot"><button class="cl-link" data-action="more">${moreOpts ? 'Fewer options' : 'More options'}</button>
         ${cancel ? '<button class="cl-link" data-action="cancelSetup">Back to my game</button>' : ''}
         <button class="cl-open big" data-action="start" data-testid="start" aria-label="Open the stand"><span class="cl-btn"></span>${tape('START', 'cl-t-open')}</button></div>

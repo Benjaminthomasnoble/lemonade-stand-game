@@ -159,7 +159,7 @@ describe('the night on the clock', () => {
     expect(hi).toBeGreaterThanOrEqual(150);
   });
 
-  it('the clock: about 18 real seconds a game hour by day and 8 at night, quiet nights 3×, fight speed for a countdown', () => {
+  it("the clock: about 18 real seconds a game hour by day and 8 at night, quiet nights 3×, fight speed for a warning's last minutes", () => {
     const s = newGame(2);
     expect(secondsPerMinute(s, 1)).toBe(Infinity); // only Morning Prep waits
     openStand(s);
@@ -176,22 +176,49 @@ describe('the night on the clock', () => {
     const r = raidOn(n, CLOSE + 1, CLOSE + 60);
     nightStep(n);
     expect(r.warned).toBe(true);
-    // From the warning to the fight the clock runs at fight speed, whatever the speed or the quiet-night switch.
-    expect(secondsPerMinute(n, 1, { quiet: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
-    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
+    // A detected raid's warning runs at the speed you chose: the quiet speed is over, fight speed not yet.
+    expect(secondsPerMinute(n, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE);
+    expect(secondsPerMinute(n, 3)).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / 3);
     while (r.at! - n.minute > raidNotice(n)) nightStep(n);
-    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the last minutes of notice too
+    // The difficulty's notice before it lands runs at fight speed, whatever the speed or the quiet-night switch.
+    expect(secondsPerMinute(n, 3)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
+    expect(secondsPerMinute(n, 1, { quiet: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE);
     while (n.raids.includes(r)) nightStep(n);
     expect(secondsPerMinute(n, 1) * 60).toBeCloseTo(8); // fought: night speed again
   });
 
-  it("a detected raid's whole countdown runs at fight speed: its ETA in game minutes is that many real seconds", () => {
-    const s = evening(15, { difficulty: 'cutthroat' }); // no auto-pause on Cutthroat
-    const r = raidOn(s, CLOSE + 30, CLOSE + 30 + 105);
+  it("a detected raid's long warning runs at the speed you chose; only the difficulty's notice before it lands is at fight speed", () => {
+    for (const difficulty of ['laidback', 'classic', 'cutthroat'] as const) {
+      const s = evening(15, { difficulty });
+      const r = raidOn(s, CLOSE + 30, CLOSE + 30 + 105);
+      startNight(s);
+      let real = 0;
+      while (s.raids.includes(r)) { if (r.warned) real += secondsPerMinute(s, 3, { quiet: true }); nightStep(s); }
+      const notice = DIFFICULTY[difficulty].notice; // 30 / 15 / 5 game minutes: that many real seconds
+      expect(real).toBeCloseTo(((105 - notice) * NIGHT_REAL_SECONDS_PER_MINUTE) / 3 + notice * FIGHT_SECONDS_PER_GAME_MINUTE);
+    }
+  });
+
+  it('fight speed starts exactly the notice before a warned raid lands; an undetected raid counts all its notice down at it', () => {
+    const s = evening(17); // Classic: 15 game minutes
+    const r = raidOn(s, CLOSE + 10, CLOSE + 100);
     startNight(s);
+    while (s.minute < r.at! - raidNotice(s) - 1) nightStep(s);
+    expect(r.warned).toBe(true);
+    expect(secondsPerMinute(s, 2)).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / 2); // 16 minutes out: your speed
+    nightStep(s);
+    expect(secondsPerMinute(s, 2)).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // 15 out: fight speed till it lands
+    // Undetected: it's warned at the notice, so the warning and the fight speed come together (Cutthroat: 5 real s).
+    const c = evening(18, { difficulty: 'cutthroat' });
+    const u = raidOn(c, CLOSE + 10, CLOSE + 100, { detected: false, launched: true, warnAt: CLOSE + 95 });
+    startNight(c);
     let real = 0;
-    while (s.raids.includes(r)) { if (r.warned) real += secondsPerMinute(s, 3, { quiet: true }); nightStep(s); }
-    expect(real).toBeCloseTo(105 * FIGHT_SECONDS_PER_GAME_MINUTE); // 105 real seconds, at 3× and on a quiet night
+    while (c.raids.includes(u)) {
+      if (!u.warned) expect(secondsPerMinute(c, 1)).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE);
+      else real += secondsPerMinute(c, 1);
+      nightStep(c);
+    }
+    expect(real).toBe(5 * FIGHT_SECONDS_PER_GAME_MINUTE);
   });
 
   it('a quiet night lasts until an alert comes in, and is quiet again once the raid is fought or the card put away', () => {
@@ -205,7 +232,7 @@ describe('the night on the clock', () => {
     const r = raidOn(s, CLOSE + 30, CLOSE + 90);
     while (!r.warned) nightStep(s);
     expect(quietNight(s)).toBe(false);
-    expect(secondsPerMinute(s, 1, { quiet: true })).toBe(FIGHT_SECONDS_PER_GAME_MINUTE); // the countdown to the fight
+    expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE); // the warning: your speed, not the quiet one
     while (s.raids.includes(r)) nightStep(s);
     expect(quietNight(s)).toBe(true); // fought: the 3× comes back
     expect(secondsPerMinute(s, 1, { quiet: true })).toBeCloseTo(NIGHT_REAL_SECONDS_PER_MINUTE / QUIET_NIGHT_SPEED);

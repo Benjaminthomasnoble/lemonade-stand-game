@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addGrudge, ATTENTION, attentionOf, BAY_RIVALS, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, dailyService, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
-  fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
+  fenceRepairCost, henchWage, payWages, raidCost, garrisonHenchman, garrisonTier, GUARD_WAGE, makeGuard, raidOdds, rivalKit, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, stockCapCups, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
   GROVE_TRAFFIC, wageBill, runningCosts, yearOfCups, openingYear, standTrade, settleTrade, SEASONS, SEASON_DEMAND, SEASON_WEATHER, BOARDWALK_SEASON,
   WEATHER, WEAPONS, RAID_PARTY, BLENDER_RUSH, blenderRush, pickRaider, raidPartyFor, raidWeight, signatureRaids, rebuildCost, PLAYER_REBUILD_DAYS,
@@ -544,6 +544,39 @@ describe('Old Money: elite Stewards', () => {
     const act4 = raidBy(8);
     expect(act4.every((f) => f.level === 4)).toBe(true); // Threat 4's henchmen, not one up
     expect(act4.some((f) => f.weapon !== 'hatchets')).toBe(true);
+  });
+
+  it('from Act 5 they stand guard at her plots too, a level up from the kit, on the wage of the level they fight at', () => {
+    const at = (act: number) => {
+      const s = newGame(9);
+      atRank(s, 8); // the same Threat either way: only the act moves
+      s.story!.act = act;
+      const plot = ownedPlots(s, 'sourwood').find((p) => s.plots[p.id].stand && p.type !== 'hq')!.id;
+      const other = ownedPlots(s, 'fizzco').find((p) => s.plots[p.id].stand && p.type !== 'hq')!.id;
+      s.plots[plot].garrison = 2;
+      const rng = { seed: 5 };
+      const guards = [0, 1].map(() => makeGuard(s, rng, 3));
+      s.guards.push(...guards);
+      const mob = (id: string) => [0, 1].map((i) => garrisonHenchman(s, id, { seed: 7 + i }, i));
+      return { s, ps: s.plots[plot], stewards: mob(plot), associates: mob(other), odds: raidOdds(s, plot, guards.map((g) => g.id), 'smash', false, 200) };
+    };
+    const four = at(4), five = at(5);
+    const kit = rivalKit(four.ps);
+    const up = { fists: 'clubs', clubs: 'hatchets', hatchets: 'hatchets' } as const;
+    five.stewards.forEach((f, i) => {
+      const was = four.stewards[i];
+      expect(was.level).toBeUndefined(); // an ordinary garrison fights at its kit's level
+      expect(f.level).toBe(Math.min(5, kit.level + 1));
+      expect(f.weapon).toBe(up[was.weapon]);
+      expect(f.hp).toBeGreaterThan(was.hp);
+      expect(f.name).toBe(was.name);
+    });
+    expect(five.associates).toEqual(four.associates); // only Vera's
+    expect(five.odds).toBeLessThan(four.odds); // the same squad, against elite Stewards
+    expect(garrisonTier(five.ps, five.s)).toBe(kit.level + 1);
+    expect(henchWage(five.ps, five.s)).toBe(GUARD_WAGE[kit.level]); // a level up's wage
+    expect(henchWage(four.ps, four.s)).toBe(GUARD_WAGE[kit.level - 1]);
+    expect(wageBill(five.s, 'sourwood') - wageBill(four.s, 'sourwood')).toBeGreaterThan(0);
   });
 });
 

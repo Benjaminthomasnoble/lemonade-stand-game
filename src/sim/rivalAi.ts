@@ -490,15 +490,21 @@ export function rivalDawn(s: GameState, id: RivalId, rng: Rng): void {
 
 // ---------- same costs as yours: wages, repairs, stock ----------
 
-/** The strength of the henchmen guarding a rival plot (the tier garrisonFighters fields there). */
-export const garrisonTier = (ps: PlotState) => rivalKit(ps).level;
-/** A rival henchman's daily wage: what you'd pay a guard of the same level. */
-export const henchWage = (ps: PlotState) => GUARD_WAGE[HENCHMEN[garrisonTier(ps) - 1].level - 1];
+/** Old Money: from Act 5 Vera's elite Stewards stand guard at her plots, as they go on her raids (eliteStewards). */
+export const stewardsOnGuard = (s: GameState, ps: PlotState) => ps.owner === 'sourwood' && actOf(s) >= OLD_MONEY.act;
+/**
+ * The strength of the henchmen guarding a rival plot (the tier garrisonFighters fields there): its kit row's, and a
+ * level up where Vera's elite Stewards stand guard (pass `s` for that).
+ */
+export const garrisonTier = (ps: PlotState, s?: GameState) =>
+  Math.min(HENCHMEN.length, rivalKit(ps).level + (s && stewardsOnGuard(s, ps) ? 1 : 0));
+/** A rival henchman's daily wage: what you'd pay a guard of the same level (an elite Steward: the level she fights at). */
+export const henchWage = (ps: PlotState, s?: GameState) => GUARD_WAGE[HENCHMEN[garrisonTier(ps, s) - 1].level - 1];
 
 /** What a rival's henchmen draw each day, all posts together. */
 export function wageBill(s: GameState, id: RivalId): number {
   let total = 0;
-  for (const p of ownedPlots(s, id)) total += (s.plots[p.id].garrison ?? 0) * henchWage(s.plots[p.id]);
+  for (const p of ownedPlots(s, id)) total += (s.plots[p.id].garrison ?? 0) * henchWage(s.plots[p.id], s);
   return total;
 }
 
@@ -513,7 +519,7 @@ export function payWages(s: GameState, id: RivalId): number {
   let left = 0;
   for (const p of posts) {
     const ps = s.plots[p.id];
-    const wage = henchWage(ps);
+    const wage = henchWage(ps, s);
     let kept = 0;
     for (let i = 0; i < (ps.garrison ?? 0); i++) {
       if (r.cash >= wage) { r.cash = round2(r.cash - wage); kept++; } else left++;
@@ -573,7 +579,7 @@ export function rivalGuardSpend(s: GameState, id: RivalId, rng: Rng): void {
     return true;
   };
   const purse: GuardPurse = {
-    pay, hire: (ps) => affords(henchWage(ps)) && pay(RIVAL_HIRE_FEE),
+    pay, hire: (ps) => affords(henchWage(ps, s)) && pay(RIVAL_HIRE_FEE),
     fencePrice: (tier) => fencePrice(id, tier), fenceFull, patchCost: (ps) => patchCost(id, ps), // Dig In for Hollis
   };
   rivalDefenseSpend(s, id, purse);
@@ -706,6 +712,11 @@ export function eliteStewards(party: Fighter[]): Fighter[] {
     const m = 1 + 0.1 * (h.level - 1);
     return { ...f, level: h.level, gear: h.gear, armor: GEAR[h.gear].armor, weapon, hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m };
   });
+}
+
+/** One of a rival plot's garrison on guard (crew.ts garrisonHenchman): from Act 5, Vera's are elite Stewards, a level up from the plot's kit. */
+export function onGuard(s: GameState, ps: PlotState, f: Fighter): Fighter {
+  return stewardsOnGuard(s, ps) ? eliteStewards([{ ...f, level: f.level ?? rivalKit(ps).level }])[0] : f;
 }
 
 /**

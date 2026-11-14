@@ -28,7 +28,7 @@ import { breakTruce, canAssault, HQ_STAGES, hqOpen, hqPlot, hqStageInput, hqSurv
 import { bump, difficulty, peaceful } from './modes.ts';
 import { controlTier, perkActive, tierAtLeast } from './land.ts';
 import { awayGuards, etaMinute, onTheRoad, sendRaid, squadHome, squadTrip, travelMinutes } from './night.ts';
-import { rivalGuardSpend, signatureRaids } from './rivalAi.ts';
+import { onGuard, rivalGuardSpend, signatureRaids } from './rivalAi.ts';
 import { dexHoldsTheLine, dexLesson, hasStory } from './story.ts';
 import { CREW_NAME, crewName } from './grandkid.ts';
 import { alert } from './alerts.ts';
@@ -584,11 +584,11 @@ export function garrisonHenchman(s: GameState, plotId: string, rng: Rng, i: numb
   const m = 1 + 0.1 * (kit.level - 1);
   const r = nextRandom(rng);
   const weapon: WeaponId = r < kit.weapons[0] ? 'fists' : r < kit.weapons[0] + kit.weapons[1] ? 'clubs' : 'hatchets';
-  return {
+  return onGuard(s, ps, { // rivals: from Act 5, Vera's elite Stewards stand guard (rivalAi.ts)
     id: `${rival}-def-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side: 'def',
     hp: (GUARD_BASE.hp + GEAR[kit.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
     nerve: GUARD_BASE.nerve, armor: GEAR[kit.gear].armor, weapon, // everyone starts at Nerve 50 (combat)
-  };
+  });
 }
 
 /** How a rival pays for its defenses: the rivals lane's Guard bucket (rivalAi.ts rivalGuardSpend), at its own prices. */

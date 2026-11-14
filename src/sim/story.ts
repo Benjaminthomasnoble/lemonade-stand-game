@@ -172,8 +172,10 @@ function inferAct(s: GameState): number {
 export function migrateStory(s: GameState): void {
   if (!s.story || !(s.story.act >= 1 && s.story.act <= ACTS.length)) s.story = { act: inferAct(s), since: s.day }; // older saves: from which climaxes are behind them
   if (hasStory(s) && s.endlessSince !== undefined && s.story.epilogue === undefined) s.story.epilogue = s.endlessSince;
-  // A save from before the scripted first chopper and ship: a tier that has made offers already had its first.
-  s.story.vip ??= { ...(s.lastOffer?.heli !== undefined ? { heli: '' } : {}), ...(s.lastOffer?.ship !== undefined ? { ship: '' } : {}) };
+  // A save from before the scripted first chopper and ship: a tier with an offer or order on the books already had its
+  // first. (vip.ts sets lastOffer the dawn a tier opens, before any call, so that alone is no sign of one.)
+  const had = (tier: 'heli' | 'ship') => [...(s.offers ?? []), ...(s.orders ?? [])].some((o) => o.tier === tier);
+  s.story.vip ??= { ...(had('heli') ? { heli: '' } : {}), ...(had('ship') ? { ship: '' } : {}) };
   if (s.guards.some((g) => g.name === 'Dex Moody')) s.story.dexJoined = true;
   if (s.story.bestDay === undefined && s.history.length) s.story.bestDay = Math.max(...s.history.map(dayProfit)); // older saves: the best day on the books
   migrateScenes(s);

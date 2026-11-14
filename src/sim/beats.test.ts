@@ -774,9 +774,27 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     expect(wind(dry)).toBe(0);
     const old = newGame(114); // an older save that had VIP offers already keeps its own
     delete old.story!.vip;
-    old.lastOffer = { heli: 3 };
+    old.lastOffer = { heli: 3, ship: 3 };
+    offer(old, 'heli');
+    old.orders.push({ ...offer(old, 'ship'), accepted: true });
+    old.offers.pop();
     migrateStory(old);
-    expect(old.story!.vip).toEqual({ heli: '' });
+    expect(old.story!.vip).toEqual({ heli: '', ship: '' });
+  });
+
+  it('an older save with its Pad up but no chopper call yet still gets the movie star', () => {
+    const s = act4(120);
+    s.reputation = 4;
+    const pad = site(s, 'helipad');
+    nextDawn(s); // the Pad's first dawn: vip.ts starts the tier's clock, and no chopper calls
+    expect(s.lastOffer?.heli).toBeDefined();
+    expect(s.offers.some((o) => o.tier === 'heli')).toBe(false);
+    delete s.story!.vip; // as a save from before the scripted first chopper
+    migrateStory(s);
+    expect(s.story!.vip).toEqual({});
+    s.lastOffer!.heli = s.day - VIP_MAX_GAP; // the chopper calls at the next dawn
+    nextDawn(s);
+    expect(s.offers.find((o) => o.tier === 'heli')).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, plot: pad });
   });
 });
 

@@ -19,8 +19,8 @@ function manor(s: GameState): string {
 }
 
 /** Below the sit-downs on an HQ card (hud.ts hqPanel): on the campaign's Sourwood Manor from Rank 9 in Act 5, the Big
- * Squeeze until its siege is done, then the Manor it left and `assault` (the HUD's Storm the HQ). Any other card keeps
- * `assault` as it is. */
+ * Squeeze until its siege is done, then the Manor it left and `assault` (the Raid Planner's HQ Assault). Any other card
+ * keeps `assault` as it is. */
 export function squeezePanel(s: GameState, id: RivalId, assault: string): string {
   if (id !== 'sourwood' || !squeezeOpen(s)) return assault;
   if (siegeDone(s)) return `<div class="cl-row wrap" data-testid="squeeze-manor"><span class="cl-note">The siege left:</span>${manor(s)}</div>${assault}`;

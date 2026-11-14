@@ -4,31 +4,35 @@
 // lesson shows it: it takes Lottie's Tip at each rank, answers the day calls, pours the best card, buys whatever pays back
 // fastest (land, stands, upgrades, fit-outs, Billboards, the VIP engine, buyouts, marketing, campaigns), borrows for a
 // buy that pays back inside the loan's term, keeps a share of its takings for security (a quarter at first, tapering as
-// the spec's does: guards and their weapons and padding, Clubhouses, fences by bulk order and by hand), sets district
-// policies, haggles, raids rival stands at night after Squawk has circled them, and on the Big Squeeze's siege nights
-// mans the plots the Corkboard names and stays home. The run is then read against the spec's targets: rank days and
+// the spec's does: guards and their weapons and padding, Clubhouses, fences by bulk order and by hand), promotes its
+// Level 3 guards, leaves the bell to Dex's Auto-Defend, sets district policies, haggles (in the Evening too, before an
+// HQ Assault), raids rival stands at night after Squawk has circled them, storms a Weakened rival's HQ with its
+// strongest squad, and on the Big Squeeze's siege nights mans the plots the Corkboard names, sends everyone else to a
+// Clubhouse reserve in reach of them and stays home. The run is then read against the spec's targets: rank days and
 // Domination, income by stage, security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the
 // pacing chart.
 //   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N] [--keep DIR]
 // prints the report (tools/sim-report.ts; --jobs N plays the runs in N child processes and prints the same report,
 // --keep DIR keeps the played runs for a sweep to pick up). Pure: no DOM, no clock, no files.
 import {
-  acceptOrder, approveRepair, auctionOf, auctionPlots, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
+  acceptOrder, approveRepair, auctionOf, auctionPlots, autoRepairReserve, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
   buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
-  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
+  canBuyPerimeter, canBuyPlot, canCallBigSqueeze, canEquip, canFactionBuyout, canFitSpec, canHire, canHoldFirm, canPlotBuyout, canPromote, canRaid, canRebuild, canRunCampaign, canUpgradeStand,
   costPerCup, dealShortfallPerDay, DISTRICT_CAMPAIGNS, districtControl, districtPolicy, equip, expectedCups, FACILITIES, factionBuyout, factionBuyoutPrice, fillPosts, fitSpec,
-  gameOver, GEAR, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
+  gameOver, GEAR, guardFighter, guardReady, haggle, haggleAsk, haggles, haggling, hasBuilding, HELI_SIZES, hireGuard, HOURLY_TRAFFIC, hqOdds, hqPlot, isVip, isWrecked, keepSqueezing, LAVENDER_LOT, LOADING_PER_DAY, LOAN, loanLimit, loanPayment, MAJORITY, mapDistricts, nearbyPlots,
   netWorth, newGame, newStand, OPEN, openStand, ORDER_TIERS, PERIMETERS, pickRecipe, placeBid, planRaid, playerStands, PLOT_BY_ID, plotBuyout, postedAt, postGuard, postsFor,
-  plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
+  plotBuyoutPrice, plotOnMap, plotPrice, PLOTS, plotType, policyOn, priceCeiling, pricingOn, promote, raidOdds, RAID_RANK, RANKS, rebuildCost, rebuildStand,
   repairCost, rivalsInPlay, rosterCap, runBulk, runCampaign, salePrice, setPolicy, setPrice, setSweetness, SHIP_SIZES, siegeTargets, sleepUntilDawn, SPEC_SLOTS, SPECIALIZATIONS, specIn, specSlots,
   SQUAD_CAP, STAND_LEVELS, STAND_RANK_GATE, standCost, standLevel, successScore, tickMinute, TIPS, upgradeStand, WEAPONS, yourDays,
-  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type GearId, type Order, type OrderTier,
-  type RivalId, type SpecId, type Stand, type TipId, type WeaponId, type Weather,
+  type BattleReport, type CampaignId, type Difficulty, type DistrictCampaignId, type DistrictId, type FacilityKind, type GameState, type GearId, type Guard, type Order, type OrderTier,
+  type RivalId, type SpecId, type Specialty, type Stand, type TipId, type WeaponId, type Weather,
 } from '../src/sim/economy.ts';
+import { AUTO_DEFEND_ID, autoDefendOn, setAutoDefend } from '../src/sim/autodefend.ts';
 import { answerCall, callChoices, CALLS, liveCall, type DayCall } from '../src/sim/calls.ts';
-import { clubhouseSite } from '../src/sim/clubhouse.ts';
+import { clubhouses, clubhouseSite, clubOf, waitAt } from '../src/sim/clubhouse.ts';
 import { finishFight } from '../src/sim/fight.ts';
 import { campaignDays, pickTip, tipHand } from '../src/sim/perks.ts';
+import { reserveMinutes } from '../src/sim/reinforce.ts';
 import { gullScout, isScouted, pierTarget } from '../src/sim/scouting.ts';
 import { taught } from '../src/sim/story.ts';
 import { canSaveTemplate, saveTemplate, templateFor, templates } from '../src/sim/templates.ts';
@@ -166,9 +170,9 @@ export function bestTip(cards: readonly TipId[]): TipId {
 }
 
 /** What the player did with each system, all run: the report prints it. `lapsed`: day calls nobody answered (a call on a
- * stand knocked down mid-day lapses on its own). `kits`: weapons and padding bought; `siege`: siege days it manned the
- * named plots. */
-export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk', 'kits', 'siege'] as const;
+ * stand knocked down mid-day lapses on its own). `kits`: weapons and padding bought; `promoted`: guards given a specialty;
+ * `assaults`: HQ Assaults planned; `bells`: bells Dex's Auto-Defend rang; `siege`: siege days it manned the named plots. */
+export const PLAYED = ['tips', 'cards', 'calls', 'lapsed', 'campaigns', 'specs', 'billboards', 'loans', 'policies', 'firm', 'gull', 'templates', 'bulk', 'kits', 'promoted', 'assaults', 'bells', 'siege'] as const;
 export type Played = Record<(typeof PLAYED)[number], number>;
 const nonePlayed = (): Played => Object.fromEntries(PLAYED.map((k) => [k, 0])) as Played;
 
@@ -503,7 +507,8 @@ function reserve(s: GameState): number {
 
 /** Spend the security money: guards up to the beds, their weapons and padding, and a Clubhouse when they're full (from
  * Dex's lesson, Day 4), fences (from the defense lesson, Day 3: a bulk order round every bare plot from Rank 3, then
- * each stand's next by hand), and the posts filled, a siege's named plots last. */
+ * each stand's next by hand), and the posts filled, a siege's named plots last. From Rank 4 Dex's Auto-Defend is on,
+ * so he rings the bell at a raid's warning, and Level 3 guards are promoted (promotions). */
 function security(s: GameState, bot: Bot): void {
   const w = typical();
   const spend = (what: string, f: () => boolean) => {
@@ -546,16 +551,52 @@ function security(s: GameState, bot: Bot): void {
   }
   for (const p of best) fillPosts(s, p.id);
   if (holdTheSiege(s)) bot.played.siege++;
+  if (taught(s, 'crew')) {
+    if (!autoDefendOn(s) && setAutoDefend(s, true)) bot.log?.('        Auto-Defend on'); // a switch from Rank 4
+    promotions(s, bot);
+  }
+}
+
+/** A guard's weight in a fight they set out for at night: HP through their padding's armor, times Hit and Chop (crew's
+ * guardFighter: level, weapon, trait and specialty). */
+const power = (g: Guard) => { const f = guardFighter(g, 'att', true); return (f.hp / (1 - f.armor)) * (f.hit + f.chop); };
+/** Guards strongest first, a Captain ahead of everyone (his lead lifts the whole side). */
+export const strongest = (gs: readonly Guard[]) =>
+  [...gs].sort((a, b) => Number(b.specialty === 'captain') - Number(a.specialty === 'captain') || power(b) - power(a));
+
+/** Promotions, free and for good, each to a Level 3 guard without one: a Captain from Rank 6 (Captains don't stack), the
+ * strongest who can take it; Wreckers for the HQ squad (the strongest SQUAD_CAP); and from Rank 4 a Lookout on a post. */
+export function promotions(s: GameState, bot: Bot): void {
+  const up = (g: Guard | undefined, sp: Specialty) => {
+    if (!g || !promote(s, g.id, sp)) return;
+    bot.played.promoted++;
+    bot.log?.(`        promoted: ${g.name}, ${sp}`);
+  };
+  const can = (sp: Specialty) => s.guards.filter((g) => canPromote(s, g.id, sp).ok);
+  if (!s.guards.some((g) => g.specialty === 'captain')) up(strongest(can('captain'))[0], 'captain');
+  const squad = new Set(strongest(s.guards).slice(0, SQUAD_CAP(s.rank)).map((g) => g.id));
+  for (const g of can('wrecker')) if (squad.has(g.id)) up(g, 'wrecker');
+  if (!s.guards.some((g) => g.specialty === 'lookout')) up(can('lookout').find((g) => g.post && !squad.has(g.id)), 'lookout');
 }
 
 /** A Big Squeeze siege day (squeeze.ts): every post on the plots the Corkboard names for tonight filled, the most seasoned
- * guards first, from the reserve and the plots it didn't name. Returns how many guards moved. */
+ * guards first, from the reserve and the plots it didn't name. Only the siege strike comes tonight (threat.ts), so
+ * everyone else waits in a Clubhouse reserve that reaches a named plot, for the bell Dex's Auto-Defend rings at the
+ * strike's warning (reinforce.ts): at their own Clubhouse if it reaches one, else at the one that reaches the most (the
+ * nearest on a tie). Returns how many guards moved onto the named plots. */
 export function holdTheSiege(s: GameState): number {
   const targets = siegeTargets(s).filter((id) => s.plots[id]?.owner === 'player');
   const named = new Set(targets);
   const free = s.guards.filter((g) => guardReady(s, g) && !(g.post && named.has(g.post))).sort((a, b) => b.level - a.level);
   let moved = 0;
   for (const id of targets) while (postedAt(s, id).length < postsFor(s, id) && free.length) if (postGuard(s, free.shift()!.id, id)) moved++;
+  const reach = (club: string | null) => (club ? targets.filter((id) => reserveMinutes(s, club, id) !== null) : []);
+  const minutes = (club: string) => reach(club).reduce((a, id) => a + reserveMinutes(s, club, id)!, 0);
+  const best = clubhouses(s).map((p) => p.id).sort((a, b) => reach(b).length - reach(a).length || minutes(a) - minutes(b))[0];
+  for (const g of free) {
+    if (reach(clubOf(s, g)).length) postGuard(s, g.id, null);
+    else if (best && reach(best).length) waitAt(s, g.id, best);
+  }
   return moved;
 }
 
@@ -611,14 +652,17 @@ function setStands(s: GameState, bot: Bot): void {
   }
 }
 
-/** Faction Buyouts of Weakened rivals the cash covers. Brock and Tilly sign at their price; Juni and Preston haggle:
- * open at the offer and hold firm once (they come down to their price, or walk out till tomorrow, sorer for it), and
- * after a walk-out shake on their counter. */
-export function buyouts(s: GameState, bot: Bot): void {
+/** Faction Buyouts of Weakened rivals the cash covers, past what Morning Prep keeps back for the day's stock and bills.
+ * Brock and Tilly sign at their price; Juni and Preston haggle: open at the offer and hold firm once (they come down to
+ * their price, or walk out till tomorrow, sorer for it), and after a walk-out shake on their counter. `evening`: the
+ * Evening's sit-down, before the HQ Assaults (the diner is open till night), with the hagglers only: the day's stock is
+ * sold, so the cash need only cover the price and dawn's bills (wages, and a loan payment falling due: autoRepairReserve). */
+export function buyouts(s: GameState, bot: Bot, evening = false): void {
   for (const id of rivalsInPlay(s)) {
-    if (!s.rivals[id].alive) continue;
+    if (!s.rivals[id].alive || (evening && !haggles(id))) continue;
     const price = factionBuyoutPrice(s, id);
-    if (price === null || !canFactionBuyout(s, id).ok || price > s.cash - reserve(s)) continue;
+    const cash = s.cash - (evening ? autoRepairReserve(s) : reserve(s));
+    if (price === null || !canFactionBuyout(s, id).ok || price > cash) continue;
     if (!haggles(id)) { if (factionBuyout(s, id)) bot.log?.(`        Faction Buyout: ${id} for ${money(price)}`); continue; }
     if (!haggling(s, id) && !haggle(s, id, 'offer')) continue;
     if (!bot.firm.has(id)) {
@@ -629,7 +673,7 @@ export function buyouts(s: GameState, bot: Bot): void {
       continue;
     }
     const ask = haggleAsk(s, id);
-    if (ask <= s.cash - reserve(s) && factionBuyout(s, id)) bot.log?.(`        Faction Buyout: ${id} for ${money(ask)}, their counter`);
+    if (ask <= cash && factionBuyout(s, id)) bot.log?.(`        Faction Buyout: ${id} for ${money(ask)}, their counter`);
   }
 }
 
@@ -796,22 +840,28 @@ function playDay(s: GameState, bot: Bot): void {
   if (s.calls?.day === s.day) bot.played.lapsed += s.calls.list.filter((c) => c.picked === -1).length;
 }
 
-/** The Evening: fix up, set the security money aside, and send a squad out tonight: at a Weakened rival's HQ, or at the
- * rival stand it's likeliest to beat once Squawk has circled it (Gull Flight). From Rank 6 the squad is saved as a raid
- * template, and a template whose guards are all ready goes out again. On a siege night nobody goes out. */
+/** The Evening: fix up, set the security money aside, sit down with a Weakened haggler (buyouts), and send a squad out
+ * tonight: at a Weakened rival's HQ, or at the rival stand it's likeliest to beat once Squawk has circled it (Gull
+ * Flight). From Rank 6 the squad is saved as a raid template, and a template whose guards are all ready goes out again.
+ * On a siege night nobody goes out. */
 export function evening(s: GameState, bot: Bot): void {
   fixUp(s);
   const b = s.today.books ?? {};
   bot.sec += securityCut(s.day) * ((b.sales ?? 0) + (b.orders ?? 0)) + (b.wages ?? 0) + (b.repairs ?? 0); // rows: − out (hires and kits came off as bought)
+  buyouts(s, bot, true); // Juni and Preston at Dot's Diner before their HQ is stormed
   if (s.rank < RAID_RANK || siegeTargets(s).length) return;
   const ready = s.guards.filter((g) => guardReady(s, g)).sort((x, y) => Number(!!x.post) - Number(!!y.post)); // the reserve first
-  // A Weakened rival's HQ: an HQ Assault from the Raid Planner tonight, with a full squad, when its odds are good.
-  const full = ready.slice(0, SQUAD_CAP(s.rank)).map((g) => g.id);
+  // A Weakened rival's HQ: an HQ Assault from the Raid Planner tonight, with a full squad of the strongest guards, posted
+  // or not, when its odds are good.
+  const full = strongest(ready).slice(0, SQUAD_CAP(s.rank)).map((g) => g.id);
   for (const id of rivalsInPlay(s)) {
     const hq = hqPlot(id).id;
     if (full.length < SQUAD_CAP(s.rank) || !s.rivals[id].alive || !canRaid(s, hq, full, 'hq').ok) continue;
     const odds = hqOdds(s, id, full, true, ODDS_RUNS);
-    if (odds >= RAID_ODDS && planRaid(s, hq, full, 'hq', 'tonight')) { bot.log?.(`        HQ Assault on ${id} tonight (${Math.round(odds * 100)}%)`); return; }
+    if (odds < RAID_ODDS || !planRaid(s, hq, full, 'hq', 'tonight')) continue;
+    bot.played.assaults++;
+    bot.log?.(`        HQ Assault on ${id} tonight (${Math.round(odds * 100)}%)`);
+    return;
   }
   const saved = templates(s).find((t) => t.objective === 'smash' && t.guards.length >= 2 && t.guards.every((id) => ready.some((g) => g.id === id)));
   const squad = saved ? [...saved.guards] : ready.slice(0, Math.min(SQUAD_CAP(s.rank), Math.ceil(ready.length / 2))).map((g) => g.id);
@@ -872,6 +922,7 @@ export function playRun(opts: PacingOpts): RunResult {
     const today = s.day, t = s.today;
     sleepUntilDawn(s);
     finishFight(s);
+    bot.played.bells += t.auto?.[AUTO_DEFEND_ID]?.amount ?? 0; // Dex's bells, the day's and the night's
     const row = r.days[r.days.length - 1];
     // The night's raids on you, priced against the last week's takings.
     for (const rep of s.battles) {
@@ -1093,7 +1144,7 @@ export function formatChecks(title: string, checks: Check[]): string {
 }
 
 /** What the player did with each system over a run: "tips 6, cards 3, calls 79, lapsed 0, ...". */
-export const playedLine = (p: Played) => PLAYED.map((k) => `${k} ${p[k]}`).join(', ');
+export const playedLine = (p: Played) => PLAYED.map((k) => `${k} ${p[k] ?? 0}`).join(', '); // a run kept before a count was added reads 0
 
 /** One run of a report: a map (its seed) on a difficulty. */
 export interface PacingJob { seed: number; difficulty: Difficulty }

@@ -3,7 +3,7 @@ import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
   buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
-  canBorrow, canFactionBuyout, canPlotBuyout, canTruce, plotBuyout, repayLoan, LOAN, netWorth,
+  canBorrow, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, plotBuyout, repayLoan, LOAN, netWorth,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
@@ -11,7 +11,9 @@ import { rowAmount, stockValue } from './ledger.ts';
 import { CLOSE, LAVENDER, LESSON_DAY } from './balance.ts';
 import { openLavender } from './auction.ts';
 import { grantPage } from './recipes.ts';
-import { clubhouseSite } from './clubhouse.ts';
+import { clubhouseSite, reserveAt } from './clubhouse.ts';
+import { autoDefendOn } from './autodefend.ts';
+import { bellParty } from './reinforce.ts';
 import { buildClubhouse, canBuildClubhouse, postedAt, postGuard, welcomeDex } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
 import { TIP_IDS } from './perks.ts';
@@ -19,7 +21,7 @@ import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
   bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, milestones, morning, newBot, pacingPlan, pacingReport,
-  pickAnswer, playRun, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, TIP_ORDER, type PacingJob, type RunResult,
+  pickAnswer, playRun, promotions, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, strongest, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -902,6 +904,87 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     const bot = newBot();
     evening(s, bot);
     expect(s.raids.filter((r) => r.attacker === 'player')).toEqual([]);
+  });
+
+  it('sends everyone a siege night leaves off its named plots to a Clubhouse in reach, with Auto-Defend on for the bell', () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 130;
+    s.rank = 9;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    postGuard(s, dex.id, null); // in the reserve
+    const [named, far, club] = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).slice(0, 3).map((p) => p.id);
+    for (const id of [named, far, club]) give(s, id);
+    s.plots[named].stand = newStand(3); // a Kiosk: 3 posts
+    s.plots[far].stand = newStand(5); // 6 posts
+    s.plots[club].facility = { kind: 'clubhouse', level: 1 };
+    s.plots[LOTTIES_CORNER].stand!.level = 4; // a Lemon Shack: 4 posts
+    const hire = (level: number, post: string | null) => { s.guards.push({ ...dex, id: `g${s.nextId++}`, name: `Guard ${s.nextId}`, level, post }); };
+    hire(1, named);
+    [5, 5, 4, 4, 2, 2].forEach((l) => hire(l, far));
+    hire(3, null);
+    s.squeeze = { posted: 129, called: 130, nights: 0, held: 0, lost: 0, targets: [LOTTIES_CORNER, named] };
+    const bot = newBot();
+    expect(autoDefendOn(s)).toBe(false);
+    morning(s, bot);
+    expect(autoDefendOn(s)).toBe(true); // Dex rings the bell when the strike is warned
+    expect([postedAt(s, LOTTIES_CORNER).length, postedAt(s, named).length]).toEqual([4, 3]); // every named post filled
+    expect(postedAt(s, far)).toEqual([]); // no raid comes there tonight
+    expect(reserveAt(s, club)).toHaveLength(2); // the other two wait for the bell
+    expect(bellParty(s, named).flatMap((b) => b.guards)).toEqual(reserveAt(s, club));
+    expect(bot.played.siege).toBe(1);
+  });
+
+  it('promotes a Captain, Wreckers for the HQ squad and a Lookout on a post, and storms an HQ with its strongest', () => {
+    const s = newGame(REFERENCE_SEED);
+    s.day = 60;
+    s.rank = 6;
+    welcomeDex(s);
+    const dex = s.guards[0];
+    postGuard(s, dex.id, null); // in the reserve
+    const [a, b] = PLOTS.filter((p) => p.district === 'maple' && p.type === 'street' && !s.plots[p.id].owner).slice(0, 2).map((p) => p.id);
+    for (const id of [a, b]) { give(s, id); s.plots[id].stand = newStand(3); } // Kiosks: 3 posts each
+    s.plots[LOTTIES_CORNER].stand!.level = 4; // 4 posts
+    const hire = (level: number, post: string | null, kit = false) => {
+      s.guards.push({ ...dex, id: `g${s.nextId++}`, name: `Guard ${s.nextId}`, level, post, ...(kit ? { weapon: 'hatchets', gear: 'pro' } : {}) });
+      return s.guards[s.guards.length - 1];
+    };
+    const posts = [LOTTIES_CORNER, LOTTIES_CORNER, LOTTIES_CORNER, LOTTIES_CORNER, a, a, a, b];
+    const strong = posts.map((p) => hire(5, p, true)); // on posts, kitted out
+    const look = hire(3, b); // Level 3, on a post, not in the HQ squad
+    const weak = [hire(2, null), hire(1, null)]; // the reserve: an Evening that took the reserve first would take them
+    const bot = newBot();
+    promotions(s, bot);
+    expect(strong[0].specialty).toBe('captain'); // the strongest Level 3+ at Rank 6
+    expect(strong.slice(1).map((g) => g.specialty)).toEqual(strong.slice(1).map(() => 'wrecker'));
+    expect(look.specialty).toBe('lookout');
+    expect([dex, ...weak].map((g) => g.specialty)).toEqual([undefined, undefined, undefined]); // under Level 3
+    expect(bot.played.promoted).toBe(9);
+    promotions(s, bot);
+    expect(bot.played.promoted).toBe(9); // for good: nobody twice
+    expect(strongest([look, ...weak, ...strong.slice().reverse()]).slice(0, 2)).toEqual([strong[0], strong[7]]); // the Captain leads
+    s.rivals.blenders.outsoldDays = 99; // Weakened: the Blend Shack is open to an HQ Assault
+    s.phase = 'report';
+    evening(s, bot);
+    const assault = s.raids.find((r) => r.attacker === 'player' && r.target === hqPlot('blenders').id)!;
+    expect([...assault.guards!].sort()).toEqual(strong.map((g) => g.id).sort());
+    expect(bot.played.assaults).toBe(1);
+  });
+
+  it('sits down with a Weakened haggler in the Evening, before her HQ is stormed, once the cash covers her price', () => {
+    const s = newGame(1);
+    s.rank = 7;
+    s.phase = 'report';
+    s.rivals.coldbrew.outsoldDays = 99; // Weakened
+    s.rivals.coldbrew.grudge = 100; // too sore to come down: she walks out
+    s.cash = factionBuyoutPrice(s, 'coldbrew')! + 100;
+    const bot = newBot();
+    buyouts(s, bot); // Morning Prep keeps the day's stock money back
+    expect(bot.firm.size).toBe(0);
+    evening(s, bot);
+    expect(bot.firm.has('coldbrew')).toBe(true);
+    expect(bot.played.firm).toBe(1);
+    expect(s.rivals.coldbrew).toMatchObject({ alive: true, haggle: { out: true } }); // Juni walked out of Dot's Diner
   });
 
   it('holds a milestone to its target on the reference map and to the ten-map range on the others', () => {

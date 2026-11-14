@@ -28,6 +28,11 @@ const NAME: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis',
 const who = (f: FactionId) => (f === 'player' ? "Lottie's" : NAME[f as RivalId]);
 const place = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+/** The paper doesn't quote itself: a line other lanes file as "Bugle: ..." prints in its own words, as a sentence. */
+const ownWords = (line: string) => {
+  const t = line.replace(/^Bugle:\s*/, '');
+  return /[.!?]["']?$/.test(t) ? t : `${t}.`;
+};
 
 // ---------- what the paper remembers from one dawn to the next ----------
 
@@ -97,9 +102,9 @@ export function mediaAtDawn(s: GameState): void {
     lost: Object.keys(prev.owners).filter((id) => prev.owners[id] === rival && now.owners[id] !== rival),
   })).filter((m) => m.gained.length || m.lost.length) : [];
   const fought = new Set(s.battles.filter((b) => b.day >= s.day - 1).map(battleHeadline)); // the fights have their own stories
-  const call = bossBrief(s)?.replace(/^Bugle:\s*/, '');
+  const call = bossBrief(s);
   w.paper = {
-    ...now, ...(prev && s.rank > prev.rank ? { rankUp: s.rank } : {}), ...(call ? { call } : {}),
+    ...now, ...(prev && s.rank > prev.rank ? { rankUp: s.rank } : {}), ...(call ? { call: ownWords(call) } : {}),
     moves, fell: prev ? prev.alive.filter((r) => !s.rivals[r].alive) : [], wire: sinceClose(s).filter((l) => onTheWire(l) && !fought.has(l)).slice(-4),
     ...(prev?.scandal !== undefined ? { scandal: prev.scandal } : {}),
   };
@@ -240,6 +245,22 @@ function wireStory(line: string): Story | null {
   return { big: m[1].replace(/:$/, ''), small: m[2].split(/(?<=[.!?])\s/)[0].replace(/\.$/, ''), brief: line, rank: 3.6 };
 }
 
+/** A rival scheme on the wire (schemes.ts) is a rival move and can lead: a price war, an ad blitz, smear posters. Aimed
+ * at Lottie, it leads over a rival's new stand; its end and the rest print as briefs. */
+const SCHEME_LEADS: [RegExp, (m: RegExpExecArray) => [string, string]][] = [
+  [/^Price war! (.+ cut prices near [^.]+)/, (m) => ['PRICE WAR!', m[1]]], // the first sentence: its answer stays in the brief
+  [/^(.+ ad blitz in [^:]+|FizzCo's mascot blitzes [^:]+):/, (m) => ['AD BLITZ!', m[1]]],
+  [/^Smear posters plaster (.+?)\.?$/, (m) => ['SMEAR POSTERS!', `${m[1]} plastered`]],
+  [/^Every campus wall sneers/, () => ['SMEAR POSTERS!', 'Every campus wall sneers']],
+];
+function schemeStory(line: string): Story | null {
+  for (const [re, tapes] of SCHEME_LEADS) {
+    const m = re.exec(line);
+    if (m) { const [big, small] = tapes(m); return { big, small, brief: line, rank: 3.4 }; }
+  }
+  return null;
+}
+
 /** When the news is thin: the Market (its biggest move, or how it stands), the next festival however far off, and the
  * biggest rivals on the map. The first two are always there, so a quiet morning still prints 2 briefs. */
 function fillers(s: GameState): string[] {
@@ -306,8 +327,9 @@ function stories(s: GameState): { lead: Story[]; briefs: string[]; call?: string
     const f = festivalLine(s, id);
     briefs.push(`${f.name}, ${f.where}: ${f.when}.`);
   }
-  for (const line of paper?.wire ?? []) {
-    const story = wireStory(line);
+  for (const raw of paper?.wire ?? []) {
+    const line = ownWords(raw);
+    const story = schemeStory(line) ?? wireStory(line);
     if (story) lead.push(story); else briefs.push(line);
   }
   return { lead, briefs, ...(paper?.call ? { call: paper.call } : {}) };

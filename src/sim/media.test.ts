@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   BRAND_TIERS, bugleHeadline, CLOSE, costPerCup, EVENT_DEFS, eventsOf, fightRaid, frontPage, grantPage, HEAT_WAVE, liveEvent, LOTTIES_CORNER, lookAhead,
   marketLines, marketText, newGame, openStand, PLOT_BY_ID, PLOTS, playerStands, raidPartyFor, RANKS, registerEvent, simulateRestOfDay, sleepUntilDawn, tickMinute, weatherText,
+  nearbyPlots, newStand, startScheme,
   type EventDef, type GameState, type RivalId,
 } from './economy.ts';
 import { bugleSheet } from '../ui/bugle.ts';
@@ -41,6 +42,15 @@ const rivalPlot = (s: GameState, rival: RivalId) => PLOTS.find((p) => s.plots[p.
 const raid = (s: GameState, attacker: RivalId, target: string) =>
   fightRaid(s, { id: `t${s.nextId++}`, attacker, target, objective: 'smash', party: raidPartyFor(s, attacker), detected: true, eta: '23:00' }, true);
 const short = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
+/** A stand of Lottie's on a street next to one of the rival's: the front of its price war. */
+function besideRival(s: GameState, rival: RivalId): void {
+  for (const p of PLOTS) {
+    if (s.plots[p.id].owner !== rival || !s.plots[p.id].stand || p.type === 'hq') continue;
+    const q = nearbyPlots(p).find((x) => x.id !== p.id && (x.type === 'street' || x.type === 'prime') && s.plots[x.id].owner !== rival);
+    if (q) { s.plots[q.id] = { ...s.plots[q.id], owner: 'player', stand: newStand(1, 1) }; return; }
+  }
+  throw new Error(`no street next to ${rival}`);
+}
 
 const added: string[] = [];
 function testEvent(def: Partial<EventDef> & { id: string }): EventDef {
@@ -210,6 +220,34 @@ describe('the Morning Bugle', () => {
     expect(bugleHeadline(s)).toEqual(['OUT-OF-TOWNER!', 'A food truck rolls into Downtown']);
     expect(frontPage(s).briefs).toContain('Dot says the pie case is empty again.');
     expect(frontPage(s).briefs.join(' ')).not.toContain('Daytime gossip');
+  });
+
+  it("the paper doesn't quote itself, and a rival's scheme can lead it, over a rival's new stand", () => {
+    const s = newGame(4);
+    dawn(s, 10);
+    besideRival(s, 'blenders');
+    closeUp(s);
+    expect(startScheme(s, 'blenders', 'priceWar')).toBeTruthy(); // after closing: on the morning wire
+    sleepUntilDawn(s);
+    const paper = s.world!.paper!;
+    expect(paper.wire).toContain("Bugle: Price war! The Boardwalk Blenders cut prices near Lottie's. Answer: a Coupon Blitz or wait it out."); // as schemes.ts files it
+    delete paper.rankUp;
+    s.world!.fights = [];
+    const fizz = rivalPlot(s, 'fizzco');
+    paper.moves = [{ rival: 'fizzco', gained: [fizz], lost: [] }];
+    expect(bugleHeadline(s)).toEqual(['PRICE WAR!', "The Boardwalk Blenders cut prices near Lottie's"]);
+    expect(frontPage(s).briefs).toContain(`FizzCo Beverages open a stand at ${short(fizz)}.`);
+    expect(frontPage(s).briefs.join(' ')).not.toContain('Bugle:');
+    paper.moves = [];
+    paper.wire = ["Bugle: Price war! Hollis Sweet Tea Co. cut prices near Lottie's. Answer: a Coupon Blitz or wait it out."];
+    expect(bugleHeadline(s)).toEqual(['PRICE WAR!', "Hollis Sweet Tea Co. cut prices near Lottie's"]); // the small tape is its first sentence
+    // An ad blitz and smear posters lead too; a scheme's end prints as a brief, in the paper's own words.
+    paper.moves = [];
+    paper.wire = ["Bugle: FizzCo's mascot blitzes Downtown: +25% appeal at its stands", 'Bugle: The Boardwalk Blenders call off their price war'];
+    expect(bugleHeadline(s)).toEqual(['AD BLITZ!', "FizzCo's mascot blitzes Downtown"]);
+    expect(frontPage(s).briefs).toContain('The Boardwalk Blenders call off their price war.');
+    paper.wire = ["Bugle: Smear posters plaster Lottie's Corner"];
+    expect(bugleHeadline(s)).toEqual(['SMEAR POSTERS!', "Lottie's Corner plastered"]);
   });
 
   it('the next Bugle reports the moves of the boss who phoned yesterday, as its first brief', () => {

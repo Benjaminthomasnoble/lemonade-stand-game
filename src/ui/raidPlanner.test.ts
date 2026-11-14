@@ -71,6 +71,29 @@ describe('the Raid Planner', () => {
     expect(s.scouting![target]).toEqual(snap); // what Squawk saw stays pinned on the Corkboard
   });
 
+  it("scouted, a sprung Slick shows sprung and leaves the kit, as the odds leave it out till it's re-laid", () => {
+    const { s, target } = setup(88);
+    const { p } = planner();
+    for (const g of s.guards) p.squad.add(g.id);
+    const ps = s.plots[target];
+    Object.assign(ps, { defense: { tier: 1, fenceHp: PERIMETERS[0].hp, gadgets: [] }, garrison: 2, garrisonOut: undefined });
+    gullScout(s, target);
+    const odds = () => raidOdds(s, target, [...p.squad], 'smash', true);
+    const row = (html: string) => /<div class="cl-slots" title="([^"]*)">(.*?)<\/div>/.exec(html)!;
+    const none = odds();
+    ps.defense.gadgets = ['slick'];
+    expect(odds()).toBeLessThan(none); // armed, it trips raiders up
+    let [, tip, slots] = row(p.panel(s, target));
+    expect(slots).toContain('<span class="cl-slot full"><i data-art="slick"></i></span>');
+    expect(tip).toContain('Lemon-Peel Slick');
+    ps.defense.slickSprung = true; // gone off in a fight, waiting for its reset
+    expect(odds()).toBe(none);
+    [, tip, slots] = row(p.panel(s, target));
+    expect(slots).not.toContain('<span class="cl-slot full"><i data-art="slick">');
+    expect(slots).toContain('<span class="cl-slot" title="Lemon-Peel Slick: sprung"><i data-art="slick"></i></span>');
+    expect(tip).not.toContain('Lemon-Peel Slick');
+  });
+
   it('opening on a plot, Dex fills the squad; a swap sticks until it opens on another plot', () => {
     const { s, target } = setup(82);
     const other = raidTargets(s).find((t) => t.id !== target && s.plots[t.id].stand)!.id;

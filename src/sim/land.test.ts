@@ -955,6 +955,29 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(s.orders.map((o) => o.id)).toEqual(['small']);
   });
 
+  it('weighs a line by the orders its bottling fills in their window, as it takes them: a Jetty or a Helipad waits for the Works to grow', () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 80, rank: 7, cash: 1e9, reputation: 4.5 });
+    give(s, street(s, 'oldtown').id);
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    const field = PLOTS.find((p) => p.type === 'field')!;
+    const dock = PLOTS.find((p) => p.type === 'dock')!;
+    for (const p of [works, field, dock]) give(s, p.id);
+    s.plots[works.id].facility = { kind: 'bottling', level: 1 }; // 1,500 bottles a dawn
+    s.plots[field.id].facility = { kind: 'helipad', level: 1 }; // a Pad: chopper orders of 2,000-4,000
+    delete s.plots[dock.id].facility; // a bare Dock of yours
+    const jetty = (buys: { what: string }[]) => buys.some((b) => /Jetty/.test(b.what));
+    const helipad = (buys: { what: string }[]) => buys.some((b) => b.what === `grow ${field.name} to Helipad`);
+    // A Ship Contract's 10,000-20,000 bottles take more than 6 dawns of 1,500; a Helipad's 4,000-7,000, more than 3.
+    let buys = facilityCandidates(s, 1e8);
+    expect(jetty(buys)).toBe(false);
+    expect(helipad(buys)).toBe(false);
+    s.plots[works.id].facility = { kind: 'bottling', level: 2 }; // 4,000 a dawn fills them
+    buys = facilityCandidates(s, 1e8);
+    expect(jetty(buys)).toBe(true);
+    expect(helipad(buys)).toBe(true);
+  });
+
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
     const s = newGame(REFERENCE_SEED);
     const lot = street(s, 'maple').id;

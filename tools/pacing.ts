@@ -433,15 +433,27 @@ function starsGain(s: GameState, stars: number, w: Weather): number {
 }
 
 /** The VIP engine's average day: the bottles you make, sold best-paying first (ships and Supply Deals, then choppers, then
- * Caterer Trucks) to what the offers ask for and your Pier and Pad can load, less a bottle's cost each. Rough: offers
- * come and go, and a tier waits for its rank and stars. `ware`: a Warehouse stands (the Caterer Trucks' gate). */
+ * Caterer Trucks) to what the offers ask for and your Pier and Pad can load, less a bottle's cost each. An offer counts
+ * only if takeOrders would take it, filled inside its window as yourDays counts it: no bottles on hand, `bottles` more
+ * at each dawn after the call, the Pier's or Pad's daily rate aboard (a Caterer Truck takes its order at once), and a
+ * Supply Deal only when the bottling covers its days. So a bigger Pad's or Pier's bigger orders wait for the bottling to
+ * grow. Rough: offers come and go, a rival may outbid you, and a tier waits for its rank and stars. `ware`: a Warehouse
+ * stands (the Caterer Trucks' gate). */
 function vipDay(s: GameState, bottles: number, heli: number, ship: number, ware = lineLevel(s, 'warehouse') > 0): number {
   const open = (t: OrderTier) => s.rank >= ORDER_TIERS[t].rank && s.reputation >= ORDER_TIERS[t].stars;
-  const asked = (t: OrderTier, size: [number, number]) => (open(t) ? (ORDER_TIERS[t].chance * (size[0] + size[1])) / 2 : 0);
-  const deal = ship >= 3 && open('deal') ? ORDER_TIERS.deal.size[0] / ORDER_TIERS.deal.days : 0; // a Supply Deal's bottles over its weeks
+  /** A tier's bottles a day: its calls a day at their average size (sizes fall evenly across `lo`-`hi`), counting only
+   * the calls no bigger than its window fills at `rate` aboard a day. */
+  const asked = (t: OrderTier, [lo, hi]: [number, number], rate = Infinity) => {
+    const { chance, days } = ORDER_TIERS[t];
+    const top = Math.min(hi, (days - 1) * bottles, days * rate);
+    return !open(t) || top < lo ? 0 : hi > lo ? (chance * (top * top - lo * lo)) / (2 * (hi - lo)) : chance * lo;
+  };
+  const perDay = ORDER_TIERS.deal.size[0] / ORDER_TIERS.deal.days; // a Supply Deal's bottles over its weeks
+  const deal = ship >= 3 && open('deal') && bottles >= perDay ? perDay : 0;
+  const pier = ship ? LOADING_PER_DAY.pier[ship - 1] : 0, pad = heli ? LOADING_PER_DAY.helipad[heli - 1] : 0;
   const lines: [number, OrderTier][] = [
-    [ship ? Math.min(asked('ship', SHIP_SIZES[ship - 1]) + deal, LOADING_PER_DAY.pier[ship - 1]) : 0, 'ship'],
-    [heli ? Math.min(asked('heli', HELI_SIZES[heli - 1]), LOADING_PER_DAY.helipad[heli - 1]) : 0, 'heli'],
+    [ship ? Math.min(asked('ship', SHIP_SIZES[ship - 1], pier) + deal, pier) : 0, 'ship'],
+    [heli ? Math.min(asked('heli', HELI_SIZES[heli - 1], pad), pad) : 0, 'heli'],
     [ware && bottles > 0 ? asked('caterer', ORDER_TIERS.caterer.size) : 0, 'caterer'], // Caterer Trucks need a Bottling Works and a Warehouse
   ];
   let left = bottles, day = 0;

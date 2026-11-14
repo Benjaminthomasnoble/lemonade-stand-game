@@ -6,6 +6,7 @@ import {
   migrateDamage, migrateSave, newGame, newStand, openStand, ownedPlots, PLOT_BY_ID, PLOTS, plotsAtDawn, prepPreview, applyRaidDamage,
   raidPartyFor, rebuildCost, rebuilding, rebuildStand, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stormAtOpen, tickMinute,
   toggleAutoRepair, upgradeStand, type GameState, type Raid, type RivalId, type SupplyId,
+  FAILED_ORDER_STARS, PICKUP_MINUTE, pickupsAt, pickupsAtClose, stock, type Order,
 } from './economy.ts';
 import { finishFight, startFight, watchFights } from './fight.ts';
 import { nextRandom } from './rng.ts';
@@ -1020,6 +1021,27 @@ describe('the Health Inspection', () => {
     expect(s.news.some((n) => n.startsWith('HEALTH INSPECTION'))).toBe(false);
     expect(inspectionOn(s)).toBeUndefined(); // called off: nothing left on the calendar
     expect(expectedPassersby(s, id)).toBeGreaterThan(0);
+  });
+
+  it("a stand the inspector closed pours no Local Order cups, and the order falls through on its deadline", () => {
+    const s = newGame(77);
+    s.rank = 6;
+    const st = s.plots[LOTTIES_CORNER].stand!;
+    Object.assign(st, { level: 3, price: 1, recipe: 'classic', pitcherCups: 0 });
+    st.inventory.lemons = [{ qty: 400, day: s.day, unitCost: 0.2 }];
+    st.inventory.sugar = 1000;
+    st.inventory.ice = 2400; // plenty for the 300 cups
+    const o: Order = { id: 'lo', tier: 'local', client: 'the Maple Row Block Party', qty: 300, pay: 450, due: s.day, expires: s.day, plot: LOTTIES_CORNER, accepted: true };
+    s.orders.push(o);
+    s.plots[LOTTIES_CORNER].inspected = { day: s.day, fault: 'damaged' }; // failed this morning's visit
+    s.phase = 'open';
+    s.minute = PICKUP_MINUTE.local;
+    expect(pickupsAt(s)).toEqual([]);
+    expect(o.loaded ?? 0).toBe(0);
+    expect(stock(st, 'lemons')).toBe(400);
+    pickupsAtClose(s);
+    expect(s.orders).not.toContain(o);
+    expect(s.news.at(-1)).toBe(`Order fell through: ${o.client}. The health inspector closed its stand. (−${FAILED_ORDER_STARS} star)`);
   });
 
   it('no visit to a stand that has fallen since it was named', () => {

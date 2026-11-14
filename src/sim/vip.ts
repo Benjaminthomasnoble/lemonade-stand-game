@@ -11,7 +11,7 @@ import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
 import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
-import { buildingInvested, restoreHp } from './damage.ts';
+import { buildingInvested, inspectorClosed, restoreHp } from './damage.ts';
 import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf } from './recipes.ts';
 import { rivalStars } from './demand.ts';
 import { perkActive } from './land.ts'; // land: the Full Control perks
@@ -667,13 +667,14 @@ export const localStand = (s: GameState, o: Order) => o.plot ?? kiosks(s)[0];
 /** A Local Order's cups, an hour before closing on each day until it's due: poured at its stand from the stand's own stock
  * (the pitcher on hand, then whole pitchers from its lemons and sugar, each cup with its ice, an ice machine making what
  * the cooler lacks), the cup and the card's extra paid as they go, and the client paying for each cup. The order goes in
- * the day's books, not the stand's till: a Shakedown takes a day of its walk-in profit (loot.ts). A Warehouse will top
- * the stand up (seam: no Warehouse on main yet). */
+ * the day's books, not the stand's till: a Shakedown takes a day of its walk-in profit (loot.ts). A Warehouse in its
+ * district tops the stand up on its market runs, the owed cups included (warehouse.ts, automation.ts restockGoal). A stand
+ * the health inspector closed pours nothing until dawn. */
 function pour(s: GameState, o: Order): Pickup | null {
   const plot = localStand(s, o);
   const ps = plot ? s.plots[plot] : undefined;
   const st = ps?.owner === 'player' ? ps.stand : null;
-  if (!plot || !st || st.wrecked) return null;
+  if (!plot || !st || st.wrecked || inspectorClosed(s, ps!)) return null; // land: closed until dawn
   const n = pitcherNeeds(st);
   const ice = RECIPES[st.recipe].icePerCup;
   const pitchers = Math.min(Math.floor(stock(st, 'lemons') / n.lemons), n.sugar > 0 ? Math.floor(st.inventory.sugar / n.sugar) : Infinity);
@@ -707,6 +708,7 @@ function cupsWhy(s: GameState, o: Order): string {
   const st = plot && s.plots[plot].owner === 'player' ? s.plots[plot].stand : null;
   if (!st) return 'Its stand is gone.';
   if (st.wrecked) return 'Its stand was smashed.';
+  if (inspectorClosed(s, s.plots[plot!])) return 'The health inspector closed its stand.'; // land
   return `Only ${(o.loaded ?? 0).toLocaleString('en-US')} of ${o.qty.toLocaleString('en-US')} cups were made in time.`;
 }
 

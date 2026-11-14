@@ -425,34 +425,87 @@ The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the referenc
 
 ### Threat and raids on the player (Classic)
 
-| Threat | Raids per week | Henchmen | Gear | Targets per raid | Shakedown share | Smash share |
-|---|---|---|---|---|---|---|
-| 1 | 1 | 2–3 | Fists | 1 | 100% | 0% |
-| 2 | 2 | 3–5 | Some clubs | 1 | 70% | 30% |
-| 3 | 3 | 5–8 | Clubs, lookouts | 1 | 40% | 60% |
-| 4 | 4 | 8–12 | Hatchets appear | 1–2 | 30% | 70% |
-| 5 (Syndicate) | 6 | 12–20, boss-led | Full kit | 2–3 | 0% | 100% |
+| Threat | Raids per week (base rate) | Raid nights a week (simulated) | Henchmen | Fists / clubs / hatchets | Padding | Lookouts | Targets per raid | Shakedown share | Smash share |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | About 5 | 2–3 | 100 / 0 / 0% | None | 0 | 1 | 100% | 0% |
+| 2 | 2 | About 4.3 | 3–5 | 70 / 30 / 0% | None | 0 | 1 | 70% | 30% |
+| 3 | 3 | 4.3–4.6 | 5–8 | 30 / 70 / 0% | Padded Vest | 1 | 1 | 40% | 60% |
+| 4 | 4 | 2.5–5.0 | 8–12 | 0 / 40 / 60% | Pro Gear | 1 | 1 or 2 | 30% | 70% |
+| 5 (Syndicate) | 6 | — | 12–20, boss-led | 0 / 40 / 60% | Pro Gear | 2 | 2 or 3 | 0% | 100% |
 
-Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1). No raids on Nights 1–2. The first raid on you, Brock's two Smoothie Bros, comes on Night 3 (or the night your first Kiosk opens, if sooner) for a Shakedown; any fence or guard bounces it, undefended it takes the till. After it, the quiet-night cap: at most 2 raid-free nights in a row on Classic (Laid Back 4, Cutthroat 1, Custom 2), then a rival who may raid you comes. Most raids come at night. A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. In the simulation no raid cost more than 0.8 days of income.
+Threat comes from Rank alone: Ranks 1–2 → 1, 3–4 → 2, 5–6 → 3, 7–8 → 4, 9–10 → 5 (Laid Back −1, minimum 1, so its Threat stops at 4). Henchmen fight at the Threat's level (see Guards by level), each with a weapon drawn from the odds. Threat 4's Pro Gear and three hatchets in five, the lookouts and Threat 4's even odds of one or two targets are placeholders. Threat 5 brings the same kit a level up, with a boss at its head (see Raids); in the game it is nearly always the Syndicate's.
+
+The base rate sets each night's draw (see Raids), and two rules raise what you meet: the quiet-night cap (after the first raid, at most 2 raid-free nights in a row on Classic) and raid rumors (an answered rumor brings its raid on a night the draw gave none). The simulated column is raid nights a week from Night 3 in twelve Classic campaigns with every rumor answered, from all your defenses holding to none holding (a raid you beat keeps that boss away for 3 nights). Two raids can share a night: Threat 4's 2.5–5.0 raid nights brought 2.8–6.2 raids. With every rumor left to lapse it was about 3 raid nights a week at Threats 1–3 and 2.4–3.9 at Threat 4. Laid Back gave 3.5–3.6, 3.2–3.5 and 1.6–4.0 at Threats 1–3; Cutthroat 5.3, 5.1–5.3, 5.4 and 4.3–5.7 at Threats 1–4. Whether answered rumor nights should count against the week's rate is an open call for Ben.
+
+A Shakedown takes about 1 day of that stand's profit; a Smash leaves the stand Wrecked until rebuilt. On three simulated maps the worst raid after Day 6 cost 0.58, 0.72 and 1.38 days of income, each a Threat 1 Shakedown on Days 7–12, when one or two stands make the day's takings; the average raid cost under 0.1 day. This line used to say no simulated raid cost more than 0.8 days: whether to soften those early Shakedowns or restate the line is an open call for Ben.
+
+### Raids
+
+How the raids on you are planned and sent, night by night. Values marked (placeholder) are the build's own where the spec gives none.
+
+| Rule | Value |
+|---|---|
+| The first nights | No raids on Nights 1–2 |
+| The first raid | Night 3: two Smoothie Bros with bare fists (30 HP, Hit 2, Chop 1, Nerve 20), spotted as they set out, for a Shakedown at the plot Day 3's rumor named (Lottie's Corner), else Dex's post, else your weakest plot. Brock sends them if he may raid you, else the next rival who may. Any fence or guard bounces them, unless your guards Fall Back; undefended, they take the till. It is never a Sabotage |
+| How many a night | A draw around a seventh of the week's rate, so two raids can come on one night: Raids per week by Threat (the Syndicate's 6 once it stands) × the difficulty's raid frequency |
+| The quiet-night cap | After the first raid, at most 2 raid-free nights in a row on Classic (Laid Back 4, Cutthroat 1, Custom 2). The next night one raid comes from a rival who may raid you, paid for or not |
+| Raid rumors | From Day 4 a day call names a gang and one of your plots on about 40% of warm or hot business days and 43% of the others; never on a siege day, and only when some gang may raid you. Any answer makes that gang's raid on that plot the night's first, sent free if its Strike can't pay; it adds a raid only on a night the draw gave none. Left to lapse, the rumor does nothing |
+| Who may raid you | Any rival still in, unless it is in a Truce with you (made on Day D: no raids through the night of D+6) or backing off. Respect: a boss whose raid you beat on night D sits out nights D+1 to D+3 on Classic (Laid Back 5 nights, Cutthroat 1, Custom 1–5) |
+| Who sends it, and where | The keenest boss whose Strike can pay, at its weakest valuable plot near its turf (see Attention and Grudge). Two raids in one night go for different plots while you have another |
+| A raid on several plots | Still one raid: its party is dealt round the targets, each part warned and fought on its own, the boss with the first |
+| Setting out | Between 20:15 and 01:45, in 15-minute steps (placeholder), from the rival's plot nearest the target (its HQ if it holds no other), so rival raids land between 21:15 and 04:45. Only Delivery Raids come by day |
+| Travel | 1–3 game hours by straight-line distance, in 5-minute steps: across the whole bay (about 350 map units) takes 3 hours, Maple Row to the Boardwalk about 1.5 (the scale is a placeholder). Your own raids and a rival's help travel the same way; Ring the Bell's reserve has its own times (see Commands and help) |
+| Spotting a raid | Rolled as it sets out, at the plot's detection chance (see Gadgets). Each of the raid's lookouts takes 10% off, never below 5% on their own (placeholder); Cold Brew's Night Shift takes 25% more at night |
+| The warning | A spotted raid warns as it sets out, with its ETA. One not spotted warns at the difficulty's minimum notice before it hits (30 / 15 / 5 game minutes on Laid Back / Classic / Cutthroat; Custom 5–30). Juni's Grapevine brings either 1 game hour sooner, and Lottie's Light Sleeper tip 30 minutes more |
+| Rival Sabotage | From your Rank 4, once the first raid is behind you, below Threat 5: a rival raid on one of your stands is a Sabotage 40% of the time from Cold Brew and 10% from each other rival (placeholders). It goes for the stock instead of the till, and the stand can't sell its next day. A Syndicate strike never is one |
+| Rivals raiding each other | Of all rival raids, 30% go at other rivals at Threats 1–3 and 15% at Threats 4–5 (the Threat 5 share is a placeholder), none once the Syndicate forms: a nightly draw at that share ÷ (1 − share) × your week's rate, each boss at most once a night, Grudge picking who goes and where. Always a Smash, always spotted, landing at 02:00 (placeholder), with the next Threat's crew (Threat 3 at most). The boss pays from Strike, and the target's Grudge toward the raider rises 10 |
+| Delivery Raids | From Threat 3, never in Peaceful: one 30% roll for each pad or pier trip (placeholder), a Caterer Truck loading at its Warehouse being a trip of its own. The keenest boss whose Strike can pay sends a crew of the Threat's size after the trip's biggest load, which waits until the raid is fought; they set out as loading starts and hit inside its 2-hour window. If they win, the load is lost and the order fails (see Contracts). In the campaign the movie star's first chopper is FizzCo's to hit, with no roll, if FizzCo may raid you. During Act 5's Harbor Fest, while the Syndicate stands, its keenest member goes after every helicopter and pier trip, paying what it can |
+| The Syndicate | In the campaign it forms 14 days into Act 5 on every difficulty. In Sandbox and Endless it forms at Threat 5, at Threat 4 on Cutthroat and at Rank 9 on Laid Back (placeholder); never in Peaceful. Every rival still in joins (an Out-of-Towner never does), led by Vera while she's in, else the biggest boss left. From then on rivals stop raiding each other, and every raid on you is a Syndicate strike: 6 a week × the difficulty's raid frequency, the first on the night it forms |
+| A Syndicate strike | A Threat 5 raid whatever the Threat: 12–20 henchmen in Pro Gear, boss-led, always a Smash, on 2 or 3 plots. The sender's Strike pays, else the leader's or any member's; a rumored strike, or the quiet-night cap's, comes free when none can |
+| The Big Squeeze | Campaign only: from Rank 9 in Act 5 you call it at Morning Prep, while Vera is in and not in a Truce with you (calling it forms the Syndicate if it hasn't formed). 7 siege nights follow. Each siege dawn names 2 or 3 of your plots, the ones Vera wants most the likeliest, and that night one strike comes at them whatever any Strike holds, the sender's boss with the first part. No other raid on you comes that night, and no raid rumor that day |
+| The siege's score | Each night you hold every target (guards who Fall Back don't hold) cuts 500 HP off Sourwood Manor's Gate (5,000 down to 1,500) and benches one Yard henchman. Each plot you lose adds a Steward to the Boss Room, on top of Old Money's 3 (placeholder). After the seventh night the Manor opens for an HQ Assault, Weakened or not |
+
+### Time and nights
+
+| Rule | Value |
+|---|---|
+| Speeds | Pause, 1×, 2× and 3× |
+| Business hours (08:00–20:00) | 17.5 real seconds a game hour at 1×: a business day takes 3.5 real minutes |
+| The Evening | Once the Ledger is folded the night starts by itself after 6 real seconds at 1×, 2 at 3× (placeholder). With Auto-continue on, it doesn't wait for the Ledger |
+| The night (20:00–07:00) | 8 real seconds a game hour at 1×: about 88 real seconds for the whole night. A night with no raid on you and none of yours out is skipped to dawn |
+| Fast raid nights (on by default) | A raid night runs at 12× until something comes in: a raid warning, a card from tonight on the feed or a squad of yours setting out. Your own raid's trip, fight and walk home play at the speed you chose, and picking a speed ends the 12× until dawn |
+| Fight speed | 1 game minute a real second, at any speed: while a fight plays on screen, and for the last stretch of a raid warning, inside the difficulty's minimum notice of landing (30, 15 or 5 real seconds), even after an auto-pause. Before that, a spotted raid's longer warning runs at the speed you chose |
+| Auto-pause | Major alerts pause by default, each with its own switch: a raid warning, a Delivery Raid, a VIP client's first arrival, going In the Red and a rank-up perk pick. The raid warning's switch starts from the difficulty: on in Laid Back, Classic and Custom (Custom's is a placeholder), off in Cutthroat |
+| Morning Prep | Waits for you. With Auto-continue on (off by default), it opens the stands after 5 real seconds (placeholder) |
+| Alert feed | Holds 8 cards; past that, the oldest card that isn't a major alert goes (placeholder). Small news (a sell-out, a note, a regular pickup with no show) melts after 90 game minutes (placeholder); a raid warning stays while its raid is out, other big news until you dismiss it or dawn comes |
+| Raid countdown | A woodblock tick each beat (0.375 s, a quarter note at 160 BPM), from 3 s after the Raid Incoming stinger until the raid lands, twice as often in its last 15 game minutes. No ticks while paused, during a live fight or during a VIP show |
+| Calm Audio | On by default in Laid Back, off in the others: no countdown ticks, and the Raid Incoming stinger at 0.4 volume (about −8 dB) |
+| The Day's end card | With a raid on you planned tonight it says "Raiders on the way tonight", with one fix at the first raid's plot: post a ready guard from the reserve there, else buy its next fence. It names no gang, party or time; the warning card does, once they set out |
+| Saves | The last 3 dawns autosave in turn, and 3 manual slots (placeholder). The run also saves each game hour of the day and night, so it can resume mid-day |
 
 ### Difficulty
 
-| Setting | Laid Back | Classic | Cutthroat |
-|---|---|---|---|
-| Raid frequency | ×0.5 | ×1 | ×1.5 |
-| Threat | −1 (min 1) | ±0 | ±0 |
-| Syndicate forms at | Threat 5 | Threat 5 | Threat 4 |
-| Respect cooldown | 5 days | 3 days | 1 day |
-| Minimum raid warning | 30 game minutes | 15 game minutes | 5 game minutes (5 real seconds at fight speed) |
-| A lost raid leaves your stand | Busted (repair 10%) | Wrecked (rebuild 15%) | Wrecked (rebuild 15%) |
-| Lottie's Cookie Jar | Always | Once per act | Never |
-| Customer traffic | ×1.0 | ×1.0 | ×1.0 |
-| Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 |
-| Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 |
-| Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) |
-| Simulated raids on you in a campaign (ten maps) | 5–23 | 20–47 | 41–77 |
+| Setting | Laid Back | Classic | Cutthroat | Custom |
+|---|---|---|---|---|
+| Raid frequency | ×0.5 | ×1 | ×1.5 | ×0.5 to ×1.5 in steps of 0.1 (placeholder); starts at ×1 |
+| Threat | −1 (min 1; it stops at 4) | ±0 | ±0 | ±0 (placeholder) |
+| Most raid-free nights in a row | 4 | 2 | 1 | 2 |
+| Syndicate forms at | Rank 9 (its Threat stops at 4; placeholder) | Threat 5 | Threat 4 | Threat 5 |
+| Delivery Raids from (Threat 3) | Rank 7 | Rank 5 | Rank 5 | Rank 5 |
+| Respect cooldown | 5 days | 3 days | 1 day | 1 to 5 days in steps of 1 (placeholder); starts at 3 |
+| Minimum raid warning | 30 game minutes | 15 game minutes | 5 game minutes (5 real seconds at fight speed) | 5 to 30 game minutes in steps of 5 (placeholder); starts at 15 |
+| Raid warnings auto-pause | On | On | Off | On (placeholder) |
+| Calm Audio | On | Off | Off | Off |
+| A lost raid leaves your stand | Busted (repair 10%) | Wrecked (rebuild 15%) | Wrecked (rebuild 15%) | Your pick; starts Wrecked |
+| Lottie's Cookie Jar | Always | Once per act | Never | Your pick; starts Once per act |
+| The run can be lost | No | Yes | Yes | Yes, unless the Cookie Jar is Always (placeholder) |
+| Customer traffic | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
+| Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
+| Simulated pace (days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 | — |
+| Simulated Domination day (reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) | — |
+| Simulated raids on you in a campaign (twelve runs, every rumor answered) | 46–79 | 76–119 | 115–166 | — |
 
-Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms in Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act.
+Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms 14 days into Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act. Laid Back's Threat stops at 4, so its Syndicate forms at Rank 9, where Classic reaches Threat 5. Delivery Raids need Threat 3, which Laid Back reaches only at Rank 7: before then, the movie star's first chopper draws no FizzCo raid and no tip from Juni. Custom starts from Classic's numbers. The raid counts are from twelve simulated campaigns with business days skipped, from all your defenses holding to none holding; with every rumor left to lapse they were 32–48, 62–96 and 101–137. Every run's first raid came on Night 3.
 
 ### Contracts
 

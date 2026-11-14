@@ -102,8 +102,11 @@ function rewrite(s: GameState, o: Order, change: () => string): void {
 /**
  * The campaign's first chopper and first ship offers are the spec's: rewritten the morning they come in. Each calls you
  * alone (no rival bid on it), so its lesson isn't lost to a bid: FizzCo, bidding hardest, would win most first choppers.
+ * Both are Act 4's beats: a Pad or a Jetty up earlier (Rank 6 opens the Pad while the Grindhouse may still stand) takes
+ * ordinary offers, bids and all, until the act begins.
  */
 function firstOffers(s: GameState): void {
+  if (s.story!.act < 4) return;
   const v = (s.story!.vip ??= {});
   for (const o of s.offers) {
     if (o.tier === 'heli' && v.heli === undefined) {

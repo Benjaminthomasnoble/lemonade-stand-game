@@ -899,6 +899,36 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     nextDawn(s);
     expect(s.offers.find((o) => o.tier === 'heli')).toMatchObject({ client: MOVIE_STAR, qty: CHOPPER_BOTTLES, plot: pad });
   });
+
+  it("a Pad up in Act 3 takes ordinary choppers, bids and all; the movie star and Juni's pad tip wait for Act 4", () => {
+    const s = act4(121);
+    s.story!.act = 3; // Rank 6 opens the Pad while the Grindhouse still stands
+    s.rivals.coldbrew.alive = true;
+    s.reputation = 4;
+    const pad = site(s, 'helipad');
+    const heli = offer(s, 'heli', pad);
+    heli.bid = { rival: 'fizzco', pay: Math.round(heli.pay * 0.85), days: 1 };
+    const ship = offer(s, 'ship');
+    beatsAtDawn(s);
+    expect(heli).toMatchObject({ client: "the Governor's Gala", qty: 2500, bid: { rival: 'fizzco' } });
+    expect(ship.client).toBe('an overseas export deal'); // the Regatta is Act 4's too
+    expect(s.story!.vip?.heli).toBeUndefined();
+    expect(s.story!.vip?.ship).toBeUndefined();
+    expect(scriptedRaider(s, heli)).toBeNull(); // FizzCo takes the usual roll
+    // Act 4: the Grindhouse fell and Juni informs on FizzCo. The next chopper is the movie star's, with her tip.
+    s.story!.act = 4;
+    s.rivals.coldbrew.alive = false;
+    s.offers = [];
+    const next = offer(s, 'heli', pad);
+    beatsAtDawn(s);
+    expect(next.client).toBe(MOVIE_STAR);
+    expect(s.story!.vip?.heli).toBe(next.id);
+    expect(acceptOrder(s, next.id)).toBe(true);
+    stockBottles(s, orderRecipe(next), next.qty);
+    storyAfterAct(s);
+    expect(s.phone!.queue.some((c) => c.who === 'coldbrew' && c.text === LINES.juniPad && c.tip)).toBe(true);
+    expect(scriptedRaider(s, next)).toBe('fizzco');
+  });
 });
 
 describe('Acts 4 and 5: FizzCo falls, tea at the Manor, the finale', () => {

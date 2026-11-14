@@ -428,7 +428,7 @@ Scorcher, Hot and Warm keep their bands in every season. Cloudy, Rainy and Storm
 | Rank | Title | Success Score threshold ($) | Target day | Simulated Classic day | Range on ten maps |
 |---|---|---|---|---|---|
 | 1 | Sidewalk Squeezer | 0 | 1 | 1 | 1 |
-| 2 | Corner Hustler | 1,500 | 4 | 4 | 3–4 |
+| 2 | Corner Hustler | 1,500 | 5 | 4 | 3–4 |
 | 3 | Block Boss | 6,000 | 10 | 9 | 8–12 |
 | 4 | Neighborhood Name | 25,000 | 22 | 19 | 15–34 |
 | 5 | District Big Shot | 100,000 | 37 | 41 | 26–48 |
@@ -438,7 +438,40 @@ Scorcher, Hot and Warm keep their bands in every season. Cloudy, Rainy and Storm
 | 9 | Bay Kingpin | 125,000,000 | 125–135 | 135 | 123–138 |
 | 10 | The Big Squeeze | 200,000,000 | About 150–160 (after victory) | 157 | 148–162 |
 
-The first L2 upgrade lands on Day 4. Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
+The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
+
+These targets are under review, and the simulated days predate the first L2 and Rank 2 moving to their Day 5 lessons: the new pacing sweep reports to /mnt/project-files/gameplay-build/integration/pacing-sweep.txt.
+
+### Lottie's Tips
+
+Each rank-up from Rank 2 deals a hand of 3 tips you don't hold; you keep one for good, and the other two go back in the pool. A tip that needs a higher rank waits for it, and the tips about raids and guards are never dealt in Peaceful. Seven are canon's numbers; the other seventeen are placeholders. Canon's eighth example, opening at 07:00, isn't in the pool: 07:00 is Morning Prep.
+
+| Tip | What it does | Dealt |
+|---|---|---|
+| Sweet Talk | +10% price tolerance: your stands' ceilings ×1.1 | Any rank |
+| Long Run | A stand's campaign (Sandwich-Board Kid, Free Sample Day) runs 50% more days, rounded up | Any rank |
+| Good Dirt | Open land 10% cheaper | Any rank |
+| Firm Handshake | Plot and Faction Buyouts 15% cheaper | From Rank 4 |
+| Chicken Soup | A knocked-out guard of yours is back a day sooner | Any rank; not in Peaceful |
+| Goose Whistle | Your Guard Geese stun twice | Any rank; not in Peaceful |
+| Porch Light | +20% HP for your defenders at night, the guards Ring the Bell brings included | Any rank; not in Peaceful |
+| Fresh Paint | +5% curb appeal at your stands (placeholder) | Any rank |
+| Chatty Regulars | +5% foot traffic at your stands (placeholder) | Any rank |
+| Cool Cellar | Lemons keep 2 days longer (placeholder) | Any rank |
+| Gold Stars | Lottie's Goals pay 50% more (placeholder) | Any rank |
+| Sharp Pencil | An auction you win costs 10% less (placeholder) | From Rank 3 |
+| Handy Hands | Repairs to your buildings 25% cheaper (placeholder) | Any rank |
+| Steady Pour | Your Bottling Works fill 10% more a day (placeholder) | From Rank 5 |
+| Let It Go | Rivals' Grudge toward you cools twice as fast (placeholder) | Any rank |
+| Low Profile | Bosses pay you 20% less Attention (placeholder) | Any rank |
+| Pep Talk | Guards on post +10 Nerve (placeholder) | Any rank; not in Peaceful |
+| Light Sleeper | Raid warnings 30 game minutes sooner (placeholder) | Any rank; not in Peaceful |
+| Nosy Neighbors | +10% detection on raids on your plots, before the cap (placeholder) | Any rank; not in Peaceful |
+| Lockbox | Shakedowns of your stands take 25% less (placeholder) | Any rank; not in Peaceful |
+| Elbow Grease | Your raiders chop 15% harder (placeholder) | From Rank 3; not in Peaceful |
+| Quick Study | Your guards earn 50% more fight XP (placeholder) | Any rank; not in Peaceful |
+| Help Wanted | One more recruit at each Hiring Hall refresh (placeholder) | Any rank; not in Peaceful |
+| Family Rates | Hiring 25% cheaper (placeholder) | Any rank; not in Peaceful |
 
 ### Threat and raids on the player (Classic)
 
@@ -692,7 +725,64 @@ Rivals keep stars by the same rules: their own drift from their stands, and the 
 | Reputation | 3.0 stars |
 | Crew and defenses | None (Dex joins on Day 4) |
 | Starting Net Worth | About $525 |
-| Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand |
+| Day 3 | Lottie sells you her side lot by the Corner for $300 ($300 land, 300 passersby a day), an L1 table included: your second stand. The offer holds a week, through Day 9 (placeholder), and her table counts as $100 invested, like the Corner's |
+
+### Story
+
+The campaign's five acts are Lottie's Corner, Surf & Turf, Grounds for Revenge, Fields & Fizz and The Big Squeeze, and each ends on its climax. Sandbox and Endless have no acts, so anything that asks for one reads it from rank: Ranks 1–3 Act 1, Rank 4 Act 2, Ranks 5–6 Act 3, Ranks 7–8 Act 4, Ranks 9–10 Act 5.
+
+#### Lessons
+
+One system a day. Each lesson's buttons appear on its day; with lessons switched off, buttons follow rank alone.
+
+| Day | Lesson | Lottie's goal |
+|---|---|---|
+| 1 | Price, the story and the rivals; Lottie stocks your table | Sell out your first pitcher (10 cups) |
+| 2 | Recipes, the forecast, the Market and Auto-Restock | Match a recipe to the weather |
+| 3 | Threat lemons, the Picket Fence and Lottie's side lot; the first raid comes that night | Fence the Corner; run both stands with no sell-outs |
+| 4 | Guards: Dex Moody joins free | Station Dex for the night |
+| 5 | Upgrades and the Rank badge | Build the Wooden Stand |
+| 6 | Marketing | Paint your first sign |
+| 7 | Land: the Land Registry | Open a stand in Old Town |
+
+#### Lottie's Goals
+
+| Rule | Value |
+|---|---|
+| Goals | Three at a time: a short one, a medium one and a long one |
+| Reward | A share of the last 3 days' average sales, rounded: short 10% (at least $5), medium 25% (at least $20), long 50% (at least $50) (placeholders). Lottie's Gold Stars tip adds 50% |
+| Today's sales goal | 90% of the cups every stand should sell on the forecast, set at dawn, and never under a pitcher's 10 (the 90% is a placeholder) |
+| Grow Net Worth | 1.25× today's Success Score (placeholder) |
+| Top your best | 1.1× your best Success Score (placeholder) |
+
+Act 2's payback goals wait for Rank 3, when raids open, and Dex's push for a Clubhouse comes ahead of them.
+
+#### Beats and scenes
+
+| Beat | Rule |
+|---|---|
+| Scenes | Each runs under 60 seconds, and skipping one leaves its one-line recap. A recipe page won outright gets a short scene of 5 lines, 4.2 seconds a line (about 21 seconds) |
+| Who goes first | A boss's exit, then the dated scenes (the opening, the Steward, Dex), then story beats, then visits (Marisol, Sheriff Budd, Mayor Fontaine, Act 5's land freeze). A visit that misses its day doesn't count as seen |
+| Marisol's record day | A day's profit at least 10% over the best day so far (placeholder). Her first in the campaign is a visit the next Morning Prep; if a story beat takes that morning, she comes with the next record. After that it's her line in the day's news |
+| Preston's handshake (Act 3) | 3 days into Act 3, once Sit-downs open at Rank 4, FizzCo offers a Truce for the usual tribute. The offer stands for 3 Morning Preps (both placeholders) |
+| The night flight (Act 3) | The morning after Cold Brew's first Sabotage on you. With none 7 days into Act 3, Juni calls anyway (placeholder) |
+| The first chopper (Act 4) | A movie star's pool party: 4,000 bottles (Pink, if it's in your book) at $30, $120,000, offered to you alone with no rival bid. FizzCo hits its pickup if it may raid you (see Raids) |
+| The first ship (Act 4) | The Citrine Bay Regatta's flagship, at the tier's size and pay, offered to you alone. Before Act 4 a Pad or Jetty takes ordinary offers |
+| The Lavender auction (Act 5) | Opens the morning Act 5 begins, at Rank 8 (see Land, repairs and loans) |
+| Tea at the Manor (Act 5) | The morning the Lavender auction's gavel falls, or 5 days into Act 5 at the latest (placeholder) |
+| Victory | The Bay paints itself yellow from Lottie's Corner over 5.5 real seconds before the ending plays (placeholder) |
+| Endless cameos | A beaten boss drops by every 5 days, the beaten bosses taking turns (placeholder) |
+| Names | The Grandkid's name and the crew's: up to 20 characters (placeholder) |
+
+#### Phone calls
+
+| Call | When |
+|---|---|
+| A boss in a mood | Their Grudge toward you jumps 8 or more at once (a raid of yours adds 8 or 20) or climbs past 30, spoiling for a fight; or their Attention on you, beyond Threat, is up 0.5 or more from one dawn to the next (all placeholders) |
+| After a raid | A boss who hit you last night calls at dawn, gloating, or sore that you held |
+| Story calls | Brock on Day 1, once your stand opens; Vera each time Threat rises; Tilly each time you take another plot in The Groves; Preston as Act 4 opens and Vera as Act 5 opens (Juni's first call follows Act 3's night flight) |
+
+Story calls outrank tonight's raid warnings, which outrank a boss in a mood. The Bugle's morning brief and Juni's Endless tips read the same Grudge line of 30.
 
 ### Other rule numbers
 

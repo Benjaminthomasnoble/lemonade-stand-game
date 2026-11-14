@@ -478,7 +478,7 @@ A damaged stand sells at its HP share of capacity: at 60% HP it pours 60% of its
 | Busted | Laid Back only: a raid that would have Wrecked your stand | Closed | Repair: 10% of what was invested |
 | Wrecked | A Smash takes HP to 0 (Classic and Cutthroat) | Closed: a neat plank pile | Rebuild: 15% of what was invested, booked by the end of the day after the smash. Otherwise the plot goes For Sale at the second dawn |
 
-Repairs and rebuilds happen overnight: approve one by the end of the Evening, and the stand opens at dawn as good as new. A stand smashed at night therefore misses a day of sales on top of the bill. Auto-Repair (Rank 3) books them for you at closing, most urgent first, and Morning Prep previews the bill. It keeps back tomorrow's wages and any loan payment due at dawn, so a fix the rest of your cash can't cover waits on the Day's end card for you.
+Repairs and rebuilds happen overnight: approve one by the end of the Evening, and the stand opens at dawn as good as new. A stand smashed at night therefore misses a day of sales on top of the bill. Auto-Repair (Rank 3) books them for you at closing, most urgent first, and Morning Prep previews the bill. It keeps back tomorrow's wages and any loan payment due at dawn, so a fix the rest of your cash can't cover waits on the Day's end card for you. In a district on the Fortify policy (Rank 7), Auto-Repair looks after every plot, skipped ones included; a plot's skip comes back when the policy ends or the plot leaves it.
 
 A Kiosk ($4,050 invested) at half HP costs $304 to repair; Wrecked, it costs $608 to rebuild.
 
@@ -628,7 +628,7 @@ An eliminated rival's plots go to a Fire Sale: First Dibs for you at 75% of land
 
 ### Plot Buyouts
 
-From Rank 4, a Sit-down at Dot's Diner can buy one rival plot at its owner's price. That price is 2.5× land value in the rival's home district and 2× elsewhere. Grudge and personality nudge it: Tilly, won over at the County Fair, sells a Field at 1.5×.
+From Rank 4, a Sit-down at Dot's Diner can buy one rival plot at its owner's price. That price is 2.5× land value in the rival's home district and 2× elsewhere. Grudge and personality nudge it: Tilly, won over at the County Fair, sells her Fields at 1.5×.
 
 Faction Buyouts, Weakened rivals and Fire Sales are covered in Rivals.
 
@@ -641,9 +641,9 @@ VIP clients land where the open space is: helicopters need a Field plot and ship
 | Field | 6 plots in The Groves; Hilltop's polo lawn | Hollis Sweet Tea Co.; the Sourwood Family holds the polo lawn | The helipad line: Pad (Rank 6, $50,000), Helipad (Rank 7, $200,000), Heliport (Rank 8, $800,000). Or a Lemon Grove (Rank 5, $25,000): +5% traffic at all your stands, up to 2 Groves |
 | Dock | 4 plots in The Harbor; Hilltop's yacht marina | FizzCo Beverages; the Sourwood Family holds the marina | The pier line: Jetty (Rank 7, $250,000), Pier (Rank 7, $750,000), Cargo Terminal (Rank 8, $3,000,000) |
 
-Helicopter VIPs (Rank 6, 3.5 stars) pay $12 a bottle and ships (Rank 7, 4.0 stars) $15. Mega Contracts need a Heliport and a Cargo Terminal, so the biggest orders need both kinds of land (see VIP clients). Bottles come from Bottling Works on Industrial lots, and The Harbor has open ones.
+Helicopter VIPs (Rank 6, 3.5 stars) pay $30 a bottle and ships (Rank 7, 4.0 stars) $40. Mega Contracts need a Heliport and a Cargo Terminal, so the biggest orders need both kinds of land (see VIP clients). Bottles come from Bottling Works on Industrial lots, and The Harbor has open ones.
 
-Fields and Docks draw almost no foot traffic, so they earn through facilities, not stands. Buy them out (a $60,000 Groves Field costs $150,000 at Tilly's home-turf price), wait for a Fire Sale, or win an auction. Then defend them: from Threat 3, rivals launch Delivery Raids on pads and piers during loading.
+Fields and Docks draw almost no foot traffic, so they earn through facilities, not stands. Buy them out (a $60,000 Groves Field costs $150,000 at Tilly's home-turf price), wait for a Fire Sale, or win an auction. Then defend them: from Threat 3, rivals launch Delivery Raids on pads and piers during loading, and on a Caterer Truck at your Warehouse.
 
 **Fun check:** Land is the score you can see: every deed tints a tile yellow, and finishing a district pays a perk. Borders keep the next move readable, buyouts and Vacant Lots give peaceful routes, and Laid Back never loses a plot to a raid.
 
@@ -653,7 +653,7 @@ Every plot defends itself with one perimeter, 2 gadget slots (3 at L4 and up) an
 
 ### The perimeter ladder
 
-Each tier replaces the last at full price, and its HP is the chopping a breach takes. Every raid on the plot, won or lost, adds a repair of 10% of the fence's price. Each night the bill is paid from your cash and the fence is whole by dawn, and a Lemon-Peel Slick that went off is re-laid for $25. Short of cash, both wait (the news says where) until you Patch the fence or Re-lay the Slick by hand. From Rank 3, a plot on Auto-Repair's skip list keeps its chopped fence and sprung Slick for you to fix the same way.
+Each tier replaces the last at full price, and its HP is the chopping a breach takes. Every raid on the plot, won or lost, adds a repair of 10% of the fence's price. Each night the bill is paid from your cash and the fence is whole by dawn, and a Lemon-Peel Slick that went off is re-laid for $25. Short of cash, both wait (the news says where) until you Patch the fence or Re-lay the Slick by hand. From Rank 3, a plot on Auto-Repair's skip list keeps its chopped fence and sprung Slick for you to fix the same way, unless a Fortify policy holds it.
 
 | Tier | Name | Unlock | Cost ($) | HP | Effect | Repair after a raid ($) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -903,7 +903,7 @@ From Rank 4, any boss will meet you at Dot's Diner; a Smooth Talker negotiator g
 
 A rival is **Weakened** when it holds 40% or less of its peak plots, its Net Worth drops under 25% of yours, or your daily sales have been at least double theirs for 7 days in a row. The Corkboard stamps its photo, and only then can you assault its HQ or buy it out.
 
-A rival is eliminated when you capture its HQ, it accepts a Faction Buyout, or it stays bankrupt for 7 days. The boss's exit scene plays, the HQ becomes your **Trophy** building with a unique perk, and you recover their recipe page. Every plot it held goes to a **Fire Sale**: First Dibs for you at 25% off for 2 days, then an open auction.
+A rival is eliminated when you capture its HQ, it accepts a Faction Buyout, or it stays bankrupt for 7 days. The boss's exit scene plays, the HQ becomes your **Trophy** building with a unique perk, and you recover their recipe page. Every plot it held goes to a **Fire Sale**: First Dibs for you at 25% off for 2 days, then an open auction. A rival that falls in the Evening or at night starts the 2 days at the next dawn; one that falls by day counts that day as the first.
 
 Each Trophy brings one perk:
 
@@ -986,7 +986,7 @@ Threat, 1 to 5 sour lemons, follows your rank and sets how often rivals raid you
 | --- | --- | --- | --- | --- |
 | 1 | Ranks 1–2 | About 5 | 2–3 henchmen with fists; always a Shakedown | The first raid comes on Night 3 and bounces off any fence or guard |
 | 2 | Ranks 3–4 | About 4 | 3–5, some clubs; 30% Smash | Smash attempts begin |
-| 3 | Ranks 5–6 | About 4–5 | 5–8 with clubs, vests and a lookout; 60% Smash | Delivery Raids on VIP pickups; the music's tension layer |
+| 3 | Ranks 5–6 | About 4–5 | 5–8 with clubs, vests and a lookout; 60% Smash | Delivery Raids on VIP pickups and on Caterer Trucks at your Warehouse; the music's tension layer |
 | 4 | Ranks 7–8 | About 2.5–5 | 8–12 in Pro Gear, 6 in 10 with hatchets and the rest with clubs; 70% Smash | Raids can hit 2 plots at once; in Sandbox and Endless, Cutthroat's Syndicate forms |
 | 5 | Ranks 9–10 | The Syndicate's, below | 12–20 in the same kit, boss-led; all Smash on 2–3 plots | The Syndicate forms on Classic in Sandbox and Endless (on Laid Back at Rank 9); the campaign waits for Act 5 |
 
@@ -1027,13 +1027,13 @@ Offers arrive with the Morning Bugle and wait in the Order Book. Each card names
 | Supply Deals | Rank 8, 4.0 stars | Cargo Terminal | 200,000 bottles | 28 days | $30 a bottle | $6,000,000 | The first when the Cargo Terminal opens, then about 1 per 7 days |
 | Mega Contracts | Rank 9, 4.5 stars | Heliport, Cargo Terminal and 2 premium recipes | 100,000–150,000 bottles | 14 days | $100 a bottle | $10M–$15M | About 1 per 20 days |
 
-Local Orders and Caterer Trucks are the warm-up, filled from stands and the Warehouse. Once a pad or pier tier stands, its clients offer a job at least every 10 days, and the first Supply Deal arrives the day your Cargo Terminal opens. Each Supply Deal ships in 4 weekly loads of 50,000 bottles, paid $1.5M a load, and several can run at once if your bottling keeps up. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
+Local Orders and Caterer Trucks are the warm-up. A Local Order pours from its own stand at 19:00, and a Warehouse in that district tops the stand up for it at its last run. A Caterer Truck loads its bottles at your Warehouse: the one nearest your working stands, if you have several. Once a pad or pier tier stands, its clients offer a job at least every 10 days, and the first Supply Deal arrives the day your Cargo Terminal opens. Each Supply Deal ships in 4 weekly loads of 50,000 bottles, paid $1.5M a load, and several can run at once if your bottling keeps up. Harbor Fest brings extra helicopter and ship offers every Fall (see Events and the living world).
 
 ### Helicopter clients
 
 Helicopter VIPs need a Pad, the first Helipad tier, on a Field plot. Clients include a movie star's pool party, a tech mogul's rooftop launch, a celebrity wedding and a music festival VIP tent. Each delivered order adds 0.2 star, and a Pad pays for itself with its first order.
 
-Example, at the Helipad tier: a movie star wants 5,000 bottles of Pink for a pool party in 4 days. That order pays $150,000 and loads in one pickup.
+Example, at the Helipad tier: a celebrity wedding wants 5,000 bottles of Pink in 4 days. That order pays $150,000 and loads in one pickup. (The movie star's first chopper in Act 4 is a smaller job, 4,000 bottles, which a Pad can serve.)
 
 ### Ship clients
 
@@ -1062,19 +1062,21 @@ A Bottling Works fills bottles of any recipe you own. A bottle of Classic costs 
 
 | Building | Rank | Cost ($) | Plot | What it does |
 | --- | --- | --- | --- | --- |
-| Warehouse | 4 | 15,000 | Street or Industrial | Stores bottles and supplies; auto-supplies stands in its district |
+| Warehouse | 4 | 15,000 | Street or Industrial | Supplies your stands in its district and stores their sugar; Caterer Trucks load there |
 | Bottling Works L1 | 5 | 25,000 | Industrial | 1,500 bottles a day |
 | Bottling Works L2 | 6 | +100,000 | Industrial | 4,000 bottles a day |
 | Bottling Works L3 | 7 | +400,000 | Industrial | 12,000 bottles a day |
 | Lemon Grove | 5 | 25,000 | Field | +5% traffic at all your stands; up to 2 Groves count |
 
-Size the Works to your orders. An L1 keeps a Pad busy, ships want L2 or L3, and a Mega Contract can need about 10,700 bottles a day. A Warehouse banks bottles between pickups, and Industrial land lies only on the edges of The Harbor and Downtown.
+Size the Works to your orders. An L1 keeps a Pad busy, ships want L2 or L3, and a Mega Contract can need about 10,700 bottles a day. Bottles bank in one bay-wide store between pickups, with or without a Warehouse, and Industrial land lies only on the edges of The Harbor and Downtown.
+
+A Warehouse runs to the Market for the stands of yours in its district: every 15 minutes while they're open, it tops up any stand holding less than an hour's pour, and its last run before 19:00 also covers the cups a stand owes a Local Order. It keeps 5 days of those stands' sugar, bought on a day sugar sells at or under its normal price and handed out first on a dearer one, such as a Sugar Shortage. A stand's Auto-Restock switch opts it out.
 
 ### Pickups, risks and rivals
 
 Each pickup is a 2-hour window: a chopper lands or a ship docks and loads up to the facility's daily rate. The game pauses only for each client's first arrival, with a Watch button, and for Delivery Raid warnings; routine pickups just post an alert card. The pad or pier plot takes fences, gadgets and guards like any stand.
 
-From Threat 3, a rival may launch a Delivery Raid on the pad or pier during loading, with the usual warning. If the raiders overrun the pickup, the order fails. Rivals also bid for contracts, and the client weighs price, delivery time and Reputation; FizzCo, with the Harbor's Docks and bottling plant, bids hardest.
+From Threat 3, a rival may launch a Delivery Raid on the pad or pier during loading, with the usual warning: one roll, 30%, per trip, however many orders load on it. A Caterer Truck loading at your Warehouse is a trip of its own. The raid goes after the trip's biggest load, which waits while the fight plays out, and the other orders load in peace. If the raiders overrun the pickup, that order fails. During Act 5's Harbor Fest, while the Syndicate stands, its keenest member goes after every VIP trip, whatever its Strike money holds; a boss in a Truce or a Respect cooldown sits it out. Rivals also bid for contracts, and the client weighs price, delivery time and Reputation; FizzCo, with the Harbor's Docks and bottling plant, bids hardest.
 
 A failed or overrun order costs 0.3 star and the pay for bottles not yet loaded; earlier pickups stay paid. The star loss can cross a gate: at 3.6 stars, one failure leaves 3.3 and grounds helicopter offers until Reputation recovers.
 
@@ -1363,12 +1365,12 @@ Campus & Arts · Days 40–60 · Ranks 5–6. **Goal:** find out who keeps spoil
 
 The Groves, Downtown, The Harbor · Days 60–105 · Ranks 6–8. **Goal:** win Fields for a helipad and Docks for a pier, then topple FizzCo.
 
-1. **County Fair:** out-brew Tilly, and she sells you a Field at a friendly 1.5× value instead of her usual 2.5×. *Teaches Plot Buyouts.*
+1. **County Fair:** out-brew Tilly, and from then on she sells you her Fields at a friendly 1.5× value instead of her usual 2.5×. *Teaches Plot Buyouts.*
 2. **First chopper:** a movie star orders 4,000 bottles of Pink; Juni warns that FizzCo will hit the pad, and FizzCo hits its first pickup. *Teaches Delivery Raids.* Below Threat 3 (Laid Back at Rank 6), or while FizzCo keeps a Truce or sits out its Respect cooldown, nobody hits the pad; Lottie says only: "Have every bottle ready when it lands."
 3. **The lawyers:** a Cease-and-Desist arrives with a fruit basket and blocks your Downtown ads for 3 days. *Teaches Cease-and-Desists.*
 4. **First ship:** the Regatta flagship's horn plays the first 3 notes of Lottie's Theme; Lottie blames the wind. *Teaches ship contracts.*
 
-**Climax:** FizzCo Tower falls, by assault or hard-haggled buyout. Tilly can fall any time from Rank 7, or join the Syndicate.
+**Climax:** FizzCo Tower falls, by assault or hard-haggled buyout. Tilly can fall from Rank 7, or join the Syndicate, but in the campaign she waits for this act's County Fair: until its Taste-Off has run, she won't sell out, be stormed or go bust. Her days in the red keep counting, and if she is still broke she folds at the first dawn after the Fair.
 
 **Unlocks:** Sparkling and the FizzCo Tower Trophy.
 
@@ -1395,7 +1397,7 @@ You own the Bay, and the goal becomes Peak Success Score. The sign over Lottie's
 
 ### Recipe pages
 
-Each recovered page becomes a recipe card and a 20-second scene, and empty slots in Lottie's book show who holds the rest. Her shorthand ("a glug, a smidge") is why no boss ever got them right.
+Each recovered page becomes a recipe card, and empty slots in Lottie's book show who holds the rest. The two pages won outright, Strawberry at the Summer Fair and Lavender at the Hilltop auction, each get a 20-second scene of their own. A page won back from a fallen rival is named in that boss's exit scene, and the Secret Reserve opens in the finale. Her shorthand ("a glug, a smidge") is why no boss ever got them right.
 
 | Page | Held by | How it comes home |
 | --- | --- | --- |
@@ -1531,7 +1533,7 @@ A year is 4 seasons of 14 days, starting on Summer Day 1, so a campaign sees abo
 
 The Boardwalk swings hardest: ×1.5 in summer, ×0.4 in winter. Dawn forecasts are about 80% right, and the Radio Jingle (M3) adds a 2-day look ahead. Storms damage L1–L2 stands, which then need an overnight repair (see Running the business).
 
-Fairs host Taste-Offs, and festivals fill a district with its favorite crowd, such as students at Homecoming or joggers at the Marathon. Harbor Fest brings extra helicopter and ship offers. Election Day can change the Citation rules for a year, and Event Sponsorship (Rank 5) makes any festival your party (see Marketing).
+Fairs host Taste-Offs, and festivals fill a district with its favorite crowd, such as students at Homecoming or joggers at the Marathon: half its passersby are that crowd. A festival changes who walks by, not how many, so it brings no extra traffic of its own; Event Sponsorship adds the traffic. Harbor Fest brings extra helicopter and ship offers. Election Day can change the Citation rules for a year, and Event Sponsorship (Rank 5) makes any festival your party (see Marketing).
 
 ### Random events
 
@@ -1558,9 +1560,9 @@ The inspector's stand is named the day before, so a repair approved that Evening
 
 ### Taste-Offs
 
-Taste-Offs are non-violent duels at both summer fairs, even in Peaceful. Three judges each give a hint, such as "for the kids," "not too sweet" or "worth a little extra." You answer with a recipe card, a Sweetness setting and a price.
+Taste-Offs are non-violent duels at both fairs, the Summer Fair and the Fall County Fair, even in Peaceful. Three judges each give a hint, such as "for the kids," "not too sweet" or "worth a little extra." You answer with a recipe card, a Sweetness setting and a price.
 
-Each hint points at recipe match, Sweetness or price fit: the demand model in miniature. The winner, rivals included, gets +0.1 star and +20% traffic in that district for 7 days. The first year's Day 14 Summer Fair Taste-Off is Act 1's climax (see Narrative).
+Each hint points at recipe match, Sweetness or price fit: the demand model in miniature. The winner, rivals included, gets a $500 prize, +0.1 star and +20% traffic in that district for 7 days. The first year's Day 14 Summer Fair Taste-Off is Act 1's climax (see Narrative).
 
 ### The voice of the world
 
@@ -2183,7 +2185,7 @@ These calls shape the game and are Ben's to make. Each one says what the spec as
 2. **Is E10+ the right rating?** Brawls happen inside cartoon dust clouds and hatchets mostly chop fences, but the mob theme and hatchets put the game at the E10+ line. An E rating would likely mean clubs as the top weapon and softer raid names. Recommendation: keep E10+, as written.
 3. **Is about 20 hours the right campaign length?** The campaign aims for about 140–150 game days to victory, about 19–20 hours at 8 real minutes a day; the economy model's efficient player wins on Day 143 on Classic and on Day 126, about 17 hours, on Laid Back. A laid-back player may want a shorter arc. Recommendation: keep the full campaign and point shorter games to Sandbox's Small map (4 districts, 2 rivals), which already exists.
 4. **Should Rank 10 arrive before or after victory?** In the economy model, Domination lands on Day 143 and Rank 10 on Day 157 (148–162 across ten maps, after victory on every map), so the title rank becomes the first goal of Endless Summer. Landing it at victory would take a threshold of about $150M, barely above Rank 9's $125M, so the two ranks would arrive almost together. Recommendation: keep it after victory, and have Lottie name it as the next goal in the epilogue. Human players will run slower than the model's efficient player, so the builder should check Domination against its Day 140–150 target in playtests.
-5. **Do the story beats land on time?** Mostly, after the re-tune. Acts advance on their climax, and each rival's HQ opens at its own rank, from the Blend Shack at Rank 5 to FizzCo Tower at Rank 8. Dex pushes a Clubhouse early in Act 2, so the economy model's efficient player builds one by Day 19. On the reference map the Blend Shack falls on Day 42 and the Grindhouse on Day 61, closing Acts 2 and 3; Hollis Homestead falls on Day 79 and FizzCo Tower on Day 105, closing Act 4. The first chopper lands on Day 72 and the first ship docks on Day 87, both in Act 4, so the Jetty keeps its $250,000 price. The risk is a fast map: Hollis falls the day after Rank 7, so when Rank 7 comes by Day 69 she falls before the County Fair (Days 71–77). That happens on 2 of 10 Classic maps and on most Laid Back maps. Recommendation: keep the rank gates, check the beats in playtests, and if the Fair scene matters, keep Tilly from surrendering before the Fair.
+5. **Do the story beats land on time?** Mostly, after the re-tune. Acts advance on their climax, and each rival's HQ opens at its own rank, from the Blend Shack at Rank 5 to FizzCo Tower at Rank 8. Dex pushes a Clubhouse early in Act 2, so the economy model's efficient player builds one by Day 19. On the reference map the Blend Shack falls on Day 42 and the Grindhouse on Day 61, closing Acts 2 and 3; Hollis Homestead falls on Day 79 and FizzCo Tower on Day 105, closing Act 4. The first chopper lands on Day 72 and the first ship docks on Day 87, both in Act 4, so the Jetty keeps its $250,000 price. The risk was a fast map: Hollis fell the day after Rank 7, so when Rank 7 came by Day 69 she fell before the County Fair (Days 71–77), on 2 of 10 Classic maps and on most Laid Back maps. Settled: Tilly now waits for the Act 4 County Fair (see Act 4), and the rank gates stay; check the beats in playtests.
 6. **Barks or full voice acting?** The spec gives Lottie, Dex and the five bosses about 20 short barks each, with longer lines as text and Lemonese gibberish for crowds. Full voice acting for story scenes would add warmth but costs more and makes translation harder. Recommendation: barks and text, as written.
 7. **Online leaderboards in version 1?** High scores are local, and online boards are a stretch goal. They need a small server, which Ben's planned game platform could host, plus cheat checks. Recommendation: local only for version 1.
 8. **The four MVP calls in the Scope plan.** Recommendation: yes to all four. Add the Blend Shack assault so the small map can be won, show rival defenses openly until scouting arrives, count cups for MVP orders, and keep Cutthroat as a test setting.
@@ -2369,7 +2371,7 @@ Lemon, sugar and ice prices move ±20% a day at the Citrine Bay Market.
 | Mint Lemonade | 0.25 | +5% | Joggers, students; Campus & Arts, The Boardwalk |
 | Strawberry Lemonade | 0.32 | +10% | Kids, tourists; Maple Row, The Boardwalk |
 | Frozen Lemonade | 0.30 | +15% | The Boardwalk; Summer and heat waves |
-| Honey-Ginger Hot Lemonade | 0.30 | +10% | Seniors; Maple Row, Old Town; ignores the Winter penalty |
+| Honey-Ginger Hot Lemonade | 0.30 | +10% | Seniors; Maple Row, Old Town; Winter (ignores the Winter penalty) |
 | Sparkling Lemonade | 0.32 | +15% | Office workers; Downtown |
 | Lavender Lemonade | 0.40 | +25% | High rollers; Hilltop Estates |
 | Hollis Half-and-Half | 0.25 | +10% | Workers; The Groves, The Harbor; Summer |
@@ -2501,7 +2503,7 @@ A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered o
 
 | Facility | Rank | Cost ($) | Plot | Effect |
 | --- | --- | --- | --- | --- |
-| Warehouse | 4 | 15,000 | Street or Industrial | Stores bottles and supplies; auto-supplies stands in its district |
+| Warehouse | 4 | 15,000 | Street or Industrial | Supplies your stands in its district and stores their sugar; Caterer Trucks load there |
 | Bottling Works L1 | 5 | 25,000 | Industrial | 1,500 bottles/day |
 | Bottling Works L2 | 6 | +100,000 | Industrial | 4,000 bottles/day |
 | Bottling Works L3 | 7 | +400,000 | Industrial | 12,000 bottles/day |

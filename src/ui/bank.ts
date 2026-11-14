@@ -1,7 +1,7 @@
-// Marisol's bank after the morning (spec: Modes, "Marisol's loans"; the bank lends at any hour). At Morning Prep her
-// card sits on the Grow sheet (hud.ts bank); the rest of the day it's a ticket in the feed: Borrow when you're short,
-// and Pay off in the Evening once your cash covers what you owe. Clicks go through the HUD's one listener
-// (data-action="borrow" with data-amount, and "repay").
+// Marisol's bank after the morning (spec: Modes, "Marisol's loans"; the bank keeps no hours). At Morning Prep her
+// card sits on the Grow sheet (hud.ts bank); the rest of the day it's a ticket in the feed: Borrow whenever you're
+// short, and Pay off through business hours and the Evening once your cash covers what you owe. Clicks go through the
+// HUD's one listener (data-action="borrow" with data-amount, and "repay").
 import { canBorrow, loanLimit, type GameState } from '../sim/economy.ts';
 import * as A from './clay.ts';
 
@@ -17,7 +17,7 @@ export function bankTicket(s: GameState): string {
   if (s.phase === 'prep') return ''; // the Grow sheet has her card
   const l = s.loan;
   if (l) {
-    if (s.phase !== 'report' || s.cash < l.principal) return '';
+    if (s.phase === 'night' || s.cash < l.principal) return ''; // by day and in the Evening; at night the feed is the fight's
     return `<div class="cl-ticket" data-testid="bank" title="Marisol's bank: 3% a week over 4 weeks">${piggy()}<b>You owe ${whole(l.principal)}</b><button class="cl-b tiny" data-action="repay" data-testid="repay">Pay off</button></div>`;
   }
   const limit = loanLimit(s);

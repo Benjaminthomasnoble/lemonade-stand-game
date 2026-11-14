@@ -290,7 +290,7 @@ describe('Sandbox maps on screen', () => {
 });
 
 describe("Marisol's bank after the morning", () => {
-  it('is a Borrow ticket in the feed whenever you run short, and Pay off in the Evening once cash covers the loan', () => {
+  it('is a Borrow ticket in the feed whenever you run short, and Pay off by day and in the Evening once cash covers the loan', () => {
     const s = newGame(65);
     expect(bankTicket(s)).toBe(''); // Morning Prep: her card is on the Grow sheet
     s.phase = 'open';
@@ -307,10 +307,18 @@ describe("Marisol's bank after the morning", () => {
     expect(bankTicket(s)).toContain('data-action="borrow"'); // the bank lends at night too
     s.loan = { principal: 500, weeksLeft: 4, nextDue: s.day + 7, missed: 0 };
     expect(bankTicket(s)).toBe(''); // owing, nothing to pay it with
-    s.phase = 'report';
     s.cash = 600;
+    expect(bankTicket(s)).toBe(''); // not at night: the bank's ticket waits for the morning
+    s.phase = 'report';
     expect(bankTicket(s)).toContain('data-action="repay"');
     s.phase = 'open';
-    expect(bankTicket(s)).toBe(''); // pay off in the Evening, or at Morning Prep on the Grow sheet
+    const day = bankTicket(s); // business hours: paid off on the spot, as the bank lends
+    expect(day).toContain('data-action="repay"');
+    expect(day).toContain('You owe $500');
+    s.cash = 499;
+    expect(bankTicket(s)).toBe(''); // short of the whole loan: nothing to pay it with yet
+    s.phase = 'prep';
+    s.cash = 600;
+    expect(bankTicket(s)).toBe(''); // Morning Prep: Pay off is on the Grow sheet's card
   });
 });

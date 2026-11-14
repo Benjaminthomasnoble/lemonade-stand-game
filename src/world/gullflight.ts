@@ -8,7 +8,8 @@ import { BOUNDS } from './scene.ts';
 
 export interface GullFlight {
   active(): boolean;
-  start(): void;
+  /** Take off; with `at`, Squawk starts beside that spot (a plot's centre), facing it from `side` (radians, default east). */
+  start(at?: { x: number; z: number; side?: number }): void;
   stop(): void;
   update(dt: number): void;
 }
@@ -38,9 +39,15 @@ export function createGullFlight(camera: THREE.PerspectiveCamera, controls: Orbi
 
   return {
     active: () => on,
-    start() {
+    start(at) {
       if (on) return;
       on = true;
+      if (at) {
+        // Beside the spot, a gull's length off, heading straight at it.
+        const side = at.side ?? Math.PI / 2;
+        gull.position.set(at.x + Math.sin(side) * 9, 12, at.z + Math.cos(side) * 9);
+        gull.rotation.set(0, side + Math.PI, 0);
+      }
       saved.pos.copy(camera.position);
       saved.target.copy(controls.target);
       controls.enabled = false;

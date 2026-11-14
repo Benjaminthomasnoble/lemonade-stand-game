@@ -3,14 +3,13 @@
 // dashed clay-snake raid arrows").
 //  - Mid zoom: a masking-tape counter over each of your open stands with a line,
 //    and an owner-coloured HP pill over any dented stand, facility or fence.
-//  - Any zoom, Bay View too: while a raid warning is live, a dashed clay snake
-//    rolls out from the raider's turf to the target in about 12 real seconds
-//    (spec walkthrough "The raid arrow crosses the map in about 12 real seconds"),
-//    with an egg-timer ETA at its head.
+//  - Any zoom, Bay View too: while a raid warning is live (or your own squad is
+//    on its way), a dashed clay snake crawls from where the raid set out to the
+//    target, its head where the raid is on the game clock, with an egg-timer ETA.
 // Reads the sim; never writes it.
 import * as THREE from 'three';
 import {
-  buildingHp, currentHp, FACTIONS, hqPlot, incomingRaids, peopleAhead, PERIMETERS, PLOT_BY_ID,
+  buildingHp, currentHp, FACTIONS, hqPlot, incomingRaids, raidStart, squadHome, peopleAhead, PERIMETERS, PLOT_BY_ID,
   type GameState, type RivalId,
 } from '../sim/economy.ts';
 import type { PlotView } from './bay.ts';
@@ -21,7 +20,12 @@ import { emoteUrl } from '../ui/emotes.ts';
 export interface Markers {
   update(s: GameState, camera: THREE.Camera, target: THREE.Vector3, views: Record<string, PlotView>, w: number, h: number): void;
   /** What is showing (tests). */
-  count(): { tapes: number; pills: number; arrows: number };
+  count(): { tapes: number; pills: number; arrows: number; stamps: number };
+  /**
+   * An alert's mark in the world (every alert has a sound, an edge pulse and a mark): a crooked rubber stamp thunks
+   * down over the plot and stays a few seconds. good: a raid won or held, a buyout; bad: squeezed out; gold: a rank-up.
+   */
+  stamp(plot: string, text: string, tone: 'good' | 'bad' | 'gold'): void;
 }
 
 /** Beyond this camera distance it's Bay View: tapes and pills fold away, raid arrows stay. */
@@ -64,7 +68,9 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
   const p = new THREE.Vector3(), p2 = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), mid = new THREE.Vector3();
   const side = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3();
   const proj = new THREE.Vector3();
-  let shown = { tapes: 0, pills: 0, arrows: 0 };
+  let shown = { tapes: 0, pills: 0, arrows: 0, stamps: 0 };
+  const STAMP_MS = 6000;
+  const stamps: { el: HTMLElement; plot: string; until: number }[] = [];
 
   /** A point on the snake: a raised arc from a to b with a slow side-to-side wiggle. */
   const along = (t: number, time: number, len: number, out: THREE.Vector3) => {
@@ -84,6 +90,17 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
 
   return {
     count: () => shown,
+    stamp(plot, text, tone) {
+      if (!PLOT_BY_ID[plot]) return;
+      const el = document.createElement('div');
+      el.className = `mk-stamp ${tone}`;
+      el.innerHTML = '<b></b>';
+      (el.firstElementChild as HTMLElement).textContent = text;
+      (el.firstElementChild as HTMLElement).style.rotate = `${(Math.random() * 14 - 9).toFixed(1)}deg`; // crooked, never the same twice
+      layer.appendChild(el);
+      stamps.push({ el, plot, until: performance.now() + STAMP_MS });
+      while (stamps.length > 4) stamps.shift()!.el.remove();
+    },
     update(s, camera, target, views, w, h) {
       for (const t of tags.values()) t.seen = false;
       const dist = camera.position.distanceTo(target);
@@ -131,13 +148,17 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
       }
 
       // Raid arrows, at every zoom.
-      const raids = incomingRaids(s).filter((r) => r.attacker !== 'player' && PLOT_BY_ID[r.target]);
+      // Rival raids once their warning lands; your own squad's once it sets out, until the fight.
+      const yours = s.raids.filter((r) => r.attacker === 'player' && r.launched && (r.at === undefined || s.minute < r.at));
+      const raids = [...incomingRaids(s).filter((r) => r.attacker !== 'player'), ...yours].filter((r) => PLOT_BY_ID[r.target]);
       for (const k of born.keys()) if (!raids.some((r) => r.id === k)) born.delete(k);
       let nd = 0, nh = 0;
       const thick = THREE.MathUtils.clamp(dist / 24, 1, 6); // chunkier from Bay View so it reads
       for (const r of raids.slice(0, MAX_HEADS)) {
         if (!born.has(r.id)) born.set(r.id, now);
-        const from = hqPlot(r.attacker as RivalId), to = PLOT_BY_ID[r.target];
+        // It sets out from where the raid does: the raider's plot nearest the target, or your squad's clubhouse.
+        const from = PLOT_BY_ID[r.attacker === 'player' ? squadHome(s, r.target, r.guards ?? []) : raidStart(s, r.attacker as RivalId, r.target)] ?? hqPlot(r.attacker as RivalId);
+        const to = PLOT_BY_ID[r.target];
         const fromView = views[from.id], toView = views[to.id];
         if (fromView) fromView.root.getWorldPosition(a); else a.set(from.x, 0, from.z);
         if (toView) toView.root.getWorldPosition(b); else b.set(to.x, 0, to.z);
@@ -145,9 +166,13 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
         const len = a.distanceTo(b);
         mid.addVectors(a, b).multiplyScalar(0.5); mid.y += 4 + len * 0.18;
         side.subVectors(b, a).setY(0).normalize().cross(up);
-        const roll = Math.min(1, (now - born.get(r.id)!) / ROLL_SECONDS);
+        // The snake follows the raid on the game clock (sets out at r.leave, arrives at r.at); a raid without
+        // a clock rolls out in about 12 real seconds.
+        const roll = r.leave !== undefined && r.at !== undefined && r.at > r.leave
+          ? THREE.MathUtils.clamp((s.minute - r.leave) / (r.at - r.leave), 0.04, 1)
+          : Math.min(1, (now - born.get(r.id)!) / ROLL_SECONDS);
         const reach = roll * roll * (3 - 2 * roll); // eases out, eases in
-        const pal = OWNER[r.attacker as RivalId] ?? OWNER.blenders;
+        const pal = OWNER[r.attacker as keyof typeof OWNER] ?? OWNER.blenders;
         col.set(pal.main); col2.set(pal.accent);
         const pitch = (DASH + GAP) * thick;
         const crawl = ((now * 1.6 * thick) % pitch); // dashes march toward the target
@@ -180,7 +205,7 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
           t.el.innerHTML = `<img alt="" src="${emoteUrl('line')}"><b></b>`;
           (t.el.querySelector('b') as HTMLElement).textContent = r.eta;
           t.el.style.setProperty('--edge', colorOf(r.attacker));
-          t.el.title = `${FACTIONS[r.attacker as RivalId]?.name ?? 'Raiders'} hit ${to.name} at ${r.eta}`;
+          t.el.title = r.attacker === 'player' ? `Your squad hits ${to.name} at ${r.eta}` : `${FACTIONS[r.attacker as RivalId]?.name ?? 'Raiders'} hit ${to.name} at ${r.eta}`;
         }
         place(t.el, p2.copy(p).setY(p.y + 1.6 * thick), camera, w, h);
       }
@@ -189,8 +214,19 @@ export function createMarkers(scene: THREE.Scene, layer: HTMLElement): Markers {
       if (dashes.instanceColor) dashes.instanceColor.needsUpdate = true;
       if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
 
+      // Alert stamps ride over their plot at any zoom, then fade.
+      const ms = performance.now();
+      for (let i = stamps.length - 1; i >= 0; i--) {
+        const st = stamps[i];
+        if (ms > st.until) { st.el.remove(); stamps.splice(i, 1); continue; }
+        if (ms > st.until - 500) st.el.classList.add('leaving');
+        const v = views[st.plot], pl = PLOT_BY_ID[st.plot];
+        if (v) v.root.getWorldPosition(p); else p.set(pl.x, 0, pl.z);
+        p.y = 3.5 + Math.min(10, dist * 0.06);
+        place(st.el, p, camera, w, h);
+      }
       for (const [k, t] of tags) if (!t.seen) { t.el.remove(); tags.delete(k); }
-      shown = { tapes, pills, arrows: nh };
+      shown = { tapes, pills, arrows: nh, stamps: stamps.length };
     },
   };
 }

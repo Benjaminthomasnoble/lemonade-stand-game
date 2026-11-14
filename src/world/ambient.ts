@@ -23,8 +23,8 @@ const NEAR = 42;
 const HENCH_POOL = 14;
 
 export interface AmbientEvents {
-  /** Captain Squawk grabbed a lemon off the Corner's table. */
-  onSquawkSteal?(gull: THREE.Object3D): void;
+  /** Captain Squawk grabbed a lemon off a stand's table (the Corner's, or the stand his event is robbing). */
+  onSquawkSteal?(gull: THREE.Object3D, plot: string): void;
   /** A henchman glares at your stand (the world can put a bubble over them). */
   onGlare?(who: THREE.Object3D, rival: RivalId): void;
 }
@@ -72,6 +72,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
   scene.add(squawk);
   const gulls = [0, 1, 2, 3].map(() => { const g = gull(false); g.scale.setScalar(0.8); scene.add(g); return g; });
   let steal = { t: -1, next: 40 };
+  let squawkHome = LOTTIES_CORNER;
 
   // ---- a dog chasing a ball on Maple Row ----
   const pup = dog();
@@ -169,12 +170,17 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
       });
       if (step) batch.sync();
 
-      // Captain Squawk circles the Corner; every so often he dives for a lemon.
-      const cv = views[LOTTIES_CORNER];
+      // Captain Squawk circles the Corner; every so often he dives for a lemon. While his event is live
+      // (sim/happenings.ts captainSquawk) he circles the stand he's robbing and dives at that one instead.
+      const robbed = s.world?.events?.on.find((x) => x.id === 'captainSquawk' && x.live)?.plots?.[0];
+      const homeId = robbed && views[robbed] ? robbed : LOTTIES_CORNER;
+      if (homeId !== squawkHome) { squawkHome = homeId; if (robbed && steal.t < 0) steal.next = Math.min(steal.next, 2); } // a new victim: straight at it
+      const cv = views[homeId];
       const home = cv ? cv.root.localToWorld(tmp.set(0, 0, 0.3)).clone() : new THREE.Vector3(corner.x, 0, corner.z);
+      const nearEnough = robbed ? NEAR * 2 : NEAR; // his robbery is worth showing from further out
       const table = home.clone().setY(1.0);
       if (s.phase === 'open') steal.next -= dt;
-      if (steal.t < 0 && steal.next <= 0 && Math.hypot(home.x - target.x, home.z - target.z) < NEAR) { steal = { t: 0, next: 50 + Math.random() * 60 }; }
+      if (steal.t < 0 && steal.next <= 0 && Math.hypot(home.x - target.x, home.z - target.z) < nearEnough) { steal = { t: 0, next: (robbed ? 20 : 50) + Math.random() * (robbed ? 25 : 60) }; }
       const lemon = (squawk.userData as { lemon: THREE.Mesh }).lemon;
       if (squawk.userData.piloted) { steal.t = -1; lemon.visible = false; }
       else if (steal.t >= 0) {
@@ -183,7 +189,7 @@ export function createAmbient(scene: THREE.Scene, events: AmbientEvents = {}): A
         const orbit = new THREE.Vector3(home.x + Math.cos(time * 0.5) * 9, 11, home.z + Math.sin(time * 0.5) * 9);
         let pos: THREE.Vector3;
         if (t < 1.2) pos = orbit.clone().lerp(table, t / 1.2); // dive
-        else if (t < 1.6) { pos = table.clone(); if (!lemon.visible) { lemon.visible = true; events.onSquawkSteal?.(squawk); } }
+        else if (t < 1.6) { pos = table.clone(); if (!lemon.visible) { lemon.visible = true; events.onSquawkSteal?.(squawk, homeId); } }
         else if (t < 4.5) pos = table.clone().lerp(new THREE.Vector3(home.x + 30, 14, home.z - 25), (t - 1.6) / 2.9); // off with it
         else { pos = new THREE.Vector3(home.x + 30, 14, home.z - 25).lerp(orbit, Math.min(1, (t - 4.5) / 3)); lemon.visible = t < 6; if (t > 7.5) steal.t = -1; }
         const dir = pos.clone().sub(squawk.position);

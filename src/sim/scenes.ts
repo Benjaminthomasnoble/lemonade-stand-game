@@ -157,10 +157,10 @@ export const SCENES: Record<string, SceneDef> = {
     recap: "Mayor Fontaine froze a land sale on Vera's word.",
   },
   // Act 3's night flight (src/sim/beats.ts): the morning after Juni's first Night Shift on you (a Cold Brew Sabotage),
-  // Captain Squawk tells what he saw at 3 a.m. (captions: the world's Gull Flight isn't staged for it), Lottie teaches
-  // your own Sabotage (crew.ts canSabotage), then Juni calls.
+  // Captain Squawk shows what he saw at 3 a.m. (staged in the world: a night chase view behind him over your stand,
+  // src/world/scenes.ts), Lottie teaches your own Sabotage (crew.ts canSabotage), then Juni calls.
   nightFlight: {
-    seconds: 17,
+    world: 'nightFlight', seconds: 17,
     lines: [
       { who: 'Captain Squawk', text: 'SQUAWK! Three a.m.! Beanies at your stand!', at: 0.5 },
       { who: 'Captain Squawk', text: 'Tiny paper cups! Tiny mustaches! Baristas!', at: 4.6 },

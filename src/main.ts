@@ -61,6 +61,7 @@ import { createBugle } from './ui/bugle.ts';
 import { BOSS, BRAWL, CUSTOMER, HENCH, LOTTIE, pick, type BarkMoment } from './world/barks.ts';
 import { createAmbient } from './world/ambient.ts';
 import { createScenes, type SceneId } from './world/scenes.ts';
+import { RECIPE_COLOR } from './ui/recipes.ts';
 import { beginScene, endScene, playingScene, replyScene, SCENE_MAX_SECONDS, sceneReady, type Scene } from './sim/scenes.ts';
 import { crewCheer, grandkid, renameCrew } from './sim/grandkid.ts';
 import { pickTip, tipsKey } from './sim/perks.ts';
@@ -154,6 +155,10 @@ async function main() {
   // Every stinger has a visual twin (src/ui/twins.ts): a screen-edge pulse in its colour and pattern beside its card.
   let twins: Twins | null = null; // once the HUD is up
   const stinger = (id: Stinger) => { audio.stinger(id); twins?.pulse(id); };
+  /** The alert's mark in the world (markers.ts stamp): set once the markers exist. */
+  let stampAt: (plot: string, text: string, tone: 'good' | 'bad' | 'gold') => void = () => {};
+  const stamped = new Set<string>(); // a fight shown live isn't stamped again at dawn
+  const stampFight = (b: BattleReport) => { const k = `${b.day}|${b.target}|${b.attacker}`; if (stamped.has(k)) return; stamped.add(k); stampAt(b.target, won(b) ? (b.attacker === 'player' ? 'WON!' : 'HELD!') : 'SQUEEZED', won(b) ? 'good' : 'bad'); };
   const wake = () => audio.start();
   window.addEventListener('pointerdown', wake, { once: true });
   window.addEventListener('keydown', wake, { once: true });
@@ -228,6 +233,7 @@ async function main() {
   const afterSleep = () => {
     const fights = state.battles.filter((b) => b.day === state.day - 1);
     if (fights.length) stinger(fights.every(won) ? 'raid-won' : 'squeezed-out');
+    fights.forEach(stampFight);
   };
 
   const world = await createWorld(document.getElementById('app')!);
@@ -339,9 +345,9 @@ async function main() {
   }, world.quality === 'phone' ? CROWD_PHONE : CROWD_POOL);
 
   const ambient = createAmbient(world.scene, {
-    onSquawkSteal: (gull) => {
+    onSquawkSteal: (gull, plot) => {
       bubbles.say(gull, 'SQUAWK!', { who: 'Captain Squawk', height: 0.9, ms: 1600 });
-      setTimeout(() => lottieSays('squawk', { react: 'fist' }), 500);
+      if (plot === LOTTIES_CORNER) setTimeout(() => lottieSays('squawk', { react: 'fist' }), 500); // she sees it from her chair
     },
     onGlare: (who, rival) => { if (Math.random() < 0.5) { const l = pick(HENCH[rival]); bubbles.say(who, l, { ms: 1800 }); audio.babble(l, 0.8, 'grumpy'); } },
   });
@@ -351,11 +357,13 @@ async function main() {
     lottie: (line, react) => lottieSays('morning', { text: line, react }),
     // No ring hook: a scene's follow-up call (Vera after the Steward) is queued by the sim when the scene ends.
     done: (id) => { const sc = playingScene(state); if (sc && (id === 'visit' ? !!sc.speaker : sc.world === id)) finishScene(false); },
-    driven: true, // the story's scene queue (src/sim/scenes.ts) says when
+    radio: (who, line) => { const st = bay.views[LOTTIES_CORNER]?.stand; if (st) bubbles.say(st.group, line, { who, height: 2.6, ms: 3800 }); audio.babble(line, 0.75, 'grumpy'); twins?.caption(who, line); },
+    gull: ambient.squawk,
   });
 
   // Story scenes wait for a lull: Morning Prep with nothing else on screen. One plays at a time, under a minute.
   let sceneT = 0, sceneWorld = false, sceneSaid = 0;
+  let shotHeld = false; // a scene had the camera last frame
   const busy = () => !!hud.setup || hud.optionsOpen || isFullMenu(hud.menu) || battle.active() || vip.active() || !!vipResume || phone.ringing() || flight.active() || !!document.querySelector('.frontpage');
   const lull = () => !busy() && !scenes.active() && knob.speed !== 0; // a paused game starts no scene
   const startScene = () => {
@@ -369,7 +377,7 @@ async function main() {
     focusPlot(at);
     sceneWorld = sc.speaker ? !!bay.views[at] : !!sc.world && !!bay.views[LOTTIES_CORNER]?.stand;
     if (sceneWorld && sc.speaker) scenes.visit({ who: sc.speaker, plot: at, lines: sc.lines });
-    else if (sceneWorld) scenes.play(sc.world as SceneId);
+    else if (sceneWorld) scenes.play(sc.world as SceneId, { lines: sc.lines, color: (RECIPE_COLOR as Record<string, string>)[sc.id.replace(/^page-/, '')] });
     saveGame(state);
   };
   /** A captions-only scene (Day 1's opening): Lottie says her lines at the Corner as they come up. */
@@ -470,6 +478,7 @@ async function main() {
   const fanfare = (b: BattleReport) => {
     bay.release(b.target); // the dust settles: the plot shows how it came out
     hud.toast(battleHeadline(b)); stinger(won(b) ? 'raid-won' : 'squeezed-out'); bay.sync(state);
+    stampFight(b);
     snap(battleHeadline(b).toUpperCase(), 5);
     if (b.attacker === 'player') lottieSays(won(b) ? 'raidWon' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
     else if (b.defender === 'player') lottieSays(won(b) ? 'raidHeld' : 'raidLost', { react: won(b) ? 'cheer' : 'fist' });
@@ -709,9 +718,9 @@ async function main() {
       case 'truce': makeTruce(state, a.rival); break;
       case 'plotBuyout': plotBuyout(state, a.plot); break;
       case 'takeover': answerBuyout(state, a.plot, a.sell); break;
-      case 'factionBuyout': if (factionBuyout(state, a.rival)) stinger('raid-won'); break;
+      case 'factionBuyout': if (factionBuyout(state, a.rival)) { stinger('raid-won'); stampAt(hqPlot(a.rival).id, 'SOLD', 'good'); } break;
       case 'negotiator': setNegotiator(state, a.id); break;
-      case 'haggle': if (haggle(state, a.rival, a.move) && a.move === 'firm') stinger('raid-won'); break;
+      case 'haggle': if (haggle(state, a.rival, a.move) && a.move === 'firm') { stinger('raid-won'); stampAt(hqPlot(a.rival).id, 'WON!', 'good'); } break;
       case 'callSqueeze': callBigSqueeze(state); break; // Vera answers on the phone, at the next lull
       case 'replay': if (state.battles[a.index] && !state.fight) playBattle(state.battles[a.index]); break;
       case 'fight': if (a.cmd === 'rally' || a.cmd === 'fallBack') fightCommand(state, a.cmd); break;
@@ -793,6 +802,7 @@ async function main() {
   const markerLayer = document.createElement('div');
   document.getElementById('ui')!.prepend(markerLayer);
   const markers = createMarkers(world.scene, markerLayer);
+  stampAt = (plot, text, tone) => markers.stamp(plot, text, tone);
   setBeatSource(() => audio.beat()); // idle bobs land on the theme's beat (src/world/beat.ts)
   // Lottie's tour: the first time you play she shows you the bay and points at each thing to tap (src/ui/coach.ts).
   // A pinned seed (tests, shared links) leaves it off unless the URL asks for it with coach=1.
@@ -852,8 +862,8 @@ async function main() {
     while (state.news.length) {
       const n = state.news.shift()!;
       if (cards.has(n)) continue;
-      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { stinger('rank-up'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); callsQuietUntil = performance.now() + 4500; }
-      if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) stinger('squeezed-out');
+      if (n.startsWith('RANK UP') || n.startsWith('YOU OWN THE BAY') || n.startsWith('TARGET HIT')) { stinger('rank-up'); stampAt(LOTTIES_CORNER, n.startsWith('RANK UP') ? 'RANK UP!' : n.startsWith('TARGET HIT') ? 'TARGET HIT!' : 'THE BAY!', 'gold'); lottieSays('rankUp', { react: 'cheer' }); snap(n, 3, 300); callsQuietUntil = performance.now() + 4500; }
+      if (n.startsWith('SQUEEZED OUT') || n.startsWith('RUN OUT OF TOWN')) { stinger('squeezed-out'); stampAt(LOTTIES_CORNER, 'SQUEEZED', 'bad'); }
       hud.toast(n);
     }
   };
@@ -905,9 +915,7 @@ async function main() {
     const p = PLOT_BY_ID[id];
     if (flight.active()) flight.stop();
     hud.inspected = null;
-    ambient.squawk.position.set(p.x + 9, 12, p.z);
-    ambient.squawk.rotation.set(0, Math.PI, 0);
-    flight.start();
+    flight.start({ x: p.x, z: p.z }); // Squawk takes off beside the plot, heading for it
     gullBtn.classList.add('on');
     aimGull(id);
   };
@@ -968,8 +976,10 @@ async function main() {
     lottieSays: (m: BarkMoment, ms?: number) => lottieSays(m, { react: 'cheer', ms }),
     bugle: () => { snap('TEST EDITION: LOTTIE\'S CORNER', 9); },
     markers: () => markers.count(),
+    stamp: (plot: string, text = 'HELD!', tone: 'good' | 'bad' | 'gold' = 'good') => markers.stamp(plot, text, tone),
     showBugle: () => { const b = bugle.best(state.day); if (b) bugle.show(b); return !!b; },
-    scene: (id: SceneId) => scenes.play(id),
+    sceneOn: () => scenes.active(),
+    scene: (id: SceneId, script?: { lines?: { who: string; text: string; at: number }[]; color?: string }) => scenes.play(id, script),
     ring: (boss: RivalId, mood: 'warn' | 'sore' | 'smashed' | 'gloat' = 'warn') => phone.ring(boss, pick(BOSS[boss][mood])),
     battle: () => battle.active(),
     playBattle: (b: BattleReport) => playBattle(b),
@@ -1050,7 +1060,8 @@ async function main() {
     if (due) act({ type: due });
     const dayFrac = state.phase === 'prep' ? 0 : (state.minute - OPEN) / (CLOSE - OPEN);
     world.setWeather(state.phase === 'prep' ? state.forecast.kind : state.weather.kind, dayFrac);
-    world.setClock(state.phase, state.minute);
+    const nightShot = scenes.shot()?.night; // the 3 a.m. night flight lights the bay for 03:00 whatever the hour
+    world.setClock(nightShot ? 'night' : state.phase, nightShot ? 27 * 60 : state.minute);
     // What the world wakes around: the orbit target, or during Gull Flight the ground just ahead of the gull.
     const focus = flight.active() ? flightFocus() : world.controls.target;
     bay.update(state, timer.getElapsed(), phone.ringing(), focus);
@@ -1083,7 +1094,11 @@ async function main() {
     bubbles.update(world.camera, canvas.clientWidth, canvas.clientHeight);
     markers.update(state, world.camera, focus, bay.views, canvas.clientWidth, canvas.clientHeight);
     if (vipResume && !vip.active()) vipResume = 0;
-    world.pilot(flight.active()); // Gull Flight steers the camera; the clock, twos, light and detail run on
+    // Gull Flight steers the camera, or a staged scene's shot does (the night flight); the clock, twos, light and detail run on.
+    const shot = scenes.shot();
+    world.pilot(flight.active() || !!shot);
+    if (shot) { world.camera.position.copy(shot.pos); world.camera.lookAt(shot.look); shotHeld = true; }
+    else if (shotHeld) { shotHeld = false; focusPlot(LOTTIES_CORNER); } // the shot's over: back to the Corner
     world.update(dt);
     const dist = world.camera.position.distanceTo(world.controls.target);
     // Far out (Bay View, or Gull Flight up high, judged by altitude not the take-off target): the HUD tucks its feed

@@ -124,7 +124,7 @@ export function pageScene(s: GameState, id: RecipeId): boolean {
   const said = PAGE_SCENES[id];
   if (!said) return false;
   const lines = said.map(([who, text], i) => ({ who, text, at: 0.5 + i * SCENE_STEP }));
-  return playScene(s, `page-${id}`, { lines, recap: PAGE_HOME[id], seconds: lines[lines.length - 1].at + 4 });
+  return playScene(s, `page-${id}`, { world: 'page', lines, recap: PAGE_HOME[id], seconds: lines[lines.length - 1].at + 4 }); // staged at the Corner (src/world/scenes.ts)
 }
 
 /** A page comes home and becomes a recipe card. Idempotent; returns false if it was already in the book. quiet: no news

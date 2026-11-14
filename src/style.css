@@ -179,3 +179,14 @@ body.gull-flight .cl-plot { display: none; } /* Lottie's goal card stays up, eve
 @keyframes mk-tick { 50% { rotate: -4deg; } }
 /* District names hide while full-screen paper or a modal card is up. */
 #ui:has(.cl-modal-bg) .district-label, #ui:has(.frontpage) .district-label { display: none; }
+/* An alert's mark in the world: a crooked rubber stamp thunks down over the plot (markers.ts stamp()). */
+#ui .mk-stamp b { display: block; font: 400 30px/1 'Chewy', 'Fredoka', cursive; letter-spacing: .04em; padding: 4px 12px 2px;
+  border: 4px solid currentColor; border-radius: 8px; background: rgba(255, 241, 214, 0.88); box-shadow: 0 3px 0 rgba(46, 42, 79, 0.3);
+  animation: mk-thunk .32s cubic-bezier(.3, 1.6, .5, 1) both; }
+#ui .mk-stamp.good { color: #3f8f4a; }
+#ui .mk-stamp.bad { color: #c8432a; }
+#ui .mk-stamp.gold { color: #b8860b; }
+#ui .mk-stamp.gold b { background: #FFF1D6; border-style: double; border-width: 6px; }
+#ui .mk-stamp.leaving { opacity: 0; transition: opacity .5s; }
+@keyframes mk-thunk { 0% { transform: scale(2.2); opacity: 0; } 60% { transform: scale(.92); opacity: 1; } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { #ui .mk-stamp b { animation: none; } }

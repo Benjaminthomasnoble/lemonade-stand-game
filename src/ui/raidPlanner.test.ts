@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hqPlot, newGame, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
+import { hqPlot, newGame, planRaid, raidTargets, type Blocker, type GameState } from '../sim/economy.ts';
 import { footholdFor, guardOf } from '../sim/fighters.ts';
 import { gullScout } from '../sim/scouting.ts';
 import type { Action, Kit } from './hud.ts';
@@ -60,6 +60,35 @@ describe('the Raid Planner', () => {
     expect([...p.squad]).toEqual(['r0', 'r2']);
     p.panel(s, other);
     expect([...p.squad]).toEqual(['r0', 'r1', 'r2']);
+  });
+
+  it('"Take all" is Dex filling the squad to the cap, and he fills it again once a raid is sent', () => {
+    const s = newGame(87);
+    s.rank = 3; // a squad of 5
+    s.guards = Array.from({ length: 7 }, (_, i) => guardOf('clubs', 'vest', 1, 'Hothead', { id: `r${i}`, name: `Raider ${i}` }));
+    const target = raidTargets(s).find((t) => s.plots[t.id].stand)!.id;
+    footholdFor(s, target);
+    const { p, acts } = planner();
+    let html = p.panel(s, target);
+    expect(p.squad.size).toBe(5); // Dex's fill as it opens
+    const fill = [...p.squad];
+    expect(html).toContain(`data-action="squadAll" data-ids="${fill.join(',')}">None<`);
+    p.click({ action: 'squadAll', ids: fill.join(',') }); // None
+    expect(p.squad.size).toBe(0);
+    for (const g of s.guards) p.click({ action: 'squad', id: g.id }); // every face tapped in: over the cap
+    html = p.panel(s, target);
+    expect(html).toMatch(/data-testid="raid-tonight"\s+disabled title="Squad cap is 5"/);
+    const ids = /data-action="squadAll" data-ids="([^"]+)">Take all</.exec(html)![1];
+    expect(ids.split(',')).toHaveLength(5);
+    p.click({ action: 'squadAll', ids });
+    expect([...p.squad]).toEqual(fill);
+    html = p.panel(s, target);
+    expect(html).not.toMatch(/data-testid="raid-tonight"[^>]*disabled/);
+    p.click({ action: 'raid', plot: target, when: 'tonight' });
+    const sent = acts.at(-1) as Extract<Action, { type: 'raid' }>;
+    expect(planRaid(s, target, sent.guards, sent.objective, 'tonight')).toBe(true); // what main.ts does with it
+    p.panel(s, target);
+    expect([...p.squad].sort()).toEqual(s.guards.map((g) => g.id).filter((id) => !fill.includes(id)).sort()); // the two left, filled again
   });
 
   it('lists Smash, Shakedown, Sabotage and HQ Assault: a rank lock hides one, any other lock says why', () => {

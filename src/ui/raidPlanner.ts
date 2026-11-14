@@ -50,12 +50,15 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     ? `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="${pct(r[0])}% to win"><i></i></span><b class="cl-odds">${oddsWord(r[0])}</b>`
     : `<span class="cl-dial" style="--v:${r[0].toFixed(3)}" title="Not scouted: ${pct(r[0])}% if it is fully kitted, ${pct(r[1])}% if it is bare"><i></i></span><b class="cl-odds" data-testid="raid-odds-range">${chance(r)}</b>`);
 
+  /** The squad is exactly these guards. */
+  const holds = (ids: string[]) => ids.length === squad.size && ids.every((i) => squad.has(i));
+
   function picker(s: GameState) {
     const crew = availableRaiders(s);
     for (const g of [...squad]) if (!crew.some((c) => c.id === g)) squad.delete(g);
-    const ids = crew.map((g) => g.id).join(',');
+    const fill = dexSquad(s); // "Take all": Dex fills it to the cap, leaving at home anyone a warned raid needs there
     return `<div class="cl-squad">${crew.map((g) => `<button class="cl-pick${squad.has(g.id) ? ' on' : ''}" data-action="squad" data-id="${g.id}" title="${k.esc(g.name)}: L${g.level}, ${WEAPONS[g.weapon].name}" aria-pressed="${squad.has(g.id)}">${guardFace(k, s, g)}</button>`).join('')}
-      ${crew.length > 1 ? `<button class="cl-b ghost tiny" data-action="squadAll" data-ids="${ids}">${crew.every((g) => squad.has(g.id)) ? 'None' : 'Take all'}</button>` : ''}</div>`;
+      ${crew.length > 1 && fill.length ? `<button class="cl-b ghost tiny" data-action="squadAll" data-ids="${fill.join(',')}">${holds(fill) ? 'None' : 'Take all'}</button>` : ''}</div>`;
   }
 
   /** What a Lookout saw (fence, gadgets, henchmen), or the button to send one. */
@@ -75,8 +78,9 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
     return `${unknown}<div class="cl-acts">${k.btn('scout', `${k.ART.tower()} Scout`, b, `data-plot="${id}" data-id="${(free ?? lookouts[0]).id}"${b.ok ? ` title="${k.esc(`${who} watches it today: its defenses show for 3 days`)}"` : ''}`, 'ghost')}${fly}</div>`;
   }
 
-  /** The plot the Planner last opened on: opening it on another, Dex fills the squad to the cap (swap anyone after), or
-   * the raid template that last went there fills the squad and the objective, so repeating it is one tap. */
+  /** The plot the Planner last opened on: opening it on another (or again once a raid is sent), Dex fills the squad to
+   * the cap (swap anyone after), or the raid template that last went there fills the squad and the objective, so
+   * repeating it is one tap. */
   let openFor: string | null = null;
   function open(s: GameState, id: string) {
     if (openFor === id) return;
@@ -182,9 +186,9 @@ export function createRaidPlanner(k: Kit, redraw: () => void, onAction: (a: Acti
   function click(d: DOMStringMap) {
     switch (d.action) {
       case 'squad': if (squad.has(d.id!)) squad.delete(d.id!); else squad.add(d.id!); redraw(); return true;
-      case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const all = ids.every((i) => squad.has(i)); for (const i of ids) { if (all) squad.delete(i); else squad.add(i); } redraw(); return true; }
+      case 'squadAll': { const ids = (d.ids ?? '').split(',').filter(Boolean); const same = holds(ids); squad.clear(); if (!same) for (const i of ids) squad.add(i); redraw(); return true; } // Dex's squad, or nobody
       case 'objective': objective = d.value as RaidObjective; redraw(); return true;
-      case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); return true;
+      case 'raid': onAction({ type: 'raid', plot: d.plot!, guards: [...squad], objective, when: d.when as 'now' | 'tonight' }); squad.clear(); openFor = null; return true; // opened next, Dex (or a template) fills it again
       case 'scout': squad.delete(d.id!); onAction({ type: 'scout', id: d.id!, plot: d.plot! }); return true;
       case 'gullTo': onAction({ type: 'gullTo', plot: d.plot! }); return true;
       case 'tplUse': squad.clear(); for (const g of (d.ids ?? '').split(',').filter(Boolean)) squad.add(g); objective = d.value as RaidObjective; redraw(); return true; // the panel drops anyone not free

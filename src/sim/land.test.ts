@@ -955,7 +955,7 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(s.orders.map((o) => o.id)).toEqual(['small']);
   });
 
-  it('weighs a line by the orders its bottling fills in their window, as it takes them: a Jetty or a Helipad waits for the Works to grow', () => {
+  it('weighs a line by the orders its bottling fills in their window, as it takes them: a Jetty or a Helipad waits for the Works to grow, or comes with its next level', () => {
     const s = newGame(REFERENCE_SEED);
     Object.assign(s, { day: 80, rank: 7, cash: 1e9, reputation: 4.5 });
     give(s, street(s, 'oldtown').id);
@@ -966,16 +966,51 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     s.plots[works.id].facility = { kind: 'bottling', level: 1 }; // 1,500 bottles a dawn
     s.plots[field.id].facility = { kind: 'helipad', level: 1 }; // a Pad: chopper orders of 2,000-4,000
     delete s.plots[dock.id].facility; // a bare Dock of yours
+    const alone = (buys: { what: string; also?: string }[]) => buys.filter((b) => !b.also);
     const jetty = (buys: { what: string }[]) => buys.some((b) => /Jetty/.test(b.what));
     const helipad = (buys: { what: string }[]) => buys.some((b) => b.what === `grow ${field.name} to Helipad`);
     // A Ship Contract's 10,000-20,000 bottles take more than 6 dawns of 1,500; a Helipad's 4,000-7,000, more than 3.
     let buys = facilityCandidates(s, 1e8);
-    expect(jetty(buys)).toBe(false);
-    expect(helipad(buys)).toBe(false);
+    expect(jetty(alone(buys))).toBe(false);
+    expect(helipad(alone(buys))).toBe(false);
+    // Bought with the Works' next level, each fills its orders: one buy, priced together.
+    const l2 = `grow ${works.name} to Bottling Works L2`;
+    const both = buys.filter((b) => b.plot === works.id && b.also);
+    expect(both.map((b) => b.what)).toEqual(expect.arrayContaining([`${l2} + Jetty on ${dock.name}`, `${l2} + grow ${field.name} to Helipad`]));
+    expect(both.every((b) => b.cost / b.gain < MAX_PAYBACK)).toBe(true);
     s.plots[works.id].facility = { kind: 'bottling', level: 2 }; // 4,000 a dawn fills them
     buys = facilityCandidates(s, 1e8);
-    expect(jetty(buys)).toBe(true);
-    expect(helipad(buys)).toBe(true);
+    expect(jetty(alone(buys))).toBe(true);
+    expect(helipad(alone(buys))).toBe(true);
+  });
+
+  it("weighs a Bottling Works' next level with the line's that waits for it: an L2 Works grows to L3 with its Jetty grown to a Pier", () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 80, rank: 7, cash: 1e9, reputation: 4.5 });
+    give(s, street(s, 'oldtown').id);
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    const field = PLOTS.find((p) => p.type === 'field')!;
+    const dock = PLOTS.find((p) => p.type === 'dock')!;
+    const shed = street(s, 'oldtown');
+    for (const p of [works, field, dock, shed]) give(s, p.id);
+    s.plots[works.id].facility = { kind: 'bottling', level: 2 }; // 4,000 bottles a dawn
+    s.plots[field.id].facility = { kind: 'helipad', level: 2 };
+    s.plots[dock.id].facility = { kind: 'pier', level: 1 }; // a Jetty
+    s.plots[shed.id].facility = { kind: 'warehouse', level: 1 };
+    const was = JSON.stringify(s);
+    const buys = facilityCandidates(s, 1e8);
+    expect(JSON.stringify(s)).toBe(was); // weighed, not bought
+    const buy = (what: string) => buys.find((b) => b.what === what);
+    // A Pier's 20,000-40,000 bottles take more than 6 dawns of 4,000: alone it loses the Jetty orders the Works fills now,
+    // and the Works' L3 alone fills little more than the lines ask for today.
+    expect(buy(`grow ${dock.name} to Pier`)).toBeUndefined();
+    const l3 = buy(`grow ${works.name} to Bottling Works L3`)!;
+    const both = buy(`grow ${works.name} to Bottling Works L3 + grow ${dock.name} to Pier`)!;
+    expect(both.cost).toBe(FACILITIES.bottling.costs[2] + FACILITIES.pier.costs[1]);
+    expect(both.also).toBe(dock.id);
+    expect(both.cost / both.gain).toBeLessThan(l3.cost / l3.gain);
+    expect(both.run()).toBe(true);
+    expect([s.plots[works.id].facility?.level, s.plots[dock.id].facility?.level]).toEqual([3, 2]);
   });
 
   it('counts a smashed facility of yours as standing: it is rebuilt overnight, never bought a second time', () => {

@@ -490,7 +490,8 @@ interface Way { what: string; cost: number; plot: string; level: number; extra: 
  * yours makes way for a Pad (buildFacility), so a Field bought out from Hollis is a Pad site too. The engine pays only
  * as a whole: with no Bottling Works of yours and no line for its bottles (a Warehouse for the Caterer Trucks, a Pad, a
  * Jetty), each piece alone adds nothing to its day, so the first Bottling Works is also weighed with each line it lacks,
- * the two bought together. */
+ * the two bought together; and as a line's next level waits for the bottling to grow, each next level of the Works is
+ * weighed with each line's next level too. */
 export function facilityCandidates(s: GameState, budget: number): Buy[] {
   const out: Buy[] = [];
   const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && able(s, () => canPlotBuyout(s, id));
@@ -558,6 +559,30 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
         const room = budget - works.cost;
         for (const w of [...lines.filter((x) => x.cost <= room && x.plot !== works.plot), site(kind, line(1), room, works.plot)]) {
           if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, made(works.level), w.level) + w.extra, plot: works.plot, also: w.plot, firsts: ['bottling', kind], run: () => works.run() && w.run() });
+        }
+      }
+    }
+  }
+  // It grows as a whole too: a Pad's or a Jetty's next level calls for bigger orders, which the bottling fills in time only
+  // once it grows, and a grown Works fills little more than the lines already ask for, so each Works' next level is also
+  // weighed with each line's next level (or its first one), the two bought at once.
+  for (const p of yours(s, 'bottling')) {
+    const b = FACILITIES.bottling, lvl = s.plots[p.id].facility!.level;
+    if (lvl >= b.names.length || b.costs[lvl] > budget || !able(s, () => canBuildFacility(s, p.id, 'bottling'))) continue;
+    const more = now.bottles + made(lvl + 1) - made(lvl), room = budget - b.costs[lvl];
+    const works = { what: `grow ${p.name} to ${b.names[lvl]}`, cost: b.costs[lvl], run: () => buildFacility(s, p.id, 'bottling') };
+    for (const kind of ['helipad', 'pier'] as FacilityKind[]) {
+      const f = FACILITIES[kind];
+      const grown = yours(s, kind).map((q): Way | undefined => {
+        const at = s.plots[q.id].facility!.level;
+        if (at >= f.names.length || f.costs[at] > room || !able(s, () => canBuildFacility(s, q.id, kind))) return undefined;
+        return { what: `grow ${q.name} to ${f.names[at]}`, cost: f.costs[at], plot: q.id, level: at + 1, extra: 0, run: () => buildFacility(s, q.id, kind) };
+      });
+      const none = firsts[kind]; // none of yours yet: the rivals' standing ones bought out, or a new one on a site
+      const first = none ? [...none.filter((x) => x.cost <= room), site(kind, engine(kind, more, 1), room)] : [];
+      for (const [ways, tag] of [[grown, undefined], [first, [kind]]] as [(Way | undefined)[], FacilityKind[] | undefined][]) {
+        for (const w of ways) {
+          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, more, w.level) + w.extra, plot: p.id, also: w.plot, firsts: tag, run: () => works.run() && w.run() });
         }
       }
     }

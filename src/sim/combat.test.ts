@@ -540,7 +540,7 @@ describe('HQ assaults', () => {
   });
 
   it('the Boss Room brings the boss and their move, timed, and nothing happens to the squad before the fight', () => {
-    const want: Record<RivalId, string[]> = { blenders: ['rush'], coldbrew: ['espresso'], hollis: ['bales'], fizzco: ['takeover'], sourwood: ['cane', 'call'] };
+    const want: Partial<Record<RivalId, string[]>> = { blenders: ['rush'], coldbrew: ['espresso'], hollis: ['bales'], fizzco: ['takeover'], sourwood: ['cane', 'call'] }; // the Out-of-Towner has no HQ
     for (const id of Object.keys(want) as RivalId[]) {
       const s = hqGame(id, 6, 'clubs', 'vest', 3);
       const squad = hqSquad(s, id, s.guards.map((g) => g.id));

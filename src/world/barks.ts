@@ -57,6 +57,12 @@ export const BOSS: Record<RivalId, Record<BossMood, string[]>> = {
     smashed: ['How very common of you.', 'The Stewards will want a word.'],
     gloat: ['How quaint.', 'Give Lottie my regards, dear.'],
   },
+  snootwater: {
+    warn: ['Tap water, darling, is a cry for help.', 'Our water is from a glacier. Yours is from a pipe.'],
+    sore: ['How provincial.', 'We have lawyers. In the Alps.'],
+    smashed: ['That kiosk was artisanal!', 'Do you know what that bottle cost?'],
+    gloat: ['Hydrated. And humbled.', 'Still tap water, darling?'],
+  },
 };
 
 /** What customers say, in Lemonese (spec "Voice"): a rising "Sqwee-ma?" asks, "Peela-zip!" thanks, "Rindo bum" grumbles. */
@@ -74,6 +80,7 @@ export const HENCH: Record<RivalId, string[]> = {
   hollis: ['Git.', 'Hm.', 'My boss\'s land.'],
   fizzco: ['Noted.', 'Reporting this.', '*on the phone*'],
   sourwood: ['Tsk.', 'How common.', 'Ahem.'],
+  snootwater: ['Tap water? Ew.', 'Hydrate elsewhere.', '*sips from a glass bottle*'],
 };
 
 /** Brawl barks (spec "Brawls" and "Voice"): a yelp as someone goes flat, a whoop from the side left standing. */
@@ -85,6 +92,7 @@ export const BRAWL = {
     hollis: ['Dagnabbit!', 'My hay…', 'Oof, sugar.'],
     fizzco: ['Noted… ow.', 'Legal will hear…', 'Circling… back…'],
     sourwood: ['How… common.', 'My bowler!', 'Unseemly!'],
+    snootwater: ['How… rude.', 'My monocle!', 'Ew, tap water!'],
   } as Record<'player' | RivalId, string[]>,
   win: {
     player: ['Peel Patrol!', 'Nobody touches the Corner!', 'Squeeze!'],
@@ -93,5 +101,6 @@ export const BRAWL = {
     hollis: ['My land!', 'Yee-haw!', 'Dug in!'],
     fizzco: ['Synergy!', 'Acquired.', 'Closed!'],
     sourwood: ['Order restored.', 'How quaint.', 'Tidy.'],
+    snootwater: ['Hydrated!', 'Bottled.', 'Refreshing.'],
   } as Record<'player' | RivalId, string[]>,
 };

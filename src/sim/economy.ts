@@ -19,8 +19,8 @@ import { forecastAtDawn, seasonWeather, weatherAtOpen, type DayWeather } from '.
 import { iceMachineOn, kidStandSale, machineIce } from './happenings.ts';
 import { bottleValue, pickupsAt, pickupsAtClose, vipAtDawn, type Facility, type Order, type OrderTier } from './vip.ts';
 import { familySilver, FIZZCO_PLANT, handOverKept, rivalsBankrupt, seedRivalFacilities, trackOutselling } from './rivals.ts';
-import { migrateRivals, openBooks, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
-import { historicHedges, landFrozen, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
+import { migrateRivals, openBooks, outOfTownerState, rivalDawn, stockCups, tookCustomer, type Budget, type TradeBooks } from './rivalAi.ts';
+import { historicHedges, landFrozen, outOfTownerAtDawn, priceWarCut, provideMysteryGoal, schemesAtDawn, type Scheme } from './schemes.ts';
 import { crewAtDawn, isSpoiled, isWrecked, migrateCrew, NO_DEFENSE, planNight, resolveNight, seedRivalDefenses, type BattleReport, type Guard, type Raid } from './crew.ts';
 import type { GadgetId, SpecId } from './balance.ts';
 import type { Scouted } from './scouting.ts';
@@ -183,10 +183,14 @@ export interface RivalState {
   taken?: { day: number; n: number }; // passers-by at its stands who bought from you instead, that day (Attention)
   held?: string[]; // plots held at the last dawn
   lost?: string[]; // plots taken from them that went For Sale: whoever buys one takes their land
-  rush?: number; // the Blenders: the night of their last Blender Rush on you (Brock phones first)
+  rush?: number; // the swarms (the Blenders, the Out-of-Towner): the night of their last Rush on you (Brock phones first)
   haggle?: { day: number; out?: boolean }; // Juni and Preston: their buyout counter-offer stands this day; out: they walked out
   hedges?: number; // Vera: the day Town Hall froze your first Hilltop deal (Act 5's Historic hedges)
   mystery?: { from: number; caught?: number }; // Cold Brew, Act 3's mystery: the dawn its Night Shift first spoiled your stock, and the dawn your watch caught it
+  // Endless Summer's Out-of-Towner (schemes.ts outOfTownerAtDawn): out of town (alive false) until its first date.
+  arrived?: number; // the dawn it last came to town
+  due?: number; // the dawn of its next date: back in town, or more money and plots
+  since?: number; // a run started as Endless: the dawn the last of the Bay's five was out, which starts its clock
 }
 
 export interface DayStats {
@@ -353,6 +357,7 @@ export function standCost(level: number): number {
 function seedRivals(s: GameState, rng: Rng): void {
   for (const id of RIVAL_IDS) {
     const f = FACTIONS[id];
+    if (f.outOfTown) { s.rivals[id] = outOfTownerState(); continue; } // Endless Summer's Out-of-Towner waits out of town (schemes.ts)
     s.rivals[id] = { cash: f.startCash, brandTier: id === 'fizzco' ? 2 : 1, grudge: 0, attention: 0, peakPlots: 0, alive: true, respectUntil: 0 };
     if (!inPlay(s, id)) { Object.assign(s.rivals[id], { cash: 0, alive: false }); continue; } // land: left out of this Sandbox, never in play
     const home = PLOTS.filter((p) => p.district === f.home);
@@ -1036,6 +1041,7 @@ function rivalsAtDawn(s: GameState): void {
     r.peakPlots = Math.max(r.peakPlots, ownedPlots(s, id).length);
   }
   s.seed = rng.seed;
+  outOfTownerAtDawn(s); // Endless Summer: the Out-of-Towner's date in town (schemes.ts)
 }
 
 // ---------- score and rank ----------

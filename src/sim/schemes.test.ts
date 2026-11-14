@@ -9,14 +9,18 @@ import {
   blitzes, blitzingToday, morningShow, outsoldAt, RIVAL_JINGLES, buyPlot, freezeOn, HEDGES, plotBuyout,
   detectionChance, MYSTERY, MYSTERY_GOAL, mysteryGoal, mysteryOn, NIGHT_SHIFT, nightShiftUnmasked, welcomeDex,
   closeAuctions, openAuction, placeBid, PRESTON_OUTBID,
-  type DayStats, type GameState, type RivalId, type Scheme,
+  BAY_RIVALS, bugleNews, canAssault, comeToTown, DISTRICTS, keepSqueezing, netWorth, OUT_OF_TOWNER, outOfTownerAtDawn, ownedPlots, RAID_PARTY,
+  raidCost, raidSize, rivalsBankrupt, swarms, syndicateMembers, thinnestDistrict, threatLevel,
+  type DayStats, type DistrictId, type GameState, type Guard, type RivalId, type Scheme,
 } from './economy.ts';
 import { schemeNote, schemeTickets } from '../ui/schemes.ts';
+import { boardOrder, corkboardBody } from '../ui/corkboard.ts';
+import { plotBuyoutRow, type SitKit } from '../ui/sitdown.ts';
 import { phoneCheck } from './phone.ts';
 import { checkGoals, GOAL_PROVIDERS, goalsNow } from './goals.ts';
 import { playScene, SPEAKERS } from './scenes.ts';
 
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
+const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
 const cents = (n: number) => Math.round(n * 100) / 100;
 
 /** Lottie opens a stand on the street next to one of `id`'s stands, so the two share passers-by. */
@@ -1146,5 +1150,152 @@ describe("Act 3's mystery: the Night Shift spoils your stock", () => {
     expect(loaded.rivals.coldbrew.mystery).toEqual({ from: 45 });
     expect(GOAL_PROVIDERS.filter((p) => p.id === MYSTERY_GOAL)).toHaveLength(1);
     expect(mysteryGoal(loaded)).toEqual({ text: MYSTERY.goal, progress: 0, done: false });
+  });
+});
+
+describe("Endless Summer's Out-of-Towner: Snootwater Springs", () => {
+  const SNOOT = OUT_OF_TOWNER.id;
+  /** A won campaign that keeps squeezing: the Bay's five are out of business and their land is back on the market. */
+  function endless(seed: number): GameState {
+    const s = newGame(seed);
+    for (const id of RIVALS) s.rivals[id].alive = false;
+    for (const p of PLOTS) {
+      const ps = s.plots[p.id];
+      if (ps.owner && ps.owner !== 'player') s.plots[p.id] = { ...ps, owner: p.type === 'hq' ? 'player' : null, stand: null, invested: 0, garrison: 0 };
+    }
+    s.rank = 9;
+    s.outcome = { result: 'won', how: 'domination', day: s.day };
+    expect(keepSqueezing(s)).toBe(true);
+    return s;
+  }
+  /** The Out-of-Towner's dawns, one by one, up to `day`. */
+  const toDay = (s: GameState, day: number) => { while (s.day < day) { s.day++; outOfTownerAtDawn(s); } };
+  const kit: SitKit = {
+    btn: (action, label, b = { ok: true }, extra = '') => `<button data-action="${action}" ${extra} ${b.ok ? '' : 'disabled'}>${label}</button>`,
+    tape: (inner) => `<span>${inner}</span>`, locked: (b) => !b.ok && /Rank \d/.test(b.why), esc: (x) => x,
+    whole: (n) => `$${Math.round(n).toLocaleString('en-US')}`, face: (_s, g: Guard) => `<i>${g.name}</i>`,
+  };
+
+  it('waits out of town until Endless Summer: out of the game, off the Corkboard, no date in a run that ends', () => {
+    const s = newGame(41);
+    expect(s.rivals[SNOOT]).toMatchObject({ alive: false, cash: 0 });
+    expect(ownedPlots(s, SNOOT)).toHaveLength(0);
+    expect(boardOrder(s)).not.toContain(SNOOT);
+    s.day = 200;
+    outOfTownerAtDawn(s); // a campaign still being played
+    s.outcome = { result: 'won', how: 'domination', day: 200 }; // won, and the run ends there
+    toDay(s, 260);
+    const sandbox = newGame(41, { mode: 'sandbox' });
+    for (const id of RIVALS) sandbox.rivals[id].alive = false;
+    toDay(sandbox, 60);
+    for (const g of [s, sandbox]) expect(g.rivals[SNOOT]).toMatchObject({ alive: false, cash: 0 });
+  });
+
+  it('comes to town on the 14th dawn after the win: the busiest open plots of your thinnest district, a Bugle lead and a taunt', () => {
+    const s = endless(42);
+    const won = s.day;
+    for (let d = 1; d < OUT_OF_TOWNER.after; d++) { openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); }
+    expect(s.day).toBe(won + OUT_OF_TOWNER.after - 1);
+    expect(s.rivals[SNOOT].alive).toBe(false);
+    const where = thinnestDistrict(s)!;
+    const open = PLOTS.filter((p) => p.district === where && ['street', 'prime', 'landmark'].includes(p.type) && !s.plots[p.id].owner)
+      .sort((a, b) => b.baseTraffic - a.baseTraffic || a.id.localeCompare(b.id));
+    const chest = Math.max(OUT_OF_TOWNER.chest.floor, Math.round((netWorth(s) * OUT_OF_TOWNER.chest.share) / 100) * 100);
+    openStand(s); simulateRestOfDay(s); sleepUntilDawn(s); // the 14th dawn
+    const r = s.rivals[SNOOT];
+    expect(r).toMatchObject({ alive: true, arrived: won + OUT_OF_TOWNER.after, due: won + OUT_OF_TOWNER.after + OUT_OF_TOWNER.every });
+    const bought = ownedPlots(s, SNOOT);
+    expect(bought.length).toBeGreaterThanOrEqual(OUT_OF_TOWNER.plots[0]);
+    expect(bought.length).toBeLessThanOrEqual(OUT_OF_TOWNER.plots[1]);
+    expect(bought.map((p) => p.id).sort()).toEqual(open.slice(0, bought.length).map((p) => p.id).sort());
+    for (const p of bought) {
+      expect(s.plots[p.id].stand!.level).toBeGreaterThanOrEqual(FACTIONS[SNOOT].startLevel);
+      expect(s.plots[p.id].garrison).toBeLessThanOrEqual(1);
+    }
+    expect(r.cash).toBeGreaterThan(0);
+    expect(r.cash).toBeLessThanOrEqual(chest * 1.5); // its war chest, give or take a day's trade
+    expect(s.news).toContain(`OUT-OF-TOWNERS! Snootwater Springs buys into ${DISTRICT_BY_ID[where].name}.`);
+    const paper = bugleNews(s);
+    expect([...paper.headline, ...paper.briefs].join(' ')).toMatch(/Snootwater Springs buys into|SNOOTWATER/i); // the lead, or a brief under a bigger one
+    expect(s.phone!.queue.some((c) => c.who === SNOOT && c.text === OUT_OF_TOWNER.taunts[0])).toBe(true);
+    expect(OUT_OF_TOWNER.taunts[0]).toContain('a cry for help');
+    expect(boardOrder(s)).toContain(SNOOT);
+  });
+
+  it('every 30 days: more money and trucks while it is here; with no plot left it goes home, and comes back on its next date', () => {
+    const s = endless(44);
+    const won = s.day;
+    toDay(s, won + OUT_OF_TOWNER.after);
+    const first = ownedPlots(s, SNOOT).length, cash = s.rivals[SNOOT].cash;
+    toDay(s, won + OUT_OF_TOWNER.after + OUT_OF_TOWNER.every - 1);
+    expect(ownedPlots(s, SNOOT)).toHaveLength(first);
+    toDay(s, won + OUT_OF_TOWNER.after + OUT_OF_TOWNER.every);
+    expect(ownedPlots(s, SNOOT).length).toBeGreaterThanOrEqual(first + OUT_OF_TOWNER.plots[0]);
+    expect(s.rivals[SNOOT].cash).toBeGreaterThanOrEqual(cash + OUT_OF_TOWNER.chest.floor);
+    expect(s.news.at(-1)).toMatch(/^OUT-OF-TOWNERS! Snootwater Springs sends more trucks to /);
+    for (const p of ownedPlots(s, SNOOT)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player' };
+    rivalsBankrupt(s);
+    expect(s.rivals[SNOOT].alive).toBe(false);
+    expect(s.news).toContain('Snootwater Springs pack up and leave town.');
+    const next = s.rivals[SNOOT].due!;
+    expect(next).toBe(won + OUT_OF_TOWNER.after + 2 * OUT_OF_TOWNER.every);
+    toDay(s, next);
+    expect(s.rivals[SNOOT]).toMatchObject({ alive: true, arrived: next, grudge: 0 });
+    expect(ownedPlots(s, SNOOT).length).toBeGreaterThanOrEqual(OUT_OF_TOWNER.plots[0]);
+    expect(s.news.some((n) => /^OUT-OF-TOWNERS! Snootwater Springs is back, buying into /.test(n))).toBe(true);
+    expect(s.phone!.queue.some((c) => c.who === SNOOT && c.text === OUT_OF_TOWNER.taunts[1])).toBe(true);
+  });
+
+  it('in a run started as Endless, its clock starts the dawn the last of the Bay\'s five is out', () => {
+    const s = newGame(45, { mode: 'endless' });
+    toDay(s, 60);
+    expect(s.rivals[SNOOT].due).toBeUndefined();
+    for (const id of RIVALS) s.rivals[id].alive = false;
+    toDay(s, 61);
+    expect(s.rivals[SNOOT]).toMatchObject({ since: 61, due: 61 + OUT_OF_TOWNER.after, alive: false });
+    toDay(s, 61 + OUT_OF_TOWNER.after);
+    expect(s.rivals[SNOOT].alive).toBe(true);
+  });
+
+  it('buys into your thinnest district: your lowest share among those with a plot for sale; none for sale, it waits', () => {
+    const s = endless(48);
+    for (const p of PLOTS) if (p.type !== 'civic') s.plots[p.id].owner = 'player';
+    const free = (d: DistrictId, n: number) => { for (const p of PLOTS.filter((x) => x.district === d && x.type === 'street').slice(0, n)) s.plots[p.id].owner = null; };
+    free('maple', 1);
+    free('oldtown', 3);
+    expect(thinnestDistrict(s)).toBe('oldtown');
+    const other = DISTRICTS.find((d) => d.id !== 'maple' && d.id !== 'oldtown')!.id;
+    for (const p of PLOTS) if (p.district === other && p.type !== 'civic') s.plots[p.id].owner = 'hollis'; // none of it Lottie's, none of it for sale
+    expect(thinnestDistrict(s)).toBe('oldtown');
+    for (const p of PLOTS) if (p.type !== 'civic' && !s.plots[p.id].owner) s.plots[p.id].owner = 'player';
+    expect(thinnestDistrict(s)).toBeNull();
+    expect(comeToTown(s, SNOOT)).toBe(false);
+    expect(s.rivals[SNOOT].alive).toBe(false);
+  });
+
+  it("fights like Brock's Bros, with no HQ to storm and no seat in the Syndicate; its Sit-downs are at its stands", () => {
+    const s = endless(46);
+    toDay(s, s.day + OUT_OF_TOWNER.after);
+    expect(swarms(SNOOT)).toBe(true);
+    const tier = threatLevel(s);
+    expect(raidSize(SNOOT, 1, tier)).toBe(RAID_PARTY[tier - 1].size[1]);
+    expect(raidCost(s, SNOOT, 4)).toBe(raidCost(s, 'blenders', 4));
+    expect(canAssault(s, SNOOT, ['g1'])).toEqual({ ok: false, why: 'No HQ in the Bay to storm' });
+    expect(syndicateMembers(s)).not.toContain(SNOOT);
+    const busiest = ownedPlots(s, SNOOT).sort((a, b) => b.baseTraffic - a.baseTraffic)[0];
+    expect(corkboardBody(s)).toContain(`data-plot="${busiest.id}"`);
+    const row = plotBuyoutRow(kit, s, busiest.id);
+    expect(row).toContain('data-testid="plot-buyout"');
+    expect(row).toContain(`data-action="truce" data-rival="${SNOOT}"`);
+  });
+
+  it('an old save gets it waiting out of town, and the run carries on', () => {
+    const s = newGame(47);
+    const old = JSON.parse(JSON.stringify(s));
+    delete old.rivals[SNOOT];
+    const loaded = migrateSave(old)!;
+    expect(loaded.rivals[SNOOT]).toMatchObject({ alive: false, cash: 0 });
+    openStand(loaded); simulateRestOfDay(loaded); sleepUntilDawn(loaded);
+    expect(loaded.day).toBe(s.day + 1);
   });
 });

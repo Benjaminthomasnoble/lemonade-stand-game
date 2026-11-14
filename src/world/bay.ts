@@ -573,8 +573,8 @@ export function createBay(scene: THREE.Scene, phone = false): Bay {
       watch.userData.ownFar = true;
     }
     // Each boss holds court in front of their HQ (spec mood scene: "Brock flexes from the Pier").
-    if (p.type === 'hq' && ps.owner && ps.owner !== 'player' && s.rivals[ps.owner as RivalId]?.alive) {
-      const id = BOSS_OF[ps.owner as keyof typeof BOSS_OF];
+    const id = p.type === 'hq' && ps.owner && ps.owner !== 'player' && s.rivals[ps.owner as RivalId]?.alive ? BOSS_OF[ps.owner as keyof typeof BOSS_OF] : undefined;
+    if (id) {
       const fig = makeBoss(id, K.fig, { detail: crowdDetail() });
       const court = new THREE.Group();
       court.name = 'boss';

@@ -52,7 +52,7 @@ export const CALLS_PER_DAY = 2;
 /** A choice on a call's card: its label, what it costs up front (shown on the button), and whether you can take it. */
 export interface CallChoice { label: string; cost?: number; ok: boolean; tone?: 'go' | 'ghost' }
 
-const SHORT: Record<RivalId, string> = { sourwood: 'Sourwood', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: "Brock's Bros" };
+const SHORT: Record<RivalId, string> = { sourwood: 'Sourwood', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: "Brock's Bros", snootwater: 'Snootwater' };
 const cents = (n: number) => (n < 1 ? `${Math.round(n * 100)}¢` : `$${n.toFixed(2)}`);
 
 export function callsOf(s: GameState): CallsState {

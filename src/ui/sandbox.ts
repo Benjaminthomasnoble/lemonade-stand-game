@@ -9,7 +9,7 @@ import type { ScoreEntry } from '../save.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const SIZES = Object.keys(MAP_SIZES) as MapSize[];
-const SHORT: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera' };
+const SHORT: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera', snootwater: 'Sterling' };
 /** Each boss's clay head in the gang colour, drawn once so redraws compare equal. */
 const FACE = new Map<RivalId, string>();
 const face = (r: RivalId) => FACE.get(r) ?? FACE.set(r, svg(headBlob(32, 30, 17, '#F6C9A0', '#' + FACTIONS[r].color.toString(16).padStart(6, '0')))).get(r)!;

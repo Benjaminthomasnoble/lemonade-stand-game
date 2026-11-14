@@ -14,18 +14,18 @@
 // Night Shift spoils your stock overnight with no raid seen (the act's mystery),
 // until your night watch catches it or Squawk's night flight unmasks it. Pure
 // and seeded, like the rest of the sim.
-import { BRAND_TIERS, CAMPAIGNS, FACTIONS, type CampaignId, type RivalId } from './balance.ts';
+import { BAY_RIVALS, BRAND_TIERS, CAMPAIGNS, FACTIONS, REP_DRIFT, STAND_LEVELS, type CampaignId, type RivalId } from './balance.ts';
 import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { GameState, Goal, Stand } from './economy.ts';
-import { canBuyPlot, ownedPlots, rivalPrice } from './economy.ts';
-import { detectionChance, threatLevel } from './crew.ts';
-import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, spend } from './rivalAi.ts';
-import { AD_BLITZ, CEASE, HEDGES, inTruce, MYSTERY, NIGHT_SHIFT, OLD_MONEY, SCHEMES, TAKEOVER } from './rivals.ts';
+import type { GameState, Goal, RivalState, Stand } from './economy.ts';
+import { canBuyPlot, netWorth, newStand, ownedPlots, rivalPrice } from './economy.ts';
+import { detectionChance, NO_DEFENSE, postsFor, threatLevel } from './crew.ts';
+import { addGrudge, budgetOf, canSpend, chargeStrike, keptShare, openBooks, outOfTownerState, spend } from './rivalAi.ts';
+import { AD_BLITZ, CEASE, HEDGES, inTruce, MYSTERY, NIGHT_SHIFT, OLD_MONEY, OUT_OF_TOWNER, SCHEMES, TAKEOVER } from './rivals.ts';
 import { alert } from './alerts.ts';
-import { phoneCall } from './phone.ts';
+import { CALL_PRIORITY, phoneCall } from './phone.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
-import { actOf, peaceful } from './modes.ts';
+import { actOf, districtControl, isEndless, peaceful } from './modes.ts';
 import { playScene, queued } from './scenes.ts';
 import { hasStory } from './story.ts';
 import { GOAL_PROVIDERS } from './goals.ts';
@@ -60,6 +60,7 @@ const PREFERS: Record<RivalId, SchemeKind[]> = {
   sourwood: ['priceWar', 'freeze', 'fine', 'snipe'],
   hollis: ['priceWar', 'snipe'],
   blenders: ['priceWar', 'snipe'],
+  snootwater: ['priceWar', 'snipe'], // the Out-of-Towner schemes like Brock
 };
 
 /** What a rival reaches for: its own schemes, and in Peaceful an ad blitz too (its marketing stands in for its raids). */
@@ -659,3 +660,87 @@ export function startScheme(s: GameState, id: RivalId, kind: SchemeKind, rng?: R
 
 /** For the HUD and tests: the price war a stand is in today, if any. */
 export const warAt = (s: GameState, plotId: string) => runningSchemes(s).find((x) => x.kind === 'priceWar' && x.plots.includes(plotId));
+
+// ---------- the Out-of-Towner (spec: Endless Summer) ----------
+
+const STAND_PLOTS = ['street', 'prime', 'landmark'];
+/** A plot an Out-of-Towner can buy into: unowned, off the auction block and First Dibs, no Fire Sale building on it, its sale not frozen. */
+const forSale = (s: GameState, plotId: string) => {
+  const ps = s.plots[plotId];
+  return !ps.owner && !ps.auction && !ps.dibs && !ps.kept && !landFrozen(s, plotId);
+};
+const openIn = (s: GameState, d: DistrictId) => PLOTS.filter((p) => p.district === d && STAND_PLOTS.includes(p.type) && forSale(s, p.id));
+
+/**
+ * Your thinnest district (spec: an Out-of-Towner buys "into your thinnest district"): your lowest share of it, among the
+ * districts with a street, prime or landmark plot open to buy; a tie goes to the one with the most open plots.
+ */
+export function thinnestDistrict(s: GameState): DistrictId | null {
+  let best: { d: DistrictId; share: number; open: number } | null = null;
+  for (const d of DISTRICTS) {
+    const open = openIn(s, d.id).length;
+    if (!open) continue;
+    const share = districtControl(s, d.id).share;
+    if (!best || share < best.share - 1e-9 || (share <= best.share + 1e-9 && open > best.open)) best = { d: d.id, share, open };
+  }
+  return best?.d ?? null;
+}
+
+/** The day the Out-of-Towner's clock starts: the victory day, or in a run started as Endless the dawn the Bay's five were all out. */
+function outOfTownerClock(s: GameState, r: RivalState): number | undefined {
+  if (s.endlessSince !== undefined) return s.outcome?.day ?? s.endlessSince;
+  if (r.since === undefined && BAY_RIVALS.every((id) => !s.rivals[id]?.alive)) r.since = s.day;
+  return r.since;
+}
+
+/** Dawn (rivalsAtDawn), in Endless Summer: on the Out-of-Towner's date (14 days after the clock starts, then every 30) it comes to town. */
+export function outOfTownerAtDawn(s: GameState): void {
+  const id = OUT_OF_TOWNER.id;
+  const r = s.rivals[id];
+  if (!r || !isEndless(s)) return;
+  const start = outOfTownerClock(s, r);
+  if (start === undefined) return;
+  r.due ??= start + OUT_OF_TOWNER.after;
+  if (s.day < r.due) return;
+  while (r.due <= s.day) r.due += OUT_OF_TOWNER.every;
+  comeToTown(s, id);
+}
+
+/**
+ * The Out-of-Towner's date in town: back with a fresh war chest if it was out (or never came), else more money for the
+ * one it has. Either way it buys 2 or 3 of the busiest open plots in your thinnest district and opens a stand on each
+ * (its start level, one more on Prime and Landmark) with a henchman on guard, and the Bugle and its boss say so.
+ * False when no district has a plot left to buy: it waits for its next date.
+ */
+export function comeToTown(s: GameState, id: RivalId): boolean {
+  const where = thinnestDistrict(s);
+  if (!where) return false;
+  const f = FACTIONS[id];
+  const chest = Math.max(OUT_OF_TOWNER.chest.floor, Math.round((netWorth(s) * OUT_OF_TOWNER.chest.share) / 100) * 100);
+  const was = s.rivals[id];
+  const fresh = !was.alive, back = was.arrived !== undefined;
+  if (fresh) {
+    s.rivals[id] = { ...outOfTownerState(), cash: chest, alive: true, respectUntil: s.day + OUT_OF_TOWNER.respect, reputation: REP_DRIFT.base };
+    for (const k of ['due', 'since'] as const) if (was[k] !== undefined) s.rivals[id][k] = was[k];
+  } else was.cash += chest; // the next dawn banks it into its buckets
+  const r = s.rivals[id];
+  const rng = { seed: s.seed };
+  const [lo, hi] = OUT_OF_TOWNER.plots;
+  const n = lo + Math.floor(nextRandom(rng) * (hi - lo + 1));
+  s.seed = rng.seed;
+  const buys = openIn(s, where).sort((a, b) => b.baseTraffic - a.baseTraffic || a.id.localeCompare(b.id)).slice(0, n);
+  for (const p of buys) {
+    const level = Math.min(f.maxLevel, f.startLevel + (p.type === 'prime' || p.type === 'landmark' ? 1 : 0));
+    const invested = STAND_LEVELS.slice(0, level).reduce((a, l) => a + l.cost, 0);
+    s.plots[p.id] = { owner: id, stand: newStand(level, rivalPrice(id, level, p, s)), invested, landValue: s.plots[p.id].landValue, defense: NO_DEFENSE() };
+    s.plots[p.id].garrison = Math.min(1, postsFor(s, p.id));
+  }
+  if (fresh) openBooks(s, id);
+  r.arrived = s.day;
+  r.peakPlots = Math.max(r.peakPlots, ownedPlots(s, id).length);
+  const there = DISTRICT_BY_ID[where].name;
+  const what = !fresh ? `${f.name} sends more trucks to ${there}.` : back ? `${f.name} is back, buying into ${there}.` : `${f.name} buys into ${there}.`;
+  alert(s, { kind: 'note', text: `OUT-OF-TOWNERS! ${what}`, ...(buys[0] ? { plot: buys[0].id } : {}) }); // the Bugle prints it as a lead (media.ts wireStory)
+  phoneCall(s, id, OUT_OF_TOWNER.taunts[back ? 1 : 0], { priority: CALL_PRIORITY.story });
+  return true;
+}

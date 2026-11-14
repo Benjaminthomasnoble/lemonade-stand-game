@@ -8,7 +8,7 @@ import { Baker, GLOSS, PAPER, box, cap as cap0, cyl as cyl0, lathe as lathe0, lu
 import { CREWS, Figure, SPECS, type BodyKind, type FigureOptions, type FigureSpec, type Hat } from './figure.ts';
 import { P, SKINS } from './palette.ts';
 
-export type Side = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
+export type Side = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders' | 'snootwater';
 export type SegmentLook = 'kids' | 'families' | 'seniors' | 'students' | 'office' | 'tourists' | 'workers' | 'highRollers';
 
 // ---------- props ----------
@@ -196,7 +196,7 @@ export const BOSSES = {
   brock: { kind: 'vee', R: 0.25, girth: 1.25, skin: '#E7A16E', shirt: P.mango, pants: P.lagoon, shoes: P.lagoon, hairColor: '#FBE29A', hat: 'visor', hatColor: P.lagoon, eyes: 'bead', brows: 'up', mouth: 'grin', nose: 'zinc', waves: P.lagoon, tank: true, trim: P.lagoon },
 } satisfies Record<string, FigureSpec>;
 export type BossId = keyof typeof BOSSES;
-export const BOSS_OF: Record<Exclude<Side, 'player'>, BossId> = { sourwood: 'vera', hollis: 'tilly', fizzco: 'preston', coldbrew: 'juni', blenders: 'brock' };
+export const BOSS_OF: Partial<Record<Exclude<Side, 'player'>, BossId>> = { sourwood: 'vera', hollis: 'tilly', fizzco: 'preston', coldbrew: 'juni', blenders: 'brock' }; // the Out-of-Towner's boss has no figure yet
 /** Each boss's scale (Vera is the tallest stilt in town) and the thing they carry. */
 const BOSS_EXTRA: Record<BossId, { scale: number; prop?: string; left?: boolean }> = {
   vera: { scale: 1.12, prop: 'cane' }, tilly: { scale: 1.05, prop: 'ladle' }, preston: { scale: 1.0, prop: 'carphone' }, juni: { scale: 1.0, prop: 'icedcoffee' }, brock: { scale: 1.05 },
@@ -277,9 +277,9 @@ export interface CrewLook {
   /** Lanky Dex: 3 heads tall in his lemon guard vest (your crew only) */
   dex?: boolean;
 }
-const CLUB: Record<Side, string> = { player: 'bat', sourwood: 'cane', hollis: 'shovel', fizzco: 'baton', coldbrew: 'heldboard', blenders: 'paddle' };
-const HATCHET: Record<Side, string> = { player: 'hatchetPlayer', sourwood: 'hatchetSourwood', hollis: 'hatchetHollis', fizzco: 'hatchetFizzco', coldbrew: 'hatchetColdbrew', blenders: 'hatchetBlenders' };
-const TAPE: Record<Side, string> = { player: P.lemon, sourwood: '#ffffff', hollis: P.ging, fizzco: '#ffffff', coldbrew: P.neon, blenders: P.lagoon };
+const CLUB: Record<Side, string> = { player: 'bat', sourwood: 'cane', hollis: 'shovel', fizzco: 'baton', coldbrew: 'heldboard', blenders: 'paddle', snootwater: 'paddle' };
+const HATCHET: Record<Side, string> = { player: 'hatchetPlayer', sourwood: 'hatchetSourwood', hollis: 'hatchetHollis', fizzco: 'hatchetFizzco', coldbrew: 'hatchetColdbrew', blenders: 'hatchetBlenders', snootwater: 'hatchetBlenders' };
+const TAPE: Record<Side, string> = { player: P.lemon, sourwood: '#ffffff', hollis: P.ging, fizzco: '#ffffff', coldbrew: P.neon, blenders: P.lagoon, snootwater: '#ffffff' };
 /** The six crew looks (spec's crew table): body, gait and hat per side. */
 export const CREW_LOOK: Record<Side, FigureSpec> = {
   // Lemon and White: a white tee under the striped lemon bib, so the lemon cap still reads as the lemon
@@ -289,6 +289,8 @@ export const CREW_LOOK: Record<Side, FigureSpec> = {
   fizzco: { ...CREWS.fizzco },
   coldbrew: { ...SPECS.henchman, apron: P.oat, apronMark: 'bean' },
   blenders: { ...CREWS.blenders },
+  // Endless Summer's Out-of-Towner, a stand-in until the art thread gives it its own: Brock's Bros in glacier blue and white.
+  snootwater: { ...CREWS.blenders, shirt: '#FFFFFF', pants: '#7FC8F8', shoes: '#7FC8F8', hatColor: '#7FC8F8', waves: '#7FC8F8', trim: '#7FC8F8' },
 };
 /** A crew member's spec: their side's look plus gear, level chevrons and role kit. */
 export function crewSpec(side: Side, look: CrewLook = {}): FigureSpec {

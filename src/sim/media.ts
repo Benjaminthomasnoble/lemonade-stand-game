@@ -21,7 +21,7 @@ import { crewName, grandkid } from './grandkid.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** Rivals as the paper names them in a headline. */
-const NAME: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders' };
+const NAME: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders', snootwater: 'Snootwater' };
 const who = (f: FactionId) => (f === 'player' ? "Lottie's" : NAME[f as RivalId]);
 const place = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;

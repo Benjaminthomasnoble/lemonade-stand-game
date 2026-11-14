@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addGrudge, ATTENTION, attentionOf, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
+  addGrudge, ATTENTION, attentionOf, BAY_RIVALS, bankTakings, budgetOf, crewAtDawn, customersTaken, tookCustomer, FACTIONS, GRUDGE, grudgeToward, growLand, growUpgrades,
   costPerCup, CUP_COST, dailyService, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, openStand, ownedPlots, PERIMETERS, planNight, plotBuyout, PLOTS,
   fenceRepairCost, henchWage, payWages, raidCost, reserveOf, RIVAL_TRADE, rivalDawn, simulateRestOfDay, sleepUntilDawn, stockCups,
   RIVAL_HIRE_FEE, rivalGuardSpend, sharedBorders, STAND_LEVELS, stockCapCups, grudge, targetScore, FIZZCO_PLANT, FACILITIES, canRaid, groveTraffic, MAX_GROVES,
@@ -17,7 +17,7 @@ import { DEFAULT_OPTIONS } from '../settings.ts';
 import { nextRandom } from './rng.ts';
 import { phoneCheck } from './phone.ts';
 
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
+const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
 const levels = (s: GameState, id: RivalId) => ownedPlots(s, id).map((p) => s.plots[p.id].stand?.level ?? 0);
 /** A seed whose first draw is under p (to force a dawn's land roll). */
 function seedUnder(p: number): number {

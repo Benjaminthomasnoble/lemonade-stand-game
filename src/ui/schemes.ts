@@ -24,7 +24,7 @@ const btn = (action: string, label: string, extra = '', cls = 'tiny', why?: stri
   `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
 const pips = (n: number, of: number) => `<span class="cl-pips">${Array.from({ length: of }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 /** Short names for a ticket's one line. */
-const SHORT: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders' };
+const SHORT: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders', snootwater: 'Snootwater' };
 const CUT = `−${Math.round(SCHEMES.priceWar.cut * 100)}%`;
 const place = (id: string) => PLOT_BY_ID[id].name;
 const whole = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;

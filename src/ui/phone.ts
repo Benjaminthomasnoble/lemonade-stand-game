@@ -6,8 +6,8 @@ import { FACTIONS } from '../sim/balance.ts';
 import { CLAY } from './emotes.ts';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
-const SHORT: Record<RivalId, string> = { sourwood: 'Vera', hollis: 'Big Tilly', fizzco: 'Preston', coldbrew: 'Juni', blenders: 'Brock' };
-const SKIN: Record<RivalId, string> = { sourwood: '#F6C9A0', hollis: '#B9784F', fizzco: '#E3A27A', coldbrew: '#8A5638', blenders: '#E3A27A' };
+const SHORT: Record<RivalId, string> = { sourwood: 'Vera', hollis: 'Big Tilly', fizzco: 'Preston', coldbrew: 'Juni', blenders: 'Brock', snootwater: 'Sterling' };
+const SKIN: Record<RivalId, string> = { sourwood: '#F6C9A0', hollis: '#B9784F', fizzco: '#E3A27A', coldbrew: '#8A5638', blenders: '#E3A27A', snootwater: '#F6C9A0' };
 
 /** A little clay portrait of each boss, by hat and signature look (spec "Characters"). */
 function portrait(id: RivalId): string {
@@ -57,6 +57,10 @@ function portrait(id: RivalId): string {
     case 'blenders': // visor and zinc nose
       c.beginPath(); c.ellipse(80, 66, 34, 8, 0, 0, Math.PI * 2); c.fillStyle = accent; c.fill(); line(4);
       c.beginPath(); c.ellipse(80, 93, 5, 4, 0, 0, Math.PI * 2); c.fillStyle = '#fffdf6'; c.fill();
+      break;
+    case 'snootwater': // a silver swoop of hair and a monocle
+      c.beginPath(); c.ellipse(80, 58, 34, 16, 0, Math.PI, 0); c.fillStyle = '#D9DEE3'; c.fill(); line(4);
+      c.beginPath(); c.arc(90, 86, 9, 0, Math.PI * 2); line(3);
       break;
   }
   return cv.toDataURL('image/png');

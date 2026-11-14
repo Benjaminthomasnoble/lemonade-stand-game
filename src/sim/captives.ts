@@ -15,7 +15,7 @@
 // on your roster, Out while held: pay their hire fee within a few days, or they
 // go over to the rival; a Loyal guard won't, and walks home. Pure, like the
 // rest of the sim.
-import { FACTIONS, GUARD_FEE, HIRE_RANK, NABBED, RANKS, TRAITS, type RivalId, type Trait } from './balance.ts';
+import { BAY_RIVALS, FACTIONS, GUARD_FEE, HIRE_RANK, NABBED, RANKS, TRAITS, type RivalId, type Trait } from './balance.ts';
 import type { BattleResult, Fighter } from './combat.ts';
 import type { FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -41,7 +41,7 @@ export type CaptiveChoice = 'ransom' | 'release' | 'recruit' | 'pay';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
+const RIVALS = BAY_RIVALS; // a Former Rival from before the Nabbed came over from one of the Bay's five
 /** A rival's henchman, one of them: "Smoothie Bros" makes a "Smoothie Bro". */
 export const henchmanWord = (r: RivalId) => FACTIONS[r].henchmen.replace(/s$/, '');
 

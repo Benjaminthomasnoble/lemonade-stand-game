@@ -26,7 +26,7 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const whole = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const btn = (action: string, label: string, extra = '', cls = 'tiny') => `<button class="cl-b ${cls}" data-action="${action}" ${extra}>${label}</button>`;
 /** Short names for a card's one line. */
-const SHORT: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders' };
+const SHORT: Record<RivalId, string> = { sourwood: 'Sourwoods', hollis: 'Hollis', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'Blenders', snootwater: 'Snootwater' };
 const place = (id: string) => PLOT_BY_ID[id].name.replace(/ lot /, ' ');
 
 /** A Watchtower sees the party coming: one on the target, or on the owner's plots within 2 (crew's towerCovers). */

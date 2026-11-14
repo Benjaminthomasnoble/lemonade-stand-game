@@ -175,7 +175,7 @@ export interface TasteOffResult {
   score: number; best: number; marks: number[]; entry: Required<TasteOffEntry>;
 }
 /** First names for news lines and the HUD. */
-export const CONTESTANT_NAME: Record<Contestant, string> = { blenders: 'Brock', hollis: 'Tilly', fizzco: 'Preston', coldbrew: 'Juni', sourwood: 'Vera', local: 'Dot' };
+export const CONTESTANT_NAME: Record<Contestant, string> = { blenders: 'Brock', hollis: 'Tilly', fizzco: 'Preston', coldbrew: 'Juni', sourwood: 'Vera', snootwater: 'Sterling', local: 'Dot' };
 
 /** Act 1's climax uses the spec's own three hints: for the kids, not too sweet, worth a little extra. */
 const ACT1_JUDGES: Judge[] = [{ kind: 'recipe', segment: 'kids' }, { kind: 'sweet', want: 'less' }, { kind: 'price', band: 'extra' }];

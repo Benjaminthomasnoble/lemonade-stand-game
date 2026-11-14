@@ -64,7 +64,7 @@ export function withScene(feed: string, ticket: string): string {
 // ---------- the boss board (Ben, 2026-11-08: "WHY am I playing?") ----------
 /** The five bosses in the order the story beats them (Hollis falls between Cold Brew and FizzCo, off the acts). */
 export const BOSS_ORDER: RivalId[] = ['blenders', 'coldbrew', 'hollis', 'fizzco', 'sourwood'];
-const BOSS_SHORT: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera' };
+const BOSS_SHORT: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera', snootwater: 'Sterling' };
 
 /** Who's next: the act's climax rival in the campaign (Act 1: Brock at the Summer Fair), else the first boss still in. */
 export function nextBoss(s: GameState): RivalId | null {

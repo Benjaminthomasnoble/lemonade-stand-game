@@ -1,6 +1,7 @@
 // Sit-downs at Dot's Diner on the HUD (rivals: src/sim/rivals.ts). A rival HQ's
 // card offers the Truce and the Faction Buyout; a rival plot's card offers its
-// Plot Buyout. Under either, the Smooth Talkers on your crew: tap one to bring
+// Plot Buyout (an Out-of-Towner's, with no HQ in the Bay, its Truce and Faction
+// Buyout too). Under either, the Smooth Talkers on your crew: tap one to bring
 // them along as negotiator (every deal comes down), tap again to go alone.
 // Brock and Tilly sell at their price; Juni and Preston hear your offer, then
 // counter, and you shake on it or hold firm. Mounted from hud.ts, drawn with
@@ -10,6 +11,7 @@ import {
   haggling, peaceful, plotBuyoutPrice, SITDOWN_RANK, SMOOTH_TALKER, STAND_LEVELS, TRUCE_DAYS, truceCost, type Blocker, type GameState, type Guard,
   type PlotState, type RivalId,
 } from '../sim/economy.ts';
+import { FACTIONS } from '../sim/balance.ts';
 import type { Action } from './hud.ts';
 
 /** The parts of the HUD's clay kit the Sit-down controls draw with. */
@@ -49,20 +51,28 @@ function buyout(k: SitKit, s: GameState, id: RivalId): string {
     + k.btn('haggle', `Hold ${k.whole(offer)}`, canHoldFirm(s, id), `${who} data-move="firm" data-testid="haggle-firm" title="${k.esc(odds)}"`);
 }
 
-/** A rival HQ's Sit-downs: a Truce (none in Peaceful, where nobody raids), and the Faction Buyout once it opens. */
-export function sitDown(k: SitKit, s: GameState, id: RivalId): string {
-  if (s.rank < SITDOWN_RANK) return '';
+/** The Truce (none in Peaceful, where nobody raids) and the Faction Buyout once it opens, as buttons. */
+function tableButtons(k: SitKit, s: GameState, id: RivalId): string {
   const tb = canTruce(s, id);
   const truce = k.locked(tb) || peaceful(s) ? '' : k.btn('truce', `Truce ${k.whole(truceCost(s, id))}`, tb, `data-rival="${id}" data-testid="truce" title="${TRUCE_DAYS} days of peace. Their Grudge sets the tribute"`);
-  const buy = buyout(k, s, id);
-  return truce || buy ? `<div class="cl-acts">${truce}${buy}</div>${negotiatorRow(k, s)}` : '';
+  return truce + buyout(k, s, id);
+}
+
+/** A rival HQ's Sit-downs: a Truce, and the Faction Buyout once it opens. */
+export function sitDown(k: SitKit, s: GameState, id: RivalId): string {
+  if (s.rank < SITDOWN_RANK) return '';
+  const acts = tableButtons(k, s, id);
+  return acts ? `<div class="cl-acts">${acts}</div>${negotiatorRow(k, s)}` : '';
 }
 
 /** A rival plot's Plot Buyout at their price, and who you bring to ask. */
 export function plotBuyoutRow(k: SitKit, s: GameState, plotId: string): string {
+  if (s.rank < SITDOWN_RANK) return '';
   const pb = canPlotBuyout(s, plotId);
-  if (s.rank < SITDOWN_RANK || k.locked(pb)) return '';
-  return k.btn('plotBuyout', `Buy it ${k.whole(plotBuyoutPrice(s, plotId))}`, pb, `data-plot="${plotId}" data-testid="plot-buyout"`) + negotiatorRow(k, s);
+  const owner = s.plots[plotId].owner as RivalId;
+  const plot = k.locked(pb) ? '' : k.btn('plotBuyout', `Buy it ${k.whole(plotBuyoutPrice(s, plotId))}`, pb, `data-plot="${plotId}" data-testid="plot-buyout"`);
+  const table = FACTIONS[owner]?.outOfTown ? tableButtons(k, s, owner) : ''; // no HQ in the Bay: its Sit-down is at its stands
+  return plot || table ? plot + table + negotiatorRow(k, s) : '';
 }
 
 /** For a Fire Sale plot's card: the bought-out rival's building that comes with the plot. */

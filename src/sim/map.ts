@@ -3,7 +3,7 @@
 // sim (neighbors, travel) and the renderer.
 import { FACTIONS, MAP_SIZES, SIDE_LOT, type MapSize, type RivalId, type SegmentId } from './balance.ts';
 
-export type FactionId = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
+export type FactionId = 'player' | 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders' | 'snootwater';
 export type DistrictId = 'maple' | 'oldtown' | 'campus' | 'downtown' | 'boardwalk' | 'harbor' | 'groves' | 'hilltop';
 export type PlotType = 'street' | 'prime' | 'landmark' | 'field' | 'dock' | 'industrial' | 'hq' | 'civic';
 

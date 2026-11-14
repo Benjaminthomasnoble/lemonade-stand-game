@@ -19,21 +19,22 @@ const RIVALS = Object.keys(FACTIONS) as RivalId[];
 /** Who leads it: Vera while she's in, else the biggest boss left. */
 const LEAD_ORDER: RivalId[] = ['sourwood', 'fizzco', 'hollis', 'coldbrew', 'blenders'];
 /** The Bugle's name for the boss who signs everyone up. */
-const BYLINE: Record<RivalId, string> = { sourwood: 'SOURWOOD', fizzco: 'FIZZCO', hollis: 'HOLLIS', coldbrew: 'COLD BREW', blenders: 'BROCK' };
+const BYLINE: Record<RivalId, string> = { sourwood: 'SOURWOOD', fizzco: 'FIZZCO', hollis: 'HOLLIS', coldbrew: 'COLD BREW', blenders: 'BROCK', snootwater: 'SNOOTWATER' };
 
 /** Vera's call the morning it forms (spec: Voice). */
 export const SYNDICATE_CALL = 'I sent your grandmother a reminder, dear. This is the follow-up.';
 /** The Bugle the morning it forms (spec: Voice). */
 export const pactHeadline = (leader: RivalId) => `Bugle: PACT IS BACK: ${BYLINE[leader]} SIGNS UP EVERYONE BUT THE KID`;
 /** The same headline as the front page's two tapes: the big one, and the small one in the paper's sentence case. */
-const SIGNER: Record<RivalId, string> = { sourwood: 'Sourwood', fizzco: 'FizzCo', hollis: 'Hollis', coldbrew: 'Cold Brew', blenders: 'Brock' };
+const SIGNER: Record<RivalId, string> = { sourwood: 'Sourwood', fizzco: 'FizzCo', hollis: 'Hollis', coldbrew: 'Cold Brew', blenders: 'Brock', snootwater: 'Snootwater' };
 export const pactTapes = (leader: RivalId): [string, string] => ['PACT IS BACK', `${SIGNER[leader]} signs up everyone but the kid`];
 
 /** The Syndicate stands (rivals' feuds are off, every raid on you is its strike). The Corkboard ties its strings to
  * your photo, and Harbor Fest's crews go after every delivery, from this day on. */
-export const syndicateFormed = (s: GameState) => s.syndicate?.formed !== undefined && s.syndicate.formed <= s.day;
-/** Who's in it: every rival still in the game (the Mayor rides along for flavor). Each one you eliminate shrinks it. */
-export const syndicateMembers = (s: GameState) => RIVALS.filter((id) => s.rivals[id].alive);
+export const syndicateFormed = (s: GameState) => s.syndicate?.formed !== undefined && s.syndicate.formed <= s.day && syndicateMembers(s).length > 0; // with its last member out it stands no more (an Out-of-Towner in Endless raids on its own)
+/** Who's in it: every rival still in the game (the Mayor rides along for flavor). Each one you eliminate shrinks it. An
+ * Out-of-Towner never signs: the Pact is the Bay's families. */
+export const syndicateMembers = (s: GameState) => RIVALS.filter((id) => s.rivals[id].alive && !FACTIONS[id].outOfTown);
 /** Who leads it: Vera while she's in, else the biggest boss left. */
 export const syndicateLeader = (s: GameState): RivalId | null => LEAD_ORDER.find((id) => s.rivals[id].alive) ?? null;
 

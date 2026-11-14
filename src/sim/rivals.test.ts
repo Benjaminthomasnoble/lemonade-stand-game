@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buyPlot, canBuyPlot, canFactionBuyout, canAssault, crewAtDawn, equip, factionBuyout, factionBuyoutPrice, fightRaid, hireGuard, hqPlot,
   isWeakened, makeTruce, breakTruce, canTruce, offerSideLot, rebuildChance, trackOutselling, LOTTIES_CORNER, newGame, ownedPlots, plotBuyout, plotBuyoutPrice, plotPrice, PLOTS, refreshRecruits, stormHQ, type GameState,
-  FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
+  BAY_RIVALS, FACTIONS, netWorth, truceCost, TRUCE_TRIBUTE, type RivalId,
   migrateSave, negotiator, setNegotiator, SMOOTH_TALKER, type Guard,
   canHoldFirm, caveChance, haggle, HAGGLE, haggleOffer, haggling, HQS, eliminate, FIRE_SALE, newStand,
   budgetOf, closeAuctions, handOverKept, openAuction, PLOT_BY_ID, rivalPrice, buildFacility, deliver, openStand, PICKUP_MINUTE, playerStands, simulateRestOfDay, type Order, canPlotBuyout, hasTrophy, rivalsBankrupt, TROPHIES, BANKRUPT_DAYS, growLand, sleepUntilDawn, plotsAtDawn, type PlotState,
@@ -10,7 +10,7 @@ import {
 import { guardOf } from './fighters.ts';
 import { keptNote, negotiatorRow, plotBuyoutRow, sitDown, sitdownAction, type SitKit } from '../ui/sitdown.ts';
 
-const RIVALS = Object.keys(FACTIONS) as RivalId[];
+const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
 
 function rich(seed = 1): GameState {
   const s = newGame(seed);
@@ -292,7 +292,7 @@ describe('what a Faction Buyout buys', () => {
 });
 
 describe('a rival out of the game', () => {
-  const RIVALS = Object.keys(FACTIONS) as RivalId[];
+  const RIVALS = BAY_RIVALS;
 
   it('gone bust, its HQ still becomes your Trophy, perk and all, like a capture or a buyout', () => {
     for (const how of ['hq', 'buyout', 'bankrupt'] as const) {
@@ -303,7 +303,7 @@ describe('a rival out of the game', () => {
       expect(s.plots[hq]).toMatchObject({ owner: 'player', garrison: 0 });
       expect(hasTrophy(s, 'sourwood')).toBe(true);
       expect(s.plots[hq].dibs).toBeUndefined(); // an HQ never goes to the Fire Sale
-      expect(s.news.some((n) => n.includes(`becomes Lottie's ${TROPHIES.sourwood.name}`))).toBe(true);
+      expect(s.news.some((n) => n.includes(`becomes Lottie's ${TROPHIES.sourwood!.name}`))).toBe(true);
     }
     const s = rich(8); // the real route: a week in the red, counted at dawn
     s.rivals.hollis.cash = -1;
@@ -311,7 +311,7 @@ describe('a rival out of the game', () => {
     rivalsBankrupt(s);
     expect(s.rivals.hollis.alive).toBe(false);
     expect(hasTrophy(s, 'hollis')).toBe(true);
-    expect(s.news).toContain(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red. Their HQ, ${hqPlot('hollis').name}, becomes Lottie's ${TROPHIES.hollis.name}: ${TROPHIES.hollis.perk.toLowerCase()}.`);
+    expect(s.news).toContain(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red. Their HQ, ${hqPlot('hollis').name}, becomes Lottie's ${TROPHIES.hollis!.name}: ${TROPHIES.hollis!.perk.toLowerCase()}.`);
   });
 
   /** The Blenders go out on Day 8, every rival has the Grow money for anything, and their Fire Sale plots are the only open land. */
@@ -513,7 +513,7 @@ describe('review rules', () => {
 
   it('a helicopter paid mid-day counts in the day\'s sales, and so toward outselling a rival', () => {
     const s = rich(6);
-    for (const id of Object.keys(FACTIONS) as RivalId[]) budgetOf(s, id).strike = 0; // nobody can pay for a Delivery Raid
+    for (const id of RIVALS) budgetOf(s, id).strike = 0; // nobody can pay for a Delivery Raid
     const field = PLOTS.find((p) => p.type === 'field')!.id;
     s.plots[field] = { ...s.plots[field], owner: 'player', garrison: 0 };
     expect(buildFacility(s, field, 'helipad')).toBe(true);
@@ -527,7 +527,7 @@ describe('review rules', () => {
     const day = s.history.at(-1)!;
     const stands = playerStands(s).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
     expect(day.revenue).toBeCloseTo(stands + 15000, 2); // the pickup survives closing
-    for (const id of Object.keys(FACTIONS) as RivalId[]) {
+    for (const id of RIVALS) {
       const theirs = PLOTS.filter((p) => s.plots[p.id].owner === id && s.plots[p.id].stand).reduce((a, p) => a + s.plots[p.id].stand!.day.revenue, 0);
       expect(s.rivals[id].outsoldDays).toBe(day.revenue >= 2 * theirs ? 1 : 0);
     }
@@ -566,6 +566,7 @@ describe('rival personalities', () => {
   it('split their dawn spending Grow / Guard / Strike by the families table', () => {
     const spec: Record<RivalId, [number, number, number]> = {
       blenders: [25, 15, 60], coldbrew: [25, 25, 50], hollis: [40, 50, 10], fizzco: [50, 20, 30], sourwood: [35, 35, 30],
+      snootwater: [25, 15, 60], // the Out-of-Towner fights like Brock's Bros
     };
     for (const id of Object.keys(spec) as RivalId[]) {
       const f = FACTIONS[id];

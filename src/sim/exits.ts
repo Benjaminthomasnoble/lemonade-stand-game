@@ -41,6 +41,13 @@ const EXITS: Record<RivalId, { who: string; first: Record<ExitRoute, string>; re
     rest: [['Preston', "Yes, I'm in a tow truck. It's a strategic pivot."], ['Preston', "Let's circle back!"], ['Lottie', "Circle the whole Bay, Preston. It's ours now."]],
     recap: 'Preston Fizzwell leaves the Tower in a tow truck, still on his car phone: "Let\'s circle back!"',
   },
+  // Endless Summer's Out-of-Towner: no HQ in the Bay, so it leaves by a buyout or packing up (rivals.ts eliminate).
+  snootwater: {
+    who: 'Sterling',
+    first: { hq: 'You stormed a water cooler? How provincial.', buyout: 'Sold. The tap water wins, this once.', bankrupt: 'We are leaving. Your tap water is a cry for help.' },
+    rest: [['Sterling', 'We shall return. Hydration waits for no one.'], ['Lottie', 'Mind the potholes on your way out, Sterling.']],
+    recap: 'Sterling Snoot takes Snootwater Springs back out of town: "We shall return."',
+  },
   // Sandbox and Endless: the campaign plays the finale in its place (FINALE, below).
   sourwood: {
     who: 'Vera',

@@ -10,7 +10,7 @@ import {
 } from './balance.ts';
 import { BORDERS, PLOT_BY_ID, plotOnMap, plotType, PLOTS, type FactionId, type Plot } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
-import type { GameState, PlotState, Stand } from './economy.ts';
+import type { GameState, PlotState, RivalState, Stand } from './economy.ts';
 import { hasFoothold, newStand, ownedPlots, pitcherNeeds, rivalPrice, seasonOf } from './economy.ts';
 import {
   ATTENTION, BLENDER_RUSH, DIG_IN, GRUDGE, handOverKept, inTruce, NIGHT_SHIFT, OLD_MONEY, RAID_WAGE_NIGHTS, RIVAL_BRAND, RIVAL_HIRE_FEE,
@@ -75,6 +75,9 @@ export function fitBudget(s: GameState, id: RivalId, topUp = false): void {
   }
 }
 
+/** Endless Summer's Out-of-Towner before it comes to town (schemes.ts outOfTownerAtDawn): no cash, no plots, out of the game. */
+export const outOfTownerState = (): RivalState => ({ cash: 0, brandTier: 1, grudge: 0, attention: 0, peakPlots: 0, alive: false, respectUntil: 0 });
+
 /** A new rival's books: its whole starting cash, split by personality (the first dawn sets the reserve aside). */
 export function openBooks(s: GameState, id: RivalId): void {
   const r = s.rivals[id];
@@ -127,6 +130,7 @@ export function spend(s: GameState, id: RivalId, bucket: Bucket, amount: number)
 
 /** Saves from before the rival AI: open the books from the cash they hold now. Idempotent; runs on every load. */
 export function migrateRivals(s: GameState): void {
+  for (const id of RIVALS) if (FACTIONS[id].outOfTown) s.rivals[id] ??= outOfTownerState(); // a save from before the Out-of-Towner
   for (const id of RIVALS) {
     const r = s.rivals[id];
     if (!r) continue;
@@ -620,14 +624,17 @@ export function attentionOf(s: GameState, id: RivalId): number {
 
 // ---------- Strike: who raids, and what it costs ----------
 
+/** The swarms, who raid by Blender Rush: the Blenders, and Endless Summer's Out-of-Towner (spec: "fights like Brock's Bros"). */
+export const swarms = (id: RivalId) => id === 'blenders' || !!FACTIONS[id].outOfTown;
+
 /** A raid costs the rival a night's wages for each henchman it sends, at the strength it sends them (a Blender Rush comes cheap). */
 export function raidCost(s: GameState, id: RivalId, size: number, tier = threatLevel(s)): number {
   void s;
-  return Math.round(size * GUARD_WAGE[HENCHMEN[tier - 1].level - 1] * RAID_WAGE_NIGHTS * (id === 'blenders' ? BLENDER_RUSH.cost : 1));
+  return Math.round(size * GUARD_WAGE[HENCHMEN[tier - 1].level - 1] * RAID_WAGE_NIGHTS * (swarms(id) ? BLENDER_RUSH.cost : 1));
 }
 
-/** How many henchmen a boss sends on a raid planned with `size`: the Blenders always come at the top of the Threat range. */
-export const raidSize = (id: RivalId, size: number, tier: number) => (id === 'blenders' ? Math.max(size, RAID_PARTY[tier - 1].size[1]) : size);
+/** How many henchmen a boss sends on a raid planned with `size`: the swarms always come at the top of the Threat range. */
+export const raidSize = (id: RivalId, size: number, tier: number) => (swarms(id) ? Math.max(size, RAID_PARTY[tier - 1].size[1]) : size);
 
 /**
  * How keen a boss is to raid the player tonight: its Attention plus its Strike share (the Blenders raid most often).
@@ -648,6 +655,7 @@ export function pickRaider(s: GameState, rng: Rng, size: number, may: (id: Rival
   let best: RivalId | null = null;
   let top = -Infinity;
   for (const id of RIVALS) {
+    if (FACTIONS[id].outOfTown && !s.rivals[id].alive) continue; // out of town: no dice for it (the Bay's draws run as before)
     const keen = raidWeight(s, id) + nextRandom(rng) * ATTENTION.jitter; // near-ties go either way
     if (raidWeight(s, id) <= 0 || !may(id) || !canSpend(s, id, 'strike', raidCost(s, id, raidSize(id, size, tier), tier))) continue;
     if (keen > top) { top = keen; best = id; }
@@ -655,9 +663,9 @@ export function pickRaider(s: GameState, rng: Rng, size: number, may: (id: Rival
   return best;
 }
 
-/** A boss's party as it sets out for you, Strike paying its wages: a Blender Rush from the Blenders, Vera's elite Stewards from Act 5. */
+/** A boss's party as it sets out for you, Strike paying its wages: a Blender Rush from the swarms, Vera's elite Stewards from Act 5. */
 function sendOut(s: GameState, raider: RivalId, party: Fighter[], threat: number): Fighter[] {
-  let out = raider === 'blenders' ? blenderRush(s, party, threat) : party;
+  let out = swarms(raider) ? blenderRush(s, party, threat, raider) : party;
   const elite = raider === 'sourwood' && actOf(s) >= OLD_MONEY.act; // Old Money: Vera sends her elite Stewards
   if (elite) out = eliteStewards(out);
   spend(s, raider, 'strike', raidCost(s, raider, out.length, elite ? Math.min(5, threat + 1) : threat));
@@ -695,18 +703,19 @@ export function eliteStewards(party: Fighter[]): Fighter[] {
 }
 
 /**
- * Blender Rush: the Blenders' party for a raid at Threat tier `tier`, filled to the top of the tier's range with
- * Smoothie Bros like the ones planned, and every weapon one tier toward fists (their strength stays the tier's).
+ * Blender Rush: a swarm's party for a raid at Threat tier `tier` (the Blenders' Smoothie Bros, or the Out-of-Towner's
+ * own), filled to the top of the tier's range with henchmen like the ones planned, and every weapon one tier toward
+ * fists (their strength stays the tier's).
  */
-export function blenderRush(s: GameState, party: Fighter[], tier: number): Fighter[] {
+export function blenderRush(s: GameState, party: Fighter[], tier: number, by: RivalId = 'blenders'): Fighter[] {
   if (!party.length) return party;
-  const size = raidSize('blenders', party.length, tier);
+  const size = raidSize(by, party.length, tier);
   return Array.from({ length: size }, (_, i) => {
     const f = party[i % party.length];
     const weapon = FISTWARD[f.weapon];
     const m = f.hit / WEAPONS[f.weapon].hit; // the henchman's level bonus
     return {
-      ...f, id: i < party.length ? f.id : `blenders-att-${s.nextId++}`, name: f.name.replace(/#\d+$/, `#${i + 1}`),
+      ...f, id: i < party.length ? f.id : `${by}-att-${s.nextId++}`, name: f.name.replace(/#\d+$/, `#${i + 1}`),
       weapon, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
     };
   });
@@ -748,14 +757,14 @@ export function signatureRaids(s: GameState): Raid[] {
         }
       }
       raid.party = sendOut(s, raider, raid.party, threat);
-      if (raider === 'blenders') {
-        s.rivals.blenders.rush = s.day;
+      if (swarms(raider)) {
+        s.rivals[raider].rush = s.day;
         raidCall(s, raid); // Brock phones before the Rush (src/sim/phone.ts rings it once the raid is spotted)
       }
       kept.push(raid);
     } else {
       const tier = Math.min(3, threat + 1);
-      if (attacker === 'blenders') raid.party = blenderRush(s, raid.party, tier);
+      if (swarms(attacker)) raid.party = blenderRush(s, raid.party, tier, attacker);
       const cost = raidCost(s, attacker, raid.party.length, tier);
       if (!s.rivals[attacker]?.alive || !canSpend(s, attacker, 'strike', cost)) continue;
       const target = rivalTarget(s, attacker);

@@ -257,7 +257,7 @@ export const TASTE_OFF = {
   nearShare: 0.7, // a rival who misses a hint still lands near it this often
 };
 /** How often each contestant reads a judge's hint right. placeholder: spec gap */
-export const TASTE_OFF_SKILL: Record<RivalId | 'local', number> = { blenders: 0.6, hollis: 0.65, sourwood: 0.5, fizzco: 0.45, coldbrew: 0.45, local: 0.4 };
+export const TASTE_OFF_SKILL: Record<RivalId | 'local', number> = { blenders: 0.6, hollis: 0.65, sourwood: 0.5, fizzco: 0.45, coldbrew: 0.45, snootwater: 0.6, local: 0.4 };
 /** Event Sponsorship (Rank 5): $2,000 per festival day, +50% traffic for your stands in the festival's district.
  * It's a local campaign, so Word of Mouth (Campus & Arts at Full Control) halves it: $1,000 a day. */
 export const SPONSORSHIP = { rank: 5, perDay: 2000, traffic: 0.5, wordOfMouth: 0.5 };
@@ -388,21 +388,29 @@ export const SIDE_LOT = { land: 300, traffic: 300, price: 300 } as const;
 export const AUTO_PRICE_RANK = 3;
 
 // ---------- rivals (section 13) ----------
-export type RivalId = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders';
+export type RivalId = 'sourwood' | 'hollis' | 'fizzco' | 'coldbrew' | 'blenders' | 'snootwater';
 export interface Faction {
   id: RivalId; name: string; product: string; boss: string; color: number; accent: number; home: string;
   personality: string; startCash: number; homeShare: number; startLevel: number; oldTownStands: number;
   grow: number; guard: number; strike: number; price: number; henchmen: string;
   rebuild: number; maxLevel: number; // chance to rebuild a smashed stand; highest stand level they build
+  outOfTown?: boolean; // Endless Summer's Out-of-Towner: no turf or HQ in the Bay, it buys in from outside (schemes.ts)
 }
-/** grow / guard / strike: how each rival splits its dawn takings (spec: the five families table, Grow / Guard / Strike). */
+/**
+ * grow / guard / strike: how each rival splits its dawn takings (spec: the five families table, Grow / Guard / Strike).
+ * Snootwater Springs is Endless Summer's Out-of-Towner (spec: "a snooty bottled-water chain that fights like Brock's
+ * Bros under its own look"): the Blenders' row under its own name, colours and henchmen, and no home in the Bay.
+ */
 export const FACTIONS: Record<RivalId, Faction> = {
   sourwood: { id: 'sourwood', name: 'The Sourwood Family', product: 'Lemonade', boss: 'Vera Sourwood', color: 0x5b2a6e, accent: 0xc9a227, home: 'hilltop', personality: 'Cunning and balanced', startCash: 3000000, rebuild: 0.8, maxLevel: 5, homeShare: 0.6, startLevel: 3, oldTownStands: 2, grow: 0.35, guard: 0.35, strike: 0.3, price: 1.0, henchmen: 'Stewards' },
   hollis: { id: 'hollis', name: 'Hollis Sweet Tea Co.', product: 'Sweet tea', boss: 'Tilly Hollis', color: 0xb5651d, accent: 0xd64545, home: 'groves', personality: 'Defensive landholder', startCash: 50000, rebuild: 0.6, maxLevel: 4, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.4, guard: 0.5, strike: 0.1, price: 0.9, henchmen: 'Farmhands' },
   fizzco: { id: 'fizzco', name: 'FizzCo Beverages', product: 'Soda', boss: 'Preston Fizzwell III', color: 0xc8102e, accent: 0xb8c2cc, home: 'downtown', personality: 'Rich and expansionist', startCash: 1000000, rebuild: 0.7, maxLevel: 5, homeShare: 0.5, startLevel: 3, oldTownStands: 1, grow: 0.5, guard: 0.2, strike: 0.3, price: 1.1, henchmen: 'Security Associates' },
   coldbrew: { id: 'coldbrew', name: 'The Cold Brew Collective', product: 'Iced coffee', boss: 'Juniper "Juni" Grind', color: 0x3b2a20, accent: 0xff4fa3, home: 'campus', personality: 'Saboteur', startCash: 20000, rebuild: 0.5, maxLevel: 4, homeShare: 0.5, startLevel: 2, oldTownStands: 1, grow: 0.25, guard: 0.25, strike: 0.5, price: 0.95, henchmen: 'Baristas' },
   blenders: { id: 'blenders', name: 'The Boardwalk Blenders', product: 'Smoothies', boss: 'Brock "The Blender" Bodine', color: 0xff9f1c, accent: 0x00a6a6, home: 'boardwalk', personality: 'Aggressive swarm', startCash: 10000, rebuild: 0.4, maxLevel: 4, homeShare: 0.55, startLevel: 2, oldTownStands: 1, grow: 0.25, guard: 0.15, strike: 0.6, price: 0.9, henchmen: 'Smoothie Bros' },
+  snootwater: { id: 'snootwater', name: 'Snootwater Springs', product: 'Bottled water', boss: 'Sterling Snoot', color: 0x7fc8f8, accent: 0xe8eef2, home: 'out-of-town', personality: 'Snooty swarm', startCash: 10000, rebuild: 0.4, maxLevel: 4, homeShare: 0, startLevel: 2, oldTownStands: 0, grow: 0.25, guard: 0.15, strike: 0.6, price: 0.9, henchmen: 'Water Sommeliers', outOfTown: true },
 };
+/** The Bay's own five rivals, the campaign's bosses: every faction but Endless Summer's Out-of-Towners. */
+export const BAY_RIVALS = (Object.keys(FACTIONS) as RivalId[]).filter((id) => !FACTIONS[id].outOfTown);
 export const PLAYER_COLOR = 0xf6d33c;
 /** Rank needed to buy land in a district: Maple Row from the start, Old Town at Rank 2, every other district at Rank 3 (spec: Where you can buy). */
 export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, campus: 3, downtown: 3, boardwalk: 3, harbor: 3, groves: 3, hilltop: 3 };
@@ -415,7 +423,7 @@ export const DISTRICT_RANK: Record<string, number> = { maple: 1, oldtown: 2, cam
 export const AUCTION = {
   interest: { home: 1, foothold: 0.7, border: 0.4, away: 0.15 }, // placeholder: spec gap. Chance a rival bids, and how keen
   markup: 0.4, // placeholder: spec gap. At full interest up to +40% over what the plot is worth, × push × a 0.5-1.5 roll
-  push: { blenders: 0.85, coldbrew: 0.9, hollis: 1, sourwood: 1.2, fizzco: 1.35 } as Record<RivalId, number>, // placeholder: spec gap
+  push: { blenders: 0.85, coldbrew: 0.9, hollis: 1, sourwood: 1.2, fizzco: 1.35, snootwater: 0.85 } as Record<RivalId, number>, // placeholder: spec gap
   steps: [1, 1.25, 1.5, 2, 3, 5], // the bid buttons, as multiples of the opening bid
 };
 
@@ -631,7 +639,7 @@ export const SABOTAGE_RANK = 4;
 /** Raid templates (spec: Rank 6, "save a squad and objective for one-tap repeats"): how many you can keep. placeholder: spec gap (no number). */
 export const RAID_TEMPLATES = { rank: 6, max: 3 };
 /** Each rival's chance that a raid on one of your stands is a Sabotage: Cold Brew's Night Shift leans on it (placeholder: spec gap, no rates given). */
-export const RIVAL_SABOTAGE: Record<RivalId, number> = { sourwood: 0.1, hollis: 0.1, fizzco: 0.1, coldbrew: 0.4, blenders: 0.1 };
+export const RIVAL_SABOTAGE: Record<RivalId, number> = { sourwood: 0.1, hollis: 0.1, fizzco: 0.1, coldbrew: 0.4, blenders: 0.1, snootwater: 0.1 };
 export const TRAITS = [
   'Tough Cookie', 'Night Owl', 'Eagle Eye', 'Hothead', 'Loyal', 'Butterfingers', 'Sprinter',
   'Gentle Giant', 'Lumberjack', 'Smooth Talker', 'Goose Whisperer', 'Former Rival', 'Sneaky',

@@ -566,6 +566,7 @@ export const TILE_PATTERN: Record<'player' | RivalId, { main: string; accent: st
   fizzco: { main: '#C8102E', accent: '#B8C2CC', edge: false },
   coldbrew: { main: '#3B2A20', accent: '#FF4FA3', edge: false },
   blenders: { main: '#FF9F1C', accent: '#00A6A6', edge: true },
+  snootwater: { main: '#7FC8F8', accent: '#E8EEF2', edge: true },
 };
 const INK = '#2E2A4F';
 /**

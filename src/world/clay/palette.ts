@@ -28,4 +28,5 @@ export const OWNER: Record<'player' | RivalId, { main: string; accent: string; a
   fizzco: { main: hexOf(FACTIONS.fizzco.color), accent: hexOf(FACTIONS.fizzco.accent) },
   coldbrew: { main: hexOf(FACTIONS.coldbrew.color), accent: '#E8DCC4', accent2: hexOf(FACTIONS.coldbrew.accent) },
   blenders: { main: hexOf(FACTIONS.blenders.color), accent: hexOf(FACTIONS.blenders.accent) },
+  snootwater: { main: hexOf(FACTIONS.snootwater.color), accent: hexOf(FACTIONS.snootwater.accent) },
 };

@@ -64,6 +64,8 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
   hollis: { rank: 7, gate: 3500, buyout: 1.5, tier: 3, yard: 4, boss: 'Tilly Hollis', move: 'Hay Bale Wall' },
   fizzco: { rank: 8, gate: 4250, buyout: 1.8, tier: 4, yard: 9, boss: 'Preston Fizzwell III', move: 'Hostile Takeover' },
   sourwood: { rank: 9, gate: 5000, buyout: null, tier: 4, yard: 10, boss: 'Vera Sourwood', move: 'Old Money' },
+  // Endless Summer's Out-of-Towner has no HQ in the Bay (canAssault): it goes by a buyout at Brock's price, bust, or leaving town.
+  snootwater: { rank: 5, gate: 0, buyout: 1.5, tier: 1, yard: 3, boss: 'Sterling Snoot', move: 'Hydration Rush' },
 };
 /**
  * The bosses' moves in the Boss Room (spec "HQ assault": 3 guards; +50% speed for 10 seconds; 2 guards unless Loyal;
@@ -72,7 +74,7 @@ export const HQS: Record<RivalId, { rank: number; gate: number; buyout: number |
  * night fight where Night Owls hit 25% harder (npm run combat).
  */
 export const BOSS_MOVES = {
-  blenders: { at: 0, count: 3, stun: 4 }, // Blender Rush: Brock charges as they come in and knocks 3 guards flat for 4 s
+  blenders: { at: 0, count: 3, stun: 4 }, // Blender Rush: Brock charges as they come in and knocks 3 guards flat for 4 s (Sterling's, if he ever had a Boss Room)
   coldbrew: { at: 0, seconds: 10, boost: 0.5 }, // Espresso Shot: Juni's crew swings and steps 50% faster for the first 10 s
   hollis: { at: 0, count: 4, hp: 320 }, // Hay Bale Wall: as they come in, Tilly drops a 320-HP hay bale in front of 4 guards
   fizzco: { at: 6, count: 2 }, // Hostile Takeover: 2 guards switch sides, unless they're Loyal
@@ -219,8 +221,8 @@ export const HEDGES = {
  * Grow covers it. The Bugle reports each one (placeholders: the spec gives no pace).
  */
 export const RIVAL_BRAND = {
-  cap: { fizzco: 5, sourwood: 4, hollis: 3, coldbrew: 3, blenders: 2 } as Record<RivalId, number>,
-  save: { fizzco: 1, sourwood: 2, hollis: 2, coldbrew: 2, blenders: 2 } as Record<RivalId, number>,
+  cap: { fizzco: 5, sourwood: 4, hollis: 3, coldbrew: 3, blenders: 2, snootwater: 2 } as Record<RivalId, number>,
+  save: { fizzco: 1, sourwood: 2, hollis: 2, coldbrew: 2, blenders: 2, snootwater: 2 } as Record<RivalId, number>,
 };
 /**
  * FizzCo's ad blitz (Hostile Takeover): from Rank `rank`, when your own Sunny opens, FizzCo's mascot walks the
@@ -228,6 +230,22 @@ export const RIVAL_BRAND = {
  * `perDay` a day of Strike (Sunny's numbers; the length is a placeholder). In Peaceful every rival can run one.
  */
 export const AD_BLITZ = { rank: 3, traffic: 0.25, days: 3, perDay: 300 };
+/**
+ * Endless Summer's Out-of-Towner (spec: "An Out-of-Towner faction arrives 14 days after victory and then every 30
+ * days, buying into your thinnest district"; Version 1 ships Snootwater Springs, who fights like Brock's Bros). On each
+ * date it buys `plots` open plots in your thinnest district and opens a stand on each, from a war chest of `chest.floor`
+ * or `chest.share` of your Net Worth, whichever is more: back in town if it had gone, more money and plots if it's
+ * still here. It sits out raids on you the night it arrives (`respect`). A run started as Endless has no victory day,
+ * so its clock starts the dawn the last of the Bay's five is out. Placeholders: the spec gives no numbers.
+ */
+export const OUT_OF_TOWNER = {
+  id: 'snootwater' as RivalId,
+  after: 14, every: 30,
+  plots: [2, 3] as [number, number],
+  chest: { floor: 10_000, share: 0.01 },
+  respect: 1,
+  taunts: ['Tap water, darling, is a cry for help.', 'We are back. Your tap water is still crying.'],
+};
 
 const rankNeed = (r: number): Blocker => ({ ok: false, why: `Needs Rank ${r}, ${RANKS[r - 1].title}` });
 
@@ -279,7 +297,8 @@ export function trackOutselling(s: GameState): void {
 
 // ---------- Trophies ----------
 
-export const TROPHIES: Record<RivalId, { name: string; perk: string }> = {
+/** An HQ taken becomes your Trophy (an Out-of-Towner has no HQ in the Bay, so no Trophy). */
+export const TROPHIES: Partial<Record<RivalId, { name: string; perk: string }>> = {
   blenders: { name: 'Blender Bar', perk: 'Frozen recipes sell for 20% more' },
   coldbrew: { name: "Juni's Grapevine", perk: 'Raid warnings arrive 1 game hour earlier' },
   hollis: { name: 'Hollis Orchards', perk: 'Each Lemon Grove brings +10% traffic instead of +5%' },
@@ -289,7 +308,13 @@ export const TROPHIES: Record<RivalId, { name: string; perk: string }> = {
 export const hasTrophy = (s: GameState, id: RivalId) => s.plots[hqPlot(id).id]?.owner === 'player';
 export const familySilver = (s: GameState) => (hasTrophy(s, 'sourwood') ? 0.9 : 1);
 
-export const hqPlot = (id: RivalId): Plot => PLOTS.find((p) => p.type === 'hq' && p.district === FACTIONS[id].home)!;
+/**
+ * Where an Out-of-Towner comes from (spec: Endless Summer): the road out of town past Maple Row's west end. Not a plot
+ * on the map (nobody owns it or can take it): its raids set out from its nearest stand, and the raid arrows draw from here.
+ */
+export const OUT_OF_TOWN: Plot = { id: 'out-of-town', district: 'maple', type: 'hq', name: 'their head office out of town', col: -1, side: 0, x: -190, z: -25, streetZ: -25, facing: 1, baseTraffic: 0, baseLand: 0 };
+/** A rival's HQ plot (an Out-of-Towner's head office is out of town). */
+export const hqPlot = (id: RivalId): Plot => PLOTS.find((p) => p.type === 'hq' && p.district === FACTIONS[id].home) ?? OUT_OF_TOWN;
 
 // ---------- the negotiator ----------
 
@@ -415,7 +440,7 @@ export const haggleOffer = (s: GameState, id: RivalId) => Math.round(businessOf(
 /** The chance a haggler takes your offer when you hold firm: less the more they hold against you. */
 export const caveChance = (s: GameState, id: RivalId) => Math.max(0, Math.min(1, HAGGLE.cave - Math.max(0, s.rivals[id].grudge) * HAGGLE.perGrudge));
 /** The bosses by first name, across the table. */
-export const BOSS_NAME: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera' };
+export const BOSS_NAME: Record<RivalId, string> = { blenders: 'Brock', coldbrew: 'Juni', hollis: 'Tilly', fizzco: 'Preston', sourwood: 'Vera', snootwater: 'Sterling' };
 const bossName = (id: RivalId) => BOSS_NAME[id];
 
 /** Everything a Faction Buyout needs but the money: the rank, a Weakened rival who sells, any hour but night, a boss at the table. */
@@ -531,12 +556,13 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
     s.news.push(`${FACTIONS[id].name}'s till comes with the business: ${money(till)}.`);
   }
   s.raids = s.raids.filter((x) => x.attacker !== id);
-  const hq = hqPlot(id);
-  const trophy = `Their HQ, ${hq.name}, becomes Lottie's ${TROPHIES[id].name}: ${TROPHIES[id].perk.toLowerCase()}.`;
-  if (s.plots[hq.id].owner === id) s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
-  s.news.push(how === 'bankrupt' ? `${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red. ${trophy}` : `${FACTIONS[id].name} are finished! ${trophy}`);
+  const hq = hqPlot(id), prize = TROPHIES[id];
+  const trophy = prize && s.plots[hq.id] ? ` Their HQ, ${hq.name}, becomes Lottie's ${prize.name}: ${prize.perk.toLowerCase()}.` : '';
+  if (s.plots[hq.id]?.owner === id) s.plots[hq.id] = { ...s.plots[hq.id], owner: 'player', garrison: 0 };
+  // An Out-of-Towner (no HQ here) packs up and goes home, gone bust or out of stands; it comes back on its next date (schemes.ts).
+  s.news.push(how !== 'bankrupt' ? `${FACTIONS[id].name} are finished!${trophy}` : FACTIONS[id].outOfTown ? `${FACTIONS[id].name} pack up and leave town.` : `${FACTIONS[id].name} go bust after ${BANKRUPT_DAYS} days in the red.${trophy}`);
   recoverPage(s, id); // world: their recipe page comes home, on every route
-  retireJingle(s, id, how); // world: 101.5 retires their jingle with a second of silence
+  if (!FACTIONS[id].outOfTown) retireJingle(s, id, how); // world: 101.5 retires their jingle with a second of silence (an Out-of-Towner's comes back with it)
   bossExit(s, id, how); // story: the boss's exit scene, in every mode (src/sim/exits.ts)
   const kept = keptBuildings(s, id, how); // read before the Fire Sale clears the plots
   startFireSale(s, id); // land: First Dibs for you, then an auction (src/sim/auction.ts)
@@ -545,11 +571,12 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   checkVictory(s);
 }
 
-/** At dawn: rivals in the red for a week go bust. */
+/** At dawn: rivals in the red for a week go bust, and an Out-of-Towner with no plot left in the Bay goes home. */
 export function rivalsBankrupt(s: GameState): void {
   for (const id of RIVALS) {
     const r = s.rivals[id];
     if (!r.alive || onlyTheSqueeze(s, id)) continue; // campaign: Vera never goes bust, only the Big Squeeze ends her
+    if (FACTIONS[id].outOfTown && !ownedPlots(s, id).length) { eliminate(s, id, 'bankrupt'); continue; } // back on its next date (schemes.ts)
     r.brokeDays = r.cash < 0 ? (r.brokeDays ?? 0) + 1 : 0;
     if (r.brokeDays >= BANKRUPT_DAYS) eliminate(s, id, 'bankrupt');
   }
@@ -566,6 +593,7 @@ export const NOT_WEAKENED = 'Only once they are Weakened';
 export function hqOpen(s: GameState, id: RivalId): Blocker {
   const hq = HQS[id];
   if (!s.rivals[id].alive) return { ok: false, why: 'Out of the game' };
+  if (FACTIONS[id].outOfTown) return { ok: false, why: 'No HQ in the Bay to storm' };
   if (peaceful(s)) return { ok: false, why: 'Peaceful: no HQ assaults in this Sandbox' };
   if (s.rank < hq.rank) return rankNeed(hq.rank);
   const tilly = tillyWaits(s, id, 'assault'); if (tilly) return tilly;
@@ -627,7 +655,7 @@ export function hqStageInput(s: GameState, id: RivalId, stage: HqStage, squad: F
 /** The boss's move, timed (BOSS_MOVES): it goes off mid-fight. */
 function bossMovesOf(s: GameState, id: RivalId, by: string, rng: Rng): BossMove[] {
   switch (id) {
-    case 'blenders': { const m = BOSS_MOVES.blenders; return [{ t: m.at, by, type: 'rush', count: m.count, stun: m.stun }]; }
+    case 'blenders': case 'snootwater': { const m = BOSS_MOVES.blenders; return [{ t: m.at, by, type: 'rush', count: m.count, stun: m.stun }]; }
     case 'coldbrew': { const m = BOSS_MOVES.coldbrew; return [{ t: m.at, by, type: 'espresso', seconds: m.seconds, boost: m.boost }]; }
     case 'hollis': { const m = BOSS_MOVES.hollis; return [{ t: m.at, by, type: 'bales', count: m.count, hp: m.hp }]; }
     case 'fizzco': { const m = BOSS_MOVES.fizzco; return [{ t: m.at, by, type: 'takeover', count: m.count }]; }

@@ -66,8 +66,9 @@ export function vacantNote(s: GameState, plotId: string): string {
 /** Your Trophy: a captured HQ holds just its Trophy building, with its perk, and nothing else is built there. */
 export function trophyNote(s: GameState, plotId: string): string {
   const r = (Object.keys(FACTIONS) as RivalId[]).find((id) => hqPlot(id).id === plotId);
-  if (!r || s.plots[plotId].owner !== 'player') return '';
-  return `<span class="cl-note good" title="${esc(TROPHIES[r].perk)}" data-testid="trophy">${esc(TROPHIES[r].name)}</span>`;
+  const trophy = r && TROPHIES[r]; // rivals: an Out-of-Towner has no HQ in the Bay, so no Trophy
+  if (!trophy || s.plots[plotId].owner !== 'player') return '';
+  return `<span class="cl-note good" title="${esc(trophy.perk)}" data-testid="trophy">${esc(trophy.name)}</span>`;
 }
 
 /** Everything land adds to a plot card under its name. */

@@ -399,7 +399,7 @@ const NEON: Record<string, V3[][]> = {
   '&': [[[0.9, 0.1, 0], [0.32, 0.88, 0], [0.28, 1.14, 0], [0.47, 1.32, 0], [0.66, 1.14, 0], [0.6, 0.92, 0], [0.2, 0.55, 0], [0.16, 0.26, 0], [0.38, 0.08, 0], [0.64, 0.16, 0], [0.88, 0.5, 0]]],
 };
 /** Each owner's neon: Lottie's lemon yellow, and the factions' signature glows. */
-const NEON_COLOR: Record<Owner, string> = { player: '#FFE14A', sourwood: '#C77DEB', hollis: '#FF6A4D', fizzco: '#FF3B4E', coldbrew: '#FF4FA3', blenders: '#2EE6D6' };
+const NEON_COLOR: Record<Owner, string> = { player: '#FFE14A', sourwood: '#C77DEB', hollis: '#FF6A4D', fizzco: '#FF3B4E', coldbrew: '#FF4FA3', blenders: '#2EE6D6', snootwater: '#9BE7FF' };
 const charW = (ch: string) => (ch === "'" ? 0.4 : ch === 'I' ? 0.5 : ch === ' ' ? 0.55 : 1);
 const wordW = (word: string, cell: number) => [...word].reduce((a, ch) => a + charW(ch) * cell + cell * 0.12, 0) - cell * 0.12;
 /** Rolled clay letters that glow from golden hour; drawn in order so the reveal can buzz them on one at a time. */

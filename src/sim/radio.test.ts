@@ -99,12 +99,13 @@ describe('101.5 The Squeeze', () => {
   it('takes every faction\'s ad money, round the rivals still in business, and never takes sides in a fight', () => {
     const s = newGame(33);
     const sponsors = new Set<string>();
-    for (let d = 1; d <= RIVALS.length; d++) {
+    const inBusiness = RIVALS.filter((r) => s.rivals[r].alive); // Endless Summer's Out-of-Towner is out of town
+    for (let d = 1; d <= inBusiness.length; d++) {
       s.day = d;
       at(s, 11 * 60);
       sponsors.add(airedToday(s).find((l) => l.kind === 'ad')!.text);
     }
-    for (const r of RIVALS) expect([...sponsors].some((t) => t.includes(FACTIONS[r].name))).toBe(true);
+    for (const r of inBusiness) expect([...sponsors].some((t) => t.includes(FACTIONS[r].name))).toBe(true);
     s.rivals.fizzco.alive = false;
     for (let d = 1; d <= 10; d++) { s.day = d; expect(airedToday(at(s, 11 * 60)).find((l) => l.kind === 'ad')!.text).not.toContain(FACTIONS.fizzco.name); }
     const target = rivalPlot(s, 'coldbrew');

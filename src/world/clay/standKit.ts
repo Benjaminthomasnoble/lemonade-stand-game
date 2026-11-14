@@ -45,6 +45,7 @@ export const DRESS: Record<Owner, Dress> = {
   fizzco: { owner: 'fizzco', main: hex(FACTIONS.fizzco.color), accent: hex(FACTIONS.fizzco.accent), pattern: 'bubbles', inkEdge: false, sign: 'FIZZCO' },
   coldbrew: { owner: 'coldbrew', main: hex(FACTIONS.coldbrew.color), accent: '#FF4FA3', pattern: 'zigzag', inkEdge: false, sign: 'COLD BREW' },
   blenders: { owner: 'blenders', main: hex(FACTIONS.blenders.color), accent: hex(FACTIONS.blenders.accent), pattern: 'waves', inkEdge: true, sign: 'BLENDERS' },
+  snootwater: { owner: 'snootwater', main: hex(FACTIONS.snootwater.color), accent: hex(FACTIONS.snootwater.accent), pattern: 'bubbles', inkEdge: true, sign: 'SNOOTWATER' },
 };
 export const INK = '#2E2A4F';
 export const RECIPE_COLOR: Record<string, string> = { classic: '#F7C948', pink: '#F49AB8', mint: '#86D39A' };

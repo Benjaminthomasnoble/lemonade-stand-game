@@ -38,10 +38,11 @@ export const RIVAL_JINGLES: Record<RivalId, string> = {
   fizzco: 'Bubbles mean business!',
   coldbrew: "You probably haven't heard of us.",
   blenders: 'Smoothies so big they need a lifeguard!',
+  snootwater: 'Water, but make it expensive.',
 };
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
-const TEAM: Record<RivalId, string> = { sourwood: 'the Sourwoods', hollis: 'Hollis Sweet Tea', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'the Blenders' };
+const TEAM: Record<RivalId, string> = { sourwood: 'the Sourwoods', hollis: 'Hollis Sweet Tea', fizzco: 'FizzCo', coldbrew: 'Cold Brew', blenders: 'the Blenders', snootwater: 'Snootwater Springs' };
 const team = (f: FactionId) => (f === 'player' ? "Lottie's" : TEAM[f as RivalId]);
 const crew = (f: FactionId, us: string) => (f === 'player' ? us : `the ${FACTIONS[f as RivalId].henchmen}`);
 const place = (plotId: string) => PLOT_BY_ID[plotId].name.replace(/ lot /, ' ');

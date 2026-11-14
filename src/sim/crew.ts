@@ -536,7 +536,7 @@ export function migrateCrew(s: GameState): void {
 
 // ---------- henchmen ----------
 
-const HENCH_NAMES: Record<RivalId, string> = { sourwood: 'Steward', hollis: 'Farmhand', fizzco: 'Associate', coldbrew: 'Barista', blenders: 'Smoothie Bro' };
+const HENCH_NAMES: Record<RivalId, string> = { sourwood: 'Steward', hollis: 'Farmhand', fizzco: 'Associate', coldbrew: 'Barista', blenders: 'Smoothie Bro', snootwater: 'Sommelier' };
 
 function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: number, side: 'att' | 'def'): Fighter {
   const party = RAID_PARTY[threat - 1];

@@ -5,7 +5,7 @@ import {
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
   canBorrow, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, plotBuyout, repayLoan, LOAN, netWorth,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
-  plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
+  plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, tierOpen, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { rowAmount, stockValue } from './ledger.ts';
 import { CLOSE, LAVENDER, LESSON_DAY, STAND_LEVELS } from './balance.ts';
@@ -20,7 +20,7 @@ import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
-  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, dayBills, DOMINATION, evening, growthCandidates, hits, holdTheSiege, longestLull, milestones, morning, newBot, pacingPlan, pacingReport,
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, dayBills, DOMINATION, evening, facilityCandidates, growthCandidates, hits, holdTheSiege, longestLull, MAX_PAYBACK, milestones, morning, newBot, pacingPlan, pacingReport,
   pickAnswer, playRun, promotions, RANK_DAYS, REFERENCE_SEED, reserve, runFromText, runToText, spreadChecks, strongest, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
@@ -866,6 +866,28 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(canBuyPlot(s, open.id)).toEqual({ ok: true });
     const industrial = (id: string) => !!id && plotType(s, PLOTS.find((p) => p.id === id)!) === 'industrial';
     expect(growthCandidates(s, 1e7).filter((b) => industrial(b.plot)).map((b) => b.what)).toEqual([]);
+  });
+
+  it('weighs the VIP engine whole: at Rank 5 with no Warehouse, a Bottling Works comes with the Warehouse its Caterer Trucks need', () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 40, rank: 5, cash: 1e7 });
+    give(s, street(s, 'oldtown').id); // a Foothold next door to Downtown
+    const lot = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!; // Downtown Depot, for sale
+    expect(canBuyPlot(s, lot.id)).toEqual({ ok: true });
+    expect(tierOpen(s, 'caterer').ok).toBe(false); // no Bottling Works and no Warehouse
+    const was = JSON.stringify(s);
+    const buys = facilityCandidates(s, 1e6);
+    expect(JSON.stringify(s)).toBe(was); // weighed, not bought
+    expect(buys.filter((b) => /^Bottling Works on/.test(b.what) && !b.also)).toEqual([]); // alone, its bottles have no buyer
+    const engines = buys.filter((b) => b.also && /Bottling Works.* \+ Warehouse on /.test(b.what)); // on the lot, or FizzCo's plant bought out
+    expect(engines.map((b) => b.cost / b.gain).every((d) => d < MAX_PAYBACK)).toBe(true); // the Caterer Trucks pay for both
+    const engine = engines.find((b) => b.plot === lot.id)!;
+    expect(engine.what).toMatch(/^Bottling Works on Downtown Depot \+ Warehouse on /);
+    expect(engine.cost).toBe(plotPrice(s, lot.id) + FACILITIES.bottling.costs[0] + FACILITIES.warehouse.costs[0] + (s.plots[engine.also!].owner === 'player' ? 0 : plotPrice(s, engine.also!)));
+    expect(engine.run()).toBe(true);
+    expect(s.plots[lot.id].facility?.kind).toBe('bottling');
+    expect(s.plots[engine.also!].facility?.kind).toBe('warehouse');
+    expect(tierOpen(s, 'caterer')).toEqual({ ok: true });
   });
 
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {

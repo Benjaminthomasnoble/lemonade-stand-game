@@ -137,7 +137,7 @@ const securityCut = (day: number) => {
   return (sh.lo + sh.hi) / 2;
 };
 const SECURITY_POT_DAYS = 1.5; // the security money held back at most: this many days of takings (the rest grows the business)
-const MAX_PAYBACK = 45; // days: nothing slower is worth buying
+export const MAX_PAYBACK = 45; // days: nothing slower is worth buying
 const MAX_BUYS = 12; // purchases a morning
 const SAVE_DAYS = 2; // days of takings the player will save for a buy that pays back faster than anything it can afford
 const PLOT_CANDIDATES = 24; // open plots weighed each morning, busiest first
@@ -200,8 +200,9 @@ export interface RunResult {
 }
 export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: number; log?: (line: string) => void }
 
-/** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs. */
-export interface Buy { what: string; cost: number; gain: number; plot: string; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
+/** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs.
+ * `also`: a second plot the buy takes (the VIP engine's first Bottling Works and the line bought with it). */
+export interface Buy { what: string; cost: number; gain: number; plot: string; also?: string; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
 export interface Bot {
   sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, kits, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
@@ -454,25 +455,54 @@ function vipDay(s: GameState, bottles: number, heli: number, ship: number, ware 
 const lineLevel = (s: GameState, kind: FacilityKind) =>
   Math.max(0, ...PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked).map((p) => s.plots[p.id].facility!.level));
 
+/** A way to a kind's first facility: a rival's standing one bought out at its level, or a new one on a site. `extra`:
+ * what its site adds or takes besides the engine (a Warehouse's market runs; your Grove's 5% when a Pad replaces it). */
+interface Way { what: string; cost: number; plot: string; level: number; extra: number; run: () => boolean }
+
 /** The VIP engine as the ranks open it: a Bottling Works, a Pad and a Jetty, two Lemon Groves and a Warehouse, each grown a
  * level at a time, weighed by what it adds to the engine's day (vipDay; a Grove: +5% at every stand; a Warehouse: the
  * Caterer Trucks, and WAREHOUSE_RUNS of its district's stands' day for the market runs). A site is land of yours, land
  * for sale, or a rival's plot bought out; a rival's plot that already holds one comes with it at its level (every Field
  * on Citrine Bay starts as Hollis's Grove or Sourwood's Pad, every Dock as FizzCo's or Sourwood's), and a Lemon Grove of
- * yours makes way for a Pad (buildFacility), so a Field bought out from Hollis is a Pad site too. */
-function facilityCandidates(s: GameState, budget: number): Buy[] {
+ * yours makes way for a Pad (buildFacility), so a Field bought out from Hollis is a Pad site too. The engine pays only
+ * as a whole: with no Bottling Works of yours and no line for its bottles (a Warehouse for the Caterer Trucks, a Pad, a
+ * Jetty), each piece alone adds nothing to its day, so the first Bottling Works is also weighed with each line it lacks,
+ * the two bought together. */
+export function facilityCandidates(s: GameState, budget: number): Buy[] {
   const out: Buy[] = [];
   const theirs = (id: string) => !!s.plots[id].owner && s.plots[id].owner !== 'player' && able(s, () => canPlotBuyout(s, id));
   const now = { bottles: bottlingCapacity(s), heli: lineLevel(s, 'helipad'), ship: lineLevel(s, 'pier') };
   const base = vipDay(s, now.bottles, now.heli, now.ship);
   const runs = (id: string) => WAREHOUSE_RUNS * ownStands(s).filter((p) => p.district === PLOT_BY_ID[id].district).reduce((a, p) => a + standProfit(s, p.id, typical()), 0);
   const made = (l: number) => (l ? BOTTLES_PER_DAY[l - 1] : 0);
+  /** What the engine's day gains with `bottles` a day and a `kind` line at level `lvl` (a Warehouse: the Caterer Trucks). */
+  const engine = (kind: FacilityKind, bottles: number, lvl: number) =>
+    kind === 'helipad' ? vipDay(s, bottles, Math.max(now.heli, lvl), now.ship) - base
+      : kind === 'warehouse' ? vipDay(s, bottles, now.heli, now.ship, true) - base
+        : vipDay(s, bottles, now.heli, Math.max(now.ship, lvl)) - base;
   const adds = (kind: FacilityKind, from: number, to: number) =>
     kind === 'grove' ? (from ? 0 : 0.05 * ownStands(s).reduce((a, p) => a + standProfit(s, p.id, typical()), 0))
       : kind === 'bottling' ? vipDay(s, now.bottles + made(to) - made(from), now.heli, now.ship) - base
-        : kind === 'helipad' ? vipDay(s, now.bottles, Math.max(now.heli, to), now.ship) - base
-          : kind === 'warehouse' ? vipDay(s, now.bottles, now.heli, now.ship, true) - base
-            : vipDay(s, now.bottles, now.heli, Math.max(now.ship, to)) - base;
+        : engine(kind, now.bottles, to);
+  /** A new first one of a kind on the site that pays back fastest when it adds `core` to a day, at no more than `room`
+   * (`skip`: a plot the rest of the buy takes). */
+  const site = (kind: FacilityKind, core: number, room: number, skip?: string): Way | undefined => {
+    const f = FACILITIES[kind];
+    const grove = (id: string) => kind === 'helipad' && s.plots[id].facility?.kind === 'grove' && !s.plots[id].facility!.wrecked; // it makes way
+    const best = PLOTS.filter((p) => p.id !== skip && f.on.includes(plotType(s, p)) && plotOnMap(s, p) && (!s.plots[p.id].facility || grove(p.id)) && !s.plots[p.id].stand)
+      .map((p) => {
+        const ps = s.plots[p.id];
+        const price = ps.owner === 'player' ? 0 : !ps.owner ? (landOpen(s, p.id) && able(s, () => canBuyPlot(s, p.id)) ? plotPrice(s, p.id) : Infinity) : theirs(p.id) ? plotBuyoutPrice(s, p.id) : Infinity;
+        const where = kind === 'warehouse' ? runs(p.id) : 0; // its market runs: the district's stands
+        return { p, cost: price + f.costs[0], extra: where - (ps.owner === 'player' && ps.facility ? adds('grove', 0, 1) : 0) }; // your Grove's 5% goes
+      }).filter((x) => x.cost <= room && core + x.extra > 0)
+      .sort((a, b) => a.cost / (core + a.extra) - b.cost / (core + b.extra))[0];
+    if (!best) return undefined;
+    const ps = s.plots[best.p.id];
+    const get = () => (ps.owner === 'player' ? true : ps.owner ? plotBuyout(s, best.p.id) : buyPlot(s, best.p.id));
+    return { what: `${f.names[0]} on ${best.p.name}${ps.facility ? ' (its Lemon Grove makes way)' : ''}`, cost: best.cost, plot: best.p.id, level: 1, extra: best.extra, run: () => get() && buildFacility(s, best.p.id, kind) };
+  };
+  const firsts: Partial<Record<FacilityKind, Way[]>> = {}; // the rivals' standing ones a Plot Buyout brings over
   for (const kind of ['bottling', 'helipad', 'pier', 'grove', 'warehouse'] as FacilityKind[]) {
     const f = FACILITIES[kind];
     const have = PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === kind && !s.plots[p.id].facility!.wrecked);
@@ -483,26 +513,31 @@ function facilityCandidates(s: GameState, budget: number): Buy[] {
       }
     }
     if ((kind === 'grove' ? 2 : 1) <= have.length || s.rank < f.ranks[0]) continue;
+    const ways: Way[] = (firsts[kind] = []);
     for (const p of PLOTS) { // a rival's, standing: a Plot Buyout brings it over at its level
       const fac = s.plots[p.id].facility;
       if (fac?.kind !== kind || fac.wrecked || !plotOnMap(s, p) || !theirs(p.id)) continue;
       const cost = plotBuyoutPrice(s, p.id);
-      if (cost <= budget) out.push({ what: `Plot Buyout of ${p.name} and its ${f.names[fac.level - 1]}`, cost, gain: adds(kind, 0, fac.level), plot: p.id, run: () => plotBuyout(s, p.id) });
+      if (cost > budget) continue;
+      ways.push({ what: `Plot Buyout of ${p.name} and its ${f.names[fac.level - 1]}`, cost, plot: p.id, level: fac.level, extra: 0, run: () => plotBuyout(s, p.id) });
+      out.push({ what: ways[ways.length - 1].what, cost, gain: adds(kind, 0, fac.level), plot: p.id, run: () => plotBuyout(s, p.id) });
     }
-    const grove = (id: string) => kind === 'helipad' && s.plots[id].facility?.kind === 'grove' && !s.plots[id].facility!.wrecked; // it makes way
-    const sites = PLOTS.filter((p) => f.on.includes(plotType(s, p)) && plotOnMap(s, p) && (!s.plots[p.id].facility || grove(p.id)) && !s.plots[p.id].stand)
-      .map((p) => {
-        const ps = s.plots[p.id];
-        const price = ps.owner === 'player' ? 0 : !ps.owner ? (landOpen(s, p.id) && able(s, () => canBuyPlot(s, p.id)) ? plotPrice(s, p.id) : Infinity) : theirs(p.id) ? plotBuyoutPrice(s, p.id) : Infinity;
-        const where = kind === 'warehouse' ? runs(p.id) : 0; // its market runs: the district's stands
-        return { p, price, gain: adds(kind, 0, 1) + where - (ps.owner === 'player' && ps.facility ? adds('grove', 0, 1) : 0) }; // your Grove's 5% goes
-      }).filter((x) => x.price < Infinity && x.gain > 0 && x.price + f.costs[0] <= budget)
-      .sort((a, b) => (a.price + f.costs[0]) / a.gain - (b.price + f.costs[0]) / b.gain);
-    const site = sites[0];
-    if (!site) continue;
-    const ps = s.plots[site.p.id];
-    const get = () => (ps.owner === 'player' ? true : ps.owner ? plotBuyout(s, site.p.id) : buyPlot(s, site.p.id));
-    out.push({ what: `${f.names[0]} on ${site.p.name}${ps.facility ? ' (its Lemon Grove makes way)' : ''}`, cost: site.price + f.costs[0], gain: site.gain, plot: site.p.id, run: () => get() && buildFacility(s, site.p.id, kind) });
+    const own = site(kind, adds(kind, 0, 1), budget);
+    if (own) out.push({ what: own.what, cost: own.cost, gain: adds(kind, 0, 1) + own.extra, plot: own.plot, run: own.run });
+  }
+  if (!now.bottles && firsts.bottling) { // the engine as a whole: a first Bottling Works with each line it lacks, bought at once
+    for (const kind of ['warehouse', 'helipad', 'pier'] as FacilityKind[]) {
+      const lines = firsts[kind];
+      if (!lines) continue; // it stands (the Works' own gain counts it), or waits for its rank
+      const line = (lvl: number) => engine(kind, made(1), lvl); // the Works' first 1,500 bottles a day, sold on this line
+      for (const works of [...firsts.bottling, site('bottling', line(1), budget)]) {
+        if (!works) continue;
+        const room = budget - works.cost;
+        for (const w of [...lines.filter((x) => x.cost <= room && x.plot !== works.plot), site(kind, line(1), room, works.plot)]) {
+          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, made(works.level), w.level) + w.extra, plot: works.plot, also: w.plot, run: () => works.run() && w.run() });
+        }
+      }
+    }
   }
   return out.filter((b) => b.gain > 0);
 }
@@ -754,12 +789,13 @@ export function morning(s: GameState, bot: Bot): void {
   let n = 0;
   for (const b of buys) {
     if (n >= MAX_BUYS || pays(b) > bar) break;
-    if (b.cost > budget || (b.plot && used.has(b.plot))) continue;
+    const plots = [b.plot, b.also].filter((p): p is string => !!p);
+    if (b.cost > budget || plots.some((p) => used.has(p))) continue;
     const before = s.cash;
     if (!b.run()) continue;
     n++;
     budget -= before - s.cash;
-    if (b.plot) used.add(b.plot);
+    for (const p of plots) used.add(p);
     if (b.kind) bot.played[b.kind]++;
     if (b.upgrade && b.level) (bot.paybacks[b.level] ??= []).push(pays(b)); // an upgrade's own payback, as Appendix A counts it
     if (b.level && b.level in PLOT_TRAFFIC && b.plot) (bot.traffic[b.level] ??= []).push(PLOT_BY_ID[b.plot].baseTraffic); // the plot it went on

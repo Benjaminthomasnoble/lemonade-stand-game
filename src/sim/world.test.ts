@@ -437,7 +437,7 @@ describe('Event Sponsorship', () => {
     sponsorFestival(s, 'summerFair');
     const there = s.plots[plot].stand!;
     expect(calendarTraffic(s, 'player', there)).toBe(0.5);
-    expect(DISTRICTS.some((d) => underCeaseAndDesist(s, d.id))).toBe(false); // no letters until FizzCo's scheme merges
+    expect(DISTRICTS.some((d) => underCeaseAndDesist(s, d.id))).toBe(false); // none yet: FizzCo's letters start in Act 4 (schemes.ts ceaseAndDesist), so the test posts one
     const letter = (_s: GameState, d: DistrictId) => d === 'oldtown';
     MARKETING_BLOCKS.push(letter);
     try {

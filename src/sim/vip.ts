@@ -44,6 +44,7 @@ export interface Order {
   pay: number; // total
   due: number; // day the pickup happens
   expires: number; // offers vanish after this day
+  posted?: number; // the day the offer came in (older saves: postedOn)
   plot?: string; // pickup point
   accepted: boolean;
   loaded?: number; // VIP orders: bottles loaded so far (each pickup pays for its own load)
@@ -53,6 +54,9 @@ export interface Order {
   recipe?: RecipeId; // what the client wants bottled (older orders: Classic); a Local Order pours its stand's card
   bid?: OrderBid; // an offer a rival bids for too: the client weighs both when you take it
 }
+
+/** The day an offer came in: older saves' offers, unstamped, came the day before they expire (an offer stays a day). */
+export const postedOn = (o: Order) => o.posted ?? o.expires - 1;
 
 /** A rival's bid for the same contract: its price and the days it needs to deliver. */
 export interface OrderBid { rival: RivalId; pay: number; days: number }
@@ -287,7 +291,7 @@ function rollOffer(s: GameState, tier: OrderTier, rng: Rng): Order {
   const clients = CLIENTS[tier];
   const o: Order = {
     id: `o${s.nextId++}`, tier, client: clients[Math.floor(nextRandom(rng) * clients.length)], qty,
-    pay: Math.round(qty * unit), due: s.day + t.days, expires: s.day + 1, plot, accepted: false,
+    pay: Math.round(qty * unit), due: s.day + t.days, posted: s.day, expires: s.day + 1, plot, accepted: false,
   };
   if (stand) o.recipe = stand.recipe; // the stand's card
   else { // any recipe in Lottie's book (spec: a Bottling Works fills bottles of any recipe you own); a Mega client, a premium one

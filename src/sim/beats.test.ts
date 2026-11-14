@@ -759,7 +759,7 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     return s;
   };
   const offer = (s: GameState, tier: 'heli' | 'ship', plot = LOTTIES_CORNER): Order => {
-    const o: Order = { id: `o${s.nextId++}`, tier, client: tier === 'heli' ? "the Governor's Gala" : 'an overseas export deal', qty: tier === 'heli' ? 2500 : 15000, pay: 0, due: s.day + 5, expires: s.day + 2, plot, accepted: false };
+    const o: Order = { id: `o${s.nextId++}`, tier, client: tier === 'heli' ? "the Governor's Gala" : 'an overseas export deal', qty: tier === 'heli' ? 2500 : 15000, pay: 0, due: s.day + 5, posted: s.day, expires: s.day + 2, plot, accepted: false };
     o.pay = o.qty * ORDER_TIERS[tier].pay;
     s.offers.push(o);
     return o;
@@ -958,14 +958,23 @@ describe("Juni's tips, the first chopper and the first ship", () => {
     expect(s.story!.vip?.heli).toBeUndefined();
     expect(s.story!.vip?.ship).toBeUndefined();
     expect(scriptedRaider(s, heli)).toBeNull(); // FizzCo takes the usual roll
-    // Act 4: the Grindhouse fell and Juni informs on FizzCo. The next chopper is the movie star's, with her tip.
+    // Act 4: the Grindhouse fell and Juni informs on FizzCo. Yesterday's calls, still open on the act's first morning,
+    // stay as they came; the next chopper to call is the movie star's, with her tip.
+    s.day++;
     s.story!.act = 4;
+    s.story!.since = s.day;
     s.rivals.coldbrew.alive = false;
-    s.offers = [];
-    const next = offer(s, 'heli', pad);
+    const old = offer(s, 'ship');
+    delete old.posted;
+    old.expires = s.day; // an older save's offer, unstamped: it came yesterday, as its day to answer shows
+    const next = offer(s, 'heli', pad), nextShip = offer(s, 'ship');
     beatsAtDawn(s);
+    expect(heli).toMatchObject({ client: "the Governor's Gala", qty: 2500, bid: { rival: 'fizzco' } });
+    expect(ship.client).toBe('an overseas export deal');
+    expect(old.client).toBe('an overseas export deal');
     expect(next.client).toBe(MOVIE_STAR);
-    expect(s.story!.vip?.heli).toBe(next.id);
+    expect(nextShip.client).toBe(REGATTA);
+    expect(s.story!.vip).toMatchObject({ heli: next.id, ship: nextShip.id });
     expect(acceptOrder(s, next.id)).toBe(true);
     stockBottles(s, orderRecipe(next), next.qty);
     storyAfterAct(s);

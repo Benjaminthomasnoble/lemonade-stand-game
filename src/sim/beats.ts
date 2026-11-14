@@ -20,7 +20,7 @@ import { canTruce, inTruce, makeTruce, SITDOWN_RANK, truceCost } from './rivals.
 import { playScene, queued, SCENES } from './scenes.ts';
 import { ceaseAndDesist, ceaseIn } from './schemes.ts';
 import { hasStory } from './story.ts';
-import { bottlesOf, ORDER_TIERS, orderRecipe, PICKUP_MINUTE, type Order } from './vip.ts';
+import { bottlesOf, ORDER_TIERS, orderRecipe, PICKUP_MINUTE, postedOn, type Order } from './vip.ts';
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -105,12 +105,14 @@ function rewrite(s: GameState, o: Order, change: () => string): void {
  * The campaign's first chopper and first ship offers are the spec's: rewritten the morning they come in. Each calls you
  * alone (no rival bid on it), so its lesson isn't lost to a bid: FizzCo, bidding hardest, would win most first choppers.
  * Both are Act 4's beats: a Pad or a Jetty up earlier (Rank 6 opens the Pad while the Grindhouse may still stand) takes
- * ordinary offers, bids and all, until the act begins.
+ * ordinary offers, bids and all, until the act begins, and an offer that came before it, still open on its first
+ * morning, stays as it came: the next one to call is scripted.
  */
 function firstOffers(s: GameState): void {
   if (s.story!.act < 4) return;
   const v = (s.story!.vip ??= {});
   for (const o of s.offers) {
+    if (postedOn(o) < s.story!.since) continue;
     if (o.tier === 'heli' && v.heli === undefined) {
       rewrite(s, o, () => {
         o.client = MOVIE_STAR;

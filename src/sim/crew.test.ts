@@ -383,6 +383,21 @@ describe('the Lookout', () => {
     expect(raidOddsRange(s, target, ids, 'smash', true)[0]).toBe(raidOdds(s, target, ids, 'smash', true));
   });
 
+  it("scouts a target by day, then leads tonight's Sabotage on it: free for raids from the Evening", () => {
+    const { s, dex } = setup(66);
+    s.cash = 5000;
+    const target = raidTargets(s).find((p) => s.plots[p.id].stand)!.id;
+    footholdFor(s, target);
+    expect(scoutWithLookout(s, dex.id, target)).toBe(true);
+    openStand(s);
+    expect(availableRaiders(s).map((g) => g.id)).not.toContain(dex.id); // watching the plot all day
+    simulateRestOfDay(s);
+    expect(s.phase).toBe('report');
+    expect(availableRaiders(s).map((g) => g.id)).toContain(dex.id); // the Evening: back from scouting
+    expect(canRaid(s, target, [dex.id], 'sabotage')).toEqual({ ok: true });
+    expect(planRaid(s, target, [dex.id], 'sabotage', 'tonight')).toBe(true);
+  });
+
   it('scouts by day only, and is back on post for the night', () => {
     const { s, dex } = setup(63);
     const target = raidTargets(s)[0].id;

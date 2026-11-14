@@ -45,7 +45,7 @@ export function canScout(s: GameState, guardId: string, plotId: string): Blocker
 /** The first Lookout free to scout this plot today, if any. */
 export const freeLookout = (s: GameState, plotId: string) => s.guards.find((g) => canScout(s, g.id, plotId).ok);
 
-/** Send a Lookout to watch a rival plot: its defenses show for 3 days; the Lookout is off their post and out of raids today. */
+/** Send a Lookout to watch a rival plot: its defenses show for 3 days; the Lookout is off their post and out of raids till the Evening. */
 export function scoutWithLookout(s: GameState, guardId: string, plotId: string): boolean {
   if (!canScout(s, guardId, plotId).ok) return false;
   const g = s.guards.find((x) => x.id === guardId)!;

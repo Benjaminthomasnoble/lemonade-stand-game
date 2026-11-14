@@ -54,7 +54,7 @@ export interface Guard {
   fee: number; // hire fee (recruits)
   face?: number; // portrait seed (guards from before it existed draw their face from the id)
   specialty?: Specialty; // Lookout, Wrecker or Captain: taken from Level 3, for good
-  scoutDay?: number; // a Lookout scouting a rival plot is off their post (and out of raids) this day
+  scoutDay?: number; // a Lookout scouting a rival plot is off their post (and out of raids) this day, till the Evening
   oldFaction?: RivalId; // Former Rival: the rival they came over from, Nabbed and recruited (captives.ts)
 }
 
@@ -734,7 +734,7 @@ export function raidTargets(s: GameState): Plot[] {
 
 export function availableRaiders(s: GameState): Guard[] {
   const busy = awayOnRaid(s); // planned, out, walking home, or in the fight playing live
-  return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id) && g.scoutDay !== s.day);
+  return s.guards.filter((g) => guardReady(s, g) && !busy.has(g.id) && !scoutingToday(s, g)); // a Lookout who scouted today is free again from the Evening
 }
 
 /** How hard a guard hits and how much they take, by day: Dex's yardstick for picking a squad. */

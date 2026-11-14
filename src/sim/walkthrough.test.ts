@@ -5,8 +5,8 @@
 // at least 400 fights. it.fails marks a step the sim doesn't match yet (the
 // numbers it gives are in the comment: that's a design call, not a test to
 // bend), and it.todo a step that waits on another lane's work. A step whose
-// spec figure is being restated to match the sim pins the measured figure,
-// and its comment says so.
+// spec figure was restated to match the sim pins the measured figure, and
+// its comment says so.
 import { describe, expect, it } from 'vitest';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter } from './combat.ts';
 import {
@@ -178,8 +178,8 @@ describe('Day 26: a stand holds off a raid (Classic, Threat 2)', () => {
   });
 
   // Measured, and pinned: a Kiosk on Lottie's Corner at 3.3 stars makes $520.84 on a warm day (81°) at Auto-Price's
-  // $3.00 ceiling. The day of profit a Shakedown takes is the demand model's to set, so the spec's "about $800"
-  // (design-spec.md:721) is being restated to match.
+  // $3.00 ceiling. The day of profit a Shakedown takes is the demand model's to set, so the spec's "about $800" was
+  // restated to about $521 to match (design-spec.md, "How a stand holds off a raid").
   it('... and a day of the Kiosk\'s profit is about $521', () => {
     const s = newGame(26);
     s.rank = 4; s.cash = 1e5; s.reputation = 3.3; s.day = 20;
@@ -242,8 +242,8 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
   // Measured, and pinned: unscouted, the Planner puts the Kiosk behind its own kit row's Picket Fence, Tin-Can Alarm
   // and Guard Goose (all a rival builds on a Kiosk), with all 3 posts filled, and tries who holds them, help counted:
   // 3 Bros as a Kiosk's (clubs, no vests: 83%, the scouted odds below) or as a Shack's (a level up, in vests: 49%). Over 400
-  // runs that reads 49–83% (the Planner's own 80 runs read 44–80%). The spec's 40–85% (design-spec.md:2573) is being
-  // restated to match: its low end, 40%, is 9 points under.
+  // runs that reads 49–83% (the Planner's own 80 runs read 44–80%). The spec's 40–85%, whose low end was 9 points
+  // under, was restated to 49–83% to match (design-spec.md, "A night Shakedown (Day 24)").
   it('unscouted, the Planner reads about 49–83%: who holds the posts is the guess, not the fence', () => {
     const { s, kiosk } = day24();
     const [lo, hi] = raidOddsRange(s, kiosk, s.guards.map((g) => g.id), 'shakedown', true, 400);
@@ -291,8 +291,8 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
   });
 
   // Measured, and pinned: a Blenders Kiosk on the Boardwalk makes $1,555.04 on a hot day (93°) at $2.16, the rival's
-  // price. The spec's "about $2,400" (the expected loot, the take at the till and the money line: design-spec.md:2575,
-  // 2579 and 2582) is being restated to match.
+  // price. The spec's "about $2,400" (the expected loot, the take at the till and the money line) was restated to about
+  // $1,555 to match (design-spec.md, "A night Shakedown (Day 24)").
   it('expected loot is about $1,555, one day of the Kiosk\'s profit', () => {
     const { s, kiosk } = day24();
     buySupply(s, 'lemons', 2); buySupply(s, 'sugar', 2); buySupply(s, 'ice', 4);
@@ -374,8 +374,8 @@ describe('Day 24: a night Shakedown (Rank 4, Threat 2, 3.3 stars)', () => {
   // Measured, and pinned: each Bro swings at the guard across the fence from it, so Dex, Rosa and Big Lou take 67.5
   // each before the breach (3 hits of 22.5) and Pip and Marnie none; the squad spreads its swings the same way, so two
   // Bros drop together at 7.5 s (none at 4.5 s), the Nerve roll sends the third running then, and nobody KOs Pip. The
-  // spec's breach and brawl lines (design-spec.md:2577-2578: Pip on 5 HP, the first Bro down at 4.5 s, Pip KO'd) are
-  // being restated to match.
+  // spec's breach and brawl lines (Pip on 5 HP, the first Bro down at 4.5 s, Pip KO'd) were restated to match
+  // (design-spec.md, "A night Shakedown (Day 24)").
   it('... the Bros hit Dex, Rosa and Big Lou for 67.5 each and leave Pip be; two drop at 7.5 s and the third runs', () => {
     const { res, bros, squad } = day24Fight();
     const breach = of(res.events, 'breach')[0].t;
@@ -447,25 +447,26 @@ describe('weapon checks', () => {
   const breach = (weapon: 'hatchets' | 'clubs') =>
     of(runBattle(battleOf({ attackers: guardsOf(5, 'att', weapon), perimeter: 2, fenceHp: PERIMETERS[3].hp, standHp: STAND_HP[4] }), { seed: 1 }).events, 'breach')[0].t;
 
-  it('5 hatchets breach Barbed Wire (2,500 HP) in 19 s', () => {
+  it('5 hatchets breach Barbed Wire (2,500 HP) in 18 s', () => {
     expect(PERIMETERS[3].hp).toBe(2500);
-    near(breach('hatchets'), 19, 1);
+    near(breach('hatchets'), 18, 1);
   });
 
   // Measured, and pinned: 73.5 s. Each swing lands on the beat, the first at contact, so 50 swings of 10 take
-  // 49 × 1.5 s. The spec's 75 (design-spec.md:777) is being restated to about 74 s to match.
+  // 49 × 1.5 s. The spec's 75 s was restated to about 74 s to match (design-spec.md, "Weapons and padding"), and
+  // balance-tables.md gives 73.5 s.
   it('5 clubs take about 74 s (73.5)', () => {
     expect(breach('clubs')).toBe(73.5);
   });
 
-  it('12 clubs can\'t Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; 12 hatchets do it in 16 s', () => {
+  it('12 clubs can\'t Smash a Citrus Palace (5,000 HP) inside the 60-game-minute timer; 12 hatchets do it in 15 s', () => {
     const clubs = runBattle(battleOf({ attackers: guardsOf(12, 'att', 'clubs'), standHp: STAND_HP[4] }), { seed: 1 });
     expect(STAND_HP[4]).toBe(5000);
     expect(clubs.outcome).toBe('damaged');
     expect(clubs.duration).toBe(60);
     const hatchets = runBattle(battleOf({ attackers: guardsOf(12, 'att', 'hatchets'), standHp: STAND_HP[4] }), { seed: 1 });
     expect(hatchets.outcome).toBe('smashed');
-    near(hatchets.duration, 16, 1);
+    near(hatchets.duration, 15, 1);
   });
 });
 
@@ -488,7 +489,8 @@ describe('the canon combat anchors (400 fights each)', () => {
 
   // 400 real Threat 4 raids (8-12 at level 4, in Pro Gear, three in five with hatchets: RAID_PARTY) on a plot with 5
   // hatchet guards in Pro Gear and a goose, a slick and a sprinkler, behind each top fence. Behind a P4 the defense
-  // holds 78%. In vests with 30% hatchets, as they guard a rival's HQ, the raids never got through.
+  // holds 78% (npm run combat, over its 200 seeds: 80%, canon's "about 80%", canon.md section 12). In vests with 30%
+  // hatchets, as they guard a rival's HQ, the raids never got through.
   const t4Holds = (tier: number) => {
     const gadgets: GadgetId[] = ['goose', 'slick', 'sprinkler'];
     let holds = 0;
@@ -498,11 +500,11 @@ describe('the canon combat anchors (400 fights each)', () => {
     }
     return holds / 400;
   };
-  it('a kitted L5 plot behind a P4 (4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 75% of the time', () => {
-    near(t4Holds(4), 0.75, 0.05);
+  it('a kitted L5 plot behind a P4 (4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 80% of the time', () => {
+    near(t4Holds(4), 0.8, 0.05);
   });
-  // Behind a P5 it holds 99.8%, and no Threat 4 kit tried moves that (four hatchets in five: 99%): canon's "P4 or P5"
-  // is the owner's to restate.
+  // Behind a P5 it holds 99.8%, and no Threat 4 kit tried moves that (four hatchets in five: 99%): canon says "nearly
+  // every time behind a P5" (canon.md section 12).
   it('... and behind a P5 it holds nearly every one', () => {
     expect(t4Holds(5)).toBeGreaterThan(0.95);
   });

@@ -58,7 +58,7 @@ const stockOf = (s: GameState, id: 'lemons' | 'sugar' | 'ice') => {
   if (!st) return 0;
   return id === 'lemons' ? st.inventory.lemons.reduce((a, b) => a + b.qty, 0) : st.inventory[id];
 };
-const supplied = (s: GameState) => { const st = own(s); return !!st && restockOn(s, st); }; // Auto-Restock runs from Day 3
+const supplied = (s: GameState) => { const st = own(s); return !!st && restockOn(s, st); }; // Auto-Restock runs from Day 2
 /** Enough of one supply for the day: some in stock and no "!" on it (lemons and sugar share theirs), or no cash for more. */
 const stocked = (s: GameState, e: CoachEnv, id: 'lemons' | 'sugar' | 'ice') => supplied(s)
   || (stockOf(s, id) > 0 && !e.has(`[data-fill="${id}"][data-low]`))

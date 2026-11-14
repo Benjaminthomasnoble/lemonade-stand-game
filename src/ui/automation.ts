@@ -2,21 +2,20 @@
 // the Morning Prep dock, a ticket per helper with the day's automatic spending (what they bought at dawn and will
 // buy at Open) or what they set, and each helper's one-line report in the Ledger. Mounted from hud.ts.
 import {
-  AUTO_PRICE, AUTO_PRICE_RANK, helperLines, owedCups, playerStands, prepPreview, priceNote, pricingOn, stock, stockCapCups, stockTarget,
+  AUTO_PRICE, AUTO_PRICE_RANK, helperLines, owedCups, playerStands, prepPreview, priceNote, pricingOn, restockOpen, stock, stockCapCups, stockTarget,
   suggestedTarget, type DayStats, type GameState,
 } from '../sim/economy.ts';
 import { btn, esc, tape } from './recipes.ts';
-import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
 
 const money = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let crate: string | null = null; // drawn once: the markup stays the same between frames
 const crateArt = () => (crate ??= A.crateSVG());
 
-/** The dock's Auto-Restock, from Day 3: the stand's switch and, while it's on, its stock target in cups. */
+/** The dock's Auto-Restock, from Day 2: the stand's switch and, while it's on, its stock target in cups. */
 export function restockControl(s: GameState, plotId: string): string {
   const st = s.plots[plotId]?.stand;
-  if (!st || !taught(s, 'market')) return ''; // the Market's lesson (Day 3; Day 1 with the lessons off)
+  if (!st || !restockOpen(s)) return ''; // hidden till it comes (Day 2, lessons on or off: automation.ts)
   const on = st.autoRestock;
   const sw = `<button class="cl-auto${on ? ' on' : ''}" data-action="restock" data-testid="auto-restock" aria-pressed="${on}" title="${on
     ? 'Auto-Restock: Lottie stocks this stand every dawn. Tap to buy your own' : 'Auto-Restock is off here. Tap and Lottie stocks it every dawn'}">${tape(on ? `Auto ${A.glyph('check')}` : 'Auto')}</button>`;

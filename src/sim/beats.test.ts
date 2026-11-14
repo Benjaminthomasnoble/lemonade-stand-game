@@ -2,7 +2,7 @@
 // onboarding (Lottie's stock, the side lot, the Steward, Benny, Skip), then each act's lessons and climaxes.
 import { describe, expect, it } from 'vitest';
 import {
-  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, BUILDING_VALUE_SHARE, CAMPAIGNS, CUPS_PER_PITCHER, expectedCups, isWeakened,
+  BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
   LAVENDER, pageHolder, type GameState, type Guard, type RivalId,
@@ -16,6 +16,7 @@ import { eliminate, hqPlot, inTruce, makeTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, replyScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
 import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
 import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, storyHeadline, taught } from './story.ts';
+import { restockControl } from '../ui/automation.ts';
 
 /** Skip straight to the next dawn (the night still runs; the business day doesn't). */
 function nextDawn(s: GameState) {
@@ -74,14 +75,26 @@ describe("Lottie's stock on Day 1", () => {
     expect(s.today.walkedPast.soldOut).toBeGreaterThan(0);
   });
 
-  it('with the lessons off you buy your own from Day 1, and Auto-Restock works from Day 1', () => {
+  it('with the lessons off you buy your own from Day 1, and Auto-Restock comes on Day 2 as in every game', () => {
     const s = newGame(43, { lessons: false });
     expect(lottieStocks(s)).toBe(false);
+    expect(taught(s, 'market')).toBe(true); // the Market's buttons are there from Day 1
     expect(servingsAvailable(corner(s))).toBe(0);
     corner(s).autoRestock = true;
+    expect(restockOn(s, corner(s))).toBe(false);
+    expect(restockControl(s, LOTTIES_CORNER)).toBe(''); // its switch is hidden till it comes
     openStand(s);
-    expect(servingsAvailable(corner(s))).toBeGreaterThan(0);
-    expect(s.cash).toBeLessThan(START.cash);
+    expect(servingsAvailable(corner(s))).toBe(0); // nothing bought for you on Day 1
+    expect(s.cash).toBe(START.cash);
+    s.phase = 'prep';
+    expect(buySupply(s, 'lemons')).toBe(true); // you buy your own
+    s.phase = 'open';
+    simulateRestOfDay(s);
+    sleepUntilDawn(s);
+    expect(s.day).toBe(2);
+    expect(restockOn(s, corner(s))).toBe(true);
+    expect(restockControl(s, LOTTIES_CORNER)).toContain('data-testid="auto-restock"');
+    expect(servingsAvailable(corner(s))).toBeGreaterThan(0); // stocked at Day 2's dawn
   });
 });
 

@@ -701,7 +701,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
         <span class="cl-fill"${short(id) ? ' data-low' : ''} data-fill="${id}" style="--fill:1"><span class="l b">${art[id]('back')}</span><span class="l f">${art[id]('fill')}</span><span class="l t">${art[id]('top')}</span></span>
         <button class="cl-add" data-action="buy" data-id="${id}" data-packs="1" data-fill-packs="${Math.max(1, max)}" ${max < 1 ? 'disabled' : ''} title="+${sp.pack} ${sp.unit} for ${money(sp.pack * s.market[id])} (hold to fill up)" aria-label="Buy ${sp.label}"></button><span class="cl-cost" data-testid="cost-${id}">${money(sp.pack * s.market[id])}</span></div>`;
     };
-    const restock = restockControl(s, plotId); // Auto-Restock's switch and target, from Day 3 (src/ui/automation.ts)
+    const restock = restockControl(s, plotId); // Auto-Restock's switch and target, from Day 2 (src/ui/automation.ts)
     const n = playerStands(s).length;
     return `<div class="cl-tray">
       ${taught(s, 'recipes') ? `<div class="cl-sec cl-recipe">${recipeRow(s)}<div class="cl-row cl-cubes">${[0, 1, 2].map(cube).join('')}</div></div>` : ''}

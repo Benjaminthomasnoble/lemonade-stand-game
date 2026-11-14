@@ -1,13 +1,13 @@
 // Automation (spec: Automation; Helpers that keep a big empire calm). Every helper is a switch, a target you set
 // and a one-line Ledger report; any single stand can opt out, and Morning Prep previews the day's automatic
-// spending. Auto-Restock is the first (Day 3): it tops each stand up to its stock target every dawn, at that day's
+// spending. Auto-Restock is the first (Day 2): it tops each stand up to its stock target every dawn, at that day's
 // market price, within the stand's stock cap and your cash. Marisol's Auto-Price (Rank 3) runs just before it:
 // each stand's card and Sweetness for the forecast, priced at its ceiling.
 //
 // A later helper (Auto-Repair, Dex's Auto-Defend, bulk actions) keeps its own switch and opt-out, like
 // Stand.autoRestock, and registers here with registerHelper to get its dawn run, its Ledger line and its share of
 // the Prep preview. A helper that spends at another hour books it with bookHelper.
-import { AUTO_PRICE_RANK, CUPS_PER_PITCHER, RECIPES, SUPPLIES, type RecipeId, type SupplyId, type Sweetness } from './balance.ts';
+import { AUTO_PRICE_RANK, AUTO_RESTOCK_DAY, CUPS_PER_PITCHER, RECIPES, SUPPLIES, type RecipeId, type SupplyId, type Sweetness } from './balance.ts';
 import type { DayStats, GameState, Stand } from './economy.ts';
 import { buySupply, costPerCup, expectedCups, iceMachineOn, maxPacks, pitcherNeeds, playerStands, setPrice, setSweetness, stock, storageFor } from './economy.ts';
 import { priceCeiling, serviceLeft, stockCapCups } from './demand.ts';
@@ -213,9 +213,12 @@ export function priceNote(s: GameState, plotId: string): string {
 
 export const AUTO_RESTOCK = 'restock';
 
-/** Is this stand's Auto-Restock at work? Its switch is on (the default; any stand can opt out) and the Market is open:
- * Day 3's lesson, before which Lottie stocks your stands for free (story.ts), or Day 1 with the lessons off. */
-export const restockOn = (s: GameState, st: Stand) => st.autoRestock && taught(s, 'market');
+/** Has Auto-Restock come? On its day (AUTO_RESTOCK_DAY, Day 2) in every game: with the lessons on that's the Market's
+ * lesson (Lottie stocks your table till then, story.ts); with them off you buy your own from Day 1 and it comes on Day 2. */
+export const restockOpen = (s: GameState) => s.day >= AUTO_RESTOCK_DAY && taught(s, 'market');
+
+/** Is this stand's Auto-Restock at work? Its switch is on (the default; any stand can opt out) and it has come. */
+export const restockOn = (s: GameState, st: Stand) => st.autoRestock && restockOpen(s);
 
 /** Cups a stand still owes its Local Orders: they're poured from its own stock an hour before closing (vip.ts). */
 export function owedCups(s: GameState, plotId: string): number {
@@ -305,7 +308,7 @@ export function restockTopUp(s: GameState, plotId: string): number {
 
 /** The stands opening: Auto-Restock tops up whatever changed since dawn (a new card, a lower price, a stand switched on). */
 export function restockAtOpen(s: GameState): void {
-  if (!taught(s, 'market')) return;
+  if (!restockOpen(s)) return;
   let spent = 0, count = 0, amount = 0;
   for (const p of playerStands(s)) {
     const st = s.plots[p.id].stand!;
@@ -346,7 +349,7 @@ export function nudgeStockTarget(s: GameState, plotId: string, dir: 1 | -1): voi
 registerHelper({
   id: AUTO_RESTOCK,
   name: 'Auto-Restock',
-  unlocked: (s) => taught(s, 'market'), // Lottie says so on the Market's lesson day (story.ts)
+  unlocked: restockOpen, // Lottie says so on the Market's lesson day (story.ts)
   atDawn(s) {
     const on = playerStands(s).filter((p) => { const st = s.plots[p.id].stand!; return restockOn(s, st) && !st.wrecked; });
     if (!on.length) return null;

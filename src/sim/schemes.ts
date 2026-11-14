@@ -302,8 +302,9 @@ export function bookNightShift(s: GameState): void {
 
 /**
  * The mystery's goal on Lottie's card (the medium slot, through goals.ts's GOAL_PROVIDERS): from the first spoiled
- * night, catch the night crew at your stock. Floodlights at a stand of yours are halfway there; it's done (and paid)
- * when your night watch catches the crew. Gone if Squawk's night flight unmasks Cold Brew first, or the act moves on.
+ * night, catch the night crew at your stock. Floodlights or a Lookout posted at a stand of yours (the spec: the mystery
+ * "teaches Lookouts and Floodlights") are halfway there; it's done (and paid) when your night watch catches the crew.
+ * Gone if Squawk's night flight unmasks Cold Brew first, or the act moves on.
  */
 export function mysteryGoal(s: GameState): Goal | null {
   const m = s.rivals.coldbrew?.mystery;
@@ -311,7 +312,8 @@ export function mysteryGoal(s: GameState): Goal | null {
   if (m.caught !== undefined) return { text: MYSTERY.goal, progress: 1, done: true };
   if (!mysteryOn(s)) return null;
   const lit = PLOTS.some((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].defense.gadgets.includes('floodlights'));
-  return { text: MYSTERY.goal, progress: lit ? 0.5 : 0, done: false };
+  const watched = s.guards.some((g) => g.specialty === 'lookout' && !!g.post && s.plots[g.post]?.owner === 'player');
+  return { text: MYSTERY.goal, progress: lit || watched ? 0.5 : 0, done: false };
 }
 /** The provider's id: Lottie's card names its goal `${id}:${text}`. */
 export const MYSTERY_GOAL = 'mystery';

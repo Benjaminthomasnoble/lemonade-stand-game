@@ -166,7 +166,7 @@ export const NIGHT_SHIFT = { stealth: 0.25, taunt: "Your stock didn't spoil. It 
 export const MYSTERY = {
   act: 3, chance: 0.35, cost: 150,
   goal: 'Catch the night crew spoiling your stock',
-  lottie: "Who spoils a whole stand's lemons in one night? Let's catch them at it.",
+  lottie: "Who spoils a whole stand's lemons in one night? Floodlights or a Lookout there will catch them.",
   dex: 'Geese. Gotta be the geese.', // it is never the geese
   dexCaught: 'Huh. Not the geese.',
 };

@@ -1124,11 +1124,19 @@ describe("Act 3's mystery: the Night Shift spoils your stock", () => {
     expect(lemons(s)).toBe(100);
   });
 
-  it("puts its goal on Lottie's card: Floodlights are halfway, and catching the crew pays it", () => {
+  it("puts its goal on Lottie's card: Floodlights or a posted Lookout are halfway, and catching the crew pays it", () => {
     const s = act3(6);
     schemesAtDawn(s);
     checkGoals(s);
     expect(goalsNow(s)[1]).toMatchObject({ slot: 'medium', text: MYSTERY.goal, progress: 0, done: false, story: true });
+    const look = s.guards[0];
+    const was = { specialty: look.specialty, post: look.post };
+    look.specialty = 'lookout';
+    look.post = LOTTIES_CORNER;
+    expect(goalsNow(s)[1].progress).toBe(0.5); // a Lookout on watch at your stand
+    look.post = null;
+    expect(goalsNow(s)[1].progress).toBe(0); // off post, no help
+    Object.assign(look, was);
     s.plots[LOTTIES_CORNER].defense.gadgets.push('floodlights');
     expect(goalsNow(s)[1].progress).toBe(0.5);
     s.plots[LOTTIES_CORNER].defense.gadgets.push('alarm', 'goose', 'watchtower');

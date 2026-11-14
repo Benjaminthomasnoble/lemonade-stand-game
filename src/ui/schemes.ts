@@ -63,7 +63,7 @@ function spoil(job: Scheme): string {
     return `<div class="cl-ticket good" data-testid="spoil" title="${esc(tip)}">${ICON.shield()}<b>Caught! Cold Brew's night crew</b></div>`;
   }
   const tip = `Every lemon at ${place(where)} went bad overnight, and nobody saw a thing. Dex blames the geese. `
-    + 'Floodlights there give your night watch a chance to catch a night crew.';
+    + 'Floodlights, or a Lookout posted there, give your night watch a chance to catch them.';
   return `<div class="cl-ticket red" data-testid="spoil" title="${esc(tip)}">${ICON.goose()}<b>Stock spoiled! −${job.spoiled} lemons</b>
     <span class="cl-acts">${btn('restockNow', 'Restock', `data-plot="${where}"`, 'tiny go')}${btn('goto', 'Go there', `data-plot="${where}"`)}</span></div>`;
 }

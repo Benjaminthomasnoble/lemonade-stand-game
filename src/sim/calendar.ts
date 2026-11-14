@@ -347,7 +347,8 @@ export function tillyFieldRate(s: GameState, plotId: string): number | undefined
   return s.world?.tillyWon && s.plots[plotId].owner === 'hollis' && PLOT_BY_ID[plotId].type === 'field' ? TILLY_FIELD_BUYOUT : undefined;
 }
 
-/** Campaign: until the Act 4 County Fair has run its Taste-Off, Tilly neither sells out nor falls to an assault. */
+/** Campaign: until the Act 4 County Fair has run its Taste-Off, Tilly neither sells out, falls to an assault nor goes bust
+ * (rivals.ts rivalsBankrupt). */
 export function tillyWaits(s: GameState, id: RivalId, what: 'buyout' | 'assault'): Blocker | null {
   if (id !== 'hollis' || !TILLY_WAITS_FOR_FAIR || !storyFairs(s) || !s.rivals.hollis.alive) return null;
   if (tillyDuelHeld(s) || s.day > festivalDays('countyFair', TILLY_FAIR_YEAR).to) return null;

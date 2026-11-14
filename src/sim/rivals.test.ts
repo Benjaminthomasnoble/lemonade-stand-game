@@ -342,6 +342,7 @@ describe('a rival out of the game', () => {
       expect(s.news.some((n) => n.includes(`becomes Lottie's ${TROPHIES.sourwood!.name}`))).toBe(true);
     }
     const s = rich(8); // the real route: a week in the red, counted at dawn
+    s.day = 80; // after the County Fair: in the campaign Tilly waits for it (world.test.ts)
     s.rivals.hollis.cash = -1;
     s.rivals.hollis.brokeDays = BANKRUPT_DAYS - 1;
     rivalsBankrupt(s);

@@ -5,7 +5,7 @@ import {
   marketingMultiplier, migrateSave, migrateWorld, movePage, newGame, newStand, openStand, ownedRecipes, PAGE_HOLDERS, pageHolder, pagesInTheBugle,
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, rivalReputationTarget, rivalStars, SEGMENTS, setTasteOffEntry,
   simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
-  tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf, sponsorHalfPrice, underCeaseAndDesist, DISTRICTS, MARKETING_BLOCKS, bugleHeadline, frontPage,
+  tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf, sponsorHalfPrice, underCeaseAndDesist, DISTRICTS, MARKETING_BLOCKS, bugleHeadline, frontPage, BANKRUPT_DAYS, FACTIONS,
   campaignCost, DISTRICT_CAMPAIGNS, PERKS, SPONSORSHIP,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
@@ -667,6 +667,22 @@ describe('Tilly and the County Fair', () => {
     sandbox.rank = 7;
     expect(tillyWaits(sandbox, 'hollis', 'assault')).toBeNull();
     expect(hqPlot('hollis').district).toBe('groves');
+  });
+
+  it('in the campaign Tilly can\'t go bust before the County Fair; still broke, she folds the dawn after it', () => {
+    const s = tillyGame();
+    const broke = (day: number) => { s.rivals.hollis.cash = -50_000; dawn(s, day); }; // a run of Shakedowns or a price war
+    for (let day = 63; day <= 70; day++) broke(day); // 8 dawns in the red, all before the Fair (Days 71-77)
+    expect(s.rivals.hollis.brokeDays).toBe(8);
+    expect(s.rivals.hollis.alive).toBe(true);
+    for (let day = 71; day <= 77; day++) broke(day); // and through the Fair, up to its Taste-Off
+    expect(s.rivals.hollis.alive).toBe(true);
+    broke(78);
+    expect(s.rivals.hollis.alive).toBe(false);
+    expect(s.news.some((n) => n.startsWith(`${FACTIONS.hollis.name} go bust after ${BANKRUPT_DAYS} days in the red.`))).toBe(true);
+    const sandbox = game(10, { mode: 'sandbox' }); // outside the campaign she goes bust like anyone
+    for (let day = 63; day <= 69; day++) { sandbox.rivals.hollis.cash = -50_000; dawn(sandbox, day); }
+    expect(sandbox.rivals.hollis.alive).toBe(false);
   });
 });
 

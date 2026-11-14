@@ -607,14 +607,16 @@ export function eliminate(s: GameState, id: RivalId, how: 'buyout' | 'hq' | 'ban
   checkVictory(s);
 }
 
-/** At dawn: rivals in the red for a week go bust, and an Out-of-Towner with no plot left in the Bay goes home. */
+/** At dawn: rivals in the red for a week go bust, and an Out-of-Towner with no plot left in the Bay goes home. In the
+ * campaign Tilly waits for the Act 4 County Fair here too: her days in the red keep counting, and if she is still broke
+ * she folds at the first dawn after it (calendar.ts tillyWaits). */
 export function rivalsBankrupt(s: GameState): void {
   for (const id of RIVALS) {
     const r = s.rivals[id];
     if (!r.alive || onlyTheSqueeze(s, id)) continue; // campaign: Vera never goes bust, only the Big Squeeze ends her
     if (FACTIONS[id].outOfTown && !ownedPlots(s, id).length) { eliminate(s, id, 'bankrupt'); continue; } // back on its next date (schemes.ts)
     r.brokeDays = r.cash < 0 ? (r.brokeDays ?? 0) + 1 : 0;
-    if (r.brokeDays >= BANKRUPT_DAYS) eliminate(s, id, 'bankrupt');
+    if (r.brokeDays >= BANKRUPT_DAYS && !tillyWaits(s, id, 'assault')) eliminate(s, id, 'bankrupt');
   }
 }
 

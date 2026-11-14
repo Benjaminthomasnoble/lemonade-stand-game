@@ -7,10 +7,10 @@ import {
 } from './economy.ts';
 import {
   availableRaiders, canPost, dexSquad, fenceRepairCost, fightRaid, fillable, fillPosts, guardFighter, holdsStronghold, neighborhoodWatch, overnightRepairs, postGuard, postsFor,
-  canRaid, foughtByDay, hqOdds, isSpoiled, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
+  canRaid, foughtByDay, henchmanFor, hqOdds, isSpoiled, raidParty, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GUARD_BASE, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GEAR, GUARD_BASE, HENCHMEN, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RAID_PARTY, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -924,6 +924,27 @@ describe('rival plot defenses', () => {
     const report = fightRaid(s, { id: 'r1', attacker: 'player', target: id, objective: 'shakedown', guards: [s.guards[0].id], detected: false, eta: '01:00' }, true);
     expect(report.defenders).toHaveLength(3);
     expect(report.defenders.every((f) => f.weapon === 'clubs' && f.hp === GUARD_BASE.hp && f.armor === 0 && f.nerve === GUARD_BASE.nerve)).toBe(true);
+  });
+});
+
+describe('rival henchmen', () => {
+  const share = (fs: Fighter[], weapon: string) => fs.filter((f) => f.weapon === weapon).length / fs.length;
+
+  it('a Threat 4 raiding party comes in Pro Gear, four in five with hatchets; at home the tier keeps its vests', () => {
+    const s = newGame(120);
+    const rng = { seed: 7 };
+    const raiders = Array.from({ length: 40 }, () => raidParty(s, 'fizzco', 4, rng)).flat();
+    const home = Array.from({ length: 400 }, (_, i) => henchmanFor(s, 'fizzco', 4, rng, i)); // an HQ's defenders, its help
+    expect(raiders.every((f) => f.level === 4 && f.gear === 'pro' && f.armor === GEAR.pro.armor)).toBe(true);
+    expect(share(raiders, 'fists')).toBe(0);
+    expect(share(raiders, 'hatchets')).toBeGreaterThan(0.72);
+    expect(share(raiders, 'hatchets')).toBeLessThan(0.88);
+    expect(home.every((f) => f.level === 4 && f.gear === 'vest' && f.armor === GEAR.vest.armor)).toBe(true);
+    expect(share(home, 'fists')).toBeGreaterThan(0);
+    expect(share(home, 'hatchets')).toBeGreaterThan(0.22);
+    expect(share(home, 'hatchets')).toBeLessThan(0.38);
+    // At every other Threat a raider is kitted as the tier's henchmen are at home.
+    for (const t of [1, 2, 3, 5]) expect([RAID_PARTY[t - 1].gear, RAID_PARTY[t - 1].weapons]).toEqual([HENCHMEN[t - 1].gear, HENCHMEN[t - 1].weapons]);
   });
 });
 

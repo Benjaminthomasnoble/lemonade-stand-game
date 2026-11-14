@@ -2,7 +2,7 @@
 // tools/combat-check.ts: guards as the crew fields them, henchmen as a rival
 // fields them at a Threat, real raiding parties, and a bare battle input to
 // put them in.
-import { GEAR, GUARD_BASE, HENCHMEN, PERIMETERS, WEAPONS, type GearId, type Trait, type WeaponId } from './balance.ts';
+import { GEAR, GUARD_BASE, HENCHMEN, PERIMETERS, RAID_PARTY, WEAPONS, type GearId, type Trait, type WeaponId } from './balance.ts';
 import type { BattleInput, Fighter, Side } from './combat.ts';
 import { guardFighter, raidPartyFor, type Guard } from './crew.ts';
 import { newGame, type GameState } from './economy.ts';
@@ -23,10 +23,10 @@ export const guardOf = (weapon: WeaponId = 'fists', gear: GearId = 'none', level
 export const guardsOf = (k: number, side: Side, weapon: WeaponId, gear: GearId = 'none', level = 1, night = false): Fighter[] =>
   Array.from({ length: k }, () => guardFighter(guardOf(weapon, gear, level), side, night));
 
-/** Henchmen as a rival fields them at this Threat (crew.ts henchman()), with a fixed weapon. */
+/** Henchmen as a rival fields them at this Threat (crew.ts henchman(): raiders in the party's padding), with a fixed weapon. */
 export const henchmenOf = (k: number, threat: number, weapon: WeaponId, side: Side = 'att'): Fighter[] => Array.from({ length: k }, () => {
-  const h = HENCHMEN[threat - 1], m = 1 + 0.1 * (h.level - 1);
-  return { id: `h${n++}`, name: '', side, hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m, nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon };
+  const h = HENCHMEN[threat - 1], m = 1 + 0.1 * (h.level - 1), gear = side === 'att' ? RAID_PARTY[threat - 1].gear : h.gear;
+  return { id: `h${n++}`, name: '', side, hp: (GUARD_BASE.hp + GEAR[gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m, nerve: GUARD_BASE.nerve, armor: GEAR[gear].armor, weapon };
 });
 
 /** A real raiding party at this Threat, as the rivals field them (sizes and weapons by Threat), rolled for this seed. */

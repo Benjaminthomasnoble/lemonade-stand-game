@@ -549,16 +549,18 @@ export function migrateCrew(s: GameState): void {
 
 const HENCH_NAMES: Record<RivalId, string> = { sourwood: 'Steward', hollis: 'Farmhand', fizzco: 'Associate', coldbrew: 'Barista', blenders: 'Smoothie Bro', snootwater: 'Sommelier' };
 
+/** One of a rival's henchmen at a Threat tier, at its level (HENCHMEN): on a raid ('att') in the party's padding and
+ * weapons (RAID_PARTY), at home ('def': an HQ's defenders, the help it sends) in the tier's own. Draws the weapon from rng. */
 function henchman(s: GameState, rival: RivalId, threat: number, rng: Rng, i: number, side: 'att' | 'def'): Fighter {
-  const party = RAID_PARTY[threat - 1];
-  const r = nextRandom(rng);
-  const weapon: WeaponId = r < party.weapons[0] ? 'fists' : r < party.weapons[0] + party.weapons[1] ? 'clubs' : 'hatchets';
   const h = HENCHMEN[threat - 1];
+  const { weapons, gear } = side === 'att' ? RAID_PARTY[threat - 1] : h;
+  const r = nextRandom(rng);
+  const weapon: WeaponId = r < weapons[0] ? 'fists' : r < weapons[0] + weapons[1] ? 'clubs' : 'hatchets';
   const m = 1 + 0.1 * (h.level - 1);
   return {
     id: `${rival}-${side}-${s.nextId++}`, name: `${HENCH_NAMES[rival]} #${i + 1}`, side,
-    hp: (GUARD_BASE.hp + GEAR[h.gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
-    nerve: GUARD_BASE.nerve, armor: GEAR[h.gear].armor, weapon, gear: h.gear, level: h.level,
+    hp: (GUARD_BASE.hp + GEAR[gear].hp) * m, hit: WEAPONS[weapon].hit * m, chop: WEAPONS[weapon].chop * m,
+    nerve: GUARD_BASE.nerve, armor: GEAR[gear].armor, weapon, gear, level: h.level,
   };
 }
 

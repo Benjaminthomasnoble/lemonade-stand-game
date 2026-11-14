@@ -585,13 +585,15 @@ export const MAX_QUIET_NIGHTS: Record<Difficulty, number> = { laidback: 4, class
 export const RESPECT_DAYS = 3;
 /** Rival raids on the player per week, by Threat (Classic). */
 export const RAIDS_PER_WEEK = [1, 2, 3, 4, 6];
-/** Typical raiding party by Threat: size range and weapon odds (fists, clubs, hatchets). */
-export const RAID_PARTY: { size: [number, number]; weapons: [number, number, number] }[] = [
-  { size: [2, 3], weapons: [1, 0, 0] },
-  { size: [3, 5], weapons: [0.7, 0.3, 0] },
-  { size: [5, 8], weapons: [0.3, 0.7, 0] },
-  { size: [8, 12], weapons: [0.1, 0.6, 0.3] },
-  { size: [12, 20], weapons: [0, 0.5, 0.5] },
+/** Typical raiding party by Threat: size range, weapon odds (fists, clubs, hatchets) and padding; its henchmen fight at
+ * the Threat's level (HENCHMEN). Threat 4's Pro Gear and four hatchets in five are placeholders (combat: a fully kitted
+ * L5 plot then holds about 75% of Threat 4 raids, canon's anchor; in vests with 30% hatchets it held them all). */
+export const RAID_PARTY: { size: [number, number]; weapons: [number, number, number]; gear: GearId }[] = [
+  { size: [2, 3], weapons: [1, 0, 0], gear: 'none' },
+  { size: [3, 5], weapons: [0.7, 0.3, 0], gear: 'none' },
+  { size: [5, 8], weapons: [0.3, 0.7, 0], gear: 'vest' },
+  { size: [8, 12], weapons: [0, 0.2, 0.8], gear: 'pro' },
+  { size: [12, 20], weapons: [0, 0.5, 0.5], gear: 'pro' },
 ];
 /** Share of raids on the player that are a Smash, by Threat (the rest are Shakedowns). */
 export const SMASH_SHARE = [0, 0.3, 0.6, 0.7, 1];
@@ -735,13 +737,14 @@ export const AUTO_DEFEND = { rank: 4, top: 3 };
 export const NABBED = { chance: 0.1, release: 0.05, days: 3 };
 /** Former Rival: this much more Hit and Chop against their old faction (its plots, its raids on you, its HQ). */
 export const FORMER_RIVAL = 0.1;
-/** Henchmen strength by Threat: level and padding. */
-export const HENCHMEN = [
-  { level: 1, gear: 'none' as GearId },
-  { level: 2, gear: 'none' as GearId },
-  { level: 3, gear: 'vest' as GearId },
-  { level: 4, gear: 'vest' as GearId },
-  { level: 5, gear: 'pro' as GearId },
+/** Henchmen strength by Threat: level, and the padding and weapon odds (fists, clubs, hatchets) they have at home, as
+ * a rival's HQ fields them by its tier (and the help it sends). On a raid they bring the party's (RAID_PARTY). */
+export const HENCHMEN: { level: number; gear: GearId; weapons: [number, number, number] }[] = [
+  { level: 1, gear: 'none', weapons: [1, 0, 0] },
+  { level: 2, gear: 'none', weapons: [0.7, 0.3, 0] },
+  { level: 3, gear: 'vest', weapons: [0.3, 0.7, 0] },
+  { level: 4, gear: 'vest', weapons: [0.1, 0.6, 0.3] },
+  { level: 5, gear: 'pro', weapons: [0, 0.5, 0.5] },
 ];
 
 // ---------- modes, difficulty, winning and losing (spec: Game modes and winning) ----------

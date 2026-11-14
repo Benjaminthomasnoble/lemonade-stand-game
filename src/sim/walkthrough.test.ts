@@ -470,15 +470,17 @@ describe('the canon combat anchors (400 fights each)', () => {
     expect(winChance(battleOf({ attackers: fists3(), standHp: STAND_HP[0], detected: false }), 1, 400)).toBeGreaterThanOrEqual(0.75);
   });
 
-  // Measured: the raid fails 78% of the time (3 fists, detected or not), and 92% for real Threat 1 parties of 2-3.
+  // Measured: the raid fails 78% of the time (3 fists, detected or not), and 92% for real Threat 1 parties of 2-3. Left
+  // so (combat: the early raids are meant to bounce off any fence or guard); canon is to be restated.
   it.fails('... and fails about 60% of the time against a Picket Fence and 1 guard with fists', () => {
     const lost = 1 - winChance(battleOf({ attackers: fists3(), defenders: guardsOf(1, 'def', 'fists'), ...fencedOf(1), standHp: STAND_HP[0], detected: false }), 2, 400);
     near(lost, 0.6, 0.05);
   });
 
-  // Measured: the defense holds 100% of 400 real Threat 4 raids (8-12, clubs and hatchets) on a P4 or P5 plot with
-  // 5 hatchet guards in Pro Gear and a goose, a slick and a sprinkler.
-  it.fails('a kitted L5 plot (P4 or P5, 4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 75% of the time', () => {
+  // 400 real Threat 4 raids (8-12 at level 4, in Pro Gear, four in five with hatchets: RAID_PARTY) on a P4 or P5 plot
+  // with 5 hatchet guards in Pro Gear and a goose, a slick and a sprinkler: the defense holds 77% (57% behind a P4,
+  // 99% behind a P5). In vests with 30% hatchets, as they guard a rival's HQ, the raids never got through.
+  it('a kitted L5 plot (P4 or P5, 4-6 hatchet guards in Pro Gear, 2-3 gadgets) holds against a Threat 4 raid about 75% of the time', () => {
     const gadgets: GadgetId[] = ['goose', 'slick', 'sprinkler'];
     let holds = 0;
     for (let seed = 1; seed <= 400; seed++) {

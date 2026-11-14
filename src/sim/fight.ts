@@ -11,10 +11,15 @@
 // raids and raids on you as they reach the plot on the raid clock (night.ts
 // calls startFight), Delivery Raids and each HQ assault stage. Tests, tools and
 // the skips (Finish the day, Sleep till dawn) fight everything at once.
+//
+// One fight plays at a time, and every fight on you plays live: a raid on you
+// that gets to its plot while a fight is on waits at the plot's edge (night.ts
+// keeps it on the raid clock) and goes in as that fight ends, at the minute it
+// ends. Your own raids that land meanwhile are fought at once and replayed after.
 import { FIGHT_BUTTONS, FIGHT_SECONDS_PER_GAME_MINUTE, type RivalId } from './balance.ts';
 import { createFight, type BattleInput, type BattleResult, type Fight, type FightCommand, type FightStatus, type Side } from './combat.ts';
 import { fightRaid, raidInput, spotAssault, type BattleReport, type Raid } from './crew.ts';
-import { raidFought } from './night.ts';
+import { nextInLine, raidFought, waitingRaids } from './night.ts';
 import type { FactionId } from './map.ts';
 import { canAssault, HQ_STAGES, hqPlot, HQS, hqSquad, hqStageInput, hqStageOver, hqSurvivors, stormHQ, type AssaultResult, type HqStage } from './rivals.ts';
 import { nextRandom } from './rng.ts';
@@ -56,6 +61,8 @@ export function atOnce<T>(f: () => T): T {
   watching = false;
   try { return f(); } finally { watching = was; }
 }
+/** A fight is playing live: a raid on you that gets to its plot now waits its turn at the edge (night.ts raidClock). */
+export const fightOnScreen = (s: GameState) => watching && !!s.fight;
 
 /** The running fight, re-made from the saved input, dice and commands when it isn't in memory. */
 function fightOf(f: LiveFight): Fight {
@@ -82,8 +89,9 @@ function begin(s: GameState, o: Pick<LiveFight, 'raid' | 'night' | 'input' | 'si
 
 /**
  * A raid starts as a live fight. A fight you're not in, any fight while
- * nobody watches, and a second one while a fight is on are fought at once
- * instead (the report comes back), so nothing waits off screen.
+ * nobody watches, and a raid of yours that lands while a fight is on are fought
+ * at once instead (the report comes back). A raid on you never lands mid-fight:
+ * it waits its turn (night.ts nextInLine).
  */
 export function startFight(s: GameState, raid: Raid, night = s.phase !== 'open'): BattleReport | true {
   if (raid.assault) return reachHQ(s, raid, night); // crew: an HQ Assault from the Raid Planner gets to the gate
@@ -125,7 +133,8 @@ export function startAssault(s: GameState, id: RivalId, guardIds: string[], sent
   return true;
 }
 
-/** The fight is over: live with the result. An HQ stage that falls opens the next one. */
+/** The fight is over: live with the result. An HQ stage that falls opens the next one; else the next raid waiting at a
+ * plot's edge goes in (night.ts nextInLine), at this minute. */
 function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
   if (s.fight === f) delete s.fight;
   running.delete(f);
@@ -150,7 +159,26 @@ function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
   }
   const view = views.get(f);
   if (view) Object.assign(view, report);
+  if (!s.fight) nextInLine(s); // one after another: the next raid on you that's waiting goes in now
   return report;
+}
+
+/** Run the live fight dt fight-seconds on: the game minutes the clock moves for it (1 per fight-second, none while they
+ * walk in), and once it's over its result, not yet settled. Null with no fight on, or no time. */
+function run(s: GameState, dt: number): { f: LiveFight; minutes: number; res?: BattleResult } | null {
+  const f = s.fight;
+  if (!f || !(dt > 0)) return null;
+  const fight = fightOf(f);
+  f.t += dt;
+  if (f.t >= 0) fight.advance(f.t);
+  if (!fight.done()) {
+    const to = Math.max(0, Math.floor(f.t / FIGHT_SECONDS_PER_GAME_MINUTE + EPS));
+    const minutes = Math.max(0, to - f.ticked);
+    f.ticked += minutes;
+    return { f, minutes };
+  }
+  const res = fight.result();
+  return { f, minutes: Math.max(0, Math.round(res.duration / FIGHT_SECONDS_PER_GAME_MINUTE) - f.ticked), res };
 }
 
 /**
@@ -159,44 +187,37 @@ function settle(s: GameState, f: LiveFight, res: BattleResult): BattleReport {
  * fight-second, none while they walk in) and, when the fight ends, its report.
  */
 export function stepFight(s: GameState, dt: number): { minutes: number; ended?: BattleReport } {
-  const f = s.fight;
-  if (!f || !(dt > 0)) return { minutes: 0 };
-  const fight = fightOf(f);
-  f.t += dt;
-  if (f.t >= 0) fight.advance(f.t);
-  if (!fight.done()) {
-    const to = Math.max(0, Math.floor(f.t / FIGHT_SECONDS_PER_GAME_MINUTE + EPS));
-    const minutes = Math.max(0, to - f.ticked);
-    f.ticked += minutes;
-    return { minutes };
-  }
-  const res = fight.result();
-  const minutes = Math.max(0, Math.round(res.duration / FIGHT_SECONDS_PER_GAME_MINUTE) - f.ticked);
-  return { minutes, ended: settle(s, f, res) };
+  const r = run(s, dt);
+  if (!r) return { minutes: 0 };
+  return { minutes: r.minutes, ...(r.res ? { ended: settle(s, r.f, r.res) } : {}) };
 }
 
 /**
  * One frame of the game while a fight is live (main.ts's loop): the fight runs dt real seconds and the clock moves a
  * game minute for each fight-second, business hours or the night, whatever the speed (each minute's events go to
  * onMinute). Paused, the fight and the clock both hold still, and nothing runs (null). A fight still going at 07:00
- * holds the clock there: dawn waits for it to end (tickMinute).
+ * holds the clock there: dawn waits for it to end (tickMinute). A fight that ends settles once the clock has caught up
+ * with it, so a raid waiting its turn goes in at the minute it ended (and dawn waits for that one too).
  */
 export function fightFrame(s: GameState, dt: number, paused: boolean, onMinute?: (events: SimEvent[]) => void): { minutes: number; ended?: BattleReport } | null {
   if (paused || !s.fight) return null;
   const from = s.phase;
-  const { minutes, ended } = stepFight(s, dt);
+  const r = run(s, dt);
   let moved = 0;
-  for (; moved < minutes && s.phase === from && (from === 'open' || from === 'night'); moved++) {
+  for (; r && moved < r.minutes && s.phase === from && (from === 'open' || from === 'night'); moved++) {
     const ev = tickMinute(s);
     onMinute?.(ev);
   }
-  return { minutes: moved, ...(ended ? { ended } : {}) };
+  if (!r?.res) return { minutes: moved };
+  r.f.ticked += moved;
+  return { minutes: moved, ended: settle(s, r.f, r.res) };
 }
 
-/** Run the live fight (and the rest of an HQ assault) to the end now: skipping the day or sleeping doesn't wait. */
+/** Run the live fight (and the rest of an HQ assault, and the raids waiting their turn) to the end now: skipping the
+ * day or sleeping doesn't wait. */
 export function finishFight(s: GameState): BattleReport[] {
   const out: BattleReport[] = [];
-  for (let guard = 0; s.fight && guard < 8; guard++) {
+  for (let guard = 0, cap = 8 + s.raids.length; s.fight && guard < cap; guard++) {
     const f = s.fight;
     const fight = fightOf(f);
     fight.advance(Infinity);
@@ -256,6 +277,7 @@ export interface LiveStatus extends FightStatus {
   fallBack: boolean; // Fall Back is still available
   hq?: HqStage;
   bossMove?: string; // the Boss Room's move, for a moment after it goes off ('Blender Rush')
+  next?: string; // the plot where the next raid on you waits its turn, while one does
 }
 
 export function fightStatus(s: GameState): LiveStatus | null {
@@ -264,10 +286,11 @@ export function fightStatus(s: GameState): LiveStatus | null {
   const fight = fightOf(f);
   const st = fight.status();
   const move = f.hq ? fight.events.find((e) => e.type === 'boss' && e.t <= st.t + EPS && st.t < e.t + BOSS_MOVE_SHOWN - EPS) : undefined;
+  const next = waitingRaids(s)[0];
   return {
     ...st, clock: Math.max(0, f.t), side: f.side, rally: canRally(s), fallBack: canFallBack(s),
     rallying: !!f.side && st.t < st.rallyUntil[f.side] - EPS, ...(f.hq ? { hq: f.hq.stage } : {}),
-    ...(move && f.hq ? { bossMove: HQS[f.hq.rival].move } : {}),
+    ...(move && f.hq ? { bossMove: HQS[f.hq.rival].move } : {}), ...(next ? { next: next.target } : {}),
   };
 }
 

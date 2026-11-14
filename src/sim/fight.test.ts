@@ -12,7 +12,9 @@ import {
   equip, FIGHT_BUTTONS, nightStep, ownedPlots, raidTargets, refreshRecruits, STAND_HP, welcomeDex, newGame, type GameState, type Raid, type RivalId,
   availableRaiders, awayGuards, DAYTIME_RAID_REP, FIGHT_SECONDS_PER_GAME_MINUTE, openStand, planRaid, squadHome, tickMinute, travelMinutes,
   buildFacility, MINUTES_PER_DAY, NIGHT_END, OPEN, PICKUP_MINUTE, PLOTS, hqPlot,
+  buildClubhouse, callBigSqueeze, newStand, planNight, RESERVE_MINUTES, startNight, waitingRaids, type BattleReport, type SimEvent,
 } from './economy.ts';
+import { ringTheBell } from './reinforce.ts';
 
 /** A crew of five club-and-vest guards, ready to raid. */
 function crew(seed: number): GameState {
@@ -222,7 +224,7 @@ describe('a live fight', () => {
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
   });
 
-  it('a second fight while one is on screen is fought at once', () => {
+  it('a raid of yours that lands while a fight is on screen is fought at once (raids on you wait their turn)', () => {
     const s = crew(24);
     const [t1, t2] = raidTargets(s);
     expect(startFight(s, raidOn(s, t1.id), false)).toBe(true);
@@ -252,6 +254,126 @@ describe('a live fight', () => {
     const [r] = finishFight(s);
     expect(s.fight).toBeUndefined();
     expect(s.battles[0]).toBe(r);
+  });
+});
+
+describe('fights on you play one after another', () => {
+  /** Night at 23:00: Lottie's Corner and a Wooden Stand down the street, a guard on each, a Clubhouse on the same
+   * street with Big Lou waiting in it, and a raid on each stand due at 23:01. */
+  function twoRaids(seed = 41) {
+    const s = newGame(seed);
+    Object.assign(s, { rank: 7, cash: 1e6, phase: 'night', minute: 23 * 60 });
+    const home = ownedPlots(s, 'player')[0].id;
+    const [second, club] = PLOTS.filter((p) => p.type === 'street' && p.district === PLOT_BY_ID[home].district && !s.plots[p.id].owner).map((p) => p.id);
+    s.plots[second] = { ...s.plots[second], owner: 'player', stand: newStand(1) };
+    s.plots[club].owner = 'player';
+    expect(buildClubhouse(s, club)).toBe(true);
+    const lou = guardOf('clubs', 'vest', 1, 'Smooth Talker', { name: 'Big Lou', club });
+    s.guards = [guardOf('clubs', 'vest', 1, 'Smooth Talker', { post: home }), guardOf('clubs', 'vest', 1, 'Smooth Talker', { post: second }), lou];
+    const raid = (id: string, attacker: RivalId, target: string): Raid =>
+      ({ id, attacker, target, objective: 'smash', party: henchmenOf(3, 1, 'fists'), detected: true, eta: '23:01', leave: 22 * 60, at: 23 * 60 + 1, launched: true, warned: true });
+    s.raids.push(raid('ra', 'blenders', home), raid('rb', 'coldbrew', second));
+    return { s, home, second, lou };
+  }
+
+  it('two raids landing together: the second waits at its plot, named on the fight bar, and goes in live as the first ends', () => {
+    const { s, second } = twoRaids();
+    const ev = nightStep(s);
+    expect(ev.some((e) => e.type === 'fight')).toBe(false); // nothing fought at once
+    expect(s.fight?.raid.id).toBe('ra');
+    expect(waitingRaids(s).map((r) => r.id)).toEqual(['rb']);
+    expect(fightStatus(s)!.next).toBe(second);
+    let first: BattleReport | undefined;
+    for (let i = 0; !first && i < 1e5; i++) {
+      first = fightFrame(s, 1 / 30, false, (e) => expect(e.some((x) => x.type === 'fight')).toBe(false))?.ended;
+      if (!first) expect(s.fight!.raid.id).toBe('ra'); // the second never cuts in
+    }
+    const end = 23 * 60 + 1 + Math.round(first!.duration / FIGHT_SECONDS_PER_GAME_MINUTE);
+    expect(s.minute).toBe(end); // the clock ran the whole first fight
+    expect(s.fight).toMatchObject({ raid: { id: 'rb' }, side: 'def', start: end }); // in at the minute the first ended
+    expect(fightStatus(s)!.next).toBeUndefined();
+    expect(waitingRaids(s)).toEqual([]);
+    const { ended } = play(s);
+    expect(ended).toMatchObject({ attacker: 'coldbrew', target: second, day: first!.day });
+    expect(s.battles.slice(0, 2)).toEqual([ended, first]);
+    expect(s.fight).toBeUndefined();
+  });
+
+  it('the bell rung on a raid waiting its turn: its reserve still gets there at its own minute', () => {
+    const { s, lou } = twoRaids();
+    nightStep(s);
+    expect(ringTheBell(s, 'rb')).toBe(true); // warned and waiting: the bell answers it
+    expect(s.fight!.raid.bell).toBeUndefined(); // not the fight on screen
+    const due = 23 * 60 + 1 + RESERVE_MINUTES.same;
+    let first: BattleReport | undefined;
+    for (let i = 0; !first && i < 1e5; i++) first = fightFrame(s, 1 / 30, false)?.ended;
+    const contact = s.fight!.start!;
+    const { ended } = play(s);
+    const at = ended.events.find((e) => e.type === 'at' && e.a === lou.id)?.t;
+    expect(at).toBe(Math.max(0, due - contact) * FIGHT_SECONDS_PER_GAME_MINUTE); // contact moved; the walk didn't
+  });
+
+  it('nobody watching (a skip, or Sleep), the raid waiting its turn is fought at once', () => {
+    const { s } = twoRaids();
+    nightStep(s);
+    expect(waitingRaids(s)).toHaveLength(1);
+    const reports = atOnce(() => finishFight(s));
+    expect(reports.map((b) => b.attacker)).toEqual(['blenders']);
+    expect(s.fight).toBeUndefined();
+    expect(waitingRaids(s)).toEqual([]);
+    expect(s.battles.map((b) => b.attacker).sort()).toEqual(['blenders', 'coldbrew']);
+  });
+
+  it('finishFight (the skips) settles the fight on screen and the raids waiting behind it', () => {
+    const { s } = twoRaids();
+    nightStep(s);
+    const reports = finishFight(s);
+    expect(reports.map((b) => b.attacker)).toEqual(['blenders', 'coldbrew']);
+    expect(s.fight).toBeUndefined();
+    expect(s.raids.filter((r) => r.attacker !== 'player')).toEqual([]);
+  });
+
+  it('a reload with a raid waiting picks it up where it was', () => {
+    const { s } = twoRaids();
+    nightStep(s);
+    stepFight(s, FIGHT_LEAD_IN + 2);
+    const b = JSON.parse(JSON.stringify(s)) as GameState;
+    expect(fightStatus(b)!.next).toBe(fightStatus(s)!.next);
+    play(s);
+    play(b);
+    expect(b.fight?.raid.id).toBe('rb');
+    expect(JSON.stringify(b)).toBe(JSON.stringify(s));
+  });
+
+  it('a siege night: each part of the strike plays live in turn, and every one is scored by dawn', () => {
+    for (let seed = 1; seed <= 3; seed++) {
+      const s = newGame(seed, { mode: 'campaign' });
+      Object.assign(s, { day: 136, rank: 9, tutorialRaidDone: true, raids: [], story: { act: 5, since: 106 } });
+      for (const id of ['sourwood', 'fizzco', 'hollis', 'coldbrew', 'blenders'] as RivalId[]) Object.assign(s.rivals[id], { cash: 1e7, budget: { grow: 0, guard: 0, strike: 1e6 } });
+      const side = PLOTS.filter((p) => (p.district === 'maple' || p.district === 'oldtown') && p.type === 'street' && !s.plots[p.id].owner);
+      for (const p of side.slice(0, 5)) s.plots[p.id] = { ...s.plots[p.id], owner: 'player', stand: newStand(2) };
+      expect(callBigSqueeze(s)).toBe(true);
+      Object.assign(s, { phase: 'report', minute: CLOSE });
+      planNight(s);
+      const parts = s.raids.filter((r) => r.siege);
+      expect(parts.length).toBeGreaterThanOrEqual(2);
+      startNight(s);
+      const live: BattleReport[] = [];
+      let waited = 0;
+      const atOnceOnYou = (e: SimEvent[]) => e.filter((x) => x.type === 'fight' && x.report.defender === 'player');
+      for (let frames = 0; s.phase === 'night' && frames < 1e6; frames++) {
+        if (!s.fight) { expect(atOnceOnYou(tickMinute(s))).toEqual([]); continue; }
+        if (fightStatus(s)!.next) waited++;
+        const r = fightFrame(s, 0.5, false, (e) => expect(atOnceOnYou(e)).toEqual([]));
+        if (r?.ended) live.push(r.ended);
+      }
+      expect(s.phase).toBe('prep');
+      const sieged = live.filter((b) => parts.some((p) => p.target === b.target));
+      expect(sieged.length).toBe(parts.length); // every part, live
+      expect(waited).toBeGreaterThan(0); // close enough together that some waited their turn
+      const smashed = sieged.filter((b) => b.outcome === 'smashed').length;
+      expect(s.squeeze).toMatchObject({ nights: 1, held: sieged.every((b) => b.outcome === 'repelled') ? 1 : 0, lost: smashed });
+    }
   });
 });
 

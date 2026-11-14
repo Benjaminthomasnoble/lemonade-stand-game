@@ -6,7 +6,8 @@
 // 1–3 game hours by distance. A detected raid warns as it sets out, with its
 // full ETA; an undetected one warns at the difficulty's minimum notice (30, 15
 // or 5 game minutes). Raids are fought one by one at their arrival minute, in
-// ETA order. Daytime raids (Delivery Raids on a VIP pickup, your raids sent
+// ETA order; one on you that lands while a fight plays live waits at the plot's
+// edge and goes in, live, as that fight ends. Daytime raids (Delivery Raids on a VIP pickup, your raids sent
 // now) run on the same timeline during business hours. Your squads travel
 // both ways: their posts sit empty from departure until they're home.
 // Pure and seeded, like the rest of the sim.
@@ -20,7 +21,7 @@ import { nextRandom } from './rng.ts';
 import type { GameState, SimEvent } from './economy.ts';
 import { autoRestock, servingsAvailable } from './economy.ts';
 import { assaultTurnsBack, detectionChance, guardReady, hasBuilding, raidIsNightAt, raidRepCost, sabotageCalledOff, threatLevel, type BattleReport, type Raid } from './crew.ts';
-import { startFight } from './fight.ts';
+import { fightOnScreen, startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, onFeed, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
@@ -258,6 +259,21 @@ function arrive(s: GameState, r: Raid): BattleReport | null {
   return report;
 }
 
+/** Raids on you that reached their plot while a fight played live: they wait at its edge for their turn, first come
+ * first in (raidClock keeps them on the raid clock, warned and due). The fight bar names the next one. */
+export function waitingRaids(s: GameState): Raid[] {
+  return s.raids.map((r, i) => ({ r, i }))
+    .filter(({ r }) => onYou(s, r) && r.launched && r.back === undefined && r.at !== undefined && r.at <= s.minute)
+    .sort((a, b) => a.r.at! - b.r.at! || a.i - b.i).map(({ r }) => r);
+}
+
+/** The fight on screen is over (combat's fight.ts calls this as each one ends): the first raid waiting at its plot's
+ * edge goes in now, live. Its contact is now, a little later than it got there; a bell's reserve still gets there at
+ * its own minute (reinforce.ts withBell reads the contact). Nobody watching, they're all fought at once. */
+export function nextInLine(s: GameState): void {
+  for (let r = waitingRaids(s)[0]; r && !s.fight; r = waitingRaids(s)[0]) arrive(s, r);
+}
+
 /** A raid's fight is over (fought at once, or live and just ended: `started` is the minute it began). Your squad
  * walks home, a Delivery Raid's pickup loads out, or fails if the raiders overran it, and a Big Squeeze target is held
  * or lost. */
@@ -296,6 +312,7 @@ function raidClock(s: GameState): SimEvent[] {
     if (!s.raids.includes(r)) continue;
     if (r.attacker === 'player' && nothingThere(s, r)) continue;
     if (!r.warned && onYou(s, r)) ev.push(warn(s, r)); // every raid on you is warned, even a late one
+    if (onYou(s, r) && fightOnScreen(s)) continue; // combat: a fight plays live, so this one waits its turn at the plot's edge (nextInLine)
     const report = arrive(s, r);
     if (report) ev.push({ type: 'fight', raid: r, report });
   }

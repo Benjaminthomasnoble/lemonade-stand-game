@@ -15,7 +15,7 @@ import { dawnPicks, savesPanel } from './saves.ts';
 import type { SlotInfo } from '../save.ts';
 import { isFullMenu, menuScreen, menuUnlocked, plannerTargets } from './menus.ts';
 import { keyName, keysPanel, withKey } from './keys.ts';
-import { defaultKeys } from '../settings.ts';
+import { bindKey, defaultKeys } from '../settings.ts';
 import { eliminate, LESSON_DAY, openStands, simulateRestOfDay, sleepUntilDawn, successScore, syndicateAtDawn } from '../sim/economy.ts';
 import { repTip, scoreParts, scoreTip, standRepTip, threatLemons, threatTip } from './meters.ts';
 import { customPanel, difficultyLabel, pickCustom } from './custom.ts';
@@ -403,6 +403,12 @@ describe('the ten menus', () => {
     const html = optionsScreen(o, newGame(1), '', keys);
     for (const key of ['pause.screens', 'captions', 'celsius']) expect(html).toContain(`data-key="${key}"`);
     expect(html).toContain('Voices, the radio and phone calls, written out'); // the story scenes' voices are captioned too (main.ts)
+    // The Full-screen menus tip names the Pause key as it is now.
+    const screensTip = () => optionsScreen(o, newGame(1)).match(/data-key="pause\.screens"[^>]*title="([^"]+)"/)![1];
+    expect(screensTip()).toContain('Space or a speed still runs it');
+    bindKey(o, 'pause', 'KeyP');
+    expect(screensTip()).toContain('P or a speed still runs it');
+    expect(screensTip()).not.toContain('Space');
   });
 });
 

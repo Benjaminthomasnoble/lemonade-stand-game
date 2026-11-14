@@ -5,6 +5,7 @@
 import { calmAudioOn, QUIET_NIGHT_SPEED, raidPauses, type GameState } from '../sim/economy.ts';
 import { TEXT_SIZES, type Options } from '../settings.ts';
 import { lessonsOn } from '../sim/story.ts';
+import { keyName } from './keys.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const toggle = (key: string, on: boolean, label: string, tip: string) =>
@@ -19,7 +20,7 @@ export function optionsScreen(o: Options, s: GameState, saves = '', keys = ''): 
       ${toggle('pause.vip', o.pause.vip, 'VIP first visits', "Each client's first chopper or ship stops the clock for the show")}
       ${toggle('pause.red', o.pause.red, 'In the Red', 'Morning Prep waits for you while you are In the Red')}
       ${toggle('pause.perk', o.pause.perk, "Lottie's tips", "A rank-up's three tips pause the game for your pick")}
-      ${toggle('pause.screens', o.pause.screens, 'Full-screen menus', 'Menus, Options and New Game pause the clock. Space or a speed still runs it.')}
+      ${toggle('pause.screens', o.pause.screens, 'Full-screen menus', `Menus, Options and New Game pause the clock. ${keyName(o.keys.pause)} or a speed still runs it.`)}
     </div>` : '';
   const sizes = TEXT_SIZES.map((t) => `<button class="cl-b tiny ${o.textSize === t ? 'go' : 'ghost'}" data-action="option" data-key="textSize" data-value="${t}" title="Text size ${t}%">${t}%</button>`).join('');
   return `<div class="cl-modal-bg"><div class="cl-card-big cl-setup" data-testid="options">

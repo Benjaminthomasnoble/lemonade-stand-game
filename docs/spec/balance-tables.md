@@ -321,11 +321,11 @@ Lottie's Corner starts at $300 land value with 400 passersby a day; Lottie's sid
 | Facility development | Each facility tier counts as 2 stand levels |
 | Majority land discount | −10% |
 | First Dibs (after your Smash) | 100% of land value, 24 game hours |
-| Fire Sale (rival eliminated, by capture or buyout) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days, then auction |
-| Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere |
+| Fire Sale (rival eliminated, by capture, buyout or 7 days bankrupt) | Every plot the rival held: you get First Dibs at 75% of land value for 2 days (2 full days when it falls in the Evening or at night), then auction |
+| Plot Buyout from a rival | 2.5× land value in their home district, 2× elsewhere, × (1 + their Grudge/200), +0.2 more for the Sourwoods (placeholder) |
 | HQ Assault (rival Weakened) | Each HQ from its own rank: Blend Shack 5, Grindhouse 6, Hollis Homestead 7, FizzCo Tower 8, Sourwood Manor 9 (the Big Squeeze). The same rank opens that rival's Faction Buyout |
 | Weakened (needed for HQ Assault and Faction Buyout) | Any one of: the rival holds 40% or less of its peak plots; its Net Worth is under 25% of yours; your daily sales (cups and bottles, in dollars) were at least 2× theirs for 7 days in a row |
-| Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
+| Faction Buyout (rival Weakened) | Opens at that rival's HQ rank: Brock Rank 5, Juni 6, Tilly 7, Preston 8. 1.5× the rival's cash and buildings (Brock, Tilly); 1.8× (Juni, Preston, who haggle: they counter at 2.1× and never sign below 1.8×; see Rivals); land is not included and goes to the Fire Sale. Vera never sells in the campaign; in a Peaceful Sandbox she sells at 3× once Weakened |
 | Rebuild a Wrecked building | 15% of what was invested in it, within 24 game hours (you and rivals alike) |
 | Repair a Damaged building | 15% of what was invested × the share of HP lost (never more than a rebuild) |
 | Busted repair (Laid Back) | 10% of what was invested |
@@ -497,8 +497,98 @@ On all ten simulated maps the player builds all six helipad and pier tiers; the 
 | Hollis Sweet Tea Co. | 50,000 | 60% | Rank 7 | 3,500 | 1.5×, from Rank 7 | Hollis Orchards: each Lemon Grove +10% traffic instead of +5% |
 | FizzCo Beverages | 1,000,000 | 70% | Rank 8 | 4,250 | 1.8×, from Rank 8 | Bottling Line: bottles fill 25% faster |
 | The Sourwood Family | 3,000,000 | 80% | Rank 9 (Big Squeeze) | 5,000 | Never in the campaign (3× once Weakened in a Peaceful Sandbox) | Family Silver: land, Plot Buyouts and auction bids −10% |
+| Snootwater Springs (Endless Summer's Out-of-Towner) | A war chest each visit (see The Out-of-Towner) | 40% (placeholder) | No HQ in the Bay | — | 1.5×, from Rank 5 (placeholder) | — |
 
-A rival's rebuild chance drops 30 points for each Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rival cash grows about 1% a day from their trade. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, and rise one level every 30 days (Blenders, Cold Brew and Hollis cap at L4). The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
+| Faction | Home | Grow / Guard / Strike | Everyday price (× ceiling) | Stand cap | Brand cap | Auction push | Signature move |
+|---|---|---|---|---|---|---|---|
+| The Boardwalk Blenders | The Boardwalk | 25 / 15 / 60% | 0.9 | L4 | M2 | 0.85 | Blender Rush |
+| The Cold Brew Collective | Campus & Arts | 25 / 25 / 50% | 0.95 | L4 | M3 | 0.9 | Night Shift |
+| Hollis Sweet Tea Co. | The Groves | 40 / 50 / 10% | 0.9 | L4 | M3 | 1 | Dig In |
+| FizzCo Beverages | Downtown | 50 / 20 / 30% | 1.1 | L5 | M5 | 1.35 | Hostile Takeover |
+| The Sourwood Family | Hilltop Estates | 35 / 35 / 30% | 1.0 | L5 | M4 | 1.2 | Old Money |
+| Snootwater Springs | Out of town | 25 / 15 / 60% | 0.9 | L4 | M2 | 0.85 | Blender Rush, under its own name |
+
+The everyday prices, brand caps, auction push and every Snootwater number are placeholders. A rival's everyday price is the ceiling a Classic lemonade stand of its level gets in that district (the same formula as yours) times its factor, less 25% while a price war runs there. Their stands start at L2 (The Groves L1; Downtown and Hilltop L3), one level higher on Prime and Landmark plots, never above the faction's cap. A rival's rebuild chance drops 30 points for each other Smash on that same plot in the last 7 days (to no less than 0%); the Raid Planner shows the chance. Rivals hold VIP facilities too: FizzCo's Bottling Works L1 at its Harbor plant (placeholder) and a Jetty, the Sourwoods' Helipad and marina Jetty, and a Lemon Grove on each of Hollis's Fields. The Lavender auction at the Hilltop estate opens when you reach Rank 8; expect the winning bid to be about $1,500,000, about a day of income at that rank.
+
+#### Budgets and growth
+
+Each rival splits its money three ways, by its Grow / Guard / Strike shares: Grow buys land, stands, level-ups and marketing; Guard buys fences, gadgets, henchmen and repairs; Strike pays for raids and schemes. Its starting cash opens the three buckets. Each dawn, whatever moved its cash since the last dawn (trade, upkeep, wages, loot, rebuilds, sales) goes into them by the same split. All placeholders except the 30 days.
+
+| Rule | Value |
+|---|---|
+| Reserve | 2 days of stand upkeep and henchmen's wages stay out of the buckets |
+| Trade | Over a rival's first 7 dawns of trading, its stands' margin is scaled so its opening stands net about 1% of its starting cash on an average day of the year, after upkeep and wages. The scale stays within 0.02–25; above 1 it covers only the opening stands at their opening level |
+| Wages | Each dawn every henchman draws a guard's wage at his level (see Guards by level); one the rival can't pay walks off |
+| Hiring | $300 a henchman out of Guard, and only while Guard's share of a day's net trade covers his wage |
+| Guard spending | Each dawn: fence repairs and Slick re-lays first, at your prices; then, on each of its three most invested plots, one step toward that plot's kit (see Rival kits): the next fence, else a henchman for an empty post, else the next gadget |
+| Level-ups | Every 30 days each rival stand is owed one level, up to the faction's cap. Grow pays your build price, cheapest first. An owed level Grow can't pay waits, and a wrecked stand waits for its rebuild |
+| Bare lots | An L1 stand ($150 out of Grow) on the busiest bare lot it holds, one a dawn |
+| New land | On 25% of dawns after Day 3, the busiest open Street or Prime plot in its home district or a district where it holds a Foothold (never Maple Row): land value plus $150 for the stand, out of Grow |
+| Marketing | Its next marketing tier at your price, once your Rank opens it, up to its brand cap, and only while Grow holds twice the price (FizzCo: once) |
+| A raid's cost | 1 night of wages for each henchman sent, at the raid's level, out of Strike; a Blender Rush costs half |
+
+Rivals pay your prices, so the small gangs climb slowly: an L3 costs $3,500 and an L4 $60,000, six times the Blenders' starting cash. In three simulated campaigns the Blenders, Cold Brew and Hollis never reached L4 before they fell, FizzCo kept the L4s it starts with, and the Sourwoods built an L5 in one of them, after Day 120.
+
+#### Attention and Grudge
+
+All placeholders.
+
+| Rule | Value |
+|---|---|
+| Attention on you | 1 per Threat lemon, 0.5 for each district of yours on or beside its turf, 10 × the share of its passers-by who bought from you instead on the last day of trade, and 0.1 per point of its Grudge toward you (Lottie's Low Profile tip: 20% less) |
+| Who sends a raid on you | The keenest boss whose Strike can pay: its Attention, plus its Strike share, plus a roll of 0–1 so near-ties go either way. A boss backing off after you beat its raid (Respect) or in a Truce sits it out |
+| Where it goes | Your weakest valuable plot near its turf (a district where it holds land, or its home, or one bordering those; anywhere when nothing of yours is near): worth ÷ (1 + 2 × fence tier + 3 × guards posted + gadgets). Worth is land value, what's invested and the stand's last full day of profit. The Rivals Corkboard pins it |
+| Grudge | 0–100, toward each faction. It rises when that faction takes its land (+15; a Plot Buyout is a sale, not a taking) or outbids it at auction (+10), and when another rival raids it (+10) or smashes its stand (+10). It cools 1 a day when it didn't rise (toward you twice as fast with Lottie's Let It Go tip). A feud between two rivals makes the Bugle at 50 |
+| Grudge toward you | Your raid on it +20 if the raid wins, +8 if it fails; a stalled HQ assault +30; walking out on a haggle +5; turning down FizzCo's offer +10; breaking a Truce +25 with every rival |
+
+#### Schemes
+
+From Day 8, each dawn a rival with no scheme running starts one on 2 / 3.5 / 5 / 6.5 / 8% of dawns at Threat 1–5, if it has a target and Strike can pay. One of your stands outsold it next door yesterday: twice as often, and a price war first. In Peaceful, where schemes stand in for raids: three times as often. A rival in a Truce with you doesn't scheme, and a finished scheme stays on the books 7 days. All placeholders except the Cease-and-Desist's 3 days.
+
+| Scheme | Who | What it does |
+|---|---|---|
+| Price war | Any rival | Its stands that share passers-by with yours (the same street, within 2 plots) cut prices 25% for 3 days. Strike pays the margin it gives up, and must cover the whole war at the start. Answer with a Coupon Blitz (from Rank 4, at Morning Prep) or wait it out |
+| Auction snipe | Any rival | It tops your sealed bid by 5%, the extra out of Strike |
+| Smear posters | Cold Brew | $150. Unless the plot's night watch catches the crew (a night raid's detection roll), −0.1 star, and the posters stay up 3 days or until a Free Sample Day there. In Act 3 they go on your busiest Campus & Arts stand |
+| Night Shift | Cold Brew | Its night raids take 25% more off your detection, Floodlights or not; 40% of its raids on your stands are a Sabotage (see Raids) |
+| Act 3's mystery | Cold Brew (campaign) | Until the Night Shift is unmasked: on the act's first night, then on 35% of nights, every lemon at your stocked stand nearest its turf goes bad, unless your night watch catches the crew (detection less 25%). $150 of Strike a night after the first |
+| Ad blitz | FizzCo (any rival in Peaceful) | From your Rank 3: +25% appeal at its stands in one district (where most of them share passers-by with yours) for 3 days, $300 a day of Strike |
+| Cease-and-Desist | FizzCo | From Act 4, $2,000 of Strike: your marketing tier and campaigns count for nothing in one district (where they pull the most) for 3 days. The Act 4 letter on Downtown is free, and waits while you hold a Truce with FizzCo |
+| Takeover offer | FizzCo | From Act 4, out of Grow: 1.25× the land and building value (and your stock there at cost) for your most valuable plot on or beside its turf, never Lottie's Corner, a Trophy, a wreck or a pad with a pickup booked. The offer stands 2 days; sell at Morning Prep. Turning it down: +10 Grudge |
+| Mayor's fine | Sourwood | From Act 5, $500 of Strike: half your average daily sales over the last 7 days, at least $25, never more than your cash |
+| Land freeze | Sourwood | From Act 5, $1,500 of Strike: nobody can buy one plot for 3 days, and your First Dibs on it waits the freeze out. In the campaign, Act 5's first Hilltop buy is frozen once for free |
+| Old Money's Stewards | Sourwood | From Act 5, Vera's raids and plot guards come one level higher (in that level's padding), each weapon one tier toward hatchets. Sourwood Manor's own defenders don't change |
+| Dig In | Hollis | Its fences and their repairs cost 60% of your price, and hay bales give its fences 1.5× HP (the bales don't stay when the land changes hands). It fences every Field it holds, up to a Chain-Link Fence |
+| Blender Rush | The Blenders and the Out-of-Towner | Every raid comes at the top of the Threat's party size, each weapon one tier toward fists (hatchets to clubs, clubs to fists), for half the wages. Brock phones first |
+
+#### Sit-downs and buyouts
+
+Sit-downs at Dot's Diner open at Rank 4, any hour but night. A fit Smooth Talker brought along as your negotiator takes 15% off a Truce, a Plot Buyout or a Faction Buyout (placeholder); Lottie's Firm Handshake tip takes 15% off a buyout.
+
+| Deal | Rule |
+|---|---|
+| Truce | 7 days: made on Day D, no raids from that rival through the night of D+6, and its raids planned on you tonight are called off. Tribute: 2% of your Net Worth (at least $500) × (1 + its Grudge/100), rounded to $100 (placeholder). None in Peaceful |
+| Breaking a Truce (raiding them) | −1 star; every rival's Grudge toward you +25 (placeholder); no rival takes a Truce for 14 days |
+| Plot Buyout | 2.5× land value in their home district, 2× elsewhere, × (1 + their Grudge/200), and +0.2 more for the Sourwoods (placeholder). What's built on it comes with it. Never an HQ. Hollis's Fields go at 1.5× once Tilly is won over at the County Fair |
+| Faction Buyout | Once the rival is Weakened, from its HQ rank: its multiple × its cash and standing buildings. Brock and Tilly sign at 1.5×. Juni and Preston haggle: you open at 1.5×, they counter at 2.1×; shake on that, or hold firm and they come down to 1.8×, the least they sign at, with a chance of 50% less 0.5% per point of Grudge, or else walk out until tomorrow, +5 Grudge (placeholders except the 1.8×). Its cash comes to you with the business, and its buildings stay on their plots for whoever buys them in the Fire Sale |
+| Bankrupt | A rival in the red at 7 dawns in a row goes bust. In the campaign Tilly can't go bust before the Act 4 County Fair (still broke, she folds the first dawn after it), and Vera never does: only the Big Squeeze ends her |
+| Out of business | Captured, bought out or bust, its HQ becomes your Trophy, its recipe page comes home, and every other plot it held goes to the Fire Sale (see Land, repairs and loans) |
+
+#### Rival kits
+
+What a rival builds up on a plot, by its stand's level (a facility counts as its tier + 2). Henchmen fill the plot's posts as Guard can pay, each one's weapon drawn from the odds. The L3 row is the Day 24 walkthrough's Kiosk (a Picket Fence, cans, a goose and three Smoothie Bros with clubs); the other rows are placeholders.
+
+| Stand level | Fence | Gadgets, in buying order | Henchman level | Padding | Fists / clubs / hatchets |
+|---|---|---|---|---|---|
+| L1 | Picket Fence | — | 1 | None | 100 / 0 / 0% |
+| L2 | Picket Fence | Tin-Can Alarm | 1 | None | 50 / 50 / 0% |
+| L3 | Picket Fence | Alarm, Guard Goose | 1 | None | 0 / 100 / 0% |
+| L4 | Chain-Link Fence | Alarm, goose, Lemon-Peel Slick | 2 | Padded Vest | 0 / 100 / 0% |
+| L5 | Sharpened Stakes | Goose, slick, Sprinkler Ambush | 4 | Pro Gear | 0 / 50 / 50% |
+
+#### The Out-of-Towner
+
+In Endless Summer, Snootwater Springs comes to town 14 days after victory (in a run started as Endless, 14 days after the last of the Bay's five is out), then every 30 days. Each visit it buys 2–3 of the busiest open plots in your thinnest district (your lowest share, among the districts with a plot open to buy) and opens a stand on each, L2 or L3 on a Prime or Landmark plot, with a henchman on guard. Its war chest is $10,000 or 1% of your Net Worth, whichever is more: a fresh one if it had gone home, more money if it's still here. It sits out raids on you the night it arrives, schemes like Brock, and goes home when it is bust or out of plots, back on its next date. All placeholders except the 14 and 30 days.
 
 ### Reputation
 

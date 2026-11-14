@@ -5,7 +5,7 @@ import {
   BRAND_TIERS, buildClubhouse, buildStand, buyBrand, buyPlot, buySupply, BUILDING_VALUE_SHARE, CAMPAIGNS, restockGoal, restockOn, CUPS_PER_PITCHER, expectedCups, isWeakened,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, nearbyPlots, netWorth, newGame, openStand, PERIMETERS, pitcherNeeds, PLOT_BY_ID, plotPrice, PLOTS,
   SABOTAGE_NEEDS, seasonOf, servingsAvailable, SIDE_LOT, simulateRestOfDay, sleepUntilDawn, START, stock, threatLevel, type BattleReport, type CampaignId,
-  LAVENDER, LESSON_DAY, newStand, pageHolder, type GameState, type Guard, type RivalId,
+  LAVENDER, LESSON_DAY, newStand, pageHolder, RAID_RANK, type GameState, type Guard, type RivalId,
 } from './economy.ts';
 import { answerOffer, beatsAtDawn, CHOPPER_BOTTLES, HANDSHAKE_DAY, JUNI_CALLS_BY, MOVIE_STAR, OFFER_DAYS, REGATTA, scriptedRaider, storyOffer, TEA_DAY } from './beats.ts';
 import { exitScene, FINALE, INVOICE } from './exits.ts';
@@ -425,7 +425,7 @@ const tutorialRaid = (s: GameState): BattleReport => ({ ...raidOn(s, 'smash', LO
 const crew = (n: number, weapon: Guard['weapon'] = 'fists'): Guard[] =>
   Array.from({ length: n }, (_, i) => ({ id: `g${i}`, name: i ? `Guard ${i}` : 'Dex Moody', trait: 'Loyal', level: 1, xp: 0, weapon, gear: 'none', post: null, outUntil: 0, fee: 0 }));
 
-describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
+describe('Act 2: Dex pushes for a Clubhouse, then the payback from Rank 3', () => {
   /** Day 15's dawn: the Summer Fair is behind you, and Act 2 begins. */
   const act2 = (seed: number) => {
     const s = newGame(seed);
@@ -440,6 +440,7 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
   it("Dex asks on Act 2's first morning; a Clubhouse and a squad of 5 are the story goals, in order", () => {
     const s = act2(80);
     expect(s.news).toContain('Dex: "The shed sleeps one, Miss Lottie. A Clubhouse sleeps six. Just saying."');
+    expect(s.alerts!.some((a) => a.kind === 'note' && a.text.startsWith('Dex: "The shed sleeps one'))).toBe(true); // a feed card, not just a toast
     expect(medium(s)).toMatchObject({ text: 'Build Dex a Clubhouse', story: true, done: false });
     s.cash = 5000;
     s.rank = Math.max(s.rank, 3);
@@ -462,6 +463,7 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
 
   it('after Brock’s first raid: clubs for Dex, a Shakedown on one Blenders stand, a Smash on another', () => {
     const s = act2(83);
+    s.rank = RAID_RANK; // clubs and raids
     s.clubhouse = 1;
     s.guards = crew(5);
     s.battles = [];
@@ -485,34 +487,58 @@ describe('Act 2: Dex pushes for a Clubhouse, then the payback', () => {
     expect(goalsNow(s).some((g) => /Blenders stand/.test(g.text))).toBe(false);
   });
 
-  it('the payback takes the card the morning after Brock hits you, Clubhouse or not, full squad or not', () => {
+  it('after Brock hits you, the payback follows the Clubhouse and goes ahead of a short squad', () => {
     for (const club of [false, true]) {
       const s = act2(85);
       if (club) s.clubhouse = 1;
+      s.rank = RAID_RANK;
       s.guards = crew(3);
       s.battles = [];
       const push = club ? 'Hire a squad of 5' : 'Build Dex a Clubhouse';
       expect(medium(s).text).toBe(push);
       s.battles.unshift(tutorialRaid(s));
+      if (!club) {
+        expect(medium(s).text).toBe(push); // Dex's push keeps the card until it's built
+        s.clubhouse = 1;
+      }
       expect(medium(s)).toMatchObject({ text: 'Buy clubs for Dex', story: true });
       s.guards[0].weapon = 'clubs';
       expect(medium(s).text).toBe('Shake down a Blenders stand');
       s.story!.payback = { shakedown: 'x', smash: 'y' };
-      expect(medium(s).text).toBe(push); // Dex's push comes back once the payback's done
+      expect(medium(s).text).toBe('Hire a squad of 5'); // the squad comes back once the payback's done
+    }
+  });
+
+  it('on Day 15 at Rank 2 the card asks for the Clubhouse, never for clubs you cannot buy; at Rank 3 the payback follows it', () => {
+    for (const rank of [2, 3]) {
+      const s = act2(87);
+      s.rank = rank;
+      s.guards = crew(1);
+      s.battles = [tutorialRaid(s)]; // Brock's first raid is behind you
+      expect(s.day).toBe(15);
+      expect(medium(s)).toMatchObject({ text: 'Build Dex a Clubhouse', story: true });
+      s.clubhouse = 1;
+      expect(medium(s).text).toBe(rank >= RAID_RANK ? 'Buy clubs for Dex' : 'Hire a squad of 5');
+      expect(goalsNow(s).some((g) => /clubs|Blenders stand/.test(g.text))).toBe(rank >= RAID_RANK);
     }
   });
 
   it("winter's goal comes the first winter dawn, ahead of an unbuilt Clubhouse, a short squad or an unfinished payback", () => {
-    const s = act2(86);
-    s.guards = crew(3);
-    s.battles = [tutorialRaid(s)];
-    expect(medium(s).text).toBe('Buy clubs for Dex');
-    s.day = 28;
-    nextDawn(s);
-    expect(seasonOf(s.day)).toBe('winter');
-    expect(medium(s)).toMatchObject({ text: 'Get the Blenders Weakened', story: true, done: false });
-    s.rivals.blenders.outsoldDays = 7;
-    expect(medium(s).text).toBe('Buy clubs for Dex'); // the rest follow
+    for (const club of [false, true]) {
+      const s = act2(86);
+      if (club) s.clubhouse = 1;
+      s.rank = RAID_RANK;
+      s.guards = crew(3);
+      s.battles = [tutorialRaid(s)];
+      const before = club ? 'Buy clubs for Dex' : 'Build Dex a Clubhouse';
+      expect(medium(s).text).toBe(before);
+      s.day = 28;
+      nextDawn(s);
+      expect(seasonOf(s.day)).toBe('winter');
+      expect(medium(s)).toMatchObject({ text: 'Get the Blenders Weakened', story: true, done: false });
+      s.rivals.blenders.outsoldDays = 7;
+      expect(medium(s).text).toBe(before); // the rest follow
+    }
   });
 
   it('winter empties the Boardwalk: Lottie says so, and getting the Blenders Weakened is the goal', () => {

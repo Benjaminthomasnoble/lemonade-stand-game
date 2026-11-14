@@ -214,11 +214,12 @@ function mediumGoals(s: GameState): Candidate[] {
 }
 
 /**
- * Act 2's story goals (campaign), newest trigger first as Act 1's lessons are, so a beat takes the card the morning it
- * comes. From the first winter dawn (the Boardwalk's off-season), get the Blenders Weakened, the way to the Blend Shack.
- * After Brock's first raid on you, the payback: clubs for Dex, a Shakedown on one Blenders stand and a Smash on another
- * (then First Dibs on the lot if Brock can't rebuild). From Act 2's first day (Day 15) Dex pushes for a first Clubhouse,
- * then a squad to fill it (the Rank 3 squad cap): that one waits its turn and never pushes a story beat off the card.
+ * Act 2's story goals (campaign), in the order they take the card. From the first winter dawn (the Boardwalk's
+ * off-season), get the Blenders Weakened, the way to the Blend Shack: it steps in the morning it comes. From Act 2's
+ * first day (Day 15), Dex's push for a first Clubhouse. Then, after Brock's first raid on you and from Rank 3 (clubs and
+ * raids), the payback: clubs for Dex, a Shakedown on one Blenders stand and a Smash on another (then First Dibs on the
+ * lot if Brock can't rebuild). Last, a squad to fill the Clubhouse (the Rank 3 squad cap): that one waits its turn and
+ * never pushes a story beat off the card.
  */
 function act2Goals(s: GameState): Candidate[] {
   const out: Candidate[] = [];
@@ -234,7 +235,9 @@ function act2Goals(s: GameState): Candidate[] {
     const progress = Math.max((peak - plots) / (peak * 0.6), (1 - worth) / 0.75, (r.outsoldDays ?? 0) / OUTSELL.days);
     beat('beat-weakened', 'Get the Blenders Weakened', Math.min(0.95, progress), isWeakened(s, 'blenders'));
   }
-  if (brock && (s.battles.some((b) => b.defender === 'player') || s.story?.payback)) {
+  const built = hasClubhouse(s);
+  beat('beat-clubhouse', 'Build Dex a Clubhouse', Math.min(0.95, s.cash / CLUBHOUSE[0].cost), built);
+  if (brock && s.rank >= RAID_RANK && (s.battles.some((b) => b.defender === 'player') || s.story?.payback)) {
     const dex = s.guards.find((g) => g.name === DEX);
     const armed = dex ? dex.weapon !== 'fists' : s.guards.some((g) => g.weapon !== 'fists');
     beat('beat-clubs', dex ? 'Buy clubs for Dex' : 'Arm a guard with clubs', Math.min(0.95, s.cash / WEAPONS.clubs.cost), armed);
@@ -242,8 +245,6 @@ function act2Goals(s: GameState): Candidate[] {
     beat('beat-shakedown', 'Shake down a Blenders stand', 0, !!pb.shakedown);
     beat('beat-smash', 'Smash another Blenders stand', 0, !!pb.smash);
   }
-  const built = hasClubhouse(s);
-  beat('beat-clubhouse', 'Build Dex a Clubhouse', Math.min(0.95, s.cash / CLUBHOUSE[0].cost), built);
   const squad = SQUAD_CAP(RAID_RANK);
   if (built) beat('beat-squad', `Hire a squad of ${squad}`, s.guards.length / squad, s.guards.length >= squad, false);
   return out;

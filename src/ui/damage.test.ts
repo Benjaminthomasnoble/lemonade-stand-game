@@ -317,7 +317,7 @@ describe('the Health Inspection', () => {
     expect(ticket).toContain('<b>Closed until dawn</b>');
     expect(ticket).toContain('short of stock');
     s.plots[LOTTIES_CORNER].inspected = { day: s.day };
-    expect(inspectionTicket(s)).toEqual([]); // passed: the event's own ticket is up (src/ui/events.ts)
+    expect(inspectionTicket(s)).toEqual([]); // passed: nothing left to do, and no plain event ticket either (src/ui/events.ts)
   });
 });
 

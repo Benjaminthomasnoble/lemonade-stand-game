@@ -164,7 +164,7 @@ export function hurricaneTicket(s: GameState): string[] {
  * The feed's Health Inspection ticket, from the morning the stand is named (the day before) to the visit: when the
  * inspector comes, the stand, what would fail it now (HP or stock, on the meter) and the fixes in reach: Go There, the
  * repair the day before (it is done by dawn) and, while the stands are open, Restock now. Once the inspector has been,
- * the event's own ticket takes over (src/ui/events.ts), and a stand that failed gets Closed until dawn, with its repair.
+ * a stand that failed gets Closed until dawn, with its repair, and one that passed needs no ticket (the news says so).
  */
 export function inspectionTicket(s: GameState): string[] {
   const e = inspectionOn(s);

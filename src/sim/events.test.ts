@@ -7,6 +7,7 @@ import {
   forgiveSquawk, iceMachineOn, machineIce, stock, dayMix, dayMixOn, ICE_MACHINE_LEVEL, priceCeiling,
   bugleHeadline, canRaidKids, DISTRICTS, KIDS_DAY, KIDS_RAID_LINE, kidAppeal, kidsDay, kidsDayGoal, kidStandSale, kidStandsAt, nearbyPlots, OPEN,
   RAID_RANK, raidKidStand, RIVAL_SHARE_CAP, streetAt, weekday, KIDS_GOAL, expectedDemand, kidsShare, DISTRICT_CAMPAIGNS, districtCampaign, runCampaign,
+  HURRICANE_ID, INSPECTION_ID,
   type DistrictId, type EventDef, type GameState, type Season, type SegmentId, type Street, type WorldEvent,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -393,6 +394,8 @@ describe('event tickets in the feed', () => {
         st.price = price;
       }
       const card = eventTickets(s).find((t) => t.includes(`data-event="${id}"`));
+      // The Hurricane and the health inspection have their own tickets instead (src/ui/damage.ts, src/ui/events.test.ts).
+      if (id === HURRICANE_ID || id === INSPECTION_ID) { expect(card, id).toBeUndefined(); continue; }
       expect(card, id).toBeDefined();
       plays[id] = [...card!.matchAll(/data-action="(\w+)"/g)].map((m) => m[1]);
       expect(plays[id][0], id).toBe('goto');

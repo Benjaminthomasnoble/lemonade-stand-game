@@ -2,12 +2,14 @@
 // as each one starts, its counter-play under its name, and the buttons that play it: Go there, and the move that answers
 // it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks, Send Sunny). A mid-day
 // event's ticket stays for as long as it runs; a dawn event's for its first day (the Bugle keeps count after that).
+// One ticket an event: the Hurricane and the health inspection have their own (src/ui/damage.ts), so none here.
 // Kids' Lemonade Day adds a kid stand's Raid Planner to the plot card, its cost in red first.
 import {
-  CAMPAIGNS, canRaidKids, canRunCampaign, eventDef, eventWhere, ICE_MACHINE_LEVEL, KIDS_DAY, kidsDay, liveEvents, nearbyPlots, peaceful, PLOT_BY_ID,
-  playerStands, PLOTS, priceCeiling, type CampaignId, type GameState, type WorldEvent,
+  CAMPAIGNS, canRaidKids, canRunCampaign, eventDef, eventWhere, HURRICANE_ID, ICE_MACHINE_LEVEL, INSPECTION_ID, KIDS_DAY, kidsDay, liveEvents,
+  nearbyPlots, peaceful, PLOT_BY_ID, playerStands, PLOTS, priceCeiling, type CampaignId, type GameState, type WorldEvent,
 } from '../sim/economy.ts';
 import * as A from './clay.ts';
+import { inspectionTicket, stormTicket } from './damage.ts';
 import { btn, esc, locked, once } from './recipes.ts';
 
 const ART: Record<string, () => string> = {
@@ -114,10 +116,13 @@ function showing(s: GameState, e: WorldEvent): boolean {
   return d.when === 'midday' ? !d.over?.(s, e) : e.from === s.day;
 }
 
+/** Events with a ticket of their own in src/ui/damage.ts: it carries the warning, the hour, the result and the repair. */
+const OWN_TICKET = new Set([HURRICANE_ID, INSPECTION_ID]);
+
 /** The feed's event tickets, in Morning Prep and through the day. */
 export function eventTickets(s: GameState): string[] {
   if (s.phase !== 'prep' && s.phase !== 'open') return [];
-  return liveEvents(s).filter((e) => showing(s, e)).map((e) => {
+  return liveEvents(s).filter((e) => !OWN_TICKET.has(e.id) && showing(s, e)).map((e) => {
     const d = eventDef(e)!;
     const tone = d.kind === 'harmful' ? ' red' : d.kind === 'good' ? ' good' : '';
     const where = eventWhere(e);
@@ -128,3 +133,7 @@ export function eventTickets(s: GameState): string[] {
       + `<span class="cl-note">${esc(`${where}, ${when}`)}</span><span class="cl-note">${esc(d.counter)}</span>${a ? `<span class="cl-acts">${a}</span>` : ''}</div>`;
   });
 }
+
+/** The feed's tickets for the calendar's events (hud.ts): the random events', then a Storm's or the Hurricane's, then
+ * the health inspector's (src/ui/damage.ts). One ticket an event. */
+export const eventFeed = (s: GameState): string[] => [...eventTickets(s), ...stormTicket(s), ...inspectionTicket(s)];

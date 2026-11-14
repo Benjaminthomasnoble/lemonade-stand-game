@@ -17,6 +17,7 @@ import { menuScreen } from '../ui/menus.ts';
 import { DEFAULT_OPTIONS } from '../settings.ts';
 import { nextRandom } from './rng.ts';
 import { phoneCheck } from './phone.ts';
+import { recordScouting, scoutedSnapshot } from './scouting.ts';
 
 const RIVALS = BAY_RIVALS; // the Bay's five (Endless Summer's Out-of-Towner is out of town)
 const levels = (s: GameState, id: RivalId) => ownedPlots(s, id).map((p) => s.plots[p.id].stand?.level ?? 0);
@@ -1179,6 +1180,41 @@ describe('Rivals Corkboard', () => {
     expect(strings).toContain(`Brock's Grudge toward Lottie's: ${GRUDGE.feud}">Lottie's</span><span class="cl-pips">${'<i class="on"></i>'.repeat(5)}</span>`);
     expect(strings).toContain(`toward Hollis: ${GRUDGE.raided}">Hollis</span><span class="cl-pips"><i class="on"></i>${'<i class=""></i>'.repeat(4)}</span>`);
     expect(pinOf(board(s), 'sourwood')).not.toContain('cork-strings'); // no Grudge, no string
+  });
+
+  it('pins what your scouts saw on a boss\'s plots to their photo, a Lookout\'s or Gull Flight\'s, newest first, while it\'s fresh', () => {
+    const s = newGame(98);
+    s.rank = 4;
+    const [a, b] = ownedPlots(s, 'sourwood').filter((p) => p.type !== 'hq');
+    s.plots[b.id].garrison = 2;
+    recordScouting(s, a.id, 'lookout');
+    s.day++;
+    recordScouting(s, b.id, 'gull'); // Squawk circled it today
+    const shot = (html: string, id: string) => html.indexOf(`data-plot="${id}" data-testid="cork-snapshot"`);
+    const vera = pinOf(board(s), 'sourwood');
+    expect(shot(vera, b.id)).toBeGreaterThan(-1);
+    expect(shot(vera, b.id)).toBeLessThan(shot(vera, a.id)); // the newest first
+    expect(vera).toContain(`>Scouted ${b.name}</button>`);
+    const sc = scoutedSnapshot(s, b.id)!;
+    const fence = sc.tier ? PERIMETERS[sc.tier - 1].name : 'no fence';
+    expect(vera).toContain(`title="From Gull Flight: ${fence}, `);
+    expect(vera).toContain(`, ${sc.garrison} henchmen. Good for 3 more days."`);
+    expect(vera).toContain('title="Your Lookout saw: ');
+    expect(vera).toContain('Good for 2 more days."'); // a day older
+    for (const id of RIVALS.filter((r) => r !== 'sourwood')) expect(pinOf(board(s), id)).not.toContain('cork-snapshot');
+    s.day += 2; // the Lookout's has gone stale
+    expect(shot(pinOf(board(s), 'sourwood'), a.id)).toBe(-1);
+    expect(pinOf(board(s), 'sourwood')).toContain('Good for 1 more day."');
+    s.plots[b.id].owner = 'player'; // yours now: nothing to pin on Vera
+    expect(pinOf(board(s), 'sourwood')).not.toContain('cork-snapshot');
+    const scouted = (peaceful: boolean) => {
+      const x = newGame(98, { mode: 'sandbox', peaceful });
+      x.rank = 4;
+      recordScouting(x, PLOTS.find((p) => x.plots[p.id].owner && x.plots[p.id].owner !== 'player' && p.type !== 'hq')!.id, 'lookout');
+      return board(x);
+    };
+    expect(scouted(false)).toContain('cork-snapshot');
+    expect(scouted(true)).not.toContain('cork-snapshot'); // no raids to plan: no snapshots
   });
 
   it('in a Peaceful Sandbox: no raid pins, no Broke, an HQ for Sit-downs only, and each boss\'s running scheme', () => {

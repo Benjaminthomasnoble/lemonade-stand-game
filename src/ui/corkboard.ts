@@ -7,13 +7,17 @@
 // Threat meter and Done. Tapping a plot flies there and puts the board away,
 // like any menu's list (data-action="inspect"): yours to fortify, theirs for
 // the Raid Planner, their HQ for a Sit-down (an Out-of-Towner, with no HQ in
-// the Bay, sits down at its busiest stand). A Peaceful Sandbox has no raids or
-// HQ assaults, so its board pins no targets: it notes each boss's running
-// scheme instead (their marketing stands in for their raids).
+// the Bay, sits down at its busiest stand). What your scouts saw on a boss's
+// plots, a Lookout's day out or a Gull Flight overhead, is pinned to their photo
+// while it's fresh (crew's scouting.ts keeps the snapshot). A Peaceful Sandbox
+// has no raids or HQ assaults, so its board pins no targets or snapshots: it
+// notes each boss's running scheme instead (their marketing stands in for
+// their raids).
 import {
-  budgetOf, FACTIONS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, peaceful, PLOTS, RAID_PARTY, RAID_RANK, raidCost, rivalStars,
-  runningSchemes, softSpot, successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId, type SchemeKind,
+  budgetOf, FACTIONS, GADGETS, GRUDGE, grudgeToward, HQS, inTruce, isWeakened, likeliestTarget, peaceful, PERIMETERS, PLOTS, RAID_PARTY, RAID_RANK, raidCost,
+  rivalStars, runningSchemes, softSpot, successScore, threatLevel, type FactionId, type GameState, type Plot, type RivalId, type SchemeKind,
 } from '../sim/economy.ts';
+import { scoutedSnapshot } from '../sim/scouting.ts';
 import * as A from './clay.ts';
 import { pactPhoto, pactStrings } from './pactboard.ts';
 import { scoutedPins } from './gull.ts';
@@ -57,6 +61,23 @@ function strings(s: GameState, id: RivalId): string {
   return out.length ? `<span class="cl-row wrap" data-testid="cork-strings">${out.join('')}</span>` : '';
 }
 
+/** How many snapshots one photo holds: the newest. */
+const SNAPSHOTS = 3;
+/** The snapshots pinned to a boss's photo: each of their plots your scouts saw while it's fresh, newest first. */
+function snapshots(s: GameState, id: RivalId): string {
+  const shots = PLOTS.filter((p) => s.plots[p.id].owner === id).flatMap((p) => {
+    const sc = scoutedSnapshot(s, p.id);
+    return sc ? [{ p, sc }] : [];
+  });
+  shots.sort((a, b) => b.sc.day - a.sc.day || a.p.name.localeCompare(b.p.name));
+  return shots.slice(0, SNAPSHOTS).map(({ p, sc }) => {
+    const left = sc.until - s.day + 1;
+    const saw = `${sc.tier ? PERIMETERS[sc.tier - 1].name : 'no fence'}, ${sc.gadgets.map((g) => GADGETS[g].name).join(', ') || 'no gadgets'}, ${sc.garrison} henchmen`;
+    const by = sc.by === 'gull' ? 'From Gull Flight' : 'Your Lookout saw';
+    return btn(`Scouted ${p.name}`, `data-plot="${p.id}" data-testid="cork-snapshot"`, `${by}: ${saw}. Good for ${left} more day${left === 1 ? '' : 's'}.`);
+  }).join('');
+}
+
 const hqOf = (s: GameState, id: RivalId): Plot | undefined => PLOTS.find((p) => p.type === 'hq' && s.plots[p.id].owner === id);
 /** Where an Out-of-Towner sits down (no HQ in the Bay): its busiest stand. */
 const tableOf = (s: GameState, id: RivalId): Plot | undefined =>
@@ -80,6 +101,7 @@ function pin(s: GameState, id: RivalId): string {
   const acts = [
     eye ? btn(`Eyeing ${eye.name}`, `data-plot="${eye.id}" data-testid="cork-target"`, `${BOSS[id]}'s likeliest raid target: your weakest valuable stand near their turf. Go fortify it.`) : '',
     soft ? btn(`Raid ${soft.name}`, `data-plot="${soft.id}"`, `Their weakest valuable stand: plan a raid on it`) : '',
+    calm ? '' : snapshots(s, id),
     hq ? btn('Their HQ', `data-plot="${hq.id}"`, calm ? `${hq.name}: Sit-downs` : `${hq.name}: Sit-downs and the HQ assault`) : '',
     table ? btn('Sit down', `data-plot="${table.id}"`, `No HQ in the Bay: the Truce and the Faction Buyout are at ${table.name}`) : '',
   ].join('');

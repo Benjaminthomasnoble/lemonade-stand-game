@@ -93,7 +93,7 @@ A sunny coastal town. 8 districts, 116 plots in the campaign map. Civic plots ca
 
 Plot types: Street, Prime (traffic ×3, price ×3), Landmark (one per district, traffic ×5, price ×8), Field (open land: helipads, lemon groves; tiny foot traffic), Dock (waterfront: piers), Industrial (Harbor/Downtown edges: bottling, warehouses), HQ (a rival's headquarters; captured, never bought), Civic (not for sale).
 
-One building per plot. Buildings: Stand (L1–L5), Clubhouse (guards), Warehouse, Bottling Works, Billboard, Lemon Grove (Field), Helipad (Field), Pier (Dock). An owned empty plot is a Vacant Lot (it still counts toward land value and control).
+One building per plot. Buildings: Stand (L1–L5), Clubhouse (guards), Warehouse, Bottling Works, Billboard, Lemon Grove (Field), Helipad (Field), Pier (Dock). Nothing takes a building down, but your Lemon Grove makes way for a Pad, and your Warehouse (or an older save's stand) on an Industrial lot makes way for a Bottling Works. An owned empty plot is a Vacant Lot (it still counts toward land value and control).
 
 Neighbors matter: stands within 2 plots of each other share passing customers (competition), and many effects use "within 2 plots".
 

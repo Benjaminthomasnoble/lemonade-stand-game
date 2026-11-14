@@ -11,7 +11,7 @@ import {
   selectedStand, cupsInStock, dayIncomeCosts, dayProfit, STAND_LEVELS, standLevel, stock, storageFor, successScore, SUPPLIES, WEATHER,
   isSpoiled, PERIMETERS,
   type GadgetId, type GearId, type RaidObjective, type Specialty, type WeaponId,
-  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, ORDER_TIERS, paced, replacesGrove,
+  canBuildFacility, DEAL_LOADS, dealShortfallPerDay, FACILITIES, facilitiesFor, MAKES_WAY_NAME, makesWay, ORDER_TIERS, paced,
   type FacilityKind, RANKS,
   canAssault, hasBuilding, hqPlot, isWrecked, playerWon, callCrew,
   plotPrice, rivalStars, rivalStatus, SITDOWN_RANK,
@@ -236,6 +236,21 @@ function upgradeHere(s: GameState) {
  * a reason other than the money shows that reason. */
 export function callPicks(s: GameState, call: DayCall): string {
   return callChoices(s, call, callCrew(s)).map((c, i) => btn('call', `${esc(c.label)}${c.cost ? ` <i class="cl-cost-in">${whole(c.cost)}</i>` : ''}`, c.ok ? { ok: true } : { ok: false, why: c.why ?? (c.cost ? `Needs ${whole(c.cost)}` : "Can't now") }, `data-pick="${i}" data-testid="call-${i}" title="${esc(c.why ?? choiceTip(call, c.label))}"`, `tiny ${c.tone ?? ''}`)).join('');
+}
+
+/** The plot card's buttons to build or grow these facilities here (a rank-locked one stays hidden), each saying what
+ * makes way for it. */
+function facilityButtons(s: GameState, id: string, kinds: FacilityKind[]): string {
+  const ps = s.plots[id];
+  const lvl = (kind: FacilityKind) => (ps.facility?.kind === kind ? ps.facility.level : 0);
+  const tip = (kind: FacilityKind) => {
+    const way = makesWay(s, id, kind);
+    const note = way === 'stand' ? ': what it cost and its stock come back as cash' : way === 'warehouse' ? ', and its stored sugar goes with it' : '';
+    const later = kind === 'warehouse' && plotType(s, PLOT_BY_ID[id]) === 'industrial' ? ' A Bottling Works can take its place later.' : '';
+    return `${way ? `Replaces the ${MAKES_WAY_NAME[way]}${note}. ` : ''}${FACILITIES[kind].blurb[lvl(kind)]}${later}`;
+  };
+  return kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
+    .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(tip(kind))}"`, 'go')).join('');
 }
 
 /** The plot card's actions on a stand of yours. By day: Manage and its stand panel (`math`: with the sums shown), your
@@ -872,17 +887,17 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     else if (!ps.owner && p.type !== 'civic' && p.type !== 'hq' && plotOnMap(s, p)) { const b = canBuyPlot(s, id), pt = priceTip(s, id); actions = locked(b) || (p.district !== 'maple' && !taught(s, 'land')) ? `<span class="cl-note">Opens later</span>` : btn('buyPlot', `Buy ${whole(plotPrice(s, id))}`, b, `data-plot="${id}" data-testid="buy-plot"${b.ok && pt ? ` title="${esc(pt)}"` : ''}`, 'go'); }
     else if (ps.owner === 'player' && isWrecked(ps)) actions = rebuildButton(s, id, 'cl-b go'); // overnight, or tonight's booking (src/ui/damage.ts)
     else if (ps.owner === 'player' && !st) {
-      const lvl = (kind: FacilityKind) => (ps.facility?.kind === kind ? ps.facility.level : 0);
-      // A Lemon Grove of yours (Hollis's Fields come with them) can make way for the helipad line.
-      const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => replacesGrove(s, id, k))] : facilitiesFor(plotType(s, p));
-      const fac = kinds.filter((kind) => lvl(kind) < FACILITIES[kind].names.length).map((kind) => ({ kind, b: canBuildFacility(s, id, kind) })).filter(({ b }) => !locked(b))
-        .map(({ kind, b }) => btn('facility', `${FACILITIES[kind].names[lvl(kind)]} ${whole(FACILITIES[kind].costs[lvl(kind)])}`, b, `data-plot="${id}" data-kind="${kind}" data-testid="facility" title="${esc(`${replacesGrove(s, id, kind) ? 'Replaces the Lemon Grove. ' : ''}${FACILITIES[kind].blurb[lvl(kind)]}`)}"`, 'go')).join('');
+      // What's built here can make way for the line it blocks: a Lemon Grove of yours (Hollis's Fields come with them)
+      // for a Pad, your Warehouse on Industrial land for a Bottling Works (sim makesWay).
+      const kinds = ps.facility ? [ps.facility.kind, ...facilitiesFor(plotType(s, p)).filter((k) => makesWay(s, id, k))] : facilitiesFor(plotType(s, p));
+      const fac = facilityButtons(s, id, kinds);
       const stand = facilityLand(plotType(s, p)) || p.type === 'hq' || ps.facility ? '' : buildButtons(s, id); // any level the rank has unlocked, paid at once; a Field, Dock or Industrial lot takes facilities only
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
     // At night the card fences the stand; in the Evening it fences it and still takes an upgrade (the Ledger has the day);
     // by day it shows the stand panel, and your own stand answers with its next upgrade (before the Grow tab's lesson too).
-    else if (ps.owner === 'player' && st) actions = ownStandActions(s, id, standMath);
+    // An older save's stand on Industrial land also offers the Bottling Works that can take its place.
+    else if (ps.owner === 'player' && st) actions = ownStandActions(s, id, standMath) + facilityButtons(s, id, makesWay(s, id, 'bottling') ? ['bottling'] : []);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + plotBuyoutRow(clubs, s, id); // its Sit-down (src/ui/sitdown.ts)

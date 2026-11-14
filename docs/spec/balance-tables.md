@@ -744,6 +744,8 @@ A failed or overrun delivery costs 0.3 star. Premium recipes are any recovered o
 
 HP is the chopping it takes to knock a facility down. The spec gives facilities none, so every facility HP is a placeholder; each has 3 guard posts.
 
+A Bottling Works can go up in place of your Warehouse on an Industrial lot: the Warehouse's cost leaves the books and its stored sugar goes with it, as a Lemon Grove's cost does when a Pad replaces it. A stand that an older save built on Industrial land makes way too, by day: what it cost and its stock come back as cash, and guards posted beyond the Works' 3 posts go back to the Clubhouse. Neither makes way while a pickup is booked there, and an offer to load there lapses.
+
 On all ten simulated maps the player builds all six helipad and pier tiers; the first chopper lands on Days 63–80 and the first ship docks on Days 73–89, both in Act 4, and the first Supply Deal arrives on Days 105–113, as the Cargo Terminal opens.
 
 ### Rivals

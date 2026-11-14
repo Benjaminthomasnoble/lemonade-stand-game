@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
-  buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind,
+  buildFacility, buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind, type Order,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
   canBorrow, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, plotBuyout, repayLoan, LOAN, netWorth,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
@@ -14,7 +14,7 @@ import { grantPage } from './recipes.ts';
 import { clubhouseSite, reserveAt } from './clubhouse.ts';
 import { autoDefendOn } from './autodefend.ts';
 import { bellParty } from './reinforce.ts';
-import { buildClubhouse, canBuildClubhouse, guardWage, postedAt, postGuard, welcomeDex } from './crew.ts';
+import { buildClubhouse, canBuildClubhouse, guardWage, makeGuard, postedAt, postGuard, welcomeDex } from './crew.ts';
 import { comeToTown, thinnestDistrict } from './schemes.ts';
 import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
@@ -611,6 +611,62 @@ describe('building stands', () => {
     Object.assign(small, { cash: 1e9, rank: 7 });
     expect(canBuildStand(small, lot)).toEqual(why);
     expect(canBuildFacility(small, lot, 'bottling')).toEqual({ ok: true });
+  });
+
+  it("lets a Bottling Works take your Warehouse's place on Industrial land, so the Small map's one lot is never shut out", () => {
+    const s = newGame(113, { mode: 'sandbox', map: 'small' });
+    const lots = PLOTS.filter((p) => plotOnMap(s, p) && plotType(s, p) === 'industrial');
+    expect(lots.length).toBe(1); // a street plot retagged: the map's only Industrial land
+    const lot = lots[0].id;
+    give(s, lot);
+    Object.assign(s, { cash: 1e6, rank: 4, phase: 'prep' });
+    expect(buildFacility(s, lot, 'warehouse')).toBe(true); // the only facility Rank 4 offers there
+    expect(canBuildFacility(s, lot, 'bottling')).toEqual({ ok: false, why: 'Needs Rank 5, District Big Shot' });
+    s.rank = 5;
+    const truck: Order = { id: 'truck', tier: 'caterer', client: 'test', qty: 1000, pay: 6000, due: s.day + 3, expires: s.day, plot: lot, accepted: true };
+    s.orders.push(truck);
+    expect(canBuildFacility(s, lot, 'bottling')).toEqual({ ok: false, why: 'A pickup is booked here' }); // it loads there first
+    s.orders = [];
+    s.offers.push({ ...truck, id: 'offer', accepted: false });
+    s.plots[lot].facility!.wrecked = true;
+    expect(canBuildFacility(s, lot, 'bottling')).toEqual({ ok: false, why: 'Rebuild it first' });
+    delete s.plots[lot].facility!.wrecked;
+    const cash = s.cash, invested = s.plots[lot].invested;
+    expect(buildFacility(s, lot, 'bottling')).toBe(true);
+    expect(s.plots[lot].facility).toEqual({ kind: 'bottling', level: 1 });
+    expect(s.cash).toBe(cash - FACILITIES.bottling.costs[0]);
+    expect(s.plots[lot].invested).toBe(invested - FACILITIES.warehouse.costs[0] + FACILITIES.bottling.costs[0]); // the Warehouse leaves the books, as a Grove does for a Pad
+    expect(s.offers.filter((o) => o.plot === lot)).toEqual([]); // the offer to load there lapses with it
+    expect(s.news.at(-1)).toBe(`Bottling Works opens at ${lots[0].name}! The Warehouse makes way.`);
+    expect(canBuildFacility(s, lot, 'warehouse')).toEqual({ ok: false, why: 'Something else is built here' }); // no swapping back
+  });
+
+  it("lets a Bottling Works take the place of an older save's stand on Industrial land: what it cost and its stock come back", () => {
+    const s = newGame(113);
+    Object.assign(s, { cash: 1e6, rank: 5, phase: 'prep' });
+    const lot = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!.id; // Downtown Depot
+    give(s, lot);
+    const st = newStand(5); // built before Industrial land took facilities only (canBuildStand refuses it now)
+    st.inventory.sugar = 400;
+    st.inventory.sugarCost = 0.05;
+    s.plots[lot].stand = st;
+    s.plots[lot].invested = standCost(5) + 2000; // and $2,000 of fence
+    const rng = { seed: 5 };
+    for (let i = 0; i < 6; i++) s.guards.push({ ...makeGuard(s, rng), post: lot }); // an L5 stand's 6 posts, all taken
+    expect(canBuildFacility(s, lot, 'warehouse')).toEqual({ ok: false, why: 'A stand is here' }); // only the Works it was holding up
+    s.phase = 'night';
+    expect(canBuildFacility(s, lot, 'bottling')).toEqual({ ok: false, why: 'Too late tonight: build tomorrow' }); // a stand changes by day
+    s.phase = 'prep';
+    const cash = s.cash;
+    expect(buildFacility(s, lot, 'bottling')).toBe(true);
+    expect(s.plots[lot].stand).toBeNull();
+    expect(s.plots[lot].facility).toEqual({ kind: 'bottling', level: 1 });
+    expect(s.cash).toBeCloseTo(cash - FACILITIES.bottling.costs[0] + standCost(5) + 20, 2); // the stand's cost and its $20 of sugar back
+    expect(s.plots[lot].invested).toBe(2000 + FACILITIES.bottling.costs[0]); // the fence stays
+    expect(rowAmount(s.today, 'stock')).toBeCloseTo(20, 2);
+    expect(postedAt(s, lot).length).toBe(3); // a building's 3 posts: the other 3 go back to the Clubhouse
+    expect(s.guards.filter((g) => g.post === null).length).toBe(3);
+    expect(s.news.at(-1)).toBe(`Bottling Works opens at ${PLOTS.find((p) => p.id === lot)!.name}! The stand makes way.`);
   });
 });
 

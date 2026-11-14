@@ -1,7 +1,7 @@
 // Milestone 5: big orders and VIP clients (canon section 15). Local Orders
 // from L3 stands, Caterer Trucks, Helicopter VIPs on a Field helipad and Ship
 // Contracts at a Dock pier, with Bottling Works making the bottles.
-import { BILLBOARD, BRAND_TIERS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, WAREHOUSE, type RecipeId, type RivalId } from './balance.ts';
+import { BILLBOARD, BRAND_TIERS, BUILDING_POSTS, CLUBHOUSE, CLUBHOUSE_HP, CUP_COST, CUPS_PER_PITCHER, DELIVERY_WINDOW, FACTIONS, RANKS, RECIPES, WAREHOUSE, type RecipeId, type RivalId } from './balance.ts';
 import type { BattleReport } from './crew.ts';
 import { raidHold, scheduleDeliveryRaid } from './night.ts';
 import { PLOT_BY_ID, plotType, PLOTS, type PlotType } from './map.ts';
@@ -10,7 +10,7 @@ import { nextRandom, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
 import { costPerCup, pitcherNeeds, playerStands, stock, useLemons } from './economy.ts';
 import { iceMachineOn, machineIce } from './happenings.ts';
-import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { book, stockValue, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { buildingInvested, inspectorClosed, restoreHp } from './damage.ts';
 import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf } from './recipes.ts';
 import { rivalStars } from './demand.ts';
@@ -197,14 +197,22 @@ export function groveTraffic(s: GameState): number {
   return Math.min(MAX_GROVES, facilityPlots(s, 'grove').length) * GROVE_TRAFFIC * (hasTrophy(s, 'hollis') ? 2 : 1); // up to 2 count, even taken from Hollis
 }
 
-/**
- * A Lemon Grove of yours makes way for the helipad line: a Field holds one building, and Hollis's Fields come with
- * Groves (so a Field bought out from Tilly can still take a Pad). A Wrecked Grove is rebuilt first (canBuildFacility).
- */
-export function replacesGrove(s: GameState, plotId: string, kind: FacilityKind): boolean {
+/** What makes way for a new building on a plot of yours (one building to a plot; nothing else takes one down):
+ * - a Lemon Grove, for the helipad line: Hollis's Fields come with Groves, so a Field bought out from Tilly can still
+ *   take a Pad;
+ * - your Warehouse or stand on an Industrial lot, for a Bottling Works: Industrial land is the Works' only site (a
+ *   Warehouse can go on a Street plot instead, and a stand on Industrial land is an older save's, from before that
+ *   land took facilities only).
+ * A Wrecked one is rebuilt first, and one with a pickup booked waits for it (canBuildFacility). */
+export function makesWay(s: GameState, plotId: string, kind: FacilityKind): 'grove' | 'warehouse' | 'stand' | null {
   const ps = s.plots[plotId];
-  return kind === 'helipad' && ps?.owner === 'player' && ps.facility?.kind === 'grove';
+  if (ps?.owner !== 'player') return null;
+  if (kind === 'helipad') return ps.facility?.kind === 'grove' ? 'grove' : null;
+  if (kind !== 'bottling' || plotType(s, PLOT_BY_ID[plotId]) !== 'industrial') return null;
+  return ps.facility?.kind === 'warehouse' ? 'warehouse' : ps.stand ? 'stand' : null;
 }
+/** The plot card's word for what makes way: "Replaces the Warehouse." */
+export const MAKES_WAY_NAME = { grove: 'Lemon Grove', warehouse: 'Warehouse', stand: 'stand' } as const;
 
 export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKind): Blocker {
   const p = PLOT_BY_ID[plotId];
@@ -212,9 +220,12 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
   const f = FACILITIES[kind];
   if (ps.owner !== 'player') return { ok: false, why: 'Buy the plot first' };
   if (!f.on.includes(plotType(s, p))) return { ok: false, why: `Needs a ${f.on.join(' or ')} plot` }; // land: as a Sandbox map tagged it
-  if (ps.stand) return { ok: false, why: 'A stand is here' };
-  if (ps.facility && ps.facility.kind !== kind && !replacesGrove(s, plotId, kind)) return { ok: false, why: 'Something else is built here' };
-  if (ps.facility?.wrecked) return { ok: false, why: 'Rebuild it first' };
+  const swap = makesWay(s, plotId, kind);
+  if (ps.stand && swap !== 'stand') return { ok: false, why: 'A stand is here' };
+  if (ps.facility && ps.facility.kind !== kind && !swap) return { ok: false, why: 'Something else is built here' };
+  if (ps.facility?.wrecked || ps.stand?.wrecked) return { ok: false, why: 'Rebuild it first' };
+  if (swap && swap !== 'grove' && s.orders.some((o) => o.plot === plotId)) return { ok: false, why: 'A pickup is booked here' }; // as for a listing (auction.ts)
+  if (swap === 'stand' && s.phase === 'night') return { ok: false, why: 'Too late tonight: build tomorrow' }; // a stand changes by day (canBuildStand)
   const lvl = ps.facility?.kind === kind ? ps.facility.level : 0;
   if (lvl >= f.names.length) return { ok: false, why: 'Top level' };
   if (kind === 'grove' && !lvl && PLOTS.filter((q) => s.plots[q.id].owner === 'player' && s.plots[q.id].facility?.kind === 'grove').length >= MAX_GROVES) return { ok: false, why: `Up to ${MAX_GROVES} Lemon Groves` };
@@ -228,15 +239,23 @@ export function canBuildFacility(s: GameState, plotId: string, kind: FacilityKin
 export function buildFacility(s: GameState, plotId: string, kind: FacilityKind): boolean {
   if (!canBuildFacility(s, plotId, kind).ok) return false;
   const ps = s.plots[plotId];
-  const swap = replacesGrove(s, plotId, kind);
+  const swap = makesWay(s, plotId, kind);
   const lvl = ps.facility?.kind === kind ? ps.facility.level : 0;
   const cost = FACILITIES[kind].costs[lvl];
   book(s, 'invested', -cost);
-  if (swap) ps.invested = Math.max(0, ps.invested - buildingInvested(ps)); // the Grove leaves the books; its fence stays
+  if (swap === 'stand') { // an older save's stand: what it cost and the stock on it come back as cash (as land.ts clearTrophyStands)
+    const back = round2(Math.min(ps.invested, buildingInvested(ps)));
+    book(s, 'invested', back);
+    book(s, 'stock', round2(stockValue(ps.stand!)));
+    ps.invested = round2(ps.invested - back);
+    ps.stand = null;
+    for (const g of s.guards.filter((x) => x.post === plotId).slice(BUILDING_POSTS)) g.post = null; // a building has 3 posts: the rest go back to the Clubhouse
+  } else if (swap) ps.invested = Math.max(0, ps.invested - buildingInvested(ps)); // the Grove or the Warehouse (and its sugar) leaves the books; its fence stays
+  if (swap === 'stand' || swap === 'warehouse') s.offers = s.offers.filter((o) => o.plot !== plotId); // an offer to load or pour here lapses with it
   ps.invested += cost;
   restoreHp(s, plotId); // the new tier comes up at full HP; a repair queued for the old one is paid back (damage.ts)
   ps.facility = { kind, level: lvl + 1 };
-  s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${swap ? ' The Lemon Grove makes way.' : ''}${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
+  s.news.push(`${FACILITIES[kind].names[lvl]} opens at ${PLOT_BY_ID[plotId].name}!${swap ? ` The ${MAKES_WAY_NAME[swap]} makes way.` : ''}${kind === 'helipad' ? ' The rich folks can fly in now.' : kind === 'pier' ? ' Ships can dock for your lemonade.' : kind === 'grove' ? ' Grown in Citrine Bay: more folks stop by every stand.' : ''}`);
   if (kind === 'pier') firstDeal(s);
   return true;
 }

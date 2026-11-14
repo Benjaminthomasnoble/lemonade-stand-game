@@ -82,7 +82,7 @@ export function warehouseValue(s: GameState): number {
 
 /**
  * Dawn (vipAtDawn calls it, after the day's Market shocks and before Auto-Restock buys): a store whose Warehouse is gone
- * (smashed, sold, bought out) is lost with it; then each district's Warehouses stock up on a cheap day, or hand their
+ * (smashed, sold, bought out, or a Bottling Works built in its place) is lost with it; then each district's Warehouses stock up on a cheap day, or hand their
  * stands the stored sugar on a dear one.
  */
 export function warehouseAtDawn(s: GameState): void {

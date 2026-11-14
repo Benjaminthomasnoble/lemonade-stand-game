@@ -3,6 +3,7 @@ import {
   AUTO_RESTOCK_DAY, buildFacility, canBuildFacility, cupsInStock, FACILITIES, helperLines, LOTTIES_CORNER, migrateSave, netWorth, newGame, newStand, NO_DEFENSE, OPEN, PLOTS, postsFor,
   restockPlan, standCost, SUPPLIES, sugarRoom, suppliedStands, tierOpen, WAREHOUSE, WAREHOUSE_ID, warehouseAtDawn, warehouseRuns, warehouseValue, type GameState,
   bottlesOf, CLOSE, DELIVERY_RAID_CHANCE, deliveryRaidRisk, FAILED_ORDER_STARS, pickupsAtClose, PLOT_BY_ID, raidFought, runNight, threatLevel, truckWarehouse,
+  bottlingCapacity, ORDER_TIERS, yourDays,
   plotWorth, vipAtDawn, type BattleReport, type Order,
 } from './economy.ts';
 import { nextRandom } from './rng.ts';
@@ -148,6 +149,26 @@ describe('the Warehouse (Rank 4)', () => {
     expect(truckWarehouse(s)).toBe(far);
     s.plots[far].facility!.wrecked = true;
     expect(truckWarehouse(s)).toBe(shed);
+  });
+
+  it('a Caterer Truck takes its whole order at once: the days you\'d take count only the bottles ready by then', () => {
+    const { s, shed } = depot(61);
+    s.rank = 5;
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!.id;
+    s.plots[works] = { ...s.plots[works], owner: 'player', stand: null, facility: undefined, invested: 0, defense: NO_DEFENSE() };
+    for (const [id, kind] of [[shed, 'warehouse'], [works, 'bottling']] as const) expect(buildFacility(s, id, kind)).toBe(true);
+    const make = bottlingCapacity(s), window = ORDER_TIERS.caterer.days; // 1,500 bottles a dawn; 3 days
+    const truck = (qty: number, plot: string | undefined = shed): Order =>
+      ({ id: `t${qty}`, tier: 'caterer', client: 'Truck', qty, pay: qty * 6, due: s.day + window, expires: s.day + 1, accepted: false, recipe: 'classic', plot });
+    s.bottles = 0;
+    expect(yourDays(s, truck(make))).toBe(2); // tomorrow's bottling fills it
+    expect(yourDays(s, truck(2 * make))).toBe(window);
+    expect(yourDays(s, truck(2 * make + 100))).toBe(window + 1); // more than the bottling makes in time: late
+    s.bottles = 1000;
+    expect(yourDays(s, truck(1000))).toBe(1); // on hand
+    expect(yourDays(s, truck(1000, undefined))).toBe(1); // an older save's truck names no Warehouse: the bay's bottles
+    s.plots[shed].facility!.wrecked = true;
+    expect(yourDays(s, truck(1000))).toBe(window + 1); // a smashed Warehouse loads nothing
   });
 
   it('a smashed or lost Warehouse stops its Caterer Truck at closing, as at a pad or pier; one with no Warehouse loads as before', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   announceControl, blenderBar, borrow, bugleHeadline, buyPlot, plotWorth, canBuildStand, EVERY_LAST_PLOT_HEADLINE, everyLastPlot, fairWinPage, isPurchasable, ownedRecipes, canBuyPlot, connected, controlTier, cutMap, development, dominationProgress, FACTIONS, hasFoothold, hqPlot, inPlay,
-  buildFacility, buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind, type Order,
+  buildFacility, buildStand, canBuildFacility, eliminate, FACILITIES, type FacilityKind, ORDER_TIERS, type Order,
   canUpgradeStand, currentHp, isDamaged, openStand, pourRate, priceCeiling, RANKS, serviceLeft, standCost, storageFor, upgradeStand,
   canBorrow, canFactionBuyout, canPlotBuyout, canTruce, factionBuyoutPrice, plotBuyout, repayLoan, LOAN, netWorth,
   LOTTIES_CORNER, LOTTIES_SIDE_LOT, MAP_SIZES, mapDistricts, migrateSave, newGame, newStand, nextTier, NO_DEFENSE, offerSideLot, onMap, openAuction, perkActive, picksFit, plotBuyoutPrice, plotOnMap,
@@ -944,6 +944,15 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(s.plots[lot.id].facility?.kind).toBe('bottling');
     expect(s.plots[engine.also!].facility?.kind).toBe('warehouse');
     expect(tierOpen(s, 'caterer')).toEqual({ ok: true });
+    // And it takes the Caterer Trucks the line was credited with, when the bottling fills them in time (yourDays).
+    const truck = (id: string, qty: number): Order => ({
+      id, tier: 'caterer', client: `Truck ${id}`, qty, pay: qty * ORDER_TIERS.caterer.pay, due: s.day + ORDER_TIERS.caterer.days, posted: s.day, expires: s.day + 1,
+      plot: engine.also!, accepted: false, recipe: 'classic',
+    });
+    s.offers.push(truck('small', 1000), truck('big', 5000)); // 1,500 bottles a dawn: 1,000 by its day, not 5,000
+    s.cash = 1000; // nothing else to buy this morning
+    morning(s, newBot());
+    expect(s.orders.map((o) => o.id)).toEqual(['small']);
   });
 
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {

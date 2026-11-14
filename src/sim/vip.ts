@@ -339,13 +339,15 @@ export function bidValue(o: Order, stars: number, pay: number, days: number): nu
 }
 
 /** Days you'd take to load an offer, counting today: your facility's daily rate, your spare bottles of its recipe, and
- * what bottling adds each dawn (past its window: one day late). A Supply Deal ships on its weekly schedule whoever has it. */
+ * what bottling adds each dawn (past its window: one day late). A Supply Deal ships on its weekly schedule whoever has it,
+ * and a Caterer Truck takes the whole order at once at its standing Warehouse (handOver), so only the bottles count. */
 export function yourDays(s: GameState, o: Order): number {
   const window = ORDER_TIERS[o.tier].days;
   if (o.tier === 'deal') return window;
   const f = o.plot ? s.plots[o.plot]?.facility : undefined;
   const line = f && !f.wrecked ? lineOf(f) : null;
-  const rate = line ? LOADING_PER_DAY[line][f!.level - 1] ?? 0 : 0;
+  const truck = o.tier === 'caterer' && !warehouseWhy(s, o); // an older save's truck names no Warehouse: it takes the bay's bottles
+  const rate = truck ? o.qty : line ? LOADING_PER_DAY[line][f!.level - 1] ?? 0 : 0;
   const r = orderRecipe(o);
   const spare = bottlesOf(s, r) - s.orders.filter((x) => x.tier !== 'local' && orderRecipe(x) === r).reduce((a, x) => a + bottlesLeft(x), 0);
   const make = ownsRecipe(s, r) ? bottlingCapacity(s) : 0;

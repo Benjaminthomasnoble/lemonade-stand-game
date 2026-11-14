@@ -121,12 +121,14 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
   const taken = new Set<string>();
   for (let i = 0; i < Math.max(n, rumored ? 1 : 0); i++) {
     const told = i === 0 && !!rumored; // flagged, so the bosses keep its gang and plot (rivalAi signatureRaids)
+    const owed = due > 0 && !rumored && !out.length; // the cap's raid (a rumored one already comes): flagged, so it comes paid or not
     const rival = told ? rumored.rival : pickRival(s, rng);
     if (!rival) break;
     const target = told ? PLOT_BY_ID[rumored.plot] : weakest(s, rival, mine, taken);
-    const raid = pact ? syndicateStrike(s, rng, rival, target, told) : raidOnYou(s, rng, rival, target, threatLevel(s));
+    const raid = pact ? syndicateStrike(s, rng, rival, target, told || owed) : raidOnYou(s, rng, rival, target, threatLevel(s));
     if (!raid) continue;
     if (told) raid.rumor = true;
+    if (owed) raid.due = true;
     taken.add(target.id);
     out.push(raid);
   }
@@ -136,7 +138,7 @@ export function raidsOnYou(s: GameState, rng: Rng): Raid[] {
 /** A Syndicate strike, sent by one of its members (`rival`, who may raid you): Threat 5's raid whatever the Threat,
  * always a Smash, flagged for combat's hooks. Paid from the sender's Strike, or short of it from the Pact's (the leader
  * first); null when nobody in it can pay (the bosses settle no Syndicate strike in signatureRaids), unless it must
- * come (`house`: a rumored raid), when it's on the house. */
+ * come (`house`: a rumored raid, or the quiet-night cap's), when it's on the house. */
 function syndicateStrike(s: GameState, rng: Rng, rival: RivalId, target: Plot, house = false): Raid | null {
   const raid: Raid = { ...raidOnYou(s, rng, rival, target, SYNDICATE_TIER), objective: 'smash', syndicate: true };
   const cost = raidCost(s, rival, raid.party!.length, SYNDICATE_TIER);

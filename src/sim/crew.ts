@@ -81,6 +81,7 @@ export interface Raid {
   sabotage?: boolean; // fought as a Shakedown, but the 10 minutes go on spoiling the stock instead of the till
   tutorial?: boolean; // the scripted first raid on you: Dex is always there, and it always bounces (threat.ts)
   rumor?: true; // a day call's rumored raid (calls.ts): that gang comes for that plot, paid or not (rivalAi signatureRaids)
+  due?: true; // the quiet-night cap's raid (threat.ts): it comes even when no boss can pay for it
   group?: string; // one raid on several of your plots: each part's fight, all sharing the raid's id (threat.ts spreadRaids)
   spread?: number; // planned to hit this many of your plots (split once the bosses settle who sends it)
   led?: boolean; // planned boss-led (Threat 5): the boss joins once the raider is settled

@@ -4,7 +4,7 @@ import {
   newStand, startNight, threatLevel, weeklyRaids, spotChance, migrateSave, raidTargets, sleepUntilDawn, TUTORIAL_RAID_DAY, welcomeDex,
   customDefaults, DEX, difficultyOf, fightRaid, makeTruce, mayRaidYou, postGuard, raidPartyFor, type CustomDifficulty,
   feudRaids, grudge, RIVAL_RAID_AT, syndicateAtDawn, syndicateFormed, BORDERS, FACTIONS, likeliestTarget, PLOT_BY_ID, spreadRaids,
-  buyPlot, fillPosts, LOTTIES_SIDE_LOT, openStands, simulateRestOfDay, tickMinute,
+  buyPlot, fillPosts, LOTTIES_SIDE_LOT, openStands, simulateRestOfDay, tickMinute, BAY_RIVALS, budgetOf, MAX_QUIET_NIGHTS,
   type BattleReport, type Difficulty, type GameState, type Raid, type RivalId,
 } from './economy.ts';
 import { answerCall, callChoices, liveCall } from './calls.ts';
@@ -84,6 +84,30 @@ describe('raids on you per week', () => {
     const base = evening(3);
     base.day = 2;
     expect(nights(base, 100).every((raids) => !raids.length)).toBe(true);
+  });
+
+  it("the quiet-night cap's raid comes even when every boss's Strike is empty, on the house", () => {
+    for (const difficulty of ['laidback', 'classic', 'cutthroat'] as Difficulty[]) {
+      const cap = MAX_QUIET_NIGHTS[difficulty];
+      const broke = (quiet: number) => {
+        const s = evening(1, difficulty, 71);
+        s.lastRaidOnYou = s.day - quiet; // `quiet - 1` raid-free nights so far, tonight the next
+        for (const id of BAY_RIVALS) budgetOf(s, id).strike = 0;
+        return s;
+      };
+      expect(nights(broke(cap), 40).every((raids) => !raids.length)).toBe(true); // within the cap, nobody who can't pay comes
+      for (let i = 0; i < 40; i++) {
+        const s = broke(cap + 1);
+        s.seed = (i * 2654435761 + 12345) | 0;
+        const cash = BAY_RIVALS.map((id) => s.rivals[id].cash);
+        planNight(s);
+        const raids = s.raids.filter((r) => onYou(s, r));
+        expect(raids.length).toBeGreaterThan(0);
+        expect(raids.every((r) => r.due && mayRaidYou(s, r.attacker as RivalId))).toBe(true); // the rest are called off
+        expect(BAY_RIVALS.map((id) => s.rivals[id].cash)).toEqual(cash);
+        expect(s.lastRaidOnYou).toBe(s.day);
+      }
+    }
   });
 });
 

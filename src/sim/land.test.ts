@@ -8,6 +8,9 @@ import {
   plotPrice, PLOTS, plotsForTier, plotType, purchasablePlots, rivalsInPlay, sleepUntilDawn, type DistrictId, type GameState, type RivalId,
 } from './economy.ts';
 import { stockValue } from './ledger.ts';
+import { clubhouseSite } from './clubhouse.ts';
+import { buildClubhouse, canBuildClubhouse } from './crew.ts';
+import { comeToTown, thinnestDistrict } from './schemes.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import { chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, hits, longestLull, playRun, REFERENCE_SEED, type RunResult } from '../../tools/pacing.ts';
 
@@ -309,6 +312,38 @@ describe('Sandbox maps', () => {
     expect(blenderBar(s, 'frozen')).toBe(1); // no Blend Shack Trophy from a gang that never played
     const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
     expect(ownedRecipes(back)).not.toContain('frozen'); // an absent rival never fell, so no page comes home on load
+  });
+
+  it('a Clubhouse goes on a plot the map tags a Street, never on a street plot it retagged as a Field or a Dock', () => {
+    const s = sandbox(49, 'small', ['fizzco', 'coldbrew']); // the cut retags an Old Town street plot as a Field, a Downtown one as a Dock
+    const field = Object.keys(s.settings.retag!).find((id) => s.settings.retag![id] === 'field')!;
+    expect(PLOTS.find((p) => p.id === field)!.type).toBe('street');
+    const lot = PLOTS.find((p) => p.district === 'oldtown' && plotType(s, p) === 'street' && !s.plots[p.id].owner)!;
+    give(s, field);
+    expect(clubhouseSite(s)).toBeNull(); // the Field is no Street plot on this map
+    give(s, lot.id);
+    s.rank = 6;
+    s.cash = 1e6;
+    s.phase = 'prep';
+    expect(clubhouseSite(s)).toBe(lot.id);
+    expect(canBuildClubhouse(s)).toEqual({ ok: true });
+    expect(buildClubhouse(s)).toBe(true);
+    expect(s.plots[lot.id].facility?.kind).toBe('clubhouse');
+    expect(s.plots[field].facility).toBeUndefined();
+  });
+
+  it("an Out-of-Towner buys into the map's thinnest district, never land off the map or a lot it retagged", () => {
+    const s = sandbox(5, 'small', ['fizzco', 'coldbrew']); // Maple Row, Old Town, Campus and Downtown
+    s.endlessSince = s.day; // the win, and Keep squeezing
+    const where = thinnestDistrict(s)!;
+    expect(onMap(s, where)).toBe(true);
+    expect(comeToTown(s, 'snootwater')).toBe(true);
+    const bought = PLOTS.filter((p) => s.plots[p.id].owner === 'snootwater');
+    expect(bought.length).toBeGreaterThan(0);
+    for (const p of bought) {
+      expect(plotOnMap(s, p), p.name).toBe(true);
+      expect(['street', 'prime', 'landmark']).toContain(plotType(s, p));
+    }
   });
 
   it('rivals grow only on the map, and a save keeps its map', () => {

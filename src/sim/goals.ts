@@ -79,13 +79,13 @@ const ownStand = (s: GameState) => {
 /** Is there a plot left for one more stand (not yours yet, or yours and empty)? With none, "one more" goals would never be met. */
 const roomToGrow = (s: GameState) => PLOTS.some((p) => {
   const ps = s.plots[p.id];
-  return STAND_PLOTS.includes(p.type) && plotOnMap(s, p) && (ps.owner !== 'player' || (!ps.stand && !ps.facility)); // land: on this map
+  return STAND_PLOTS.includes(plotType(s, p)) && plotOnMap(s, p) && (ps.owner !== 'player' || (!ps.stand && !ps.facility)); // land: on this map, as it tagged the plot
 });
 
 /** The cheapest free plot for a stand in this district (Infinity when there's none). */
 function cheapestPlot(s: GameState, d: DistrictId): number {
   let best = Infinity;
-  for (const p of PLOTS) if (p.district === d && STAND_PLOTS.includes(p.type) && !s.plots[p.id].owner) best = Math.min(best, plotPrice(s, p.id));
+  for (const p of PLOTS) if (p.district === d && STAND_PLOTS.includes(plotType(s, p)) && !s.plots[p.id].owner) best = Math.min(best, plotPrice(s, p.id)); // land: as a Sandbox map tagged it
   return best;
 }
 

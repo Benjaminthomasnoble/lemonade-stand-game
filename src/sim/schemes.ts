@@ -15,7 +15,7 @@
 // until your night watch catches it or Squawk's night flight unmasks it. Pure
 // and seeded, like the rest of the sim.
 import { BAY_RIVALS, BRAND_TIERS, CAMPAIGNS, FACTIONS, REP_DRIFT, STAND_LEVELS, type CampaignId, type RivalId } from './balance.ts';
-import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, nearbyPlots, PLOT_BY_ID, PLOTS, type DistrictId, type FactionId } from './map.ts';
+import { BORDERS, DISTRICT_BY_ID, DISTRICTS, LOTTIES_CORNER, mapDistricts, nearbyPlots, PLOT_BY_ID, PLOTS, plotType, type DistrictId, type FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import type { GameState, Goal, RivalState, Stand } from './economy.ts';
 import { canBuyPlot, netWorth, newStand, ownedPlots, rivalPrice } from './economy.ts';
@@ -714,7 +714,7 @@ const forSale = (s: GameState, plotId: string) => {
   const ps = s.plots[plotId];
   return !ps.owner && !ps.auction && !ps.dibs && !ps.kept && !landFrozen(s, plotId);
 };
-const openIn = (s: GameState, d: DistrictId) => PLOTS.filter((p) => p.district === d && STAND_PLOTS.includes(p.type) && forSale(s, p.id));
+const openIn = (s: GameState, d: DistrictId) => PLOTS.filter((p) => p.district === d && STAND_PLOTS.includes(plotType(s, p)) && forSale(s, p.id)); // land: as a Sandbox map tagged it
 
 /**
  * Your thinnest district (spec: an Out-of-Towner buys "into your thinnest district"): your lowest share of it, among the
@@ -722,7 +722,7 @@ const openIn = (s: GameState, d: DistrictId) => PLOTS.filter((p) => p.district =
  */
 export function thinnestDistrict(s: GameState): DistrictId | null {
   let best: { d: DistrictId; share: number; open: number } | null = null;
-  for (const d of DISTRICTS) {
+  for (const d of mapDistricts(s)) { // land: a Sandbox map's districts only (the land off it is nobody's)
     const open = openIn(s, d.id).length;
     if (!open) continue;
     const share = districtControl(s, d.id).share;

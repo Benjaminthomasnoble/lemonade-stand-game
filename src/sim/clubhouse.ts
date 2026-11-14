@@ -9,7 +9,7 @@
 // the reserve trains in the Training Yard; an L3's Infirmary heals KOs a day
 // faster.
 import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL } from './balance.ts';
-import { PLOT_BY_ID, PLOTS, type Plot } from './map.ts';
+import { PLOT_BY_ID, PLOTS, plotType, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import { levelUp, type Guard } from './crew.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
@@ -17,7 +17,7 @@ import { chickenSoup } from './perks.ts';
 
 
 const isClubhouse = (s: GameState, id: string) => s.plots[id]?.owner === 'player' && s.plots[id].facility?.kind === 'clubhouse';
-const emptyStreet = (s: GameState, p: Plot) => p.type === 'street' && s.plots[p.id].owner === 'player' && !s.plots[p.id].stand && !s.plots[p.id].facility;
+const emptyStreet = (s: GameState, p: Plot) => plotType(s, p) === 'street' && s.plots[p.id].owner === 'player' && !s.plots[p.id].stand && !s.plots[p.id].facility; // land: as a Sandbox map tagged it
 
 /** Your Clubhouses that stand (a wrecked one houses nobody till it's rebuilt). */
 export const clubhouses = (s: GameState): Plot[] => PLOTS.filter((p) => isClubhouse(s, p.id) && !s.plots[p.id].facility!.wrecked);

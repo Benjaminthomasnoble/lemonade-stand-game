@@ -8,8 +8,9 @@
 // stands at night after Squawk has circled them. The run is then read against the spec's targets: rank days and
 // Domination, income by stage, security spend, raid losses, the VIP firsts and share, lulls, Net Worth growth and the
 // pacing chart.
-//   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N]
-// prints the report (tools/sim-report.ts). Pure: no DOM, no clock, no files.
+//   npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N] [--keep DIR]
+// prints the report (tools/sim-report.ts; --jobs N plays the runs in N child processes and prints the same report,
+// --keep DIR keeps the played runs for a sweep to pick up). Pure: no DOM, no clock, no files.
 import {
   acceptOrder, approveRepair, auctionOf, auctionPlots, bestSetting, bidGuess, BILLBOARD, bottleCost, bottlingCapacity, BOTTLES_PER_DAY, BRAND_TIERS, borrow, buildClubhouse, buildFacility, buildStand, buyBrand,
   buyPerimeter, buyPlot, bulkOn, callBigSqueeze, CAMPAIGNS, campaignCost, CLUBHOUSE, canBid, canBuildClubhouse, canBuildFacility, canBuildStand, canBuyBrand,
@@ -1068,27 +1069,57 @@ export function formatChecks(title: string, checks: Check[]): string {
 /** What the player did with each system over a run: "tips 6, cards 3, calls 79, lapsed 0, ...". */
 export const playedLine = (p: Played) => PLAYED.map((k) => `${k} ${p[k]}`).join(', ');
 
-/** The whole report: `args` are [days] [maps] [classic|laidback|cutthroat|all] and -v for every day and every purchase.
- * Each difficulty plays the reference map first, then the maps after it; `csv` is docs/spec/pacing.csv. */
-export function pacingReport(args: string[], csv: string, print: (line: string) => void): void {
-  const verbose = args.includes('-v');
-  const [daysArg, mapsArg, diffArg] = args.filter((a) => a !== '-v');
+/** One run of a report: a map (its seed) on a difficulty. */
+export interface PacingJob { seed: number; difficulty: Difficulty }
+/** A played run as text for the process that prints the report (tools/sim-report.ts --jobs), with its -v lines: JSON that
+ * keeps NaN and the infinities, so the report reads it as it would the run itself. */
+export const runToText = (r: RunResult, log: string[] = []): string =>
+  JSON.stringify({ log, r }, (_k, v: unknown) => (typeof v === 'number' && !Number.isFinite(v) ? `#${v}` : v));
+export const runFromText = (text: string): { log: string[]; r: RunResult } =>
+  JSON.parse(text, (_k, v: unknown) => (typeof v === 'string' && /^#(NaN|-?Infinity)$/.test(v) ? Number(v.slice(1)) : v));
+/** What a report's `args` ask for: [days] [maps] [classic|laidback|cutthroat|all], -v for every day and every purchase,
+ * --jobs N for the child processes tools/sim-report.ts splits the runs across, and --keep DIR for the folder it keeps
+ * each played run in (a sweep stopped part-way picks up there). `runs` in the report's order: each difficulty plays the
+ * reference map first, then the maps after it. */
+export interface PacingPlan { days: number; maps: number; diffs: Difficulty[]; verbose: boolean; jobs: number; keep?: string; runs: PacingJob[] }
+
+export function pacingPlan(args: string[]): PacingPlan {
+  const rest: string[] = [];
+  const opt: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    const m = /^--(jobs|keep)(?:=(.*))?$/.exec(a);
+    if (m) opt[m[1]] = m[2] ?? args[++i] ?? '';
+    else if (a !== '-v') rest.push(a);
+  }
+  const [daysArg, mapsArg, diffArg] = rest;
   const days = Number(daysArg) > 0 ? Number(daysArg) : 170;
   const maps = Number(mapsArg) > 0 ? Math.floor(Number(mapsArg)) : 1;
   const diffs: Difficulty[] = diffArg === 'all' ? ['laidback', 'classic', 'cutthroat'] : [(diffArg as Difficulty) ?? 'classic'];
+  const runs = diffs.flatMap((difficulty) => Array.from({ length: maps }, (_, i) => ({ seed: REFERENCE_SEED + i, difficulty })));
+  const jobs = Number(opt.jobs) >= 1 ? Math.floor(Number(opt.jobs)) : 1;
+  return { days, maps, diffs, verbose: args.includes('-v'), jobs, ...(opt.keep ? { keep: opt.keep } : {}), runs };
+}
+
+/** The whole report, for `args` as pacingPlan reads them; `csv` is docs/spec/pacing.csv. `run` plays one of the plan's
+ * runs: by default here, in turn (its -v lines just before its checks); tools/sim-report.ts --jobs hands in the runs its
+ * child processes played, so a split report prints the same lines. */
+export function pacingReport(args: string[], csv: string, print: (line: string) => void, run?: (job: PacingJob) => RunResult): void {
+  const plan = pacingPlan(args);
+  const play = run ?? ((job: PacingJob) => playRun({ ...job, days: plan.days, log: plan.verbose ? print : undefined }));
   const all: Partial<Record<Difficulty, RunResult[]>> = {};
-  for (const difficulty of diffs) {
+  for (const difficulty of plan.diffs) {
     const runs: RunResult[] = (all[difficulty] = []);
-    for (let i = 0; i < maps; i++) {
+    for (let i = 0; i < plan.maps; i++) {
       const seed = REFERENCE_SEED + i;
-      const r = playRun({ seed, difficulty, days, log: verbose ? print : undefined });
+      const r = play({ seed, difficulty });
       runs.push(r);
       print(formatChecks(`\n${label(difficulty)}, map ${seed}${i === 0 ? ' (the reference map)' : ''}, ${r.days.length} days`, checkRun(r, i === 0)));
       if (i === 0) print(formatChecks(`\n${label(difficulty)} Net Worth against docs/spec/pacing.csv`, chartChecks(r, csv)));
       print(`  firsts: ${r.news.map((n) => `${n.day} ${n.what}`).join('; ')}`);
       if (r.played) print(`  played: ${playedLine(r.played)}`);
     }
-    if (maps > 1) print(formatChecks(`\n${label(difficulty)} across ${maps} maps`, spreadChecks(runs)));
+    if (plan.maps > 1) print(formatChecks(`\n${label(difficulty)} across ${plan.maps} maps`, spreadChecks(runs)));
   }
   if (all.classic && all.cutthroat) print(formatChecks('\nCutthroat against Classic', [raidRatio(all.classic, all.cutthroat)]));
 }

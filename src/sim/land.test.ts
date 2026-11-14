@@ -18,8 +18,8 @@ import { TIP_IDS } from './perks.ts';
 import type { DayCall } from './calls.ts';
 import pacingCsv from '../../docs/spec/pacing.csv?raw';
 import {
-  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, growthCandidates, hits, longestLull, morning, newBot, pickAnswer, playRun,
-  RANK_DAYS, REFERENCE_SEED, spreadChecks, TIP_ORDER, type RunResult,
+  bestTip, buyouts, campaignCandidates, chartChecks, checkRun, CLASSIC_FIRST_L2, CLASSIC_RANK_DAYS, DOMINATION, growthCandidates, hits, longestLull, morning, newBot, pacingPlan, pacingReport,
+  pickAnswer, playRun, RANK_DAYS, REFERENCE_SEED, runFromText, runToText, spreadChecks, TIP_ORDER, type PacingJob, type RunResult,
 } from '../../tools/pacing.ts';
 
 const street = (s: GameState, d: DistrictId) => PLOTS.find((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner)!;
@@ -704,6 +704,22 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(r.played?.lapsed).toBe(0); // every day call answered as it broke in
     for (const k of ['tips', 'cards', 'calls', 'campaigns'] as const) expect(r.played?.[k], k).toBeGreaterThan(0); // Lottie's Rank 2 hand, recipe cards from Day 2, the calls, campaigns from Day 6
     expect(playRun({ seed: REFERENCE_SEED, days: 8 })).toEqual(r); // seeded: a second run makes every choice again
+  });
+
+  it('prints the same report from runs played in other processes (sim-report pacing --jobs)', () => {
+    const sweep = pacingPlan(['170', '10', 'all', '--jobs', '2']);
+    expect(sweep).toMatchObject({ days: 170, maps: 10, diffs: ['laidback', 'classic', 'cutthroat'], verbose: false, jobs: 2 });
+    expect(sweep.runs).toHaveLength(30);
+    expect(sweep.runs.slice(0, 2)).toEqual([{ seed: REFERENCE_SEED, difficulty: 'laidback' }, { seed: REFERENCE_SEED + 1, difficulty: 'laidback' }]);
+    expect(pacingPlan(['-v', '--jobs=3', '--keep', 'runs'])).toMatchObject({ days: 170, maps: 1, diffs: ['classic'], verbose: true, jobs: 3, keep: 'runs' });
+    expect(pacingPlan(['8', '1'])).toMatchObject({ days: 8, jobs: 1 }); // in this process
+    expect(pacingPlan(['8', '1']).keep).toBeUndefined();
+    const r = ref8();
+    const back = runFromText(runToText({ ...r, raids: [{ day: 9, cost: 50, days: Infinity }] }, ['a -v line']));
+    expect(back.log).toEqual(['a -v line']);
+    expect(back.r.raids[0].days).toBe(Infinity); // JSON alone would make it null
+    const report = (run: (job: PacingJob) => RunResult) => { const out: string[] = []; pacingReport(['8', '1', 'classic'], pacingCsv, (l) => out.push(l), run); return out; };
+    expect(report(() => runFromText(runToText(r)).r)).toEqual(report(() => r));
   });
 
   it("keeps the tip best for growth from Lottie's hand", () => {

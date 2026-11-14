@@ -1,18 +1,26 @@
 // Headless balance check: plays N days with a simple restocking policy.
 // Usage: npm run sim -- [days] [seed]
-//        npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v]: the pacing harness (tools/pacing.ts),
-//        a headless player read against the spec's pacing targets and docs/spec/pacing.csv
-import { readFileSync } from 'node:fs';
+//        npm run sim -- pacing [days] [maps] [classic|laidback|cutthroat|all] [-v] [--jobs N] [--keep DIR]: the pacing
+//        harness (tools/pacing.ts), a headless player read against the spec's pacing targets and docs/spec/pacing.csv.
+//        --jobs N plays the runs N at a time in child processes (each `pacing-run <days> <difficulty> <seed> [-v]`,
+//        which prints its run as text) and prints the same report; progress goes to stderr. --keep DIR keeps each
+//        played run there, and the same command again plays only the runs it doesn't have (a fresh DIR after a code
+//        change). The full sweep on the shared machine, about 9 CPU-minutes a run:
+//        nice -n 19 npm run sim -- pacing 170 10 all --jobs 2 --keep runs/ > sweep.txt 2> progress.txt
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   approveRepair, buildClubhouse, buySupply, canBuildClubhouse, maxPacks, newGame, openStand, PLOTS, rankFor, repairCost, selectedStand, simulateRestOfDay, sleepUntilDawn, stock, successScore, battleHeadline, playerStands, rebuildStand, type SupplyId,
-  dayProfit, buyPlot, canBuyPlot, CLUBHOUSE, plotPrice, TIPS,
+  dayProfit, buyPlot, canBuyPlot, CLUBHOUSE, plotPrice, TIPS, type Difficulty,
 } from '../src/sim/economy.ts';
 import { clubhouseSite } from '../src/sim/clubhouse.ts';
 import { hasClubhouse, hasStory, storyAct } from '../src/sim/story.ts';
 import { pickTip, tipHand } from '../src/sim/perks.ts';
-import { pacingReport } from './pacing.ts';
+import { pacingPlan, pacingReport, playRun, runFromText, runToText, type PacingJob, type PacingPlan, type RunResult } from './pacing.ts';
 
-const pacing = process.argv[2] === 'pacing';
+const pacing = process.argv[2] === 'pacing' || process.argv[2] === 'pacing-run';
 const days = pacing ? 0 : Number(process.argv[2] ?? 14);
 const s = newGame(Number(process.argv[3] ?? 42));
 const targets: Record<SupplyId, number> = { lemons: 50, sugar: 100, ice: 360 };
@@ -51,4 +59,60 @@ for (let d = 0; d < days; d++) {
   }
   s.news.length = 0;
 }
-if (pacing) pacingReport(process.argv.slice(3), readFileSync(new URL('../docs/spec/pacing.csv', import.meta.url), 'utf8'), (line) => console.log(line));
+
+const jobKey = (j: PacingJob) => `${j.difficulty} ${j.seed}`;
+
+/** Play a plan's runs `plan.jobs` at a time, each in a child process of this script (`pacing-run`), and hand them back
+ * by job. A run's process inherits this one's niceness. With --keep, each played run is kept in that folder and a run
+ * already there isn't played again. */
+function playSplit(plan: PacingPlan): Promise<Map<string, { log: string[]; r: RunResult }>> {
+  const out = new Map<string, { log: string[]; r: RunResult }>();
+  const kept = (job: PacingJob) => join(plan.keep!, `${job.difficulty}-${job.seed}-${plan.days}${plan.verbose ? '-v' : ''}.json`);
+  if (plan.keep) mkdirSync(plan.keep, { recursive: true });
+  const queue = plan.runs.filter((job) => {
+    if (!plan.keep || !existsSync(kept(job))) return true;
+    out.set(jobKey(job), runFromText(readFileSync(kept(job), 'utf8')));
+    return false;
+  });
+  if (out.size) process.stderr.write(`${out.size} of ${plan.runs.length} runs kept in ${plan.keep}\n`);
+  const script = fileURLToPath(import.meta.url);
+  const start = Date.now();
+  const one = (job: PacingJob) => new Promise<void>((resolve, reject) => {
+    const args = [...process.execArgv, script, 'pacing-run', String(plan.days), job.difficulty, String(job.seed), ...(plan.verbose ? ['-v'] : [])];
+    const child = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'inherit'] });
+    const chunks: Buffer[] = [];
+    child.stdout.on('data', (c: Buffer) => chunks.push(c));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(`pacing-run ${jobKey(job)} exited with ${code}`));
+      const text = Buffer.concat(chunks).toString('utf8');
+      out.set(jobKey(job), runFromText(text));
+      if (plan.keep) writeFileSync(kept(job), text);
+      process.stderr.write(`[${out.size}/${plan.runs.length}] ${job.difficulty} map ${job.seed} played, ${Math.round((Date.now() - start) / 60000)} min in\n`);
+      resolve();
+    });
+  });
+  const worker = async () => { for (let job = queue.shift(); job; job = queue.shift()) await one(job); };
+  return Promise.all(Array.from({ length: Math.min(plan.jobs, plan.runs.length) }, worker)).then(() => out);
+}
+
+if (process.argv[2] === 'pacing-run') { // one run of a split report: its days, difficulty and seed, and -v
+  const [runDays, difficulty, seed] = process.argv.slice(3);
+  const log: string[] = [];
+  const r = playRun({ seed: Number(seed), difficulty: difficulty as Difficulty, days: Number(runDays), log: process.argv.includes('-v') ? (line) => log.push(line) : undefined });
+  process.stdout.write(runToText(r, log));
+} else if (pacing) {
+  const args = process.argv.slice(3);
+  const csv = readFileSync(new URL('../docs/spec/pacing.csv', import.meta.url), 'utf8');
+  const print = (line: string) => console.log(line);
+  const plan = pacingPlan(args);
+  if (plan.jobs <= 1 && !plan.keep) pacingReport(args, csv, print);
+  else {
+    const played = await playSplit(plan);
+    pacingReport(args, csv, print, (job) => {
+      const run = played.get(jobKey(job))!;
+      for (const line of run.log) print(line);
+      return run.r;
+    });
+  }
+}

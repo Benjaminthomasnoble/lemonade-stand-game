@@ -219,6 +219,26 @@ const meter = (v: number, cls = '') => `<span class="cl-snake ${cls}" style="--v
 const ownerName = (o: string | null) => (o === 'player' ? "Lottie's (you)" : o ? FACTIONS[o as RivalId].name : 'For sale');
 const ownerColor = (o: string | null) => (o === 'player' ? '#F7C948' : o ? hex(FACTIONS[o as RivalId].color) : '#FFF1D6');
 
+/** A clay button: one verb, optional price, disabled with its reason as a tooltip. */
+function btn(action: string, label: string, b: Blocker = { ok: true }, extra = '', cls = '') {
+  return `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${b.ok ? '' : `disabled title="${esc(b.why)}"`}>${label}</button>`;
+}
+/** Tapping your stand answers with its next upgrade from Day 1, before the Grow tab's lesson, mid-day too: it's instant. */
+function upgradeHere(s: GameState) {
+  const st = selectedStand(s), next = STAND_LEVELS[st.level];
+  const up = canUpgradeStand(s);
+  const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
+  return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top, expressWindow(s.plots[s.selected]))}"`, 'go') : '';
+}
+
+/** The plot card's actions on a stand of yours. By day: Manage and its stand panel (`math`: with the sums shown), your
+ * managed stand answering with its next upgrade instead of Manage. In the Evening: Manage or that upgrade, and the next
+ * fence (the Ledger has the day). At night: the fence only. */
+export function ownStandActions(s: GameState, id: string, math = false): string {
+  const manage = id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
+  return s.phase === 'night' ? fenceHere(s, id) : s.phase === 'report' ? manage + fenceHere(s, id) : manage + standPanel(s, id, math); // land: build any time but night
+}
+
 /** The clay pieces a panel module draws with (crew.ts, raidPlanner.ts). */
 export interface Kit {
   ART: typeof ART;
@@ -530,11 +550,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       }
     }
   });
-
-  /** A clay button: one verb, optional price, disabled with its reason as a tooltip. */
-  function btn(action: string, label: string, b: Blocker = { ok: true }, extra = '', cls = '') {
-    return `<button class="cl-b ${cls}" data-action="${action}" ${extra} ${b.ok ? '' : `disabled title="${esc(b.why)}"`}>${label}</button>`;
-  }
 
   // ---------- top: Cash, the Success Score with its Rank badge, Reputation, Threat; then the day, time, season and
   // weather, and Lottie's sticky. Each meter explains itself (hover, or long-press on touch) and opens its menu. On a
@@ -860,10 +875,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     }
     // At night the card fences the stand; in the Evening it fences it and still takes an upgrade (the Ledger has the day);
     // by day it shows the stand panel, and your own stand answers with its next upgrade (before the Grow tab's lesson too).
-    else if (ps.owner === 'player' && st) {
-      const manage = id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
-      actions = s.phase === 'night' ? fenceHere(s, id) : s.phase === 'report' ? manage + fenceHere(s, id) : manage + standPanel(s, id, standMath); // land: build any time but night
-    }
+    else if (ps.owner === 'player' && st) actions = ownStandActions(s, id, standMath);
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + plotBuyoutRow(clubs, s, id); // its Sit-down (src/ui/sitdown.ts)
@@ -882,14 +894,6 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(cornerName(s, id) ?? p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>
       ${dibs}${keptNote(ps)}${schemeNote(s, id)}${wreckNote(s, id)}${landNotes(s, id)}
       <div class="cl-plot-acts">${actions}</div></div>`;
-  }
-
-  /** Tapping your stand answers with its next upgrade from Day 1, before the Grow tab's lesson, mid-day too: it's instant. */
-  function upgradeHere(s: GameState) {
-    const st = selectedStand(s), next = STAND_LEVELS[st.level];
-    const up = canUpgradeStand(s);
-    const top = next ? ceilingFor(next.level, PLOT_BY_ID[s.selected].district, st.recipe, topPriceMods(s, s.selected)) : 0; // as the Grow card reads it
-    return next && !locked(up) ? btn('upgrade', `Upgrade ${whole(next.cost)}`, up, `data-testid="upgrade" title="${esc(next.name)}: ${levelStats(next, top, expressWindow(s.plots[s.selected]))}"`, 'go') : '';
   }
 
   /** An empty plot of yours: a button for each stand level the rank has unlocked, at every step's cost paid at once. */

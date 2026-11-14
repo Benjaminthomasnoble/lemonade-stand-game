@@ -10,6 +10,10 @@ const MUTE_KEY = 'lemonade-stand-wars/muted';
 const BED_VOLUME = 0.35;
 const DUCK = 10 ** (-12 / 20); // −12 dB
 const REST_MS = 25000;
+/** A raid countdown's woodblock: one tick per quarter note at 160 BPM, taking over when the Raid Incoming stinger
+ * chokes dead at 3.0 s (music-notes.md, Stingers). */
+export const TICK_SECONDS = 60 / 160;
+export const STINGER_CHOKE_SECONDS = 3;
 
 export interface Audio {
   start(): void; // call from a user gesture (autoplay rules)
@@ -28,6 +32,8 @@ export interface Audio {
   ring(): void;
   /** A ship's horn: the theme's opening call, F-A-D. */
   horn(): void;
+  /** A woodblock tick for a raid countdown (synthesized): a dry knock on A, the chord the stinger hangs on. */
+  tick(): void;
   /** Beats into the theme while it plays (120 BPM, first beat 0.12 s in), else null: idle bobs keep its time. */
   beat(): number | null;
 }
@@ -157,6 +163,25 @@ export function createAudio(): Audio {
           }
           lp.connect(g).connect(ctx!.destination);
         });
+      } catch { /* no Web Audio */ }
+    },
+    tick() {
+      if (muted || !started) return;
+      try {
+        ctx ??= new AudioContext();
+        const t = ctx.currentTime;
+        // A woodblock: a bright knock (A5) and a hollow overtone, both gone in a few hundredths of a second.
+        for (const [f, v, len] of [[880, 0.06, 0.05], [2420, 0.02, 0.025]]) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = f;
+          g.gain.setValueAtTime(v, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+          o.connect(g).connect(ctx.destination);
+          o.start(t);
+          o.stop(t + len + 0.01);
+        }
       } catch { /* no Web Audio */ }
     },
     ding(big = false) {

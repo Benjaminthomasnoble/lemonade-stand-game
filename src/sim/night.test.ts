@@ -8,7 +8,7 @@ import {
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance, ALERT_LIFE, onFeed,
-  nothingTonight, openStands, sleepPlan,
+  nothingTonight, openStands, sleepPlan, minutesLeft, raidTicks, RAID_TICKS_FAST_MINUTES,
   type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
@@ -220,6 +220,26 @@ describe('the night on the clock', () => {
       nightStep(c);
     }
     expect(real).toBe(5 * FIGHT_SECONDS_PER_GAME_MINUTE);
+  });
+
+  it("a raid warning's woodblock ticks from the warning, twice as often in its last 15 game minutes, till it lands", () => {
+    const s = evening(14);
+    const r = raidOn(s, 21 * 60, 22 * 60); // detected: warned as it sets out, an hour off
+    startNight(s);
+    expect(raidTicks(s)).toBe(0);
+    while (!r.warned) nightStep(s);
+    expect([minutesLeft(s, r), raidTicks(s)]).toEqual([60, 1]);
+    while (minutesLeft(s, r) > RAID_TICKS_FAST_MINUTES) { expect(raidTicks(s)).toBe(1); nightStep(s); }
+    while (s.raids.includes(r)) { expect(raidTicks(s)).toBe(2); nightStep(s); }
+    expect(raidTicks(s)).toBe(0); // fought
+    // An undetected raid ticks from its notice: Laid Back's 30 minutes start once a beat, Classic's 15 and Cutthroat's 5 doubled.
+    for (const [difficulty, first] of [['laidback', 1], ['classic', 2], ['cutthroat', 2]] as const) {
+      const u = evening(15, { difficulty });
+      const ur = raidOn(u, 21 * 60, 22 * 60, { detected: false });
+      startNight(u);
+      while (!ur.warned) { expect(raidTicks(u)).toBe(0); nightStep(u); }
+      expect([minutesLeft(u, ur), raidTicks(u)]).toEqual([raidNotice(u), first]);
+    }
   });
 
   it('a quiet night lasts until an alert comes in, and is quiet again once the raid is fought or the card put away', () => {

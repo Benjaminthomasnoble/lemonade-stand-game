@@ -12,8 +12,8 @@
 // Pure and seeded, like the rest of the sim.
 import {
   CLOSE, DAWN, DELIVERY_WINDOW, FACTIONS, FIGHT_SECONDS_PER_GAME_MINUTE, GRAPEVINE_EARLY, MINUTES_PER_DAY,
-  NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, OPEN, PLAYER_RAID_LEAVE, QUIET_NIGHT_SPEED, RAID_FIGHT_GUESS, RAID_TRAVEL,
-  REAL_SECONDS_PER_MINUTE, type RivalId,
+  NIGHT_END, NIGHT_REAL_SECONDS_PER_MINUTE, OPEN, PLAYER_RAID_LEAVE, QUIET_NIGHT_SPEED, RAID_FIGHT_GUESS, RAID_TICKS_FAST_MINUTES,
+  RAID_TRAVEL, REAL_SECONDS_PER_MINUTE, type RivalId,
 } from './balance.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { nextRandom } from './rng.ts';
@@ -81,6 +81,14 @@ export const quietNight = (s: GameState) => s.phase === 'night' && !s.raids.some
   && !(s.alerts ?? []).some((a) => a.day === s.day && a.minute > CLOSE && onFeed(s, a));
 /** Game minutes until a raid hits. */
 export const minutesLeft = (s: GameState, r: Raid) => Math.max(0, (r.at ?? s.minute) - s.minute);
+/** The raid countdown's woodblock (spec: Adaptive music, Raid alert): 0 with no warned raid on you still to come; 1
+ * from its warning (a raid detected, or an undetected one's notice starting), a tick each beat; 2 once the nearest is
+ * within RAID_TICKS_FAST_MINUTES (15 game minutes) of landing, twice as often. The frame loop in main.ts plays them. */
+export function raidTicks(s: GameState): 0 | 1 | 2 {
+  let near = Infinity;
+  for (const r of s.raids) if (r.warned && onYou(s, r)) near = Math.min(near, minutesLeft(s, r));
+  return near === Infinity ? 0 : near <= RAID_TICKS_FAST_MINUTES ? 2 : 1;
+}
 
 // ---------- travel ----------
 

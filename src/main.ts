@@ -8,7 +8,7 @@ import {
   buildStand, buyBrand, buyPlot, buySupply, CLOSE, DISTRICTS, LOTTIES_CORNER, newGame, onMap, OPEN, openStands, PLOT_BY_ID, PLOT_SPACING,
   priceCeiling, runCampaign, fitSpec, SEGMENTS, selectedStand, setPrice, pickRecipe, setSweetness, simulateRestOfDay, sleepUntilDawn,
   tickMinute, upgradeStand, type GameState, type SegmentId, type SimEvent,
-  alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, secondsPerMinute, sleepPlan, startNight, type Alert,
+  alertTexts, dismissAlert, restockNow, isMajor, QUIET_NIGHT_SPEED, quietNight, raidPauses, raidTicks, secondsPerMinute, sleepPlan, startNight, type Alert,
   buildClubhouse, buyGadget, buyPerimeter, equip, fillPosts, fireGuard, hireGuard, planRaid, postGuard, promote, rebuildStand, repairFence,
   battleHeadline, welcomeDex, type BattleReport, acceptOrder, buildFacility, declineOrder,
   factionBuyout, haggle, makeTruce, plotBuyout, setNegotiator, hqPlot, HQS, type RivalId, answerBuyout, callBigSqueeze,
@@ -22,7 +22,7 @@ import { ringTheBell } from './sim/reinforce.ts';
 import { autoDefendOn, cycleDefendPriority, setAutoDefend } from './sim/autodefend.ts';
 import { settleCaptive } from './sim/captives.ts';
 import { atOnce, fightCommand, fightFrame, fightStatus, finishFight, liveReport, watchFights } from './sim/fight.ts';
-import { createAudio, type Stinger } from './audio.ts';
+import { createAudio, STINGER_CHOKE_SECONDS, TICK_SECONDS, type Stinger } from './audio.ts';
 import { createTwins, type Twins } from './ui/twins.ts';
 import { createVip } from './world/vip.ts';
 import { createTraffic } from './world/traffic.ts';
@@ -156,8 +156,11 @@ async function main() {
   window.addEventListener('keydown', wake, { once: true });
   const won = (b: BattleReport) => (b.attacker === 'player') === (b.outcome === 'smashed' || b.outcome === 'robbed');
   /** A raid warning lands: the Raid Incoming stinger and Lottie's fist (the boss's call rings from the sim's phone queue). */
+  let tickHold = 0; // performance.now() while the Raid Incoming stinger plays: the countdown's ticks take over after
+  let tickIn = 0; // real seconds till the countdown's next tick
   const raidWarned = () => {
     stinger('raid-incoming');
+    tickHold = performance.now() + STINGER_CHOKE_SECONDS * 1000;
     lottieSays('raidComing', { react: 'fist' });
   };
   /** A card lands in the alert feed; a major alert auto-pauses when its switch is on. A VIP client's first visit
@@ -998,6 +1001,11 @@ async function main() {
       const hour = Math.floor(state.minute / 60);
       if (midDay(state) && hour !== savedHour) { savedHour = hour; saveGame(state); }
     } else acc = 0;
+    // The raid countdown's woodblock (spec: Adaptive music): once the Raid Incoming stinger chokes, a tick each beat
+    // while a warned raid is still coming for you and the clock runs, twice as often in its last 15 game minutes.
+    const ticks = !state.fight && (state.phase === 'open' || state.phase === 'night') && !frozen && !vipResume && performance.now() >= tickHold ? raidTicks(state) : 0;
+    if (!ticks) tickIn = 0;
+    else if ((tickIn -= realDt) <= 0) { audio.tick(); tickIn = Math.max(tickIn, -0.05) + TICK_SECONDS / ticks; }
     // Morning Prep waits for you, unless the day starts by itself (Options); big alerts at dawn still stop it. The
     // Evening is a moment: once the Ledger is folded (or with auto-continue on), the night starts by itself.
     const due = waitStep(state, options, { ledger: hud.ledger, frozen, paper, speed: knob.speed }, waits, realDt, dt);

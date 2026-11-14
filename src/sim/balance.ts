@@ -24,6 +24,8 @@ export const NIGHT_END = MINUTES_PER_DAY + DAWN;
 export const NIGHT_REAL_SECONDS_PER_MINUTE = 8 / 60;
 /** Fast raid nights: from closing until an alert, a raid night runs at 12× by itself (a setting, on by default). */
 export const QUIET_NIGHT_SPEED = 12; // a raid night races to its warning (a night with nothing coming is skipped outright)
+/** A raid warning's woodblock ticks each beat, twice as often in the last this-many game minutes before it lands. */
+export const RAID_TICKS_FAST_MINUTES = 15; // spec: Adaptive music, Raid alert
 /** The Evening is a moment: off the Ledger, on the live map, the night starts by itself after this many real seconds at 1×. */
 export const EVENING_REAL_SECONDS = 6; // placeholder: spec gap ("a moment")
 export const SEASON_DAYS = 14;

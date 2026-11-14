@@ -860,10 +860,12 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       const stand = plotType(s, p) === 'field' || plotType(s, p) === 'dock' || p.type === 'hq' || ps.facility ? '' : buildButtons(s, id); // any level the rank has unlocked, paid at once
       actions = stand + fac + clubhouseRoom(clubs, s, id) + (ps.facility ? fenceHere(s, id) : ''); // a pad or pier has no stand panel: fence it here
     }
-    // In the Evening and at night the card fences the stand (the Ledger has the day); by day it shows the stand panel,
-    // and your own stand answers with its next upgrade (before the Grow tab's lesson too).
-    else if (ps.owner === 'player' && st) actions = s.phase === 'report' || s.phase === 'night' ? fenceHere(s, id)
-      : (id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`)) + standPanel(s, id, standMath);
+    // At night the card fences the stand; in the Evening it fences it and still takes an upgrade (the Ledger has the day);
+    // by day it shows the stand panel, and your own stand answers with its next upgrade (before the Grow tab's lesson too).
+    else if (ps.owner === 'player' && st) {
+      const manage = id === s.selected ? upgradeHere(s) : btn('select', 'Manage', { ok: true }, `data-plot="${id}"`);
+      actions = s.phase === 'night' ? fenceHere(s, id) : s.phase === 'report' ? manage + fenceHere(s, id) : manage + standPanel(s, id, standMath); // land: build any time but night
+    }
     else if (ps.owner && ps.owner !== 'player' && p.type === 'hq') actions = hqPanel(s, ps.owner as RivalId);
     else if (ps.owner && ps.owner !== 'player') {
       actions = (hasBuilding(ps) ? planner.panel(s, id) : '') + plotBuyoutRow(clubs, s, id); // its Sit-down (src/ui/sitdown.ts)

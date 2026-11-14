@@ -327,10 +327,8 @@ function judgeTasteOff(s: GameState, t: TasteOff): TasteOffResult {
     s.news.push(`TASTE-OFF: ${FACTIONS[winner].name} win the ${fair}.`);
   }
   if (t.stake === 'strawberry') {
-    if (winner === 'player') {
-      grantPage(s, 'strawberry');
-      s.news.push('On 101.5 The Squeeze, Brock swears revenge: "This isn\'t over, bro!"'); // seam: story's playScene after merge
-    } else s.news.push('Brock keeps the Strawberry page at the Blend Shack. "Undefeated, bro!"');
+    if (winner === 'player') grantPage(s, 'strawberry'); // Act 1's climax scene: Brock swears revenge on 101.5 (recipes.ts)
+    else s.news.push('Brock keeps the Strawberry page at the Blend Shack. "Undefeated, bro!"');
   } else if (t.stake === 'tilly') {
     s.news.push(winner === 'player' ? 'Tilly tips her hat: "You out-brewed me, sugar. Come buy a Field at a friendly price."' : 'Tilly takes the County Fair: "Come back next year, sugar."');
   } else if (winner === 'player' && !storyFairs(s)) fairPage(s);

@@ -10,6 +10,7 @@ import {
 } from './economy.ts';
 import { calendarTickets, worldSheet } from '../ui/calendar.ts';
 import { bookSheet, recipeRow } from '../ui/recipes.ts';
+import { beginScene } from './scenes.ts';
 
 const SEGS = Object.keys(SEGMENTS) as SegmentId[];
 
@@ -276,6 +277,23 @@ describe("Lottie's recipe book", () => {
     expect(pageHolder(s, 'lavender')).toBe('harpTeacher');
   });
 
+  it("a page won outright plays its short scene at the next lull; a fallen rival's pages are named in their exit scene", () => {
+    const s = game();
+    grantPage(s, 'lavender'); // won at the Hilltop auction (src/sim/auction.ts)
+    expect(s.news.at(-1)).toContain('The Lavender page comes home');
+    const page = s.scenes!.queue.find((q) => q.id === 'page-lavender')!.data!;
+    expect(page.lines!.map((l) => l.text)).toEqual(['Vera traded my Lavender page for harp lessons.', 'In 1980. She never could play.', 'High rollers love it. Try the Hilltop.']);
+    expect(page.seconds).toBeLessThanOrEqual(20);
+    expect(page.recap).toBe(s.news.at(-1)); // skipped, it leaves the page's line
+    eliminate(s, 'blenders', 'buyout'); // Strawberry and Frozen come home in Brock's exit scene, not scenes of their own
+    expect(s.scenes!.queue.map((q) => q.id).filter((id) => id.startsWith('page-'))).toEqual(['page-lavender']);
+    expect(s.scenes!.queue.find((q) => q.id === 'exit-blenders')!.data!.lines!.at(-1)!.text).toMatch(/Strawberry.*Frozen.*come home/);
+    const sb = game(2, { mode: 'sandbox' }); // Sandbox: the line, and no scene
+    grantPage(sb, 'lavender');
+    expect(sb.news.at(-1)).toContain('The Lavender page comes home');
+    expect(sb.scenes?.queue ?? []).toEqual([]);
+  });
+
   it('the next Bugle leads with a page that comes home; one from a rival gone bust at dawn makes that morning\'s', () => {
     const s = game();
     eliminate(s, 'coldbrew', 'buyout'); // at Morning Prep, after the paper
@@ -468,16 +486,22 @@ describe('Taste-Offs', () => {
     dawn(s, 14);
     ace(s);
     const rep = s.reputation, cash = s.cash;
+    s.scenes!.queue = []; // past Dex's arrival (the jump to Day 14 queued it)
     close(s);
     const r = tasteOffResult(s, 'summerFair', 1)!;
     expect(r.winner).toBe('player');
     expect(r.score).toBeCloseTo(1.2 * 1.1 * 1.1, 6);
     expect(ownedRecipes(s)).toContain('strawberry');
-    expect(s.news.some((n) => n.includes('revenge'))).toBe(true);
+    // Act 1's climax scene waits for the morning: Brock swears revenge on 101.5, and Lottie has her page back.
+    const climax = s.scenes!.queue.find((q) => q.id === 'page-strawberry')!.data!;
+    expect(climax.lines!.map((l) => [l.who, l.text])).toEqual([
+      ['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.'],
+    ]);
     expect(s.today.books!.prizes).toBeGreaterThanOrEqual(TASTE_OFF.prize); // the Ledger's prizes row (a goal's reward may share it)
     expect(s.cash - cash).toBeGreaterThan(TASTE_OFF.prize - 100); // the prize, less the day's upkeep
     expect(s.reputation).toBeGreaterThan(rep + 0.05);
     sleepUntilDawn(s);
+    expect(beginScene(s)?.id).toBe('page-strawberry'); // Act 2's first Morning Prep
     expect(calendarTraffic(s, 'player', s.plots[plot].stand!)).toBeCloseTo(0.2, 6);
     expect(calendarTraffic(s, 'player', s.plots[LOTTIES_CORNER].stand!)).toBe(0);
     dawn(s, 22);
@@ -496,6 +520,7 @@ describe('Taste-Offs', () => {
     expect(rivalStars(s, 'blenders')).toBeCloseTo(3 + 0.05 * (rivalReputationTarget(s, 'blenders') - 3) + TASTE_OFF.stars, 3); // the night's drift, then the star
     expect(worldOf(s).boosts).toEqual([{ owner: 'blenders', district: 'oldtown', from: 15, to: 21 }]);
     expect(s.news.some((n) => n.includes('Blend Shack'))).toBe(true);
+    expect(s.scenes!.queue.some((q) => q.id === 'page-strawberry')).toBe(false);
   });
 
   it('ties go to the player', () => {

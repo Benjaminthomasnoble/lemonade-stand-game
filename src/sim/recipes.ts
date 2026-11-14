@@ -14,6 +14,7 @@ import { heatWaveDay, type BreakIn, type EventsState } from './events.ts';
 import { newsroomNow, type FightNote, type Newsroom } from './media.ts';
 import { provideKidsGoal } from './happenings.ts';
 import { migrateOrders } from './vip.ts';
+import { playScene } from './scenes.ts'; // story: a page won outright plays its scene at the next lull
 
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];
 /** Classic, Pink and Mint: the 3 pages Lottie kept. */
@@ -87,7 +88,7 @@ export function pageHolder(s: GameState, id: RecipeId): PageHolder | null {
 export const isPremium = (id: RecipeId) => !RECIPES[id].start && id !== 'strawberry';
 export const premiumPages = (s: GameState) => ownedRecipes(s).filter(isPremium).length;
 
-/** Each page that comes home gets its 20-second scene; until story's scenes merge, a line in Lottie's book. */
+/** The line each page posts as it comes home (the HUD's toast; the next morning's Bugle leads with the page too). */
 const PAGE_HOME: Record<RecipeId, string> = {
   classic: '', pink: '', mint: '',
   strawberry: 'The Strawberry page comes home! Lottie: "Berries go in last. Brock never learned."',
@@ -99,15 +100,36 @@ const PAGE_HOME: Record<RecipeId, string> = {
   secretReserve: 'Lottie\'s Secret Reserve, sealed for 40 years: "Open together."',
 };
 
-/** A page comes home and becomes a recipe card. Idempotent; returns false if it was already in the book. */
-export function grantPage(s: GameState, id: RecipeId, quiet = false): boolean {
+/**
+ * The scenes for the pages the campaign wins outright, at the next lull (story's playScene; campaign only). Strawberry
+ * comes home that way only at the Summer Fair, so its scene is Act 1's climax: Brock swears revenge on 101.5. A page a
+ * fallen rival hands back gets no scene of its own: Lottie names it in their exit scene (exits.ts).
+ */
+const PAGE_SCENES: Partial<Record<RecipeId, [string, string][]>> = {
+  strawberry: [['Brock, on 101.5', "This isn't over, bro! You hear me?"], ['Lottie', 'Berries go in last, Brock. Always last.'], ['Lottie', 'Kids and tourists love it. Try the Boardwalk.']],
+  lavender: [['Lottie', 'Vera traded my Lavender page for harp lessons.'], ['Lottie', 'In 1980. She never could play.'], ['Lottie', 'High rollers love it. Try the Hilltop.']],
+};
+const SCENE_STEP = 4.2;
+
+/** A page won outright: its short scene waits for the next lull. Returns false if it won't play (Sandbox, or none). */
+export function pageScene(s: GameState, id: RecipeId): boolean {
+  const said = PAGE_SCENES[id];
+  if (!said) return false;
+  const lines = said.map(([who, text], i) => ({ who, text, at: 0.5 + i * SCENE_STEP }));
+  return playScene(s, `page-${id}`, { lines, recap: PAGE_HOME[id], seconds: lines[lines.length - 1].at + 4 });
+}
+
+/** A page comes home and becomes a recipe card. Idempotent; returns false if it was already in the book. quiet: no news
+ * (an older save catching up); scene false: the rival who held it just fell, and their exit scene names it. */
+export function grantPage(s: GameState, id: RecipeId, quiet = false, scene = true): boolean {
   const w = worldOf(s);
   if (w.pages.includes(id)) return false;
   w.pages.push(id);
   delete w.holders[id];
   if (quiet) return true;
   (w.homed ??= {})[id] = s.day + 1; // tomorrow's paper (pagesAtDawn moves overnight ones to this morning's)
-  s.news.push(PAGE_HOME[id]); // seam: story's playScene(s, 'page', { id }) after merge
+  s.news.push(PAGE_HOME[id]);
+  if (scene) pageScene(s, id);
   return true;
 }
 
@@ -121,10 +143,11 @@ export function pagesAtDawn(s: GameState): void {
 /** The pages this morning's Bugle leads with. */
 export const pagesInTheBugle = (s: GameState): RecipeId[] => RECIPE_IDS.filter((id) => s.world?.homed?.[id] === s.day);
 
-/** Called from eliminate() on every route (HQ captured, Faction Buyout, 7 days bankrupt): their pages come home. */
+/** Called from eliminate() on every route (HQ captured, Faction Buyout, 7 days bankrupt): their pages come home, named
+ * in the boss's exit scene that follows (exits.ts). */
 export function recoverPage(s: GameState, rival: RivalId): void {
   const w = worldOf(s);
-  for (const id of RECIPE_IDS) if (w.holders[id] === rival) grantPage(s, id);
+  for (const id of RECIPE_IDS) if (w.holders[id] === rival) grantPage(s, id, false, false);
 }
 
 /** A page changes hands (the Lavender auction: outbid, it moves to the winner's HQ). */

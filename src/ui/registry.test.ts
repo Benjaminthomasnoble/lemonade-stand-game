@@ -160,6 +160,7 @@ describe('the Land Registry', () => {
 
   it('shows the Lavender page on Auctions with its bid buttons, and a morning ticket while it runs', () => {
     const s = week2(57, 8);
+    s.story!.act = 5; // the campaign's auction opens Act 5
     s.cash = 1e7;
     expect(registryTabs(s)).not.toContain('auctions');
     openLavender(s);

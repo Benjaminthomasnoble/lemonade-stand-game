@@ -266,6 +266,7 @@ describe('the Ledger', () => {
   it('the Lavender page goes on the Other row: a cost of the day, not Invested', () => {
     const s = newGame(71);
     s.rank = 8;
+    s.story!.act = 5; // the campaign's auction opens Act 5
     s.cash = 1e7;
     for (const id of Object.keys(FACTIONS) as RivalId[]) s.rivals[id].cash = 0; // nobody else can bid
     openLavender(s);

@@ -5,7 +5,7 @@
 // pays what it bid, and the plot changes hands with whatever stands on it.
 // The Lavender page (Rank 8) goes through the same sealed bids as a lot of its
 // own. Pure functions over GameState, seeded like the rest of the sim.
-import { AUCTION, BUILDING_VALUE_SHARE, FACTIONS, LAVENDER, type RivalId } from './balance.ts';
+import { ACTS, AUCTION, BUILDING_VALUE_SHARE, FACTIONS, LAVENDER, type RivalId } from './balance.ts';
 import { BORDERS, LOTTIES_CORNER, PLOT_BY_ID, PLOTS, type FactionId } from './map.ts';
 import { nextRandom, randomRange, type Rng } from './rng.ts';
 import type { Blocker, GameState } from './economy.ts';
@@ -13,7 +13,7 @@ import { hasFoothold, rivalPrice } from './economy.ts';
 import { FIRE_SALE, familySilver, handOverKept, hqPlot } from './rivals.ts';
 import { isWrecked, NO_DEFENSE } from './crew.ts';
 import { announceControl, inPlay } from './land.ts';
-import { checkVictory } from './modes.ts';
+import { actOf, checkVictory } from './modes.ts';
 import { grantPage, movePage, pageHolder } from './recipes.ts';
 import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
@@ -349,14 +349,18 @@ function pageOnSale(s: GameState): boolean {
 /** The Lavender page's open auction, while the page is still for sale (the Registry shows the lot only then). */
 export const lavenderLot = (s: GameState): Auction | undefined => (pageOnSale(s) ? s.lavender?.auction : undefined);
 
+/** The campaign's Act 5, The Big Squeeze: the Lavender auction is its opening beat. */
+const LAVENDER_ACT = ACTS.length;
+
 /**
  * From the first dawn at Rank 8: Vera's old harp teacher swaps her Hilltop
- * estate for a houseboat and auctions the Lavender page, once a game. Sealed
- * bids for 24 game hours, open to every faction; with no bids it runs again
- * the next day.
+ * estate for a houseboat and auctions the Lavender page, once a game. In the
+ * campaign it opens Act 5, so Rank 8 in Act 4 waits for FizzCo Tower to fall;
+ * Sandbox and Endless go by rank alone. Sealed bids for 24 game hours, open to
+ * every faction; with no bids it runs again the next day.
  */
 export function openLavender(s: GameState): void {
-  if (s.rank < LAVENDER.rank || s.lavender?.auction || !pageOnSale(s)) return;
+  if (s.rank < LAVENDER.rank || (s.settings.mode === 'campaign' && actOf(s) < LAVENDER_ACT) || s.lavender?.auction || !pageOnSale(s)) return;
   const first = !s.lavender;
   (s.lavender ??= {}).auction = { kind: 'page', closes: s.day + 1, min: LAVENDER.open };
   const who = inPlay(s, 'sourwood') ? "Vera's old harp teacher is swapping her Hilltop estate" : 'An old harp teacher is swapping her estate'; // a Sandbox without Vera (or the Hilltop)

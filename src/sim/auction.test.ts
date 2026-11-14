@@ -457,10 +457,11 @@ describe('selling a plot', () => {
 });
 
 describe('the Lavender page auction', () => {
-  /** A Rank 8 morning with the page on the block and only these rivals able to bid. */
+  /** A Rank 8 morning in Act 5 with the page on the block and only these rivals able to bid. */
   function lavender(seed: number, cash: Partial<Record<RivalId, number>>) {
     const s = newGame(seed);
     s.rank = 8;
+    s.story!.act = 5; // the campaign's auction opens Act 5 (a test shortcut: FizzCo still stands to bid)
     s.cash = 1e7;
     purse(s, cash);
     openLavender(s);
@@ -470,6 +471,7 @@ describe('the Lavender page auction', () => {
 
   it('opens on the first dawn at Rank 8, once, for 24 game hours of sealed bids from its opening bid', () => {
     const s = newGame(70);
+    s.story!.act = 5; // the Big Squeeze
     s.rank = 7;
     dawn(s);
     expect(s.lavender).toBeUndefined();
@@ -483,6 +485,27 @@ describe('the Lavender page auction', () => {
     expect(s.lavender?.auction?.bid).toBe(1_500_000);
     expect(withdrawBid(s, LAVENDER_LOT)).toBe(true);
     expect(s.lavender?.auction?.bid).toBeUndefined();
+  });
+
+  it('in the campaign it opens Act 5: Rank 8 in Act 4 waits for FizzCo Tower to fall; Sandbox and Endless go by rank alone', () => {
+    const c = newGame(77);
+    c.rank = LAVENDER.rank;
+    c.story!.act = 4; // Rank 8 with FizzCo Tower still standing
+    dawn(c);
+    expect(c.story!.act).toBe(4);
+    expect(c.lavender).toBeUndefined();
+    c.story!.act = 5; // the Tower fell: Act 5 opens with the auction
+    dawn(c);
+    expect(c.lavender?.auction).toEqual({ kind: 'page', closes: c.day + 1, min: LAVENDER.open });
+    for (const mode of ['sandbox', 'endless'] as const) {
+      const s = newGame(77, { mode });
+      s.rank = LAVENDER.rank - 1;
+      openLavender(s);
+      expect(s.lavender, mode).toBeUndefined();
+      s.rank = LAVENDER.rank; // Rank 8 alone, whatever act its rank reads as
+      openLavender(s);
+      expect(s.lavender?.auction, mode).toEqual({ kind: 'page', closes: s.day + 1, min: LAVENDER.open });
+    }
   });
 
   it('the rivals push the winning bid to about $1,500,000', () => {

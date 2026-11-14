@@ -44,14 +44,12 @@ export function storyOffer(s: GameState): { from: RivalId; cost: number; why?: s
   return { from: o.from, cost: truceCost(s, o.from), ...(can.ok ? {} : { why: can.why }) };
 }
 
-/** Shake on it (the Truce, for the tribute: recorded for Juni's invoice) or turn him down. Either way it's a Sit-down. */
+/** Shake on it (the Truce, for the tribute: makeTruce puts it on Juni's invoice) or turn him down. Either way it's a Sit-down. */
 export function answerOffer(s: GameState, accept: boolean): boolean {
   const st = s.story, o = st?.offer;
   if (!st || !o || !storyOffer(s)) return false;
   if (accept) {
-    const cost = truceCost(s, o.from);
     if (!makeTruce(s, o.from)) return false;
-    st.tribute = (st.tribute ?? 0) + cost;
   } else s.news.push(`Preston: "${LINES.prestonLater}"`);
   delete st.offer;
   s.news.push(SITDOWN_LESSON);

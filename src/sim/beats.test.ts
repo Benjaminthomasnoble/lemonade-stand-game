@@ -12,7 +12,7 @@ import { exitScene, FINALE, INVOICE } from './exits.ts';
 import { ceaseAndDesist } from './schemes.ts';
 import { goalsNow } from './goals.ts';
 import { juniTips, LINES, takeCall } from './phone.ts';
-import { eliminate, hqPlot, inTruce, truceCost } from './rivals.ts';
+import { eliminate, hqPlot, inTruce, makeTruce, truceCost } from './rivals.ts';
 import { beginScene, endScene, migrateScenes, playScene, replyScene, sceneDef, sceneReady, SPEAKERS } from './scenes.ts';
 import { acceptOrder, buildFacility, ORDER_TIERS, orderRecipe, stockBottles, VIP_MAX_GAP, type Order } from './vip.ts';
 import { bennyPitch, lottieStocks, migrateStory, storyAfterAct, storyAtDawn, storyHeadline, taught } from './story.ts';
@@ -554,6 +554,22 @@ describe('Act 3: the handshake and the night flight', () => {
     expect(s.news).toContain('Lottie: "That\'s a Sit-down, kid. Call one yourself from any boss\'s HQ card."');
     expect(storyOffer(s)).toBeNull();
     expect(exitScene(s, 'coldbrew', 'hq').lines.some((l) => l.text.includes(`your $${offer.cost.toLocaleString('en-US')} Truce`))).toBe(true);
+  });
+
+  it("a Truce you call with FizzCo yourself, from the HQ card, goes on Juni's invoice too", () => {
+    const s = act3(107);
+    const cost = truceCost(s, 'fizzco');
+    expect(makeTruce(s, 'fizzco')).toBe(true);
+    expect(s.story!.tribute).toBe(cost);
+    expect(exitScene(s, 'coldbrew', 'hq').lines.map((l) => l.text)).toContain(`Line two: your $${cost.toLocaleString('en-US')} Truce. You paid for it too.`);
+    const brock = act3(108); // a Truce with another boss isn't FizzCo's to bill
+    expect(makeTruce(brock, 'blenders')).toBe(true);
+    expect(brock.story!.tribute).toBeUndefined();
+    const sandbox = newGame(109, { mode: 'sandbox' });
+    sandbox.rank = 4;
+    sandbox.cash = 50000;
+    expect(makeTruce(sandbox, 'fizzco')).toBe(true);
+    expect(sandbox.story?.tribute).toBeUndefined();
   });
 
   it('a No, an offer left standing, Rank 3 or another mode: no Truce, and he asks once a run', () => {

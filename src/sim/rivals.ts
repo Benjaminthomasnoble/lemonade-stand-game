@@ -11,7 +11,7 @@ import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { bump, checkVictory, peaceful } from './modes.ts';
 import { recoverPage } from './recipes.ts';
 import { retireJingle } from './radio.ts';
-import { bossExit } from './exits.ts';
+import { bossExit, noteTribute } from './exits.ts';
 import { tillyFieldRate, tillyWaits } from './calendar.ts';
 import { nextRandom, type Rng } from './rng.ts';
 import { endSchemes, historicHedges, landFrozen } from './schemes.ts';
@@ -387,6 +387,7 @@ export function makeTruce(s: GameState, id: RivalId): boolean {
   r.respectUntil = Math.max(r.respectUntil, r.truceUntil + 1);
   s.raids = s.raids.filter((x) => !(x.attacker === id && s.plots[x.target].owner === 'player'));
   s.news.push(`Handshake at Dot's Diner: a ${TRUCE_DAYS}-day truce with ${FACTIONS[id].name} for ${money(cost)} tribute.`);
+  noteTribute(s, id, cost); // story: a tribute to FizzCo goes on Juni's invoice (exits.ts)
   return true;
 }
 

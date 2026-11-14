@@ -118,6 +118,12 @@ export function exitScene(s: GameState, id: RivalId, how: ExitRoute): { lines: S
   return { lines: timed([[e.who, e.first[how]], ...rest, ...homeLine(s)]), recap };
 }
 
+/** A Truce with FizzCo (one line in rivals.ts makeTruce: Preston's own offer, or one you call from the HQ card): in the
+ * campaign its tribute goes on Juni's invoice. */
+export function noteTribute(s: GameState, id: RivalId, cost: number): void {
+  if (id === 'fizzco' && hasStory(s)) s.story!.tribute = (s.story!.tribute ?? 0) + cost;
+}
+
 /** A boss is out (one line in rivals.ts eliminate()): their exit scene waits for the next lull, in every mode. */
 export function bossExit(s: GameState, id: RivalId, how: ExitRoute): void {
   const { lines, recap, replies } = exitScene(s, id, how);

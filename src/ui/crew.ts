@@ -15,6 +15,7 @@ import { nextClubhouse, type ClubKit } from './clubhouse.ts';
 import { heldNote } from './captives.ts';
 import { glyph } from './clay.ts';
 import { hireFee } from '../sim/perks.ts';
+import { menuUnlocked } from './menus.ts';
 
 /** Each specialty's badge: a watchtower for the Lookout, a boom for the Wrecker, a star for the Captain. */
 const SPECIALTY_ART: Record<Specialty, (k: Kit) => string> = { lookout: (k) => k.ART.tower(), wrecker: (k) => k.ART.boom(), captain: (k) => k.ART.star(true) };
@@ -96,6 +97,16 @@ export function crewPanel(k: Kit, s: GameState): string {
   return `<div class="cl-crew"><span class="cl-label">${crewField(s)} ${s.guards.length}/${rosterCap(s)}</span><div class="cl-faces">${s.guards.map((g) => guardRow(k, s, g)).join('')}</div>
       ${recruits ? `<span class="cl-label">Hiring Hall</span><div class="cl-faces">${recruits}</div>` : ''}
       ${nextClubhouse(clubKit(k), s)}</div>`;
+}
+
+/** The Hiring Hall, the Old Town civic plot (src/sim/map.ts) where you hire. */
+export const HIRING_HALL = PLOTS.find((p) => p.name === 'The Hiring Hall')!.id;
+
+/** The Hiring Hall plot card's button: from Rank 2 and the crew lesson, it opens the Crew roster and its recruits. */
+export function hiringHallButton(k: Kit, s: GameState): string {
+  if (s.rank < HIRE_RANK || !taught(s, 'crew') || !menuUnlocked(s, 'crew')) return '';
+  const n = s.recruits.length;
+  return k.btn('menu', 'Hire', { ok: true }, `data-menu="crew" data-testid="open-hiring-hall" title="${n} recruit${n === 1 ? '' : 's'}"`, 'go');
 }
 
 /** The whole Defend sheet for the selected plot. */

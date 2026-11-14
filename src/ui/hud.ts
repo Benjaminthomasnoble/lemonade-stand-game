@@ -62,7 +62,7 @@ import { fitGarrison, henchmenOut } from '../sim/garrison.ts';
 import { keptNote, plotBuyoutRow, sitDown, sitdownAction } from './sitdown.ts';
 import { fightBar } from './fight.ts';
 import { bottleStock, matchButton, orderGoods, orderTicket } from './orders.ts';
-import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace } from './crew.ts';
+import { clubKit, crewPanel, crewSheet, defenseSheet, guardFace, HIRING_HALL, hiringHallButton } from './crew.ts';
 import { createRaidPlanner, templatesSwitch } from './raidPlanner.ts';
 import {
   auctionControls, landNotes, landTickets, listingControls, priceTip, registryButton, registryScreen, sellPlotButton, TOWN_HALL, type RegistryTab,
@@ -881,6 +881,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     if (ps.owner === 'player') actions += listingControls(s, id);
     if (id === TOWN_HALL) actions += registryButton(s);
+    if (id === HIRING_HALL) actions += hiringHallButton(kit, s); // crew: hire here (the Crew roster's Hiring Hall)
     const dibs = ps.dibs?.who === 'player' && ps.dibs.until >= s.day ? `<span class="cl-note good" title="Only you can buy it ${ps.dibs.until > s.day ? `through day ${ps.dibs.until}` : 'today'}">${ps.dibs.price !== undefined ? `${ps.dibs.table ? 'Side lot' : 'Fire Sale'} ${whole(plotPrice(s, id))}!` : 'First Dibs!'}</span>` : '';
     return `<div class="cl-plot" data-testid="plotcard">
       <div class="cl-plot-head" title="${esc(tip)}"><span class="cl-dot" style="background:${ownerColor(ps.owner)}"></span>${tape(esc(cornerName(s, id) ?? p.name))}<button class="cl-x" data-action="close-plot" aria-label="Close">${A.glyph('close')}</button></div>

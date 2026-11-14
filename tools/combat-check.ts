@@ -35,7 +35,7 @@ for (const tier of [4, 5]) {
   console.log(`  T4 raids (8-12) vs kitted L5 (P${tier}, 5 L1 hatchets+Pro, goose/slick/sprinkler): defense holds ${pct(holds / runs)} (want ~75%)`);
 }
 
-console.log('Weapon checks (spec: 19 s, 75 s, no Smash in 60 min, 16 s)');
+console.log('Weapon checks (spec: 19 s, about 74 s, no Smash in 60 min, 16 s)');
 const breachTime = (weapon: WeaponId, k: number) => {
   const r = runBattle(fight({ attackers: guards(k, 'att', weapon), perimeter: 2, fenceHp: 2500, standHp: STAND_HP[4] }), { seed: 1 });
   return r.events.find((e) => e.type === 'breach')?.t;

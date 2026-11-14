@@ -1201,7 +1201,7 @@ export function offerSideLot(s: GameState): void {
   s.news.push('Lottie: "Two tables, twice the trouble. You\'ll love it."');
 }
 
-/** Dex Moody, the first guard, joins free on Day 6 (when raids can start), whatever your rank: once a run. */
+/** Dex Moody, the first guard, joins free on Day 4 (LESSON_DAY.crew), whatever your rank: once a run. */
 export function welcomeDex(s: GameState): void {
   if (s.story?.dexJoined || s.guards.some((g) => g.name === 'Dex Moody') || s.nextId > 1e6) return;
   const rng = { seed: 77 };

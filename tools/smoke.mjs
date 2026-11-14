@@ -38,10 +38,10 @@ try {
   await page.waitForSelector('[data-testid="prep"]');
   console.log('backend:', await page.evaluate(() => window.__game.backend));
 
-  // Days 1-2: Lottie stocks the table, and the Market waits for Day 3's lesson.
+  // Day 1: Lottie stocks the table, and the Market waits for Day 2's lesson (LESSON_DAY.market).
   const stocked = await page.evaluate(() => { const st = window.__game.state.plots[window.__game.state.selected].stand; return st.inventory.lemons.length > 0 && st.inventory.sugar > 0 && st.inventory.ice > 0; });
   if (!stocked) fail('Lottie did not stock the table on Day 1');
-  if (await page.$('[data-action="buy"]')) fail('the Market shows before Day 3');
+  if (await page.$('[data-action="buy"]')) fail('the Market shows on Day 1');
   await page.screenshot({ path: 'test-results/1-prep.png' });
   await page.click('[data-testid="open"]');
   await page.waitForSelector('[data-testid="daybar"]');
@@ -65,7 +65,7 @@ try {
   await page.waitForSelector('body[data-ready="1"]');
   const day = await page.evaluate(() => window.__game.state.day);
   if (day !== 2) fail(`save did not persist (day ${day})`);
-  // Milestone 2: upgrade the stand through the UI, then look at every level. Before Day 4's lesson the Grow tab
+  // Milestone 2: upgrade the stand through the UI, then look at every level. Before Day 5's lesson (LESSON_DAY.upgrade) the Grow tab
   // is hidden, and tapping your own stand answers with its upgrade.
   await page.evaluate(() => { const g = window.__game; g.state.cash = 600; g.act({ type: 'inspect', plot: g.state.selected }); });
   await page.click('[data-testid="plotcard"] [data-testid="upgrade"]');

@@ -46,7 +46,7 @@ export const isFullMenu = (m: MenuView | null): boolean => !!m && m !== 'goals' 
 export function menuUnlocked(s: GameState, id: MenuId): boolean {
   switch (id) {
     case 'ledger': return s.history.length > 0; // after the first day's books
-    case 'crew': return s.guards.length > 0 || (s.recruits.length > 0 && taught(s, 'crew')); // the Hiring Hall waits for Day 6's lesson
+    case 'crew': return s.guards.length > 0 || (s.recruits.length > 0 && taught(s, 'crew')); // the Hiring Hall waits for the crew lesson (LESSON_DAY.crew, Day 4)
     case 'planner': return s.rank >= RAID_RANK && !peaceful(s) && s.guards.length > 0;
     case 'corkboard': return s.day >= 2 || s.battles.length > 0;
     case 'orders': return s.offers.length + s.orders.length > 0 || s.rank >= ORDER_TIERS.local.rank;

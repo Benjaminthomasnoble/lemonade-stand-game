@@ -49,7 +49,7 @@ function playDay(s: GameState) {
 }
 
 describe('crew and raids', () => {
-  it('Dex joins free and the Hiring Hall opens at Rank 2', () => { // he joins on Day 6 (story.test.ts)
+  it('Dex joins free and the Hiring Hall opens at Rank 2', () => { // he joins on Day 4 (story.test.ts)
     const s = newGame(5);
     expect(s.guards).toHaveLength(0);
     s.rank = 2;

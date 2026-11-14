@@ -51,7 +51,7 @@ describe('economy', () => {
   });
 
   it('buying supplies costs cash and respects storage', () => {
-    const s = newGame(1, { lessons: false }); // lessons on, Lottie stocks the table on Days 1-2 (story.test.ts)
+    const s = newGame(1, { lessons: false }); // lessons on, Lottie stocks the table on Day 1 (story.test.ts)
     const st = selectedStand(s);
     expect(buySupply(s, 'lemons', 1)).toBe(true);
     expect(stock(st, 'lemons')).toBe(20);

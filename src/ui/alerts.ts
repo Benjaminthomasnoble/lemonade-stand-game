@@ -69,7 +69,7 @@ function card(s: GameState, a: Alert): string {
   const vip = a.kind === 'vip' || a.kind === 'pickup';
   const icon = a.kind === 'soldout' ? ICON.empty() : vip ? ICON.crate() : ICON.lemon();
   // The one action: Restock now on a sold-out stand while the stands are open (no supplies after closing) and once the
-  // Market opens (Day 3's lesson); Watch on a VIP card (a first arrival's show waits for it).
+  // Market opens (LESSON_DAY.market, Day 2); Watch on a VIP card (a first arrival's show waits for it).
   const act = a.kind === 'soldout' && a.plot && s.phase === 'open' && taught(s, 'market') ? btn('restockNow', 'Restock now', `data-plot="${a.plot}"`, 'tiny go')
     : vip && a.scene ? btn('watch', `${A.glyph('play')} Watch`, `data-id="${a.id}" data-testid="vip-watch"`, a.kind === 'vip' ? 'tiny go' : 'tiny') : '';
   return `<div class="cl-ticket" title="${esc(a.text)}">${icon}<b>${esc(a.text.replace(/!$/, ''))}</b>

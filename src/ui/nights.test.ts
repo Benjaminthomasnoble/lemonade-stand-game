@@ -169,7 +169,7 @@ describe('a sold-out card', () => {
     const s = newGame(5);
     openStands(s);
     alert(s, { kind: 'soldout', text: "Sold out at Lottie's Corner!", plot: LOTTIES_CORNER });
-    expect(alertCards(s)[0]).not.toContain('restockNow'); // Days 1-2: Lottie stocks you; the Market opens on Day 3
+    expect(alertCards(s)[0]).not.toContain('restockNow'); // Day 1: Lottie stocks you; the Market opens on Day 2 (LESSON_DAY.market)
     s.day = LESSON_DAY.market;
     s.alerts!.forEach((a) => (a.day = s.day));
     expect(alertCards(s)[0]).toContain('data-action="restockNow"');

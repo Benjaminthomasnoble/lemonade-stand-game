@@ -122,18 +122,18 @@ export const STEPS: Step[] = [
   { id: 'd2-recipe', when: (s) => s.day >= LESSON_DAY.recipes && s.phase === 'prep', at: '.cl-recipe', say: 'Try each pitcher. Watch the faces.', doneOnClick: '[data-action="recipe"],[data-action="sweet"]', tap: 'Got it' },
   { id: 'd2-rivals', when: (s) => s.day >= 2 && s.phase === 'open' && !!rivalNear(s), plot: (s) => rivalNear(s)?.plot ?? null, camera: 'plot', say: (s) => `${rivalName(s)} want your customers.`, tap: 'Not today!', mood: 'grumpy' },
 
-  // Day 3: Auto-Restock and the side lot.
+  // Days 2-3: Auto-Restock (the Market's lesson, Day 2) and the side lot (Day 3).
   { id: 'd3-auto', when: (s) => s.phase === 'prep', at: '.cl-auto', say: 'Tap Auto. I buy supplies for you.', done: (s) => supplied(s), doneOnClick: '[data-action="restock"]', tap: 'Later' },
   { id: 'd3-lot', when: (s) => s.phase === 'prep' && !!sideLot(s), plot: sideLot, camera: 'plot', say: 'My side lot. Tap it, kid!', done: (s) => !sideLot(s), doneOnClick: '[data-testid="plotcard"]', tap: 'Later' },
   { id: 'd3-buy', when: (s) => s.phase === 'prep', at: '[data-testid="plotcard"] [data-testid="buy-plot"]', say: 'Buy it. Two stands, double sales.', doneOnClick: '[data-testid="buy-plot"]', tap: 'Later' },
   { id: 'd3-picker', when: (s) => s.phase === 'prep', at: '.cl-picker', say: 'Two stands! Tap to switch between.', doneOnClick: '.cl-picker [data-action="select"]', tap: 'Got it' },
 
-  // Day 4: Grow and the Rank badge.
+  // Day 5: Grow and the Rank badge (LESSON_DAY.upgrade and .rank).
   { id: 'd4-grow', when: (s) => s.phase === 'prep', at: '[data-testid="tab-grow"]', say: 'Grow tab! Build a bigger stand.', done: (_s, e) => e.has('[data-testid="tab-grow"].on'), doneOnClick: '[data-testid="tab-grow"]', tap: 'Later' },
   { id: 'd4-upgrade', when: (s) => s.phase === 'prep', at: '[data-testid="upgrade"]', say: 'Bigger stand, more customers.', doneOnClick: '[data-testid="upgrade"]', tap: 'Got it' },
   { id: 'd4-rank', when: () => true, at: '.cl-left .cl-rank', say: 'Your rank. It unlocks new stuff.', tap: 'Got it' },
 
-  // Day 5 on: trouble, fences and Dex.
+  // Day 3 on: trouble and fences (LESSON_DAY.threat and .defense), then Dex (Day 4) and the sign (Day 6).
   { id: 'd5-threat', when: () => true, at: '[data-testid="threat"]', say: 'Sour lemons: how mad the gangs are.', tap: 'Yikes', mood: 'grumpy' },
   { id: 'd5-defend', when: (s) => s.phase === 'prep', at: '[data-testid="tab-crew"]', say: 'Trouble coming. Defend tab!', done: (_s, e) => e.has('[data-testid="tab-crew"].on'), doneOnClick: '[data-testid="tab-crew"]', tap: 'Later', mood: 'grumpy' },
   { id: 'd5-fence', when: (s) => s.phase === 'prep', at: '[data-testid="perimeter"]', say: 'A fence keeps raiders out.', doneOnClick: '[data-testid="perimeter"]', tap: 'Got it' },

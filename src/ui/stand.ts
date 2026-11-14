@@ -129,7 +129,7 @@ const SWEET: Sweetness[] = ['less', 'classic', 'extra'];
  * The mid-day nudges (spec: Nudge anything mid-day, and the stand panel answers within seconds): the morning
  * dock's card pitchers, Sweetness cubes, price tag and supply buttons, for the stand you're managing. Supplies
  * cost today's Market price, and a button wobbles when the stand will run dry before closing; like the dock's,
- * they wait for the Market's lesson (Lottie stocks your table on Days 1-2). Upgrades and land stay Morning Prep only.
+ * they wait for the Market's lesson (LESSON_DAY.market, Day 2; Lottie stocks your table on Day 1). Upgrades and land stay Morning Prep only.
  */
 function nudges(s: GameState, plotId: string, c: DemandChain): string {
   const st = s.plots[plotId].stand!;

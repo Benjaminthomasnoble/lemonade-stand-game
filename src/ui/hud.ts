@@ -646,7 +646,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
   }
 
   // ---------- the morning: tabs, stand picker, Grow/Defend sheets and the wooden dock ----------
-  /** Defend opens with Day 5's lesson; with lessons off it follows rank, and the Picket Fence is a Rank 1 unlock. */
+  /** Defend opens with the defense lesson (LESSON_DAY.defense, Day 3); with lessons off it follows rank, and the Picket Fence is a Rank 1 unlock. */
   function defendOpen(s: GameState) {
     return taught(s, 'defense') || s.battles.length > 0 || playerStands(s).some((p) => s.plots[p.id].defense.tier > 0);
   }

@@ -748,7 +748,7 @@ describe("Kids' Lemonade Day", () => {
     expect(kidStandCard(s, kid)).toContain('data-testid="kid-stand"');
     expect(kidStandCard(s, kid)).not.toContain('kid-raid'); // hidden while raids are locked
     s.rank = RAID_RANK;
-    const crew = s.guards; // Dex, who joined on Day 6 (once a run: src/sim/crew.ts welcomeDex)
+    const crew = s.guards; // Dex, who joined on Day 4 (once a run: src/sim/crew.ts welcomeDex)
     s.guards = [];
     expect(canRaidKids(s, kid)).toEqual({ ok: false, why: 'No guards free' });
     s.guards = crew;

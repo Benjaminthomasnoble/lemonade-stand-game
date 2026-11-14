@@ -430,8 +430,9 @@ function recordDay(s: GameState): void {
 }
 
 /**
- * After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Days 1–2 gets
- * Lottie's stock; the first brand tier brings Benny Buzz to paint the sign (his scene, at the next lull).
+ * After anything the player does (main.ts): a goal met by a purchase ticks off at once; a new table on Day 1 (before
+ * the Market's lesson) gets Lottie's stock; the first brand tier brings Benny Buzz to paint the sign (his scene, at
+ * the next lull).
  */
 export function storyAfterAct(s: GameState): void {
   lottieStocksStands(s);

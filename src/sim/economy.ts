@@ -52,6 +52,7 @@ import {
   announceControl, development, inPlay, isPurchasable, landAtDawn, majorityDiscount, migrateLand, reachBlocker, settleMap, type ControlTier, type PerkId,
 } from './land.ts';
 import type { Auction, Lavender } from './auction.ts';
+import type { DistrictPolicy } from './policies.ts';
 import type { SyndicateState } from './syndicate.ts';
 import type { SqueezeState } from './squeeze.ts';
 
@@ -141,6 +142,7 @@ export interface PlotState {
   repair?: Repair; // a Damaged building's repair: paid on approval, done by dawn (damage.ts)
   noAutoRepair?: boolean; // Auto-Repair (Rank 3) skips this plot of yours (damage.ts)
   inspected?: Inspection; // land: the health inspector's visit to your stand here, and what failed it (closed until dawn: damage.ts)
+  noPolicy?: boolean; // land: this plot of yours opts out of its district's policy (policies.ts)
   dibs?: { who: FactionId; until: number; price?: number; table?: boolean }; // First Dibs after a smash or a Fire Sale: only they can buy until this day
   kept?: KeptBuilding; // rivals: a bought-out rival's building, waiting on its Fire Sale plot for whoever buys it (rivals.ts eliminate)
   wreckedDay?: number; // day the stand or facility here was smashed
@@ -292,6 +294,7 @@ export interface GameState {
   perksLost?: PerkId[]; // Full Control perks that switched off and aren't back yet
   everyLastPlotEarned?: { day: number; bugled?: true }; // land: the day Every Last Plot was earned (bugled: the Bugle has led with it)
   lavender?: Lavender; // the Lavender page auction (Rank 8) and who won it
+  policies?: Partial<Record<DistrictId, DistrictPolicy>>; // land: each district's policy, from Rank 7 (policies.ts)
   calls?: CallsState; // today's day calls (calls.ts)
   lastRaidOnYou?: number; // the last night a raid on you was planned (threat.ts caps the quiet nights in a row)
   tutorialRaidDone?: boolean; // the scripted first raid on you has been fought (threat.ts): it never comes again
@@ -987,7 +990,8 @@ export function plotPrice(s: GameState, plotId: string): number {
   return Math.round(base * majorityDiscount(s, PLOT_BY_ID[plotId].district) * familySilver(s) * goodDirt(s)); // Good Dirt: 10% off (perks.ts)
 }
 
-export function buyPlot(s: GameState, plotId: string): boolean {
+/** `quiet`: a district policy's purchase, which gets one headline for the district (policies.ts). */
+export function buyPlot(s: GameState, plotId: string, quiet = false): boolean {
   if (!canBuyPlot(s, plotId).ok) return false;
   if (historicHedges(s, plotId)) return false; // rivals: Act 5, the Mayor freezes your first Hilltop deal
   const ps = s.plots[plotId];
@@ -997,7 +1001,7 @@ export function buyPlot(s: GameState, plotId: string): boolean {
   if (ps.dibs?.table && !ps.stand) { ps.stand = newStand(1); ps.stand.price = priceCeiling(s, plotId); ps.invested += STAND_LEVELS[0].cost; }
   handOverKept(s, plotId, 'player'); // rivals: a bought-out rival's building comes with its Fire Sale plot
   delete ps.dibs;
-  s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
+  if (!quiet) s.news.push(`Skip Larkin: "Congratulations, you now own ${PLOT_BY_ID[plotId].name}!"`);
   announceControl(s);
   checkVictory(s);
   return true;
@@ -1026,7 +1030,8 @@ export function canBuildStand(s: GameState, plotId: string, level = 1): Blocker 
   return { ok: true };
 }
 
-export function buildStand(s: GameState, plotId: string, level = 1): boolean {
+/** `quiet`: a district policy's build, which leaves the stand you manage picked and gets one headline (policies.ts). */
+export function buildStand(s: GameState, plotId: string, level = 1, quiet = false): boolean {
   if (!canBuildStand(s, plotId, level).ok) return false;
   const ps = s.plots[plotId];
   const cost = standCost(level);
@@ -1034,6 +1039,7 @@ export function buildStand(s: GameState, plotId: string, level = 1): boolean {
   ps.stand = newStand(level); // at full HP, with its level's draw, pour, top price and stock cap from the next minute
   ps.stand.price = priceCeiling(s, plotId); // a new stand opens at its ceiling
   ps.invested += cost;
+  if (quiet) return true;
   s.selected = plotId;
   s.news.push(`A brand-new ${STAND_LEVELS[level - 1].name.replace(/^The /, '')} opens at ${PLOT_BY_ID[plotId].name}!`);
   return true;

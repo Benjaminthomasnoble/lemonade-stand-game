@@ -13,6 +13,7 @@ import {
 } from '../sim/economy.ts';
 import { taught } from '../sim/story.ts';
 import * as A from './clay.ts';
+import { policyRow } from './policies.ts';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const meter = (v: number) => `<span class="cl-snake" style="--v:${Math.max(0, Math.min(1, v)).toFixed(3)}"><i></i></span>`;
@@ -250,7 +251,7 @@ function mineTab(s: GameState): string {
   for (const d of mapDistricts(s)) {
     const mine = PLOTS.filter((p) => p.district === d.id && p.type !== 'civic' && s.plots[p.id].owner === 'player');
     if (!mine.length) continue;
-    rows.push(districtRow(s, d.id));
+    rows.push(districtRow(s, d.id) + policyRow(s, d.id)); // the district's policy, from Rank 7 (src/ui/policies.ts)
     for (const p of mine) {
       rows.push(row(goTo(s, p.id), holding(s, p.id) + sellCell(s, p.id)));
       count++;

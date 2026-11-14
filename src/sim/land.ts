@@ -11,6 +11,7 @@ import { hasFoothold, standCost } from './economy.ts';
 import { districtControl } from './modes.ts';
 import { closeAuctions, openLavender } from './auction.ts';
 import { book, stockValue } from './ledger.ts';
+import { migratePolicies, policiesAtDawn } from './policies.ts';
 
 // ---------- the map (spec: Sandbox: Turf War) ----------
 
@@ -202,8 +203,8 @@ export function awardEveryLastPlot(s: GameState): void {
 
 // ---------- dawn and saves ----------
 
-/** At dawn, after the day's stats reset: auctions due close, then any control change gets its headline, and Every
- * Last Plot its front page. */
+/** At dawn, after the day's stats reset: auctions due close, then any control change gets its headline, Every Last
+ * Plot its front page, and the district policies go to work. */
 export function landAtDawn(s: GameState): void {
   closeAuctions(s);
   openLavender(s);
@@ -211,12 +212,14 @@ export function landAtDawn(s: GameState): void {
   awardEveryLastPlot(s);
   const e = s.everyLastPlotEarned;
   if (e && !e.bugled) { e.bugled = true; s.news.push(EVERY_LAST_PLOT_HEADLINE); }
+  policiesAtDawn(s); // district policies steer the helpers before they run (policies.ts)
 }
 
 /** Fill in what older saves lack (idempotent; migrateSave calls it on every load). */
 export function migrateLand(s: GameState): void {
   s.control ??= controlSnapshot(s);
   clearTrophyStands(s);
+  migratePolicies(s);
 }
 
 /**

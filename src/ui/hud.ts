@@ -72,6 +72,8 @@ import { isScouted } from '../sim/scouting.ts';
 import { pickSandbox, sandboxPanel, scoreTag } from './sandbox.ts';
 import { bankTicket } from './bank.ts'; // land: Marisol's bank after the morning
 import { bulkAction, bulkCards, pickBulk } from './bulk.ts'; // land: bulk orders on the Grow tab (Rank 3)
+import { policyAction, policyCards, policyToggle } from './policies.ts'; // land: district policies (Rank 7)
+import type { DistrictId, PolicyKind } from '../sim/economy.ts';
 
 export type Action =
   | { type: 'buy'; id: SupplyId; packs: number }
@@ -147,6 +149,8 @@ export type Action =
   | { type: 'ledger' } // unfold the Ledger again
   | { type: 'goto'; plot: string } // an alert card's Go There
   | { type: 'bulk'; order: BulkOrder } // land: a bulk order's Go (src/ui/bulk.ts)
+  | { type: 'policy'; district: DistrictId; kind: PolicyKind | null; budget?: number } // land: a district's policy (src/ui/policies.ts)
+  | { type: 'policyPlot'; plot: string } // land: one plot in or out of its district's policy
   | { type: 'dismiss'; id: string } // put an alert card away
   | { type: 'restockNow'; plot: string } // a sold-out card's one action
   | { type: 'watch'; id: string } // a VIP card's Watch: fly there and play the arrival
@@ -474,6 +478,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
       case 'negotiator': case 'haggle': onAction(sitdownAction(d)); break;
       case 'bulkPick': pickBulk(d); redraw(); break; // land: a bulk order's job, group or budget (src/ui/bulk.ts)
       case 'bulk': onAction(bulkAction(d)); break;
+      case 'policy': case 'policyPlot': onAction(policyAction(d)); break; // land: district policies (src/ui/policies.ts)
       case 'takeover': onAction({ type: 'takeover', plot: d.plot!, sell: d.sell === '1' }); break;
       case 'sleep': books = false; onAction({ type: 'sleep' }); break;
       case 'night': books = false; onAction({ type: 'night' }); break;
@@ -733,6 +738,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     out.push(...specCards(kit, s)); // specializations: a card for each open slot at this stand (src/ui/specializations.ts)
     out.push(...campaignCards(kit, s)); // local campaigns: this stand's and its district's (src/ui/marketing.ts)
     out.push(...bulkCards(kit, s)); // land: bulk orders from Rank 3, such as every Kiosk you can afford (src/ui/bulk.ts)
+    out.push(...policyCards(kit, s)); // land: this district's policy from Rank 7 (src/ui/policies.ts)
     const nb = BRAND_TIERS[s.brandTier], bb = canBuyBrand(s);
     if (nb && !locked(bb) && taught(s, 'marketing')) out.push(card(ART.megaphone(), nb.name, 'every stand', btn('brand', whole(nb.cost), bb, 'data-testid="brand"'), `Benny: "${bennyPitch(nb.tier)}"\n+${Math.round(nb.traffic * 100)}% foot traffic at every stand, forever${nb.unlocks ? `\nUnlocks ${nb.unlocks}` : ''}`));
     out.push(bank(s));
@@ -864,6 +870,7 @@ export function createHud(root: HTMLElement, onAction: (a: Action) => void): Hud
     actions = damageHere(s, id) + actions; // the building's HP, and your Damaged one's repair (src/ui/damage.ts)
     if (ps.owner === 'player' && (st || ps.facility) && s.guards.length) actions += guardsHere(s, id, (g) => guardFace(kit, s, g)); // station guards from the map
     actions += defendPriorityHere(s, id, tape); // Dex's Auto-Defend: this plot's priority (src/ui/autodefend.ts)
+    actions += policyToggle(s, id); // land: this plot in or out of its district's policy (src/ui/policies.ts)
     actions = kidStandCard(s, id) + actions; // world: a kid stand on the sidewalk here (Kids' Lemonade Day), its raid cost in red first
     if (ps.owner === 'player') actions += listingControls(s, id);
     if (id === TOWN_HALL) actions += registryButton(s);

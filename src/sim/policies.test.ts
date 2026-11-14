@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   BULK, bulkGroups, bulkMembers, bulkPlan, FACILITIES, helperLines, LOTTIES_CORNER, newGame, newStand, NO_DEFENSE, PERIMETERS, PLOTS, runBulk,
   STAND_LEVELS, standCost, type DistrictId, type GameState,
+  canSetPolicy, districtPolicy, landAtDawn, migrateSave, plotPrice, policiesAtDawn, POLICIES, POLICY, priceCeiling, setPolicy, togglePolicyPlot,
 } from './economy.ts';
+import { defendPriority } from './autodefend.ts';
 
 const streets = (s: GameState, d: DistrictId, n: number) => PLOTS.filter((p) => p.district === d && p.type === 'street' && !s.plots[p.id].owner).slice(0, n).map((p) => p.id);
 /** Hand the player a plot with a stand of this level on it (tests skip the buying and building). */
@@ -128,5 +130,136 @@ describe('bulk orders (Rank 3)', () => {
     none.plots[LOTTIES_CORNER].stand = null;
     expect(bulkGroups(none, 'upgrade')).toEqual([]);
     expect(bulkPlan({ ...none, rank: 3 }, { act: 'upgrade', group: 'all', budget: 100 }).why).toBe('No stands in this group');
+  });
+});
+
+describe('district policies (Rank 7)', () => {
+  /** Rank 7 with cash to spend and three Old Town stands: a Kiosk, a Wooden Stand and a Table. */
+  function tycoon(seed: number) {
+    const s = newGame(seed);
+    s.rank = 7;
+    s.cash = 2e6;
+    const ids = streets(s, 'oldtown', 3);
+    give(s, ids[0], 3, 800);
+    give(s, ids[1], 2, 300);
+    give(s, ids[2], 1, 100);
+    return { s, ids };
+  }
+  /** The next dawn's run, without playing the day (a new day's record for the helpers). */
+  const nextDawn = (s: GameState) => { s.day++; delete s.today.auto; policiesAtDawn(s); };
+
+  it('waits for Rank 7, Lemon Tycoon, and takes one policy per district', () => {
+    const { s } = tycoon(41);
+    s.rank = 6;
+    expect(canSetPolicy(s)).toEqual({ ok: false, why: 'Needs Rank 7, Lemon Tycoon' });
+    expect(setPolicy(s, 'oldtown', 'profit')).toBe(false);
+    s.rank = 7;
+    s.phase = 'report'; // set in the Evening: it waits for the dawn
+    expect(setPolicy(s, 'oldtown', 'profit')).toBe(true);
+    expect(setPolicy(s, 'oldtown', 'fortify')).toBe(true); // the new one replaces it
+    expect(s.policies).toEqual({ oldtown: { kind: 'fortify', budget: POLICY.budget } });
+    expect(setPolicy(s, 'oldtown', null)).toBe(true);
+    expect(districtPolicy(s, 'oldtown')).toBeNull();
+  });
+
+  it('Profit puts every stand there on Auto-Price and Auto-Restock, except a plot that opts out', () => {
+    const { s, ids } = tycoon(42);
+    for (const id of ids) {
+      const st = s.plots[id].stand!;
+      st.autoPrice = false;
+      st.ownCard = true;
+      st.autoRestock = false;
+      st.stockTarget = 50;
+    }
+    togglePolicyPlot(s, ids[2]); // this one stays as you set it
+    s.phase = 'report';
+    setPolicy(s, 'oldtown', 'profit');
+    const news = s.news.length;
+    nextDawn(s);
+    for (const id of ids.slice(0, 2)) expect(s.plots[id].stand).toMatchObject({ autoPrice: true, autoRestock: true, stockTarget: null });
+    expect(s.plots[ids[0]].stand!.ownCard).toBeUndefined();
+    expect(s.plots[ids[2]].stand).toMatchObject({ autoPrice: false, ownCard: true, autoRestock: false, stockTarget: 50 });
+    expect(s.news.slice(news)).toEqual(['Old Town, Profit: 2 stands on Auto-Price and Auto-Restock.']);
+    expect(helperLines(s.today).find((h) => h.id === POLICIES)?.line).toBe('1 district, 2 plots');
+    nextDawn(s); // nothing new to take: no headline
+    expect(s.news.slice(news)).toHaveLength(1);
+  });
+
+  it('Fortify turns Auto-Repair and Dex on there and puts up fences within its daily budget', () => {
+    const { s, ids } = tycoon(43);
+    s.plots[ids[0]].noAutoRepair = true;
+    togglePolicyPlot(s, ids[2]);
+    s.phase = 'report';
+    const picket = PERIMETERS[0].cost, chain = PERIMETERS[1].cost;
+    setPolicy(s, 'oldtown', 'fortify', picket * 2);
+    const cash = s.cash;
+    nextDawn(s);
+    expect(ids.map((id) => s.plots[id].defense.tier)).toEqual([1, 1, 0]);
+    expect(s.plots[ids[0]].noAutoRepair).toBeUndefined();
+    expect(ids.map((id) => defendPriority(s, id))).toEqual([POLICY.priority, POLICY.priority, 0]);
+    expect(s.cash).toBe(cash - picket * 2);
+    expect(s.news[s.news.length - 1]).toBe(`Old Town, Fortify: 2 new fences, $${picket * 2}.`);
+    expect(s.plots[LOTTIES_CORNER].defense.tier).toBe(0); // Maple Row has no policy
+    nextDawn(s); // the budget can't reach a Chain-Link
+    expect(ids.map((id) => s.plots[id].defense.tier)).toEqual([1, 1, 0]);
+    setPolicy(s, 'oldtown', 'fortify', chain); // one a day, the most valuable plot first
+    nextDawn(s);
+    expect(ids.map((id) => s.plots[id].defense.tier)).toEqual([2, 1, 0]);
+    expect(s.today.auto?.[POLICIES]).toMatchObject({ count: 2, amount: 1, spent: chain });
+  });
+
+  it('Expand builds on your empty plots, buys open land and upgrades, cheapest first within its budget', () => {
+    const { s, ids } = tycoon(44);
+    const empty = streets(s, 'oldtown', 1)[0];
+    s.plots[empty] = { ...s.plots[empty], owner: 'player', stand: null, invested: 0, defense: NO_DEFENSE() };
+    const open = PLOTS.filter((p) => p.district === 'oldtown' && p.type === 'street' && !s.plots[p.id].owner)
+      .reduce((a, p) => (plotPrice(s, p.id) < plotPrice(s, a.id) ? p : a)).id;
+    const table = standCost(1), wooden = STAND_LEVELS[1].cost, kiosk = STAND_LEVELS[2].cost;
+    // A Table on the empty plot ($150), the Table up to Wooden ($400), the Wooden Stand up to a Kiosk ($3,500), then the
+    // cheapest land with a Table; the Kiosk's $60,000 Lemon Shack is dearer than all of them and doesn't fit.
+    const budget = table + wooden + kiosk + plotPrice(s, open) + table;
+    s.phase = 'report';
+    setPolicy(s, 'oldtown', 'expand', budget);
+    const cash = s.cash, picked = s.selected, news = s.news.length;
+    nextDawn(s);
+    expect(s.plots[empty].stand?.level).toBe(1);
+    expect(s.plots[open]).toMatchObject({ owner: 'player', stand: { level: 1 } });
+    expect(levels(s, ids)).toEqual([3, 3, 2]);
+    expect(s.cash).toBe(cash - budget);
+    expect(s.selected).toBe(picked); // the stand you manage stays picked
+    expect(s.news.slice(news).filter((l) => /Expand/.test(l))).toEqual([`Old Town, Expand: 2 new stands and 2 upgrades, $${budget.toLocaleString('en-US')}.`]);
+    expect(s.news.slice(news).some((l) => /Congratulations|brand-new/.test(l))).toBe(false); // one headline, not one a purchase
+  });
+
+  it('goes to work at once when set at Morning Prep, once a day, and with the dawn through land', () => {
+    const { s, ids } = tycoon(45);
+    const st = s.plots[ids[1]].stand!;
+    st.autoPrice = false;
+    st.price = 0.5;
+    s.phase = 'prep';
+    setPolicy(s, 'oldtown', 'profit');
+    expect(st.price).toBe(priceCeiling(s, ids[1])); // Marisol priced it now
+    expect(districtPolicy(s, 'oldtown')?.ran).toBe(s.day);
+    st.autoPrice = false;
+    setPolicy(s, 'oldtown', 'profit', 1000); // a new budget the same day: no second run
+    expect(st.autoPrice).toBe(false);
+    s.day++;
+    landAtDawn(s); // land's dawn hook runs the policies
+    expect(st.autoPrice).toBe(true);
+    expect(districtPolicy(s, 'oldtown')?.ran).toBe(s.day);
+  });
+
+  it('keeps a saved policy and drops what an older or edited save got wrong', () => {
+    const { s, ids } = tycoon(46);
+    (s as unknown as { policies: unknown }).policies = {
+      oldtown: { kind: 'fortify', budget: -5 }, nowhere: { kind: 'profit', budget: 1 }, campus: { kind: 'chaos', budget: 1 }, downtown: { kind: 'expand', budget: 9000, ran: 'x' },
+    };
+    (s.plots[ids[0]] as unknown as { noPolicy: unknown }).noPolicy = 'yes';
+    s.plots[ids[1]].noPolicy = true;
+    const back = migrateSave(JSON.parse(JSON.stringify(s)))!;
+    expect(back.policies).toEqual({ oldtown: { kind: 'fortify', budget: POLICY.budget }, downtown: { kind: 'expand', budget: 9000 } });
+    expect('noPolicy' in back.plots[ids[0]]).toBe(false);
+    expect(back.plots[ids[1]].noPolicy).toBe(true);
+    expect(migrateSave(JSON.parse(JSON.stringify(back)))!.policies).toEqual(back.policies); // idempotent
   });
 });

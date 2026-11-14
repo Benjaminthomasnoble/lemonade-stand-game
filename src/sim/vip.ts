@@ -405,7 +405,8 @@ export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harbo
 /** Act 5's Harbor Fest (spec: "choppers and ships queue for the Fall VIP rush while Syndicate crews go after every
  * delivery"): once the Syndicate has formed, a Syndicate crew tries a Delivery Raid on every VIP pickup during the Fest,
  * with the usual warning, in place of the usual 30% at Threat 3+. Seam for nights: each trip's Delivery Raid roll (night.ts
- * scheduleDeliveryRaid) passes syndicateFormed(s) and sends the crew; until the Syndicate exists nothing passes true. */
+ * scheduleDeliveryRaid) passes syndicateFormed(s) and sends the keenest member; until the Syndicate exists nothing passes
+ * true. */
 export const syndicateFestRaid = (s: GameState, o: Order, syndicateFormed: boolean) => syndicateFormed && isVip(o.tier) && harborFestOn(s);
 /** Harbor Fest: every ship's horn plays Lottie's Theme, and Lottie swears she isn't humming along (spec: Act 5, Harbor
  * Fest). Her line for each day of the Fest, said at the day's first ship pickup. */

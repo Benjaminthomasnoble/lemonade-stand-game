@@ -714,7 +714,8 @@ function sendOut(s: GameState, raider: RivalId, party: Fighter[], threat: number
  * Seam for night.ts's Delivery Raids on your pads and piers (spec: "Each boss's Attention decides who sends them"): the
  * keenest boss whose Strike can pay sends the crew, as for any raid on you, and Strike pays for it now. A boss backing
  * off or in a Truce sits a pickup out (raidWeight). Null when nobody can (or will) pay: no raid. `sender` is a story
- * beat's own pick (FizzCo on the first chopper, beats.ts scriptedRaider): it goes, and Strike pays what it can.
+ * beat's own pick (FizzCo on the first chopper, beats.ts scriptedRaider) or Act 5 Harbor Fest's keenest Syndicate member
+ * (night.ts festRaider): it goes, and Strike pays what it can.
  */
 export function deliveryRaider(s: GameState, sender?: RivalId): { rival: RivalId; party: Fighter[] } | null {
   const threat = threatLevel(s);

@@ -25,12 +25,12 @@ import { fightOnScreen, startFight } from './fight.ts';
 import { clubhouses, squadClub } from './clubhouse.ts';
 import { alert, isMajor, onFeed, pruneAlerts } from './alerts.ts';
 import { lookoutStealth, migrateThreat, threatAtDawn } from './threat.ts';
-import { syndicateAtDawn, syndicateFormed } from './syndicate.ts';
+import { syndicateAtDawn, syndicateFormed, syndicateMembers } from './syndicate.ts';
 import { siegeFought, squeezeAtDawn } from './squeeze.ts';
 import { deliver, DELIVERY_RAID_CHANCE, DELIVERY_RAID_THREAT, isVip, loadsAtFacility, loseLoad, pickupPlace, syndicateFestRaid, type Order, type Pickup } from './vip.ts';
 import { hasTrophy, hqPlot } from './rivals.ts';
 import { difficulty, peaceful } from './modes.ts';
-import { deliveryRaider, nightShiftStealth } from './rivalAi.ts';
+import { deliveryRaider, nightShiftStealth, raidWeight } from './rivalAi.ts';
 import { scriptedRaider } from './beats.ts';
 import { autoDefendOnWarning } from './autodefend.ts';
 import { lightSleeper } from './perks.ts';
@@ -455,11 +455,12 @@ export function scheduleDeliveryRaid(s: GameState, loads: [Order, number][]): vo
   const rng = { seed: s.seed };
   const roll = nextRandom(rng);
   s.seed = rng.seed;
-  // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts).
+  // Story's beat: the campaign's first chopper's first trip is FizzCo's to hit, with no roll (src/sim/beats.ts), and Act
+  // 5's Harbor Fest sends the keenest Syndicate member after every trip (festRaider): either way Strike pays what it can.
   // Otherwise the keenest boss whose Strike can pay sends the crew (rivals' deliveryRaider), and nobody able to pay means no raid.
   const scripted = loads.find(([o]) => scriptedRaider(s, o));
   const [o] = scripted ?? loads.reduce((a, b) => (b[1] > a[1] ? b : a)); // the biggest load (the oldest of equals)
-  const sender = scriptedRaider(s, o);
+  const sender = scriptedRaider(s, o) ?? festRaider(s, o);
   const crew = sender ? deliveryRaider(s, sender) : roll < deliveryRaidChance(s, o) ? deliveryRaider(s) : null;
   if (!crew) return;
   const { rival, party } = crew;
@@ -482,6 +483,16 @@ export function raidHold(s: GameState, o: Order, fail: (why: string) => Pickup):
   if (!s.heldPickups?.includes(o.id)) return null;
   if (!s.orders.includes(o)) s.orders.push(o);
   return { order: o, ok: true }; // still loading: the raid hasn't hit yet
+}
+
+/** Act 5's Harbor Fest (spec: "Syndicate crews go after every delivery"): while the Syndicate stands, its keenest member
+ * (raidWeight: Attention and its Strike share) goes after every pickup of the Fest, whatever its Strike holds. A boss
+ * backing off or in a Truce sits it out. */
+function festRaider(s: GameState, o: Order): RivalId | null {
+  if (!syndicateFestRaid(s, o, syndicateFormed(s))) return null;
+  let best: RivalId | null = null;
+  for (const id of syndicateMembers(s)) if (raidWeight(s, id) > (best ? raidWeight(s, best) : 0)) best = id;
+  return best;
 }
 
 /** A VIP pickup's chance of a Delivery Raid: 30%, or every one while the Syndicate stands during Harbor Fest (its crews

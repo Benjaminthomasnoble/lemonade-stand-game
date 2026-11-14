@@ -8,7 +8,7 @@ import {
   awayGuards, DAYTIME_RAID_REP, hqPlot, migrateNights, MINUTES_PER_DAY, OPEN, RAID_FIGHT_GUESS, squadHome, squadTrip,
   autoRestock, restockNow, servingsAvailable, postGuard, fireGuard, DEX, TUTORIAL_RAID_DAY, newStand, welcomeDex,
   CUSTOM_RANGE, customDefaults, difficultyOf, fightRaid, repairCost, threatLevel, upgradeStand, festivalDays, spotChance, ALERT_LIFE, onFeed,
-  nothingTonight, openStands, sleepPlan, minutesLeft, raidTicks, RAID_TICKS_FAST_MINUTES,
+  nothingTonight, openStands, sleepPlan, minutesLeft, raidTicks, RAID_TICKS_FAST_MINUTES, budgetOf, raidWeight, syndicateMembers,
   playerWon, type BattleReport, type CustomDifficulty, type GameState, type Guard, type Raid, type RivalId, type Settings, type SimEvent,
 } from './economy.ts';
 import { LINES, phoneCheck } from './phone.ts';
@@ -664,6 +664,27 @@ describe('Delivery Raids', () => {
       while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
       expect(s.raids.some((x) => x.delivery)).toBe(true);
     }
+  });
+
+  it("Act 5's Harbor Fest: the keenest Syndicate member goes after every pickup, even with no Strike left to pay", () => {
+    const fest = festivalDays('harborFest', 2).from;
+    for (let seed = 1; seed <= 6; seed++) {
+      const { s } = pickupGame(seed);
+      s.day = fest;
+      s.syndicate = { formed: fest - 1 };
+      for (const o of s.orders) Object.assign(o, { due: fest, expires: fest });
+      for (const id of Object.keys(s.rivals) as RivalId[]) budgetOf(s, id).strike = 0; // nobody can pay for a raid
+      while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+      const raid = s.raids.find((x) => x.delivery);
+      const keenest = syndicateMembers(s).reduce((a, b) => (raidWeight(s, b) > raidWeight(s, a) ? b : a));
+      expect(raid).toMatchObject({ attacker: keenest, order: 'vip' }); // the crew goes...
+      expect(budgetOf(s, keenest).strike).toBe(0); // ...and Strike pays what it can
+    }
+    const { s } = pickupGame(1); // off the Fest, nobody able to pay means no raid
+    s.syndicate = { formed: s.day - 1 };
+    for (const id of Object.keys(s.rivals) as RivalId[]) budgetOf(s, id).strike = 0;
+    while (s.minute <= PICKUP_MINUTE.heli) tickMinute(s);
+    expect(s.raids.some((x) => x.delivery)).toBe(false);
   });
 
   it('no rival in a Truce with you sends one', () => {

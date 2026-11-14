@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as balance from './balance.ts';
 import {
-  book, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayIncomeCosts, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
+  book, bookOther, borrow, buySupply, closeAuctions, costPerCup, dayCash, dayIncomeCosts, dayProfit, FACTIONS, guardWage, hireGuard, LAVENDER, LAVENDER_LOT, ledgerLines,
   LOTTIES_CORNER, migrateSave, newGame, newStand, openLavender, openStands, placeBid, priceCeiling, RECIPES, rowAmount, runCampaign,
   setStockTarget, simulateRestOfDay, sleepUntilDawn, successScore, upgradeStand, welcomeDex,
   type GameState, type RivalId,
 } from './economy.ts';
+import { answerCall, CALLS } from './calls.ts';
 
 /** Business days and nights until dawn of `day`, cash topped up so the run never goes broke. */
 function playTo(s: GameState, day: number): void {
@@ -251,6 +252,27 @@ describe('the Ledger', () => {
     expect(rowAmount(t, 'other')).toBe(-LAVENDER.open);
     expect(rowAmount(t, 'invested')).toBe(0);
     expect(dayProfit(t)).toBe(-LAVENDER.open);
-    expect(ledgerLines(t).pnl.find((l) => l.row === 'other')?.label).toBe('Other');
+    expect(ledgerLines(t).pnl.find((l) => l.row === 'other')).toMatchObject({ label: 'Other', title: 'The Lavender page auction' });
+  });
+
+  it("the Other row's title names what booked it: a heckler paid off is no Lavender auction", () => {
+    const s = newGame(72);
+    s.cash = 1e7; // enough for the page and every payoff
+    openStands(s);
+    const heckle = () => {
+      s.calls = { day: s.day, list: [{ id: s.day * 10, kind: 'heckler', at: s.minute, plot: LOTTIES_CORNER, rival: 'blenders', live: true }], mods: {} };
+      expect(answerCall(s, 0, { postGuards: () => 0 })).toBe(true); // Pay him off
+    };
+    heckle();
+    const t = s.today;
+    expect(rowAmount(t, 'other')).toBe(-CALLS.heckler.payoff);
+    expect(ledgerLines(t).pnl.find((l) => l.row === 'other')).toMatchObject({ amount: -CALLS.heckler.payoff, title: 'Paid off a heckler' });
+    bookOther(s, -LAVENDER.open, 'The Lavender page auction'); // the page's auction settles the same day
+    heckle(); // and a second heckler is paid off: one name each
+    expect(t.others).toEqual(['Paid off a heckler', 'The Lavender page auction']);
+    expect(ledgerLines(t).pnl.find((l) => l.row === 'other')!.title).toBe('Paid off a heckler. The Lavender page auction');
+    expect(rowAmount(t, 'other')).toBe(-(2 * CALLS.heckler.payoff + LAVENDER.open));
+    const old = { ...t, others: undefined }; // a day from an older save: the row, no names
+    expect(ledgerLines(old).pnl.find((l) => l.row === 'other')!.title).toBeUndefined();
   });
 });

@@ -41,6 +41,15 @@ export function book(s: GameState, row: LedgerRow, amount: number, n = 0): void 
   else if (row === 'upkeep') t.upkeep = round2(t.upkeep - amount);
 }
 
+/** A cash movement on the Other row, named: the Ledger titles the row with what booked it today (the Lavender page, a
+ * heckler paid off). */
+export function bookOther(s: GameState, amount: number, what: string): void {
+  if (!amount) return;
+  book(s, 'other', amount);
+  const names = (s.today.others ??= []);
+  if (!names.includes(what)) names.push(what);
+}
+
 /**
  * Stock used up today, at its value (a cup's lemons, sugar and ice; melted ice, spoiled lemons, free samples). It's a
  * cost on Supplies, or on `row` (a Free Sample Day's lemonade is Marketing).
@@ -144,7 +153,7 @@ export function ledgerLines(t: DayStats): { pnl: LedgerLine[]; below: LedgerLine
     if (row === 'marketing' && n) title = `With ${plural(n, 'free sample')}: their cups and lemonade`;
     if (row === 'wages' && n) label = `Wages: ${plural(n, 'guard')}`;
     if (row === 'stock') title = 'Supplies bought less supplies used: what stays on hand counts in Net Worth';
-    if (row === 'other') title = 'The Lavender page auction';
+    if (row === 'other' && t.others?.length) title = t.others.join('. ');
     return { row, label, amount, title };
   };
   const has = (row: LedgerRow) => Math.abs(rowAmount(t, row)) >= 0.005;

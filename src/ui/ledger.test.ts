@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { book, dayIncomeCosts, newGame, openStands, simulateRestOfDay, sleepUntilDawn, type GameState } from '../sim/economy.ts';
+import { book, bookOther, dayIncomeCosts, newGame, openStands, simulateRestOfDay, sleepUntilDawn, type GameState } from '../sim/economy.ts';
 import { booksRows, scoreLine } from './ledger.ts';
 import { menuScreen } from './menus.ts';
 import { DEFAULT_OPTIONS, defaultKeys } from '../settings.ts';
@@ -25,6 +25,12 @@ describe('the Ledger on screen', () => {
     expect(html).toContain('data-testid="row-stock"'); // Auto-Restock bought more than the day used
     expect(html).toContain('data-testid="row-cash"');
     expect(html).not.toContain('row-tribute'); // a row at $0 that isn't always shown stays hidden
+  });
+
+  it('the Other row says what booked it when you point at it', () => {
+    const s = day3();
+    bookOther(s, -8, 'Paid off a heckler');
+    expect(booksRows(s.today)).toContain('<tr data-testid="row-other" title="Paid off a heckler"><td>Other</td><td class="bad">-$8.00</td></tr>');
   });
 
   it("the Ledger menu's days give income, costs and profit off the rows: a night's loot is income, not a cost below zero", () => {

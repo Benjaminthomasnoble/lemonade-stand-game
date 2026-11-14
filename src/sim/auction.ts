@@ -18,7 +18,7 @@ import { grantPage, movePage, pageHolder } from './recipes.ts';
 import { phoneCall } from './phone.ts';
 import { budgetOf, fitBudget, outbidBy, reserveOf, spend } from './rivalAi.ts';
 import { freezeOn, runningSchemes, snipeBid } from './schemes.ts';
-import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
+import { book, bookOther } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { sharpPencil } from './perks.ts';
 
 const RIVALS = Object.keys(FACTIONS) as RivalId[];
@@ -379,7 +379,7 @@ function settlePage(s: GameState, rng: Rng): void {
   for (const b of bids) if (b !== win && b.who !== 'player') outbid(s, b.who as RivalId, win.who);
   if (win.who === 'player') {
     const cost = bidCost(s, win.amount);
-    book(s, 'other', -cost); // the Ledger's Other row (spec: Money in, money out)
+    bookOther(s, -cost, 'The Lavender page auction'); // the Ledger's Other row (spec: Money in, money out)
     lv.winner = 'player';
     lv.paid = cost;
     s.news.push(`Skip Larkin: "SOLD to Lottie's Lemonade! The Lavender page is yours for ${money(cost)}."`);

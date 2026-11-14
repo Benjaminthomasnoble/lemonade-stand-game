@@ -217,6 +217,7 @@ export interface DayStats {
   waste?: number; // the part that melted or spoiled
   stockOn?: Partial<Record<LedgerRow, number>>; // the part that's a cost on another row than Supplies (a Free Sample Day's lemonade: Marketing)
   upkeepLevels?: number[]; // the stands charged upkeep, by level (index 0 is L1)
+  others?: string[]; // what booked the Other row today, by name (ledger.ts bookOther): its title in the Ledger
   cashAtDawn?: number; // cash when the day's books opened: the next day's, less this, is the day's rows
   repTarget?: number; // where Reputation drifted toward that night (demand.ts)
   iceMelted: number;

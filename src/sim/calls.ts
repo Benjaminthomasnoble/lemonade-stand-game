@@ -9,7 +9,7 @@
 // Pure, like the rest of the sim.
 import { CLOSE, FACTIONS, OPEN, PERIMETERS, type RivalId } from './balance.ts';
 import type { GameState } from './economy.ts';
-import { book } from './ledger.ts';
+import { book, bookOther } from './ledger.ts';
 import { nextRandom } from './rng.ts';
 import { LOTTIES_CORNER, PLOT_BY_ID, PLOTS } from './map.ts';
 import { mayRaidYou } from './threat.ts';
@@ -212,7 +212,7 @@ export function answerCall(s: GameState, i: number, crew: { postGuards: (plot: s
   const c = callsOf(s);
   const st = s.plots[call.plot].stand!;
   const traffic = (m: number) => { c.mods[call.plot] = (c.mods[call.plot] ?? 1) * m; };
-  const pay = (n: number, row: 'marketing' | 'citations' | 'other') => book(s, row, -n);
+  const pay = (n: number, row: 'marketing' | 'citations') => book(s, row, -n);
   switch (call.kind) {
     case 'undercut':
       if (i === 0) st.price = Math.max(0.25, Math.round((st.price - CALLS.undercut.cut) * 100) / 100);
@@ -220,7 +220,7 @@ export function answerCall(s: GameState, i: number, crew: { postGuards: (plot: s
       else traffic(CALLS.undercut.holdTraffic);
       break;
     case 'heckler':
-      if (i === 0) pay(CALLS.heckler.payoff, 'other');
+      if (i === 0) bookOther(s, -CALLS.heckler.payoff, 'Paid off a heckler');
       else if (i === 1 && call.rival) s.rivals[call.rival].grudge = Math.min(100, s.rivals[call.rival].grudge + CALLS.heckler.grudge);
       else traffic(CALLS.heckler.ignoreTraffic);
       break;

@@ -108,7 +108,7 @@ async function main() {
   const saved = seedParam ? null : loadGame();
   /** A fresh run: new seed (unless the URL pins one), its own leaderboard row, and a first dawn autosave. */
   const freshRun = (settings: Partial<Settings> = {}, seed?: number) => {
-    const s = newGame(seed, settings);
+    const s = newGame(seed ?? (Date.now() & 0x7fffffff), settings); // the run's seed comes from the clock here, not in src/sim
     s.runId = `${s.seed.toString(36)}-${Date.now().toString(36)}`;
     saveDawn(s);
     return s;

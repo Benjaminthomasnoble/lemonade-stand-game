@@ -414,7 +414,9 @@ export function rivalPrice(id: RivalId, level: number, p: Plot, s?: GameState): 
   return s ? round2(everyday * priceWarCut(s, id, p.id)) : everyday;
 }
 
-export function newGame(seed = Date.now() & 0x7fffffff, settings: Partial<Settings> = {}): GameState {
+/** A new run from its seed: the caller picks it (main.ts a fresh one from the clock, tests and tools fixed ones), so
+ * the simulation never reads the clock. */
+export function newGame(seed: number, settings: Partial<Settings> = {}): GameState {
   const rng = { seed };
   const forecast = seasonWeather(rng, seasonOf(1)); // Day 1 runs off its forecast; the weather queue starts at the first dawn (weather.ts)
   const market = rollMarket(rng);

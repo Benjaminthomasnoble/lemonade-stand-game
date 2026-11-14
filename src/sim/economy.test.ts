@@ -31,6 +31,17 @@ describe('economy', () => {
     expect(run()).toBe(run());
   });
 
+  it('takes its seed from the caller: no clock, Math.random or DOM anywhere in src/sim', () => {
+    expect(JSON.stringify(newGame(77))).toBe(JSON.stringify(newGame(77)));
+    expect(JSON.stringify(newGame(77))).not.toBe(JSON.stringify(newGame(78)));
+    const sources = import.meta.glob<string>(['./*.ts', '!./*.test.ts'], { query: '?raw', import: 'default', eager: true });
+    expect(Object.keys(sources).length).toBeGreaterThan(30);
+    for (const [file, text] of Object.entries(sources)) {
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); // comments may say so
+      expect(code, file).not.toMatch(/\bDate\b|Math\.random|\bdocument\.\w|\bwindow\.\w|\blocalStorage\b/);
+    }
+  });
+
   it('starts at the canon values', () => {
     const s = newGame(1);
     expect(s.cash).toBe(START.cash);

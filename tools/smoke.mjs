@@ -159,6 +159,8 @@ try {
     for (const id of [field, dock]) st.plots[id].owner = 'player';
     // Hollis's Fields start with Lemon Groves: the plot card's Pad replaces the Grove.
     g.act({ type: 'refresh' });
+    // A rank-up's hand of Lottie's Tips waits at the top of the feed: keep one from each, so the VIP cards come up top.
+    for (let i = 0; i < 12 && st.story?.tips?.hands?.length; i++) g.act({ type: 'tip', id: st.story.tips.hands[0].cards[0] });
     return { field, dock };
   });
   for (const id of [sites.field, sites.dock]) {

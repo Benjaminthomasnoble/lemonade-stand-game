@@ -1047,6 +1047,25 @@ describe('the pacing harness (tools/pacing.ts)', () => {
     expect(PLOTS.filter((p) => s.plots[p.id].owner === 'player' && s.plots[p.id].facility?.kind === 'helipad').length).toBe(1);
   });
 
+  it("grows no second line in a morning to the level it grew the first to: of two Jetties, one Pier (orders size by the best)", () => {
+    const s = newGame(REFERENCE_SEED);
+    Object.assign(s, { day: 80, rank: 7, cash: 2e7, reputation: 4.5 });
+    give(s, street(s, 'oldtown').id);
+    const works = PLOTS.find((p) => p.type === 'industrial' && !s.plots[p.id].owner)!;
+    const field = PLOTS.find((p) => p.type === 'field')!;
+    const docks = PLOTS.filter((p) => p.type === 'dock').slice(0, 2);
+    const shed = street(s, 'oldtown');
+    for (const p of [works, field, shed, ...docks]) give(s, p.id);
+    s.plots[works.id].facility = { kind: 'bottling', level: 3 }; // 12,000 bottles a dawn fill a Pier's ships
+    s.plots[field.id].facility = { kind: 'helipad', level: 2 };
+    s.plots[shed.id].facility = { kind: 'warehouse', level: 1 };
+    for (const d of docks) s.plots[d.id].facility = { kind: 'pier', level: 1 };
+    const piers = facilityCandidates(s, 2e7).filter((b) => !b.also && b.what.endsWith('to Pier'));
+    expect(piers.map((b) => b.plot).sort()).toEqual(docks.map((d) => d.id).sort()); // each weighed against the Jetty line
+    morning(s, newBot());
+    expect(docks.map((d) => s.plots[d.id].facility?.level).sort()).toEqual([1, 2]);
+  });
+
   it('borrows what a buy is short when it pays back inside the loan, one loan at a time, and sets Profit policies from Rank 7', () => {
     const s = newGame(REFERENCE_SEED);
     const lot = street(s, 'maple').id;

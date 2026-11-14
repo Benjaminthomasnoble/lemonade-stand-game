@@ -202,8 +202,9 @@ export interface PacingOpts { seed: number; difficulty?: Difficulty; days?: numb
 
 /** A buy: what it costs, what it adds to a day, and how. `days`: a campaign, which must pay back inside the days it runs.
  * `also`: a second plot the buy takes (the VIP engine's first Bottling Works and the line bought with it). `firsts`: the
- * facility kinds it brings you a first of, weighed against the morning's engine (firstsLeft). */
-export interface Buy { what: string; cost: number; gain: number; plot: string; also?: string; firsts?: FacilityKind[]; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
+ * facility kinds it brings you a first of, weighed against the morning's engine (firstsLeft). `grows`: a Pad's or a
+ * Jetty's line and the level it takes the line to, weighed against the morning's line (only its best counts). */
+export interface Buy { what: string; cost: number; gain: number; plot: string; also?: string; firsts?: FacilityKind[]; grows?: [FacilityKind, number]; level?: number; upgrade?: boolean; days?: number; kind?: keyof Played; run: () => boolean }
 export interface Bot {
   sec: number; // the security money on hand: its share of the takings (securityCut), less wages and repairs; hires, kits, fences and Clubhouses come off it
   secSpent: number; // what it has bought, all run
@@ -533,7 +534,8 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
     for (const p of have) {
       const lvl = s.plots[p.id].facility!.level;
       if (lvl < f.names.length && f.costs[lvl] <= budget && able(s, () => canBuildFacility(s, p.id, kind))) {
-        out.push({ what: `grow ${p.name} to ${f.names[lvl]}`, cost: f.costs[lvl], gain: adds(kind, lvl, lvl + 1), plot: p.id, run: () => buildFacility(s, p.id, kind) });
+        const grows: [FacilityKind, number] | undefined = kind === 'helipad' || kind === 'pier' ? [kind, lvl + 1] : undefined; // a Works' bottles add up
+        out.push({ what: `grow ${p.name} to ${f.names[lvl]}`, cost: f.costs[lvl], gain: adds(kind, lvl, lvl + 1), plot: p.id, grows, run: () => buildFacility(s, p.id, kind) });
       }
     }
     if (firstsLeft(s, kind) <= 0 || s.rank < f.ranks[0]) continue;
@@ -582,7 +584,7 @@ export function facilityCandidates(s: GameState, budget: number): Buy[] {
       const first = none ? [...none.filter((x) => x.cost <= room), site(kind, engine(kind, more, 1), room)] : [];
       for (const [ways, tag] of [[grown, undefined], [first, [kind]]] as [(Way | undefined)[], FacilityKind[] | undefined][]) {
         for (const w of ways) {
-          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, more, w.level) + w.extra, plot: p.id, also: w.plot, firsts: tag, run: () => works.run() && w.run() });
+          if (w) out.push({ what: `${works.what} + ${w.what}`, cost: works.cost + w.cost, gain: engine(kind, more, w.level) + w.extra, plot: p.id, also: w.plot, firsts: tag, grows: [kind, w.level], run: () => works.run() && w.run() });
         }
       }
     }
@@ -845,8 +847,10 @@ export function morning(s: GameState, bot: Bot): void {
   for (const b of buys) {
     if (n >= MAX_BUYS || pays(b) > bar) break;
     const plots = [b.plot, b.also].filter((p): p is string => !!p);
-    // A first one of a kind is weighed against the morning's engine: once the kind has no room, the rest add nothing.
+    // A first one of a kind, or a line's next level, is weighed against the morning's engine: once the kind has no room,
+    // or the line stands that high already (orders are sized by its best), the rest add nothing.
     if (b.cost > budget || plots.some((p) => used.has(p)) || b.firsts?.some((k) => firstsLeft(s, k) <= 0)) continue;
+    if (b.grows && lineLevel(s, b.grows[0]) >= b.grows[1]) continue;
     const before = s.cash;
     if (!b.run()) continue;
     n++;

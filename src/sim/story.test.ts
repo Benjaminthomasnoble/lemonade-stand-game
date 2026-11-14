@@ -426,10 +426,12 @@ describe("Lottie's goals", () => {
     }
     big.goals!.sales = undefined;
     expect(salesTarget(big)).toBeGreaterThan(one * 1.5);
-    // Rewards scale with an average recent day's sales.
+    // Rewards scale with an average recent day's sales: a little cash (short 2%, long 8%), never under the floors.
     big.history.push({ ...big.today, revenue: 4000 }, { ...big.today, revenue: 4000 });
-    expect(goalReward(big, 'short')).toBe(400);
-    expect(goalReward(big, 'long')).toBe(2000);
+    expect(goalReward(big, 'short')).toBe(80);
+    expect(goalReward(big, 'long')).toBe(320);
+    big.history.push({ ...big.today, revenue: 100 }, { ...big.today, revenue: 100 }, { ...big.today, revenue: 100 });
+    expect((['short', 'medium', 'long'] as const).map((k) => goalReward(big, k))).toEqual([20, 100, 150]); // the floors
   });
 
   it('never run dry in Endless Summer', () => {

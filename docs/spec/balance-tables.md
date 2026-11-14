@@ -119,7 +119,7 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,955–$2,092 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep the bot built its first on Days 12–20 on Classic, mostly before Dex's push; on main 0bc4c8d it built it on Days 18, 24 and 15 on maps 42–44. Whether to retune Act 2's cash or move the window is an open call for Ben.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep the bot built its first on Days 12–20 on Classic, mostly before Dex's push; on main 0bc4c8d it built it on Days 18, 24 and 15 on maps 42–44. Whether to retune Act 2's cash or move the window is an open call for Ben.
 
 ### Crew
 
@@ -915,7 +915,7 @@ One system a day. Each lesson's buttons appear on its day; with lessons switched
 | Rule | Value |
 |---|---|
 | Goals | Three at a time: a short one, a medium one and a long one |
-| Reward | A share of the last 3 days' average sales, rounded: short 10% (at least $5), medium 25% (at least $20), long 50% (at least $50) (placeholders). Lottie's Gold Stars tip adds 50% |
+| Reward | A share of the last 3 days' average sales, rounded: short 2% (at least $20), medium 5% (at least $100), long 8% (at least $150), tuned with the pacing bot (at 10%, 25% and 50% the daily sales goal alone paid out 7–28% of takings). Lottie's Gold Stars tip adds 50% |
 | Today's sales goal | 90% of the cups every stand should sell on the forecast, set at dawn, and never under a pitcher's 10 (the 90% is a placeholder) |
 | Grow Net Worth | 1.25× today's Success Score (placeholder) |
 | Top your best | 1.1× your best Success Score (placeholder) |

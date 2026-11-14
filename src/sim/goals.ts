@@ -403,11 +403,14 @@ export function checkGoals(s: GameState, pay = true): void {
   if (gameOver(s) || (s.outcome?.result === 'won' && !isEndless(s))) return;
   const gs = (s.goals ??= { slots: {}, done: [] });
   if (gs.sales?.day !== s.day) gs.sales = { day: s.day, target: salesTarget(s) };
-  const score = successScore(s);
   // The goals of last resort never sit met: passed while off the card, they move on to a new target (unpaid).
-  const shown = Object.values(gs.slots);
-  if (gs.peak === undefined || (score >= gs.peak && !shown.includes(`peak-${gs.peak}`))) gs.peak = nice(Math.max(s.peakScore, score) * 1.1);
-  if (gs.worth === undefined || (score >= gs.worth && !shown.includes(`worth-${gs.worth}`))) gs.worth = nice(score * 1.25);
+  const offCard = () => {
+    const score = successScore(s);
+    const shown = Object.values(gs.slots);
+    if (gs.peak === undefined || (score >= gs.peak && !shown.includes(`peak-${gs.peak}`))) gs.peak = nice(Math.max(s.peakScore, score) * 1.1);
+    if (gs.worth === undefined || (score >= gs.worth && !shown.includes(`worth-${gs.worth}`))) gs.worth = nice(score * 1.25);
+  };
+  offCard();
   for (const slot of GOAL_SLOTS) {
     let list = candidates(s, slot);
     const cur = list.find((g) => g.id === gs.slots[slot]);
@@ -419,6 +422,7 @@ export function checkGoals(s: GameState, pay = true): void {
       // The goals of last resort move on to a new target once they're met.
       if (cur.id.startsWith('peak-')) gs.peak = nice(Math.max(s.peakScore, successScore(s)) * 1.1);
       if (cur.id.startsWith('worth-')) gs.worth = nice(successScore(s) * 1.25);
+      offCard(); // the prize itself can pass one that's off the card
       list = candidates(s, slot);
     }
     const next = pickGoal(s, list, gs.slots[slot]);

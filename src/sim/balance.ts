@@ -828,8 +828,11 @@ export const BELOVED_STARS = 4;
  * still asks for one there reads it from rank: the act each rank falls in (spec: Acts and ranks, simulated Classic rank-up days). */
 export const ACT_BY_RANK = [1, 1, 1, 2, 3, 3, 4, 4, 5, 5];
 export const ACTS = ["Lottie's Corner", 'Surf & Turf', 'Grounds for Revenge', 'Fields & Fizz', 'The Big Squeeze'];
-/** Lottie's Goals pay a little cash when ticked off (the spec gives no amounts): this share of an average recent day's sales, never less than the floor. */
-export const GOAL_REWARD = { short: { share: 0.1, min: 5 }, medium: { share: 0.25, min: 20 }, long: { share: 0.5, min: 50 } } as const; // placeholder: spec gap
+/** Lottie's Goals pay "a little cash" when ticked off (spec: Lottie's goals; it gives no amounts): this share of an
+ * average recent day's sales, never less than the floor. Tuned with the pacing bot playing every system (2026-11-14):
+ * at a tenth to a half of a day's sales, the daily sales goal alone paid out about 7-28% of takings as cash, which
+ * compounded through the paybacks; the floors keep Days 1-4 paying about what they did. */
+export const GOAL_REWARD = { short: { share: 0.02, min: 20 }, medium: { share: 0.05, min: 100 }, long: { share: 0.08, min: 150 } } as const;
 /** The day's short goal: sell this share of the cups every stand should sell on the forecast. */
 export const SALES_GOAL_SHARE = 0.9; // placeholder: spec gap (the walkthrough's 1,200 cups across 5 stands on Day 12)
 /** Lessons (spec "One system a day"): the day each system's buttons appear. Switched off, buttons follow rank alone. */

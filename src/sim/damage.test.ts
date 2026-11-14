@@ -986,6 +986,42 @@ describe('the Health Inspection', () => {
     expect(fails.plots[id].inspected).toEqual({ day: 9, fault: 'damaged' });
   });
 
+  it('is never booked onto a day the forecast calls a Storm', () => {
+    const storm = { kind: 'storm' as const, temp: 60 }, fair = { kind: 'warm' as const, temp: 80 };
+    for (const seed of [70, 71, 72, 73]) {
+      const run = (tomorrow: typeof storm | typeof fair) => {
+        const s = rollsTomorrow(INSPECTION_ID, seed, INSPECTION.rank, 7);
+        s.weatherQueue = [{ day: 8, weather: fair, forecast: fair }, { day: 9, weather: tomorrow, forecast: tomorrow }];
+        dawn(s); // Day 8
+        return s;
+      };
+      expect(inspectionOn(run(fair))?.from).toBe(9); // a fair Day 9 gets its visit
+      const s = run(storm); // tomorrow's Storm is on the forecast
+      expect(inspectionOn(s)).toBeUndefined();
+      expect(s.news.some((n) => n.startsWith('INSPECTOR COMING!'))).toBe(false);
+    }
+  });
+
+  it("a Storm the forecast missed calls the visit off: the morning's Storm damage never fails it", () => {
+    const { s, id } = named(76);
+    const day9 = s.weatherQueue!.find((d) => d.day === 9)!;
+    expect(day9.forecast.kind).not.toBe('storm');
+    day9.weather = { kind: 'storm', temp: 60 }; // the forecast was wrong
+    dawn(s); // Day 9
+    s.cash = 5000;
+    stockUp(s);
+    expect(inspectionFault(s, id)).toBeNull(); // ready for the inspector
+    toTheVisit(s);
+    expect(s.weather.kind).toBe('storm');
+    expect(isDamaged(s.plots[id])).toBe(true); // the Storm took its quarter at the open
+    expect(s.plots[id].inspected).toBeUndefined();
+    expect(inspectorClosed(s, s.plots[id])).toBe(false);
+    expect(s.news).toContain(`The health inspector stays in out of the Storm: no visit to ${PLOT_BY_ID[id].name.replace(/ lot /, ' ')} today.`);
+    expect(s.news.some((n) => n.startsWith('HEALTH INSPECTION'))).toBe(false);
+    expect(inspectionOn(s)).toBeUndefined(); // called off: nothing left on the calendar
+    expect(expectedPassersby(s, id)).toBeGreaterThan(0);
+  });
+
   it('no visit to a stand that has fallen since it was named', () => {
     const { s, id } = named(74);
     dawn(s);

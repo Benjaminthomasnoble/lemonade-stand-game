@@ -41,6 +41,7 @@ import { canSpend, spend } from './rivalAi.ts';
 import { specsInvested } from './specializations.ts'; // demand: what its slots' fittings cost
 import { garrisonHome } from './garrison.ts';
 import { handyHands } from './perks.ts';
+import { forecastAhead } from './weather.ts'; // demand's look-ahead: no inspection booked onto a Storm
 
 /** Max HP comes from one place (crew.ts); it's re-exported here beside the current HP for anyone reading damage. */
 export { buildingHp } from './crew.ts';
@@ -320,10 +321,12 @@ function inspectionToday(s: GameState): void {
 }
 
 /** The inspector arrives (its start hook, mid-day): your stand passes at full HP with an hour's pour in stock, or closes
- * until dawn. A stand that fell or changed hands since gets no visit. */
+ * until dawn. A stand that fell or changed hands since gets no visit, and a Storm the forecast missed calls it off: the
+ * HP it took at the open couldn't be repaired by the visit. */
 function inspect(s: GameState, e: WorldEvent): boolean {
   const id = e.plots?.[0];
   if (!id || !yourOpenStands(s).includes(id)) return false;
+  if (s.weather.kind === 'storm') { s.news.push(`The health inspector stays in out of the Storm: no visit to ${stall(id)} today.`); return false; }
   const fault = inspectionFault(s, id);
   s.plots[id].inspected = { day: s.day, ...(fault ? { fault } : {}) };
   return true;
@@ -339,7 +342,7 @@ function inspectionHeadline(s: GameState, e: WorldEvent): string {
 registerEvent({
   id: INSPECTION_ID, name: 'Health Inspection', kind: 'harmful', scope: 'stand', when: 'midday', days: 1,
   weight: INSPECTION.weight, lead: INSPECTION.lead, counter: INSPECTION_COUNTER,
-  can: (s) => s.rank >= INSPECTION.rank && yourOpenStands(s).length > 0,
+  can: (s) => s.rank >= INSPECTION.rank && yourOpenStands(s).length > 0 && forecastAhead(s, s.day + INSPECTION.lead)?.kind !== 'storm', // a Storm day's damage would fail it
   place: nameStand,
   start: inspect,
   headline: inspectionHeadline,

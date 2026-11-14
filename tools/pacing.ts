@@ -662,11 +662,18 @@ function fixUp(s: GameState): void {
   }
 }
 
-/** Take the contracts the bottling and the loading can make in time; a Supply Deal only when bottling covers it. */
+/** Take the contracts the bottling and the loading can make in time; a Supply Deal only when bottling covers it. The log
+ * names each VIP offer it doesn't get: one a rival's bid won, or one it lets go on its last morning, too slow to load. */
 function takeOrders(s: GameState, bot: Bot): void {
   for (const o of [...s.offers]) {
     const fits = o.tier === 'local' || (o.tier === 'deal' ? dealShortfallPerDay(s, o) <= 0 : yourDays(s, o) <= ORDER_TIERS[o.tier].days);
     if (fits && acceptOrder(s, o.id)) { bot.orders.set(o, o.loaded ?? 0); bot.log?.(`        order: ${o.tier} for ${o.client}, ${o.qty} for ${money(o.pay)}`); }
+    else if (!bot.log || !isVip(o.tier)) continue;
+    else if (!s.offers.includes(o)) bot.log(`        bid lost: ${o.tier} for ${o.client}, ${o.qty} for ${money(o.pay)}`);
+    else if (o.expires === s.day) {
+      const why = o.tier === 'deal' ? `${dealShortfallPerDay(s, o)} bottles a day short` : `loads in ${yourDays(s, o)} days, due in ${ORDER_TIERS[o.tier].days}`;
+      bot.log(`        let go: ${o.tier} for ${o.client}, ${o.qty} for ${money(o.pay)} (${why})`);
+    }
   }
 }
 
@@ -953,6 +960,15 @@ export function playRun(opts: PacingOpts): RunResult {
   const seen = new WeakSet<BattleReport>(s.battles);
   const firsts = new Set<string>();
   const first = (key: string, what: string, day = s.day) => { if (!firsts.has(key)) { firsts.add(key); r.news.push({ day, what }); } };
+  /** Your first facility of each kind and level, and each brand tier: dated by the day they were bought (and again after
+   * the night, for one that comes at dawn, as a won auction does). */
+  const owned = () => {
+    for (const p of PLOTS) {
+      const f = s.plots[p.id].facility;
+      if (f && s.plots[p.id].owner === 'player') first(`${f.kind}${f.level}`, `first ${FACILITIES[f.kind].names[f.level - 1]}`);
+    }
+    if (s.brandTier) first(`brand${s.brandTier}`, BRAND_TIERS[s.brandTier - 1].name);
+  };
   for (let d = 0; d < days && !gameOver(s); d++) {
     if (s.phase !== 'prep') { r.stuck = `Day ${s.day} began at ${s.phase}`; break; }
     const sec0 = bot.secSpent;
@@ -975,6 +991,7 @@ export function playRun(opts: PacingOpts): RunResult {
     for (let k = 2; k <= s.rank; k++) if (r.rankDay[k] === undefined) { r.rankDay[k] = s.day; first(`rank${k}`, `Rank ${k}, ${RANKS[k - 1].title}`); }
     if (s.outcome && !r.outcome) r.outcome = { result: s.outcome.result, how: s.outcome.how, day: s.outcome.day };
     if (s.outcome?.result === 'won' && keepSqueezing(s)) first('won', `won by ${s.outcome.how}`); // the victory card's Keep Squeezing: Rank 10 comes after
+    owned();
     const today = s.day, t = s.today;
     sleepUntilDawn(s);
     finishFight(s);
@@ -1000,11 +1017,7 @@ export function playRun(opts: PacingOpts): RunResult {
       if (s.orders.includes(o)) bot.orders.set(o, now); else bot.orders.delete(o);
     }
     for (const id of rivalsInPlay(s)) if (!s.rivals[id].alive) first(`out-${id}`, `${id} out`);
-    for (const p of PLOTS) {
-      const f = s.plots[p.id].facility;
-      if (f && s.plots[p.id].owner === 'player') first(`${f.kind}${f.level}`, `first ${FACILITIES[f.kind].names[f.level - 1]}`);
-    }
-    if (s.brandTier) first(`brand${s.brandTier}`, BRAND_TIERS[s.brandTier - 1].name);
+    owned();
     if (s.outcome && !r.outcome) r.outcome = { result: s.outcome.result, how: s.outcome.how, day: s.outcome.day }; // won at dawn
     const w = t.walkedPast;
     opts.log?.(`day ${String(row.day).padStart(3)}  R${row.rank}  NW ${money(row.netWorth)}  takings ${money(income)}  ${t.weather.kind} ${t.customers} cups`

@@ -13,7 +13,8 @@ import type { Blocker, GameState, Stand } from './economy.ts';
 import { playerStands, seasonDay, seasonOf, selectedStand } from './economy.ts';
 import { book } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { blenderBar, grantPage, ownedRecipes, ownsRecipe, pageHolder, pagesAtDawn, RECIPE_IDS, worldOf } from './recipes.ts';
-import { actOf, districtControl, isEndless } from './modes.ts';
+import { actOf, isEndless } from './modes.ts';
+import { perkActive } from './land.ts'; // land: the Full Control perks
 import { eventCrowd, eventsAtClose, eventsAtDawn } from './events.ts';
 import { mediaAtClose, mediaAtDawn } from './media.ts';
 import { ceaseAndDesistIn } from './schemes.ts';
@@ -118,12 +119,9 @@ export function calendarTraffic(s: GameState, owner: FactionId, st?: Stand): num
 
 // ---------- Event Sponsorship ----------
 
-/** Word of Mouth (Campus & Arts at Full Control): local campaigns half price everywhere, Event Sponsorship included.
- * Seam: land's perkActive(s, 'wordOfMouth') once it merges; until then Full Control is read off the district's share. */
-export function sponsorHalfPrice(s: GameState): boolean {
-  const c = districtControl(s, 'campus');
-  return c.total > 0 && c.mine >= c.total;
-}
+/** Word of Mouth (Campus & Arts at Full Control): local campaigns half price everywhere, Event Sponsorship included
+ * (land's perkActive). */
+export const sponsorHalfPrice = (s: GameState): boolean => perkActive(s, 'wordOfMouth');
 
 /** FizzCo's Cease-and-Desist (src/sim/schemes.ts) blocks your marketing in one district for 3 days; MARKETING_BLOCKS takes
  * any other block. */

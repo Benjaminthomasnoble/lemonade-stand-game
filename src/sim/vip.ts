@@ -13,7 +13,8 @@ import { iceMachineOn, machineIce } from './happenings.ts';
 import { book, useStock } from './ledger.ts'; // the Ledger: each cash movement on its row
 import { restoreHp } from './damage.ts';
 import { isPremium, ownedRecipes, ownsRecipe, premiumPages, recipeCost, worldOf } from './recipes.ts';
-import { fullControl, rivalStars } from './demand.ts';
+import { rivalStars } from './demand.ts';
+import { perkActive } from './land.ts'; // land: the Full Control perks
 import { festivalDays, festivalsOn, yearOf } from './calendar.ts';
 
 export type FacilityKind = 'bottling' | 'helipad' | 'pier' | 'grove' | 'clubhouse' | 'billboard';
@@ -370,10 +371,10 @@ export function offerChance(s: GameState, tier: OrderTier): number {
   return (tier === 'heli' || tier === 'ship') && harborFestOn(s) ? Math.max(base, HARBOR_FEST_CHANCE) : base;
 }
 
-/** The Harbor's perk, live while you hold every plot there. Seam: land's perkActive(s, 'shippingLane') once it merges. */
-export const shippingLane = (s: GameState) => fullControl(s, 'harbor');
-/** Hilltop's perk, live while you hold every plot there. Seam: land's perkActive(s, 'oldMoney') once it merges. */
-export const oldMoney = (s: GameState) => fullControl(s, 'hilltop');
+/** The Harbor's perk, Shipping Lane: live while you hold every plot there (land's perkActive). */
+export const shippingLane = (s: GameState) => perkActive(s, 'shippingLane');
+/** Hilltop's perk, Old Money: live while you hold every plot there (land's perkActive). */
+export const oldMoney = (s: GameState) => perkActive(s, 'oldMoneyVip');
 /** Harbor Fest runs today: the Fall VIP rush. */
 export const harborFestOn = (s: GameState) => festivalsOn(s.day).includes('harborFest');
 /** Act 5's Harbor Fest (spec: "choppers and ships queue for the Fall VIP rush while Syndicate crews go after every

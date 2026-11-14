@@ -517,6 +517,19 @@ export const LOOKOUT_DETECTION = 0.25;
 export const SCOUT_DAYS = 3;
 /** A Wrecker's +50% Chop adds to a Lumberjack's +50%: ×2 for both (placeholder: spec gap, it only says they stack). */
 export const WRECKER_CHOP = 0.5;
+/** Days Out after a knockout: one, or two when a hatchet landed it (the Infirmary and Chicken Soup take days off a
+ * guard's; a henchman's count on their plot's books, and on a Nabbed one's). */
+export const KO_OUT_DAYS = { plain: 1, hatchet: 2 };
+/** The traits' fight numbers (crew.ts guardFighter): HP and Hit multipliers and Nerve added; Lumberjack's Chop is a
+ * bonus that adds to a Wrecker's (WRECKER_CHOP); Night Owl's count only at night. Sprinter's Speed, Butterfingers'
+ * slip and the Goose Whisperer's honk are in COMBAT. */
+export const TRAIT_EFFECTS = {
+  toughCookie: { hp: 1.2 },
+  gentleGiant: { hp: 1.5, hit: 0.7 },
+  hothead: { hit: 1.15, nerve: -20 },
+  lumberjack: { chop: 0.5 },
+  nightOwl: { hit: 1.25, chop: 1.25 },
+};
 /** A Captain in the squad (or on the plot) gives the whole side this, once however many Captains there are. */
 export const CAPTAIN = { nerve: 20, hit: 0.1 };
 /** Clubhouses: each one fills a Street plot and upgrades on its own; the roster holds ROSTER_BASE plus every Clubhouse's beds. */
@@ -606,7 +619,8 @@ export const RIVAL_LOOKOUTS = { perRaid: [0, 0, 1, 1, 2], stealth: 0.1 };
 /** Share of all rival raids aimed at other rivals rather than you, by Threat; none once the Syndicate forms (the
  * Threat 5 share before it forms is a placeholder: spec gap). */
 export const RIVAL_VS_RIVAL = [0.3, 0.3, 0.3, 0.15, 0.15];
-/** A boss leading a raid (Threat 5, every Syndicate strike): built like their Boss Room self (rivals.ts stormHQ). */
+/** A boss as they fight in their Boss Room (rivals.ts boss), and leading a raid (Threat 5, every Syndicate strike): HP as a
+ * multiple of a guard's, all scaled by their HQ's tier. */
 export const RAID_BOSS = { hp: 2.5, hit: 8, chop: 2, nerve: 200, armor: 0.2 };
 /** The Syndicate's raids on you per week, Classic (Laid Back ×0.5 = 3, Cutthroat ×1.5 = 9). */
 export const SYNDICATE_RAIDS_PER_WEEK = 6;
@@ -683,7 +697,7 @@ export type Trait = (typeof TRAITS)[number];
 export const COMBAT = {
   firstStrike: { bonus: 0.25, seconds: 5 }, // an undetected raid: +25% to every swing and chop for 5 s
   soak: 0.2, // Sprinkler Ambush: soaked raiders deal 20% less damage all fight
-  goose: { stun: 3 }, // Guard Goose: stuns the first raider to arrive (the next one too with a Goose Whisperer)
+  goose: { stun: 3, honks: 1, whisperer: 2 }, // Guard Goose: stuns the first raider to arrive (the first two with a Goose Whisperer, at most)
   slick: { stun: 4, count: 3 }, // Lemon-Peel Slick: the first 3 raiders slip
   grabMinutes: 10, // time on target for a Shakedown or Sabotage
   objectiveMinutes: 60, // a Smash that isn't done by then leaves the stand only Damaged

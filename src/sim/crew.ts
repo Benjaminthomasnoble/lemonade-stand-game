@@ -8,7 +8,7 @@ import {
   GUARD_XP_TO_LEVEL, HENCHMEN, HIRE_RANK, LOOKOUT_DETECTION, NEIGHBORHOOD_WATCH_DETECTION, NIGHT_END, NIGHT_STEALTH, OPEN, PERIMETERS,
   PROMOTE_LEVEL, RAID_PARTY, RAID_RANK, RANKS, REBUILD_SHARE, RECRUIT_DAYS, RECRUIT_LEVELS, RECRUIT_POOL,
   RIVAL_KIT, RIVAL_SABOTAGE, ROSTER_BASE, SABOTAGE_RANK, SNEAKY_STEALTH, SPECIALTIES, SQUAD_CAP,
-  STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, WEAPONS, WRECKER_CHOP,
+  STAND_HP, STAND_LEVELS, STRONGHOLD_DETECTION, STRONGHOLD_TRAVEL, TRAIT_EFFECTS, WEAPONS, WRECKER_CHOP,
   type GadgetId, type GearId, type RivalId, type Specialty, type Trait, type WeaponId,
 } from './balance.ts';
 import { runBattle, winChance, type BattleEvent, type BattleInput, type BattleResult, type Fighter, type Objective, type Side } from './combat.ts';
@@ -508,12 +508,13 @@ export function guardFighter(g: Guard, side: 'att' | 'def', night: boolean, foe?
   let chop = WEAPONS[g.weapon].chop * m;
   let nerve = GUARD_BASE.nerve;
   let speed = COMBAT.speed;
-  if (g.trait === 'Tough Cookie') hp *= 1.2;
-  if (g.trait === 'Gentle Giant') { hp *= 1.5; hit *= 0.7; }
-  if (g.trait === 'Hothead') { hit *= 1.15; nerve -= 20; }
-  chop *= 1 + (g.trait === 'Lumberjack' ? 0.5 : 0) + (g.specialty === 'wrecker' ? WRECKER_CHOP : 0); // Lumberjack and Wrecker: +50% each
+  const T = TRAIT_EFFECTS;
+  if (g.trait === 'Tough Cookie') hp *= T.toughCookie.hp;
+  if (g.trait === 'Gentle Giant') { hp *= T.gentleGiant.hp; hit *= T.gentleGiant.hit; }
+  if (g.trait === 'Hothead') { hit *= T.hothead.hit; nerve += T.hothead.nerve; }
+  chop *= 1 + (g.trait === 'Lumberjack' ? T.lumberjack.chop : 0) + (g.specialty === 'wrecker' ? WRECKER_CHOP : 0); // Lumberjack and Wrecker: +50% each
   if (g.trait === 'Sprinter') speed *= COMBAT.sprinter;
-  if (g.trait === 'Night Owl' && night) { hit *= 1.25; chop *= 1.25; }
+  if (g.trait === 'Night Owl' && night) { hit *= T.nightOwl.hit; chop *= T.nightOwl.chop; }
   if (g.trait === 'Former Rival' && foe && g.oldFaction === foe) { hit *= 1 + FORMER_RIVAL; chop *= 1 + FORMER_RIVAL; }
   return { id: g.id, name: g.name, side, hp, hit, chop, nerve, armor: GEAR[g.gear].armor, weapon: g.weapon, speed, trait: g.trait, gear: g.gear, level: g.level };
 }

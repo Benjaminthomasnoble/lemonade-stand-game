@@ -233,7 +233,7 @@ export function createFight(input: BattleInput, rng: Rng): Fight {
 
   // The goose honks at the first raider to arrive (twice with a Goose Whisperer); the peels trip the first three.
   const whisperer = input.defenders.some((d) => d.trait === 'Goose Whisperer');
-  let honks = has('goose') ? Math.min(2, input.gooseStuns ?? (whisperer ? 2 : 1)) : 0;
+  let honks = has('goose') ? Math.min(C.goose.whisperer, input.gooseStuns ?? (whisperer ? C.goose.whisperer : C.goose.honks)) : 0;
   let slips = has('slick') ? C.slick.count : 0;
 
   const up = (u: Live) => !u.out && !u.ran;

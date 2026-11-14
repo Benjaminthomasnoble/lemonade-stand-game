@@ -10,7 +10,8 @@ import {
   canRaid, foughtByDay, henchmanFor, playerWon, hqOdds, isSpoiled, raidParty, maybeSabotage, raidIsNight, raidIsNightAt, raidRepCost, repairFence, rivalDefenseSpend, rivalKit, spotAssault, squadFighters, strongholdTravelMult, towerCovers,
   type BattleReport, type Guard, type Raid,
 } from './crew.ts';
-import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GEAR, GUARD_BASE, HENCHMEN, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RAID_PARTY, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, type RivalId } from './balance.ts';
+import { AUTO_REPAIR_RANK, CLOSE, GADGETS, GEAR, GUARD_BASE, HENCHMEN, KO_OUT_DAYS, LESSON_DAY, MINUTES_PER_DAY, NIGHT_END, OPEN, PERIMETERS, PLAYER_RAID_LEAVE, RAID_PARTY, RIVAL_KIT, RIVAL_SABOTAGE, STAND_LEVELS, TRAIT_EFFECTS, type RivalId, type Trait } from './balance.ts';
+import { koDays } from './clubhouse.ts';
 import type { Fighter } from './combat.ts';
 import { canGullScout, canScout, gullScout, isScouted, PIER, PIER_GOAL, pierFlightGoal, pierTarget, recordScouting, scoutedSnapshot, scoutWithLookout } from './scouting.ts';
 import { checkGoals, goalReward, goalsNow } from './goals.ts';
@@ -450,6 +451,20 @@ describe('Wreckers and Captains', () => {
     expect(guardFighter(guard({ specialty: 'wrecker' }), 'att', false).chop).toBeCloseTo(15);
     expect(guardFighter(guard({ trait: 'Lumberjack' }), 'att', false).chop).toBeCloseTo(15);
     expect(guardFighter(guard({ trait: 'Lumberjack', specialty: 'wrecker' }), 'att', false).chop).toBeCloseTo(20);
+  });
+
+  it('the fight numbers read balance.ts: the traits (TRAIT_EFFECTS) and the days Out after a KO (KO_OUT_DAYS)', () => {
+    const T = TRAIT_EFFECTS;
+    const as = (trait: Trait, night = true) => guardFighter(guard({ trait }), 'att', night);
+    const base = as('Loyal'), day = as('Loyal', false);
+    expect(as('Tough Cookie').hp).toBeCloseTo(base.hp * T.toughCookie.hp);
+    expect(as('Gentle Giant')).toMatchObject({ hp: expect.closeTo(base.hp * T.gentleGiant.hp), hit: expect.closeTo(base.hit * T.gentleGiant.hit) });
+    expect(as('Hothead')).toMatchObject({ hit: expect.closeTo(base.hit * T.hothead.hit), nerve: base.nerve + T.hothead.nerve });
+    expect(as('Lumberjack').chop).toBeCloseTo(base.chop * (1 + T.lumberjack.chop));
+    expect(as('Night Owl')).toMatchObject({ hit: expect.closeTo(base.hit * T.nightOwl.hit), chop: expect.closeTo(base.chop * T.nightOwl.chop) });
+    expect(as('Night Owl', false)).toMatchObject({ hit: day.hit, chop: day.chop }); // by day, nothing
+    const s = newGame(5); // no Infirmary, no Chicken Soup
+    expect([koDays(s, false), koDays(s, true)]).toEqual([KO_OUT_DAYS.plain, KO_OUT_DAYS.hatchet]);
   });
 
   it('a Captain gives the whole side +20 Nerve and +10% Hit, once', () => {

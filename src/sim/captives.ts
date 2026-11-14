@@ -15,7 +15,7 @@
 // on your roster, Out while held: pay their hire fee within a few days, or they
 // go over to the rival; a Loyal guard won't, and walks home. Pure, like the
 // rest of the sim.
-import { BAY_RIVALS, FACTIONS, GUARD_FEE, HIRE_RANK, NABBED, RANKS, TRAITS, type RivalId, type Trait } from './balance.ts';
+import { BAY_RIVALS, FACTIONS, GUARD_FEE, HIRE_RANK, KO_OUT_DAYS, NABBED, RANKS, TRAITS, type RivalId, type Trait } from './balance.ts';
 import type { BattleResult, Fighter } from './combat.ts';
 import type { FactionId } from './map.ts';
 import { nextRandom, type Rng } from './rng.ts';
@@ -81,7 +81,7 @@ function holdGuard(s: GameState, id: string, by: RivalId): Captive | null {
 /** A henchman you hold, as they'd be on your crew: a name, their level and a recruit's trait; seeing stars from the KO. */
 function holdHenchman(s: GameState, f: Fighter, from: RivalId, axed: boolean, rng: Rng): Captive {
   const g = makeGuard(s, rng, Math.min(5, Math.max(1, f.level ?? 1)));
-  g.outUntil = s.day + 1 + (axed ? 2 : 1);
+  g.outUntil = s.day + 1 + (axed ? KO_OUT_DAYS.hatchet : KO_OUT_DAYS.plain);
   return { id: g.id, from, by: 'player', day: s.day, guard: g };
 }
 

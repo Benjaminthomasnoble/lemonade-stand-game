@@ -1,6 +1,6 @@
 // Sit-downs at Dot's Diner, buyouts, elimination and HQ assaults (canon
 // sections 10 and 13). Pure functions over GameState, like the rest of the sim.
-import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, PERIMETERS, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
+import { FACTIONS, GUARD_BASE, PEACEFUL_VERA_BUYOUT, PERIMETERS, RAID_BOSS, RANKS, SQUAD_CAP, type RivalId, type Trait } from './balance.ts';
 import { runBattle, type BattleInput, type BattleResult, type BossMove, type Fighter } from './combat.ts';
 import { creditGuards, guardReady, hasBuilding, henchmanFor, raidIsNight, raidSquad, squadFighters, threatLevel, type BattleReport, type Guard, type Raid } from './crew.ts';
 import { PLOT_BY_ID, PLOTS, type FactionId, type Plot } from './map.ts';
@@ -655,7 +655,7 @@ export const HQ_STAGES: HqStage[] = ['gate', 'yard', 'boss'];
 function boss(id: RivalId, n: number): Fighter {
   const tier = HQS[id].tier;
   const m = 0.75 + 0.25 * tier;
-  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * 2.5 * m, hit: 8 * m, chop: 2, nerve: 200, armor: 0.2, weapon: 'clubs', boss: true };
+  return { id: `${id}-boss-${n}`, name: HQS[id].boss, side: 'def', hp: GUARD_BASE.hp * RAID_BOSS.hp * m, hit: RAID_BOSS.hit * m, chop: RAID_BOSS.chop, nerve: RAID_BOSS.nerve, armor: RAID_BOSS.armor, weapon: 'clubs', boss: true };
 }
 
 /** The squad that storms the gate: picked guards who are fit to fight (breaks any truce). */

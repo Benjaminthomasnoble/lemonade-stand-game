@@ -6,6 +6,7 @@
 // (only the Nabbed are gone). A smash doesn't scatter them either: they stay
 // on the plot, and go home to their HQ if the plot is lost. Pure, like the
 // rest of the sim.
+import { KO_OUT_DAYS } from './balance.ts';
 import { PLOTS } from './map.ts';
 import type { GameState, PlotState } from './economy.ts';
 
@@ -30,7 +31,7 @@ export function knockOut(s: GameState, plotId: string, ids: string[], hatchetKos
   const ps = s.plots[plotId];
   if (!ps || !ids.length) return;
   const axed = ids.filter((id) => hatchetKos.includes(id)).length;
-  bookOut(s, ps, [{ n: ids.length - axed, back: s.day + 2 }, { n: axed, back: s.day + 3 }]);
+  bookOut(s, ps, [{ n: ids.length - axed, back: s.day + 1 + KO_OUT_DAYS.plain }, { n: axed, back: s.day + 1 + KO_OUT_DAYS.hatchet }]);
 }
 
 /** A rival's HQ plot while it still holds it. */

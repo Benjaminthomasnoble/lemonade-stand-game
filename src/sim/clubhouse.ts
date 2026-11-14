@@ -8,7 +8,7 @@
 // raid squad sets out from (and walks home to) where its guards wait. From L2
 // the reserve trains in the Training Yard; an L3's Infirmary heals KOs a day
 // faster.
-import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL } from './balance.ts';
+import { CLUBHOUSE, CLUBHOUSE_EXTRAS, GUARD_XP_TO_LEVEL, KO_OUT_DAYS } from './balance.ts';
 import { PLOT_BY_ID, PLOTS, plotType, type Plot } from './map.ts';
 import type { GameState } from './economy.ts';
 import { levelUp, type Guard } from './crew.ts';
@@ -74,7 +74,7 @@ export const infirmaryDays = (s: GameState): number =>
   (clubhouses(s).some((p) => clubExtras(s.plots[p.id].facility!.level).infirmary) ? CLUBHOUSE_EXTRAS.infirmary.days : 0);
 
 /** Days Out after a knockout (1, or 2 when a hatchet landed it), less the Infirmary's day, never below 0. */
-export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (hatchet ? 2 : 1) - infirmaryDays(s) - chickenSoup(s)); // Chicken Soup: Lottie's tip (perks.ts)
+export const koDays = (s: GameState, hatchet: boolean): number => Math.max(0, (hatchet ? KO_OUT_DAYS.hatchet : KO_OUT_DAYS.plain) - infirmaryDays(s) - chickenSoup(s)); // Chicken Soup: Lottie's tip (perks.ts)
 
 /**
  * The Training Yard, at dawn: each guard who waited all day at an L2 or L3 Clubhouse (off post, not Out, not away on a

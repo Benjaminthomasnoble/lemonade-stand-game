@@ -597,6 +597,29 @@ describe('Auto-Repair (Rank 3)', () => {
     expect(loan.plots[LOTTIES_CORNER].repair).toMatchObject({ cost: 15, rebuild: true });
   });
 
+  it('books a free top-up whatever the reserve: a repair already at its cap gets the new damage for $0', () => {
+    const s = newGame(34, { difficulty: 'laidback' }); // a Busted repair is 10%: $10 on Lottie's $100 table
+    s.rank = 3;
+    s.guards.push({ id: 'g1', name: 'Tess Moody', trait: 'Eagle Eye', level: 1, xp: 0, weapon: 'fists', gear: 'none', post: null, outUntil: 0, fee: 0 });
+    expect(autoRepairReserve(s)).toBe(15); // a guard's wages still owed at dawn
+    s.cash = 1000;
+    const corner = s.plots[LOTTIES_CORNER];
+    corner.stand!.hp = 20;
+    expect(approveRepair(s, LOTTIES_CORNER)).toBe(true); // booked at Morning Prep, at its cap
+    expect(corner.repair).toEqual({ by: 'player', cost: 10, hp: 80 });
+    corner.stand!.hp = 10; // more damage before closing
+    expect(repairCost(s, LOTTIES_CORNER)).toBe(0); // never more than the cap
+    expect(prepPreview(s).map((p) => p.id)).not.toContain(AUTO_REPAIR); // no +$0 ticket
+    closeShop(s);
+    expect(corner.repair).toEqual({ by: 'player', cost: 10, hp: 90 }); // every HP lost
+    expect(s.news).toContain('Auto-Repair: 1 fix booked for tonight, $0. Good as new at dawn.');
+    expect(s.news.some((n) => n.startsWith('Auto-Repair kept'))).toBe(false); // nothing was held back
+    s.raids = [];
+    expect(sleepUntilDawn(s)).toBe(true);
+    expect(isDamaged(corner)).toBe(false);
+    expect(currentHp(corner)).toBe(buildingHp(corner));
+  });
+
   it('books your rebuilds too, before any repair, and they are up again at dawn', () => {
     const { s, side } = twoDamaged();
     const table = s.plots[side];

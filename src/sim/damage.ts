@@ -573,7 +573,8 @@ const fixCost = (s: GameState, plotId: string) => (isWrecked(s.plots[plotId]) ? 
 export interface AutoFix { plotId: string; cost: number; rebuild: boolean }
 
 /** The fixes Auto-Repair would book now, the most urgent first, each as far as the cash goes once the reserve is kept
- * back. A fix it can't fit waits for you (the Evening's repair cards), and a cheaper one after it can still go. */
+ * back. A fix it can't fit waits for you (the Evening's repair cards), and a cheaper one after it can still go. A free
+ * one (the top-up of a repair already booked at its cap: never more than a rebuild) always goes. */
 export function autoRepairPlan(s: GameState): AutoFix[] {
   if (!autoRepairOn(s)) return [];
   const due = PLOTS.filter((p) => fixDue(s, p.id)).sort((a, b) => urgency(s.plots[a.id]) - urgency(s.plots[b.id]));
@@ -581,7 +582,7 @@ export function autoRepairPlan(s: GameState): AutoFix[] {
   const out: AutoFix[] = [];
   for (const p of due) {
     const cost = fixCost(s, p.id);
-    if (cost <= 0 || cost > left) continue;
+    if (cost > 0 && cost > left) continue;
     left -= cost;
     out.push({ plotId: p.id, cost, rebuild: isWrecked(s.plots[p.id]) });
   }
@@ -599,7 +600,7 @@ function autoRepair(s: GameState): void {
     n++;
     paid += fix.cost;
   }
-  const held = autoRepairReserve(s) > 0 && PLOTS.some((p) => fixDue(s, p.id) && fixCost(s, p.id) <= s.cash);
+  const held = autoRepairReserve(s) > 0 && PLOTS.some((p) => fixDue(s, p.id) && fixCost(s, p.id) > 0 && fixCost(s, p.id) <= s.cash);
   if (held) {
     const r = reserveParts(s);
     const what = [r.wages ? 'wages' : '', r.loan ? 'the loan' : ''].filter(Boolean).join(' and ');

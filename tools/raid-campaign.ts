@@ -26,10 +26,10 @@ const fullDays = process.argv.includes('--days');
 const rumors = !process.argv.includes('--no-rumors');
 
 const PACE: Record<'laidback' | 'classic' | 'cutthroat', number> = { laidback: 0.86, classic: 1, cutthroat: 1.01 };
-/** The totals this tool measured on 2026-11-14 (seeds 1–12, business days skipped, rumors answered; the low end with
- * every raid repelled, the high end with none): the Threat table's rate, the quiet-night cap (MAX_QUIET_NIGHTS) and the
- * answered rumors' raids together. balance-tables' 5–23, 20–47 and 41–77 date from before the cap and the rumors. */
-const SPEC: Record<keyof typeof PACE, [number, number]> = { laidback: [46, 79], classic: [75, 124], cutthroat: [115, 148] };
+/** balance-tables' campaign raid totals (Difficulty table), as this tool measured them on 2026-11-14: seeds 1–12,
+ * business days skipped, rumors answered; the low end with every raid repelled, the high end with none. They count the
+ * Threat table's rate, the quiet-night cap (MAX_QUIET_NIGHTS) and the answered rumors' raids together. */
+const SPEC: Record<keyof typeof PACE, [number, number]> = { laidback: [46, 79], classic: [76, 119], cutthroat: [115, 166] };
 /** balance-tables' simulated Classic day for each rank. */
 const RANK_DAY = [1, 4, 9, 19, 41, 58, 78, 104, 135];
 /** The HQ falls on the reference map, in order. */

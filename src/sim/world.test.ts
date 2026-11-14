@@ -6,6 +6,7 @@ import {
   pickRecipe, PLOTS, plotBuyoutPrice, PRICE_BANDS, priceBand, RECIPE_IDS, RECIPES, recipeCost, recipeMatch, rivalReputationTarget, rivalStars, SEGMENTS, setTasteOffEntry,
   simulateRestOfDay, sleepUntilDawn, sponsorCost, sponsorFestival, sweetnessFit, TASTE_OFF, TASTE_OFF_SKILL, tasteOffResult, tasteOffToday,
   tickMinute, tillyWaits, upcomingFestivals, worldOf, yearOf, sponsorHalfPrice, underCeaseAndDesist, DISTRICTS, MARKETING_BLOCKS, bugleHeadline, frontPage,
+  campaignCost, DISTRICT_CAMPAIGNS, PERKS, SPONSORSHIP,
   type DistrictId, type GameState, type RecipeId, type SegmentId, type Settings, type Sweetness,
 } from './economy.ts';
 import { calendarTickets, worldSheet } from '../ui/calendar.ts';
@@ -427,6 +428,22 @@ describe('Event Sponsorship', () => {
     expect(calendarTickets(s).join('')).toContain('Sponsor $5,000');
     expect(sponsorFestival(s, 'summerFair')).toBe(true);
     expect(s.cash).toBe(45000);
+  });
+
+  it("Word of Mouth's half is one number: the sponsorship and a local campaign both read PERKS.wordOfMouth", () => {
+    const s = game();
+    standIn(s, 'oldtown');
+    dawn(s, 10);
+    for (const p of PLOTS.filter((q) => q.district === 'campus' && q.type !== 'civic' && q.type !== 'hq')) s.plots[p.id].owner = 'player';
+    const was = PERKS.wordOfMouth;
+    try {
+      PERKS.wordOfMouth = 0.25; // a retune moves both
+      expect(sponsorCost(s, 'summerFair')).toBe(SPONSORSHIP.perDay * 0.25 * 5);
+      expect(campaignCost(s, 'sunny').cash).toBe(DISTRICT_CAMPAIGNS.sunny.costPerDay! * 0.25); // $300 a day
+    } finally {
+      PERKS.wordOfMouth = was;
+    }
+    expect(sponsorCost(s, 'summerFair')).toBe(1000 * 5);
   });
 
   it('a Cease-and-Desist in the district makes it count for nothing', () => {

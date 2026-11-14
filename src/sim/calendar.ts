@@ -4,7 +4,7 @@
 // Tilly's Fields). Pure functions over GameState, like the rest of the sim.
 import { nextRandom } from './rng.ts';
 import {
-  FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, PRICE_TOLERANCE, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
+  FACTIONS, FESTIVAL_CROWD_SHARE, FESTIVALS, PERKS, PRICE_TOLERANCE, RANKS, RECIPES, SEASON_DAYS, SEASONS, SEGMENTS, SPONSORSHIP, STAND_LEVELS, TASTE_OFF,
   TASTE_OFF_SKILL, TILLY_FAIR_ACT, TILLY_FAIR_YEAR, TILLY_FIELD_BUYOUT, TILLY_WAITS_FOR_FAIR, YEAR_DAYS,
   type FestivalId, type RecipeId, type RivalId, type SegmentId, type Sweetness,
 } from './balance.ts';
@@ -129,10 +129,10 @@ export const sponsorHalfPrice = (s: GameState): boolean => perkActive(s, 'wordOf
 export const MARKETING_BLOCKS: ((s: GameState, district: DistrictId) => boolean)[] = [];
 export const underCeaseAndDesist = (s: GameState, district: DistrictId): boolean => ceaseAndDesistIn(s, district) || MARKETING_BLOCKS.some((f) => f(s, district));
 
-/** $2,000 for each festival day left, today included ($1,000 with Word of Mouth). */
+/** $2,000 for each festival day left, today included ($1,000 with Word of Mouth: the same half as a local campaign's). */
 export function sponsorCost(s: GameState, id: FestivalId): number {
   const days = festivalDays(id, yearOf(s.day)).to - s.day + 1;
-  return SPONSORSHIP.perDay * days * (sponsorHalfPrice(s) ? SPONSORSHIP.wordOfMouth : 1);
+  return SPONSORSHIP.perDay * days * (sponsorHalfPrice(s) ? PERKS.wordOfMouth : 1);
 }
 export const isSponsored = (s: GameState, id: FestivalId) => !!s.world?.sponsored.some((x) => x.festival === id && x.to >= s.day);
 

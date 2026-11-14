@@ -274,16 +274,19 @@ export const BENNY_SLOGANS = {
 export const bennyPitch = (what: number | CampaignId): string => (typeof what === 'number' ? BENNY_SLOGANS.brand[what - 1] ?? '' : BENNY_SLOGANS[what]);
 
 /**
- * Act 1's lesson lines, the morning each system's button appears: Day 3's Market, Day 4's Wooden Stand (a tap on the
- * table answered from Day 1; now Lottie nudges it), Day 7's first sign, which Benny Buzz pitches himself.
+ * Act 1's lesson lines, the morning each system's button appears: Day 2's Market, Day 5's Wooden Stand (a tap on the
+ * table answered from Day 1; now Lottie nudges it), Day 6's first sign, which Benny Buzz pitches himself. Each is a card
+ * in the alert feed (nights' alert, which puts it in the news too); Go there goes to your first stand.
  */
 function lessonLines(s: GameState): void {
-  if (lessonsOn(s) && s.day === LESSON_DAY.market) s.news.push('Lottie: "From today the market\'s yours. Auto\'s on, so I stock every stand at dawn: set each one\'s target, or switch it off and buy your own."');
+  const home = playerStands(s)[0]?.id;
+  const say = (text: string, plot = home) => alert(s, { kind: 'note', text, ...(plot ? { plot } : {}) });
+  if (lessonsOn(s) && s.day === LESSON_DAY.market) say('Lottie: "From today the market\'s yours. Auto\'s on, so I stock every stand at dawn: set each one\'s target, or switch it off and buy your own."');
   const [table, wooden] = STAND_LEVELS;
   if (lessonsOn(s) && s.day === LESSON_DAY.upgrade && !playerStands(s).some((p) => s.plots[p.id].stand!.level >= wooden.level)) {
-    s.news.push(`Lottie: "Time that table grew up. A Wooden Stand draws ${wooden.draw / table.draw}× the walkers and pours ${wooden.capacityPerHour / table.capacityPerHour}× as fast: ${money(wooden.cost)}, back in 2-4 days."`);
+    say(`Lottie: "Time that table grew up. A Wooden Stand draws ${wooden.draw / table.draw}× the walkers and pours ${wooden.capacityPerHour / table.capacityPerHour}× as fast: ${money(wooden.cost)}, back in 2-4 days."`);
   }
-  if ((lessonsOn(s) || hasStory(s)) && s.day === LESSON_DAY.marketing && !s.brandTier) s.news.push(`Benny Buzz: "${bennyPitch(1)} One sign, ${money(BRAND_TIERS[0].cost)}!"`);
+  if ((lessonsOn(s) || hasStory(s)) && s.day === LESSON_DAY.marketing && !s.brandTier) say(`Benny Buzz: "${bennyPitch(1)} One sign, ${money(BRAND_TIERS[0].cost)}!"`, '');
 }
 
 /**

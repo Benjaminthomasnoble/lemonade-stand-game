@@ -235,7 +235,7 @@ describe('the alert feed', () => {
     dismissAlert(s, s.alerts![1].id);
     expect(s.alerts).toHaveLength(MAX_ALERTS - 1);
     sleepUntilDawn(s);
-    expect(s.alerts).toEqual([]);
+    expect(s.alerts!.filter((a) => a.day < s.day)).toEqual([]); // the night's cards (a dawn lesson posts its own: story.ts)
   });
 
   it("Restock now buys while the stands are open; after closing it, and Auto-Restock, return and buy nothing", () => {

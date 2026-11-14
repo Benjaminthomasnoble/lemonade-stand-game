@@ -199,6 +199,7 @@ describe('Day 5: Lottie nudges the Wooden Stand', () => {
     s.plots[LOTTIES_CORNER].defense.tier = 1; // Day 3's fence is up, so the stand is the next goal
     dawnOf(s, 5);
     expect(nudge(s)).toBe('Lottie: "Time that table grew up. A Wooden Stand draws 1.5× the walkers and pours 2.5× as fast: $400, back in 2-4 days."');
+    expect(s.alerts!.find((a) => a.text === nudge(s))).toMatchObject({ kind: 'note', plot: LOTTIES_CORNER }); // a card in the alert feed: Go there
     expect(goalsNow(s)[1].text).toBe('Build the Wooden Stand');
     const built = newGame(61);
     corner(built).level = 2; // a curious player tapped the table early

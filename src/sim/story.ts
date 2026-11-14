@@ -301,7 +301,7 @@ function lessonLines(s: GameState): void {
 }
 
 /**
- * Week 2's land lesson (campaign): Skip Larkin finds you an open Old Town street plot, the cheapest going, and stands on
+ * Day 7's land lesson (campaign): Skip Larkin finds you an open Old Town street plot, the cheapest going, and stands on
  * it in his scene; its card points there, and the Land Registry opens with the lesson. Old Town needs Rank 2, so he
  * waits for it through the rest of Act 1. If you already hold land in Old Town, there's nothing left to find.
  */

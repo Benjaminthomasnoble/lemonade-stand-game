@@ -50,7 +50,7 @@ export function menuUnlocked(s: GameState, id: MenuId): boolean {
     case 'planner': return s.rank >= RAID_RANK && !peaceful(s) && s.guards.length > 0;
     case 'corkboard': return s.day >= 2 || s.battles.length > 0;
     case 'orders': return s.offers.length + s.orders.length > 0 || s.rank >= ORDER_TIERS.local.rank;
-    case 'registry': return registryOpen(s); // Week 2's land lesson (src/ui/registry.ts draws it; story.ts taught)
+    case 'registry': return registryOpen(s); // Day 7's land lesson (src/ui/registry.ts draws it; story.ts taught)
     case 'rank': return taught(s, 'rank'); // with its badge on the top bar (the rank lesson, src/sim/story.ts)
     default: return true; // the paper, the stand and Lottie's goals are there from Day 1
   }

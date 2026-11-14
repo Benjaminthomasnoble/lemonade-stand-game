@@ -50,13 +50,13 @@ describe('plot card land notes', () => {
 });
 
 describe('the Land Registry', () => {
-  /** A Week 2 morning with cash to spend. */
+  /** Day 8, the morning after Day 7's land lesson, with cash to spend. */
   const week2 = (seed: number, rank = 2) => { const s = newGame(seed); s.day = 8; s.rank = rank; s.cash = 1e6; return s; };
   const buttons = (html: string, action: string) => [...html.matchAll(new RegExp(`<button[^>]*data-action="${action}"[^>]*>.*?</button>`, 'g'))].map((m) => m[0]);
   const plotOf = (tag: string) => /data-plot="([^"]+)"/.exec(tag)![1];
   const onTab = (html: string, tab: string) => html.includes(`cl-tab on" data-action="registry" data-tab="${tab}"`);
 
-  it("opens with Week 2's land lesson as a menu (the Menus list and its key), from the Town Hall card and the In the Red ticket", () => {
+  it("opens with Day 7's land lesson as a menu (the Menus list and its key), from the Town Hall card and the In the Red ticket", () => {
     const s = newGame(50);
     const lot = purchasablePlots('maple').find((p) => !s.plots[p.id].owner)!.id;
     const list = () => menuScreen(s, 'index', { head: ['', ''], goals: [], crew: () => '', options: DEFAULT_OPTIONS });

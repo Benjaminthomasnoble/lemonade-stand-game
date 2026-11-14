@@ -165,7 +165,7 @@ function mediumGoals(s: GameState): Candidate[] {
   if (towner) out.push(towner);
   if (hasStory(s)) out.push(...act2Goals(s));
   // Act 1's lessons, newest first; the Wooden Stand is Day 5's (LESSON_DAY.upgrade, when the Grow tab comes), so Days
-  // 1-4 show the second stand or Net Worth. Week 2's Old Town corner is a story beat in the campaign (page icon) and a
+  // 1-4 show the second stand or Net Worth. Day 7's Old Town corner is a story beat in the campaign (page icon) and a
   // lesson elsewhere.
   if ((lessons || hasStory(s)) && s.day >= LESSON_DAY.land && (s.rank >= DISTRICT_RANK.oldtown || oldtown) && onMap(s, 'oldtown')) { // land: a Sandbox map may leave Old Town out
     const owns = mine.some((p) => p.district === 'oldtown');

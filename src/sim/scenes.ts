@@ -113,7 +113,7 @@ export const SCENES: Record<string, SceneDef> = {
     replies: ['Looks great!', 'Sunshine in a cup?'],
     recap: `Benny Buzz painted your first sign: +${Math.round(BRAND_TIERS[0].traffic * 100)}% foot traffic at every stand.`,
   },
-  // Week 2's land lesson: Skip Larkin stands on an open Old Town corner (story.ts fills in the plot and its price).
+  // Day 7's land lesson: Skip Larkin stands on an open Old Town corner (story.ts fills in the plot and its price).
   skip: {
     speaker: 'skip', seconds: 17,
     lines: [

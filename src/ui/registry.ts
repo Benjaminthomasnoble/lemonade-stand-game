@@ -137,9 +137,9 @@ const TAB_LABEL: Record<RegistryTab, string> = { buy: 'For Sale', auctions: 'Auc
 export const TOWN_HALL = PLOTS.find((p) => p.name === 'Town Hall and Registry')!.id;
 
 /**
- * Week 2's land lesson opens the Land Registry (spec: Onboarding, "Week 2 |
- * Land | The Land Registry"; story.ts taught). Before that, Maple Row's For
- * Sale signs and plot cards do the buying. With the lessons off it is open from
+ * Day 7's land lesson opens the Land Registry (spec: Onboarding, "7 | Land |
+ * The Land Registry"; story.ts taught). Before that, Maple Row's For Sale
+ * signs and plot cards do the buying. With the lessons off it is open from
  * Day 1.
  */
 export const registryOpen = (s: GameState) => taught(s, 'land');

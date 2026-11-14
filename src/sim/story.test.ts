@@ -611,7 +611,7 @@ describe('lessons and Dex', () => {
     expect(taught(s, 'land')).toBe(true);
   });
 
-  it("the Land Registry menu waits for Week 2's land lesson; with lessons off it opens with land for sale", () => {
+  it("the Land Registry menu waits for Day 7's land lesson; with lessons off it opens with land for sale", () => {
     const s = newGame(33);
     expect(menuUnlocked(s, 'registry')).toBe(false); // Maple Row's plots still sell from a tap on the map
     expect(menuScreen(s, 'index', { head: ['', ''], goals: [], crew: () => '', options: { ...DEFAULT_OPTIONS, keys: defaultKeys() } })).not.toContain('data-menu="registry"');

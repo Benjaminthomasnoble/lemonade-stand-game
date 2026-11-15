@@ -10,7 +10,7 @@ All five milestones are playable, plus the rival endgame (Sit-downs, buyouts, HQ
 
 1. ✅ One stand and the economy loop: Lottie's Folding Table on Maple Row, the Morning Bugle (forecast, market prices), lemons/sugar/ice with spoilage and storage, recipe cards and sweetness, customer types, "why people walked past", the Ledger, Reputation stars, Success Score and ranks, Lottie's Goals, saves
 2. ✅ Stand upgrades (Folding Table → Wooden Stand → Kiosk → Lemon Shack → Citrus Palace, rank-gated) and marketing (brand tiers, Sandwich-Board Kid, Free Sample Day), rank-up headlines
-3. ✅ Rivals, defenses and guards: five rival factions running stands on the map, fences P1–P5 and gadgets, guards from the Hiring Hall (fists → clubs → hatchets, padding, traits, levels), Clubhouse, Threat, night raids with warnings (none on days 1–5), player raids (Smash, Shakedown) with a Raid Planner and win odds, a watchable auto-battle replay, wrecked stands, rebuilds and First Dibs
+3. ✅ Rivals, defenses and guards: five rival factions running stands on the map, fences P1–P5 and gadgets, guards from the Hiring Hall (fists → clubs → hatchets, padding, traits, levels), Clubhouse, Threat, night raids with warnings (none on Nights 1–2), player raids (Smash, Shakedown) with a Raid Planner and win odds, a watchable auto-battle replay, wrecked stands, rebuilds and First Dibs
 4. ✅ Buying territory: Citrine Bay's 8 districts and 116 plots, Footholds and borders, more stands
 
 Music: the main theme and four stingers from the spec's music brief (`public/audio/`).

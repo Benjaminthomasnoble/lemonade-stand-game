@@ -46,6 +46,16 @@ function topper(B: Baker, id: RivalId, p: V3, s: number) {
       B.add(box(0.1, 1.5, 0.02), d.accent, { p: at(0, 0.85, 0.06), s, fx: PAPER });
       B.add(cone(0.1, 0.2, 3), d.accent, { p: at(0, 0.35, -0.08), r: [Math.PI, 0, 0], s: [s, s, s * 0.3] });
       break;
+    case 'snootwater': // Sterling's premium bottle: slim sky-blue glass, a silver cap, a snowy-peak label and his gold monocle on a chain
+      B.add(lathe([[0, 0], [0.2, 0.02], [0.22, 0.1], [0.21, 0.72], [0.15, 0.9], [0.08, 1.05], [0.08, 1.2], [0, 1.2]], 22), d.main, { p: at(0, 0, 0), s, fx: GLOSS });
+      B.add(cyl(0.095, 0.095, 0.12, 14), P.chrome, { p: at(0, 1.24, 0), s, fx: GLOSS });
+      B.add(cyl(0.225, 0.225, 0.3, 20, true), '#ffffff', { p: at(0, 0.42, 0), s, fx: PAPER });
+      B.add(cone(0.11, 0.16, 3), d.main, { p: at(-0.04, 0.44, 0.215), s: [s, s, s * 0.15] });
+      B.add(cone(0.05, 0.06, 3), '#ffffff', { p: at(-0.04, 0.5, 0.235), s: [s, s, s * 0.15] });
+      B.add(tor(0.1, 0.018, 5, 18), P.gold, { p: at(0.12, 0.78, 0.2), r: [0, 0.3, 0], s, fx: GLOSS });
+      B.add(cyl(0.085, 0.085, 0.01, 14), '#e8f6ff', { p: at(0.12, 0.78, 0.2), r: [Math.PI / 2, 0.3, 0], s, fx: GLOSS });
+      B.add(rope([at(0.2, 0.74, 0.17), at(0.17, 0.95, 0.17), at(0.09, 1.08, 0.08)], 0.008 * s, 6, 3), P.gold);
+      break;
   }
 }
 
@@ -104,6 +114,26 @@ function familyProps(B: Baker, id: RivalId, a: Anchors, level: number) {
       B.add(lumpy(sph(0.3, 14, 10), 0.01, 4, 6), d.accent, { p: [x, 0.8, z], s: [0.9, 2.4, 0.16], r: [0.15, 0.4, 0.1] });
       B.add(box(0.08, 1.3, 0.02), d.main, { p: [x, 0.8, z + 0.05], r: [0.15, 0.4, 0.1], fx: PAPER });
       B.add(lumpy(sph(0.5, 12, 8), 0.04, 3, 2), P.sand, { p: [x, 0, z], s: [1.2, 0.3, 1.1] });
+      break;
+    }
+    case 'snootwater': {
+      // A silver ice bucket on a tripod with two bottles chilling, and a little pyramid of bottles on the counter.
+      for (let k = 0; k < 3; k++) { const th = (k / 3) * Math.PI * 2; B.add(cyl(0.02, 0.02, 0.8, 5), P.chrome, { p: [x + Math.cos(th) * 0.16, 0.4, z + Math.sin(th) * 0.16], r: [Math.sin(th) * 0.18, 0, -Math.cos(th) * 0.18], fx: GLOSS }); }
+      B.add(lathe([[0, 0], [0.2, 0], [0.26, 0.38], [0.28, 0.4], [0, 0.4]], 18), P.chrome, { p: [x, 0.78, z], fx: GLOSS });
+      for (const s of [-1, 1]) B.add(tor(0.05, 0.012, 4, 10), P.chrome, { p: [x + s * 0.28, 1.08, z], r: [0, Math.PI / 2, 0], fx: GLOSS });
+      for (let k = 0; k < 7; k++) B.add(rbox(0.1, 0.1, 0.1, 0.02), '#eef8ff', { p: [x + (hash(k, 3) - 0.5) * 0.36, 1.18, z + (hash(k, 4) - 0.5) * 0.36], r: [hash(k) * 2, hash(k, 2) * 2, 0], fx: GLOSS });
+      for (const [dx, rz] of [[-0.08, 0.3], [0.09, -0.25]] as const) {
+        B.add(lathe([[0, 0], [0.06, 0], [0.065, 0.32], [0.03, 0.42], [0.03, 0.5], [0, 0.5]], 10), d.main, { p: [x + dx, 0.95, z], r: [0, 0, rz], fx: GLOSS });
+        B.add(cyl(0.032, 0.032, 0.05, 8), P.chrome, { p: [x + dx - Math.sin(rz) * 0.52, 0.95 + Math.cos(rz) * 0.52, z], r: [0, 0, rz], fx: GLOSS });
+      }
+      const px = a.jar[0], pz = a.jar[2], y = a.counterY;
+      const bottle = (bx: number, by: number) => {
+        B.add(lathe([[0, 0], [0.055, 0], [0.06, 0.2], [0.028, 0.27], [0.028, 0.31], [0, 0.31]], 10), d.main, { p: [px + bx, y + by, pz], fx: GLOSS });
+        B.add(cyl(0.03, 0.03, 0.03, 8), P.chrome, { p: [px + bx, y + by + 0.32, pz], fx: GLOSS });
+      };
+      for (const bx of [-0.13, 0, 0.13]) bottle(bx, 0);
+      B.add(box(0.36, 0.02, 0.14), '#ffffff', { p: [px, y + 0.21, pz], fx: PAPER });
+      for (const bx of [-0.065, 0.065]) bottle(bx, 0.22);
       break;
     }
   }

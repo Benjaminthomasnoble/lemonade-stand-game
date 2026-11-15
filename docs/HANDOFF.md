@@ -43,7 +43,7 @@ Each line names the main files (`src/sim/` unless a path says otherwise). Rank g
 
 ## Not built yet (from the spec)
 
-- **The rest of the music (Version 1):** day, night and raid scores, Lottie's Theme gaining a layer at each rank, leitmotifs under raids, at HQs and in exit scenes, the Syndicate medley, and the six mix sliders. See Audio below.
+- **The rest of the music and sound (Version 1):** day, night and raid scores, Lottie's Theme gaining a layer at each rank, leitmotifs under raids, at HQs and in exit scenes, the Syndicate medley, the six mix sliders, and the spec's sound effects beyond the cash-register ding and the ship's horn. See Audio below.
 - **Stretch:** Huge generated maps, more Out-of-Towners in Endless, Challenges, online leaderboards, async "rival empire" multiplayer, bosses as advisors, Franchise prestige, photo mode, mod support.
 
 Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat's +1 for leading, Cutthroat's ×0.9/×1.1 traffic and costs.
@@ -91,6 +91,7 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 
 - The adaptive score: day, night and raid music, Lottie's Theme layers by rank, the Syndicate medley, and leitmotifs under raids, at HQs and in exit scenes (`audioCues` in main.ts cues the built ones).
 - The six mix sliders (Music, Radio, Voice, Effects, Alerts, Ambience) and their ducking; today there's one mute button.
+- The sound effects in design-spec.md's Sound effects table: the business, money, combat, defense, world and paper-prop sounds. Of that palette only the cash-register ding (`audio.ding`) and the ships' F-A-D horn (`audio.horn`) exist.
 
 ### 2. The pacing decision (pending)
 

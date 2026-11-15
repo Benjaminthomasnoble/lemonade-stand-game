@@ -1,7 +1,7 @@
 // Lottie's Tips on screen (spec "Success Score and ranks"): a rank-up's hand of three waits at the top of the left
 // feed, in any phase, until you keep one, and the Rank and Perks menu shows the same hand and every tip you keep.
-// Each tip is one tap (data-action="tip", through the HUD's one listener). Plain clay for now; the UI thread can fan
-// the hand into cards. The sim side is src/sim/perks.ts.
+// Each tip is one tap (data-action="tip", through the HUD's one listener); the hand fans out like play cards
+// (screens.css .cl-tipcard). The sim side is src/sim/perks.ts.
 import { TIPS, type TipId } from '../sim/balance.ts';
 import type { GameState } from '../sim/economy.ts';
 import { tipHand, tipsHeld } from '../sim/perks.ts';

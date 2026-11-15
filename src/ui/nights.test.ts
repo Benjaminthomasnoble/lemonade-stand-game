@@ -41,6 +41,17 @@ function warned(over: Partial<Raid> = {}): { s: GameState; r: Raid } {
 }
 
 describe('the raid warning card', () => {
+  it('stamps a rumored raid and an overdue one, and says why in its tip', () => {
+    let card = alertCards(warned({ rumor: true }).s).find((c) => c.includes('raid-warning'))!;
+    expect(card).toContain('data-testid="raid-rumor"');
+    expect(card).toContain('The rumor was right');
+    card = alertCards(warned({ due: true }).s).find((c) => c.includes('raid-warning'))!;
+    expect(card).toContain('data-testid="raid-due"');
+    expect(card).toContain("They're overdue");
+    card = alertCards(warned().s).find((c) => c.includes('raid-warning'))!;
+    expect(card).not.toContain('cl-stamp');
+  });
+
   it('names the raider, the target and the ETA with a live countdown, red-edged with Go There', () => {
     const { s } = warned();
     const [card] = alertCards(s);

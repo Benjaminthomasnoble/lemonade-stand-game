@@ -1,6 +1,7 @@
 // The random events in the clay HUD's feed (spec: Random events, "each alert card names its counter-play"): a ticket
 // as each one starts, its counter-play under its name, and the buttons that play it: Go there, and the move that answers
-// it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks, Send Sunny). A mid-day
+// it at your stand (Restock now, Buy ice, Fair price, an ad at a stand off the Roadworks, Send Sunny, the Tourist Bus's
+// Pour Strawberry and Price high). A mid-day
 // event's ticket stays for as long as it runs; a dawn event's for its first day (the Bugle keeps count after that).
 // One ticket an event: the Hurricane and the health inspection have their own (src/ui/damage.ts), so none here.
 // Kids' Lemonade Day adds a kid stand's Raid Planner to the plot card, its cost in red first.
@@ -8,6 +9,7 @@ import {
   CAMPAIGNS, canRaidKids, canRunCampaign, eventDef, eventWhere, HURRICANE_ID, ICE_MACHINE_LEVEL, INSPECTION_ID, KIDS_DAY, kidsDay, liveEvents,
   nearbyPlots, peaceful, PLOT_BY_ID, playerStands, PLOTS, priceCeiling, type CampaignId, type GameState, type WorldEvent,
 } from '../sim/economy.ts';
+import { ownsRecipe } from '../sim/recipes.ts';
 import * as A from './clay.ts';
 import { inspectionTicket, stormTicket } from './damage.ts';
 import { btn, esc, locked, once } from './recipes.ts';
@@ -82,13 +84,21 @@ function acts(s: GameState, e: WorldEvent): string {
       const dark = at.filter((id) => s.plots[id].stand!.level >= ICE_MACHINE_LEVEL).slice(0, 2);
       return go + (dark.length ? dark.map((id) => restock(id, dark.length > 1 ? `Ice ${short(id)}` : 'Buy ice')).join('') : fix);
     }
+    case 'touristBus': { // "Pour Strawberry, price high" at your stand in the district, once it's the one selected
+      const p = at.find((id) => id === s.selected);
+      if (!p) return go + fix;
+      const st = s.plots[p].stand!;
+      const pour = ownsRecipe(s, 'strawberry') && st.recipe !== 'strawberry' ? btn('recipe', 'Pour Strawberry', { ok: true }, 'data-id="strawberry" data-testid="bus-strawberry"', 'go') : '';
+      const high = st.price < priceCeiling(s, p) - 1e-9 ? btn('priceCeiling', 'Price high', { ok: true }, 'data-testid="bus-price"', 'go') : '';
+      return go + (pour + high || fix);
+    }
     case 'captainSquawk': return go + (at.length ? restock(at[0]) + btn('forgive', 'Forgive him', { ok: true }, `data-plot="${at[0]}"`) : '');
     case 'kidsDay': { // the kid stand taking your walkers, and your stand next to it
       const k = kidNextToYou(s, e);
       const yours = k ? nearbyPlots(PLOT_BY_ID[k]).find((q) => mine(s, q.id))?.id : undefined;
       return k && yours ? goTo(k) + restock(yours) : go + fix;
     }
-    default: return go + fix; // Heat Wave, Lemon Blight, Sugar Shortage, Viral Video, Tourist Bus
+    default: return go + fix; // Heat Wave, Lemon Blight, Sugar Shortage, Viral Video
   }
 }
 

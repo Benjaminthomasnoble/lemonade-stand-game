@@ -24,12 +24,13 @@
 #ui .coach-skip { padding: 0; border: 0; background: none; font-size: calc(var(--u, 8px) * 1.35); opacity: .65; text-decoration: underline wavy rgba(46, 42, 79, .5); text-underline-offset: 3px; }
 #ui .coach-skip:hover { opacity: 1; }
 
-/* The opening tour: a bigger Lottie in the middle; the morning's HUD steps back until it's over. */
+/* The opening tour: a bigger Lottie in the middle; the morning's HUD steps back until it's over, all but the goal card,
+ * which stays up so the first goal is on screen from the first second (coach.test.ts pins it). */
 #ui .coach.intro { background: radial-gradient(ellipse at 50% 55%, rgba(46, 42, 79, 0) 30%, rgba(46, 42, 79, .35) 100%); }
 #ui .coach.intro .coach-face { width: calc(var(--u, 8px) * 13); height: calc(var(--u, 8px) * 13); }
 #ui .coach.intro .coach-line { font-size: calc(var(--u, 8px) * 3.2); }
 #ui .coach.intro .coach-card { max-width: min(calc(var(--u, 8px) * 60), calc(100vw - 16px)); }
-body.coach-intro #ui .cl-prep, body.coach-intro #ui .cl-feed, body.coach-intro #ui .cl-sticky, body.coach-intro #ui .gullbtn { opacity: 0; pointer-events: none !important; transition: opacity .3s; }
+body.coach-intro #ui .cl-prep, body.coach-intro #ui .cl-feed, body.coach-intro #ui .gullbtn { opacity: 0; pointer-events: none !important; transition: opacity .3s; }
 body.coach-intro #ui .cl-prep *, body.coach-intro #ui .cl-feed * { pointer-events: none !important; }
 
 @keyframes coach-ring { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .75; } }

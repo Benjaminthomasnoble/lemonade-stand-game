@@ -109,3 +109,14 @@ describe("Lottie's tour", () => {
     expect(r).not.toBeNull();
   });
 });
+
+describe("the opening tour's stage", () => {
+  it('keeps the goal card on screen while the morning HUD steps back', async () => {
+    const fs = 'node:fs'; // read as text (vitest stubs a CSS import); a variable spec keeps tsc off Node's types
+    const css: string = (await import(/* @vite-ignore */ fs)).readFileSync(new URL('../coach.css', import.meta.url), 'utf8');
+    const hidden = css.split('\n').filter((l: string) => l.startsWith('body.coach-intro') && /opacity:\s*0/.test(l)).join(' ');
+    expect(hidden).toContain('.cl-feed'); // the feed and the Prep dock wait
+    expect(hidden).not.toContain('.cl-sticky'); // the goal card stays, phones too (no media rule hides it)
+    expect(css).not.toMatch(/coach-intro[^{]*\.cl-sticky/);
+  });
+});

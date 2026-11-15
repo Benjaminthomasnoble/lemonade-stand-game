@@ -572,3 +572,10 @@ body.bay-view .clay .cl-feed > .cl-ticket:not([data-testid="raid-warning"], [dat
   transform: scaleY(calc(.55 + var(--k) * .12)); opacity: calc(.55 + var(--k) * .09); }
 #ui.clay .cl-face-img.cl-yarn-face { display: inline-block; width: calc(var(--u) * 1.9); height: calc(var(--u) * 1.9); border-radius: 50%; object-fit: cover; object-position: 50% 20%; background: #FFF1D6; border: calc(var(--u) * .14) solid #2E2A4F; vertical-align: middle; }
 .clay [data-testid="cork-strings"] .cl-pips i.on { background: #c8325a; }
+/* A raid warning's stamp: the rumored raid the call warned of, or a quiet run's overdue one. */
+.clay .cl-stamp { display: inline-block; margin-left: calc(var(--u) * .5); padding: 0 calc(var(--u) * .45); font-style: normal; font-size: .72em; letter-spacing: .04em; text-transform: uppercase;
+  color: #c8325a; border: calc(var(--u) * .16) solid #c8325a; border-radius: calc(var(--u) * .4); transform: rotate(-6deg); vertical-align: middle; opacity: .9; }
+/* A guard held by the live fight (title "... In the fight"): his button stays, greyed, with a little clash badge. */
+.clay :is(.cl-pick, .cl-b)[disabled][title*="In the fight"] { position: relative; cursor: not-allowed; }
+.clay :is(.cl-pick, .cl-b)[disabled][title*="In the fight"]::after { content: ''; position: absolute; right: calc(var(--u) * -.5); top: calc(var(--u) * -.5); width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); filter: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1l3 6 7-2-4 6 5 4-7 1 1 7-5-4-5 4 1-7-7-1 5-4-4-6 7 2z' fill='%23E8704F' stroke='%232E2A4F' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M8 8l8 8M16 8l-8 8' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }

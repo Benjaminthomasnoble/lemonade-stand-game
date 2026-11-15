@@ -56,11 +56,8 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 
 - Snootwater Springs' stand has no topper or family props: `topper` and `familyProps` in clay/rivalStands.ts have no `snootwater` case, so it shows only its "bubbles" dress (clay/standKit.ts `DRESS`). Its crew look, Sterling's figure and his portrait are done.
 
-**HUD restyle** (`src/ui/` and `src/screens.css`, the clay UI thread), still open:
+**HUD restyle** (`src/ui/` and `src/screens.css`, the clay UI thread), still open (the goal card through the tour, the Tourist Bus plays and the rumored and overdue raid stamps landed in 9afb5ba):
 
-- The coach's Day 1 intro hides the goal card (`body.coach-intro #ui .cl-sticky` in coach.css); keep the card on screen, phones too, with a test.
-- The Tourist Bus card offers Go there and Restock, not "Pour Strawberry, price high" (events.ts `acts`; events.test.ts pins it).
-- The raid warning card could mark a rumored raid: `Raid.rumor` and `Raid.due` (the quiet-night cap's raid) aren't read yet.
 - Borrowing: the spec says "a Borrow button appears where you're short" (design-spec.md, Tabs), but the HUD offers Borrow only at $60 or less (`SHORT_CASH` in src/ui/bank.ts, and the Grow sheet card in hud.ts) or for In the Red's exact shortfall (hud.ts), so a player can't borrow toward a buy the way the pacing bot does. UI thread, or Ben's call.
 
 **HUD restyle, keep through the restyle** (added by the fix waves; keep their test ids):

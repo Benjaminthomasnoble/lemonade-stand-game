@@ -12,7 +12,7 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 | L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 750 | 15 | 300 | 2 | 2–4 |
 | L3 | The Kiosk | 3 | 5,500 | 2.3 | 120 | 3.00 | 1,800 | 150 | 800 | 3 | 4–7 |
 | L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 1,200 | 2,000 | 4 | 4–11 |
-| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 8,000 | 5,000 | 6 | 11–15 |
+| L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 6,000 | 5,000 | 6 | 11–15 |
 
 Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take about 11 days (10–12 on maps 42–44).
 

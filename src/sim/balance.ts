@@ -170,7 +170,7 @@ export const PERKS = {
  * Kiosk and $60, $300 and $1,500 a day, the reference map took 1.7-9x the spec's takings from Day 9 to Day 103 and
  * reached Ranks 4-8 5-21 days early: the Kiosk's price slows the climb to it, and the Palace's upkeep the late game
  * (2026-11-14). The Shack's upkeep answers to its payback (spec: 4-11 days): at $2,500 none of ten maps' median
- * paybacks came inside it (their median 13.4 days) and at $1,200 five do, so the middle game's slowdown now comes from
+ * paybacks came inside it (they ran 11.1-23.1 days) and at $1,200 five do, so the middle game's slowdown now comes from
  * Lottie's Goals (GOAL_REWARD; 2026-11-15). At $6,000 the Palace brings Rank 9 and Domination inside their ten-map
  * ranges on 7 maps, against 5 at $8,000. Rivals pay the same upkeep.
  */

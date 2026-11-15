@@ -2786,7 +2786,7 @@ These design calls were settled with the auditors' recommended defaults while Be
 - **The Day's end raiders line.** "Raiders on the way tonight" names no gang, makeup or time, and carries one fix at the plot of the first raid to set out: post a ready reserve guard there, or buy its next fence. Before: each raid's fighters against your guards and fence, as icons, with one fix button.
 - **Your own raids' speed.** Your raid's trip, fight and walk home play at the speed you chose, not at a raid night's 12×. Before: the docs were silent.
 - **The Day's end card waits.** Morning Prep and the Day's end card both wait for you, and auto-continue moves both on. Before: "only Morning Prep waits for you".
-- **Raid rates.** The Threat table gives the base raids a week (1, 2, 3, 4 and 6) beside the nights a week that bring a raid, as measured with the quiet-night cap: about 5, 4, 4–5 and 2.5–5, and about 2.5–7.5 Syndicate strikes. Before: 1, 2, 3, 4 and 6 raids a week.
+- **Raid rates.** The Threat table gives the base raids a week (1, 2, 3, 4 and 6) beside the nights a week that bring a raid, as measured with the quiet-night cap and every rumor answered: about 5, 4, 4–5 and 2.5–5, and about 2.5–7.5 Syndicate strikes (with every rumor left to lapse, Threats 1–3 see about 3). Before: 1, 2, 3, 4 and 6 raids a week.
 
 ### Rivals calls
 

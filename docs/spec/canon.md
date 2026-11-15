@@ -333,7 +333,7 @@ Threat (1–5): Ranks 1–2 → 1, Ranks 3–4 → 2, Ranks 5–6 → 3, Ranks 7
 | 4 | about 2.5–5 | 8–12 in Pro Gear, most with hatchets, sometimes on two plots at once |
 | 5 | about 2.5–7.5 strikes | The Syndicate: 12–20 in the same kit across 2–3 targets, boss-led |
 
-Each night's raids are drawn from a base of 1, 2, 3, 4 and 6 a week by Threat (Laid Back ×0.5, Cutthroat ×1.5). After the first raid on Night 3, no more than 2 nights in a row pass without one (4 on Laid Back, 1 on Cutthroat), and a rumor you answer brings its gang on a night the draw gave none. A rival whose raid you beat sits out its Respect cooldown, so the low end of each range is every raid beaten and the high end none. Rivals also run non-raid schemes (price wars, auction snipes, smear posters) more often as Threat rises.
+Each night's raids are drawn from a base of 1, 2, 3, 4 and 6 a week by Threat (Laid Back ×0.5, Cutthroat ×1.5). After the first raid on Night 3, no more than 2 nights in a row pass without one (4 on Laid Back, 1 on Cutthroat), and a rumor you answer brings its gang on a night the draw gave none. The measured nights count every rumor answered; with every rumor left to lapse (a lapsed rumor brings no raid), Threats 1–3 see about 3 raid nights a week. A rival whose raid you beat sits out its Respect cooldown, so the low end of each range is every raid beaten and the high end none. Rivals also run non-raid schemes (price wars, auction snipes, smear posters) more often as Threat rises.
 
 ## 15. VIP clients and big orders
 

@@ -370,7 +370,7 @@ function unbookedLoss(ps: PlotState): number {
 }
 
 /**
- * What a Damaged building costs to repair: 15% of what went into it × the share of HP lost (a Kiosk at half HP: $304),
+ * What a Damaged building costs to repair: 15% of what went into it × the share of HP lost (a Kiosk at half HP: $454),
  * in whole dollars, and never more than putting it back up after a fall would cost (a rebuild, or on Laid Back your
  * Busted fix). Once a repair is booked, the price of topping it up for the HP lost since. 0 when there's nothing to repair.
  */

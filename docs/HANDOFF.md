@@ -87,7 +87,7 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 - The rumor call card names only a gang that may come, and that gang comes to that plot. Its "Post a guard" shows only when it would post someone (crew.ts `callCrew`); a pick that posts nobody leaves the call waiting.
 - hud.ts exports `ownStandActions` (the plot card's actions on your own stand) and `callPicks` (a day call's buttons, drawn with the crew main.ts answers with).
 
-**Audio** (`src/audio.ts`, the music thread):
+**Audio** (`src/audio.ts`; no thread has taken it yet):
 
 - The adaptive score: day, night and raid music, Lottie's Theme layers by rank, the Syndicate medley, and leitmotifs under raids, at HQs and in exit scenes (`audioCues` in main.ts cues the built ones).
 - The six mix sliders (Music, Radio, Voice, Effects, Alerts, Ambience) and their ducking; today there's one mute button.

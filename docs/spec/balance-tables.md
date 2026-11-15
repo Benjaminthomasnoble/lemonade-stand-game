@@ -11,10 +11,10 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 | L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 300 | 5 | 100 | 1 | — |
 | L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 750 | 15 | 300 | 2 | 2–4 |
 | L3 | The Kiosk | 3 | 5,500 | 2.3 | 120 | 3.00 | 1,800 | 150 | 800 | 3 | 4–7 |
-| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 2,500 | 2,000 | 4 | 4–11 |
+| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 4,500 | 1,200 | 2,000 | 4 | 4–11 |
 | L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 10,500 | 8,000 | 5,000 | 6 | 11–15 |
 
-Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
+Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take about 11 days (10–12 on maps 42–44).
 
 Stock is the cups of lemons, sugar and ice a stand holds: a day and a half at full pour (10 selling hours). A restock never fills it past that. From L3 your stands' radios play 101.5 The Squeeze through business hours. From L4 your stands have an ice machine: it makes their ice as they pour, at the Market price, so none melts overnight and Auto-Restock buys none (a Power Outage stops it for the day).
 
@@ -919,7 +919,7 @@ One system a day. Each lesson's buttons appear on its day; with lessons switched
 | Rule | Value |
 |---|---|
 | Goals | Three at a time: a short one, a medium one and a long one |
-| Reward | A share of the last 3 days' average sales, rounded: short 2% (at least $20), medium 5% (at least $100), long 8% (at least $150), tuned with the pacing bot (at 10%, 25% and 50% the daily sales goal alone paid out 7–28% of takings). Lottie's Gold Stars tip adds 50% |
+| Reward | A share of the last 3 days' average sales, rounded: short 1% (at least $20), medium 2.5% (at least $100), long 4% (at least $150), tuned with the pacing bot (at 10%, 25% and 50% the daily sales goal alone paid out 7–28% of takings, and halving 2%, 5% and 8% took about a quarter off ten maps' median takings on Days 41–103). Lottie's Gold Stars tip adds 50% |
 | Today's sales goal | 90% of the cups every stand should sell on the forecast, set at dawn, and never under a pitcher's 10 (the 90% is a placeholder) |
 | Grow Net Worth | 1.25× today's Success Score (placeholder) |
 | Top your best | 1.1× your best Success Score (placeholder) |

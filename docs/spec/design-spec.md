@@ -436,14 +436,14 @@ Every stand climbs 5 levels; each upgrade buys more passersby, a faster pour and
 | L1 The Folding Table | 1 | $150 to build new | ×1.0 | 20 | $1.50 | 300 | 100 | 5 | 1 | — |
 | L2 The Wooden Stand | 1 | $400 | ×1.5 | 50 | $2.00 | 750 | 300 | 15 | 2 | 2–4 |
 | L3 The Kiosk | 3 | $5,500 | ×2.3 | 120 | $3.00 | 1,800 | 800 | 150 | 3 | 4–7 |
-| L4 The Lemon Shack | 5 | $60,000 | ×3.5 | 300 | $4.50 | 4,500 | 2,000 | 2,500 | 4 | 4–11 |
+| L4 The Lemon Shack | 5 | $60,000 | ×3.5 | 300 | $4.50 | 4,500 | 2,000 | 1,200 | 4 | 4–11 |
 | L5 The Citrus Palace | 7 | $650,000 | ×5.0 | 700 | $7.00 | 10,500 | 5,000 | 8,000 | 6 | 11–15 |
 
 Costs are per step, so a Kiosk built on an empty plot costs $150 + $400 + $5,500 = $6,050, paid at once. Upgrades are instant: a crate drops, its slats fall open, and the new level starts selling (see Visual style and art direction).
 
 Stock is the cups of lemons, sugar and ice a stand can hold: one and a half days of selling at full speed. Upkeep is charged at closing every day (see Economy and balance).
 
-Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passersby a day for L4 and 4,000 for L5. Quieter plots stretch them: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
+Paybacks assume a fitting plot: any Street plot for L2–L3, about 1,800 passersby a day for L4 and 4,000 for L5. Quieter plots stretch them: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take about 11 days (10–12 on maps 42–44).
 
 ### What each upgrade feels like
 
@@ -1142,7 +1142,7 @@ Defense costs scale with what you protect. A Picket Fence costs $150 and a Citru
 
 ### Upkeep, wages and loans
 
-- **Upkeep** runs from $5 a day for a Folding Table to $8,000 for a Citrus Palace ($150 for a Kiosk, $2,500 for a Lemon Shack), so a big stand has to earn its keep on a rainy day too.
+- **Upkeep** runs from $5 a day for a Folding Table to $8,000 for a Citrus Palace ($150 for a Kiosk, $1,200 for a Lemon Shack), so a big stand has to earn its keep on a rainy day too.
 - **Wages** run $15 a day for a Rookie up to $90 for a Legend. Guards level up about once every 35 days of duty.
 - **Loans** from Marisol cover up to 50% of non-cash Net Worth at 3% interest per week over 4 weeks. Two missed payments let the bank repossess your lowest-value plot, valued as Net Worth counts it (land, 75% of the buildings and the stock on hand at cost). It never takes a Trophy, and it takes Lottie's Corner only when no other plot is left. The plot's value pays down the loan, and anything over what you owe comes back to you.
 
@@ -2209,10 +2209,10 @@ Dollars are game dollars, days are game days, and "×" multiplies a base value.
 | L1 | The Folding Table | 1 | 150 to build new | 1.0 | 20 | 1.50 | 5 | 100 | 1 | — |
 | L2 | The Wooden Stand | 1 | 400 | 1.5 | 50 | 2.00 | 15 | 300 | 2 | 2–4 |
 | L3 | The Kiosk | 3 | 5,500 | 2.3 | 120 | 3.00 | 150 | 800 | 3 | 4–7 |
-| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 2,500 | 2,000 | 4 | 4–11 |
+| L4 | The Lemon Shack | 5 | 60,000 | 3.5 | 300 | 4.50 | 1,200 | 2,000 | 4 | 4–11 |
 | L5 | The Citrus Palace | 7 | 650,000 | 5.0 | 700 | 7.00 | 8,000 | 5,000 | 6 | 11–15 |
 
-Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take 12–14 days.
+Costs are per upgrade step. Paybacks assume a suitable plot: any Street plot for L2–L3, a Prime or Landmark with about 1,800+ passersby a day for L4, and about 4,000+ for L5. Quiet plots pay back slower: on the reference map the pacing bot expects an L4 on the Maple Row Landmark (Maple Park) to take about 11 days (10–12 on maps 42–44).
 
 ### Stand specializations
 

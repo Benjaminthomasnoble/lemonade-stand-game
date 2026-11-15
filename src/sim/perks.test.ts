@@ -236,9 +236,9 @@ describe("Lottie's Tips: what each one does", () => {
   it("Gold Stars: Lottie's goals pay 50% more", () => {
     const s = game(14);
     s.history = [{ ...s.today, day: 1, revenue: 5000 }] as GameState['history'];
-    expect(goalReward(s, 'long')).toBe(400);
+    expect(goalReward(s, 'long')).toBe(200);
     hold(s, 'goldStars');
-    expect(goalReward(s, 'long')).toBe(600);
+    expect(goalReward(s, 'long')).toBe(300);
   });
 
   it('Good Dirt, Firm Handshake and Sharp Pencil: land, buyouts and auction wins cost less', () => {

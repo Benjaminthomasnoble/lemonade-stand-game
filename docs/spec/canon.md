@@ -153,7 +153,7 @@ Season demand (tuned): Summer ×1.2, Fall ×0.9, Winter ×0.6 (Honey-Ginger Hot 
 | L1 | The Folding Table | Start / $150 to build new | 1.0 | 20 | $1.50 | $5 | 100 | 1 |
 | L2 | The Wooden Stand | $400 | 1.5 | 50 | $2.00 | $15 | 300 | 2 |
 | L3 | The Kiosk | $5,500 | 2.3 | 120 | $3.00 | $150 | 800 | 3 |
-| L4 | The Lemon Shack | $60,000 | 3.5 | 300 | $4.50 | $2,500 | 2,000 | 4 |
+| L4 | The Lemon Shack | $60,000 | 3.5 | 300 | $4.50 | $1,200 | 2,000 | 4 |
 | L5 | The Citrus Palace | $650,000 | 5.0 | 700 | $7.00 | $8,000 | 5,000 | 6 |
 
 Rank gates: L2 at Rank 1, L3 at Rank 3, L4 at Rank 5, L5 at Rank 7. Payback targets the modeler should hit (on a plot with traffic that suits the level: L4–L5 belong on Prime or Landmark plots): L2 ≤ 3 days, L3 ≤ 6, L4 ≤ 10, L5 ≤ 15.

@@ -52,9 +52,7 @@ Cut by the spec (don't build): property tax, insurance, Depot, Ice House, Threat
 
 ### 1. Art and UI
 
-**3D world** (`src/world/`, the art threads):
-
-- Snootwater Springs' stand has no topper or family props: `topper` and `familyProps` in clay/rivalStands.ts have no `snootwater` case, so it shows only its "bubbles" dress (clay/standKit.ts `DRESS`). Its crew look, Sterling's figure and his portrait are done.
+**3D world** (`src/world/`, the art threads): nothing open. Snootwater Springs' stand got its topper and family props in c84bebe (Sterling's bottle, the ice bucket and the bottle pyramid).
 
 **HUD restyle** (`src/ui/` and `src/screens.css`, the clay UI thread), still open (the goal card through the tour, the Tourist Bus plays and the rumored and overdue raid stamps landed in 9afb5ba):
 

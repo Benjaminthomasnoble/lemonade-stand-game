@@ -119,7 +119,7 @@ Training Yard (L2 and L3): each dawn, a guard who waited at the Clubhouse all da
 | 5 | 8 |
 | 7 | 12 |
 
-A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep after the 2026-11-14 retune the bot built its first on Days 14–28 on Classic, on Days 14–16 on seven of the ten maps (Days 12–20 before the retune, mostly before Dex's push). Whether to retune Act 2's cash or move the window is an open call for Ben.
+A Clubhouse uses one Street plot. You may own several. Early in Act 2 (from Day 15) Dex pushes for a first Clubhouse and a squad to fill it; the simulated player builds it on Days 15–19 (the target). Today's sim misses it: `npm run sim -- 20` has $1,902–$2,036 at those dawns against the $2,306 for a Street plot and the Clubhouse, while in the pacing sweep after the 2026-11-15 retune the bot built its first on Days 12–25 on Classic, on Days 12–15 on seven of the ten maps (Days 12–20 before the 2026-11-14 retune, mostly before Dex's push). Whether to retune Act 2's cash or move the window is an open call for Ben.
 
 ### Crew
 
@@ -576,7 +576,7 @@ Each fair ends in a Taste-Off on its last day. Three judges post their hints at 
 
 The first L2 upgrade's target is Day 5, its lesson (Days 5–6 across maps); the pacing report shows it without judging it, since a curious player can upgrade with a tap from Day 1 (Onboarding: the first 30 minutes). Domination lands on Day 143 on the reference map and on Days 131–146 across ten maps, median 138 (target about 140–150, and not before Day 136): the simulated player calls the Big Squeeze the day after reaching Rank 9, and the 7-day siege follows. Rank 10 stays a goal for after victory. Each rival's HQ falls soon after its assault rank, so the acts follow the ranks: on the reference map the Blend Shack falls on Day 42 (end of Act 2), the Grindhouse on Day 61 (end of Act 3), Hollis Homestead on Day 79 and FizzCo Tower on Day 105 (end of Act 4).
 
-These targets are under review, an open call for Ben, and the simulated days above (the economy model's) predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing bot's sweep after the 2026-11-14 retune is /mnt/project-files/gameplay-build/integration/pacing-sweep-retune.txt (the one before it, on main 9e57e5e, is pacing-sweep.txt beside it). Across its ten Classic maps the medians of Ranks 2–6 and Rank 9 land on target (Rank 9 on Day 128); Ranks 7 and 8 come 1–4 days early, Domination four days early (Day 136, the earliest its target allows) and Rank 10 ten days early; the reference map reaches Rank 9 on Day 119 and Domination on Day 127. The spec's Pacing targets vs the simulation lists its days and what else misses.
+These targets are under review, an open call for Ben, and the simulated days above (the economy model's) predate the first L2 and Rank 2 moving to their Day 5 lessons. The pacing bot's sweep after the 2026-11-15 retune is /mnt/project-files/gameplay-build/integration/pacing-sweep-retune-2.txt (beside it, pacing-sweep-retune.txt holds the one after the 2026-11-14 retune, and pacing-sweep.txt the one before both, on main 9e57e5e). Across its ten Classic maps the medians of Ranks 2–4, 6 and 8–10 and Domination land on target (Rank 9 on Day 135, Domination on Day 143); Rank 7 comes three days early and Rank 5 six days late; the reference map reaches Rank 9 on Day 123 and Domination on Day 131. The spec's Pacing targets vs the simulation lists its days and what else misses.
 
 ### Lottie's Tips
 
@@ -689,8 +689,8 @@ How the raids on you are planned and sent, night by night. Values marked (placeh
 | Build, land and gear costs | ×1.0 | ×1.0 | ×1.0 | ×1.0 |
 | Simulated pace (economy model: days to Ranks 5–9, median of ten maps) | ×0.86 | ×1.00 | ×1.01 | — |
 | Simulated Domination day (economy model: reference map; ten maps) | 126 (120–136) | 143 (131–146) | 151 (134–163) | — |
-| Pacing bot's pace after the 2026-11-14 retune (days to Ranks 5–9, median of ten maps) | ×1.00 | ×1.00 | ×1.03 | — |
-| Pacing bot's Domination day (reference map; ten maps, median) | 128 (124–149, 136) | 127 (124–166, 136) | 137 (131–147 on 8 of 10 maps, 137) | — |
+| Pacing bot's pace after the 2026-11-15 retune (days to Ranks 5–9, median of ten maps) | ×0.93 | ×1.00 | ×0.99 | — |
+| Pacing bot's Domination day (reference map; ten maps, median) | 134 (125–157, 134) | 131 (122–161, 143) | 142 (135–154, 143) | — |
 | Simulated raids on you in a campaign (twelve runs, every rumor answered) | 46–79 | 76–119 | 115–166 | — |
 
 Fights run in every mode at 1 game minute per real second. In the campaign, the Syndicate forms 14 days into Act 5 on every difficulty. The Threat triggers above apply in Sandbox and Endless, where Classic's Cookie Jar refills once per season instead of once per act. Laid Back's Threat stops at 4, so its Syndicate forms at Rank 9, where Classic reaches Threat 5. Delivery Raids need Threat 3, which Laid Back reaches only at Rank 7: before then, the movie star's first chopper draws no FizzCo raid and no tip from Juni. Custom starts from Classic's numbers. The raid counts are from twelve simulated campaigns with business days skipped, from all your defenses holding to none holding; with every rumor left to lapse they were 32–48, 62–96 and 101–137. Every run's first raid came on Night 3.
@@ -787,7 +787,7 @@ Each rival splits its money three ways, by its Grow / Guard / Strike shares: Gro
 | Marketing | Its next marketing tier at your price, once your Rank opens it, up to its brand cap, and only while Grow holds twice the price (FizzCo: once) |
 | A raid's cost | 1 night of wages for each henchman sent, at the raid's level, out of Strike; a Blender Rush costs half |
 
-Rivals pay your prices and upkeep, so the small gangs climb slowly: an L3 costs $5,500 and an L4 $60,000, six times the Blenders' starting cash. In three simulated campaigns played before the 2026-11-14 retune (when an L3 cost $3,500 and upkeep was lower), the Blenders, Cold Brew and Hollis never reached L4 before they fell, FizzCo kept the L4s it starts with, and the Sourwoods built an L5 in one of them, after Day 120.
+Rivals pay your prices and upkeep, so the small gangs climb slowly: an L3 costs $5,500 and an L4 $60,000, six times the Blenders' starting cash. In three simulated campaigns played before the 2026-11-14 retune (when an L3 cost $3,500 and upkeep was lower), the Blenders, Cold Brew and Hollis never reached L4 before they fell, FizzCo kept the L4s it starts with, and the Sourwoods built an L5 in one of them, after Day 120. With the pacing bot playing the reference map after the 2026-11-15 retune, no rival ran short of cash while in play, though FizzCo ran eight Lemon Shacks on Day 60 and the Sourwoods four from Day 40 to Day 100: the lowest each fell to was $19,000 for the Blenders and Cold Brew, $33,000 for Hollis, $750,000 for FizzCo and $2.8 million for the Sourwoods.
 
 #### Attention and Grudge
 
